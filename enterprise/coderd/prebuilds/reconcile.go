@@ -12,7 +12,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -40,15 +39,16 @@ import (
 )
 
 type StoreReconciler struct {
-	store      database.Store
-	cfg        codersdk.PrebuildsConfig
-	pubsub     pubsub.Pubsub
-	fileCache  *files.Cache
-	logger     slog.Logger
-	clock      quartz.Clock
-	registerer prometheus.Registerer
-	metrics    *MetricsCollector
-	notifEnq   notifications.Enqueuer
+	store             database.Store
+	cfg               codersdk.PrebuildsConfig
+	pubsub            pubsub.Pubsub
+	fileCache         *files.Cache
+	logger            slog.Logger
+	clock             quartz.Clock
+	registerer        prometheus.Registerer
+	metrics           *MetricsCollector
+	notifEnq          notifications.Enqueuer
+	buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker]
 
 	cancelFn          context.CancelCauseFunc
 	running           atomic.Bool
@@ -67,6 +67,7 @@ func NewStoreReconciler(store database.Store,
 	clock quartz.Clock,
 	registerer prometheus.Registerer,
 	notifEnq notifications.Enqueuer,
+	buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker],
 ) *StoreReconciler {
 	reconciler := &StoreReconciler{
 		store:             store,
@@ -77,6 +78,7 @@ func NewStoreReconciler(store database.Store,
 		clock:             clock,
 		registerer:        registerer,
 		notifEnq:          notifEnq,
+		buildUsageChecker: buildUsageChecker,
 		done:              make(chan struct{}, 1),
 		provisionNotifyCh: make(chan database.ProvisionerJob, 10),
 	}
@@ -403,15 +405,6 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 		allRunningPrebuilds, err := db.GetRunningPrebuiltWorkspaces(ctx)
 		if err != nil {
 			return xerrors.Errorf("failed to get running prebuilds: %w", err)
-		}
-
-		// Compare with optimized query to ensure behavioral correctness
-		optimized, err := db.GetRunningPrebuiltWorkspacesOptimized(ctx)
-		if err != nil {
-			// Log the error but continue with original results
-			c.logger.Error(ctx, "optimized GetRunningPrebuiltWorkspacesOptimized failed", slog.Error(err))
-		} else {
-			CompareGetRunningPrebuiltWorkspacesResults(ctx, c.logger, allRunningPrebuilds, optimized)
 		}
 
 		allPrebuildsInProgress, err := db.CountInProgressPrebuilds(ctx)
@@ -748,7 +741,7 @@ func (c *StoreReconciler) provision(
 		})
 	}
 
-	builder := wsbuilder.New(workspace, transition).
+	builder := wsbuilder.New(workspace, transition, *c.buildUsageChecker.Load()).
 		Reason(database.BuildReasonInitiator).
 		Initiator(database.PrebuildsSystemUserID).
 		MarkPrebuild()
@@ -932,31 +925,4 @@ func SetPrebuildsReconciliationPaused(ctx context.Context, db database.Store, pa
 		return xerrors.Errorf("marshal settings: %w", err)
 	}
 	return db.UpsertPrebuildsSettings(ctx, string(settingsJSON))
-}
-
-// CompareGetRunningPrebuiltWorkspacesResults compares the original and optimized
-// query results and logs any differences found. This function can be easily
-// removed once we're confident the optimized query works correctly.
-// TODO(Cian): Remove this function once the optimized query is stable and correct.
-func CompareGetRunningPrebuiltWorkspacesResults(
-	ctx context.Context,
-	logger slog.Logger,
-	original []database.GetRunningPrebuiltWorkspacesRow,
-	optimized []database.GetRunningPrebuiltWorkspacesOptimizedRow,
-) {
-	if len(original) == 0 && len(optimized) == 0 {
-		return
-	}
-	// Convert optimized results to the same type as original for comparison
-	optimizedConverted := make([]database.GetRunningPrebuiltWorkspacesRow, len(optimized))
-	for i, row := range optimized {
-		optimizedConverted[i] = database.GetRunningPrebuiltWorkspacesRow(row)
-	}
-
-	// Compare the results and log an error if they differ.
-	// NOTE: explicitly not sorting here as both query results are ordered by ID.
-	if diff := cmp.Diff(original, optimizedConverted); diff != "" {
-		logger.Error(ctx, "results differ for GetRunningPrebuiltWorkspacesOptimized",
-			slog.F("diff", diff))
-	}
 }

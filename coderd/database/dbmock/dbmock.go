@@ -278,6 +278,36 @@ func (mr *MockStoreMockRecorder) CountAuthorizedAuditLogs(ctx, arg, prepared any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountAuthorizedAuditLogs", reflect.TypeOf((*MockStore)(nil).CountAuthorizedAuditLogs), ctx, arg, prepared)
 }
 
+// CountAuthorizedConnectionLogs mocks base method.
+func (m *MockStore) CountAuthorizedConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams, prepared rbac.PreparedAuthorized) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountAuthorizedConnectionLogs", ctx, arg, prepared)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountAuthorizedConnectionLogs indicates an expected call of CountAuthorizedConnectionLogs.
+func (mr *MockStoreMockRecorder) CountAuthorizedConnectionLogs(ctx, arg, prepared any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountAuthorizedConnectionLogs", reflect.TypeOf((*MockStore)(nil).CountAuthorizedConnectionLogs), ctx, arg, prepared)
+}
+
+// CountConnectionLogs mocks base method.
+func (m *MockStore) CountConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountConnectionLogs", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountConnectionLogs indicates an expected call of CountConnectionLogs.
+func (mr *MockStoreMockRecorder) CountConnectionLogs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountConnectionLogs", reflect.TypeOf((*MockStore)(nil).CountConnectionLogs), ctx, arg)
+}
+
 // CountInProgressPrebuilds mocks base method.
 func (m *MockStore) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
 	m.ctrl.T.Helper()
@@ -603,6 +633,20 @@ func (m *MockStore) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Cont
 func (mr *MockStoreMockRecorder) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOAuth2ProviderAppTokensByAppAndUserID", reflect.TypeOf((*MockStore)(nil).DeleteOAuth2ProviderAppTokensByAppAndUserID), ctx, arg)
+}
+
+// DeleteOldAuditLogConnectionEvents mocks base method.
+func (m *MockStore) DeleteOldAuditLogConnectionEvents(ctx context.Context, arg database.DeleteOldAuditLogConnectionEventsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldAuditLogConnectionEvents", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteOldAuditLogConnectionEvents indicates an expected call of DeleteOldAuditLogConnectionEvents.
+func (mr *MockStoreMockRecorder) DeleteOldAuditLogConnectionEvents(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldAuditLogConnectionEvents", reflect.TypeOf((*MockStore)(nil).DeleteOldAuditLogConnectionEvents), ctx, arg)
 }
 
 // DeleteOldNotificationMessages mocks base method.
@@ -1248,6 +1292,21 @@ func (mr *MockStoreMockRecorder) GetAuthorizedAuditLogsOffset(ctx, arg, prepared
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedAuditLogsOffset", reflect.TypeOf((*MockStore)(nil).GetAuthorizedAuditLogsOffset), ctx, arg, prepared)
 }
 
+// GetAuthorizedConnectionLogsOffset mocks base method.
+func (m *MockStore) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams, prepared rbac.PreparedAuthorized) ([]database.GetConnectionLogsOffsetRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAuthorizedConnectionLogsOffset", ctx, arg, prepared)
+	ret0, _ := ret[0].([]database.GetConnectionLogsOffsetRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAuthorizedConnectionLogsOffset indicates an expected call of GetAuthorizedConnectionLogsOffset.
+func (mr *MockStoreMockRecorder) GetAuthorizedConnectionLogsOffset(ctx, arg, prepared any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedConnectionLogsOffset", reflect.TypeOf((*MockStore)(nil).GetAuthorizedConnectionLogsOffset), ctx, arg, prepared)
+}
+
 // GetAuthorizedTemplates mocks base method.
 func (m *MockStore) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
 	m.ctrl.T.Helper()
@@ -1321,6 +1380,21 @@ func (m *MockStore) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Contex
 func (mr *MockStoreMockRecorder) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, prepared any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedWorkspacesAndAgentsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetAuthorizedWorkspacesAndAgentsByOwnerID), ctx, ownerID, prepared)
+}
+
+// GetConnectionLogsOffset mocks base method.
+func (m *MockStore) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetConnectionLogsOffset", ctx, arg)
+	ret0, _ := ret[0].([]database.GetConnectionLogsOffsetRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetConnectionLogsOffset indicates an expected call of GetConnectionLogsOffset.
+func (mr *MockStoreMockRecorder) GetConnectionLogsOffset(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConnectionLogsOffset", reflect.TypeOf((*MockStore)(nil).GetConnectionLogsOffset), ctx, arg)
 }
 
 // GetCoordinatorResumeTokenSigningKey mocks base method.
@@ -1936,6 +2010,21 @@ func (m *MockStore) GetLogoURL(ctx context.Context) (string, error) {
 func (mr *MockStoreMockRecorder) GetLogoURL(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogoURL", reflect.TypeOf((*MockStore)(nil).GetLogoURL), ctx)
+}
+
+// GetManagedAgentCount mocks base method.
+func (m *MockStore) GetManagedAgentCount(ctx context.Context, arg database.GetManagedAgentCountParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetManagedAgentCount", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetManagedAgentCount indicates an expected call of GetManagedAgentCount.
+func (mr *MockStoreMockRecorder) GetManagedAgentCount(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetManagedAgentCount", reflect.TypeOf((*MockStore)(nil).GetManagedAgentCount), ctx, arg)
 }
 
 // GetNotificationMessagesByStatus mocks base method.
@@ -2776,21 +2865,6 @@ func (m *MockStore) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]databas
 func (mr *MockStoreMockRecorder) GetRunningPrebuiltWorkspaces(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRunningPrebuiltWorkspaces", reflect.TypeOf((*MockStore)(nil).GetRunningPrebuiltWorkspaces), ctx)
-}
-
-// GetRunningPrebuiltWorkspacesOptimized mocks base method.
-func (m *MockStore) GetRunningPrebuiltWorkspacesOptimized(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesOptimizedRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRunningPrebuiltWorkspacesOptimized", ctx)
-	ret0, _ := ret[0].([]database.GetRunningPrebuiltWorkspacesOptimizedRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetRunningPrebuiltWorkspacesOptimized indicates an expected call of GetRunningPrebuiltWorkspacesOptimized.
-func (mr *MockStoreMockRecorder) GetRunningPrebuiltWorkspacesOptimized(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRunningPrebuiltWorkspacesOptimized", reflect.TypeOf((*MockStore)(nil).GetRunningPrebuiltWorkspacesOptimized), ctx)
 }
 
 // GetRuntimeConfig mocks base method.
@@ -6696,6 +6770,21 @@ func (m *MockStore) UpsertApplicationName(ctx context.Context, value string) err
 func (mr *MockStoreMockRecorder) UpsertApplicationName(ctx, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertApplicationName", reflect.TypeOf((*MockStore)(nil).UpsertApplicationName), ctx, value)
+}
+
+// UpsertConnectionLog mocks base method.
+func (m *MockStore) UpsertConnectionLog(ctx context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertConnectionLog", ctx, arg)
+	ret0, _ := ret[0].(database.ConnectionLog)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertConnectionLog indicates an expected call of UpsertConnectionLog.
+func (mr *MockStoreMockRecorder) UpsertConnectionLog(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertConnectionLog", reflect.TypeOf((*MockStore)(nil).UpsertConnectionLog), ctx, arg)
 }
 
 // UpsertCoordinatorResumeTokenSigningKey mocks base method.

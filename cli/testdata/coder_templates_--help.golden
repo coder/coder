@@ -23,6 +23,7 @@ SUBCOMMANDS:
     edit        Edit the metadata of a template by name.
     init        Get started with a templated template.
     list        List all the templates available for the organization
+    presets     Manage presets of the specified template
     pull        Download the active, latest, or specified version of a template
                 to a path.
     push        Create or update a template from the current directory or as

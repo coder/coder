@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd"
@@ -194,22 +195,26 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		t.Parallel()
 
 		db, ps := dbtestutil.NewDB(t)
-		dbReject := &dbRejectGitSSHKey{Store: db}
 		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/modules/main.tf")
 		require.NoError(t, err)
 
 		modulesArchive, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
 		require.NoError(t, err)
 
+		c := atomic.NewInt32(0)
+		reject := &dbRejectGitSSHKey{Store: db, hook: func(d *dbRejectGitSSHKey) {
+			if c.Add(1) > 1 {
+				// Second call forward, reject
+				d.SetReject(true)
+			}
+		}}
 		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
-			db:                       dbReject,
+			db:                       reject,
 			ps:                       ps,
 			provisionerDaemonVersion: provProto.CurrentVersion.String(),
 			mainTF:                   dynamicParametersTerraformSource,
 			modulesArchive:           modulesArchive,
 		})
-
-		dbReject.SetReject(true)
 
 		stream := setup.stream
 		previews := stream.Chan()
@@ -347,6 +352,36 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		require.Len(t, preview.Diagnostics, 1)
 		require.Equal(t, preview.Diagnostics[0].Extra.Code, "owner_not_found")
 	})
+
+	t.Run("TemplateVariables", func(t *testing.T) {
+		t.Parallel()
+
+		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/variables/main.tf")
+		require.NoError(t, err)
+
+		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
+			provisionerDaemonVersion: provProto.CurrentVersion.String(),
+			mainTF:                   dynamicParametersTerraformSource,
+			variables: []codersdk.TemplateVersionVariable{
+				{Name: "one", Value: "austin", DefaultValue: "alice", Type: "string"},
+			},
+			plan:   nil,
+			static: nil,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		stream := setup.stream
+		previews := stream.Chan()
+
+		// Should see the output of the module represented
+		preview := testutil.RequireReceive(ctx, t, previews)
+		require.Equal(t, -1, preview.ID)
+		require.Empty(t, preview.Diagnostics)
+
+		require.Len(t, preview.Parameters, 1)
+		coderdtest.AssertParameter(t, "variable_values", preview.Parameters).
+			Exists().Value("austin")
+	})
 }
 
 type setupDynamicParamsTestParams struct {
@@ -359,6 +394,7 @@ type setupDynamicParamsTestParams struct {
 
 	static               []*proto.RichParameter
 	expectWebsocketError bool
+	variables            []codersdk.TemplateVersionVariable
 }
 
 type dynamicParamsTest struct {
@@ -384,6 +420,7 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 		Plan:           args.plan,
 		ModulesArchive: args.modulesArchive,
 		StaticParams:   args.static,
+		Variables:      args.variables,
 	})
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -418,6 +455,7 @@ type dbRejectGitSSHKey struct {
 	database.Store
 	rejectMu sync.RWMutex
 	reject   bool
+	hook     func(d *dbRejectGitSSHKey)
 }
 
 // SetReject toggles whether GetGitSSHKey should return an error or passthrough to the underlying store.
@@ -428,6 +466,10 @@ func (d *dbRejectGitSSHKey) SetReject(reject bool) {
 }
 
 func (d *dbRejectGitSSHKey) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
+	if d.hook != nil {
+		d.hook(d)
+	}
+
 	d.rejectMu.RLock()
 	reject := d.reject
 	d.rejectMu.RUnlock()

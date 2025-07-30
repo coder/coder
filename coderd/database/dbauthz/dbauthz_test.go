@@ -17,20 +17,18 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
-	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/codersdk"
-
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -178,8 +176,7 @@ func TestDBAuthzRecursive(t *testing.T) {
 		if method.Name == "InTx" ||
 			method.Name == "Ping" ||
 			method.Name == "Wrappers" ||
-			method.Name == "PGLocks" ||
-			method.Name == "GetRunningPrebuiltWorkspacesOptimized" {
+			method.Name == "PGLocks" {
 			continue
 		}
 		// easy to know which method failed.
@@ -336,6 +333,115 @@ func (s *MethodTestSuite) TestAuditLogs() {
 		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
 		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
 		check.Args(database.CountAuditLogsParams{}, emptyPreparedAuthorized{}).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
+	}))
+	s.Run("DeleteOldAuditLogConnectionEvents", s.Subtest(func(db database.Store, check *expects) {
+		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
+		check.Args(database.DeleteOldAuditLogConnectionEventsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
+}
+
+func (s *MethodTestSuite) TestConnectionLogs() {
+	createWorkspace := func(t *testing.T, db database.Store) database.WorkspaceTable {
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		tpl := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		return dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			ID:               uuid.New(),
+			OwnerID:          u.ID,
+			OrganizationID:   o.ID,
+			AutomaticUpdates: database.AutomaticUpdatesNever,
+			TemplateID:       tpl.ID,
+		})
+	}
+	s.Run("UpsertConnectionLog", s.Subtest(func(db database.Store, check *expects) {
+		ws := createWorkspace(s.T(), db)
+		check.Args(database.UpsertConnectionLogParams{
+			Ip:               defaultIPAddress(),
+			Type:             database.ConnectionTypeSsh,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			ConnectionStatus: database.ConnectionStatusConnected,
+			WorkspaceOwnerID: ws.OwnerID,
+		}).Asserts(rbac.ResourceConnectionLog, policy.ActionUpdate)
+	}))
+	s.Run("GetConnectionLogsOffset", s.Subtest(func(db database.Store, check *expects) {
+		ws := createWorkspace(s.T(), db)
+		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
+			Ip:               defaultIPAddress(),
+			Type:             database.ConnectionTypeSsh,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+		})
+		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
+			Ip:               defaultIPAddress(),
+			Type:             database.ConnectionTypeSsh,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+		})
+		check.Args(database.GetConnectionLogsOffsetParams{
+			LimitOpt: 10,
+		}).Asserts(rbac.ResourceConnectionLog, policy.ActionRead).WithNotAuthorized("nil")
+	}))
+	s.Run("GetAuthorizedConnectionLogsOffset", s.Subtest(func(db database.Store, check *expects) {
+		ws := createWorkspace(s.T(), db)
+		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
+			Ip:               defaultIPAddress(),
+			Type:             database.ConnectionTypeSsh,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+		})
+		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
+			Ip:               defaultIPAddress(),
+			Type:             database.ConnectionTypeSsh,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+		})
+		check.Args(database.GetConnectionLogsOffsetParams{
+			LimitOpt: 10,
+		}, emptyPreparedAuthorized{}).Asserts(rbac.ResourceConnectionLog, policy.ActionRead)
+	}))
+	s.Run("CountConnectionLogs", s.Subtest(func(db database.Store, check *expects) {
+		ws := createWorkspace(s.T(), db)
+		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
+			Type:             database.ConnectionTypeSsh,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+		})
+		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
+			Type:             database.ConnectionTypeSsh,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+		})
+		check.Args(database.CountConnectionLogsParams{}).Asserts(
+			rbac.ResourceConnectionLog, policy.ActionRead,
+		).WithNotAuthorized("nil")
+	}))
+	s.Run("CountAuthorizedConnectionLogs", s.Subtest(func(db database.Store, check *expects) {
+		ws := createWorkspace(s.T(), db)
+		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
+			Type:             database.ConnectionTypeSsh,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+		})
+		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
+			Type:             database.ConnectionTypeSsh,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+		})
+		check.Args(database.CountConnectionLogsParams{}, emptyPreparedAuthorized{}).Asserts(
+			rbac.ResourceConnectionLog, policy.ActionRead,
+		)
 	}))
 }
 
@@ -794,6 +900,14 @@ func (s *MethodTestSuite) TestLicense() {
 		err := db.UpsertAnnouncementBanners(context.Background(), "value")
 		require.NoError(s.T(), err)
 		check.Args().Asserts().Returns("value")
+	}))
+	s.Run("GetManagedAgentCount", s.Subtest(func(db database.Store, check *expects) {
+		start := dbtime.Now()
+		end := start.Add(time.Hour)
+		check.Args(database.GetManagedAgentCountParams{
+			StartTime: start,
+			EndTime:   end,
+		}).Asserts(rbac.ResourceWorkspace, policy.ActionRead).Returns(int64(0))
 	}))
 }
 

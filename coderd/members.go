@@ -195,7 +195,7 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx                  = r.Context()
 		organization         = httpmw.OrganizationParam(r)
-		paginationParams, ok = parsePagination(rw, r)
+		paginationParams, ok = ParsePagination(rw, r)
 	)
 	if !ok {
 		return

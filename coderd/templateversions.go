@@ -16,9 +16,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/hashicorp/hcl/v2"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -808,7 +808,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
 
-	paginationParams, ok := parsePagination(rw, r)
+	paginationParams, ok := ParsePagination(rw, r)
 	if !ok {
 		return
 	}
@@ -1471,7 +1471,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	var dynamicTemplate bool
+	dynamicTemplate := true // Default to using dynamic templates
 	if req.TemplateID != uuid.Nil {
 		tpl, err := api.Database.GetTemplateByID(ctx, req.TemplateID)
 		if httpapi.Is404Error(err) {
@@ -1583,63 +1583,10 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		}
 	}
 
-	var files fs.FS
-	switch file.Mimetype {
-	case "application/x-tar":
-		files = archivefs.FromTarReader(bytes.NewBuffer(file.Data))
-	case "application/zip":
-		files, err = archivefs.FromZipReader(bytes.NewReader(file.Data), int64(len(file.Data)))
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error reading file",
-				Detail:  "extract zip archive: " + err.Error(),
-			})
-			return
-		}
-	default:
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Unsupported file type",
-			Detail:  fmt.Sprintf("Mimetype %q is not supported", file.Mimetype),
-		})
-		return
-	}
-	ownerData, err := dynamicparameters.WorkspaceOwner(ctx, api.Database, organization.ID, apiKey.UserID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Internal error checking workspace tags",
-				Detail:  fmt.Sprintf("Owner not found, uuid=%s", apiKey.UserID.String()),
-			})
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error checking workspace tags",
-			Detail:  "fetch owner data: " + err.Error(),
-		})
-		return
-	}
-
-	previewInput := preview.Input{
-		PlanJSON:        nil, // Template versions are before `terraform plan`
-		ParameterValues: nil, // No user-specified parameters
-		Owner:           *ownerData,
-		Logger:          stdslog.New(stdslog.DiscardHandler),
-	}
-	previewOutput, previewDiags := preview.Preview(ctx, previewInput, files)
-
-	// Validate presets on template version import to avoid errors that would
-	// have caused workspace creation to fail:
-	presetErr := dynamicparameters.CheckPresets(previewOutput, nil)
-	if presetErr != nil {
-		code, resp := presetErr.Response()
-		httpapi.Write(ctx, rw, code, resp)
-		return
-	}
-
 	var parsedTags map[string]string
 	var ok bool
 	if dynamicTemplate {
-		parsedTags, ok = api.dynamicTemplateVersionTags(ctx, rw, previewOutput, previewDiags)
+		parsedTags, ok = api.dynamicTemplateVersionTags(ctx, rw, organization.ID, apiKey.UserID, file, req.UserVariableValues)
 		if !ok {
 			return
 		}
@@ -1816,10 +1763,69 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		warnings))
 }
 
-func (*API) dynamicTemplateVersionTags(ctx context.Context, rw http.ResponseWriter, output *preview.Output, diags hcl.Diagnostics) (map[string]string, bool) {
+func (api *API) dynamicTemplateVersionTags(ctx context.Context, rw http.ResponseWriter, orgID uuid.UUID, owner uuid.UUID, file database.File, templateVariables []codersdk.VariableValue) (map[string]string, bool) {
+	ownerData, err := dynamicparameters.WorkspaceOwner(ctx, api.Database, orgID, owner)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Internal error checking workspace tags",
+				Detail:  fmt.Sprintf("Owner not found, uuid=%s", owner.String()),
+			})
+			return nil, false
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace tags",
+			Detail:  "fetch owner data: " + err.Error(),
+		})
+		return nil, false
+	}
+
+	var files fs.FS
+	switch file.Mimetype {
+	case "application/x-tar":
+		files = archivefs.FromTarReader(bytes.NewBuffer(file.Data))
+	case "application/zip":
+		files, err = archivefs.FromZipReader(bytes.NewReader(file.Data), int64(len(file.Data)))
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error checking workspace tags",
+				Detail:  "extract zip archive: " + err.Error(),
+			})
+			return nil, false
+		}
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Unsupported file type for dynamic template version tags",
+			Detail:  fmt.Sprintf("Mimetype %q is not supported for dynamic template version tags", file.Mimetype),
+		})
+		return nil, false
+	}
+
+	// Pass in any manually specified template variables as TFVars.
+	// TODO: Does this break if the type is not a string?
+	tfVarValues := make(map[string]cty.Value)
+	for _, variable := range templateVariables {
+		tfVarValues[variable.Name] = cty.StringVal(variable.Value)
+	}
+
+	output, diags := preview.Preview(ctx, preview.Input{
+		PlanJSON:        nil, // Template versions are before `terraform plan`
+		ParameterValues: nil, // No user-specified parameters
+		Owner:           *ownerData,
+		Logger:          stdslog.New(stdslog.DiscardHandler),
+		TFVars:          tfVarValues,
+	}, files)
 	tagErr := dynamicparameters.CheckTags(output, diags)
 	if tagErr != nil {
 		code, resp := tagErr.Response()
+		httpapi.Write(ctx, rw, code, resp)
+		return nil, false
+	}
+	// Validate presets on template version import to avoid errors that would
+	// have caused workspace creation to fail:
+	presetErr := dynamicparameters.CheckPresets(output, nil)
+	if presetErr != nil {
+		code, resp := presetErr.Response()
 		httpapi.Write(ctx, rw, code, resp)
 		return nil, false
 	}

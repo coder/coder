@@ -63,10 +63,7 @@ func (r *RootCmd) vpnDaemonRun() *serpent.Command {
 			defer pipe.Close()
 
 			logger.Info(ctx, "starting tunnel")
-			tunnel, err := vpn.NewTunnel(ctx, logger, pipe, vpn.NewClient(),
-				vpn.UseOSNetworkingStack(),
-				vpn.UseCustomLogSinks(sinks...),
-			)
+			tunnel, err := vpn.NewTunnel(ctx, logger, pipe, vpn.NewClient(), vpn.UseOSNetworkingStack())
 			if err != nil {
 				return xerrors.Errorf("create new tunnel for client: %w", err)
 			}

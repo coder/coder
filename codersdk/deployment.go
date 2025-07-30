@@ -67,6 +67,7 @@ type FeatureName string
 const (
 	FeatureUserLimit                  FeatureName = "user_limit"
 	FeatureAuditLog                   FeatureName = "audit_log"
+	FeatureConnectionLog              FeatureName = "connection_log"
 	FeatureBrowserOnly                FeatureName = "browser_only"
 	FeatureSCIM                       FeatureName = "scim"
 	FeatureTemplateRBAC               FeatureName = "template_rbac"
@@ -84,30 +85,47 @@ const (
 	FeatureCustomRoles                FeatureName = "custom_roles"
 	FeatureMultipleOrganizations      FeatureName = "multiple_organizations"
 	FeatureWorkspacePrebuilds         FeatureName = "workspace_prebuilds"
+	// ManagedAgentLimit is a usage period feature, so the value in the license
+	// contains both a soft and hard limit. Refer to
+	// enterprise/coderd/license/license.go for the license format.
+	FeatureManagedAgentLimit FeatureName = "managed_agent_limit"
 )
 
-// FeatureNames must be kept in-sync with the Feature enum above.
-var FeatureNames = []FeatureName{
-	FeatureUserLimit,
-	FeatureAuditLog,
-	FeatureBrowserOnly,
-	FeatureSCIM,
-	FeatureTemplateRBAC,
-	FeatureHighAvailability,
-	FeatureMultipleExternalAuth,
-	FeatureExternalProvisionerDaemons,
-	FeatureAppearance,
-	FeatureAdvancedTemplateScheduling,
-	FeatureWorkspaceProxy,
-	FeatureUserRoleManagement,
-	FeatureExternalTokenEncryption,
-	FeatureWorkspaceBatchActions,
-	FeatureAccessControl,
-	FeatureControlSharedPorts,
-	FeatureCustomRoles,
-	FeatureMultipleOrganizations,
-	FeatureWorkspacePrebuilds,
-}
+var (
+	// FeatureNames must be kept in-sync with the Feature enum above.
+	FeatureNames = []FeatureName{
+		FeatureUserLimit,
+		FeatureAuditLog,
+		FeatureConnectionLog,
+		FeatureBrowserOnly,
+		FeatureSCIM,
+		FeatureTemplateRBAC,
+		FeatureHighAvailability,
+		FeatureMultipleExternalAuth,
+		FeatureExternalProvisionerDaemons,
+		FeatureAppearance,
+		FeatureAdvancedTemplateScheduling,
+		FeatureWorkspaceProxy,
+		FeatureUserRoleManagement,
+		FeatureExternalTokenEncryption,
+		FeatureWorkspaceBatchActions,
+		FeatureAccessControl,
+		FeatureControlSharedPorts,
+		FeatureCustomRoles,
+		FeatureMultipleOrganizations,
+		FeatureWorkspacePrebuilds,
+		FeatureManagedAgentLimit,
+	}
+
+	// FeatureNamesMap is a map of all feature names for quick lookups.
+	FeatureNamesMap = func() map[FeatureName]struct{} {
+		featureNamesMap := make(map[FeatureName]struct{}, len(FeatureNames))
+		for _, featureName := range FeatureNames {
+			featureNamesMap[featureName] = struct{}{}
+		}
+		return featureNamesMap
+	}()
+)
 
 // Humanize returns the feature name in a human-readable format.
 func (n FeatureName) Humanize() string {
@@ -151,6 +169,22 @@ func (n FeatureName) Enterprise() bool {
 	}
 }
 
+// UsesLimit returns true if the feature uses a limit, and therefore should not
+// be included in any feature sets (as they are not boolean features).
+func (n FeatureName) UsesLimit() bool {
+	return map[FeatureName]bool{
+		FeatureUserLimit:         true,
+		FeatureManagedAgentLimit: true,
+	}[n]
+}
+
+// UsesUsagePeriod returns true if the feature uses period-based usage limits.
+func (n FeatureName) UsesUsagePeriod() bool {
+	return map[FeatureName]bool{
+		FeatureManagedAgentLimit: true,
+	}[n]
+}
+
 // FeatureSet represents a grouping of features. Rather than manually
 // assigning features al-la-carte when making a license, a set can be specified.
 // Sets are dynamic in the sense a feature can be added to a set, granting the
@@ -175,13 +209,17 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(enterpriseFeatures, FeatureNames)
 		// Remove the selection
 		enterpriseFeatures = slices.DeleteFunc(enterpriseFeatures, func(f FeatureName) bool {
-			return !f.Enterprise()
+			return !f.Enterprise() || f.UsesLimit()
 		})
 
 		return enterpriseFeatures
 	case FeatureSetPremium:
 		premiumFeatures := make([]FeatureName, len(FeatureNames))
 		copy(premiumFeatures, FeatureNames)
+		// Remove the selection
+		premiumFeatures = slices.DeleteFunc(premiumFeatures, func(f FeatureName) bool {
+			return f.UsesLimit()
+		})
 		// FeatureSetPremium is just all features.
 		return premiumFeatures
 	}
@@ -194,6 +232,29 @@ type Feature struct {
 	Enabled     bool        `json:"enabled"`
 	Limit       *int64      `json:"limit,omitempty"`
 	Actual      *int64      `json:"actual,omitempty"`
+
+	// Below is only for features that use usage periods.
+
+	// SoftLimit is the soft limit of the feature, and is only used for showing
+	// included limits in the dashboard. No license validation or warnings are
+	// generated from this value.
+	SoftLimit *int64 `json:"soft_limit,omitempty"`
+	// UsagePeriod denotes that the usage is a counter that accumulates over
+	// this period (and most likely resets with the issuance of the next
+	// license).
+	//
+	// These dates are determined from the license that this entitlement comes
+	// from, see enterprise/coderd/license/license.go.
+	//
+	// Only certain features set these fields:
+	// - FeatureManagedAgentLimit
+	UsagePeriod *UsagePeriod `json:"usage_period,omitempty"`
+}
+
+type UsagePeriod struct {
+	IssuedAt time.Time `json:"issued_at" format:"date-time"`
+	Start    time.Time `json:"start" format:"date-time"`
+	End      time.Time `json:"end" format:"date-time"`
 }
 
 // Compare compares two features and returns an integer representing
@@ -202,13 +263,30 @@ type Feature struct {
 // than the second feature. It is assumed the features are for the same FeatureName.
 //
 // A feature is considered greater than another feature if:
-// 1. Graceful & capable > Entitled & not capable
-// 2. The entitlement is greater
-// 3. The limit is greater
-// 4. Enabled is greater than disabled
-// 5. The actual is greater
+// 1. The usage period has a greater issued at date (note: only certain features use usage periods)
+// 2. The usage period has a greater end date (note: only certain features use usage periods)
+// 3. Graceful & capable > Entitled & not capable (only if both have "Actual" values)
+// 4. The entitlement is greater
+// 5. The limit is greater
+// 6. Enabled is greater than disabled
+// 7. The actual is greater
 func (f Feature) Compare(b Feature) int {
-	if !f.Capable() || !b.Capable() {
+	// For features with usage period constraints only, check the issued at and
+	// end dates.
+	bothHaveUsagePeriod := f.UsagePeriod != nil && b.UsagePeriod != nil
+	if bothHaveUsagePeriod {
+		issuedAtCmp := f.UsagePeriod.IssuedAt.Compare(b.UsagePeriod.IssuedAt)
+		if issuedAtCmp != 0 {
+			return issuedAtCmp
+		}
+		endCmp := f.UsagePeriod.End.Compare(b.UsagePeriod.End)
+		if endCmp != 0 {
+			return endCmp
+		}
+	}
+
+	// Only perform capability comparisons if both features have actual values.
+	if f.Actual != nil && b.Actual != nil && (!f.Capable() || !b.Capable()) {
 		// If either is incapable, then it is possible a grace period
 		// feature can be "greater" than an entitled.
 		// If either is "NotEntitled" then we can defer to a strict entitlement
@@ -223,7 +301,9 @@ func (f Feature) Compare(b Feature) int {
 		}
 	}
 
-	// Strict entitlement check. Higher is better
+	// Strict entitlement check. Higher is better. We don't apply this check for
+	// usage period features as we always want the issued at date to be the main
+	// decision maker.
 	entitlementDifference := f.Entitlement.Weight() - b.Entitlement.Weight()
 	if entitlementDifference != 0 {
 		return entitlementDifference
@@ -293,6 +373,13 @@ type Entitlements struct {
 // the set of features granted by the entitlements. If it does not, it will
 // be ignored and the existing feature with the same name will remain.
 //
+// Features that abide by usage period constraints should have the following
+// fields set or they will be ignored. Other features will have these fields
+// cleared.
+// - UsagePeriodIssuedAt
+// - UsagePeriodStart
+// - UsagePeriodEnd
+//
 // All features should be added as atomic items, and not merged in any way.
 // Merging entitlements could lead to unexpected behavior, like a larger user
 // limit in grace period merging with a smaller one in an "entitled" state. This
@@ -302,6 +389,16 @@ func (e *Entitlements) AddFeature(name FeatureName, add Feature) {
 	if !ok {
 		e.Features[name] = add
 		return
+	}
+
+	// If we're trying to add a feature that uses a usage period and it's not
+	// set, then we should not add it.
+	if name.UsesUsagePeriod() {
+		if add.UsagePeriod == nil || add.UsagePeriod.IssuedAt.IsZero() || add.UsagePeriod.Start.IsZero() || add.UsagePeriod.End.IsZero() {
+			return
+		}
+	} else {
+		add.UsagePeriod = nil
 	}
 
 	// Compare the features, keep the one that is "better"
