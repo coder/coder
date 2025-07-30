@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 2.5"
+      version = "~> 2.9"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -41,7 +41,9 @@ locals {
 }
 
 data "coder_workspace_preset" "cpt" {
-  name = "Cape Town"
+  name        = "Cape Town"
+  description = "Development workspace hosted in South Africa with 1 prebuild instance"
+  icon        = "/emojis/1f1ff-1f1e6.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "za-cpt"
     (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
@@ -56,7 +58,9 @@ data "coder_workspace_preset" "cpt" {
 }
 
 data "coder_workspace_preset" "pittsburgh" {
-  name = "Pittsburgh"
+  name        = "Pittsburgh"
+  description = "Development workspace hosted in United States with 2 prebuild instances"
+  icon        = "/emojis/1f1fa-1f1f8.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "us-pittsburgh"
     (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
@@ -71,7 +75,9 @@ data "coder_workspace_preset" "pittsburgh" {
 }
 
 data "coder_workspace_preset" "falkenstein" {
-  name = "Falkenstein"
+  name        = "Falkenstein"
+  description = "Development workspace hosted in Europe with 1 prebuild instance"
+  icon        = "/emojis/1f1ea-1f1fa.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "eu-helsinki"
     (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
@@ -86,7 +92,9 @@ data "coder_workspace_preset" "falkenstein" {
 }
 
 data "coder_workspace_preset" "sydney" {
-  name = "Sydney"
+  name        = "Sydney"
+  description = "Development workspace hosted in Australia with 1 prebuild instance"
+  icon        = "/emojis/1f1e6-1f1fa.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "ap-sydney"
     (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
@@ -101,7 +109,9 @@ data "coder_workspace_preset" "sydney" {
 }
 
 data "coder_workspace_preset" "saopaulo" {
-  name = "São Paulo"
+  name        = "São Paulo"
+  description = "Development workspace hosted in Brazil with 1 prebuild instance"
+  icon        = "/emojis/1f1e7-1f1f7.png"
   parameters = {
     (data.coder_parameter.region.name)                   = "sa-saopaulo"
     (data.coder_parameter.image_type.name)               = "codercom/oss-dogfood:latest"
