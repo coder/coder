@@ -50,7 +50,9 @@ func (r *RootCmd) builds() *serpent.Command {
 		Children: []*serpent.Command{
 			r.buildsList(),
 		},
-	}
+		Handler: func(inv *serpent.Invocation) error {
+			return inv.Command.HelpHandler(inv)
+		},
 }
 
 func (r *RootCmd) buildsList() *serpent.Command {
