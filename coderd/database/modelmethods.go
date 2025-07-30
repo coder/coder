@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -628,12 +627,4 @@ func (m WorkspaceAgentVolumeResourceMonitor) Debounce(
 	}
 
 	return m.DebouncedUntil, false
-}
-
-func (e UsageEventType) IsDiscrete() bool {
-	return e.Valid() && strings.HasPrefix(string(e), "dc_")
-}
-
-func (e UsageEventType) IsHeartbeat() bool {
-	return e.Valid() && strings.HasPrefix(string(e), "hb_")
 }

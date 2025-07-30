@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	agplusage "github.com/coder/coder/v2/coderd/usage"
+	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/quartz"
 )
 
@@ -42,7 +43,7 @@ func CollectorWithClock(clock quartz.Clock) CollectorOption {
 }
 
 // CollectDiscreteUsageEvent implements agplusage.Collector.
-func (c *dbCollector) CollectDiscreteUsageEvent(ctx context.Context, db database.Store, event agplusage.DiscreteEvent) error {
+func (c *dbCollector) CollectDiscreteUsageEvent(ctx context.Context, db database.Store, event usagetypes.DiscreteEvent) error {
 	if !event.EventType().IsDiscrete() {
 		return xerrors.Errorf("event type %q is not a discrete event", event.EventType())
 	}
@@ -55,12 +56,17 @@ func (c *dbCollector) CollectDiscreteUsageEvent(ctx context.Context, db database
 		return xerrors.Errorf("marshal event as JSON: %w", err)
 	}
 
+	dbEventType := database.UsageEventType(event.EventType())
+	if !dbEventType.Valid() {
+		return xerrors.Errorf("event type %q is invalid", event.EventType())
+	}
+
 	// Duplicate events are ignored by the query, so we don't need to check the
 	// error.
 	return db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 		// Always generate a new UUID for discrete events.
 		ID:        uuid.New().String(),
-		EventType: event.EventType(),
+		EventType: database.UsageEventType(event.EventType()),
 		EventData: jsonData,
 		CreatedAt: dbtime.Time(c.clock.Now()),
 	})

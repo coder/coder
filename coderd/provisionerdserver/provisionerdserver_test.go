@@ -45,6 +45,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/usage"
+	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -2678,7 +2679,7 @@ func TestCompleteJob(t *testing.T) {
 
 						// Check that a usage event was collected.
 						require.Len(t, fakeUsageCollector.collectedEvents, 1)
-						require.Equal(t, usage.DCManagedAgentsV1{
+						require.Equal(t, usagetypes.DCManagedAgentsV1{
 							Count: 1,
 						}, fakeUsageCollector.collectedEvents[0])
 					} else {
@@ -3850,7 +3851,7 @@ func (s *fakeStream) cancel() {
 }
 
 type fakeUsageCollector struct {
-	collectedEvents []usage.Event
+	collectedEvents []usagetypes.Event
 }
 
 var _ usage.Collector = &fakeUsageCollector{}
@@ -3863,7 +3864,7 @@ func newFakeUsageCollector() (*fakeUsageCollector, *atomic.Pointer[usage.Collect
 	return fake, ptr
 }
 
-func (f *fakeUsageCollector) CollectDiscreteUsageEvent(_ context.Context, _ database.Store, event usage.DiscreteEvent) error {
+func (f *fakeUsageCollector) CollectDiscreteUsageEvent(_ context.Context, _ database.Store, event usagetypes.DiscreteEvent) error {
 	f.collectedEvents = append(f.collectedEvents, event)
 	return nil
 }
