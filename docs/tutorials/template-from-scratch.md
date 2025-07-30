@@ -351,11 +351,11 @@ use the Coder CLI.
 
 1. In your web browser, enter your credentials:
 
-   <Image height="412px" src="../images/templates/coder-login-web.png" alt="Log in to your Coder deployment" align="center" />
+   ![Log in to your Coder deployment](../images/screenshots/coder-login.png)
 
 1. Copy the session token to the clipboard:
 
-   <Image height="472px" src="../images/templates/coder-session-token.png" alt="Copy session token" align="center" />
+   ![Copy session token](../images/templates/coder-session-token.png)
 
 1. Paste it into the CLI:
 

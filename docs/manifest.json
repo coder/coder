@@ -48,6 +48,18 @@
 							"icon_path": "./images/icons/document.svg"
 						},
 						{
+							"title": "Modules",
+							"description": "Learn how to contribute modules to Coder",
+							"path": "./about/contributing/modules.md",
+							"icon_path": "./images/icons/gear.svg"
+						},
+						{
+							"title": "Templates",
+							"description": "Learn how to contribute templates to Coder",
+							"path": "./about/contributing/templates.md",
+							"icon_path": "./images/icons/picture.svg"
+						},
+						{
 							"title": "Backend",
 							"description": "Our guide for backend development",
 							"path": "./about/contributing/backend.md",
@@ -238,6 +250,11 @@
 							"title": "Web IDEs and Coder Apps",
 							"description": "Access your workspace with IDEs in the browser",
 							"path": "./user-guides/workspace-access/web-ides.md"
+						},
+						{
+							"title": "code-server",
+							"description": "Access your workspace with code-server",
+							"path": "./user-guides/workspace-access/code-server.md"
 						},
 						{
 							"title": "Zed",
@@ -698,8 +715,8 @@
 							"path": "./admin/integrations/platformx.md"
 						},
 						{
-							"title": "DX Data Cloud",
-							"description": "Tag Coder Users with DX Data Cloud",
+							"title": "DX",
+							"description": "Tag Coder Users with DX",
 							"path": "./admin/integrations/dx-data-cloud.md"
 						},
 						{
@@ -764,6 +781,12 @@
 							"title": "Health Check",
 							"description": "Learn about Coder's automated health checks",
 							"path": "./admin/monitoring/health-check.md"
+						},
+						{
+							"title": "Connection Logs",
+							"description": "Monitor connections to workspaces",
+							"path": "./admin/monitoring/connection-logs.md",
+							"state": ["premium"]
 						},
 						{
 							"title": "Notifications",
@@ -1632,6 +1655,16 @@
 							"title": "templates list",
 							"description": "List all the templates available for the organization",
 							"path": "reference/cli/templates_list.md"
+						},
+						{
+							"title": "templates presets",
+							"description": "Manage presets of the specified template",
+							"path": "reference/cli/templates_presets.md"
+						},
+						{
+							"title": "templates presets list",
+							"description": "List all presets of the specified template. Defaults to the active template version.",
+							"path": "reference/cli/templates_presets_list.md"
 						},
 						{
 							"title": "templates pull",

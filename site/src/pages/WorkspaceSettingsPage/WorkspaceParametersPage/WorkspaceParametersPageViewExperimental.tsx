@@ -210,7 +210,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 								parameters cannot be modified once the workspace is created.
 								<Link
 									href={docs(
-										"/admin/templates/extending-templates/parameters#enable-dynamic-parameters-early-access",
+										"/admin/templates/extending-templates/dynamic-parameters",
 									)}
 								>
 									View docs
