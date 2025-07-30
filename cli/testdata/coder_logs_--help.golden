@@ -1,0 +1,22 @@
+Show logs for a workspace build
+
+Usage:
+  coder logs [flags] <build-id>
+
+Flags:
+  -f, --follow   Follow log output (stream real-time logs).
+  -h, --help     Help for "logs"
+
+Global Flags:
+      --debug-options   Print all options, how they're set, then exit.
+      --header=key=value                      Additional HTTP headers added to all requests. Provide as key=value. Can be specified multiple times.
+      --header-command=string                 An external command that outputs additional HTTP headers added to all requests. The command must output each header as key=value on its own line.
+  -v, --verbose                               Enable verbose output.
+      --no-version-warning                    Suppress warning when client and server versions do not match.
+      --no-feature-warning                    Suppress warnings about unlicensed features.
+      --url=string                            URL to a deployment.
+      --token=string                          Specify an authentication token. For security reasons setting CODER_SESSION_TOKEN is preferred.
+      --config-dir=/home/coder/.config/coderv2  Path to the global coder config directory.
+      --disable-direct-connections            Disable direct (P2P) connections to workspaces.
+      --disable-network-telemetry             Disable network telemetry. Network telemetry is collected when connecting to workspaces using the CLI, and is forwarded to the server. If telemetry is also enabled on the server, it may be sent to Coder. Network telemetry is used to measure network quality and detect regressions.
+      --force-tty                             Force the use of a TTY.
