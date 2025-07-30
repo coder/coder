@@ -11,6 +11,10 @@ import (
 
 func CheckTags(output *preview.Output, diags hcl.Diagnostics) *DiagnosticError {
 	de := tagValidationError(diags)
+	if output == nil {
+		return de
+	}
+
 	failedTags := output.WorkspaceTags.UnusableTags()
 	if len(failedTags) == 0 && !de.HasError() {
 		return nil // No errors, all is good!
