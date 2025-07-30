@@ -298,6 +298,8 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.AutomaticUpdates,
 			&i.Favorite,
 			&i.NextStartAt,
+			&i.GroupACL,
+			&i.UserACL,
 			&i.OwnerAvatarUrl,
 			&i.OwnerUsername,
 			&i.OwnerName,
