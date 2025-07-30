@@ -1,6 +1,6 @@
 # Prebuilt workspaces
 
-Prebuilt workspaces (prebuilds) reduce workspace creation time with an automatically maintained pool of
+Prebuilt workspaces (prebuilds) reduce workspace creation time with an automatically-maintained pool of
 ready-to-use workspaces.
 
 The template administrator defines the prebuilt workspace's parameters and number of instances to keep provisioned.
@@ -14,8 +14,8 @@ Prebuilt workspaces are:
 - Monitored and replaced automatically to maintain your desired pool size.
 - Automatically scaled based on time-based schedules to optimize resource usage.
 
-Currently, Prebuilt workspaces are not fully compatible with the
-[dev containers integration](../extending-templates/devcontainers.md) or with [workspace scheduling features](../../../user-guides/workspace-scheduling.md) like autostart and autostop.
+Prebuilt workspaces are not fully compatible with
+[workspace scheduling features](../../../user-guides/workspace-scheduling.md) like autostart and autostop.
 
 ## Relationship to workspace presets
 
@@ -118,10 +118,6 @@ New prebuilt workspaces are only created to maintain the desired count if needed
 
 Prebuilt workspaces support time-based scheduling to scale the number of instances up or down.
 This allows you to reduce resource costs during off-hours while maintaining availability during peak usage times.
-
-> [!IMPORTANT]
-> Use scheduling for prebuilt workspaces instead of
-> [workspace scheduling features](../../../user-guides/workspace-scheduling.md).
 
 Configure scheduling by adding a `scheduling` block within your `prebuilds` configuration:
 
@@ -226,7 +222,7 @@ When a template's active version is updated:
 1. Prebuilt workspaces for old versions are automatically deleted.
 1. New prebuilt workspaces are created for the active template version.
 1. If dependencies change (e.g., an [AMI](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/AMIs.html) update) without a template version change:
-   - You may delete the existing prebuilt workspaces manually.
+   - You can delete the existing prebuilt workspaces manually.
    - Coder will automatically create new prebuilt workspaces with the updated dependencies.
 
 The system always maintains the desired number of prebuilt workspaces for the active template version.
@@ -291,32 +287,6 @@ does not reconnect after a template update. This shortcoming is described in [th
 and will be addressed before the next release (v2.23). In the interim, a simple workaround is to restart the workspace
 when it is in this problematic state.
 
-### Current limitations
-
-The prebuilt workspaces feature has these current limitations:
-
-- **Organizations**
-
-  Prebuilt workspaces can only be used with the default organization.
-
-  [View issue](https://github.com/coder/internal/issues/364)
-
-- **Dev containers**
-
-   Prebuilt workspaces do not work reliably with the [dev containers integration](../extending-templates/devcontainers.md).
-
-   If your project relies on a dev container configuration, we recommend disabling prebuilds or carefully testing behavior before enabling them.
-
-- **Workspace autostart/autostop**
-
-   Disable any form of [workspace scheduling features](../../../user-guides/workspace-scheduling.md)
-   like autostart and autostop for prebuilt workspaces.
-
-   Instead, use the [prebuilt-specific TTL and scheduling features](#scheduling).
-
-   Prebuilt workspaces with an active autostop configuration can lead to "zombie" workspaces that the Coder server
-   will not automatically reconcile.
-
 ### Monitoring and observability
 
 #### Available metrics
@@ -339,3 +309,19 @@ These logs provide information about:
 1. Creation and deletion attempts for prebuilt workspaces.
 1. Backoff events after failed builds.
 1. Claiming operations.
+
+## Known Issues and Limitations
+
+Some known limitations of prebuilt workspaces include:
+
+- **Organizations**
+
+  Prebuilt workspaces can only be used with the default organization.
+
+  [View issue](https://github.com/coder/internal/issues/364)
+
+- **Dev containers**
+
+  Prebuilt workspaces do not work reliably with the [dev containers integration](../extending-templates/devcontainers.md).
+
+  If your project relies on a dev container configuration, you should disabling prebuilds or carefully test their behavior before enabling them.
