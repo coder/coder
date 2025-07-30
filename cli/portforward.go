@@ -156,7 +156,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 			go func() {
 				defer close(shutdownCh)
 
-				// Wait until context is cancelled (Ctrl+C, etc.)
+				// Wait until context is canceled (Ctrl+C, etc.)
 				<-ctx.Done()
 			}()
 
@@ -202,7 +202,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 
 			select {
 			case <-shutdownCh:
-				logger.Debug(ctx, "context cancelled")
+				logger.Debug(ctx, "context canceled")
 				return ctx.Err()
 			case sig := <-sigs:
 				logger.Debug(ctx, "received signal", slog.F("signal", sig))
