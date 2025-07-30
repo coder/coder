@@ -30,19 +30,19 @@ curl -X GET http://coder-server:8080/api/v2/notifications/dispatch-methods \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                          |
-|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.NotificationMethodsResponse](schemas.md#codersdknotificationmethodsresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|array of [codersdk.NotificationMethodsResponse](schemas.md#codersdknotificationmethodsresponse)|
 
 <h3 id="get-notification-dispatch-methods-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `[array item]` | array  | false    |              |             |
-| `» available`  | array  | false    |              |             |
-| `» default`    | string | false    |              |             |
+|Name|Type|Required|Restrictions|Description|
+|---|---|---|---|---|
+|`[array item]`|array|false|||
+|`» available`|array|false|||
+|`» default`|string|false|||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -61,12 +61,12 @@ curl -X GET http://coder-server:8080/api/v2/notifications/inbox \
 
 ### Parameters
 
-| Name              | In    | Type         | Required | Description                                                                                                     |
-|-------------------|-------|--------------|----------|-----------------------------------------------------------------------------------------------------------------|
-| `targets`         | query | string       | false    | Comma-separated list of target IDs to filter notifications                                                      |
-| `templates`       | query | string       | false    | Comma-separated list of template IDs to filter notifications                                                    |
-| `read_status`     | query | string       | false    | Filter notifications by read status. Possible values: read, unread, all                                         |
-| `starting_before` | query | string(uuid) | false    | ID of the last notification from the current page. Notifications returned will be older than the associated one |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`targets`|query|string|false|Comma-separated list of target IDs to filter notifications|
+|`templates`|query|string|false|Comma-separated list of template IDs to filter notifications|
+|`read_status`|query|string|false|Filter notifications by read status. Possible values: read, unread, all|
+|`starting_before`|query|string(uuid)|false|ID of the last notification from the current page. Notifications returned will be older than the associated one|
 
 ### Example responses
 
@@ -101,9 +101,9 @@ curl -X GET http://coder-server:8080/api/v2/notifications/inbox \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                       |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ListInboxNotificationsResponse](schemas.md#codersdklistinboxnotificationsresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.ListInboxNotificationsResponse](schemas.md#codersdklistinboxnotificationsresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -121,9 +121,9 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/inbox/mark-all-as-read
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|204|[No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)|No Content||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -142,19 +142,19 @@ curl -X GET http://coder-server:8080/api/v2/notifications/inbox/watch \
 
 ### Parameters
 
-| Name          | In    | Type   | Required | Description                                                             |
-|---------------|-------|--------|----------|-------------------------------------------------------------------------|
-| `targets`     | query | string | false    | Comma-separated list of target IDs to filter notifications              |
-| `templates`   | query | string | false    | Comma-separated list of template IDs to filter notifications            |
-| `read_status` | query | string | false    | Filter notifications by read status. Possible values: read, unread, all |
-| `format`      | query | string | false    | Define the output format for notifications title and body.              |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`targets`|query|string|false|Comma-separated list of target IDs to filter notifications|
+|`templates`|query|string|false|Comma-separated list of template IDs to filter notifications|
+|`read_status`|query|string|false|Filter notifications by read status. Possible values: read, unread, all|
+|`format`|query|string|false|Define the output format for notifications title and body.|
 
 #### Enumerated Values
 
-| Parameter | Value       |
-|-----------|-------------|
-| `format`  | `plaintext` |
-| `format`  | `markdown`  |
+|Parameter|Value|
+|---|---|
+|`format`|`plaintext`|
+|`format`|`markdown`|
 
 ### Example responses
 
@@ -187,9 +187,9 @@ curl -X GET http://coder-server:8080/api/v2/notifications/inbox/watch \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                   |
-|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GetInboxNotificationResponse](schemas.md#codersdkgetinboxnotificationresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.GetInboxNotificationResponse](schemas.md#codersdkgetinboxnotificationresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -208,9 +208,9 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/inbox/{id}/read-status
 
 ### Parameters
 
-| Name | In   | Type   | Required | Description            |
-|------|------|--------|----------|------------------------|
-| `id` | path | string | true     | id of the notification |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`id`|path|string|true|id of the notification|
 
 ### Example responses
 
@@ -231,9 +231,9 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/inbox/{id}/read-status
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                           |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.Response](schemas.md#codersdkresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -262,9 +262,9 @@ curl -X GET http://coder-server:8080/api/v2/notifications/settings \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                     |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.NotificationsSettings](schemas.md#codersdknotificationssettings) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.NotificationsSettings](schemas.md#codersdknotificationssettings)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -292,9 +292,9 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/settings \
 
 ### Parameters
 
-| Name   | In   | Type                                                                       | Required | Description                    |
-|--------|------|----------------------------------------------------------------------------|----------|--------------------------------|
-| `body` | body | [codersdk.NotificationsSettings](schemas.md#codersdknotificationssettings) | true     | Notifications settings request |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`body`|body|[codersdk.NotificationsSettings](schemas.md#codersdknotificationssettings)|true|Notifications settings request|
 
 ### Example responses
 
@@ -308,10 +308,10 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/settings \
 
 ### Responses
 
-| Status | Meaning                                                         | Description  | Schema                                                                     |
-|--------|-----------------------------------------------------------------|--------------|----------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)         | OK           | [codersdk.NotificationsSettings](schemas.md#codersdknotificationssettings) |
-| 304    | [Not Modified](https://tools.ietf.org/html/rfc7232#section-4.1) | Not Modified |                                                                            |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.NotificationsSettings](schemas.md#codersdknotificationssettings)|
+|304|[Not Modified](https://tools.ietf.org/html/rfc7232#section-4.1)|Not Modified||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -350,26 +350,26 @@ curl -X GET http://coder-server:8080/api/v2/notifications/templates/system \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                            |
-|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.NotificationTemplate](schemas.md#codersdknotificationtemplate) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|array of [codersdk.NotificationTemplate](schemas.md#codersdknotificationtemplate)|
 
 <h3 id="get-system-notification-templates-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-| Name                   | Type         | Required | Restrictions | Description |
-|------------------------|--------------|----------|--------------|-------------|
-| `[array item]`         | array        | false    |              |             |
-| `» actions`            | string       | false    |              |             |
-| `» body_template`      | string       | false    |              |             |
-| `» enabled_by_default` | boolean      | false    |              |             |
-| `» group`              | string       | false    |              |             |
-| `» id`                 | string(uuid) | false    |              |             |
-| `» kind`               | string       | false    |              |             |
-| `» method`             | string       | false    |              |             |
-| `» name`               | string       | false    |              |             |
-| `» title_template`     | string       | false    |              |             |
+|Name|Type|Required|Restrictions|Description|
+|---|---|---|---|---|
+|`[array item]`|array|false|||
+|`» actions`|string|false|||
+|`» body_template`|string|false|||
+|`» enabled_by_default`|boolean|false|||
+|`» group`|string|false|||
+|`» id`|string(uuid)|false|||
+|`» kind`|string|false|||
+|`» method`|string|false|||
+|`» name`|string|false|||
+|`» title_template`|string|false|||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -387,9 +387,9 @@ curl -X POST http://coder-server:8080/api/v2/notifications/test \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema |
-|--------|---------------------------------------------------------|-------------|--------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -408,9 +408,9 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/notifications/preferenc
 
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-|--------|------|--------|----------|----------------------|
-| `user` | path | string | true     | User ID, name, or me |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`user`|path|string|true|User ID, name, or me|
 
 ### Example responses
 
@@ -428,20 +428,20 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/notifications/preferenc
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                |
-|--------|---------------------------------------------------------|-------------|---------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.NotificationPreference](schemas.md#codersdknotificationpreference) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|array of [codersdk.NotificationPreference](schemas.md#codersdknotificationpreference)|
 
 <h3 id="get-user-notification-preferences-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-| Name           | Type              | Required | Restrictions | Description |
-|----------------|-------------------|----------|--------------|-------------|
-| `[array item]` | array             | false    |              |             |
-| `» disabled`   | boolean           | false    |              |             |
-| `» id`         | string(uuid)      | false    |              |             |
-| `» updated_at` | string(date-time) | false    |              |             |
+|Name|Type|Required|Restrictions|Description|
+|---|---|---|---|---|
+|`[array item]`|array|false|||
+|`» disabled`|boolean|false|||
+|`» id`|string(uuid)|false|||
+|`» updated_at`|string(date-time)|false|||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -472,10 +472,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/notifications/preferenc
 
 ### Parameters
 
-| Name   | In   | Type                                                                                               | Required | Description          |
-|--------|------|----------------------------------------------------------------------------------------------------|----------|----------------------|
-| `user` | path | string                                                                                             | true     | User ID, name, or me |
-| `body` | body | [codersdk.UpdateUserNotificationPreferences](schemas.md#codersdkupdateusernotificationpreferences) | true     | Preferences          |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`user`|path|string|true|User ID, name, or me|
+|`body`|body|[codersdk.UpdateUserNotificationPreferences](schemas.md#codersdkupdateusernotificationpreferences)|true|Preferences|
 
 ### Example responses
 
@@ -493,19 +493,19 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/notifications/preferenc
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                |
-|--------|---------------------------------------------------------|-------------|---------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.NotificationPreference](schemas.md#codersdknotificationpreference) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|array of [codersdk.NotificationPreference](schemas.md#codersdknotificationpreference)|
 
 <h3 id="update-user-notification-preferences-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-| Name           | Type              | Required | Restrictions | Description |
-|----------------|-------------------|----------|--------------|-------------|
-| `[array item]` | array             | false    |              |             |
-| `» disabled`   | boolean           | false    |              |             |
-| `» id`         | string(uuid)      | false    |              |             |
-| `» updated_at` | string(date-time) | false    |              |             |
+|Name|Type|Required|Restrictions|Description|
+|---|---|---|---|---|
+|`[array item]`|array|false|||
+|`» disabled`|boolean|false|||
+|`» id`|string(uuid)|false|||
+|`» updated_at`|string(date-time)|false|||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
