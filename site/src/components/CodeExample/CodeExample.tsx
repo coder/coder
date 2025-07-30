@@ -1,11 +1,17 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import type { FC } from "react";
+import { useState, type FC } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { CopyButton } from "../CopyButton/CopyButton";
+import { TooltipContent, TooltipTrigger, TooltipProvider, Tooltip } from "components/Tooltip/Tooltip";
+import { Button } from "components/Button/Button";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 
 interface CodeExampleProps {
 	code: string;
 	secret?: boolean;
+	redactPattern?: RegExp;
+	redactReplacement?: string;
+	redactShowButton?: boolean;
 	className?: string;
 }
 
@@ -19,7 +25,25 @@ export const CodeExample: FC<CodeExampleProps> = ({
 	// Defaulting to true to be on the safe side; you should have to opt out of
 	// the secure option, not remember to opt in
 	secret = true,
+
+	// Redact parts of the code if the user doesn't want to obfuscate the whole code
+	redactPattern,
+	redactReplacement = "********",
+
+	// Show a button to show the redacted parts of the code
+	redactShowButton = false,
 }) => {
+	const [showFullValue, setShowFullValue] = useState(false);
+
+	const displayValue = secret
+		? obfuscateText(code)
+		: redactPattern && !showFullValue
+			? code.replace(redactPattern, redactReplacement)
+			: code;
+
+	const showButtonLabel = showFullValue ? "Hide sensitive data" : "Show sensitive data";
+	const icon = showFullValue ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />;
+
 	return (
 		<div css={styles.container} className={className}>
 			<code css={[styles.code, secret && styles.secret]}>
@@ -33,17 +57,36 @@ export const CodeExample: FC<CodeExampleProps> = ({
 						 * 2. Even with it turned on and supported, the plaintext is still
 						 *    readily available in the HTML itself
 						 */}
-						<span aria-hidden>{obfuscateText(code)}</span>
+						<span aria-hidden>{displayValue}</span>
 						<span className="sr-only">
 							Encrypted text. Please access via the copy button.
 						</span>
 					</>
 				) : (
-					code
+					displayValue
 				)}
 			</code>
 
-			<CopyButton text={code} label="Copy code" />
+			<div css={styles.actions}>
+				{redactShowButton && redactPattern && !secret && (
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									size="icon"
+									variant="subtle"
+									onClick={() => setShowFullValue(!showFullValue)}
+								>
+									{icon}
+									<span className="sr-only">{showButtonLabel}</span>
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>{showButtonLabel}</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				)}
+				<CopyButton text={code} label="Copy code" />
+			</div>
 		</div>
 	);
 };
@@ -79,5 +122,11 @@ const styles = {
 
 	secret: {
 		"-webkit-text-security": "disc", // also supported by firefox
+	},
+
+	actions: {
+		display: "flex",
+		alignItems: "center",
+		gap: 4,
 	},
 } satisfies Record<string, Interpolation<Theme>>;

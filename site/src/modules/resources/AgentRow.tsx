@@ -40,6 +40,7 @@ import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { useAgentContainers } from "./useAgentContainers";
 import { useAgentLogs } from "./useAgentLogs";
+import { AgentExternal } from "./AgentExternal";
 
 interface AgentRowProps {
 	agent: WorkspaceAgent;
@@ -62,6 +63,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const appSections = organizeAgentApps(agent.apps);
 	const hasAppsToDisplay =
 		!browser_only || appSections.some((it) => it.apps.length > 0);
+	const isExternalAgent = workspace.latest_build.has_external_agent;
 	const shouldDisplayAgentApps =
 		(agent.status === "connected" && hasAppsToDisplay) ||
 		agent.status === "connecting";
@@ -74,7 +76,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const { proxy } = useProxy();
 	const [showLogs, setShowLogs] = useState(
 		["starting", "start_timeout"].includes(agent.lifecycle_state) &&
-			hasStartupFeatures,
+		hasStartupFeatures,
 	);
 	const agentLogs = useAgentLogs(agent, showLogs);
 	const logListRef = useRef<List>(null);
@@ -258,7 +260,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</section>
 				)}
 
-				{agent.status === "connecting" && (
+				{agent.status === "connecting" && !isExternalAgent && (
 					<section css={styles.apps}>
 						<Skeleton
 							width={80}
@@ -291,6 +293,11 @@ export const AgentRow: FC<AgentRowProps> = ({
 							);
 						})}
 					</section>
+				)}
+
+
+				{isExternalAgent && (agent.status === "timeout" || agent.status === "connecting") && (
+					<AgentExternal isExternalAgent={isExternalAgent} agent={agent} workspace={workspace} />
 				)}
 
 				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />

@@ -2008,6 +2008,16 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getWorkspaceAgentCredentials = async (
+		workspaceID: string,
+		agentName: string,
+	): Promise<TypesGen.ExternalAgentCredentials> => {
+		const response = await this.axios.get(
+			`/api/v2/workspaces/${workspaceID}/external-agent/${agentName}/credentials`,
+		);
+		return response.data;
+	};
+
 	upsertWorkspaceAgentSharedPort = async (
 		workspaceID: string,
 		req: TypesGen.UpsertWorkspaceAgentPortShareRequest,

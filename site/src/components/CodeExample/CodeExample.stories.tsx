@@ -31,3 +31,12 @@ export const LongCode: Story = {
 		code: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICnKzATuWwmmt5+CKTPuRGN0R1PBemA+6/SStpLiyX+L",
 	},
 };
+
+export const Redact: Story = {
+	args: {
+		secret: false,
+		redactPattern: /CODER_AGENT_TOKEN="([^"]+)"/g,
+		redactReplacement: `CODER_AGENT_TOKEN="********"`,
+		redactShowButton: true,
+	},
+};
