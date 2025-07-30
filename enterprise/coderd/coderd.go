@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/quartz"
@@ -22,10 +23,12 @@ import (
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/enterprise/coderd/connectionlog"
 	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
 	"github.com/coder/coder/v2/enterprise/coderd/portsharing"
+	"github.com/coder/coder/v2/enterprise/coderd/usage"
 
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
@@ -89,6 +92,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	if options.Entitlements == nil {
 		options.Entitlements = entitlements.New()
+	}
+	if options.Options.UsageCollector == nil {
+		options.Options.UsageCollector = &atomic.Pointer[agplusage.Collector]{}
+	}
+	if options.Options.UsageCollector.Load() == nil {
+		collector := usage.NewDBCollector()
+		options.Options.UsageCollector.Store(&collector)
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)

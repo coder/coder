@@ -17,7 +17,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/cryptorand"
-	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/quartz"
 )
@@ -47,17 +46,17 @@ type Publisher interface {
 }
 
 type tallymanPublisher struct {
-	ctx       context.Context
-	ctxCancel context.CancelFunc
-	log       slog.Logger
-	db        database.Store
-	done      chan struct{}
+	ctx         context.Context
+	ctxCancel   context.CancelFunc
+	log         slog.Logger
+	db          database.Store
+	licenseKeys map[string]ed25519.PublicKey
+	done        chan struct{}
 
 	// Configured with options:
 	ingestURL    string
 	httpClient   *http.Client
 	clock        quartz.Clock
-	licenseKeys  map[string]ed25519.PublicKey
 	initialDelay time.Duration
 }
 
@@ -65,19 +64,19 @@ var _ Publisher = &tallymanPublisher{}
 
 // NewTallymanPublisher creates a Publisher that publishes usage events to
 // Coder's Tallyman service.
-func NewTallymanPublisher(ctx context.Context, log slog.Logger, db database.Store, opts ...TallymanPublisherOption) Publisher {
+func NewTallymanPublisher(ctx context.Context, log slog.Logger, db database.Store, keys map[string]ed25519.PublicKey, opts ...TallymanPublisherOption) Publisher {
 	ctx, cancel := context.WithCancel(ctx)
 	publisher := &tallymanPublisher{
-		ctx:       ctx,
-		ctxCancel: cancel,
-		log:       log,
-		db:        db,
-		done:      make(chan struct{}),
+		ctx:         ctx,
+		ctxCancel:   cancel,
+		log:         log,
+		db:          db,
+		licenseKeys: keys,
+		done:        make(chan struct{}),
 
-		ingestURL:   tallymanIngestURLV1,
-		httpClient:  http.DefaultClient,
-		clock:       quartz.NewReal(),
-		licenseKeys: coderd.Keys,
+		ingestURL:  tallymanIngestURLV1,
+		httpClient: http.DefaultClient,
+		clock:      quartz.NewReal(),
 	}
 	for _, opt := range opts {
 		opt(publisher)
@@ -90,6 +89,9 @@ type TallymanPublisherOption func(*tallymanPublisher)
 // PublisherWithHTTPClient sets the HTTP client to use for publishing usage events.
 func PublisherWithHTTPClient(httpClient *http.Client) TallymanPublisherOption {
 	return func(p *tallymanPublisher) {
+		if httpClient == nil {
+			httpClient = http.DefaultClient
+		}
 		p.httpClient = httpClient
 	}
 }
@@ -98,14 +100,6 @@ func PublisherWithHTTPClient(httpClient *http.Client) TallymanPublisherOption {
 func PublisherWithClock(clock quartz.Clock) TallymanPublisherOption {
 	return func(p *tallymanPublisher) {
 		p.clock = clock
-	}
-}
-
-// PublisherWithLicenseKeys sets the license public keys to use for license
-// validation.
-func PublisherWithLicenseKeys(keys map[string]ed25519.PublicKey) TallymanPublisherOption {
-	return func(p *tallymanPublisher) {
-		p.licenseKeys = keys
 	}
 }
 
@@ -144,6 +138,10 @@ func (p *tallymanPublisher) Start() error {
 			return xerrors.Errorf("could not generate random start delay: %w", err)
 		}
 		p.initialDelay = tallymanPublishInitialMinimumDelay + time.Duration(plusDelay)
+	}
+
+	if len(p.licenseKeys) == 0 {
+		return xerrors.New("no license keys provided")
 	}
 
 	go p.publishLoop(p.ctx, deploymentUUID)

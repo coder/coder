@@ -44,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -64,6 +65,13 @@ func testUserQuietHoursScheduleStore() *atomic.Pointer[schedule.UserQuietHoursSc
 	ptr := &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{}
 	store := schedule.NewAGPLUserQuietHoursScheduleStore()
 	ptr.Store(&store)
+	return ptr
+}
+
+func testUsageCollector() *atomic.Pointer[usage.Collector] {
+	ptr := &atomic.Pointer[usage.Collector]{}
+	collector := usage.NewAGPLCollector()
+	ptr.Store(&collector)
 	return ptr
 }
 
@@ -2469,7 +2477,10 @@ func TestCompleteJob(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					t.Parallel()
 
-					srv, db, _, pd := setup(t, false, &overrides{})
+					fakeUsageCollector, usageCollectorPtr := newFakeUsageCollector()
+					srv, db, _, pd := setup(t, false, &overrides{
+						usageCollector: usageCollectorPtr,
+					})
 
 					importJobID := uuid.New()
 					tvID := uuid.New()
@@ -2535,6 +2546,10 @@ func TestCompleteJob(t *testing.T) {
 					require.NoError(t, err)
 					require.True(t, version.HasAITask.Valid) // We ALWAYS expect a value to be set, therefore not nil, i.e. valid = true.
 					require.Equal(t, tc.expected, version.HasAITask.Bool)
+
+					// We never expect a usage event to be collected for
+					// template imports.
+					require.Empty(t, fakeUsageCollector.collectedEvents)
 				})
 			}
 		})
@@ -2576,7 +2591,10 @@ func TestCompleteJob(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					t.Parallel()
 
-					srv, db, _, pd := setup(t, false, &overrides{})
+					fakeUsageCollector, usageCollectorPtr := newFakeUsageCollector()
+					srv, db, _, pd := setup(t, false, &overrides{
+						usageCollector: usageCollectorPtr,
+					})
 
 					importJobID := uuid.New()
 					tvID := uuid.New()
@@ -2657,6 +2675,15 @@ func TestCompleteJob(t *testing.T) {
 
 					if tc.expected {
 						require.Equal(t, sidebarAppID, build.AITaskSidebarAppID.UUID.String())
+
+						// Check that a usage event was collected.
+						require.Len(t, fakeUsageCollector.collectedEvents, 1)
+						require.Equal(t, usage.DCManagedAgentsV1{
+							Count: 1,
+						}, fakeUsageCollector.collectedEvents[0])
+					} else {
+						// Check that no usage event was collected.
+						require.Empty(t, fakeUsageCollector.collectedEvents)
 					}
 				})
 			}
@@ -3582,6 +3609,7 @@ type overrides struct {
 	externalAuthConfigs         []*externalauth.Config
 	templateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	userQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
+	usageCollector              *atomic.Pointer[usage.Collector]
 	clock                       *quartz.Mock
 	acquireJobLongPollDuration  time.Duration
 	heartbeatFn                 func(ctx context.Context) error
@@ -3603,6 +3631,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	var externalAuthConfigs []*externalauth.Config
 	tss := testTemplateScheduleStore()
 	uqhss := testUserQuietHoursScheduleStore()
+	usageCollector := testUsageCollector()
 	clock := quartz.NewReal()
 	pollDur := time.Duration(0)
 	if ov == nil {
@@ -3637,6 +3666,15 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		uqhss = ov.userQuietHoursScheduleStore
 		if uqhss.Load() == nil {
 			swapped := uqhss.CompareAndSwap(nil, tuqhss)
+			require.True(t, swapped)
+		}
+	}
+	if ov.usageCollector != nil {
+		tusageCollector := usageCollector.Load()
+		// keep the initial test value if the override hasn't set the atomic pointer.
+		usageCollector = ov.usageCollector
+		if usageCollector.Load() == nil {
+			swapped := usageCollector.CompareAndSwap(nil, tusageCollector)
 			require.True(t, swapped)
 		}
 	}
@@ -3695,6 +3733,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		auditPtr,
 		tss,
 		uqhss,
+		usageCollector,
 		deploymentValues,
 		provisionerdserver.Options{
 			ExternalAuthConfigs:   externalAuthConfigs,
@@ -3808,4 +3847,23 @@ func (s *fakeStream) cancel() {
 	defer s.c.L.Unlock()
 	s.canceled = true
 	s.c.Broadcast()
+}
+
+type fakeUsageCollector struct {
+	collectedEvents []usage.Event
+}
+
+var _ usage.Collector = &fakeUsageCollector{}
+
+func newFakeUsageCollector() (*fakeUsageCollector, *atomic.Pointer[usage.Collector]) {
+	ptr := &atomic.Pointer[usage.Collector]{}
+	fake := &fakeUsageCollector{}
+	var collector usage.Collector = fake
+	ptr.Store(&collector)
+	return fake, ptr
+}
+
+func (f *fakeUsageCollector) CollectDiscreteUsageEvent(_ context.Context, _ database.Store, event usage.DiscreteEvent) error {
+	f.collectedEvents = append(f.collectedEvents, event)
+	return nil
 }

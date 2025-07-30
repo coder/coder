@@ -21,6 +21,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 
 	"github.com/andybalholm/brotli"
@@ -198,6 +199,7 @@ type Options struct {
 	TemplateScheduleStore          *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore    *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	AccessControlStore             *atomic.Pointer[dbauthz.AccessControlStore]
+	UsageCollector                 *atomic.Pointer[usage.Collector]
 	// CoordinatorResumeTokenProvider is used to provide and validate resume
 	// tokens issued by and passed to the coordinator DRPC API.
 	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
@@ -426,6 +428,13 @@ func New(options *Options) *API {
 		v := schedule.NewAGPLUserQuietHoursScheduleStore()
 		options.UserQuietHoursScheduleStore.Store(&v)
 	}
+	if options.UsageCollector == nil {
+		options.UsageCollector = &atomic.Pointer[usage.Collector]{}
+	}
+	if options.UsageCollector.Load() == nil {
+		collector := usage.NewAGPLCollector()
+		options.UsageCollector.Store(&collector)
+	}
 	if options.OneTimePasscodeValidityPeriod == 0 {
 		options.OneTimePasscodeValidityPeriod = 20 * time.Minute
 	}
@@ -588,6 +597,7 @@ func New(options *Options) *API {
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
 		BuildUsageChecker:           &buildUsageChecker,
+		UsageCollector:              options.UsageCollector,
 		FileCache:                   files.New(options.PrometheusRegistry, options.Authorizer),
 		Experiments:                 experiments,
 		WebpushDispatcher:           options.WebPushDispatcher,
@@ -1662,6 +1672,9 @@ type API struct {
 	// BuildUsageChecker is a pointer as it's passed around to multiple
 	// components.
 	BuildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker]
+	// UsageCollector is a pointer to an atomic pointer because it is passed to
+	// multiple components.
+	UsageCollector *atomic.Pointer[usage.Collector]
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 
@@ -1877,6 +1890,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		&api.Auditor,
 		api.TemplateScheduleStore,
 		api.UserQuietHoursScheduleStore,
+		api.UsageCollector,
 		api.DeploymentValues,
 		provisionerdserver.Options{
 			OIDCConfig:          api.OIDCConfig,

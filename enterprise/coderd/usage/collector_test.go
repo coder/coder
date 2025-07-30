@@ -28,7 +28,7 @@ func TestCollector(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		clock := quartz.NewMock(t)
-		collector := usage.NewCollector(usage.CollectorWithClock(clock))
+		collector := usage.NewDBCollector(usage.CollectorWithClock(clock))
 
 		now := dbtime.Now()
 		events := []struct {
@@ -76,7 +76,7 @@ func TestCollector(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 
 		// We should get an error if the event is invalid.
-		collector := usage.NewCollector()
+		collector := usage.NewDBCollector()
 		err := collector.CollectDiscreteUsageEvent(ctx, db, agplusage.DCManagedAgentsV1{
 			Count: 0, // invalid
 		})

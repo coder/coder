@@ -13,17 +13,17 @@ import (
 	"github.com/coder/quartz"
 )
 
-// Collector collects usage events and stores them in the database for
+// dbCollector collects usage events and stores them in the database for
 // publishing.
-type Collector struct {
+type dbCollector struct {
 	clock quartz.Clock
 }
 
-var _ agplusage.Collector = &Collector{}
+var _ agplusage.Collector = &dbCollector{}
 
-// NewCollector creates a new database-backed usage event collector.
-func NewCollector(opts ...CollectorOption) *Collector {
-	c := &Collector{
+// NewDBCollector creates a new database-backed usage event collector.
+func NewDBCollector(opts ...CollectorOption) agplusage.Collector {
+	c := &dbCollector{
 		clock: quartz.NewReal(),
 	}
 	for _, opt := range opts {
@@ -32,17 +32,17 @@ func NewCollector(opts ...CollectorOption) *Collector {
 	return c
 }
 
-type CollectorOption func(*Collector)
+type CollectorOption func(*dbCollector)
 
 // CollectorWithClock sets the quartz clock to use for the collector.
 func CollectorWithClock(clock quartz.Clock) CollectorOption {
-	return func(c *Collector) {
+	return func(c *dbCollector) {
 		c.clock = clock
 	}
 }
 
 // CollectDiscreteUsageEvent implements agplusage.Collector.
-func (c *Collector) CollectDiscreteUsageEvent(ctx context.Context, db database.Store, event agplusage.DiscreteEvent) error {
+func (c *dbCollector) CollectDiscreteUsageEvent(ctx context.Context, db database.Store, event agplusage.DiscreteEvent) error {
 	if !event.EventType().IsDiscrete() {
 		return xerrors.Errorf("event type %q is not a discrete event", event.EventType())
 	}

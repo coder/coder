@@ -29,6 +29,7 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/util/slice"
 
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -121,6 +122,7 @@ type server struct {
 	DeploymentValues            *codersdk.DeploymentValues
 	NotificationsEnqueuer       notifications.Enqueuer
 	PrebuildsOrchestrator       *atomic.Pointer[prebuilds.ReconciliationOrchestrator]
+	UsageCollector              *atomic.Pointer[usage.Collector]
 
 	OIDCConfig promoauth.OAuth2Config
 
@@ -174,6 +176,7 @@ func NewServer(
 	auditor *atomic.Pointer[audit.Auditor],
 	templateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore],
 	userQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore],
+	usageCollector *atomic.Pointer[usage.Collector],
 	deploymentValues *codersdk.DeploymentValues,
 	options Options,
 	enqueuer notifications.Enqueuer,
@@ -194,6 +197,9 @@ func NewServer(
 	}
 	if userQuietHoursScheduleStore == nil {
 		return nil, xerrors.New("userQuietHoursScheduleStore is nil")
+	}
+	if usageCollector == nil {
+		return nil, xerrors.New("usageCollector is nil")
 	}
 	if deploymentValues == nil {
 		return nil, xerrors.New("deploymentValues is nil")
@@ -244,6 +250,7 @@ func NewServer(
 		heartbeatInterval:           options.HeartbeatInterval,
 		heartbeatFn:                 options.HeartbeatFn,
 		PrebuildsOrchestrator:       prebuildsOrchestrator,
+		UsageCollector:              usageCollector,
 	}
 
 	if s.heartbeatFn == nil {
@@ -1892,6 +1899,18 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}
 
 			sidebarAppID = uuid.NullUUID{UUID: id, Valid: true}
+
+			// Collect usage event for managed agents.
+			usageCollector := s.UsageCollector.Load()
+			if usageCollector != nil {
+				event := usage.DCManagedAgentsV1{
+					Count: 1,
+				}
+				err = (*usageCollector).CollectDiscreteUsageEvent(ctx, db, event)
+				if err != nil {
+					return xerrors.Errorf("collect %q event: %w", event.EventType(), err)
+				}
+			}
 		}
 
 		// Regardless of whether there is an AI task or not, update the field to indicate one way or the other since it
