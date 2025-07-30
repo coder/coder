@@ -41,8 +41,6 @@ var skipMethods = map[string]string{
 	"Wrappers":       "Not relevant",
 	"AcquireLock":    "Not relevant",
 	"TryAcquireLock": "Not relevant",
-	// This method will be removed once we know this works correctly.
-	"GetRunningPrebuiltWorkspacesOptimized": "Not relevant",
 }
 
 // TestMethodTestSuite runs MethodTestSuite.
@@ -318,7 +316,7 @@ func hasEmptyResponse(values []reflect.Value) bool {
 			}
 		}
 
-		// Special case for int64, as it's the return type for count query.
+		// Special case for int64, as it's the return type for count queries.
 		if r.Kind() == reflect.Int64 {
 			if r.Int() == 0 {
 				return true

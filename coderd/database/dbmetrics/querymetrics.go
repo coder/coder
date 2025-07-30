@@ -194,6 +194,13 @@ func (m queryMetricsStore) CountAuditLogs(ctx context.Context, arg database.Coun
 	return r0, r1
 }
 
+func (m queryMetricsStore) CountConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountConnectionLogs(ctx, arg)
+	m.queryLatencies.WithLabelValues("CountConnectionLogs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountInProgressPrebuilds(ctx)
@@ -352,6 +359,13 @@ func (m queryMetricsStore) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx conte
 	start := time.Now()
 	r0 := m.s.DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteOAuth2ProviderAppTokensByAppAndUserID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) DeleteOldAuditLogConnectionEvents(ctx context.Context, threshold database.DeleteOldAuditLogConnectionEventsParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteOldAuditLogConnectionEvents(ctx, threshold)
+	m.queryLatencies.WithLabelValues("DeleteOldAuditLogConnectionEvents").Observe(time.Since(start).Seconds())
 	return r0
 }
 
@@ -656,6 +670,13 @@ func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID
 	return row, err
 }
 
+func (m queryMetricsStore) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetConnectionLogsOffset(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetConnectionLogsOffset").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetCoordinatorResumeTokenSigningKey(ctx)
@@ -941,6 +962,13 @@ func (m queryMetricsStore) GetLogoURL(ctx context.Context) (string, error) {
 	url, err := m.s.GetLogoURL(ctx)
 	m.queryLatencies.WithLabelValues("GetLogoURL").Observe(time.Since(start).Seconds())
 	return url, err
+}
+
+func (m queryMetricsStore) GetManagedAgentCount(ctx context.Context, arg database.GetManagedAgentCountParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetManagedAgentCount(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetManagedAgentCount").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
@@ -1332,13 +1360,6 @@ func (m queryMetricsStore) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]
 	start := time.Now()
 	r0, r1 := m.s.GetRunningPrebuiltWorkspaces(ctx)
 	m.queryLatencies.WithLabelValues("GetRunningPrebuiltWorkspaces").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetRunningPrebuiltWorkspacesOptimized(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesOptimizedRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetRunningPrebuiltWorkspacesOptimized(ctx)
-	m.queryLatencies.WithLabelValues("GetRunningPrebuiltWorkspacesOptimized").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -3162,6 +3183,13 @@ func (m queryMetricsStore) UpsertApplicationName(ctx context.Context, value stri
 	return r0
 }
 
+func (m queryMetricsStore) UpsertConnectionLog(ctx context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertConnectionLog(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertConnectionLog").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error {
 	start := time.Now()
 	r0 := m.s.UpsertCoordinatorResumeTokenSigningKey(ctx, value)
@@ -3390,5 +3418,19 @@ func (m queryMetricsStore) CountAuthorizedAuditLogs(ctx context.Context, arg dat
 	start := time.Now()
 	r0, r1 := m.s.CountAuthorizedAuditLogs(ctx, arg, prepared)
 	m.queryLatencies.WithLabelValues("CountAuthorizedAuditLogs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams, prepared rbac.PreparedAuthorized) ([]database.GetConnectionLogsOffsetRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizedConnectionLogsOffset(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedConnectionLogsOffset").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) CountAuthorizedConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams, prepared rbac.PreparedAuthorized) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountAuthorizedConnectionLogs(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("CountAuthorizedConnectionLogs").Observe(time.Since(start).Seconds())
 	return r0, r1
 }

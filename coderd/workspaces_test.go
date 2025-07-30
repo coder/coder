@@ -431,9 +431,9 @@ func TestWorkspace(t *testing.T) {
 
 		// Test Utility variables
 		templateVersionParameters := []*proto.RichParameter{
-			{Name: "param1", Type: "string", Required: false},
-			{Name: "param2", Type: "string", Required: false},
-			{Name: "param3", Type: "string", Required: false},
+			{Name: "param1", Type: "string", Required: false, DefaultValue: "default1"},
+			{Name: "param2", Type: "string", Required: false, DefaultValue: "default2"},
+			{Name: "param3", Type: "string", Required: false, DefaultValue: "default3"},
 		}
 		presetParameters := []*proto.PresetParameter{
 			{Name: "param1", Value: "value1"},
@@ -2875,12 +2875,17 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 				defer cancel()
 
-				err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
-					TTLMillis: testCase.toTTL,
-				})
+				// Re-fetch the workspace build. This is required because
+				// `AwaitWorkspaceBuildJobCompleted` can return stale data.
+				build, err := client.WorkspaceBuild(ctx, build.ID)
 				require.NoError(t, err)
 
 				deadlineBefore := build.Deadline
+
+				err = client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
+					TTLMillis: testCase.toTTL,
+				})
+				require.NoError(t, err)
 
 				build, err = client.WorkspaceBuild(ctx, build.ID)
 				require.NoError(t, err)
@@ -3837,7 +3842,9 @@ func TestWorkspaceWithEphemeralRichParameters(t *testing.T) {
 		}},
 	})
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+		request.UseClassicParameterFlow = ptr.Ref(true) // TODO: Remove this when dynamic parameters handles this case
+	})
 
 	// Create workspace with default values
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)

@@ -14,7 +14,7 @@ Coder provides a [GitHub Action](./github-actions.md) that automatically starts 
 
 ## Agents with Coder Tasks (Beta)
 
-In cases where the IDE is secondary, such as protyping or long-running background jobs, agents like Claude Code or Aider are better for the job and new SaaS interfaces like [Devin](https://devin.ai) and [ChatGPT Codex](https://openai.com/index/introducing-codex/) are emerging.
+In cases where the IDE is secondary, such as prototyping or long-running background jobs, agents like Claude Code or Aider are better for the job and new SaaS interfaces like [Devin](https://devin.ai) and [ChatGPT Codex](https://openai.com/index/introducing-codex/) are emerging.
 
 [Coder Tasks](./tasks.md) is a new interface inside Coder to run and manage coding agents with a chat-based UI. Unlike SaaS-based products, Coder Tasks is self-hosted (included in your Coder deployment) and allows you to run any terminal-based agent such as Claude Code or Codex's Open Source CLI.
 

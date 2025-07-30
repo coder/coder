@@ -48,7 +48,7 @@ WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a pre
   -- AND NOT t.deleted -- We don't exclude deleted templates because there's no constraint in the DB preventing a soft deletion on a template while workspaces are running.
 	AND (t.id = sqlc.narg('template_id')::uuid OR sqlc.narg('template_id') IS NULL);
 
--- name: GetRunningPrebuiltWorkspacesOptimized :many
+-- name: GetRunningPrebuiltWorkspaces :many
 WITH latest_prebuilds AS (
 	-- All workspaces that match the following criteria:
 	-- 1. Owned by prebuilds user
@@ -105,21 +105,6 @@ FROM latest_prebuilds
 LEFT JOIN ready_agents ON ready_agents.job_id = latest_prebuilds.job_id
 LEFT JOIN workspace_latest_presets ON workspace_latest_presets.workspace_id = latest_prebuilds.id
 ORDER BY latest_prebuilds.id;
-
--- name: GetRunningPrebuiltWorkspaces :many
-SELECT
-		p.id,
-		p.name,
-		p.template_id,
-		b.template_version_id,
-		p.current_preset_id AS current_preset_id,
-		p.ready,
-		p.created_at
-FROM workspace_prebuilds p
-		INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
-WHERE (b.transition = 'start'::workspace_transition
-	AND b.job_status = 'succeeded'::provisioner_job_status)
-ORDER BY p.id;
 
 -- name: CountInProgressPrebuilds :many
 -- CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.

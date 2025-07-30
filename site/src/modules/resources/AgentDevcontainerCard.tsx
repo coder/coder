@@ -130,12 +130,6 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 			return { previousData };
 		},
-		onSuccess: async () => {
-			// Invalidate the containers query to refetch updated data.
-			await queryClient.invalidateQueries({
-				queryKey: ["agents", parentAgent.id, "containers"],
-			});
-		},
 		onError: (error, _, context) => {
 			// If the mutation fails, use the context returned from
 			// onMutate to roll back.
@@ -224,7 +218,8 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							text-sm font-semibold text-content-primary
 							md:overflow-visible"
 						>
-							{subAgent?.name ?? devcontainer.name}
+							{subAgent?.name ??
+								(devcontainer.name || devcontainer.config_path)}
 							{devcontainer.container && (
 								<span className="text-content-tertiary">
 									{" "}
@@ -259,7 +254,8 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						disabled={devcontainer.status === "starting"}
 					>
 						<Spinner loading={devcontainer.status === "starting"} />
-						Rebuild
+
+						{devcontainer.container === undefined ? "Start" : "Rebuild"}
 					</Button>
 
 					{showDevcontainerControls && displayApps.includes("ssh_helper") && (

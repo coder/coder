@@ -66,6 +66,12 @@ type Workspace struct {
 	AllowRenames     bool             `json:"allow_renames"`
 	Favorite         bool             `json:"favorite"`
 	NextStartAt      *time.Time       `json:"next_start_at" format:"date-time"`
+	// IsPrebuild indicates whether the workspace is a prebuilt workspace.
+	// Prebuilt workspaces are owned by the prebuilds system user and have specific behavior,
+	// such as being managed differently from regular workspaces.
+	// Once a prebuilt workspace is claimed by a user, it transitions to a regular workspace,
+	// and IsPrebuild returns false.
+	IsPrebuild bool `json:"is_prebuild"`
 }
 
 func (w Workspace) FullName() string {
@@ -93,6 +99,16 @@ const (
 	ProvisionerLogLevelDebug ProvisionerLogLevel = "debug"
 )
 
+type CreateWorkspaceBuildReason string
+
+const (
+	CreateWorkspaceBuildReasonDashboard           CreateWorkspaceBuildReason = "dashboard"
+	CreateWorkspaceBuildReasonCLI                 CreateWorkspaceBuildReason = "cli"
+	CreateWorkspaceBuildReasonSSHConnection       CreateWorkspaceBuildReason = "ssh_connection"
+	CreateWorkspaceBuildReasonVSCodeConnection    CreateWorkspaceBuildReason = "vscode_connection"
+	CreateWorkspaceBuildReasonJetbrainsConnection CreateWorkspaceBuildReason = "jetbrains_connection"
+)
+
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
 	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty" format:"uuid"`
@@ -110,6 +126,8 @@ type CreateWorkspaceBuildRequest struct {
 	LogLevel ProvisionerLogLevel `json:"log_level,omitempty" validate:"omitempty,oneof=debug"`
 	// TemplateVersionPresetID is the ID of the template version preset to use for the build.
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
+	// Reason sets the reason for the workspace build.
+	Reason CreateWorkspaceBuildReason `json:"reason,omitempty" validate:"omitempty,oneof=dashboard cli ssh_connection vscode_connection jetbrains_connection"`
 }
 
 type WorkspaceOptions struct {

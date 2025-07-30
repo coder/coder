@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 
 	"github.com/google/uuid"
@@ -27,7 +28,6 @@ import (
 	"tailscale.com/types/ptr"
 
 	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogjson"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/quartz"
 
@@ -58,7 +58,7 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 	}
 	logger := testutil.Logger(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	controller := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+	controller := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 
 	// given a template version with no presets
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -104,7 +104,7 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 	}
 	logger := testutil.Logger(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	controller := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+	controller := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 
 	// given there are presets, but no prebuilds
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -384,7 +384,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 									pubSub = &brokenPublisher{Pubsub: pubSub}
 								}
 								cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-								controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+								controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 
 								// Run the reconciliation multiple times to ensure idempotency
 								// 8 was arbitrary, but large enough to reasonably trust the result
@@ -462,7 +462,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -588,7 +588,7 @@ func TestPrebuildScheduling(t *testing.T) {
 			).Leveled(slog.LevelDebug)
 			db, pubSub := dbtestutil.NewDB(t)
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 
 			ownerID := uuid.New()
 			dbgen.User(t, db, database.User{
@@ -693,7 +693,7 @@ func TestInvalidPreset(t *testing.T) {
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -758,7 +758,7 @@ func TestDeletionOfPrebuiltWorkspaceWithInvalidPreset(t *testing.T) {
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -855,7 +855,7 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			fakeEnqueuer := newFakeEnqueuer()
 			registry := prometheus.NewRegistry()
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer)
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr())
 
 			// Set up test environment with a template, version, and preset.
 			ownerID := uuid.New()
@@ -999,7 +999,7 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			fakeEnqueuer := newFakeEnqueuer()
 			registry := prometheus.NewRegistry()
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer)
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr())
 
 			// Set up test environment with a template, version, and preset.
 			ownerID := uuid.New()
@@ -1193,7 +1193,7 @@ func TestRunLoop(t *testing.T) {
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	reconciler := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
+	reconciler := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -1324,7 +1324,7 @@ func TestFailedBuildBackoff(t *testing.T) {
 	).Leveled(slog.LevelDebug)
 	db, ps := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
+	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 
 	// Given: an active template version with presets and prebuilds configured.
 	const desiredInstances = 2
@@ -1449,7 +1449,8 @@ func TestReconciliationLock(t *testing.T) {
 				slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug),
 				quartz.NewMock(t),
 				prometheus.NewRegistry(),
-				newNoopEnqueuer())
+				newNoopEnqueuer(),
+				newNoopUsageCheckerPtr())
 			reconciler.WithReconciliationLock(ctx, logger, func(_ context.Context, _ database.Store) error {
 				lockObtained := mutex.TryLock()
 				// As long as the postgres lock is held, this mutex should always be unlocked when we get here.
@@ -1483,7 +1484,7 @@ func TestTrackResourceReplacement(t *testing.T) {
 	fakeEnqueuer := newFakeEnqueuer()
 	registry := prometheus.NewRegistry()
 	cache := files.New(registry, &coderdtest.FakeAuthorizer{})
-	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer)
+	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr())
 
 	// Given: a template admin to receive a notification.
 	templateAdmin := dbgen.User(t, db, database.User{
@@ -1639,7 +1640,7 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 			fakeEnqueuer := newFakeEnqueuer()
 			registry := prometheus.NewRegistry()
 			cache := files.New(registry, &coderdtest.FakeAuthorizer{})
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer)
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr())
 
 			// Set up test environment with a template, version, and preset
 			ownerID := uuid.New()
@@ -1800,6 +1801,13 @@ func newNoopEnqueuer() *notifications.NoopEnqueuer {
 
 func newFakeEnqueuer() *notificationstest.FakeEnqueuer {
 	return notificationstest.NewFakeEnqueuer()
+}
+
+func newNoopUsageCheckerPtr() *atomic.Pointer[wsbuilder.UsageChecker] {
+	var noopUsageChecker wsbuilder.UsageChecker = wsbuilder.NoopUsageChecker{}
+	buildUsageChecker := atomic.Pointer[wsbuilder.UsageChecker]{}
+	buildUsageChecker.Store(&noopUsageChecker)
+	return &buildUsageChecker
 }
 
 // nolint:revive // It's a control flag, but this is a test.
@@ -2272,7 +2280,7 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	}
 	logger := testutil.Logger(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
+	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 
 	// Setup a template with a preset that should create prebuilds
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -2332,165 +2340,4 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
 	require.NoError(t, err)
 	require.Len(t, workspaces, 2, "should have recreated 2 prebuilds after resuming")
-}
-
-func TestCompareGetRunningPrebuiltWorkspacesResults(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-
-	// Helper to create test data
-	createWorkspaceRow := func(id string, name string, ready bool) database.GetRunningPrebuiltWorkspacesRow {
-		uid := uuid.MustParse(id)
-		return database.GetRunningPrebuiltWorkspacesRow{
-			ID:                uid,
-			Name:              name,
-			TemplateID:        uuid.New(),
-			TemplateVersionID: uuid.New(),
-			CurrentPresetID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
-			Ready:             ready,
-			CreatedAt:         time.Now(),
-		}
-	}
-
-	createOptimizedRow := func(row database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesOptimizedRow {
-		return database.GetRunningPrebuiltWorkspacesOptimizedRow(row)
-	}
-
-	t.Run("identical results - no logging", func(t *testing.T) {
-		t.Parallel()
-
-		var sb strings.Builder
-		logger := slog.Make(slogjson.Sink(&sb))
-
-		original := []database.GetRunningPrebuiltWorkspacesRow{
-			createWorkspaceRow("550e8400-e29b-41d4-a716-446655440000", "workspace1", true),
-			createWorkspaceRow("550e8400-e29b-41d4-a716-446655440001", "workspace2", false),
-		}
-
-		optimized := []database.GetRunningPrebuiltWorkspacesOptimizedRow{
-			createOptimizedRow(original[0]),
-			createOptimizedRow(original[1]),
-		}
-
-		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
-
-		// Should not log any errors when results are identical
-		require.Empty(t, strings.TrimSpace(sb.String()))
-	})
-
-	t.Run("count mismatch - logs error", func(t *testing.T) {
-		t.Parallel()
-
-		var sb strings.Builder
-		logger := slog.Make(slogjson.Sink(&sb))
-
-		original := []database.GetRunningPrebuiltWorkspacesRow{
-			createWorkspaceRow("550e8400-e29b-41d4-a716-446655440000", "workspace1", true),
-		}
-
-		optimized := []database.GetRunningPrebuiltWorkspacesOptimizedRow{
-			createOptimizedRow(original[0]),
-			createOptimizedRow(createWorkspaceRow("550e8400-e29b-41d4-a716-446655440001", "workspace2", false)),
-		}
-
-		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
-
-		// Should log exactly one error.
-		if lines := strings.Split(strings.TrimSpace(sb.String()), "\n"); assert.NotEmpty(t, lines) {
-			require.Len(t, lines, 1)
-			assert.Contains(t, lines[0], "ERROR")
-			assert.Contains(t, lines[0], "workspace2")
-			assert.Contains(t, lines[0], "CurrentPresetID")
-		}
-	})
-
-	t.Run("count mismatch - other direction", func(t *testing.T) {
-		t.Parallel()
-
-		var sb strings.Builder
-		logger := slog.Make(slogjson.Sink(&sb))
-
-		original := []database.GetRunningPrebuiltWorkspacesRow{}
-
-		optimized := []database.GetRunningPrebuiltWorkspacesOptimizedRow{
-			createOptimizedRow(createWorkspaceRow("550e8400-e29b-41d4-a716-446655440001", "workspace2", false)),
-		}
-
-		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
-
-		if lines := strings.Split(strings.TrimSpace(sb.String()), "\n"); assert.NotEmpty(t, lines) {
-			require.Len(t, lines, 1)
-			assert.Contains(t, lines[0], "ERROR")
-			assert.Contains(t, lines[0], "workspace2")
-			assert.Contains(t, lines[0], "CurrentPresetID")
-		}
-	})
-
-	t.Run("field differences - logs errors", func(t *testing.T) {
-		t.Parallel()
-
-		var sb strings.Builder
-		logger := slog.Make(slogjson.Sink(&sb))
-
-		workspace1 := createWorkspaceRow("550e8400-e29b-41d4-a716-446655440000", "workspace1", true)
-		workspace2 := createWorkspaceRow("550e8400-e29b-41d4-a716-446655440001", "workspace2", false)
-
-		original := []database.GetRunningPrebuiltWorkspacesRow{workspace1, workspace2}
-
-		// Create optimized with different values
-		optimized1 := createOptimizedRow(workspace1)
-		optimized1.Name = "different-name" // Different name
-		optimized1.Ready = false           // Different ready status
-
-		optimized2 := createOptimizedRow(workspace2)
-		optimized2.CurrentPresetID = uuid.NullUUID{Valid: false} // Different preset ID (NULL)
-
-		optimized := []database.GetRunningPrebuiltWorkspacesOptimizedRow{optimized1, optimized2}
-
-		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
-
-		// Should log exactly one error with a cmp.Diff output
-		if lines := strings.Split(strings.TrimSpace(sb.String()), "\n"); assert.NotEmpty(t, lines) {
-			require.Len(t, lines, 1)
-			assert.Contains(t, lines[0], "ERROR")
-			assert.Contains(t, lines[0], "different-name")
-			assert.Contains(t, lines[0], "workspace1")
-			assert.Contains(t, lines[0], "Ready")
-			assert.Contains(t, lines[0], "CurrentPresetID")
-		}
-	})
-
-	t.Run("empty results - no logging", func(t *testing.T) {
-		t.Parallel()
-
-		var sb strings.Builder
-		logger := slog.Make(slogjson.Sink(&sb))
-
-		original := []database.GetRunningPrebuiltWorkspacesRow{}
-		optimized := []database.GetRunningPrebuiltWorkspacesOptimizedRow{}
-
-		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
-
-		// Should not log any errors when both results are empty
-		require.Empty(t, strings.TrimSpace(sb.String()))
-	})
-
-	t.Run("nil original", func(t *testing.T) {
-		t.Parallel()
-		var sb strings.Builder
-		logger := slog.Make(slogjson.Sink(&sb))
-		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, nil, []database.GetRunningPrebuiltWorkspacesOptimizedRow{})
-		// Should not log any errors when original is nil
-		require.Empty(t, strings.TrimSpace(sb.String()))
-	})
-
-	t.Run("nil optimized ", func(t *testing.T) {
-		t.Parallel()
-		var sb strings.Builder
-		logger := slog.Make(slogjson.Sink(&sb))
-		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, []database.GetRunningPrebuiltWorkspacesRow{}, nil)
-		// Should not log any errors when optimized is nil
-		require.Empty(t, strings.TrimSpace(sb.String()))
-	})
 }
