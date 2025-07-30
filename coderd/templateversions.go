@@ -1822,6 +1822,14 @@ func (api *API) dynamicTemplateVersionTags(ctx context.Context, rw http.Response
 		return nil, false
 	}
 
+	// Fails early if presets are invalid to prevent downstream workspace creation errors
+	presetErr := dynamicparameters.CheckPresets(output, nil)
+	if presetErr != nil {
+		code, resp := presetErr.Response()
+		httpapi.Write(ctx, rw, code, resp)
+		return nil, false
+	}
+
 	return output.WorkspaceTags.Tags(), true
 }
 
