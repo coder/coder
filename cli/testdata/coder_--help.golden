@@ -15,6 +15,7 @@ USAGE:
 
 SUBCOMMANDS:
     autoupdate        Toggle auto-update policy for a workspace
+    builds            Manage workspace builds
     completion        Install or update shell completion scripts for the
                       detected or chosen shell.
     config-ssh        Add an SSH Host entry for your workspaces "ssh
@@ -28,6 +29,7 @@ SUBCOMMANDS:
     list              List workspaces
     login             Authenticate with Coder deployment
     logout            Unauthenticate your local session
+    logs              Show logs for a workspace build
     netcheck          Print network debug information for DERP and STUN
     notifications     Manage Coder notifications
     open              Open a workspace

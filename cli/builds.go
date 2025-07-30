@@ -54,14 +54,12 @@ func (r *RootCmd) builds() *serpent.Command {
 }
 
 func (r *RootCmd) buildsList() *serpent.Command {
-	var (
-		formatter = cliui.NewOutputFormatter(
-			cliui.TableFormat(
-				[]workspaceBuildListRow{},
-				[]string{"build", "build id", "status", "reason", "created", "duration"},
-			),
-			cliui.JSONFormat(),
-		)
+	formatter := cliui.NewOutputFormatter(
+		cliui.TableFormat(
+			[]workspaceBuildListRow{},
+			[]string{"build", "build id", "status", "reason", "created", "duration"},
+		),
+		cliui.JSONFormat(),
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{

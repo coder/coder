@@ -16,10 +16,10 @@ import (
 
 func TestLogs(t *testing.T) {
 	t.Parallel()
-	
+
 	t.Run("LogsInvalidBuildID", func(t *testing.T) {
 		t.Parallel()
-		
+
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 
@@ -36,7 +36,7 @@ func TestLogs(t *testing.T) {
 
 	t.Run("LogsNonexistentBuild", func(t *testing.T) {
 		t.Parallel()
-		
+
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 
