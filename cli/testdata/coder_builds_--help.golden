@@ -1,0 +1,12 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder builds
+
+  Manage workspace builds
+
+SUBCOMMANDS:
+    list    List builds for a workspace
+
+———
+Run `coder --help` for a list of global options.

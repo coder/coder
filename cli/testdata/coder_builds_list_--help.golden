@@ -1,0 +1,18 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder builds list [flags] <workspace>
+
+  List builds for a workspace
+
+  Aliases: ls
+
+OPTIONS:
+  -c, --column [build|build id|status|reason|created|duration] (default: build,build id,status,reason,created,duration)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

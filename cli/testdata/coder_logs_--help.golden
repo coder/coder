@@ -1,0 +1,13 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder logs [flags] <build-id>
+
+  Show logs for a workspace build
+
+OPTIONS:
+  -f, --follow bool
+          Follow log output (stream real-time logs).
+
+———
+Run `coder --help` for a list of global options.

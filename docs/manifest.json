@@ -1134,6 +1134,16 @@
 							"path": "reference/cli/autoupdate.md"
 						},
 						{
+							"title": "builds",
+							"description": "Manage workspace builds",
+							"path": "reference/cli/builds.md"
+						},
+						{
+							"title": "builds list",
+							"description": "List builds for a workspace",
+							"path": "reference/cli/builds_list.md"
+						},
+						{
 							"title": "coder",
 							"path": "reference/cli/index.md"
 						},
@@ -1245,6 +1255,11 @@
 							"title": "logout",
 							"description": "Unauthenticate your local session",
 							"path": "reference/cli/logout.md"
+						},
+						{
+							"title": "logs",
+							"description": "Show logs for a workspace build",
+							"path": "reference/cli/logs.md"
 						},
 						{
 							"title": "netcheck",

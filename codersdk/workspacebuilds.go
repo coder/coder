@@ -279,3 +279,14 @@ func (c *Client) WorkspaceBuildTimings(ctx context.Context, build uuid.UUID) (Wo
 	var timings WorkspaceBuildTimings
 	return timings, json.NewDecoder(res.Body).Decode(&timings)
 }
+
+func (c *Client) WorkspaceBuildsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceBuild, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/builds", workspaceID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	var builds []WorkspaceBuild
+	return builds, json.NewDecoder(res.Body).Decode(&builds)
+}

@@ -14,9 +14,9 @@ curl -X GET http://coder-server:8080/api/v2/derp-map \
 
 ### Responses
 
-| Status | Meaning                                                                  | Description         | Schema |
-|--------|--------------------------------------------------------------------------|---------------------|--------|
-| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|101|[Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2)|Switching Protocols||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -34,9 +34,9 @@ curl -X GET http://coder-server:8080/api/v2/tailnet \
 
 ### Responses
 
-| Status | Meaning                                                                  | Description         | Schema |
-|--------|--------------------------------------------------------------------------|---------------------|--------|
-| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|101|[Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2)|Switching Protocols||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -65,9 +65,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/aws-instance-identi
 
 ### Parameters
 
-| Name   | In   | Type                                                                             | Required | Description             |
-|--------|------|----------------------------------------------------------------------------------|----------|-------------------------|
-| `body` | body | [agentsdk.AWSInstanceIdentityToken](schemas.md#agentsdkawsinstanceidentitytoken) | true     | Instance identity token |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`body`|body|[agentsdk.AWSInstanceIdentityToken](schemas.md#agentsdkawsinstanceidentitytoken)|true|Instance identity token|
 
 ### Example responses
 
@@ -81,9 +81,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/aws-instance-identi
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                   |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -112,9 +112,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/azure-instance-iden
 
 ### Parameters
 
-| Name   | In   | Type                                                                                 | Required | Description             |
-|--------|------|--------------------------------------------------------------------------------------|----------|-------------------------|
-| `body` | body | [agentsdk.AzureInstanceIdentityToken](schemas.md#agentsdkazureinstanceidentitytoken) | true     | Instance identity token |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`body`|body|[agentsdk.AzureInstanceIdentityToken](schemas.md#agentsdkazureinstanceidentitytoken)|true|Instance identity token|
 
 ### Example responses
 
@@ -128,9 +128,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/azure-instance-iden
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                   |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -158,9 +158,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
 
 ### Parameters
 
-| Name   | In   | Type                                                                                   | Required | Description             |
-|--------|------|----------------------------------------------------------------------------------------|----------|-------------------------|
-| `body` | body | [agentsdk.GoogleInstanceIdentityToken](schemas.md#agentsdkgoogleinstanceidentitytoken) | true     | Instance identity token |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`body`|body|[agentsdk.GoogleInstanceIdentityToken](schemas.md#agentsdkgoogleinstanceidentitytoken)|true|Instance identity token|
 
 ### Example responses
 
@@ -174,9 +174,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                   |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -209,9 +209,9 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/app-status \
 
 ### Parameters
 
-| Name   | In   | Type                                                         | Required | Description |
-|--------|------|--------------------------------------------------------------|----------|-------------|
-| `body` | body | [agentsdk.PatchAppStatus](schemas.md#agentsdkpatchappstatus) | true     | app status  |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`body`|body|[agentsdk.PatchAppStatus](schemas.md#agentsdkpatchappstatus)|true|app status|
 
 ### Example responses
 
@@ -232,9 +232,9 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/app-status \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                           |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.Response](schemas.md#codersdkresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -253,11 +253,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?mat
 
 ### Parameters
 
-| Name     | In    | Type    | Required | Description                       |
-|----------|-------|---------|----------|-----------------------------------|
-| `match`  | query | string  | true     | Match                             |
-| `id`     | query | string  | true     | Provider ID                       |
-| `listen` | query | boolean | false    | Wait for a new token to be issued |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`match`|query|string|true|Match|
+|`id`|query|string|true|Provider ID|
+|`listen`|query|boolean|false|Wait for a new token to be issued|
 
 ### Example responses
 
@@ -276,9 +276,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?mat
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                   |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.ExternalAuthResponse](schemas.md#agentsdkexternalauthresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[agentsdk.ExternalAuthResponse](schemas.md#agentsdkexternalauthresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -297,11 +297,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?match=str
 
 ### Parameters
 
-| Name     | In    | Type    | Required | Description                       |
-|----------|-------|---------|----------|-----------------------------------|
-| `match`  | query | string  | true     | Match                             |
-| `id`     | query | string  | true     | Provider ID                       |
-| `listen` | query | boolean | false    | Wait for a new token to be issued |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`match`|query|string|true|Match|
+|`id`|query|string|true|Provider ID|
+|`listen`|query|boolean|false|Wait for a new token to be issued|
 
 ### Example responses
 
@@ -320,9 +320,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?match=str
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                   |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.ExternalAuthResponse](schemas.md#agentsdkexternalauthresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[agentsdk.ExternalAuthResponse](schemas.md#agentsdkexternalauthresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -352,9 +352,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitsshkey \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                             |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.GitSSHKey](schemas.md#agentsdkgitsshkey) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[agentsdk.GitSSHKey](schemas.md#agentsdkgitsshkey)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -384,9 +384,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/log-source \
 
 ### Parameters
 
-| Name   | In   | Type                                                                     | Required | Description        |
-|--------|------|--------------------------------------------------------------------------|----------|--------------------|
-| `body` | body | [agentsdk.PostLogSourceRequest](schemas.md#agentsdkpostlogsourcerequest) | true     | Log source request |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`body`|body|[agentsdk.PostLogSourceRequest](schemas.md#agentsdkpostlogsourcerequest)|true|Log source request|
 
 ### Example responses
 
@@ -404,9 +404,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/log-source \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                         |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentLogSource](schemas.md#codersdkworkspaceagentlogsource) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.WorkspaceAgentLogSource](schemas.md#codersdkworkspaceagentlogsource)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -441,9 +441,9 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
 
 ### Parameters
 
-| Name   | In   | Type                                               | Required | Description |
-|--------|------|----------------------------------------------------|----------|-------------|
-| `body` | body | [agentsdk.PatchLogs](schemas.md#agentsdkpatchlogs) | true     | logs        |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`body`|body|[agentsdk.PatchLogs](schemas.md#agentsdkpatchlogs)|true|logs|
 
 ### Example responses
 
@@ -464,9 +464,9 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                           |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.Response](schemas.md#codersdkresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -496,9 +496,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/reinit \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                     |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.ReinitializationEvent](schemas.md#agentsdkreinitializationevent) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[agentsdk.ReinitializationEvent](schemas.md#agentsdkreinitializationevent)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -517,9 +517,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
 
 ### Parameters
 
-| Name             | In   | Type         | Required | Description        |
-|------------------|------|--------------|----------|--------------------|
-| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspaceagent`|path|string(uuid)|true|Workspace agent ID|
 
 ### Example responses
 
@@ -644,9 +644,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                       |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgent](schemas.md#codersdkworkspaceagent) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.WorkspaceAgent](schemas.md#codersdkworkspaceagent)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -665,9 +665,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 
 ### Parameters
 
-| Name             | In   | Type         | Required | Description        |
-|------------------|------|--------------|----------|--------------------|
-| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspaceagent`|path|string(uuid)|true|Workspace agent ID|
 
 ### Example responses
 
@@ -742,9 +742,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                         |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [workspacesdk.AgentConnectionInfo](schemas.md#workspacesdkagentconnectioninfo) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[workspacesdk.AgentConnectionInfo](schemas.md#workspacesdkagentconnectioninfo)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -763,10 +763,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 
 ### Parameters
 
-| Name             | In    | Type              | Required | Description        |
-|------------------|-------|-------------------|----------|--------------------|
-| `workspaceagent` | path  | string(uuid)      | true     | Workspace agent ID |
-| `label`          | query | string(key=value) | true     | Labels             |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspaceagent`|path|string(uuid)|true|Workspace agent ID|
+|`label`|query|string(key=value)|true|Labels|
 
 ### Example responses
 
@@ -848,9 +848,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                                   |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentListContainersResponse](schemas.md#codersdkworkspaceagentlistcontainersresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.WorkspaceAgentListContainersResponse](schemas.md#codersdkworkspaceagentlistcontainersresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -869,10 +869,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/co
 
 ### Parameters
 
-| Name             | In   | Type         | Required | Description        |
-|------------------|------|--------------|----------|--------------------|
-| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
-| `devcontainer`   | path | string       | true     | Devcontainer ID    |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspaceagent`|path|string(uuid)|true|Workspace agent ID|
+|`devcontainer`|path|string|true|Devcontainer ID|
 
 ### Example responses
 
@@ -893,9 +893,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/co
 
 ### Responses
 
-| Status | Meaning                                                       | Description | Schema                                           |
-|--------|---------------------------------------------------------------|-------------|--------------------------------------------------|
-| 202    | [Accepted](https://tools.ietf.org/html/rfc7231#section-6.3.3) | Accepted    | [codersdk.Response](schemas.md#codersdkresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|202|[Accepted](https://tools.ietf.org/html/rfc7231#section-6.3.3)|Accepted|[codersdk.Response](schemas.md#codersdkresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -914,9 +914,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 
 ### Parameters
 
-| Name             | In   | Type         | Required | Description        |
-|------------------|------|--------------|----------|--------------------|
-| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspaceagent`|path|string(uuid)|true|Workspace agent ID|
 
 ### Example responses
 
@@ -998,9 +998,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                                   |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentListContainersResponse](schemas.md#codersdkworkspaceagentlistcontainersresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.WorkspaceAgentListContainersResponse](schemas.md#codersdkworkspaceagentlistcontainersresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1018,15 +1018,15 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/coo
 
 ### Parameters
 
-| Name             | In   | Type         | Required | Description        |
-|------------------|------|--------------|----------|--------------------|
-| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspaceagent`|path|string(uuid)|true|Workspace agent ID|
 
 ### Responses
 
-| Status | Meaning                                                                  | Description         | Schema |
-|--------|--------------------------------------------------------------------------|---------------------|--------|
-| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|101|[Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2)|Switching Protocols||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1045,9 +1045,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/lis
 
 ### Parameters
 
-| Name             | In   | Type         | Required | Description        |
-|------------------|------|--------------|----------|--------------------|
-| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspaceagent`|path|string(uuid)|true|Workspace agent ID|
 
 ### Example responses
 
@@ -1067,9 +1067,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/lis
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                                   |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentListeningPortsResponse](schemas.md#codersdkworkspaceagentlisteningportsresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.WorkspaceAgentListeningPortsResponse](schemas.md#codersdkworkspaceagentlisteningportsresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1088,13 +1088,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/log
 
 ### Parameters
 
-| Name             | In    | Type         | Required | Description                                  |
-|------------------|-------|--------------|----------|----------------------------------------------|
-| `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID                           |
-| `before`         | query | integer      | false    | Before log id                                |
-| `after`          | query | integer      | false    | After log id                                 |
-| `follow`         | query | boolean      | false    | Follow log stream                            |
-| `no_compression` | query | boolean      | false    | Disable compression for WebSocket connection |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspaceagent`|path|string(uuid)|true|Workspace agent ID|
+|`before`|query|integer|false|Before log id|
+|`after`|query|integer|false|After log id|
+|`follow`|query|boolean|false|Follow log stream|
+|`no_compression`|query|boolean|false|Disable compression for WebSocket connection|
 
 ### Example responses
 
@@ -1114,32 +1114,32 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/log
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                      |
-|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceAgentLog](schemas.md#codersdkworkspaceagentlog) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|array of [codersdk.WorkspaceAgentLog](schemas.md#codersdkworkspaceagentlog)|
 
 <h3 id="get-logs-by-workspace-agent-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-| Name           | Type                                             | Required | Restrictions | Description |
-|----------------|--------------------------------------------------|----------|--------------|-------------|
-| `[array item]` | array                                            | false    |              |             |
-| `» created_at` | string(date-time)                                | false    |              |             |
-| `» id`         | integer                                          | false    |              |             |
-| `» level`      | [codersdk.LogLevel](schemas.md#codersdkloglevel) | false    |              |             |
-| `» output`     | string                                           | false    |              |             |
-| `» source_id`  | string(uuid)                                     | false    |              |             |
+|Name|Type|Required|Restrictions|Description|
+|---|---|---|---|---|
+|`[array item]`|array|false|||
+|`» created_at`|string(date-time)|false|||
+|`» id`|integer|false|||
+|`» level`|[codersdk.LogLevel](schemas.md#codersdkloglevel)|false|||
+|`» output`|string|false|||
+|`» source_id`|string(uuid)|false|||
 
 #### Enumerated Values
 
-| Property | Value   |
-|----------|---------|
-| `level`  | `trace` |
-| `level`  | `debug` |
-| `level`  | `info`  |
-| `level`  | `warn`  |
-| `level`  | `error` |
+|Property|Value|
+|---|---|
+|`level`|`trace`|
+|`level`|`debug`|
+|`level`|`info`|
+|`level`|`warn`|
+|`level`|`error`|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1157,15 +1157,15 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/pty
 
 ### Parameters
 
-| Name             | In   | Type         | Required | Description        |
-|------------------|------|--------------|----------|--------------------|
-| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspaceagent`|path|string(uuid)|true|Workspace agent ID|
 
 ### Responses
 
-| Status | Meaning                                                                  | Description         | Schema |
-|--------|--------------------------------------------------------------------------|---------------------|--------|
-| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|101|[Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2)|Switching Protocols||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1184,13 +1184,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/sta
 
 ### Parameters
 
-| Name             | In    | Type         | Required | Description                                  |
-|------------------|-------|--------------|----------|----------------------------------------------|
-| `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID                           |
-| `before`         | query | integer      | false    | Before log id                                |
-| `after`          | query | integer      | false    | After log id                                 |
-| `follow`         | query | boolean      | false    | Follow log stream                            |
-| `no_compression` | query | boolean      | false    | Disable compression for WebSocket connection |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`workspaceagent`|path|string(uuid)|true|Workspace agent ID|
+|`before`|query|integer|false|Before log id|
+|`after`|query|integer|false|After log id|
+|`follow`|query|boolean|false|Follow log stream|
+|`no_compression`|query|boolean|false|Disable compression for WebSocket connection|
 
 ### Example responses
 
@@ -1210,31 +1210,31 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/sta
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                      |
-|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceAgentLog](schemas.md#codersdkworkspaceagentlog) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|array of [codersdk.WorkspaceAgentLog](schemas.md#codersdkworkspaceagentlog)|
 
 <h3 id="removed:-get-logs-by-workspace-agent-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-| Name           | Type                                             | Required | Restrictions | Description |
-|----------------|--------------------------------------------------|----------|--------------|-------------|
-| `[array item]` | array                                            | false    |              |             |
-| `» created_at` | string(date-time)                                | false    |              |             |
-| `» id`         | integer                                          | false    |              |             |
-| `» level`      | [codersdk.LogLevel](schemas.md#codersdkloglevel) | false    |              |             |
-| `» output`     | string                                           | false    |              |             |
-| `» source_id`  | string(uuid)                                     | false    |              |             |
+|Name|Type|Required|Restrictions|Description|
+|---|---|---|---|---|
+|`[array item]`|array|false|||
+|`» created_at`|string(date-time)|false|||
+|`» id`|integer|false|||
+|`» level`|[codersdk.LogLevel](schemas.md#codersdkloglevel)|false|||
+|`» output`|string|false|||
+|`» source_id`|string(uuid)|false|||
 
 #### Enumerated Values
 
-| Property | Value   |
-|----------|---------|
-| `level`  | `trace` |
-| `level`  | `debug` |
-| `level`  | `info`  |
-| `level`  | `warn`  |
-| `level`  | `error` |
+|Property|Value|
+|---|---|
+|`level`|`trace`|
+|`level`|`debug`|
+|`level`|`info`|
+|`level`|`warn`|
+|`level`|`error`|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
