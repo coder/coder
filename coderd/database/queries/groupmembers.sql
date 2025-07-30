@@ -1,21 +1,13 @@
 -- name: GetGroupMembers :many
 SELECT * FROM group_members_expanded
-WHERE CASE
-      WHEN @include_system::bool THEN TRUE
-      ELSE
-        user_is_system = false
-        END;
+WHERE (@include_system::bool OR NOT user_is_system);
 
 -- name: GetGroupMembersByGroupID :many
 SELECT *
 FROM group_members_expanded
 WHERE group_id = @group_id
   -- Filter by system type
-  AND CASE
-      WHEN @include_system::bool THEN TRUE
-      ELSE
-        user_is_system = false
-      END;
+  AND (@include_system::bool OR NOT user_is_system);
 
 -- name: GetGroupMembersCountByGroupID :one
 -- Returns the total count of members in a group. Shows the total
@@ -25,11 +17,7 @@ SELECT COUNT(*)
 FROM group_members_expanded
 WHERE group_id = @group_id
   -- Filter by system type
-  AND CASE
-      WHEN @include_system::bool THEN TRUE
-      ELSE
-        user_is_system = false
-        END;
+  AND (@include_system::bool OR NOT user_is_system);
 
 -- InsertUserGroupsByName adds a user to all provided groups, if they exist.
 -- name: InsertUserGroupsByName :exec
