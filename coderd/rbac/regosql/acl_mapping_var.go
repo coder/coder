@@ -60,9 +60,9 @@ func (ACLMappingVar) UseAs() sqltypes.Node { return ACLMappingVar{} }
 
 func (g ACLMappingVar) ConvertVariable(rego ast.Ref) (sqltypes.Node, bool) {
 	// "left" will be a map of group names to actions in rego.
-	//	{
-	//	 "all_users": ["read"]
-	//	}
+	// {
+	//   "all_users": ["read"]
+	// }
 	left, err := sqltypes.RegoVarPath(g.StructPath, rego)
 	if err != nil {
 		return nil, false
