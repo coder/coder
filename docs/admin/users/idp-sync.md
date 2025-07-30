@@ -419,7 +419,6 @@ If you are running into issues with a sync:
 1. To reduce noise, you can filter for only logs related to group/role sync:
 
    ```sh
-   CODER_VERBOSE=true
    CODER_LOG_FILTER=".*userauth.*|.*groups returned.*"
    ```
 
