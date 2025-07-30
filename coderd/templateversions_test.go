@@ -728,6 +728,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 					require.Zero(t, tv.MatchedProvisioners.MostRecentlySeen.Time)
 				} else {
 					require.ErrorContains(t, err, tt.expectError)
+					require.Equal(t, tv.Job.ID, uuid.Nil)
 				}
 			})
 		}

@@ -1821,8 +1821,8 @@ func (api *API) dynamicTemplateVersionTags(ctx context.Context, rw http.Response
 		httpapi.Write(ctx, rw, code, resp)
 		return nil, false
 	}
-	// Validate presets on template version import to avoid errors that would
-	// have caused workspace creation to fail:
+
+	// Fails early if presets are invalid to prevent downstream workspace creation errors
 	presetErr := dynamicparameters.CheckPresets(output, nil)
 	if presetErr != nil {
 		code, resp := presetErr.Response()

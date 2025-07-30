@@ -28,7 +28,7 @@ func tagValidationError(diags hcl.Diagnostics) *DiagnosticError {
 
 func presetValidationError(diags hcl.Diagnostics) *DiagnosticError {
 	return &DiagnosticError{
-		Message:          "Unable to parse presets",
+		Message:          "Unable to validate presets",
 		Diagnostics:      diags,
 		KeyedDiagnostics: make(map[string]hcl.Diagnostics),
 	}
