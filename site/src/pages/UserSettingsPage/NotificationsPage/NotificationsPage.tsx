@@ -48,12 +48,19 @@ const NotificationsPage: FC = () => {
 				...systemNotificationTemplates(),
 				select: (data: NotificationTemplate[]) => {
 					const groups = selectTemplatesByGroup(data);
-					return permissions.viewDeploymentConfig
-						? groups
-						: {
-								// Members only have access to the "Workspace Notifications" group
-								"Workspace Events": groups["Workspace Events"],
-							};
+
+					let displayedGroups: Record<string, NotificationTemplate[]> = {
+						// Members only have access to the "Workspace Notifications" group.
+						"Workspace Events": groups["Workspace Events"],
+					};
+
+					if (permissions.viewDeploymentConfig) {
+						displayedGroups = groups;
+					} else if (permissions.createTemplates) {
+						displayedGroups["Template Events"] = groups["Template Events"];
+					}
+
+					return displayedGroups;
 				},
 			},
 			notificationDispatchMethods(),

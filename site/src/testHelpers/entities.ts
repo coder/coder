@@ -4402,6 +4402,32 @@ export const MockNotificationTemplates: TypesGen.NotificationTemplate[] = [
 		kind: "system",
 		enabled_by_default: true,
 	},
+	{
+		id: "template-event-1",
+		name: "Template Version Created",
+		title_template: 'Template version "{{.Labels.version_name}}" created',
+		body_template:
+			'Hi {{.UserName}}\nA new version of template "{{.Labels.template_name}}" has been created.',
+		actions:
+			'[{"url": "{{ base_url }}/templates/{{.Labels.template_name}}", "label": "View template"}]',
+		group: "Template Events",
+		method: "smtp",
+		kind: "system",
+		enabled_by_default: true,
+	},
+	{
+		id: "template-event-2",
+		name: "Template Updated",
+		title_template: 'Template "{{.Labels.template_name}}" updated',
+		body_template:
+			'Hi {{.UserName}}\nTemplate "{{.Labels.template_name}}" has been updated.',
+		actions:
+			'[{"url": "{{ base_url }}/templates/{{.Labels.template_name}}", "label": "View template"}]',
+		group: "Template Events",
+		method: "webhook",
+		kind: "system",
+		enabled_by_default: true,
+	},
 ];
 
 export const MockNotificationMethodsResponse: TypesGen.NotificationMethodsResponse =

@@ -78,6 +78,12 @@ export const NonAdmin: Story = {
 	},
 };
 
+export const TemplateCreator: Story = {
+	parameters: {
+		permissions: { viewDeploymentConfig: false, createTemplates: true },
+	},
+};
+
 // Ensure the selected notification template is enabled before attempting to
 // disable it.
 const enabledPreference = MockNotificationPreferences.find(
