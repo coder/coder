@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/audit/backends"
 	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/dormancy"
+	"github.com/coder/coder/v2/enterprise/coderd/usage"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/enterprise/trialer"
 	"github.com/coder/coder/v2/tailnet"
@@ -116,15 +117,57 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			o.ExternalTokenEncryption = cs
 		}
 
+		if o.LicenseKeys == nil {
+			o.LicenseKeys = coderd.Keys
+		}
+
+		multiCloser := &multiCloser{}
+
+		// Create the enterprise API.
 		api, err := coderd.New(ctx, o)
 		if err != nil {
 			return nil, nil, err
 		}
-		return api.AGPL, api, nil
+		multiCloser.Add(api)
+
+		// Start the enterprise usage publisher routine. This won't do anything
+		// unless the deployment is licensed and one of the licenses has usage
+		// publishing enabled.
+		publisher := usage.NewTallymanPublisher(ctx, options.Logger, options.Database, o.LicenseKeys,
+			usage.PublisherWithHTTPClient(api.HTTPClient),
+		)
+		err = publisher.Start()
+		if err != nil {
+			_ = multiCloser.Close()
+			return nil, nil, xerrors.Errorf("start usage publisher: %w", err)
+		}
+		multiCloser.Add(publisher)
+
+		return api.AGPL, multiCloser, nil
 	})
 
 	cmd.AddSubcommands(
 		r.dbcryptCmd(),
 	)
 	return cmd
+}
+
+type multiCloser struct {
+	closers []io.Closer
+}
+
+var _ io.Closer = &multiCloser{}
+
+func (m *multiCloser) Add(closer io.Closer) {
+	m.closers = append(m.closers, closer)
+}
+
+func (m *multiCloser) Close() error {
+	var mErr error
+	for _, closer := range m.closers {
+		if err := closer.Close(); err != nil {
+			mErr = xerrors.Errorf("close %T: %w", closer, err)
+		}
+	}
+	return mErr
 }

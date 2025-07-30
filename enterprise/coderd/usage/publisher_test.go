@@ -60,7 +60,7 @@ func TestIntegration(t *testing.T) {
 		return handler(req)
 	}))
 
-	inserter := usage.NewInserter(
+	inserter := usage.NewDBInserter(
 		usage.InserterWithClock(clock),
 	)
 	// Insert an old event that should never be published.
@@ -80,10 +80,9 @@ func TestIntegration(t *testing.T) {
 		require.NoErrorf(t, err, "collecting event %d", i)
 	}
 
-	publisher := usage.NewTallymanPublisher(ctx, log, db,
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
-		usage.PublisherWithLicenseKeys(coderdenttest.Keys),
 	)
 	defer publisher.Close()
 
@@ -212,10 +211,9 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 		}
 	}))
 
-	publisher := usage.NewTallymanPublisher(ctx, log, db,
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
-		usage.PublisherWithLicenseKeys(coderdenttest.Keys),
 	)
 	defer publisher.Close()
 
@@ -283,14 +281,13 @@ func TestPublisherClaimExpiry(t *testing.T) {
 		return tallymanAcceptAllHandler(req)
 	}))
 
-	inserter := usage.NewInserter(
+	inserter := usage.NewDBInserter(
 		usage.InserterWithClock(clock),
 	)
 
-	publisher := usage.NewTallymanPublisher(ctx, log, db,
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
-		usage.PublisherWithLicenseKeys(coderdenttest.Keys),
 		usage.PublisherWithInitialDelay(17*time.Minute),
 	)
 	defer publisher.Close()
@@ -367,10 +364,9 @@ func TestPublisherMissingEvents(t *testing.T) {
 		}
 	}))
 
-	publisher := usage.NewTallymanPublisher(ctx, log, db,
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
-		usage.PublisherWithLicenseKeys(coderdenttest.Keys),
 	)
 
 	// Expect the publisher to call SelectUsageEventsForPublishing, followed by
@@ -510,10 +506,9 @@ func TestPublisherLicenseSelection(t *testing.T) {
 		return tallymanAcceptAllHandler(req)
 	}))
 
-	publisher := usage.NewTallymanPublisher(ctx, log, db,
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
-		usage.PublisherWithLicenseKeys(coderdenttest.Keys),
 	)
 	defer publisher.Close()
 
@@ -579,10 +574,9 @@ func TestPublisherTallymanError(t *testing.T) {
 		}
 	}))
 
-	publisher := usage.NewTallymanPublisher(ctx, log, db,
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
-		usage.PublisherWithLicenseKeys(coderdenttest.Keys),
 	)
 	defer publisher.Close()
 

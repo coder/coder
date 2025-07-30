@@ -8,21 +8,23 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/quartz"
 )
 
-// Inserter accepts usage events and stores them in the database for publishing.
-type Inserter struct {
+// dbCollector collects usage events and stores them in the database for
+// publishing.
+type dbCollector struct {
 	clock quartz.Clock
 }
 
-var _ agplusage.Inserter = &Inserter{}
+var _ agplusage.Inserter = &dbCollector{}
 
-// NewInserter creates a new database-backed usage event inserter.
-func NewInserter(opts ...InserterOptions) *Inserter {
-	c := &Inserter{
+// NewDBInserter creates a new database-backed usage event inserter.
+func NewDBInserter(opts ...InserterOption) agplusage.Inserter {
+	c := &dbCollector{
 		clock: quartz.NewReal(),
 	}
 	for _, opt := range opts {
@@ -31,17 +33,17 @@ func NewInserter(opts ...InserterOptions) *Inserter {
 	return c
 }
 
-type InserterOptions func(*Inserter)
+type InserterOption func(*dbCollector)
 
 // InserterWithClock sets the quartz clock to use for the inserter.
-func InserterWithClock(clock quartz.Clock) InserterOptions {
-	return func(c *Inserter) {
+func InserterWithClock(clock quartz.Clock) InserterOption {
+	return func(c *dbCollector) {
 		c.clock = clock
 	}
 }
 
 // InsertDiscreteUsageEvent implements agplusage.Inserter.
-func (c *Inserter) InsertDiscreteUsageEvent(ctx context.Context, tx database.Store, event agplusage.DiscreteEvent) error {
+func (i *dbCollector) InsertDiscreteUsageEvent(ctx context.Context, tx database.Store, event agplusage.DiscreteEvent) error {
 	if !event.EventType().IsDiscrete() {
 		return xerrors.Errorf("event type %q is not a discrete event", event.EventType())
 	}
@@ -56,11 +58,11 @@ func (c *Inserter) InsertDiscreteUsageEvent(ctx context.Context, tx database.Sto
 
 	// Duplicate events are ignored by the query, so we don't need to check the
 	// error.
-	return tx.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+	return tx.InsertUsageEvent(dbauthz.AsUsageTracker(ctx), database.InsertUsageEventParams{ //nolint:gocritic // intentionally want to insert usage events
 		// Always generate a new UUID for discrete events.
 		ID:        uuid.New().String(),
 		EventType: string(event.EventType()),
 		EventData: jsonData,
-		CreatedAt: dbtime.Time(c.clock.Now()),
+		CreatedAt: dbtime.Time(i.clock.Now()),
 	})
 }
