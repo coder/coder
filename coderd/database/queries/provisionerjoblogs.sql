@@ -8,14 +8,6 @@ WHERE
 	AND (
 		id > @created_after
 	) ORDER BY id ASC;
-	
--- name: GetProvisionerJobLogSize :one
- SELECT
- 	COALESCE(SUM(LENGTH(output)), 0) AS total_size
- FROM
- 	provisioner_job_logs
- WHERE
- 	job_id = @job_id;
 
 -- name: InsertProvisionerJobLogs :many
 INSERT INTO

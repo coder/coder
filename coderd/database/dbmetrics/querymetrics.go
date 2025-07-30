@@ -1258,13 +1258,6 @@ func (m queryMetricsStore) GetProvisionerJobByIDForUpdate(ctx context.Context, i
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetProvisionerJobLogSize(ctx context.Context, jobID uuid.UUID) (interface{}, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetProvisionerJobLogSize(ctx, jobID)
-	m.queryLatencies.WithLabelValues("GetProvisionerJobLogSize").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetProvisionerJobTimingsByJobID(ctx, jobID)

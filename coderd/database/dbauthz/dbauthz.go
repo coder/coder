@@ -2552,14 +2552,6 @@ func (q *querier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UU
 	return job, nil
 }
 
-func (q *querier) GetProvisionerJobLogSize(ctx context.Context, jobID uuid.UUID) (interface{}, error) {
-	_, err := q.GetProvisionerJobByID(ctx, jobID)
-	if err != nil {
-		return nil, err
-	}
-	return q.db.GetProvisionerJobLogSize(ctx, jobID)
-}
-
 func (q *querier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
 	_, err := q.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {

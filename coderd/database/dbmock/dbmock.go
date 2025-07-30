@@ -2642,21 +2642,6 @@ func (mr *MockStoreMockRecorder) GetProvisionerJobByIDForUpdate(ctx, id any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobByIDForUpdate), ctx, id)
 }
 
-// GetProvisionerJobLogSize mocks base method.
-func (m *MockStore) GetProvisionerJobLogSize(ctx context.Context, jobID uuid.UUID) (any, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetProvisionerJobLogSize", ctx, jobID)
-	ret0, _ := ret[0].(any)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetProvisionerJobLogSize indicates an expected call of GetProvisionerJobLogSize.
-func (mr *MockStoreMockRecorder) GetProvisionerJobLogSize(ctx, jobID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobLogSize", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobLogSize), ctx, jobID)
-}
-
 // GetProvisionerJobTimingsByJobID mocks base method.
 func (m *MockStore) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
 	m.ctrl.T.Helper()

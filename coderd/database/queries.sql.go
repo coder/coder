@@ -8407,22 +8407,6 @@ func (q *sqlQuerier) UpsertProvisionerDaemon(ctx context.Context, arg UpsertProv
 	return i, err
 }
 
-const getProvisionerJobLogSize = `-- name: GetProvisionerJobLogSize :one
- SELECT
- 	COALESCE(SUM(LENGTH(output)), 0) AS total_size
- FROM
- 	provisioner_job_logs
- WHERE
- 	job_id = $1
-`
-
-func (q *sqlQuerier) GetProvisionerJobLogSize(ctx context.Context, jobID uuid.UUID) (interface{}, error) {
-	row := q.db.QueryRowContext(ctx, getProvisionerJobLogSize, jobID)
-	var total_size interface{}
-	err := row.Scan(&total_size)
-	return total_size, err
-}
-
 const getProvisionerLogsAfterID = `-- name: GetProvisionerLogsAfterID :many
 SELECT
 	job_id, created_at, source, level, stage, output, id
