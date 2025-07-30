@@ -3621,6 +3621,10 @@ type TemplateVersionPreset struct {
 	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
 	SchedulingTimezone  string         `db:"scheduling_timezone" json:"scheduling_timezone"`
 	IsDefault           bool           `db:"is_default" json:"is_default"`
+	// Short text describing the preset (max 128 characters).
+	Description string `db:"description" json:"description"`
+	// URL or path to an icon representing the preset (max 256 characters).
+	Icon string `db:"icon" json:"icon"`
 }
 
 type TemplateVersionPresetParameter struct {

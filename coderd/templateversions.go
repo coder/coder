@@ -1471,7 +1471,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	var dynamicTemplate bool
+	dynamicTemplate := true // Default to using dynamic templates
 	if req.TemplateID != uuid.Nil {
 		tpl, err := api.Database.GetTemplateByID(ctx, req.TemplateID)
 		if httpapi.Is404Error(err) {
@@ -1818,6 +1818,14 @@ func (api *API) dynamicTemplateVersionTags(ctx context.Context, rw http.Response
 	tagErr := dynamicparameters.CheckTags(output, diags)
 	if tagErr != nil {
 		code, resp := tagErr.Response()
+		httpapi.Write(ctx, rw, code, resp)
+		return nil, false
+	}
+
+	// Fails early if presets are invalid to prevent downstream workspace creation errors
+	presetErr := dynamicparameters.CheckPresets(output, nil)
+	if presetErr != nil {
+		code, resp := presetErr.Response()
 		httpapi.Write(ctx, rw, code, resp)
 		return nil, false
 	}

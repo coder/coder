@@ -229,7 +229,7 @@ ONLY report an "idle" or "failure" state if you have FULLY completed the task.
 			Properties: map[string]any{
 				"summary": map[string]any{
 					"type":        "string",
-					"description": "A concise summary of your current progress on the task. This must be less than 160 characters in length.",
+					"description": "A concise summary of your current progress on the task. This must be less than 160 characters in length and must not include newlines or other control characters.",
 				},
 				"link": map[string]any{
 					"type":        "string",
@@ -252,6 +252,10 @@ ONLY report an "idle" or "failure" state if you have FULLY completed the task.
 	Handler: func(_ context.Context, deps Deps, args ReportTaskArgs) (codersdk.Response, error) {
 		if len(args.Summary) > 160 {
 			return codersdk.Response{}, xerrors.New("summary must be less than 160 characters")
+		}
+		// Check if task reporting is available to prevent nil pointer dereference
+		if deps.report == nil {
+			return codersdk.Response{}, xerrors.New("task reporting not available. Please ensure a task reporter is configured.")
 		}
 		err := deps.report(args)
 		if err != nil {
