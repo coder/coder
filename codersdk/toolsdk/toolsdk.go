@@ -58,6 +58,13 @@ type Deps struct {
 	report      func(ReportTaskArgs) error
 }
 
+func (d Deps) getServerURL() string {
+	serverURLCopy := *d.coderClient.URL
+	serverURLCopy.Path = ""
+	serverURLCopy.RawQuery = ""
+	return serverURLCopy.String()
+}
+
 func WithTaskReporter(fn func(ReportTaskArgs) error) func(*Deps) {
 	return func(d *Deps) {
 		d.report = fn
