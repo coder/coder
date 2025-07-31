@@ -11,6 +11,7 @@ import {
 	TimerIcon as ScheduleIcon,
 	Users as SharingIcon,
 } from "lucide-react";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 
 interface SidebarProps {
@@ -19,6 +20,8 @@ interface SidebarProps {
 }
 
 export const Sidebar: FC<SidebarProps> = ({ username, workspace }) => {
+	const { experiments } = useDashboard();
+
 	return (
 		<BaseSidebar>
 			<SidebarHeader
@@ -43,9 +46,11 @@ export const Sidebar: FC<SidebarProps> = ({ username, workspace }) => {
 			<SidebarNavItem href="schedule" icon={ScheduleIcon}>
 				Schedule
 			</SidebarNavItem>
-			<SidebarNavItem href="sharing" icon={SharingIcon}>
-				Sharing
-			</SidebarNavItem>
+			{experiments.includes("workspace-sharing") && (
+				<SidebarNavItem href="sharing" icon={SharingIcon}>
+					Sharing
+				</SidebarNavItem>
+			)}
 		</BaseSidebar>
 	);
 };
