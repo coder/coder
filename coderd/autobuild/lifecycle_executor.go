@@ -56,9 +56,6 @@ type Executor struct {
 	experiments           codersdk.Experiments
 
 	metrics executorMetrics
-
-	// Skip provisioner availability check (should only be true for *some* tests)
-	SkipProvisionerCheck bool
 }
 
 type executorMetrics struct {
@@ -139,21 +136,21 @@ func (e *Executor) Run() {
 }
 
 func (e *Executor) hasAvailableProvisioners(ctx context.Context, tx database.Store, ws database.Workspace, templateVersionJob database.ProvisionerJob) (bool, error) {
-	if e.SkipProvisionerCheck {
-		return true, nil
-	}
-
 	// Use a shorter stale interval for tests
 	staleInterval := provisionerdserver.StaleInterval
 	if testing.Testing() {
 		staleInterval = TestingStaleInterval
 	}
 
-	// Get eligible provisioner daemons for this workspace's template
-	provisionerDaemons, err := tx.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
+	queryParams := database.GetProvisionerDaemonsByOrganizationParams{
 		OrganizationID: ws.OrganizationID,
 		WantTags:       templateVersionJob.Tags,
-	})
+	}
+
+	// nolint: gocritic // The user (in this case, the user/context for autostart builds) may not have the full
+	// permissions to read provisioner daemons, but we need to check if there's any for the job prior to the
+	// execution of the job via autostart to fix: https://github.com/coder/coder/issues/17941
+	provisionerDaemons, err := tx.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), queryParams)
 	if err != nil {
 		return false, xerrors.Errorf("get provisioner daemons: %w", err)
 	}
@@ -164,10 +161,14 @@ func (e *Executor) hasAvailableProvisioners(ctx context.Context, tx database.Sto
 		if pd.LastSeenAt.Valid {
 			age := now.Sub(pd.LastSeenAt.Time)
 			if age <= staleInterval {
+				e.log.Debug(ctx, "hasAvailableProvisioners: found active provisioner",
+					slog.F("daemon_id", pd.ID),
+				)
 				return true, nil
 			}
 		}
 	}
+	e.log.Debug(ctx, "hasAvailableProvisioners: no active provisioners found")
 	return false, nil
 }
 
