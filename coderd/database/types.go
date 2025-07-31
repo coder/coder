@@ -91,6 +91,7 @@ func (t *WorkspaceACL) Scan(src interface{}) error {
 	return xerrors.Errorf("unexpected type %T", src)
 }
 
+//nolint:revive
 func (w WorkspaceACL) RBACACL() map[string][]policy.Action {
 	// Convert WorkspaceACL to a map of string to []policy.Action.
 	// This is used for RBAC checks.
