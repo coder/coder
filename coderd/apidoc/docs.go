@@ -9955,6 +9955,9 @@ const docTemplate = `{
                 "produces": [
                     "application/json"
                 ],
+                "tags": [
+                    "Workspaces"
+                ],
                 "summary": "Update workspace ACL",
                 "operationId": "update-workspace-acl",
                 "parameters": [

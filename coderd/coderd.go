@@ -1415,7 +1415,7 @@ func New(options *Options) *API {
 				r.Get("/timings", api.workspaceTimings)
 				r.Route("/acl", func(r chi.Router) {
 					r.Use(
-						httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentWorkspaceSharing))
+						httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentWorkspaceSharing))
 
 					r.Patch("/", api.patchWorkspaceACL)
 				})
