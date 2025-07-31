@@ -14,13 +14,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func getServerURL(deps Deps) string {
-	serverURLCopy := *deps.coderClient.URL
-	serverURLCopy.Path = ""
-	serverURLCopy.RawQuery = ""
-	return serverURLCopy.String()
-}
-
 type ObjectType string
 
 const (
@@ -56,7 +49,7 @@ func createObjectID(objectType ObjectType, id string) ObjectID {
 }
 
 func searchTemplates(ctx context.Context, deps Deps, query string) ([]SearchResultItem, error) {
-	serverURL := getServerURL(deps)
+	serverURL := deps.getServerURL()
 	templates, err := deps.coderClient.Templates(ctx, codersdk.TemplateFilter{
 		SearchQuery: query,
 	})
@@ -76,7 +69,7 @@ func searchTemplates(ctx context.Context, deps Deps, query string) ([]SearchResu
 }
 
 func searchWorkspaces(ctx context.Context, deps Deps, query string) ([]SearchResultItem, error) {
-	serverURL := getServerURL(deps)
+	serverURL := deps.getServerURL()
 	workspaces, err := deps.coderClient.Workspaces(ctx, codersdk.WorkspaceFilter{
 		FilterQuery: query,
 	})
@@ -351,7 +344,7 @@ func fetchWorkspace(ctx context.Context, deps Deps, workspaceID string) (FetchRe
 		ID:    workspace.ID.String(),
 		Title: workspace.Name,
 		Text:  string(workspaceJSON),
-		URL:   fmt.Sprintf("%s/%s/%s", getServerURL(deps), workspace.OwnerName, workspace.Name),
+		URL:   fmt.Sprintf("%s/%s/%s", deps.getServerURL(), workspace.OwnerName, workspace.Name),
 	}, nil
 }
 
@@ -372,7 +365,7 @@ func fetchTemplate(ctx context.Context, deps Deps, templateID string) (FetchResu
 		ID:    template.ID.String(),
 		Title: template.DisplayName,
 		Text:  string(templateJSON),
-		URL:   fmt.Sprintf("%s/templates/%s/%s", getServerURL(deps), template.OrganizationName, template.Name),
+		URL:   fmt.Sprintf("%s/templates/%s/%s", deps.getServerURL(), template.OrganizationName, template.Name),
 	}, nil
 }
 
