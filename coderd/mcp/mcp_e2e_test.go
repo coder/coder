@@ -1240,13 +1240,13 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 			"Authorization": "Bearer " + coderClient.SessionToken(),
 		}))
 	require.NoError(t, err)
-	defer func() {
+	t.Cleanup(func() {
 		if closeErr := mcpClient.Close(); closeErr != nil {
 			t.Logf("Failed to close MCP client: %v", closeErr)
 		}
-	}()
+	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
 	defer cancel()
 
 	// Start client
