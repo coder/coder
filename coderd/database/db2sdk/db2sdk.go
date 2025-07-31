@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -777,6 +778,28 @@ func TemplateRoleActions(role codersdk.TemplateRole) []policy.Action {
 		return []policy.Action{policy.WildcardSymbol}
 	case codersdk.TemplateRoleUse:
 		return []policy.Action{policy.ActionRead, policy.ActionUse}
+	}
+	return []policy.Action{}
+}
+
+func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
+	switch role {
+	case codersdk.WorkspaceRoleAdmin:
+		return slice.Omit(
+			rbac.ResourceWorkspace.AvailableActions(),
+			// Create doesn't actually make sense in an ACL context
+			policy.ActionCreate,
+			// Don't let anyone delete something they can't recreate
+			policy.ActionDelete,
+		)
+	case codersdk.WorkspaceRoleUse:
+		return []policy.Action{
+			policy.ActionApplicationConnect,
+			policy.ActionRead,
+			policy.ActionSSH,
+			policy.ActionWorkspaceStart,
+			policy.ActionWorkspaceStop,
+		}
 	}
 	return []policy.Action{}
 }

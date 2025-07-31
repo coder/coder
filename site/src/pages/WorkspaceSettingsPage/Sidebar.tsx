@@ -5,9 +5,7 @@ import {
 	SidebarHeader,
 	SidebarNavItem,
 } from "components/Sidebar/Sidebar";
-import { CodeIcon as ParameterIcon } from "lucide-react";
-import { SettingsIcon as GeneralIcon } from "lucide-react";
-import { TimerIcon as ScheduleIcon } from "lucide-react";
+import { CodeIcon as ParameterIcon, SettingsIcon as GeneralIcon, TimerIcon as ScheduleIcon, Users as SharingIcon } from "lucide-react";
 import type { FC } from "react";
 
 interface SidebarProps {
@@ -39,6 +37,9 @@ export const Sidebar: FC<SidebarProps> = ({ username, workspace }) => {
 			</SidebarNavItem>
 			<SidebarNavItem href="schedule" icon={ScheduleIcon}>
 				Schedule
+			</SidebarNavItem>
+			<SidebarNavItem href="sharing" icon={SharingIcon}>
+				Sharing
 			</SidebarNavItem>
 		</BaseSidebar>
 	);
