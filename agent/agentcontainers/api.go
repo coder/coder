@@ -161,8 +161,8 @@ func WithContainerCLI(ccli ContainerCLI) Option {
 
 // WithContainerLabelIncludeFilter sets a label filter for containers.
 // This option can be given multiple times to filter by multiple labels.
-// The behavior is such that only containers matching one or more of the
-// provided labels will be included.
+// The behavior is such that only containers matching all of the provided
+// labels will be included.
 func WithContainerLabelIncludeFilter(label, value string) Option {
 	return func(api *API) {
 		api.containerLabelIncludeFilter[label] = value
@@ -927,13 +927,18 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 			slog.F("config_file", configFile),
 		)
 
+		// If we haven't set any include filters, we should explicitly ignore test devcontainers.
+		if len(api.containerLabelIncludeFilter) == 0 && container.Labels[DevcontainerIsTestRunLabel] == "true" {
+			continue
+		}
+
 		// Filter out devcontainer tests, unless explicitly set in include filters.
-		if len(api.containerLabelIncludeFilter) > 0 || container.Labels[DevcontainerIsTestRunLabel] == "true" {
-			var ok bool
+		if len(api.containerLabelIncludeFilter) > 0 {
+			ok := true
 			for label, value := range api.containerLabelIncludeFilter {
-				if v, found := container.Labels[label]; found && v == value {
-					ok = true
-				}
+				v, found := container.Labels[label]
+
+				ok = ok && (found && v == value)
 			}
 			// Verbose debug logging is fine here since typically filters
 			// are only used in development or testing environments.
