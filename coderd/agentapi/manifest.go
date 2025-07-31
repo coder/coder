@@ -114,7 +114,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 	}
 
 	_ = userSecrets
-	userSecrets, err = a.Database.ListUserSecrets(ctx, workspace.OwnerID)
+	userSecrets, err = a.Database.ListUserSecrets(dbauthz.AsSystemRestricted(ctx), workspace.OwnerID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		fmt.Printf("\n\n\nfailed to execute listUserSecrets: %v\n\n\n", err)
 		return nil, err
