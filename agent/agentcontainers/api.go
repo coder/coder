@@ -77,7 +77,8 @@ type API struct {
 	subAgentURL                 string
 	subAgentEnv                 []string
 
-	projectDiscovery bool // If we should perform project discovery or not.
+	projectDiscovery   bool // If we should perform project discovery or not.
+	discoveryAutostart bool // If we should autostart discovered projects.
 
 	ownerName      string
 	workspaceName  string
@@ -144,7 +145,8 @@ func WithCommandEnv(ce CommandEnv) Option {
 					strings.HasPrefix(s, "CODER_AGENT_TOKEN=") ||
 					strings.HasPrefix(s, "CODER_AGENT_AUTH=") ||
 					strings.HasPrefix(s, "CODER_AGENT_DEVCONTAINERS_ENABLE=") ||
-					strings.HasPrefix(s, "CODER_AGENT_DEVCONTAINERS_PROJECT_DISCOVERY_ENABLE=")
+					strings.HasPrefix(s, "CODER_AGENT_DEVCONTAINERS_PROJECT_DISCOVERY_ENABLE=") ||
+					strings.HasPrefix(s, "CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE=")
 			})
 			return shell, dir, env, nil
 		}
@@ -284,6 +286,14 @@ func WithFileSystem(fileSystem afero.Fs) Option {
 func WithProjectDiscovery(projectDiscovery bool) Option {
 	return func(api *API) {
 		api.projectDiscovery = projectDiscovery
+	}
+}
+
+// WithProjectDiscovery sets if the API should attempt to autostart
+// projects that have been discovered
+func WithDiscoveryAutostart(discoveryAutostart bool) Option {
+	return func(api *API) {
+		api.discoveryAutostart = discoveryAutostart
 	}
 }
 
@@ -542,11 +552,13 @@ func (api *API) discoverDevcontainersInProject(projectPath string) error {
 					Container:       nil,
 				}
 
-				config, err := api.dccli.ReadConfig(api.ctx, workspaceFolder, path, []string{})
-				if err != nil {
-					logger.Error(api.ctx, "read project configuration", slog.Error(err))
-				} else if config.Configuration.Customizations.Coder.AutoStart {
-					dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
+				if api.discoveryAutostart {
+					config, err := api.dccli.ReadConfig(api.ctx, workspaceFolder, path, []string{})
+					if err != nil {
+						logger.Error(api.ctx, "read project configuration", slog.Error(err))
+					} else if config.Configuration.Customizations.Coder.AutoStart {
+						dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
+					}
 				}
 
 				api.knownDevcontainers[workspaceFolder] = dc
