@@ -2464,6 +2464,8 @@ func TestAgent_DevcontainersDisabledForSubAgent(t *testing.T) {
 // You can run it manually as follows:
 //
 // CODER_TEST_USE_DOCKER=1 go test -count=1 ./agent -run TestAgent_DevcontainerPrebuildClaim
+//
+//nolint:paralleltest // This test sets an environment variable.
 func TestAgent_DevcontainerPrebuildClaim(t *testing.T) {
 	if os.Getenv("CODER_TEST_USE_DOCKER") != "1" {
 		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
@@ -2523,6 +2525,7 @@ func TestAgent_DevcontainerPrebuildClaim(t *testing.T) {
 	}
 
 	// When: We create an agent with devcontainers enabled.
+	//nolint:dogsled
 	conn, client, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
 		o.Devcontainers = true
 		o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
@@ -2597,6 +2600,7 @@ func TestAgent_DevcontainerPrebuildClaim(t *testing.T) {
 	}
 
 	// When: We create an agent with devcontainers enabled.
+	//nolint:dogsled
 	conn, client, _, _, _ = setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
 		o.Devcontainers = true
 		o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
