@@ -1419,10 +1419,17 @@ CASE
         WHEN (started_at IS NULL) THEN 'pending'::provisioner_job_status
         ELSE 'running'::provisioner_job_status
     END
-END) STORED NOT NULL
+END) STORED NOT NULL,
+    logs_length integer DEFAULT 0 NOT NULL,
+    logs_overflowed boolean DEFAULT false NOT NULL,
+    CONSTRAINT max_provisioner_logs_length CHECK ((logs_length <= 1048576))
 );
 
 COMMENT ON COLUMN provisioner_jobs.job_status IS 'Computed column to track the status of the job.';
+
+COMMENT ON COLUMN provisioner_jobs.logs_length IS 'Total length of provisioner logs';
+
+COMMENT ON COLUMN provisioner_jobs.logs_overflowed IS 'Whether the provisioner logs overflowed in length';
 
 CREATE TABLE provisioner_keys (
     id uuid NOT NULL,

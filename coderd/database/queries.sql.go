@@ -8514,6 +8514,44 @@ func (q *sqlQuerier) InsertProvisionerJobLogs(ctx context.Context, arg InsertPro
 	return items, nil
 }
 
+const updateProvisionerJobLogsLength = `-- name: UpdateProvisionerJobLogsLength :exec
+UPDATE 
+	provisioner_jobs
+SET 
+	logs_length = logs_length + $2
+WHERE 
+	id = $1
+`
+
+type UpdateProvisionerJobLogsLengthParams struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	LogsLength int32     `db:"logs_length" json:"logs_length"`
+}
+
+func (q *sqlQuerier) UpdateProvisionerJobLogsLength(ctx context.Context, arg UpdateProvisionerJobLogsLengthParams) error {
+	_, err := q.db.ExecContext(ctx, updateProvisionerJobLogsLength, arg.ID, arg.LogsLength)
+	return err
+}
+
+const updateProvisionerJobLogsOverflowed = `-- name: UpdateProvisionerJobLogsOverflowed :exec
+UPDATE 
+	provisioner_jobs
+SET 
+	logs_overflowed = $2
+WHERE 
+	id = $1
+`
+
+type UpdateProvisionerJobLogsOverflowedParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	LogsOverflowed bool      `db:"logs_overflowed" json:"logs_overflowed"`
+}
+
+func (q *sqlQuerier) UpdateProvisionerJobLogsOverflowed(ctx context.Context, arg UpdateProvisionerJobLogsOverflowedParams) error {
+	_, err := q.db.ExecContext(ctx, updateProvisionerJobLogsOverflowed, arg.ID, arg.LogsOverflowed)
+	return err
+}
+
 const acquireProvisionerJob = `-- name: AcquireProvisionerJob :one
 UPDATE
 	provisioner_jobs
@@ -8543,7 +8581,7 @@ WHERE
 		SKIP LOCKED
 		LIMIT
 			1
-	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
 `
 
 type AcquireProvisionerJobParams struct {
@@ -8589,13 +8627,15 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 		&i.ErrorCode,
 		&i.TraceMetadata,
 		&i.JobStatus,
+		&i.LogsLength,
+		&i.LogsOverflowed,
 	)
 	return i, err
 }
 
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
 FROM
 	provisioner_jobs
 WHERE
@@ -8625,13 +8665,15 @@ func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (P
 		&i.ErrorCode,
 		&i.TraceMetadata,
 		&i.JobStatus,
+		&i.LogsLength,
+		&i.LogsOverflowed,
 	)
 	return i, err
 }
 
 const getProvisionerJobByIDForUpdate = `-- name: GetProvisionerJobByIDForUpdate :one
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
 FROM
 	provisioner_jobs
 WHERE
@@ -8665,6 +8707,8 @@ func (q *sqlQuerier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid
 		&i.ErrorCode,
 		&i.TraceMetadata,
 		&i.JobStatus,
+		&i.LogsLength,
+		&i.LogsOverflowed,
 	)
 	return i, err
 }
@@ -8708,7 +8752,7 @@ func (q *sqlQuerier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID 
 
 const getProvisionerJobsByIDs = `-- name: GetProvisionerJobsByIDs :many
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
 FROM
 	provisioner_jobs
 WHERE
@@ -8744,6 +8788,8 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 			&i.ErrorCode,
 			&i.TraceMetadata,
 			&i.JobStatus,
+			&i.LogsLength,
+			&i.LogsOverflowed,
 		); err != nil {
 			return nil, err
 		}
@@ -8811,7 +8857,7 @@ SELECT
 	-- Step 5: Final SELECT with INNER JOIN provisioner_jobs
 	fj.id,
 	fj.created_at,
-	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status,
+	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status, pj.logs_length, pj.logs_overflowed,
 	fj.queue_position,
 	fj.queue_size
 FROM
@@ -8867,6 +8913,8 @@ func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Contex
 			&i.ProvisionerJob.ErrorCode,
 			&i.ProvisionerJob.TraceMetadata,
 			&i.ProvisionerJob.JobStatus,
+			&i.ProvisionerJob.LogsLength,
+			&i.ProvisionerJob.LogsOverflowed,
 			&i.QueuePosition,
 			&i.QueueSize,
 		); err != nil {
@@ -8909,7 +8957,7 @@ queue_size AS (
 	SELECT COUNT(*) AS count FROM pending_jobs
 )
 SELECT
-	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status,
+	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status, pj.logs_length, pj.logs_overflowed,
     COALESCE(qp.queue_position, 0) AS queue_position,
     COALESCE(qs.count, 0) AS queue_size,
 	-- Use subquery to utilize ORDER BY in array_agg since it cannot be
@@ -9045,6 +9093,8 @@ func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionA
 			&i.ProvisionerJob.ErrorCode,
 			&i.ProvisionerJob.TraceMetadata,
 			&i.ProvisionerJob.JobStatus,
+			&i.ProvisionerJob.LogsLength,
+			&i.ProvisionerJob.LogsOverflowed,
 			&i.QueuePosition,
 			&i.QueueSize,
 			pq.Array(&i.AvailableWorkers),
@@ -9071,7 +9121,7 @@ func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionA
 }
 
 const getProvisionerJobsCreatedAfter = `-- name: GetProvisionerJobsCreatedAfter :many
-SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status FROM provisioner_jobs WHERE created_at > $1
+SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed FROM provisioner_jobs WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]ProvisionerJob, error) {
@@ -9103,6 +9153,8 @@ func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, created
 			&i.ErrorCode,
 			&i.TraceMetadata,
 			&i.JobStatus,
+			&i.LogsLength,
+			&i.LogsOverflowed,
 		); err != nil {
 			return nil, err
 		}
@@ -9119,7 +9171,7 @@ func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, created
 
 const getProvisionerJobsToBeReaped = `-- name: GetProvisionerJobsToBeReaped :many
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
 FROM
 	provisioner_jobs
 WHERE
@@ -9176,6 +9228,8 @@ func (q *sqlQuerier) GetProvisionerJobsToBeReaped(ctx context.Context, arg GetPr
 			&i.ErrorCode,
 			&i.TraceMetadata,
 			&i.JobStatus,
+			&i.LogsLength,
+			&i.LogsOverflowed,
 		); err != nil {
 			return nil, err
 		}
@@ -9204,10 +9258,11 @@ INSERT INTO
 		"type",
 		"input",
 		tags,
-		trace_metadata
+		trace_metadata,
+		logs_overflowed
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
 `
 
 type InsertProvisionerJobParams struct {
@@ -9223,6 +9278,7 @@ type InsertProvisionerJobParams struct {
 	Input          json.RawMessage          `db:"input" json:"input"`
 	Tags           StringMap                `db:"tags" json:"tags"`
 	TraceMetadata  pqtype.NullRawMessage    `db:"trace_metadata" json:"trace_metadata"`
+	LogsOverflowed bool                     `db:"logs_overflowed" json:"logs_overflowed"`
 }
 
 func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error) {
@@ -9239,6 +9295,7 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		arg.Input,
 		arg.Tags,
 		arg.TraceMetadata,
+		arg.LogsOverflowed,
 	)
 	var i ProvisionerJob
 	err := row.Scan(
@@ -9261,6 +9318,8 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		&i.ErrorCode,
 		&i.TraceMetadata,
 		&i.JobStatus,
+		&i.LogsLength,
+		&i.LogsOverflowed,
 	)
 	return i, err
 }

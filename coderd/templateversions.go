@@ -552,6 +552,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 			Valid:      true,
 			RawMessage: metadataRaw,
 		},
+		LogsOverflowed: false,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1646,6 +1647,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 				Valid:      true,
 				RawMessage: traceMetadataRaw,
 			},
+			LogsOverflowed: false,
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

@@ -3384,6 +3384,10 @@ type ProvisionerJob struct {
 	TraceMetadata  pqtype.NullRawMessage    `db:"trace_metadata" json:"trace_metadata"`
 	// Computed column to track the status of the job.
 	JobStatus ProvisionerJobStatus `db:"job_status" json:"job_status"`
+	// Total length of provisioner logs
+	LogsLength int32 `db:"logs_length" json:"logs_length"`
+	// Whether the provisioner logs overflowed in length
+	LogsOverflowed bool `db:"logs_overflowed" json:"logs_overflowed"`
 }
 
 type ProvisionerJobLog struct {
