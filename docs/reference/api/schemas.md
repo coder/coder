@@ -3320,6 +3320,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `web-push`             |
 | `oauth2`               |
 | `mcp-server-http`      |
+| `workspace-sharing`    |
 
 ## codersdk.ExternalAuth
 
