@@ -5,7 +5,12 @@ import {
 	SidebarHeader,
 	SidebarNavItem,
 } from "components/Sidebar/Sidebar";
-import { CodeIcon as ParameterIcon, SettingsIcon as GeneralIcon, TimerIcon as ScheduleIcon, Users as SharingIcon } from "lucide-react";
+import {
+	SettingsIcon as GeneralIcon,
+	CodeIcon as ParameterIcon,
+	TimerIcon as ScheduleIcon,
+	Users as SharingIcon,
+} from "lucide-react";
 import type { FC } from "react";
 
 interface SidebarProps {

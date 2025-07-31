@@ -1900,10 +1900,7 @@ class ApiMethods {
 		workspaceId: string,
 		data: TypesGen.UpdateWorkspaceACL,
 	): Promise<void> => {
-		await this.axios.patch(
-			`/api/v2/workspaces/${workspaceId}/acl`,
-			data,
-		);
+		await this.axios.patch(`/api/v2/workspaces/${workspaceId}/acl`, data);
 	};
 
 	getApplicationsHost = async (): Promise<TypesGen.AppHostResponse> => {
@@ -2218,9 +2215,9 @@ class ApiMethods {
 			default_value: p.default_value?.valid ? p.default_value.value : "",
 			options: p.options
 				? p.options.map((opt) => ({
-					...opt,
-					value: opt.value?.valid ? opt.value.value : "",
-				}))
+						...opt,
+						value: opt.value?.valid ? opt.value.value : "",
+					}))
 				: [],
 		}));
 	};
@@ -2646,7 +2643,7 @@ class ApiMethods {
 // All methods must be defined with arrow function syntax. See the docstring
 // above the ApiMethods class for a full explanation.
 class ExperimentalApiMethods {
-	constructor(protected readonly axios: AxiosInstance) { }
+	constructor(protected readonly axios: AxiosInstance) {}
 
 	getAITasksPrompts = async (
 		buildIds: TypesGen.WorkspaceBuild["id"][],

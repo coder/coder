@@ -427,6 +427,6 @@ export const updateWorkspaceACL = (workspaceId: string) => {
 	return {
 		mutationFn: async (patch: UpdateWorkspaceACL) => {
 			await API.updateWorkspaceACL(workspaceId, patch);
-		}
-	}
+		},
+	};
 };

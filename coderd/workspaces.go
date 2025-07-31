@@ -2114,9 +2114,6 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		fmt.Printf("%#v\n", workspace.UserACL)
-		fmt.Printf("%#v\n", workspace.GroupACL)
-
 		err = tx.UpdateWorkspaceACLByID(ctx, database.UpdateWorkspaceACLByIDParams{
 			ID:       workspace.ID,
 			UserACL:  workspace.UserACL,
