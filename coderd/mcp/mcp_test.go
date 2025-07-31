@@ -110,13 +110,13 @@ func TestMCPHTTP_ToolRegistration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test registering tools with nil client should return error
-	err = server.RegisterTools(nil, toolsdk.All)
+	err = server.RegisterTools(nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "client cannot be nil", "Should reject nil client with appropriate error message")
 
 	// Test registering tools with valid client should succeed
 	client := &codersdk.Client{}
-	err = server.RegisterTools(client, toolsdk.All)
+	err = server.RegisterTools(client)
 	require.NoError(t, err)
 
 	// Verify that all expected tools are available in the toolsdk
