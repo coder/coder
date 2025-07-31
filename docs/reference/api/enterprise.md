@@ -3582,10 +3582,10 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/acl \
 
 ### Parameters
 
-| Name       | In   | Type                                                               | Required | Description             |
-|------------|------|--------------------------------------------------------------------|----------|-------------------------|
-| `template` | path | string(uuid)                                                       | true     | Template ID             |
-| `body`     | body | [codersdk.UpdateTemplateACL](schemas.md#codersdkupdatetemplateacl) | true     | Update template request |
+| Name       | In   | Type                                                               | Required | Description                 |
+|------------|------|--------------------------------------------------------------------|----------|-----------------------------|
+| `template` | path | string(uuid)                                                       | true     | Template ID                 |
+| `body`     | body | [codersdk.UpdateTemplateACL](schemas.md#codersdkupdatetemplateacl) | true     | Update template ACL request |
 
 ### Example responses
 

@@ -4517,6 +4517,22 @@ func (q *querier) UpdateProvisionerJobByID(ctx context.Context, arg database.Upd
 	return q.db.UpdateProvisionerJobByID(ctx, arg)
 }
 
+func (q *querier) UpdateProvisionerJobLogsLength(ctx context.Context, arg database.UpdateProvisionerJobLogsLengthParams) error {
+	// Not sure what the rbac should be here, going with this for now
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+		return err
+	}
+	return q.db.UpdateProvisionerJobLogsLength(ctx, arg)
+}
+
+func (q *querier) UpdateProvisionerJobLogsOverflowed(ctx context.Context, arg database.UpdateProvisionerJobLogsOverflowedParams) error {
+	// Not sure what the rbac should be here, going with this for now
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+		return err
+	}
+	return q.db.UpdateProvisionerJobLogsOverflowed(ctx, arg)
+}
+
 func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
 	// TODO: Remove this once we have a proper rbac check for provisioner jobs.
 	// Details in https://github.com/coder/coder/issues/16160
@@ -4929,6 +4945,18 @@ func (q *querier) UpdateWorkspace(ctx context.Context, arg database.UpdateWorksp
 		return w.WorkspaceTable(), nil
 	}
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateWorkspace)(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceACLByID(ctx context.Context, arg database.UpdateWorkspaceACLByIDParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceACLByIDParams) (database.WorkspaceTable, error) {
+		w, err := q.db.GetWorkspaceByID(ctx, arg.ID)
+		if err != nil {
+			return database.WorkspaceTable{}, err
+		}
+		return w.WorkspaceTable(), nil
+	}
+
+	return fetchAndExec(q.log, q.auth, policy.ActionCreate, fetch, q.db.UpdateWorkspaceACLByID)(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {

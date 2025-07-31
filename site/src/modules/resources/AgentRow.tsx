@@ -87,7 +87,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 			logs.push({
 				id: -1,
 				level: "error",
-				output: "Startup logs exceeded the max size of 1MB!",
+				output:
+					"Startup logs exceeded the max size of 1MB, and will not continue to be written to the database! Logs will continue to be written to the /tmp/coder-startup-script.log file in the workspace.",
 				created_at: new Date().toISOString(),
 				source_id: "",
 			});

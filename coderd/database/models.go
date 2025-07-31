@@ -559,6 +559,64 @@ func AllConnectionTypeValues() []ConnectionType {
 	}
 }
 
+type CorsBehavior string
+
+const (
+	CorsBehaviorSimple   CorsBehavior = "simple"
+	CorsBehaviorPassthru CorsBehavior = "passthru"
+)
+
+func (e *CorsBehavior) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CorsBehavior(s)
+	case string:
+		*e = CorsBehavior(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CorsBehavior: %T", src)
+	}
+	return nil
+}
+
+type NullCorsBehavior struct {
+	CorsBehavior CorsBehavior `json:"cors_behavior"`
+	Valid        bool         `json:"valid"` // Valid is true if CorsBehavior is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCorsBehavior) Scan(value interface{}) error {
+	if value == nil {
+		ns.CorsBehavior, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CorsBehavior.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCorsBehavior) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CorsBehavior), nil
+}
+
+func (e CorsBehavior) Valid() bool {
+	switch e {
+	case CorsBehaviorSimple,
+		CorsBehaviorPassthru:
+		return true
+	}
+	return false
+}
+
+func AllCorsBehaviorValues() []CorsBehavior {
+	return []CorsBehavior{
+		CorsBehaviorSimple,
+		CorsBehaviorPassthru,
+	}
+}
+
 type CryptoKeyFeature string
 
 const (
@@ -3326,6 +3384,10 @@ type ProvisionerJob struct {
 	TraceMetadata  pqtype.NullRawMessage    `db:"trace_metadata" json:"trace_metadata"`
 	// Computed column to track the status of the job.
 	JobStatus ProvisionerJobStatus `db:"job_status" json:"job_status"`
+	// Total length of provisioner logs
+	LogsLength int32 `db:"logs_length" json:"logs_length"`
+	// Whether the provisioner logs overflowed in length
+	LogsOverflowed bool `db:"logs_overflowed" json:"logs_overflowed"`
 }
 
 type ProvisionerJobLog struct {
@@ -3474,6 +3536,7 @@ type Template struct {
 	ActivityBump                  int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	UseClassicParameterFlow       bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
+	CorsBehavior                  CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
@@ -3521,7 +3584,8 @@ type TemplateTable struct {
 	ActivityBump        int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	// Determines whether to default to the dynamic parameter creation flow for this template or continue using the legacy classic parameter creation flow.This is a template wide setting, the template admin can revert to the classic flow if there are any issues. An escape hatch is required, as workspace creation is a core workflow and cannot break. This column will be removed when the dynamic parameter creation flow is stable.
-	UseClassicParameterFlow bool `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
+	UseClassicParameterFlow bool         `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
+	CorsBehavior            CorsBehavior `db:"cors_behavior" json:"cors_behavior"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.
@@ -3804,6 +3868,8 @@ type Workspace struct {
 	AutomaticUpdates        AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
 	Favorite                bool             `db:"favorite" json:"favorite"`
 	NextStartAt             sql.NullTime     `db:"next_start_at" json:"next_start_at"`
+	GroupACL                WorkspaceACL     `db:"group_acl" json:"group_acl"`
+	UserACL                 WorkspaceACL     `db:"user_acl" json:"user_acl"`
 	OwnerAvatarUrl          string           `db:"owner_avatar_url" json:"owner_avatar_url"`
 	OwnerUsername           string           `db:"owner_username" json:"owner_username"`
 	OwnerName               string           `db:"owner_name" json:"owner_name"`
@@ -4225,4 +4291,6 @@ type WorkspaceTable struct {
 	// Favorite is true if the workspace owner has favorited the workspace.
 	Favorite    bool         `db:"favorite" json:"favorite"`
 	NextStartAt sql.NullTime `db:"next_start_at" json:"next_start_at"`
+	GroupACL    WorkspaceACL `db:"group_acl" json:"group_acl"`
+	UserACL     WorkspaceACL `db:"user_acl" json:"user_acl"`
 }
