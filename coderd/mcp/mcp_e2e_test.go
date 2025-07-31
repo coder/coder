@@ -1232,7 +1232,7 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, coderClient, user.OrganizationID, version.ID)
 
 	// Create MCP client pointing to the ChatGPT endpoint
-	mcpURL := api.AccessURL.String() + "/api/experimental/mcp/chatgpt"
+	mcpURL := api.AccessURL.String() + "/api/experimental/mcp/http?toolset=chatgpt"
 
 	// Configure client with authentication headers using RFC 6750 Bearer token
 	mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
