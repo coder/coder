@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"slices"
@@ -21,10 +22,18 @@ import (
 	"github.com/coder/serpent"
 )
 
+// PresetNone represents the special preset value "none".
+// It is used when a user runs `create --preset none`,
+// indicating that the CLI should not apply any preset.
+const PresetNone = "none"
+
+var ErrNoPresetFound = xerrors.New("no preset found")
+
 func (r *RootCmd) create() *serpent.Command {
 	var (
 		templateName    string
 		templateVersion string
+		presetName      string
 		startAt         string
 		stopAfter       time.Duration
 		workspaceName   string
@@ -263,11 +272,45 @@ func (r *RootCmd) create() *serpent.Command {
 				}
 			}
 
-			richParameters, _, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
+			// Get presets for the template version
+			tvPresets, err := client.TemplateVersionPresets(inv.Context(), templateVersionID)
+			if err != nil {
+				return xerrors.Errorf("failed to get presets: %w", err)
+			}
+
+			var preset *codersdk.Preset
+			var presetParameters []codersdk.WorkspaceBuildParameter
+
+			// If the template has no presets, or the user explicitly used --preset none,
+			// skip applying a preset
+			if len(tvPresets) > 0 && strings.ToLower(presetName) != PresetNone {
+				// Attempt to resolve which preset to use
+				preset, err = resolvePreset(tvPresets, presetName)
+				if err != nil {
+					if !errors.Is(err, ErrNoPresetFound) {
+						return xerrors.Errorf("unable to resolve preset: %w", err)
+					}
+					// If no preset found, prompt the user to choose a preset
+					if preset, err = promptPresetSelection(inv, tvPresets); err != nil {
+						return xerrors.Errorf("unable to prompt user for preset: %w", err)
+					}
+				}
+
+				// Convert preset parameters into workspace build parameters
+				presetParameters = presetParameterAsWorkspaceBuildParameters(preset.Parameters)
+				// Inform the user which preset was applied and its parameters
+				displayAppliedPreset(inv, preset, presetParameters)
+			} else {
+				// Inform the user that no preset was applied
+				_, _ = fmt.Fprintf(inv.Stdout, "%s", cliui.Bold("No preset applied."))
+			}
+
+			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
 				Action:            WorkspaceCreate,
 				TemplateVersionID: templateVersionID,
 				NewWorkspaceName:  workspaceName,
 
+				PresetParameters:      presetParameters,
 				RichParameterFile:     parameterFlags.richParameterFile,
 				RichParameters:        cliBuildParameters,
 				RichParameterDefaults: cliBuildParameterDefaults,
@@ -291,14 +334,21 @@ func (r *RootCmd) create() *serpent.Command {
 				ttlMillis = ptr.Ref(stopAfter.Milliseconds())
 			}
 
-			workspace, err := client.CreateUserWorkspace(inv.Context(), workspaceOwner, codersdk.CreateWorkspaceRequest{
+			req := codersdk.CreateWorkspaceRequest{
 				TemplateVersionID:   templateVersionID,
 				Name:                workspaceName,
 				AutostartSchedule:   schedSpec,
 				TTLMillis:           ttlMillis,
 				RichParameterValues: richParameters,
 				AutomaticUpdates:    codersdk.AutomaticUpdates(autoUpdates),
-			})
+			}
+
+			// If a preset exists, update the create workspace request's preset ID
+			if preset != nil {
+				req.TemplateVersionPresetID = preset.ID
+			}
+
+			workspace, err := client.CreateUserWorkspace(inv.Context(), workspaceOwner, req)
 			if err != nil {
 				return xerrors.Errorf("create workspace: %w", err)
 			}
@@ -332,6 +382,12 @@ func (r *RootCmd) create() *serpent.Command {
 			Env:         "CODER_TEMPLATE_VERSION",
 			Description: "Specify a template version name.",
 			Value:       serpent.StringOf(&templateVersion),
+		},
+		serpent.Option{
+			Flag:        "preset",
+			Env:         "CODER_PRESET_NAME",
+			Description: "Specify the name of a template version preset. Use 'none' to explicitly indicate that no preset should be used.",
+			Value:       serpent.StringOf(&presetName),
 		},
 		serpent.Option{
 			Flag:        "start-at",
@@ -377,32 +433,101 @@ type prepWorkspaceBuildArgs struct {
 	PromptEphemeralParameters bool
 	EphemeralParameters       []codersdk.WorkspaceBuildParameter
 
+	PresetParameters      []codersdk.WorkspaceBuildParameter
 	PromptRichParameters  bool
 	RichParameters        []codersdk.WorkspaceBuildParameter
 	RichParameterFile     string
 	RichParameterDefaults []codersdk.WorkspaceBuildParameter
 }
 
+// resolvePreset returns the preset matching the given presetName (if specified),
+// or the default preset (if any).
+// Returns ErrNoPresetFound if no matching or default preset is found.
+func resolvePreset(presets []codersdk.Preset, presetName string) (*codersdk.Preset, error) {
+	// If preset name is specified, find it
+	if presetName != "" {
+		for _, p := range presets {
+			if p.Name == presetName {
+				return &p, nil
+			}
+		}
+		return nil, xerrors.Errorf("preset %q not found", presetName)
+	}
+
+	// No preset name specified, search for the default preset
+	for _, p := range presets {
+		if p.Default {
+			return &p, nil
+		}
+	}
+
+	// No preset found
+	return nil, ErrNoPresetFound
+}
+
+// promptPresetSelection shows a CLI selection menu of the presets defined in the template version.
+// Returns the selected preset
+func promptPresetSelection(inv *serpent.Invocation, presets []codersdk.Preset) (*codersdk.Preset, error) {
+	presetMap := make(map[string]*codersdk.Preset)
+	var presetOptions []string
+
+	for _, preset := range presets {
+		var option string
+		if preset.Description == "" {
+			option = preset.Name
+		} else {
+			option = fmt.Sprintf("%s: %s", preset.Name, preset.Description)
+		}
+		presetOptions = append(presetOptions, option)
+		presetMap[option] = &preset
+	}
+
+	// Show selection UI
+	_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "Select a preset below:"))
+	selected, err := cliui.Select(inv, cliui.SelectOptions{
+		Options:    presetOptions,
+		HideSearch: true,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("failed to select preset: %w", err)
+	}
+
+	return presetMap[selected], nil
+}
+
+// displayAppliedPreset shows the user which preset was applied and its parameters
+func displayAppliedPreset(inv *serpent.Invocation, preset *codersdk.Preset, parameters []codersdk.WorkspaceBuildParameter) {
+	label := fmt.Sprintf("Preset '%s'", preset.Name)
+	if preset.Default {
+		label += " (default)"
+	}
+
+	_, _ = fmt.Fprintf(inv.Stdout, "%s applied:\n", cliui.Bold(label))
+	for _, param := range parameters {
+		_, _ = fmt.Fprintf(inv.Stdout, "  %s: '%s'\n", cliui.Bold(param.Name), param.Value)
+	}
+}
+
 // prepWorkspaceBuild will ensure a workspace build will succeed on the latest template version.
 // Any missing params will be prompted to the user. It supports rich parameters.
-func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args prepWorkspaceBuildArgs) ([]codersdk.WorkspaceBuildParameter, []codersdk.WorkspaceResource, error) {
+func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args prepWorkspaceBuildArgs) ([]codersdk.WorkspaceBuildParameter, error) {
 	ctx := inv.Context()
 
 	templateVersion, err := client.TemplateVersion(ctx, args.TemplateVersionID)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("get template version: %w", err)
+		return nil, xerrors.Errorf("get template version: %w", err)
 	}
 
 	templateVersionParameters, err := client.TemplateVersionRichParameters(inv.Context(), templateVersion.ID)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("get template version rich parameters: %w", err)
+		return nil, xerrors.Errorf("get template version rich parameters: %w", err)
 	}
 
 	parameterFile := map[string]string{}
 	if args.RichParameterFile != "" {
 		parameterFile, err = parseParameterMapFile(args.RichParameterFile)
 		if err != nil {
-			return nil, nil, xerrors.Errorf("can't parse parameter map file: %w", err)
+			return nil, xerrors.Errorf("can't parse parameter map file: %w", err)
 		}
 	}
 
@@ -411,13 +536,14 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		WithSourceWorkspaceParameters(args.SourceWorkspaceParameters).
 		WithPromptEphemeralParameters(args.PromptEphemeralParameters).
 		WithEphemeralParameters(args.EphemeralParameters).
+		WithPresetParameters(args.PresetParameters).
 		WithPromptRichParameters(args.PromptRichParameters).
 		WithRichParameters(args.RichParameters).
 		WithRichParametersFile(parameterFile).
 		WithRichParametersDefaults(args.RichParameterDefaults)
 	buildParameters, err := resolver.Resolve(inv, args.Action, templateVersionParameters)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	err = cliui.ExternalAuth(ctx, inv.Stdout, cliui.ExternalAuthOptions{
@@ -426,7 +552,7 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		},
 	})
 	if err != nil {
-		return nil, nil, xerrors.Errorf("template version git auth: %w", err)
+		return nil, xerrors.Errorf("template version git auth: %w", err)
 	}
 
 	// Run a dry-run with the given parameters to check correctness
@@ -435,12 +561,12 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		RichParameterValues: buildParameters,
 	})
 	if err != nil {
-		return nil, nil, xerrors.Errorf("begin workspace dry-run: %w", err)
+		return nil, xerrors.Errorf("begin workspace dry-run: %w", err)
 	}
 
 	matchedProvisioners, err := client.TemplateVersionDryRunMatchedProvisioners(inv.Context(), templateVersion.ID, dryRun.ID)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("get matched provisioners: %w", err)
+		return nil, xerrors.Errorf("get matched provisioners: %w", err)
 	}
 	cliutil.WarnMatchedProvisioners(inv.Stdout, &matchedProvisioners, dryRun)
 	_, _ = fmt.Fprintln(inv.Stdout, "Planning workspace...")
@@ -460,12 +586,12 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 	if err != nil {
 		// TODO (Dean): reprompt for parameter values if we deem it to
 		// be a validation error
-		return nil, nil, xerrors.Errorf("dry-run workspace: %w", err)
+		return nil, xerrors.Errorf("dry-run workspace: %w", err)
 	}
 
 	resources, err := client.TemplateVersionDryRunResources(inv.Context(), templateVersion.ID, dryRun.ID)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("get workspace dry-run resources: %w", err)
+		return nil, xerrors.Errorf("get workspace dry-run resources: %w", err)
 	}
 
 	err = cliui.WorkspaceResources(inv.Stdout, resources, cliui.WorkspaceResourcesOptions{
@@ -475,8 +601,8 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		Title:          "Workspace Preview",
 	})
 	if err != nil {
-		return nil, nil, xerrors.Errorf("get resources: %w", err)
+		return nil, xerrors.Errorf("get resources: %w", err)
 	}
 
-	return buildParameters, resources, nil
+	return buildParameters, nil
 }

@@ -73,6 +73,11 @@ CREATE TYPE connection_type AS ENUM (
     'port_forwarding'
 );
 
+CREATE TYPE cors_behavior AS ENUM (
+    'simple',
+    'passthru'
+);
+
 CREATE TYPE crypto_key_feature AS ENUM (
     'workspace_apps_token',
     'workspace_apps_api_key',
@@ -1414,10 +1419,17 @@ CASE
         WHEN (started_at IS NULL) THEN 'pending'::provisioner_job_status
         ELSE 'running'::provisioner_job_status
     END
-END) STORED NOT NULL
+END) STORED NOT NULL,
+    logs_length integer DEFAULT 0 NOT NULL,
+    logs_overflowed boolean DEFAULT false NOT NULL,
+    CONSTRAINT max_provisioner_logs_length CHECK ((logs_length <= 1048576))
 );
 
 COMMENT ON COLUMN provisioner_jobs.job_status IS 'Computed column to track the status of the job.';
+
+COMMENT ON COLUMN provisioner_jobs.logs_length IS 'Total length of provisioner logs';
+
+COMMENT ON COLUMN provisioner_jobs.logs_overflowed IS 'Whether the provisioner logs overflowed in length';
 
 CREATE TABLE provisioner_keys (
     id uuid NOT NULL,
@@ -1618,8 +1630,14 @@ CREATE TABLE template_version_presets (
     invalidate_after_secs integer DEFAULT 0,
     prebuild_status prebuild_status DEFAULT 'healthy'::prebuild_status NOT NULL,
     scheduling_timezone text DEFAULT ''::text NOT NULL,
-    is_default boolean DEFAULT false NOT NULL
+    is_default boolean DEFAULT false NOT NULL,
+    description character varying(128) DEFAULT ''::character varying NOT NULL,
+    icon character varying(256) DEFAULT ''::character varying NOT NULL
 );
+
+COMMENT ON COLUMN template_version_presets.description IS 'Short text describing the preset (max 128 characters).';
+
+COMMENT ON COLUMN template_version_presets.icon IS 'URL or path to an icon representing the preset (max 256 characters).';
 
 CREATE TABLE template_version_terraform_values (
     template_version_id uuid NOT NULL,
@@ -1746,7 +1764,8 @@ CREATE TABLE templates (
     deprecated text DEFAULT ''::text NOT NULL,
     activity_bump bigint DEFAULT '3600000000000'::bigint NOT NULL,
     max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
-    use_classic_parameter_flow boolean DEFAULT true NOT NULL
+    use_classic_parameter_flow boolean DEFAULT false NOT NULL,
+    cors_behavior cors_behavior DEFAULT 'simple'::cors_behavior NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -1799,6 +1818,7 @@ CREATE VIEW template_with_names AS
     templates.activity_bump,
     templates.max_port_sharing_level,
     templates.use_classic_parameter_flow,
+    templates.cors_behavior,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name,
@@ -2253,7 +2273,9 @@ CREATE TABLE workspaces (
     deleting_at timestamp with time zone,
     automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
     favorite boolean DEFAULT false NOT NULL,
-    next_start_at timestamp with time zone
+    next_start_at timestamp with time zone,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
@@ -2432,6 +2454,8 @@ CREATE VIEW workspaces_expanded AS
     workspaces.automatic_updates,
     workspaces.favorite,
     workspaces.next_start_at,
+    workspaces.group_acl,
+    workspaces.user_acl,
     visible_users.avatar_url AS owner_avatar_url,
     visible_users.username AS owner_username,
     visible_users.name AS owner_name,

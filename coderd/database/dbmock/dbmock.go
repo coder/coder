@@ -5958,6 +5958,34 @@ func (mr *MockStoreMockRecorder) UpdateProvisionerJobByID(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProvisionerJobByID", reflect.TypeOf((*MockStore)(nil).UpdateProvisionerJobByID), ctx, arg)
 }
 
+// UpdateProvisionerJobLogsLength mocks base method.
+func (m *MockStore) UpdateProvisionerJobLogsLength(ctx context.Context, arg database.UpdateProvisionerJobLogsLengthParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateProvisionerJobLogsLength", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateProvisionerJobLogsLength indicates an expected call of UpdateProvisionerJobLogsLength.
+func (mr *MockStoreMockRecorder) UpdateProvisionerJobLogsLength(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProvisionerJobLogsLength", reflect.TypeOf((*MockStore)(nil).UpdateProvisionerJobLogsLength), ctx, arg)
+}
+
+// UpdateProvisionerJobLogsOverflowed mocks base method.
+func (m *MockStore) UpdateProvisionerJobLogsOverflowed(ctx context.Context, arg database.UpdateProvisionerJobLogsOverflowedParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateProvisionerJobLogsOverflowed", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateProvisionerJobLogsOverflowed indicates an expected call of UpdateProvisionerJobLogsOverflowed.
+func (mr *MockStoreMockRecorder) UpdateProvisionerJobLogsOverflowed(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProvisionerJobLogsOverflowed", reflect.TypeOf((*MockStore)(nil).UpdateProvisionerJobLogsOverflowed), ctx, arg)
+}
+
 // UpdateProvisionerJobWithCancelByID mocks base method.
 func (m *MockStore) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
 	m.ctrl.T.Helper()

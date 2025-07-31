@@ -53,6 +53,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
+    "logs_overflowed": true,
     "metadata": {
       "template_display_name": "string",
       "template_icon": "string",
@@ -291,6 +292,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
+    "logs_overflowed": true,
     "metadata": {
       "template_display_name": "string",
       "template_icon": "string",
@@ -1018,6 +1020,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
+    "logs_overflowed": true,
     "metadata": {
       "template_display_name": "string",
       "template_icon": "string",
@@ -1329,6 +1332,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
       },
+      "logs_overflowed": true,
       "metadata": {
         "template_display_name": "string",
         "template_icon": "string",
@@ -1545,6 +1549,7 @@ Status Code **200**
 | `»»» error`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» template_version_id`        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» workspace_build_id`         | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» logs_overflowed`             | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» metadata`                    | [codersdk.ProvisionerJobMetadata](schemas.md#codersdkprovisionerjobmetadata)                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» template_display_name`      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» template_icon`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1822,6 +1827,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
+    "logs_overflowed": true,
     "metadata": {
       "template_display_name": "string",
       "template_icon": "string",

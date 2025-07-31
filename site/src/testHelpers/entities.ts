@@ -689,6 +689,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
 		template_version_name: "test-version",
 		workspace_name: "test-workspace",
 	},
+	logs_overflowed: false,
 };
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
@@ -826,7 +827,8 @@ export const MockTemplate: TypesGen.Template = {
 	deprecated: false,
 	deprecation_message: "",
 	max_port_share_level: "public",
-	use_classic_parameter_flow: true,
+	use_classic_parameter_flow: false,
+	cors_behavior: "simple",
 };
 
 const MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -4571,3 +4573,116 @@ export function createTimestamp(minuteOffset: number, secondOffset: number) {
 	baseDate.setSeconds(baseDate.getSeconds() + secondOffset);
 	return baseDate.toISOString();
 }
+
+// Mock Presets for AI Tasks
+export const MockPresets: TypesGen.Preset[] = [
+	{
+		ID: "preset-1",
+		Name: "Development",
+		Description: "",
+		Icon: "",
+		Parameters: [
+			{ Name: "cpu", Value: "4" },
+			{ Name: "memory", Value: "8GB" },
+		],
+		Default: true,
+		DesiredPrebuildInstances: 0,
+	},
+	{
+		ID: "preset-2",
+		Name: "Testing",
+		Description: "",
+		Icon: "",
+		Parameters: [
+			{ Name: "cpu", Value: "2" },
+			{ Name: "memory", Value: "4GB" },
+		],
+		Default: false,
+		DesiredPrebuildInstances: 0,
+	},
+	{
+		ID: "preset-3",
+		Name: "Production",
+		Description: "",
+		Icon: "",
+		Parameters: [
+			{ Name: "cpu", Value: "8" },
+			{ Name: "memory", Value: "16GB" },
+		],
+		Default: false,
+		DesiredPrebuildInstances: 0,
+	},
+];
+
+export const MockAIPromptPresets: TypesGen.Preset[] = [
+	{
+		ID: "ai-preset-1",
+		Name: "Code Review",
+		Description: "",
+		Icon: "",
+		Parameters: [
+			{ Name: "AI Prompt", Value: "Review the code for best practices" },
+			{ Name: "cpu", Value: "4" },
+			{ Name: "memory", Value: "8GB" },
+		],
+		Default: true,
+		DesiredPrebuildInstances: 0,
+	},
+	{
+		ID: "ai-preset-2",
+		Name: "Custom Prompt",
+		Description: "",
+		Icon: "",
+		Parameters: [
+			{ Name: "cpu", Value: "4" },
+			{ Name: "memory", Value: "8GB" },
+		],
+		Default: false,
+		DesiredPrebuildInstances: 0,
+	},
+];
+
+// Mock Tasks for AI Tasks page
+export const MockTasks = [
+	{
+		workspace: {
+			...MockWorkspace,
+			latest_app_status: MockWorkspaceAppStatus,
+		},
+		prompt: "Create competitors page",
+	},
+	{
+		workspace: {
+			...MockWorkspace,
+			id: "workspace-2",
+			latest_app_status: {
+				...MockWorkspaceAppStatus,
+				message: "Avatar size fixed!",
+			},
+		},
+		prompt: "Fix user avatar size",
+	},
+	{
+		workspace: {
+			...MockWorkspace,
+			id: "workspace-3",
+			latest_app_status: {
+				...MockWorkspaceAppStatus,
+				message: "Accessibility issues fixed!",
+			},
+		},
+		prompt: "Fix accessibility issues",
+	},
+];
+
+export const MockNewTaskData = {
+	prompt: "Create a new task",
+	workspace: {
+		...MockWorkspace,
+		id: "workspace-4",
+		latest_app_status: {
+			...MockWorkspaceAppStatus,
+			message: "Task created successfully!",
+		},
+	},
+};

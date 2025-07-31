@@ -242,6 +242,8 @@ func (w Workspace) WorkspaceTable() WorkspaceTable {
 		AutomaticUpdates:  w.AutomaticUpdates,
 		Favorite:          w.Favorite,
 		NextStartAt:       w.NextStartAt,
+		GroupACL:          w.GroupACL,
+		UserACL:           w.UserACL,
 	}
 }
 

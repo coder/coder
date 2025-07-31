@@ -147,7 +147,8 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		DisplayName:                  takeFirst(seed.DisplayName, testutil.GetRandomName(t)),
 		AllowUserCancelWorkspaceJobs: seed.AllowUserCancelWorkspaceJobs,
 		MaxPortSharingLevel:          takeFirst(seed.MaxPortSharingLevel, database.AppSharingLevelOwner),
-		UseClassicParameterFlow:      takeFirst(seed.UseClassicParameterFlow, true),
+		UseClassicParameterFlow:      takeFirst(seed.UseClassicParameterFlow, false),
+		CorsBehavior:                 takeFirst(seed.CorsBehavior, database.CorsBehaviorSimple),
 	})
 	require.NoError(t, err, "insert template")
 
@@ -774,6 +775,7 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 		Input:          takeFirstSlice(orig.Input, []byte("{}")),
 		Tags:           tags,
 		TraceMetadata:  pqtype.NullRawMessage{},
+		LogsOverflowed: false,
 	})
 	require.NoError(t, err, "insert job")
 	if ps != nil {
@@ -1392,6 +1394,8 @@ func Preset(t testing.TB, db database.Store, seed database.InsertPresetParams) d
 		InvalidateAfterSecs: seed.InvalidateAfterSecs,
 		SchedulingTimezone:  seed.SchedulingTimezone,
 		IsDefault:           seed.IsDefault,
+		Description:         seed.Description,
+		Icon:                seed.Icon,
 	})
 	require.NoError(t, err, "insert preset")
 	return preset

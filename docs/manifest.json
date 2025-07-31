@@ -240,6 +240,11 @@
 							"path": "./user-guides/workspace-access/web-ides.md"
 						},
 						{
+							"title": "code-server",
+							"description": "Access your workspace with code-server",
+							"path": "./user-guides/workspace-access/code-server.md"
+						},
+						{
 							"title": "Zed",
 							"description": "Access your workspace with Zed",
 							"path": "./user-guides/workspace-access/zed.md"
@@ -1658,6 +1663,16 @@
 							"title": "templates list",
 							"description": "List all the templates available for the organization",
 							"path": "reference/cli/templates_list.md"
+						},
+						{
+							"title": "templates presets",
+							"description": "Manage presets of the specified template",
+							"path": "reference/cli/templates_presets.md"
+						},
+						{
+							"title": "templates presets list",
+							"description": "List all presets of the specified template. Defaults to the active template version.",
+							"path": "reference/cli/templates_presets_list.md"
 						},
 						{
 							"title": "templates pull",

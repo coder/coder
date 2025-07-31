@@ -1060,6 +1060,27 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
+      - name: Install rcodesign
+        run: |
+          set -euo pipefail
+          wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-x86_64-unknown-linux-musl.tar.gz
+          sudo tar -xzf /tmp/rcodesign.tar.gz \
+            -C /usr/bin \
+            --strip-components=1 \
+            apple-codesign-0.22.0-x86_64-unknown-linux-musl/rcodesign
+          rm /tmp/rcodesign.tar.gz
+
+      - name: Setup Apple Developer certificate
+        run: |
+          set -euo pipefail
+          touch /tmp/{apple_cert.p12,apple_cert_password.txt}
+          chmod 600 /tmp/{apple_cert.p12,apple_cert_password.txt}
+          echo "$AC_CERTIFICATE_P12_BASE64" | base64 -d > /tmp/apple_cert.p12
+          echo "$AC_CERTIFICATE_PASSWORD" > /tmp/apple_cert_password.txt
+        env:
+          AC_CERTIFICATE_P12_BASE64: ${{ secrets.AC_CERTIFICATE_P12_BASE64 }}
+          AC_CERTIFICATE_PASSWORD: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
+
       # Necessary for signing Windows binaries.
       - name: Setup Java
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
@@ -1138,6 +1159,9 @@ jobs:
           CODER_WINDOWS_RESOURCES: "1"
           CODER_SIGN_GPG: "1"
           CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
+          CODER_SIGN_DARWIN: "1"
+          AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
+          AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
           EV_KEY: ${{ secrets.EV_KEY }}
           EV_KEYSTORE: ${{ secrets.EV_KEYSTORE }}
           EV_TSA_URL: ${{ secrets.EV_TSA_URL }}

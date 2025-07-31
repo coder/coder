@@ -3,10 +3,12 @@ package coderd_test
 import (
 	"context"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd"
@@ -199,8 +201,15 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		modulesArchive, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
 		require.NoError(t, err)
 
+		c := atomic.NewInt32(0)
+		reject := &dbRejectGitSSHKey{Store: db, hook: func(d *dbRejectGitSSHKey) {
+			if c.Add(1) > 1 {
+				// Second call forward, reject
+				d.SetReject(true)
+			}
+		}}
 		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
-			db:                       &dbRejectGitSSHKey{Store: db},
+			db:                       reject,
 			ps:                       ps,
 			provisionerDaemonVersion: provProto.CurrentVersion.String(),
 			mainTF:                   dynamicParametersTerraformSource,
@@ -444,8 +453,30 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 // that is generally impossible to force an error.
 type dbRejectGitSSHKey struct {
 	database.Store
+	rejectMu sync.RWMutex
+	reject   bool
+	hook     func(d *dbRejectGitSSHKey)
 }
 
-func (*dbRejectGitSSHKey) GetGitSSHKey(_ context.Context, _ uuid.UUID) (database.GitSSHKey, error) {
-	return database.GitSSHKey{}, xerrors.New("forcing a fake error")
+// SetReject toggles whether GetGitSSHKey should return an error or passthrough to the underlying store.
+func (d *dbRejectGitSSHKey) SetReject(reject bool) {
+	d.rejectMu.Lock()
+	defer d.rejectMu.Unlock()
+	d.reject = reject
+}
+
+func (d *dbRejectGitSSHKey) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
+	if d.hook != nil {
+		d.hook(d)
+	}
+
+	d.rejectMu.RLock()
+	reject := d.reject
+	d.rejectMu.RUnlock()
+
+	if reject {
+		return database.GitSSHKey{}, xerrors.New("forcing a fake error")
+	}
+
+	return d.Store.GetGitSSHKey(ctx, userID)
 }

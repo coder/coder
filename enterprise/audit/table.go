@@ -115,6 +115,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"max_port_sharing_level":            ActionTrack,
 		"activity_bump":                     ActionTrack,
 		"use_classic_parameter_flow":        ActionTrack,
+		"cors_behavior":                     ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                      ActionTrack,
@@ -173,6 +174,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"automatic_updates":  ActionTrack,
 		"favorite":           ActionTrack,
 		"next_start_at":      ActionTrack,
+		"group_acl":          ActionTrack,
+		"user_acl":           ActionTrack,
 	},
 	&database.WorkspaceBuild{}: {
 		"id":                         ActionIgnore,

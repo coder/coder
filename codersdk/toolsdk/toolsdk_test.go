@@ -456,7 +456,7 @@ var testedTools sync.Map
 // This is to mimic how we expect external callers to use the tool.
 func testTool[Arg, Ret any](t *testing.T, tool toolsdk.Tool[Arg, Ret], tb toolsdk.Deps, args Arg) (Ret, error) {
 	t.Helper()
-	defer func() { testedTools.Store(tool.Tool.Name, true) }()
+	defer func() { testedTools.Store(tool.Name, true) }()
 	toolArgs, err := json.Marshal(args)
 	require.NoError(t, err, "failed to marshal args")
 	result, err := tool.Generic().Handler(t.Context(), tb, toolArgs)
@@ -625,23 +625,23 @@ func TestToolSchemaFields(t *testing.T) {
 
 	// Test that all tools have the required Schema fields (Properties and Required)
 	for _, tool := range toolsdk.All {
-		t.Run(tool.Tool.Name, func(t *testing.T) {
+		t.Run(tool.Name, func(t *testing.T) {
 			t.Parallel()
 
 			// Check that Properties is not nil
-			require.NotNil(t, tool.Tool.Schema.Properties,
-				"Tool %q missing Schema.Properties", tool.Tool.Name)
+			require.NotNil(t, tool.Schema.Properties,
+				"Tool %q missing Schema.Properties", tool.Name)
 
 			// Check that Required is not nil
-			require.NotNil(t, tool.Tool.Schema.Required,
-				"Tool %q missing Schema.Required", tool.Tool.Name)
+			require.NotNil(t, tool.Schema.Required,
+				"Tool %q missing Schema.Required", tool.Name)
 
 			// Ensure Properties has entries for all required fields
-			for _, requiredField := range tool.Tool.Schema.Required {
-				_, exists := tool.Tool.Schema.Properties[requiredField]
+			for _, requiredField := range tool.Schema.Required {
+				_, exists := tool.Schema.Properties[requiredField]
 				require.True(t, exists,
 					"Tool %q requires field %q but it is not defined in Properties",
-					tool.Tool.Name, requiredField)
+					tool.Name, requiredField)
 			}
 		})
 	}
@@ -652,7 +652,7 @@ func TestToolSchemaFields(t *testing.T) {
 func TestMain(m *testing.M) {
 	// Initialize testedTools
 	for _, tool := range toolsdk.All {
-		testedTools.Store(tool.Tool.Name, false)
+		testedTools.Store(tool.Name, false)
 	}
 
 	code := m.Run()
@@ -660,8 +660,8 @@ func TestMain(m *testing.M) {
 	// Ensure all tools have been tested
 	var untested []string
 	for _, tool := range toolsdk.All {
-		if tested, ok := testedTools.Load(tool.Tool.Name); !ok || !tested.(bool) {
-			untested = append(untested, tool.Tool.Name)
+		if tested, ok := testedTools.Load(tool.Name); !ok || !tested.(bool) {
+			untested = append(untested, tool.Name)
 		}
 	}
 
@@ -685,4 +685,58 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(code)
+}
+
+func TestReportTaskNilPointerDeref(t *testing.T) {
+	t.Parallel()
+
+	// Create deps without a task reporter (simulating remote MCP server scenario)
+	client, _ := coderdtest.NewWithDatabase(t, nil)
+	deps, err := toolsdk.NewDeps(client)
+	require.NoError(t, err)
+
+	// Prepare test arguments
+	args := toolsdk.ReportTaskArgs{
+		Summary: "Test task",
+		Link:    "https://example.com",
+		State:   string(codersdk.WorkspaceAppStatusStateWorking),
+	}
+
+	_, err = toolsdk.ReportTask.Handler(t.Context(), deps, args)
+
+	// We expect an error, not a panic
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "task reporting not available")
+}
+
+func TestReportTaskWithReporter(t *testing.T) {
+	t.Parallel()
+
+	// Create deps with a task reporter
+	client, _ := coderdtest.NewWithDatabase(t, nil)
+
+	called := false
+	reporter := func(args toolsdk.ReportTaskArgs) error {
+		called = true
+		require.Equal(t, "Test task", args.Summary)
+		require.Equal(t, "https://example.com", args.Link)
+		require.Equal(t, string(codersdk.WorkspaceAppStatusStateWorking), args.State)
+		return nil
+	}
+
+	deps, err := toolsdk.NewDeps(client, toolsdk.WithTaskReporter(reporter))
+	require.NoError(t, err)
+
+	args := toolsdk.ReportTaskArgs{
+		Summary: "Test task",
+		Link:    "https://example.com",
+		State:   string(codersdk.WorkspaceAppStatusStateWorking),
+	}
+
+	result, err := toolsdk.ReportTask.Handler(t.Context(), deps, args)
+	require.NoError(t, err)
+	require.True(t, called)
+
+	// Verify response
+	require.Equal(t, "Thanks for reporting!", result.Message)
 }
