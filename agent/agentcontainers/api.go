@@ -934,15 +934,15 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 
 		// Filter out devcontainer tests, unless explicitly set in include filters.
 		if len(api.containerLabelIncludeFilter) > 0 {
-			ok := true
+			includeContainer := true
 			for label, value := range api.containerLabelIncludeFilter {
 				v, found := container.Labels[label]
 
-				ok = ok && (found && v == value)
+				includeContainer = includeContainer && (found && v == value)
 			}
 			// Verbose debug logging is fine here since typically filters
 			// are only used in development or testing environments.
-			if !ok {
+			if !includeContainer {
 				logger.Debug(ctx, "container does not match include filter, ignoring devcontainer", slog.F("container_labels", container.Labels), slog.F("include_filter", api.containerLabelIncludeFilter))
 				continue
 			}
