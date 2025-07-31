@@ -20872,6 +20872,27 @@ func (q *sqlQuerier) UpdateWorkspace(ctx context.Context, arg UpdateWorkspacePar
 	return i, err
 }
 
+const updateWorkspaceACLByID = `-- name: UpdateWorkspaceACLByID :exec
+UPDATE
+	workspaces
+SET
+	group_acl = $1,
+	user_acl = $2
+WHERE
+	id = $3
+`
+
+type UpdateWorkspaceACLByIDParams struct {
+	GroupACL WorkspaceACL `db:"group_acl" json:"group_acl"`
+	UserACL  WorkspaceACL `db:"user_acl" json:"user_acl"`
+	ID       uuid.UUID    `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceACLByID(ctx context.Context, arg UpdateWorkspaceACLByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceACLByID, arg.GroupACL, arg.UserACL, arg.ID)
+	return err
+}
+
 const updateWorkspaceAutomaticUpdates = `-- name: UpdateWorkspaceAutomaticUpdates :exec
 UPDATE
 	workspaces

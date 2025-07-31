@@ -86,6 +86,12 @@ const WorkspaceParametersExperimentRouter = lazy(
 			"./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersExperimentRouter"
 		),
 );
+const WorkspaceSharingPage = lazy(
+	() =>
+		import(
+			"./pages/WorkspaceSettingsPage/WorkspaceSharingPage/WorkspaceSharingPage"
+		),
+);
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"));
 const TemplatePermissionsPage = lazy(
 	() =>
@@ -547,6 +553,7 @@ export const router = createBrowserRouter(
 								element={<WorkspaceParametersExperimentRouter />}
 							/>
 							<Route path="schedule" element={<WorkspaceSchedulePage />} />
+							<Route path="sharing" element={<WorkspaceSharingPage />} />
 						</Route>
 					</Route>
 
