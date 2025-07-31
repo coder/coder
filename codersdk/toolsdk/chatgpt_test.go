@@ -106,9 +106,11 @@ func TestChatGPTSearch_TemplateMultipleFilters(t *testing.T) {
 	// Setup
 	client, store := coderdtest.NewWithDatabase(t, nil)
 	owner := coderdtest.CreateFirstUser(t, client)
+	org2 := dbgen.Organization(t, store, database.Organization{
+		Name: "org2",
+	})
 
-	// Create templates directly with specific names for testing filters
-	dockerTemplate1 := dbgen.Template(t, store, database.Template{
+	dbgen.Template(t, store, database.Template{
 		OrganizationID: owner.OrganizationID,
 		CreatedBy:      owner.UserID,
 		Name:           "docker-development", // Name contains "docker"
@@ -118,7 +120,7 @@ func TestChatGPTSearch_TemplateMultipleFilters(t *testing.T) {
 
 	// Create another template that doesn't contain "docker"
 	dbgen.Template(t, store, database.Template{
-		OrganizationID: owner.OrganizationID,
+		OrganizationID: org2.ID,
 		CreatedBy:      owner.UserID,
 		Name:           "python-web", // Name doesn't contain "docker"
 		DisplayName:    "Python Web",
@@ -127,7 +129,7 @@ func TestChatGPTSearch_TemplateMultipleFilters(t *testing.T) {
 
 	// Create third template with "docker" in name
 	dockerTemplate2 := dbgen.Template(t, store, database.Template{
-		OrganizationID: owner.OrganizationID,
+		OrganizationID: org2.ID,
 		CreatedBy:      owner.UserID,
 		Name:           "old-docker-template", // Name contains "docker"
 		DisplayName:    "Old Docker Template",
@@ -138,27 +140,15 @@ func TestChatGPTSearch_TemplateMultipleFilters(t *testing.T) {
 	deps, err := toolsdk.NewDeps(client)
 	require.NoError(t, err)
 
-	// Execute tool with name filter - should only return templates with "docker" in name
-	args := toolsdk.SearchArgs{Query: "templates/name:docker"}
+	args := toolsdk.SearchArgs{Query: "templates/name:docker organization:org2"}
 	result, err := testTool(t, toolsdk.ChatGPTSearch, deps, args)
 
 	// Verify results
 	require.NoError(t, err)
-	require.Len(t, result.Results, 2, "Should match both docker templates")
+	require.Len(t, result.Results, 1, "Should match only the docker template in org2")
 
-	// Validate the results contain both docker templates
-	templateIDs := make(map[string]bool)
-	for _, item := range result.Results {
-		require.NotEmpty(t, item.ID)
-		require.Contains(t, item.ID, "template:")
-		require.Contains(t, item.URL, "/templates/")
-		templateIDs[item.ID] = true
-	}
-
-	expectedID1 := "template:" + dockerTemplate1.ID.String()
-	expectedID2 := "template:" + dockerTemplate2.ID.String()
-	require.True(t, templateIDs[expectedID1], "Should contain first docker template")
-	require.True(t, templateIDs[expectedID2], "Should contain second docker template")
+	expectedID := "template:" + dockerTemplate2.ID.String()
+	require.Equal(t, expectedID, result.Results[0].ID, "Should match the docker template in org2")
 }
 
 func TestChatGPTSearch_WorkspaceSearch(t *testing.T) {
