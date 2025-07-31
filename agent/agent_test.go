@@ -2458,6 +2458,199 @@ func TestAgent_DevcontainersDisabledForSubAgent(t *testing.T) {
 	require.Contains(t, err.Error(), "Dev Container integration inside other Dev Containers is explicitly not supported.")
 }
 
+// TestAgent_DevcontainerPrebuildClaim tests that we correctly handle
+// the claiming process for running devcontainers.
+//
+// You can run it manually as follows:
+//
+// CODER_TEST_USE_DOCKER=1 go test -count=1 ./agent -run TestAgent_DevcontainerPrebuildClaim
+func TestAgent_DevcontainerPrebuildClaim(t *testing.T) {
+	if os.Getenv("CODER_TEST_USE_DOCKER") != "1" {
+		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
+	}
+	if _, err := exec.LookPath("devcontainer"); err != nil {
+		t.Skip("This test requires the devcontainer CLI: npm install -g @devcontainers/cli")
+	}
+
+	pool, err := dockertest.NewPool("")
+	require.NoError(t, err, "Could not connect to docker")
+
+	var (
+		ctx = testutil.Context(t, testutil.WaitShort)
+
+		devcontainerID          = uuid.New()
+		devcontainerLogSourceID = uuid.New()
+
+		workspaceFolder    = filepath.Join(t.TempDir(), "project")
+		devcontainerPath   = filepath.Join(workspaceFolder, ".devcontainer")
+		devcontainerConfig = filepath.Join(devcontainerPath, "devcontainer.json")
+	)
+
+	// Given: A devcontainer project.
+	t.Logf("Workspace folder: %s", workspaceFolder)
+
+	err = os.MkdirAll(devcontainerPath, 0o755)
+	require.NoError(t, err, "create dev container directory")
+
+	err = os.WriteFile(devcontainerConfig, []byte(`{
+	    "name": "project",
+		"image": "busybox:latest",
+	    "cmd": ["sleep", "infinity"],
+		"runArgs": ["--label=`+agentcontainers.DevcontainerIsTestRunLabel+`=true"],
+		"customizations": {
+		 	"coder": {
+				"apps": [{
+					"slug": "zed",
+					"url": "zed://ssh/${localEnv:CODER_WORKSPACE_AGENT_NAME}.${localEnv:CODER_WORKSPACE_NAME}.${localEnv:CODER_WORKSPACE_OWNER_NAME}.coder${containerWorkspaceFolder}"
+				}]
+			}
+		}
+	}`), 0o600)
+	require.NoError(t, err, "write devcontainer config")
+
+	// Given: A manifest with a devcontainer to be started.
+	manifest := agentsdk.Manifest{
+		OwnerName:     "prebuilds",
+		WorkspaceName: "prebuilds-xyz-123",
+
+		Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+			{ID: devcontainerID, Name: "test", WorkspaceFolder: workspaceFolder},
+		},
+		Scripts: []codersdk.WorkspaceAgentScript{
+			{ID: devcontainerID, LogSourceID: devcontainerLogSourceID},
+		},
+	}
+
+	conn, client, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.Devcontainers = true
+		o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
+			agentcontainers.WithContainerLabelIncludeFilter(agentcontainers.DevcontainerLocalFolderLabel, workspaceFolder),
+			agentcontainers.WithContainerLabelIncludeFilter(agentcontainers.DevcontainerIsTestRunLabel, "true"),
+		)
+	})
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return slices.Contains(client.GetLifecycleStates(), codersdk.WorkspaceAgentLifecycleReady)
+	}, testutil.IntervalMedium, "agent not ready")
+
+	var dcPrebuild codersdk.WorkspaceAgentDevcontainer
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		resp, err := conn.ListContainers(ctx)
+		require.NoError(t, err)
+
+		for _, dc := range resp.Devcontainers {
+			if dc.Container == nil {
+				continue
+			}
+
+			v, ok := dc.Container.Labels[agentcontainers.DevcontainerLocalFolderLabel]
+			if ok && v == workspaceFolder {
+				dcPrebuild = dc
+				return true
+			}
+		}
+
+		return false
+	}, testutil.IntervalMedium, "devcontainer not found")
+	defer func() {
+		pool.Client.RemoveContainer(docker.RemoveContainerOptions{
+			ID:            dcPrebuild.Container.ID,
+			RemoveVolumes: true,
+			Force:         true,
+		})
+	}()
+
+	subAgents := client.GetSubAgents()
+	require.Len(t, subAgents, 1)
+
+	subAgent := subAgents[0]
+	subAgentID, err := uuid.FromBytes(subAgent.GetId())
+	require.NoError(t, err)
+
+	subAgentApps, err := client.GetSubAgentApps(subAgentID)
+	require.NoError(t, err)
+	require.Len(t, subAgentApps, 1)
+
+	subAgentApp := subAgentApps[0]
+	require.Equal(t, "zed://ssh/project.prebuilds-xyz-123.prebuilds.coder/workspaces/project", subAgentApp.GetUrl())
+
+	// Close the client and connection
+	client.Close()
+	conn.Close()
+
+	// Given: A manifest with a devcontainer to be started.
+	manifest = agentsdk.Manifest{
+		OwnerName:     "user",
+		WorkspaceName: "user-workspace",
+
+		Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+			{ID: devcontainerID, Name: "test", WorkspaceFolder: workspaceFolder},
+		},
+		Scripts: []codersdk.WorkspaceAgentScript{
+			{ID: devcontainerID, LogSourceID: devcontainerLogSourceID},
+		},
+	}
+
+	conn, client, _, _, _ = setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.Devcontainers = true
+		o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
+			agentcontainers.WithContainerLabelIncludeFilter(agentcontainers.DevcontainerLocalFolderLabel, workspaceFolder),
+			agentcontainers.WithContainerLabelIncludeFilter(agentcontainers.DevcontainerIsTestRunLabel, "true"),
+		)
+	})
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return slices.Contains(client.GetLifecycleStates(), codersdk.WorkspaceAgentLifecycleReady)
+	}, testutil.IntervalMedium, "agent not ready")
+
+	var dcClaimed codersdk.WorkspaceAgentDevcontainer
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		resp, err := conn.ListContainers(ctx)
+		require.NoError(t, err)
+
+		for _, dc := range resp.Devcontainers {
+			if dc.Container == nil {
+				continue
+			}
+
+			v, ok := dc.Container.Labels[agentcontainers.DevcontainerLocalFolderLabel]
+			if ok && v == workspaceFolder {
+				dcClaimed = dc
+				return true
+			}
+		}
+
+		return false
+	}, testutil.IntervalMedium, "devcontainer not found")
+	defer func() {
+		if dcClaimed.Container.ID != dcPrebuild.Container.ID {
+			pool.Client.RemoveContainer(docker.RemoveContainerOptions{
+				ID:            dcClaimed.Container.ID,
+				RemoveVolumes: true,
+				Force:         true,
+			})
+		}
+	}()
+
+	// Then: We expect the claimed devcontainer and prebuild devcontainer
+	// to be using the same underlying container.
+	require.Equal(t, dcPrebuild.Container.ID, dcClaimed.Container.ID)
+
+	subAgents = client.GetSubAgents()
+	require.Len(t, subAgents, 1)
+
+	subAgent = subAgents[0]
+	subAgentID, err = uuid.FromBytes(subAgent.GetId())
+	require.NoError(t, err)
+
+	subAgentApps, err = client.GetSubAgentApps(subAgentID)
+	require.NoError(t, err)
+	require.Len(t, subAgentApps, 1)
+
+	subAgentApp = subAgentApps[0]
+	require.Equal(t, "zed://ssh/project.user-workspace.user.coder/workspaces/project", subAgentApp.GetUrl())
+}
+
 func TestAgent_Dial(t *testing.T) {
 	t.Parallel()
 
