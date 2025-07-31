@@ -55,9 +55,11 @@ func createObjectID(objectType ObjectType, id string) ObjectID {
 	}
 }
 
-func searchTemplates(ctx context.Context, deps Deps) ([]SearchResultItem, error) {
+func searchTemplates(ctx context.Context, deps Deps, query string) ([]SearchResultItem, error) {
 	serverURL := getServerURL(deps)
-	templates, err := deps.coderClient.Templates(ctx, codersdk.TemplateFilter{})
+	templates, err := deps.coderClient.Templates(ctx, codersdk.TemplateFilter{
+		SearchQuery: query,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -73,13 +75,10 @@ func searchTemplates(ctx context.Context, deps Deps) ([]SearchResultItem, error)
 	return results, nil
 }
 
-func searchWorkspaces(ctx context.Context, deps Deps, owner string) ([]SearchResultItem, error) {
+func searchWorkspaces(ctx context.Context, deps Deps, query string) ([]SearchResultItem, error) {
 	serverURL := getServerURL(deps)
-	if owner == "" {
-		owner = "me"
-	}
 	workspaces, err := deps.coderClient.Workspaces(ctx, codersdk.WorkspaceFilter{
-		Owner: owner,
+		FilterQuery: query,
 	})
 	if err != nil {
 		return nil, err
@@ -89,8 +88,8 @@ func searchWorkspaces(ctx context.Context, deps Deps, owner string) ([]SearchRes
 		results[i] = SearchResultItem{
 			ID:    createObjectID(ObjectTypeWorkspace, workspace.ID.String()).String(),
 			Title: workspace.Name,
-			Text:  fmt.Sprintf("Owner: %s\nTemplate: %s\nLatest transition: %s", owner, workspace.TemplateDisplayName, workspace.LatestBuild.Transition),
-			URL:   fmt.Sprintf("%s/%s/%s", serverURL, owner, workspace.Name),
+			Text:  fmt.Sprintf("Owner: %s\nTemplate: %s\nLatest transition: %s", workspace.OwnerName, workspace.TemplateDisplayName, workspace.LatestBuild.Transition),
+			URL:   fmt.Sprintf("%s/%s/%s", serverURL, workspace.OwnerName, workspace.Name),
 		}
 	}
 	return results, nil
@@ -104,32 +103,24 @@ const (
 )
 
 type SearchQuery struct {
-	Type           SearchQueryType
-	WorkspaceOwner string
+	Type  SearchQueryType
+	Query string
 }
 
 func parseSearchQuery(query string) (SearchQuery, error) {
-	parts := strings.Split(query, ":")
-	switch SearchQueryType(parts[0]) {
-	case SearchQueryTypeTemplates:
-		// expected format: templates
-		return SearchQuery{
-			Type: SearchQueryTypeTemplates,
-		}, nil
-	case SearchQueryTypeWorkspaces:
-		// expected format: workspaces:owner
-		owner := "me"
-		if len(parts) == 2 {
-			owner = parts[1]
-		} else if len(parts) != 1 {
-			return SearchQuery{}, xerrors.Errorf("invalid query: %s", query)
-		}
-		return SearchQuery{
-			Type:           SearchQueryTypeWorkspaces,
-			WorkspaceOwner: owner,
-		}, nil
+	parts := strings.Split(query, "/")
+	queryType := SearchQueryType(parts[0])
+	if !(queryType == SearchQueryTypeTemplates || queryType == SearchQueryTypeWorkspaces) {
+		return SearchQuery{}, xerrors.Errorf("invalid query: %s", query)
 	}
-	return SearchQuery{}, xerrors.Errorf("invalid query: %s", query)
+	queryString := ""
+	if len(parts) > 1 {
+		queryString = strings.Join(parts[1:], "/")
+	}
+	return SearchQuery{
+		Type:  queryType,
+		Query: queryString,
+	}, nil
 }
 
 type SearchArgs struct {
@@ -154,22 +145,90 @@ type SearchResult struct {
 var ChatGPTSearch = Tool[SearchArgs, SearchResult]{
 	Tool: aisdk.Tool{
 		Name: ToolNameChatGPTSearch,
+		// Note: the queries are passed directly to the list workspaces and list templates
+		// endpoints. The list of accepted parameters below is not exhaustive - some are omitted
+		// because they are not as useful in ChatGPT.
 		Description: `Search for templates, workspaces, and files in workspaces.
 
 To pick what you want to search for, use the following query formats:
 
-- ` + "`" + `templates` + "`" + `: List all templates. This query is not parameterized.
-- ` + "`" + `workspaces:$owner` + "`" + `: List workspaces belonging to a user. If owner is not specified, the current user is used. The special value ` + "`" + `me` + "`" + ` can be used to search for workspaces owned by the current user.
+- ` + "`" + `templates/<template-query>` + "`" + `: List templates. The query accepts the following, optional parameters delineated by whitespace:
+	- "name:<name>" - Fuzzy search by template name (substring matching). Example: "name:docker"
+	- "organization:<organization>" - Filter by organization ID or name. Example: "organization:coder"
+	- "deprecated:<true|false>" - Filter by deprecated status. Example: "deprecated:true"
+	- "deleted:<true|false>" - Filter by deleted status. Example: "deleted:true"
+	- "has-ai-task:<true|false>" - Filter by whether the template has an AI task. Example: "has-ai-task:true"
+- ` + "`" + `workspaces/<workspace-query>` + "`" + `: List workspaces. The query accepts the following, optional parameters delineated by whitespace:
+	- "owner:<username>" - Filter by workspace owner (username or "me"). Example: "owner:alice" or "owner:me"
+	- "template:<template-name>" - Filter by template name. Example: "template:web-development"
+	- "name:<workspace-name>" - Filter by workspace name (substring matching). Example: "name:project"
+	- "organization:<organization>" - Filter by organization ID or name. Example: "organization:engineering"
+	- "status:<status>" - Filter by workspace/build status. Values: starting, stopping, deleting, deleted, stopped, started, running, pending, canceling, canceled, failed. Example: "status:running"
+	- "has-agent:<agent-status>" - Filter by agent connectivity status. Values: connecting, connected, disconnected, timeout. Example: "has-agent:connected"
+	- "dormant:<true|false>" - Filter dormant workspaces. Example: "dormant:true"
+	- "outdated:<true|false>" - Filter workspaces using outdated template versions. Example: "outdated:true"
+	- "last_used_after:<timestamp>" - Filter workspaces last used after a specific date. Example: "last_used_after:2023-12-01T00:00:00Z"
+	- "last_used_before:<timestamp>" - Filter workspaces last used before a specific date. Example: "last_used_before:2023-12-31T23:59:59Z"
+	- "has-ai-task:<true|false>" - Filter workspaces with AI tasks. Example: "has-ai-task:true"
+	- "param:<name>" or "param:<name>=<value>" - Match workspaces by build parameters. Example: "param:environment=production" or "param:gpu"
 
 # Examples
 
 ## Listing templates
 
-List all templates.
+List all templates without any filters.
 
 ` + "```" + `json
 {
 	"query": "templates"
+}
+` + "```" + `
+
+List all templates with a "docker" substring in the name.
+
+` + "```" + `json
+{
+	"query": "templates/name:docker"
+}
+` + "```" + `
+
+List templates in a specific organization.
+
+` + "```" + `json
+{
+	"query": "templates/organization:engineering"
+}
+` + "```" + `
+
+List deprecated templates.
+
+` + "```" + `json
+{
+	"query": "templates/deprecated:true"
+}
+` + "```" + `
+
+List templates that have AI tasks.
+
+` + "```" + `json
+{
+	"query": "templates/has-ai-task:true"
+}
+` + "```" + `
+
+List templates with multiple filters - non-deprecated templates with "web" in the name.
+
+` + "```" + `json
+{
+	"query": "templates/name:web deprecated:false"
+}
+` + "```" + `
+
+List deleted templates (requires appropriate permissions).
+
+` + "```" + `json
+{
+	"query": "templates/deleted:true"
 }
 ` + "```" + `
 
@@ -179,7 +238,7 @@ List all workspaces belonging to the current user.
 
 ` + "```" + `json
 {
-	"query": "workspaces:me"
+	"query": "workspaces/owner:me"
 }
 ` + "```" + `
 
@@ -195,7 +254,47 @@ List all workspaces belonging to a user with username "josh".
 
 ` + "```" + `json
 {
-	"query": "workspaces:josh"
+	"query": "workspaces/owner:josh"
+}
+` + "```" + `
+
+List all running workspaces.
+
+` + "```" + `json
+{
+	"query": "workspaces/status:running"
+}
+` + "```" + `
+
+List workspaces using a specific template.
+
+` + "```" + `json
+{
+	"query": "workspaces/template:web-development"
+}
+` + "```" + `
+
+List dormant workspaces.
+
+` + "```" + `json
+{
+	"query": "workspaces/dormant:true"
+}
+` + "```" + `
+
+List workspaces with connected agents.
+
+` + "```" + `json
+{
+	"query": "workspaces/has-agent:connected"
+}
+` + "```" + `
+
+List workspaces with multiple filters - running workspaces owned by "alice".
+
+` + "```" + `json
+{
+	"query": "workspaces/owner:alice status:running"
 }
 ` + "```" + `
 `,
@@ -215,13 +314,17 @@ List all workspaces belonging to a user with username "josh".
 		}
 		switch query.Type {
 		case SearchQueryTypeTemplates:
-			results, err := searchTemplates(ctx, deps)
+			results, err := searchTemplates(ctx, deps, query.Query)
 			if err != nil {
 				return SearchResult{}, err
 			}
 			return SearchResult{Results: results}, nil
 		case SearchQueryTypeWorkspaces:
-			results, err := searchWorkspaces(ctx, deps, query.WorkspaceOwner)
+			searchQuery := query.Query
+			if searchQuery == "" {
+				searchQuery = "owner:me"
+			}
+			results, err := searchWorkspaces(ctx, deps, searchQuery)
 			if err != nil {
 				return SearchResult{}, err
 			}
