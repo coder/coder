@@ -110,7 +110,7 @@ func (s *Server) RegisterChatGPTTools(client *codersdk.Client) error {
 	}
 
 	for _, tool := range toolsdk.All {
-		if tool.Name == toolsdk.ToolNameChatGPTSearch || tool.Name == toolsdk.ToolNameChatGPTFetch {
+		if tool.Name != toolsdk.ToolNameChatGPTSearch && tool.Name != toolsdk.ToolNameChatGPTFetch {
 			continue
 		}
 
