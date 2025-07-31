@@ -1875,3 +1875,59 @@ func TestTemplateFilterHasAITask(t *testing.T) {
 	require.Contains(t, templates, templateWithAITask)
 	require.Contains(t, templates, templateWithoutAITask)
 }
+
+func TestTemplateFilterHasExternalAgent(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:                 db,
+		Pubsub:                   pubsub,
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	jobWithExternalAgent := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+		OrganizationID: user.OrganizationID,
+		InitiatorID:    user.UserID,
+		Tags:           database.StringMap{},
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	jobWithoutExternalAgent := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+		OrganizationID: user.OrganizationID,
+		InitiatorID:    user.UserID,
+		Tags:           database.StringMap{},
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	versionWithExternalAgent := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID:   user.OrganizationID,
+		CreatedBy:        user.UserID,
+		HasExternalAgent: sql.NullBool{Bool: true, Valid: true},
+		JobID:            jobWithExternalAgent.ID,
+	})
+	versionWithoutExternalAgent := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID:   user.OrganizationID,
+		CreatedBy:        user.UserID,
+		HasExternalAgent: sql.NullBool{Bool: false, Valid: true},
+		JobID:            jobWithoutExternalAgent.ID,
+	})
+	templateWithExternalAgent := coderdtest.CreateTemplate(t, client, user.OrganizationID, versionWithExternalAgent.ID)
+	templateWithoutExternalAgent := coderdtest.CreateTemplate(t, client, user.OrganizationID, versionWithoutExternalAgent.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	templates, err := client.Templates(ctx, codersdk.TemplateFilter{
+		SearchQuery: "has-external-agent:true",
+	})
+	require.NoError(t, err)
+	require.Len(t, templates, 1)
+	require.Equal(t, templateWithExternalAgent.ID, templates[0].ID)
+
+	templates, err = client.Templates(ctx, codersdk.TemplateFilter{
+		SearchQuery: "has-external-agent:false",
+	})
+	require.NoError(t, err)
+	require.Len(t, templates, 1)
+	require.Equal(t, templateWithoutExternalAgent.ID, templates[0].ID)
+}

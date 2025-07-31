@@ -1135,6 +1135,31 @@ func TestProvision(t *testing.T) {
 				HasAiTasks: true,
 			},
 		},
+		{
+			Name: "external-agent",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+						version = ">= 2.7.0"
+					  }
+					}
+				}
+				resource "coder_external_agent" "example" {
+					token = "123"
+				}
+				`,
+			},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "coder_external_agent",
+				}},
+				HasExternalAgents: true,
+			},
+			SkipCacheProviders: true,
+		},
 	}
 
 	// Remove unused cache dirs before running tests.
@@ -1237,6 +1262,7 @@ func TestProvision(t *testing.T) {
 				require.Equal(t, string(modulesWant), string(modulesGot))
 
 				require.Equal(t, planComplete.HasAiTasks, testCase.Response.HasAiTasks)
+				require.Equal(t, planComplete.HasExternalAgents, testCase.Response.HasExternalAgents)
 			}
 
 			if testCase.Apply {

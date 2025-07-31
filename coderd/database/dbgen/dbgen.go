@@ -437,6 +437,7 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 	jobID := takeFirst(orig.JobID, uuid.New())
 	hasAITask := takeFirst(orig.HasAITask, sql.NullBool{})
 	sidebarAppID := takeFirst(orig.AITaskSidebarAppID, uuid.NullUUID{})
+	hasExternalAgent := takeFirst(orig.HasExternalAgent, sql.NullBool{})
 	var build database.WorkspaceBuild
 	err := db.InTx(func(db database.Store) error {
 		err := db.InsertWorkspaceBuild(genCtx, database.InsertWorkspaceBuildParams{
@@ -476,6 +477,14 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 				SidebarAppID: sidebarAppID,
 				UpdatedAt:    dbtime.Now(),
 				ID:           buildID,
+			}))
+		}
+
+		if hasExternalAgent.Valid {
+			require.NoError(t, db.UpdateWorkspaceBuildExternalAgentByID(genCtx, database.UpdateWorkspaceBuildExternalAgentByIDParams{
+				ID:               buildID,
+				HasExternalAgent: hasExternalAgent,
+				UpdatedAt:        dbtime.Now(),
 			}))
 		}
 
@@ -1028,6 +1037,7 @@ func ExternalAuthLink(t testing.TB, db database.Store, orig database.ExternalAut
 func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVersion) database.TemplateVersion {
 	var version database.TemplateVersion
 	hasAITask := takeFirst(orig.HasAITask, sql.NullBool{})
+	hasExternalAgent := takeFirst(orig.HasExternalAgent, sql.NullBool{})
 	jobID := takeFirst(orig.JobID, uuid.New())
 	err := db.InTx(func(db database.Store) error {
 		versionID := takeFirst(orig.ID, uuid.New())
@@ -1053,6 +1063,14 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 				JobID:     jobID,
 				HasAITask: hasAITask,
 				UpdatedAt: dbtime.Now(),
+			}))
+		}
+
+		if hasExternalAgent.Valid {
+			require.NoError(t, db.UpdateTemplateVersionExternalAgentByJobID(genCtx, database.UpdateTemplateVersionExternalAgentByJobIDParams{
+				JobID:            jobID,
+				HasExternalAgent: hasExternalAgent,
+				UpdatedAt:        dbtime.Now(),
 			}))
 		}
 
