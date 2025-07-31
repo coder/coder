@@ -2492,6 +2492,7 @@ func TestAgent_DevcontainerPrebuildClaim(t *testing.T) {
 	err = os.MkdirAll(devcontainerPath, 0o755)
 	require.NoError(t, err, "create dev container directory")
 
+	// Given: This devcontainer project specifies an app that uses the owner name and workspace name.
 	err = os.WriteFile(devcontainerConfig, []byte(`{
 	    "name": "project",
 		"image": "busybox:latest",
@@ -2508,7 +2509,7 @@ func TestAgent_DevcontainerPrebuildClaim(t *testing.T) {
 	}`), 0o600)
 	require.NoError(t, err, "write devcontainer config")
 
-	// Given: A manifest with a devcontainer to be started.
+	// Given: A manifest with a prebuild username and workspace name.
 	manifest := agentsdk.Manifest{
 		OwnerName:     "prebuilds",
 		WorkspaceName: "prebuilds-xyz-123",
@@ -2521,6 +2522,7 @@ func TestAgent_DevcontainerPrebuildClaim(t *testing.T) {
 		},
 	}
 
+	// When: We create an agent with devcontainers enabled.
 	conn, client, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
 		o.Devcontainers = true
 		o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
@@ -2560,6 +2562,7 @@ func TestAgent_DevcontainerPrebuildClaim(t *testing.T) {
 		})
 	}()
 
+	// Then: We expect a sub agent to have been created.
 	subAgents := client.GetSubAgents()
 	require.Len(t, subAgents, 1)
 
@@ -2567,18 +2570,20 @@ func TestAgent_DevcontainerPrebuildClaim(t *testing.T) {
 	subAgentID, err := uuid.FromBytes(subAgent.GetId())
 	require.NoError(t, err)
 
+	// And: We expect there to be 1 app.
 	subAgentApps, err := client.GetSubAgentApps(subAgentID)
 	require.NoError(t, err)
 	require.Len(t, subAgentApps, 1)
 
+	// And: This app should contain the prebuild workspace name and owner name.
 	subAgentApp := subAgentApps[0]
 	require.Equal(t, "zed://ssh/project.prebuilds-xyz-123.prebuilds.coder/workspaces/project", subAgentApp.GetUrl())
 
-	// Close the client and connection
+	// Given: We close the client and connection
 	client.Close()
 	conn.Close()
 
-	// Given: A manifest with a devcontainer to be started.
+	// Given: A new manifest with a regular user owner name and workspace name.
 	manifest = agentsdk.Manifest{
 		OwnerName:     "user",
 		WorkspaceName: "user-workspace",
@@ -2591,6 +2596,7 @@ func TestAgent_DevcontainerPrebuildClaim(t *testing.T) {
 		},
 	}
 
+	// When: We create an agent with devcontainers enabled.
 	conn, client, _, _, _ = setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
 		o.Devcontainers = true
 		o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
@@ -2636,6 +2642,7 @@ func TestAgent_DevcontainerPrebuildClaim(t *testing.T) {
 	// to be using the same underlying container.
 	require.Equal(t, dcPrebuild.Container.ID, dcClaimed.Container.ID)
 
+	// And: We expect there to be a sub agent created.
 	subAgents = client.GetSubAgents()
 	require.Len(t, subAgents, 1)
 
@@ -2643,10 +2650,12 @@ func TestAgent_DevcontainerPrebuildClaim(t *testing.T) {
 	subAgentID, err = uuid.FromBytes(subAgent.GetId())
 	require.NoError(t, err)
 
+	// And: We expect there to be an app.
 	subAgentApps, err = client.GetSubAgentApps(subAgentID)
 	require.NoError(t, err)
 	require.Len(t, subAgentApps, 1)
 
+	// And: We expect this app to have the user's owner name and workspace name.
 	subAgentApp = subAgentApps[0]
 	require.Equal(t, "zed://ssh/project.user-workspace.user.coder/workspaces/project", subAgentApp.GetUrl())
 }
