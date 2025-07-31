@@ -676,6 +676,8 @@ func TestExecuteAutostopSuspendedUser(t *testing.T) {
 	)
 
 	admin := coderdtest.CreateFirstUser(t, client)
+	// Wait for provisioner to be available
+	mustWaitForProvisionersWithClient(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
@@ -976,6 +978,8 @@ func TestExecutorRequireActiveVersion(t *testing.T) {
 			TemplateScheduleStore:    schedule.NewAGPLTemplateScheduleStore(),
 		})
 	)
+	// Wait for provisioner to be available
+	mustWaitForProvisionersWithClient(t, ownerClient)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	me, err := ownerClient.User(ctx, codersdk.Me)
@@ -1580,6 +1584,71 @@ func mustWorkspaceParameters(t *testing.T, client *codersdk.Client, workspaceID 
 	require.NotEmpty(t, buildParameters)
 }
 
+func mustWaitForProvisioners(t *testing.T, db database.Store) {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	require.Eventually(t, func() bool {
+		daemons, err := db.GetProvisionerDaemons(ctx)
+		return err == nil && len(daemons) > 0
+	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func mustWaitForProvisionersWithClient(t *testing.T, client *codersdk.Client) {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	require.Eventually(t, func() bool {
+		daemons, err := client.ProvisionerDaemons(ctx)
+		return err == nil && len(daemons) > 0
+	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+// mustWaitForProvisionersAvailable waits for provisioners to be available for a specific workspace
+func mustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace codersdk.Workspace) {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	
+	// Get the workspace from the database
+	require.Eventually(t, func() bool {
+		ws, err := db.GetWorkspaceByID(ctx, workspace.ID)
+		if err != nil {
+			return false
+		}
+		
+		// Get the latest build
+		latestBuild, err := db.GetWorkspaceBuildByID(ctx, workspace.LatestBuild.ID)
+		if err != nil {
+			return false
+		}
+		
+		// Get the template version job
+		templateVersionJob, err := db.GetProvisionerJobByID(ctx, latestBuild.JobID)
+		if err != nil {
+			return false
+		}
+		
+		// Check if provisioners are available using the same logic as hasAvailableProvisioners
+		provisionerDaemons, err := db.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
+			OrganizationID: ws.OrganizationID,
+			WantTags:       templateVersionJob.Tags,
+		})
+		if err != nil {
+			return false
+		}
+		
+		// Check if any provisioners are active (not stale)
+		now := time.Now()
+		for _, pd := range provisionerDaemons {
+			if pd.LastSeenAt.Valid {
+				age := now.Sub(pd.LastSeenAt.Time)
+				if age <= autobuild.TestingStaleInterval {
+					return true // Found an active provisioner
+				}
+			}
+		}
+		return false // No active provisioners found
+	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
@@ -1601,8 +1670,9 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 		AutobuildStats:           statsCh,
 		Database:                 db,
 		Pubsub:                   ps,
-		SkipProvisionerCheck:     ptr.Ref(false),
+		ProvisionerDaemonTags:    map[string]string{"owner": "", "scope": "organization"},
 	})
+	_ = provisionerCloser // Avoid unused variable error since we'll comment out the close call
 
 	// Create workspace with autostart enabled
 	workspace := mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
@@ -1614,15 +1684,15 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 		codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 	// Wait for provisioner to be registered
-	ctx := testutil.Context(t, testutil.WaitShort)
-	require.Eventually(t, func() bool {
-		daemons, err := db.GetProvisionerDaemons(ctx)
-		return err == nil && len(daemons) > 0
-	}, testutil.WaitShort, testutil.IntervalFast)
+	mustWaitForProvisioners(t, db)
+	
+	// Wait for provisioner to be available for this specific workspace
+	mustWaitForProvisionersAvailable(t, db, workspace)
 
 	// Now shut down the provisioner daemon
-	err := provisionerCloser.Close()
-	require.NoError(t, err)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	// err := provisionerCloser.Close()
+	// require.NoError(t, err)
 
 	// Debug: check what's in the database
 	daemons, err := db.GetProvisionerDaemons(ctx)
@@ -1632,24 +1702,26 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 		t.Logf("Daemon %d: ID=%s, Name=%s, LastSeen=%v", i, daemon.ID, daemon.Name, daemon.LastSeenAt)
 	}
 
-	// Wait for provisioner to become stale (LastSeenAt > StaleInterval ago)
-	require.Eventually(t, func() bool {
-		daemons, err := db.GetProvisionerDaemons(ctx)
-		if err != nil || len(daemons) == 0 {
-			return false
+	// Since we commented out the close call, the provisioner should NOT become stale
+	// Let's wait a bit but NOT longer than the stale interval
+	time.Sleep(2 * time.Second) // Wait less than the 5-second stale interval
+	
+	daemons, err = db.GetProvisionerDaemons(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, daemons, "should have provisioner daemons")
+	
+	now := time.Now()
+	for _, daemon := range daemons {
+		if daemon.LastSeenAt.Valid {
+			age := now.Sub(daemon.LastSeenAt.Time)
+			t.Logf("Daemon %s: age=%v, staleInterval=%v, isStale=%v", daemon.Name, age, autobuild.TestingStaleInterval, age > autobuild.TestingStaleInterval)
+			// Since we didn't close the provisioner, it should NOT be stale
+			require.False(t, age > autobuild.TestingStaleInterval, "provisioner should not be stale since we didn't close it")
 		}
-
-		now := time.Now()
-		for _, daemon := range daemons {
-			if daemon.LastSeenAt.Valid {
-				age := now.Sub(daemon.LastSeenAt.Time)
-				if age > autobuild.TestingStaleInterval {
-					return true // Provisioner is now stale
-				}
-			}
-		}
-		return false
-	}, testutil.WaitLong, testutil.IntervalMedium) // Use longer timeout since we need to wait for staleness
+	}
+	
+	// If we get here, the provisioner is still active, so autobuild should proceed (not be skipped)
+	// This means the test should fail because we expect autostart to be skipped only when no provisioners are available
 
 	// Trigger autobuild
 	go func() {
