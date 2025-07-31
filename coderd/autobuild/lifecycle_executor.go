@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"testing"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -138,15 +137,9 @@ func (e *Executor) Run() {
 	}()
 }
 
-func (e *Executor) hasAvailableProvisioners(ctx context.Context, tx database.Store, ws database.Workspace, templateVersionJob database.ProvisionerJob) (bool, error) {
+func (e *Executor) hasAvailableProvisioners(ctx context.Context, tx database.Store, t time.Time, ws database.Workspace, templateVersionJob database.ProvisionerJob) (bool, error) {
 	if e.SkipProvisionerCheck {
 		return true, nil
-	}
-
-	// Use a shorter stale interval for tests
-	staleInterval := provisionerdserver.StaleInterval
-	if testing.Testing() {
-		staleInterval = TestingStaleInterval
 	}
 
 	// Get eligible provisioner daemons for this workspace's template
@@ -159,11 +152,10 @@ func (e *Executor) hasAvailableProvisioners(ctx context.Context, tx database.Sto
 	}
 
 	// Check if any provisioners are active (not stale)
-	now := dbtime.Now()
 	for _, pd := range provisionerDaemons {
 		if pd.LastSeenAt.Valid {
-			age := now.Sub(pd.LastSeenAt.Time)
-			if age <= staleInterval {
+			age := t.Sub(pd.LastSeenAt.Time)
+			if age <= provisionerdserver.StaleInterval {
 				return true, nil
 			}
 		}
@@ -327,7 +319,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 
 					// Before creating the workspace build, check for available provisioners
-					hasProvisioners, err := e.hasAvailableProvisioners(e.ctx, tx, ws, templateVersionJob)
+					hasProvisioners, err := e.hasAvailableProvisioners(e.ctx, tx, t, ws, templateVersionJob)
 					if err != nil {
 						return xerrors.Errorf("check provisioner availability: %w", err)
 					}
