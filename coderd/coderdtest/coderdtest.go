@@ -183,7 +183,6 @@ type Options struct {
 	OIDCConvertKeyCache                cryptokeys.SigningKeycache
 	Clock                              quartz.Clock
 	TelemetryReporter                  telemetry.Reporter
-	SkipProvisionerCheck               *bool // Pointer so we can detect if it's set
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -387,12 +386,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.NotificationsEnqueuer,
 		experiments,
 	).WithStatsChannel(options.AutobuildStats)
-
-	skipProvisionerCheck := true
-	if options.SkipProvisionerCheck != nil {
-		skipProvisionerCheck = *options.SkipProvisionerCheck
-	}
-	lifecycleExecutor.SkipProvisionerCheck = skipProvisionerCheck
 
 	lifecycleExecutor.Run()
 

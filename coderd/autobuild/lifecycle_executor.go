@@ -56,9 +56,6 @@ type Executor struct {
 	experiments           codersdk.Experiments
 
 	metrics executorMetrics
-
-	// Skip provisioner availability check (should only be true for *some* tests)
-	SkipProvisionerCheck bool
 }
 
 type executorMetrics struct {
@@ -139,10 +136,6 @@ func (e *Executor) Run() {
 }
 
 func (e *Executor) hasAvailableProvisioners(ctx context.Context, tx database.Store, ws database.Workspace, templateVersionJob database.ProvisionerJob) (bool, error) {
-	if e.SkipProvisionerCheck {
-		return true, nil
-	}
-
 	// Use a shorter stale interval for tests
 	staleInterval := provisionerdserver.StaleInterval
 	if testing.Testing() {
