@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
 )
@@ -99,6 +100,67 @@ func TestChatGPTSearch_TemplateSearch(t *testing.T) {
 	}
 }
 
+func TestChatGPTSearch_TemplateMultipleFilters(t *testing.T) {
+	t.Parallel()
+
+	// Setup
+	client, store := coderdtest.NewWithDatabase(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	// Create templates directly with specific names for testing filters
+	dockerTemplate1 := dbgen.Template(t, store, database.Template{
+		OrganizationID: owner.OrganizationID,
+		CreatedBy:      owner.UserID,
+		Name:           "docker-development", // Name contains "docker"
+		DisplayName:    "Docker Development",
+		Description:    "A Docker-based development template",
+	})
+
+	// Create another template that doesn't contain "docker"
+	dbgen.Template(t, store, database.Template{
+		OrganizationID: owner.OrganizationID,
+		CreatedBy:      owner.UserID,
+		Name:           "python-web", // Name doesn't contain "docker"
+		DisplayName:    "Python Web",
+		Description:    "A Python web development template",
+	})
+
+	// Create third template with "docker" in name
+	dockerTemplate2 := dbgen.Template(t, store, database.Template{
+		OrganizationID: owner.OrganizationID,
+		CreatedBy:      owner.UserID,
+		Name:           "old-docker-template", // Name contains "docker"
+		DisplayName:    "Old Docker Template",
+		Description:    "An old Docker template",
+	})
+
+	// Create tool dependencies
+	deps, err := toolsdk.NewDeps(client)
+	require.NoError(t, err)
+
+	// Execute tool with name filter - should only return templates with "docker" in name
+	args := toolsdk.SearchArgs{Query: "templates/name:docker"}
+	result, err := testTool(t, toolsdk.ChatGPTSearch, deps, args)
+
+	// Verify results
+	require.NoError(t, err)
+	require.Len(t, result.Results, 2, "Should match both docker templates")
+
+	// Validate the results contain both docker templates
+	templateIDs := make(map[string]bool)
+	for _, item := range result.Results {
+		require.NotEmpty(t, item.ID)
+		require.Contains(t, item.ID, "template:")
+		require.Contains(t, item.URL, "/templates/")
+		templateIDs[item.ID] = true
+	}
+
+	expectedID1 := "template:" + dockerTemplate1.ID.String()
+	expectedID2 := "template:" + dockerTemplate2.ID.String()
+	require.True(t, templateIDs[expectedID1], "Should contain first docker template")
+	require.True(t, templateIDs[expectedID2], "Should contain second docker template")
+}
+
 func TestChatGPTSearch_WorkspaceSearch(t *testing.T) {
 	t.Parallel()
 
@@ -119,7 +181,7 @@ func TestChatGPTSearch_WorkspaceSearch(t *testing.T) {
 		},
 		{
 			name:           "ValidWorkspacesQuery_CurrentUserMe",
-			query:          "workspaces:me",
+			query:          "workspaces/owner:me",
 			setupOwner:     "self",
 			setupWorkspace: true,
 			expectError:    false,
@@ -133,7 +195,7 @@ func TestChatGPTSearch_WorkspaceSearch(t *testing.T) {
 		},
 		{
 			name:           "ValidWorkspacesQuery_SpecificUser",
-			query:          "workspaces:otheruser",
+			query:          "workspaces/owner:otheruser",
 			setupOwner:     "other",
 			setupWorkspace: true,
 			expectError:    false,
@@ -229,12 +291,12 @@ func TestChatGPTSearch_QueryParsing(t *testing.T) {
 		},
 		{
 			name:        "ValidWorkspacesMeQuery",
-			query:       "workspaces:me",
+			query:       "workspaces/owner:me",
 			expectError: false,
 		},
 		{
 			name:        "ValidWorkspacesUserQuery",
-			query:       "workspaces:testuser",
+			query:       "workspaces/owner:testuser",
 			expectError: false,
 		},
 		{
@@ -251,7 +313,7 @@ func TestChatGPTSearch_QueryParsing(t *testing.T) {
 		},
 		{
 			name:        "MalformedQuery",
-			query:       "workspaces:user:extra",
+			query:       "invalidtype/somequery",
 			expectError: true,
 			errorMsg:    "invalid query",
 		},
