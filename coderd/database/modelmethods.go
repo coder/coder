@@ -276,7 +276,9 @@ func (w WorkspaceTable) RBACObject() rbac.Object {
 
 	return rbac.ResourceWorkspace.WithID(w.ID).
 		InOrg(w.OrganizationID).
-		WithOwner(w.OwnerID.String())
+		WithOwner(w.OwnerID.String()).
+		WithGroupACL(w.GroupACL.RBACACL()).
+		WithACLUserList(w.UserACL.RBACACL())
 }
 
 func (w WorkspaceTable) DormantRBAC() rbac.Object {

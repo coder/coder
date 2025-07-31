@@ -91,6 +91,16 @@ func (t *WorkspaceACL) Scan(src interface{}) error {
 	return xerrors.Errorf("unexpected type %T", src)
 }
 
+func (w WorkspaceACL) RBACACL() map[string][]policy.Action {
+	// Convert WorkspaceACL to a map of string to []policy.Action.
+	// This is used for RBAC checks.
+	rbacACL := make(map[string][]policy.Action, len(w))
+	for id, entry := range w {
+		rbacACL[id] = entry.Permissions
+	}
+	return rbacACL
+}
+
 func (t WorkspaceACL) Value() (driver.Value, error) {
 	return json.Marshal(t)
 }
