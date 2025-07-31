@@ -3015,6 +3015,13 @@ func (m queryMetricsStore) UpdateWorkspace(ctx context.Context, arg database.Upd
 	return workspace, err
 }
 
+func (m queryMetricsStore) UpdateWorkspaceACLByID(ctx context.Context, arg database.UpdateWorkspaceACLByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceACLByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceACLByID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateWorkspaceAgentConnectionByID(ctx, arg)

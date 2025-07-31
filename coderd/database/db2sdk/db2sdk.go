@@ -786,10 +786,11 @@ func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 	switch role {
 	case codersdk.WorkspaceRoleAdmin:
 		return slice.Omit(
+			// Small note: This intentionally includes "create" because it's sort of
+			// double purposed as "can edit ACL". That's maybe a bit "incorrect", but
+			// it's what templates do already and we're copying that implementation.
 			rbac.ResourceWorkspace.AvailableActions(),
-			// Create doesn't actually make sense in an ACL context
-			policy.ActionCreate,
-			// Don't let anyone delete something they can't recreate
+			// Don't let anyone delete something they can't recreate.
 			policy.ActionDelete,
 		)
 	case codersdk.WorkspaceRoleUse:

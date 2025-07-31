@@ -4903,6 +4903,18 @@ func (q *querier) UpdateWorkspace(ctx context.Context, arg database.UpdateWorksp
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateWorkspace)(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceACLByID(ctx context.Context, arg database.UpdateWorkspaceACLByIDParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceACLByIDParams) (database.WorkspaceTable, error) {
+		w, err := q.db.GetWorkspaceByID(ctx, arg.ID)
+		if err != nil {
+			return database.WorkspaceTable{}, err
+		}
+		return w.WorkspaceTable(), nil
+	}
+
+	return fetchAndExec(q.log, q.auth, policy.ActionCreate, fetch, q.db.UpdateWorkspaceACLByID)(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err

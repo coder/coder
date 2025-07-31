@@ -5289,7 +5289,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Update template request",
+                        "description": "Update template ACL request",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -9932,6 +9932,47 @@ const docTemplate = `{
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/codersdk.UpdateWorkspaceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/acl": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Update workspace ACL",
+                "operationId": "update-workspace-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update workspace ACL request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceACL"
                         }
                     }
                 ],
@@ -17230,6 +17271,24 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateWorkspaceACL": {
+            "type": "object",
+            "properties": {
+                "group_roles": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.WorkspaceRole"
+                    }
+                },
+                "user_roles": {
+                    "description": "Keys must be valid UUIDs. To remove a user/group from the ACL use \"\" as the\nrole name (available as a constant named ` + "`" + `codersdk.WorkspaceRoleDeleted` + "`" + `)",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.WorkspaceRole"
+                    }
+                }
+            }
+        },
         "codersdk.UpdateWorkspaceAutomaticUpdatesRequest": {
             "type": "object",
             "properties": {
@@ -18961,6 +19020,19 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.WorkspaceRole": {
+            "type": "string",
+            "enum": [
+                "admin",
+                "use",
+                ""
+            ],
+            "x-enum-varnames": [
+                "WorkspaceRoleAdmin",
+                "WorkspaceRoleUse",
+                "WorkspaceRoleDeleted"
+            ]
         },
         "codersdk.WorkspaceStatus": {
             "type": "string",
