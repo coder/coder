@@ -662,3 +662,30 @@ func (c *Client) WorkspaceTimings(ctx context.Context, id uuid.UUID) (WorkspaceB
 	var timings WorkspaceBuildTimings
 	return timings, json.NewDecoder(res.Body).Decode(&timings)
 }
+
+type UpdateWorkspaceACL struct {
+	// Keys must be valid UUIDs. To remove a user/group from the ACL use "" as the
+	// role name (available as a constant named `codersdk.WorkspaceRoleDeleted`)
+	UserRoles  map[string]WorkspaceRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]WorkspaceRole `json:"group_roles,omitempty"`
+}
+
+type WorkspaceRole string
+
+const (
+	WorkspaceRoleAdmin   WorkspaceRole = "admin"
+	WorkspaceRoleUse     WorkspaceRole = "use"
+	WorkspaceRoleDeleted WorkspaceRole = ""
+)
+
+func (c *Client) UpdateWorkspaceACL(ctx context.Context, workspaceID uuid.UUID, req UpdateWorkspaceACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/workspaces/%s/acl", workspaceID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}

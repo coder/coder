@@ -2784,6 +2784,20 @@ func (m queryMetricsStore) UpdateProvisionerJobByID(ctx context.Context, arg dat
 	return err
 }
 
+func (m queryMetricsStore) UpdateProvisionerJobLogsLength(ctx context.Context, arg database.UpdateProvisionerJobLogsLengthParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateProvisionerJobLogsLength(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateProvisionerJobLogsLength").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) UpdateProvisionerJobLogsOverflowed(ctx context.Context, arg database.UpdateProvisionerJobLogsOverflowedParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateProvisionerJobLogsOverflowed(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateProvisionerJobLogsOverflowed").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateProvisionerJobWithCancelByID(ctx, arg)
@@ -3013,6 +3027,13 @@ func (m queryMetricsStore) UpdateWorkspace(ctx context.Context, arg database.Upd
 	workspace, err := m.s.UpdateWorkspace(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspace").Observe(time.Since(start).Seconds())
 	return workspace, err
+}
+
+func (m queryMetricsStore) UpdateWorkspaceACLByID(ctx context.Context, arg database.UpdateWorkspaceACLByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceACLByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceACLByID").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {

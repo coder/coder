@@ -1462,6 +1462,7 @@ func (s *MethodTestSuite) TestTemplate() {
 			Provisioner:         "echo",
 			OrganizationID:      orgID,
 			MaxPortSharingLevel: database.AppSharingLevelOwner,
+			CorsBehavior:        database.CorsBehaviorSimple,
 		}).Asserts(rbac.ResourceTemplate.InOrg(orgID), policy.ActionCreate)
 	}))
 	s.Run("InsertTemplateVersion", s.Subtest(func(db database.Store, check *expects) {
@@ -1582,6 +1583,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(database.UpdateTemplateMetaByIDParams{
 			ID:                  t1.ID,
 			MaxPortSharingLevel: "owner",
+			CorsBehavior:        database.CorsBehaviorSimple,
 		}).Asserts(t1, policy.ActionUpdate)
 	}))
 	s.Run("UpdateTemplateVersionByID", s.Subtest(func(db database.Store, check *expects) {
@@ -2143,6 +2145,22 @@ func (s *MethodTestSuite) TestWorkspace() {
 	s.Run("GetAuthorizedWorkspaceBuildParametersByBuildIDs", s.Subtest(func(db database.Store, check *expects) {
 		// no asserts here because SQLFilter
 		check.Args([]uuid.UUID{}, emptyPreparedAuthorized{}).Asserts()
+	}))
+	s.Run("UpdateWorkspaceACLByID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		tpl := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			OwnerID:        u.ID,
+			OrganizationID: o.ID,
+			TemplateID:     tpl.ID,
+		})
+		check.Args(database.UpdateWorkspaceACLByIDParams{
+			ID: ws.ID,
+		}).Asserts(ws, policy.ActionCreate)
 	}))
 	s.Run("GetLatestWorkspaceBuildByWorkspaceID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -4337,6 +4355,20 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(database.UpdateProvisionerJobByIDParams{
 			ID:        j.ID,
 			UpdatedAt: time.Now(),
+		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
+	}))
+	s.Run("UpdateProvisionerJobLogsLength", s.Subtest(func(db database.Store, check *expects) {
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
+		check.Args(database.UpdateProvisionerJobLogsLengthParams{
+			ID:         j.ID,
+			LogsLength: 100,
+		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
+	}))
+	s.Run("UpdateProvisionerJobLogsOverflowed", s.Subtest(func(db database.Store, check *expects) {
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
+		check.Args(database.UpdateProvisionerJobLogsOverflowedParams{
+			ID:             j.ID,
+			LogsOverflowed: true,
 		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
 	}))
 	s.Run("InsertProvisionerJob", s.Subtest(func(db database.Store, check *expects) {

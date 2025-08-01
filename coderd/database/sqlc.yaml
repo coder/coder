@@ -73,6 +73,18 @@ sql:
           - column: "template_usage_stats.app_usage_mins"
             go_type:
               type: "StringMapOfInt"
+          - column: "workspaces.user_acl"
+            go_type:
+              type: "WorkspaceACL"
+          - column: "workspaces.group_acl"
+            go_type:
+              type: "WorkspaceACL"
+          - column: "workspaces_expanded.user_acl"
+            go_type:
+              type: "WorkspaceACL"
+          - column: "workspaces_expanded.group_acl"
+            go_type:
+              type: "WorkspaceACL"
           - column: "notification_templates.actions"
             go_type:
               type: "[]byte"
@@ -150,6 +162,7 @@ sql:
           has_ai_task: HasAITask
           ai_task_sidebar_app_id: AITaskSidebarAppID
           latest_build_has_ai_task: LatestBuildHasAITask
+          cors_behavior: CorsBehavior
 rules:
   - name: do-not-use-public-schema-in-queries
     message: "do not use public schema in queries"

@@ -4,6 +4,7 @@ import FormHelperText from "@mui/material/FormHelperText";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import {
+	CORSBehaviors,
 	type Template,
 	type UpdateTemplateMeta,
 	WorkspaceAppSharingLevels,
@@ -52,6 +53,7 @@ export const validationSchema = Yup.object({
 	use_classic_parameter_flow: Yup.boolean(),
 	deprecation_message: Yup.string(),
 	max_port_sharing_level: Yup.string().oneOf(WorkspaceAppSharingLevels),
+	cors_behavior: Yup.string().oneOf(Object.values(CORSBehaviors)),
 });
 
 export interface TemplateSettingsForm {
@@ -93,6 +95,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 			disable_everyone_group_access: false,
 			max_port_share_level: template.max_port_share_level,
 			use_classic_parameter_flow: template.use_classic_parameter_flow,
+			cors_behavior: template.cors_behavior,
 		},
 		validationSchema,
 		onSubmit,
@@ -245,19 +248,20 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						label={
 							<StackLabel>
 								<span className="flex flex-row gap-2">
-									Enable dynamic parameters for workspace creation
+									Enable dynamic parameters for workspace creation (recommended)
 								</span>
 								<StackLabelHelperText>
 									<div>
-										The new workspace form allows you to design your template
-										with new form types and identity-aware conditional
-										parameters. The form will only present options that are
-										compatible and available.
+										The dynamic workspace form allows you to design your
+										template with additional form types and identity-aware
+										conditional parameters. This is the default option for new
+										templates. The classic workspace creation flow will be
+										deprecated in a future release.
 									</div>
 									<Link
 										className="text-xs"
 										href={docs(
-											"/admin/templates/extending-templates/parameters#dynamic-parameters-beta",
+											"/admin/templates/extending-templates/dynamic-parameters",
 										)}
 									>
 										Learn more
@@ -334,6 +338,28 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 							</FormHelperText>
 						</Stack>
 					)}
+				</FormFields>
+			</FormSection>
+
+			<FormSection
+				title="CORS Behavior"
+				description="Control how Cross-Origin Resource Sharing (CORS) requests are handled for all shared ports."
+			>
+				<FormFields>
+					<TextField
+						{...getFieldHelpers("cors_behavior", {
+							helperText:
+								"Use Passthru to bypass Coder's built-in CORS protection.",
+						})}
+						disabled={isSubmitting}
+						fullWidth
+						select
+						value={form.values.cors_behavior}
+						label="CORS Behavior"
+					>
+						<MenuItem value="simple">Simple (recommended)</MenuItem>
+						<MenuItem value="passthru">Passthru</MenuItem>
+					</TextField>
 				</FormFields>
 			</FormSection>
 

@@ -252,6 +252,11 @@
 							"path": "./user-guides/workspace-access/web-ides.md"
 						},
 						{
+							"title": "code-server",
+							"description": "Access your workspace with code-server",
+							"path": "./user-guides/workspace-access/code-server.md"
+						},
+						{
 							"title": "Zed",
 							"description": "Access your workspace with Zed",
 							"path": "./user-guides/workspace-access/zed.md"
@@ -695,11 +700,6 @@
 							"path": "./admin/integrations/jfrog-artifactory.md"
 						},
 						{
-							"title": "JFrog Xray",
-							"description": "Integrate Coder with JFrog Xray",
-							"path": "./admin/integrations/jfrog-xray.md"
-						},
-						{
 							"title": "Island Secure Browser",
 							"description": "Integrate Coder with Island's Secure Browser",
 							"path": "./admin/integrations/island.md"
@@ -948,11 +948,6 @@
 					"title": "Deploy Coder on Azure with an Application Gateway",
 					"description": "Deploy Coder on Azure with an Application Gateway",
 					"path": "./install/kubernetes/kubernetes-azure-app-gateway.md"
-				},
-				{
-					"title": "Scanning Workspaces with JFrog Xray",
-					"description": "Integrate Coder with JFrog Xray",
-					"path": "./admin/integrations/jfrog-xray.md"
 				},
 				{
 					"title": "Cloning Git Repositories",
@@ -1650,6 +1645,16 @@
 							"title": "templates list",
 							"description": "List all the templates available for the organization",
 							"path": "reference/cli/templates_list.md"
+						},
+						{
+							"title": "templates presets",
+							"description": "Manage presets of the specified template",
+							"path": "reference/cli/templates_presets.md"
+						},
+						{
+							"title": "templates presets list",
+							"description": "List all presets of the specified template. Defaults to the active template version.",
+							"path": "reference/cli/templates_presets_list.md"
 						},
 						{
 							"title": "templates pull",

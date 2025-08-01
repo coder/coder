@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -3211,6 +3212,9 @@ func TestDevcontainerDiscovery(t *testing.T) {
 	// repositories to find any `.devcontainer/devcontainer.json`
 	// files. These tests are to validate that behavior.
 
+	homeDir, err := os.UserHomeDir()
+	require.NoError(t, err)
+
 	tests := []struct {
 		name     string
 		agentDir string
@@ -3345,6 +3349,113 @@ func TestDevcontainerDiscovery(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "RespectGitIgnore",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":              "",
+				"/home/coder/coder/.gitignore":             "y/",
+				"/home/coder/coder/.devcontainer.json":     "",
+				"/home/coder/coder/x/y/.devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "RespectNestedGitIgnore",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":              "",
+				"/home/coder/coder/.devcontainer.json":     "",
+				"/home/coder/coder/y/.devcontainer.json":   "",
+				"/home/coder/coder/x/.gitignore":           "y/",
+				"/home/coder/coder/x/y/.devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+				{
+					WorkspaceFolder: "/home/coder/coder/y",
+					ConfigPath:      "/home/coder/coder/y/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "RespectGitInfoExclude",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":              "",
+				"/home/coder/coder/.git/info/exclude":      "y/",
+				"/home/coder/coder/.devcontainer.json":     "",
+				"/home/coder/coder/x/y/.devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "RespectHomeGitConfig",
+			agentDir: homeDir,
+			fs: map[string]string{
+				"/tmp/.gitignore": "node_modules/",
+				filepath.Join(homeDir, ".gitconfig"): `
+					[core]
+					excludesFile = /tmp/.gitignore
+				`,
+
+				filepath.Join(homeDir, ".git/HEAD"):                         "",
+				filepath.Join(homeDir, ".devcontainer.json"):                "",
+				filepath.Join(homeDir, "node_modules/y/.devcontainer.json"): "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: homeDir,
+					ConfigPath:      filepath.Join(homeDir, ".devcontainer.json"),
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "IgnoreNonsenseDevcontainerNames",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/.git/HEAD": "",
+
+				"/home/coder/.devcontainer/devcontainer.json.bak": "",
+				"/home/coder/.devcontainer/devcontainer.json.old": "",
+				"/home/coder/.devcontainer/devcontainer.json~":    "",
+				"/home/coder/.devcontainer/notdevcontainer.json":  "",
+				"/home/coder/.devcontainer/devcontainer.json.swp": "",
+
+				"/home/coder/foo/.devcontainer.json.bak": "",
+				"/home/coder/foo/.devcontainer.json.old": "",
+				"/home/coder/foo/.devcontainer.json~":    "",
+				"/home/coder/foo/.notdevcontainer.json":  "",
+				"/home/coder/foo/.devcontainer.json.swp": "",
+
+				"/home/coder/bar/.devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/bar",
+					ConfigPath:      "/home/coder/bar/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
 	}
 
 	initFS := func(t *testing.T, files map[string]string) afero.Fs {
@@ -3397,7 +3508,7 @@ func TestDevcontainerDiscovery(t *testing.T) {
 				err := json.NewDecoder(rec.Body).Decode(&got)
 				require.NoError(t, err)
 
-				return len(got.Devcontainers) == len(tt.expected)
+				return len(got.Devcontainers) >= len(tt.expected)
 			}, testutil.WaitShort, testutil.IntervalFast, "dev containers never found")
 
 			// Now projects have been discovered, we'll allow the updater loop
@@ -3457,4 +3568,432 @@ func TestDevcontainerDiscovery(t *testing.T) {
 		// This is implicitly handled by `testutil.Logger` failing when it
 		// detects an error has been logged.
 	})
+
+	t.Run("AutoStart", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name                    string
+			agentDir                string
+			fs                      map[string]string
+			expectDevcontainerCount int
+			setupMocks              func(mDCCLI *acmock.MockDevcontainerCLI)
+		}{
+			{
+				name:                    "SingleEnabled",
+				agentDir:                "/home/coder",
+				expectDevcontainerCount: 1,
+				fs: map[string]string{
+					"/home/coder/.git/HEAD":                       "",
+					"/home/coder/.devcontainer/devcontainer.json": "",
+				},
+				setupMocks: func(mDCCLI *acmock.MockDevcontainerCLI) {
+					gomock.InOrder(
+						// Given: This dev container has auto start enabled.
+						mDCCLI.EXPECT().ReadConfig(gomock.Any(),
+							"/home/coder",
+							"/home/coder/.devcontainer/devcontainer.json",
+							[]string{},
+						).Return(agentcontainers.DevcontainerConfig{
+							Configuration: agentcontainers.DevcontainerConfiguration{
+								Customizations: agentcontainers.DevcontainerCustomizations{
+									Coder: agentcontainers.CoderCustomization{
+										AutoStart: true,
+									},
+								},
+							},
+						}, nil),
+
+						// Then: We expect it to be started.
+						mDCCLI.EXPECT().Up(gomock.Any(),
+							"/home/coder",
+							"/home/coder/.devcontainer/devcontainer.json",
+							gomock.Any(),
+						).Return("", nil),
+					)
+				},
+			},
+			{
+				name:                    "SingleDisabled",
+				agentDir:                "/home/coder",
+				expectDevcontainerCount: 1,
+				fs: map[string]string{
+					"/home/coder/.git/HEAD":                       "",
+					"/home/coder/.devcontainer/devcontainer.json": "",
+				},
+				setupMocks: func(mDCCLI *acmock.MockDevcontainerCLI) {
+					gomock.InOrder(
+						// Given: This dev container has auto start disabled.
+						mDCCLI.EXPECT().ReadConfig(gomock.Any(),
+							"/home/coder",
+							"/home/coder/.devcontainer/devcontainer.json",
+							[]string{},
+						).Return(agentcontainers.DevcontainerConfig{
+							Configuration: agentcontainers.DevcontainerConfiguration{
+								Customizations: agentcontainers.DevcontainerCustomizations{
+									Coder: agentcontainers.CoderCustomization{
+										AutoStart: false,
+									},
+								},
+							},
+						}, nil),
+
+						// Then: We expect it to _not_ be started.
+						mDCCLI.EXPECT().Up(gomock.Any(),
+							"/home/coder",
+							"/home/coder/.devcontainer/devcontainer.json",
+							gomock.Any(),
+						).Return("", nil).Times(0),
+					)
+				},
+			},
+			{
+				name:                    "OneEnabledOneDisabled",
+				agentDir:                "/home/coder",
+				expectDevcontainerCount: 2,
+				fs: map[string]string{
+					"/home/coder/.git/HEAD":                       "",
+					"/home/coder/.devcontainer/devcontainer.json": "",
+					"/home/coder/project/.devcontainer.json":      "",
+				},
+				setupMocks: func(mDCCLI *acmock.MockDevcontainerCLI) {
+					gomock.InOrder(
+						// Given: This dev container has auto start enabled.
+						mDCCLI.EXPECT().ReadConfig(gomock.Any(),
+							"/home/coder",
+							"/home/coder/.devcontainer/devcontainer.json",
+							[]string{},
+						).Return(agentcontainers.DevcontainerConfig{
+							Configuration: agentcontainers.DevcontainerConfiguration{
+								Customizations: agentcontainers.DevcontainerCustomizations{
+									Coder: agentcontainers.CoderCustomization{
+										AutoStart: true,
+									},
+								},
+							},
+						}, nil),
+
+						// Then: We expect it to be started.
+						mDCCLI.EXPECT().Up(gomock.Any(),
+							"/home/coder",
+							"/home/coder/.devcontainer/devcontainer.json",
+							gomock.Any(),
+						).Return("", nil),
+					)
+
+					gomock.InOrder(
+						// Given: This dev container has auto start disabled.
+						mDCCLI.EXPECT().ReadConfig(gomock.Any(),
+							"/home/coder/project",
+							"/home/coder/project/.devcontainer.json",
+							[]string{},
+						).Return(agentcontainers.DevcontainerConfig{
+							Configuration: agentcontainers.DevcontainerConfiguration{
+								Customizations: agentcontainers.DevcontainerCustomizations{
+									Coder: agentcontainers.CoderCustomization{
+										AutoStart: false,
+									},
+								},
+							},
+						}, nil),
+
+						// Then: We expect it to _not_ be started.
+						mDCCLI.EXPECT().Up(gomock.Any(),
+							"/home/coder/project",
+							"/home/coder/project/.devcontainer.json",
+							gomock.Any(),
+						).Return("", nil).Times(0),
+					)
+				},
+			},
+			{
+				name:                    "MultipleEnabled",
+				agentDir:                "/home/coder",
+				expectDevcontainerCount: 2,
+				fs: map[string]string{
+					"/home/coder/.git/HEAD":                       "",
+					"/home/coder/.devcontainer/devcontainer.json": "",
+					"/home/coder/project/.devcontainer.json":      "",
+				},
+				setupMocks: func(mDCCLI *acmock.MockDevcontainerCLI) {
+					gomock.InOrder(
+						// Given: This dev container has auto start enabled.
+						mDCCLI.EXPECT().ReadConfig(gomock.Any(),
+							"/home/coder",
+							"/home/coder/.devcontainer/devcontainer.json",
+							[]string{},
+						).Return(agentcontainers.DevcontainerConfig{
+							Configuration: agentcontainers.DevcontainerConfiguration{
+								Customizations: agentcontainers.DevcontainerCustomizations{
+									Coder: agentcontainers.CoderCustomization{
+										AutoStart: true,
+									},
+								},
+							},
+						}, nil),
+
+						// Then: We expect it to be started.
+						mDCCLI.EXPECT().Up(gomock.Any(),
+							"/home/coder",
+							"/home/coder/.devcontainer/devcontainer.json",
+							gomock.Any(),
+						).Return("", nil),
+					)
+
+					gomock.InOrder(
+						// Given: This dev container has auto start enabled.
+						mDCCLI.EXPECT().ReadConfig(gomock.Any(),
+							"/home/coder/project",
+							"/home/coder/project/.devcontainer.json",
+							[]string{},
+						).Return(agentcontainers.DevcontainerConfig{
+							Configuration: agentcontainers.DevcontainerConfiguration{
+								Customizations: agentcontainers.DevcontainerCustomizations{
+									Coder: agentcontainers.CoderCustomization{
+										AutoStart: true,
+									},
+								},
+							},
+						}, nil),
+
+						// Then: We expect it to be started.
+						mDCCLI.EXPECT().Up(gomock.Any(),
+							"/home/coder/project",
+							"/home/coder/project/.devcontainer.json",
+							gomock.Any(),
+						).Return("", nil),
+					)
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				var (
+					ctx    = testutil.Context(t, testutil.WaitShort)
+					logger = testutil.Logger(t)
+					mClock = quartz.NewMock(t)
+					mDCCLI = acmock.NewMockDevcontainerCLI(gomock.NewController(t))
+
+					r = chi.NewRouter()
+				)
+
+				// Given: We setup our mocks. These mocks handle our expectations for these
+				// tests. If there are missing/unexpected mock calls, the test will fail.
+				tt.setupMocks(mDCCLI)
+
+				api := agentcontainers.NewAPI(logger,
+					agentcontainers.WithClock(mClock),
+					agentcontainers.WithWatcher(watcher.NewNoop()),
+					agentcontainers.WithFileSystem(initFS(t, tt.fs)),
+					agentcontainers.WithManifestInfo("owner", "workspace", "parent-agent", "/home/coder"),
+					agentcontainers.WithContainerCLI(&fakeContainerCLI{}),
+					agentcontainers.WithDevcontainerCLI(mDCCLI),
+					agentcontainers.WithProjectDiscovery(true),
+				)
+				api.Start()
+				defer api.Close()
+				r.Mount("/", api.Routes())
+
+				// When: All expected dev containers have been found.
+				require.Eventuallyf(t, func() bool {
+					req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+					rec := httptest.NewRecorder()
+					r.ServeHTTP(rec, req)
+
+					got := codersdk.WorkspaceAgentListContainersResponse{}
+					err := json.NewDecoder(rec.Body).Decode(&got)
+					require.NoError(t, err)
+
+					return len(got.Devcontainers) >= tt.expectDevcontainerCount
+				}, testutil.WaitShort, testutil.IntervalFast, "dev containers never found")
+
+				// Then: We expect the mock infra to not fail.
+			})
+		}
+	})
+}
+
+// TestDevcontainerPrebuildSupport validates that devcontainers survive the transition
+// from prebuild to claimed workspace, ensuring the existing container is reused
+// with updated configuration rather than being recreated.
+func TestDevcontainerPrebuildSupport(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("Dev Container tests are not supported on Windows")
+	}
+
+	var (
+		ctx    = testutil.Context(t, testutil.WaitShort)
+		logger = testutil.Logger(t)
+
+		fDCCLI = &fakeDevcontainerCLI{readConfigErrC: make(chan func(envs []string) error, 1)}
+		fCCLI  = &fakeContainerCLI{arch: runtime.GOARCH}
+		fSAC   = &fakeSubAgentClient{}
+
+		testDC = codersdk.WorkspaceAgentDevcontainer{
+			ID:              uuid.New(),
+			WorkspaceFolder: "/home/coder/coder",
+			ConfigPath:      "/home/coder/coder/.devcontainer/devcontainer.json",
+		}
+
+		testContainer = newFakeContainer("test-container-id", testDC.ConfigPath, testDC.WorkspaceFolder)
+
+		prebuildOwner     = "prebuilds"
+		prebuildWorkspace = "prebuilds-xyz-123"
+		prebuildAppURL    = "prebuilds.zed"
+
+		userOwner     = "user"
+		userWorkspace = "user-workspace"
+		userAppURL    = "user.zed"
+	)
+
+	// ==================================================
+	// PHASE 1: Prebuild workspace creates devcontainer
+	// ==================================================
+
+	// Given: There are no containers initially.
+	fCCLI.containers = codersdk.WorkspaceAgentListContainersResponse{}
+
+	api := agentcontainers.NewAPI(logger,
+		// We want this first `agentcontainers.API` to have a manifest info
+		// that is consistent with what a prebuild workspace would have.
+		agentcontainers.WithManifestInfo(prebuildOwner, prebuildWorkspace, "dev", "/home/coder"),
+		// Given: We start with a single dev container resource.
+		agentcontainers.WithDevcontainers(
+			[]codersdk.WorkspaceAgentDevcontainer{testDC},
+			[]codersdk.WorkspaceAgentScript{{ID: testDC.ID, LogSourceID: uuid.New()}},
+		),
+		agentcontainers.WithSubAgentClient(fSAC),
+		agentcontainers.WithContainerCLI(fCCLI),
+		agentcontainers.WithDevcontainerCLI(fDCCLI),
+		agentcontainers.WithWatcher(watcher.NewNoop()),
+	)
+	api.Start()
+
+	fCCLI.containers = codersdk.WorkspaceAgentListContainersResponse{
+		Containers: []codersdk.WorkspaceAgentContainer{testContainer},
+	}
+
+	// Given: We allow the dev container to be created.
+	fDCCLI.upID = testContainer.ID
+	fDCCLI.readConfig = agentcontainers.DevcontainerConfig{
+		MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
+			Customizations: agentcontainers.DevcontainerMergedCustomizations{
+				Coder: []agentcontainers.CoderCustomization{{
+					Apps: []agentcontainers.SubAgentApp{
+						{Slug: "zed", URL: prebuildAppURL},
+					},
+				}},
+			},
+		},
+	}
+
+	var readConfigEnvVars []string
+	testutil.RequireSend(ctx, t, fDCCLI.readConfigErrC, func(env []string) error {
+		readConfigEnvVars = env
+		return nil
+	})
+
+	// When: We create the dev container resource
+	err := api.CreateDevcontainer(testDC.WorkspaceFolder, testDC.ConfigPath)
+	require.NoError(t, err)
+
+	require.Contains(t, readConfigEnvVars, "CODER_WORKSPACE_OWNER_NAME="+prebuildOwner)
+	require.Contains(t, readConfigEnvVars, "CODER_WORKSPACE_NAME="+prebuildWorkspace)
+
+	// Then: We there to be only 1 agent.
+	require.Len(t, fSAC.agents, 1)
+
+	// And: We expect only 1 agent to have been created.
+	require.Len(t, fSAC.created, 1)
+	firstAgent := fSAC.created[0]
+
+	// And: We expect this agent to be the current agent.
+	_, found := fSAC.agents[firstAgent.ID]
+	require.True(t, found, "first agent expected to be current agent")
+
+	// And: We expect there to be a single app.
+	require.Len(t, firstAgent.Apps, 1)
+	firstApp := firstAgent.Apps[0]
+
+	// And: We expect this app to have the pre-claim URL.
+	require.Equal(t, prebuildAppURL, firstApp.URL)
+
+	// Given: We now close the API
+	api.Close()
+
+	// =============================================================
+	// PHASE 2: User claims workspace, devcontainer should be reused
+	// =============================================================
+
+	// Given: We create a new claimed API
+	api = agentcontainers.NewAPI(logger,
+		// We want this second `agentcontainers.API` to have a manifest info
+		// that is consistent with what a claimed workspace would have.
+		agentcontainers.WithManifestInfo(userOwner, userWorkspace, "dev", "/home/coder"),
+		// Given: We start with a single dev container resource.
+		agentcontainers.WithDevcontainers(
+			[]codersdk.WorkspaceAgentDevcontainer{testDC},
+			[]codersdk.WorkspaceAgentScript{{ID: testDC.ID, LogSourceID: uuid.New()}},
+		),
+		agentcontainers.WithSubAgentClient(fSAC),
+		agentcontainers.WithContainerCLI(fCCLI),
+		agentcontainers.WithDevcontainerCLI(fDCCLI),
+		agentcontainers.WithWatcher(watcher.NewNoop()),
+	)
+	api.Start()
+	defer func() {
+		close(fDCCLI.readConfigErrC)
+
+		api.Close()
+	}()
+
+	// Given: We allow the dev container to be created.
+	fDCCLI.upID = testContainer.ID
+	fDCCLI.readConfig = agentcontainers.DevcontainerConfig{
+		MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
+			Customizations: agentcontainers.DevcontainerMergedCustomizations{
+				Coder: []agentcontainers.CoderCustomization{{
+					Apps: []agentcontainers.SubAgentApp{
+						{Slug: "zed", URL: userAppURL},
+					},
+				}},
+			},
+		},
+	}
+
+	testutil.RequireSend(ctx, t, fDCCLI.readConfigErrC, func(env []string) error {
+		readConfigEnvVars = env
+		return nil
+	})
+
+	// When: We create the dev container resource.
+	err = api.CreateDevcontainer(testDC.WorkspaceFolder, testDC.ConfigPath)
+	require.NoError(t, err)
+
+	// Then: We expect the environment variables were passed correctly.
+	require.Contains(t, readConfigEnvVars, "CODER_WORKSPACE_OWNER_NAME="+userOwner)
+	require.Contains(t, readConfigEnvVars, "CODER_WORKSPACE_NAME="+userWorkspace)
+
+	// And: We expect there to be only 1 agent.
+	require.Len(t, fSAC.agents, 1)
+
+	// And: We expect _a separate agent_ to have been created.
+	require.Len(t, fSAC.created, 2)
+	secondAgent := fSAC.created[1]
+
+	// And: We expect this new agent to be the current agent.
+	_, found = fSAC.agents[secondAgent.ID]
+	require.True(t, found, "second agent expected to be current agent")
+
+	// And: We expect there to be a single app.
+	require.Len(t, secondAgent.Apps, 1)
+	secondApp := secondAgent.Apps[0]
+
+	// And: We expect this app to have the post-claim URL.
+	require.Equal(t, userAppURL, secondApp.URL)
 }

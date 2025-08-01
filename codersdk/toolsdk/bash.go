@@ -1,11 +1,14 @@
 package toolsdk
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"strings"
+	"sync"
+	"time"
 
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
@@ -18,8 +21,10 @@ import (
 )
 
 type WorkspaceBashArgs struct {
-	Workspace string `json:"workspace"`
-	Command   string `json:"command"`
+	Workspace  string `json:"workspace"`
+	Command    string `json:"command"`
+	TimeoutMs  int    `json:"timeout_ms,omitempty"`
+	Background bool   `json:"background,omitempty"`
 }
 
 type WorkspaceBashResult struct {
@@ -43,9 +48,16 @@ The workspace parameter supports various formats:
 - workspace.agent (specific agent)
 - owner/workspace.agent
 
+The timeout_ms parameter specifies the command timeout in milliseconds (defaults to 60000ms, maximum of 300000ms).
+If the command times out, all output captured up to that point is returned with a cancellation message.
+
+For background commands (background: true), output is captured until the timeout is reached, then the command
+continues running in the background. The captured output is returned as the result.
+
 Examples:
 - workspace: "my-workspace", command: "ls -la"
-- workspace: "john/dev-env", command: "git status"
+- workspace: "john/dev-env", command: "git status", timeout_ms: 30000
+- workspace: "my-workspace", command: "npm run dev", background: true, timeout_ms: 10000
 - workspace: "my-workspace.main", command: "docker ps"`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -57,17 +69,30 @@ Examples:
 					"type":        "string",
 					"description": "The bash command to execute in the workspace.",
 				},
+				"timeout_ms": map[string]any{
+					"type":        "integer",
+					"description": "Command timeout in milliseconds. Defaults to 60000ms (60 seconds) if not specified.",
+					"default":     60000,
+					"minimum":     1,
+				},
+				"background": map[string]any{
+					"type":        "boolean",
+					"description": "Whether to run the command in the background. Output is captured until timeout, then the command continues running in the background.",
+				},
 			},
 			Required: []string{"workspace", "command"},
 		},
 	},
-	Handler: func(ctx context.Context, deps Deps, args WorkspaceBashArgs) (WorkspaceBashResult, error) {
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceBashArgs) (res WorkspaceBashResult, err error) {
 		if args.Workspace == "" {
 			return WorkspaceBashResult{}, xerrors.New("workspace name cannot be empty")
 		}
 		if args.Command == "" {
 			return WorkspaceBashResult{}, xerrors.New("command cannot be empty")
 		}
+
+		ctx, cancel := context.WithTimeoutCause(ctx, 5*time.Minute, xerrors.New("MCP handler timeout after 5 min"))
+		defer cancel()
 
 		// Normalize workspace input to handle various formats
 		workspaceName := NormalizeWorkspaceInput(args.Workspace)
@@ -119,23 +144,54 @@ Examples:
 		}
 		defer session.Close()
 
-		// Execute command and capture output
-		output, err := session.CombinedOutput(args.Command)
+		// Set default timeout if not specified (60 seconds)
+		timeoutMs := args.TimeoutMs
+		defaultTimeoutMs := 60000
+		if timeoutMs <= 0 {
+			timeoutMs = defaultTimeoutMs
+		}
+		command := args.Command
+		if args.Background {
+			// For background commands, use nohup directly to ensure they survive SSH session
+			// termination. This captures output normally but allows the process to continue
+			// running even after the SSH connection closes.
+			command = fmt.Sprintf("nohup %s </dev/null 2>&1", args.Command)
+		}
+
+		// Create context with command timeout (replace the broader MCP timeout)
+		commandCtx, commandCancel := context.WithTimeout(ctx, time.Duration(timeoutMs)*time.Millisecond)
+		defer commandCancel()
+
+		// Execute command with timeout handling
+		output, err := executeCommandWithTimeout(commandCtx, session, command)
 		outputStr := strings.TrimSpace(string(output))
 
+		// Handle command execution results
 		if err != nil {
-			// Check if it's an SSH exit error to get the exit code
-			var exitErr *gossh.ExitError
-			if errors.As(err, &exitErr) {
+			// Check if the command timed out
+			if errors.Is(context.Cause(commandCtx), context.DeadlineExceeded) {
+				if args.Background {
+					outputStr += "\nCommand continues running in background"
+				} else {
+					outputStr += "\nCommand canceled due to timeout"
+				}
 				return WorkspaceBashResult{
 					Output:   outputStr,
-					ExitCode: exitErr.ExitStatus(),
+					ExitCode: 124,
 				}, nil
 			}
-			// For other errors, return exit code 1
+
+			// Extract exit code from SSH error if available
+			exitCode := 1
+			var exitErr *gossh.ExitError
+			if errors.As(err, &exitErr) {
+				exitCode = exitErr.ExitStatus()
+			}
+
+			// For other errors, use standard timeout or generic error code
 			return WorkspaceBashResult{
 				Output:   outputStr,
-				ExitCode: 1,
+				ExitCode: exitCode,
 			}, nil
 		}
 
@@ -291,4 +347,110 @@ func NormalizeWorkspaceInput(input string) string {
 	normalized := strings.ReplaceAll(input, "--", "/")
 
 	return normalized
+}
+
+// executeCommandWithTimeout executes a command with timeout support
+func executeCommandWithTimeout(ctx context.Context, session *gossh.Session, command string) ([]byte, error) {
+	// Set up pipes to capture output
+	stdoutPipe, err := session.StdoutPipe()
+	if err != nil {
+		return nil, xerrors.Errorf("failed to create stdout pipe: %w", err)
+	}
+
+	stderrPipe, err := session.StderrPipe()
+	if err != nil {
+		return nil, xerrors.Errorf("failed to create stderr pipe: %w", err)
+	}
+
+	// Start the command
+	if err := session.Start(command); err != nil {
+		return nil, xerrors.Errorf("failed to start command: %w", err)
+	}
+
+	// Create a thread-safe buffer for combined output
+	var output bytes.Buffer
+	var mu sync.Mutex
+	safeWriter := &syncWriter{w: &output, mu: &mu}
+
+	// Use io.MultiWriter to combine stdout and stderr
+	multiWriter := io.MultiWriter(safeWriter)
+
+	// Channel to signal when command completes
+	done := make(chan error, 1)
+
+	// Start goroutine to copy output and wait for completion
+	go func() {
+		// Copy stdout and stderr concurrently
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+			_, _ = io.Copy(multiWriter, stdoutPipe)
+		}()
+
+		go func() {
+			defer wg.Done()
+			_, _ = io.Copy(multiWriter, stderrPipe)
+		}()
+
+		// Wait for all output to be copied
+		wg.Wait()
+
+		// Wait for the command to complete
+		done <- session.Wait()
+	}()
+
+	// Wait for either completion or context cancellation
+	select {
+	case err := <-done:
+		// Command completed normally
+		return safeWriter.Bytes(), err
+	case <-ctx.Done():
+		// Context was canceled (timeout or other cancellation)
+		// Close the session to stop the command, but handle errors gracefully
+		closeErr := session.Close()
+
+		// Give a brief moment to collect any remaining output and for goroutines to finish
+		timer := time.NewTimer(100 * time.Millisecond)
+		defer timer.Stop()
+
+		select {
+		case <-timer.C:
+			// Timer expired, return what we have
+			break
+		case err := <-done:
+			// Command finished during grace period
+			if closeErr == nil {
+				return safeWriter.Bytes(), err
+			}
+			// If session close failed, prioritize the context error
+			break
+		}
+
+		// Return the collected output with the context error
+		return safeWriter.Bytes(), context.Cause(ctx)
+	}
+}
+
+// syncWriter is a thread-safe writer
+type syncWriter struct {
+	w  *bytes.Buffer
+	mu *sync.Mutex
+}
+
+func (sw *syncWriter) Write(p []byte) (n int, err error) {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	return sw.w.Write(p)
+}
+
+func (sw *syncWriter) Bytes() []byte {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	// Return a copy to prevent race conditions with the underlying buffer
+	b := sw.w.Bytes()
+	result := make([]byte, len(b))
+	copy(result, b)
+	return result
 }

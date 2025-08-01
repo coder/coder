@@ -242,6 +242,8 @@ func (w Workspace) WorkspaceTable() WorkspaceTable {
 		AutomaticUpdates:  w.AutomaticUpdates,
 		Favorite:          w.Favorite,
 		NextStartAt:       w.NextStartAt,
+		GroupACL:          w.GroupACL,
+		UserACL:           w.UserACL,
 	}
 }
 
@@ -274,7 +276,9 @@ func (w WorkspaceTable) RBACObject() rbac.Object {
 
 	return rbac.ResourceWorkspace.WithID(w.ID).
 		InOrg(w.OrganizationID).
-		WithOwner(w.OwnerID.String())
+		WithOwner(w.OwnerID.String()).
+		WithGroupACL(w.GroupACL.RBACACL()).
+		WithACLUserList(w.UserACL.RBACACL())
 }
 
 func (w WorkspaceTable) DormantRBAC() rbac.Object {
