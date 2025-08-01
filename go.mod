@@ -464,6 +464,8 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
+replace github.com/coder/terraform-provider-coder/v2 => /home/coder/terraform-provider-coder
+
 require github.com/coder/clistat v1.0.0
 
 require github.com/SherClockHolmes/webpush-go v1.4.0
