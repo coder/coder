@@ -289,7 +289,7 @@ func WithProjectDiscovery(projectDiscovery bool) Option {
 	}
 }
 
-// WithProjectDiscovery sets if the API should attempt to autostart
+// WithDiscoveryAutostart sets if the API should attempt to autostart
 // projects that have been discovered
 func WithDiscoveryAutostart(discoveryAutostart bool) Option {
 	return func(api *API) {
