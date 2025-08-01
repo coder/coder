@@ -360,6 +360,14 @@ message Metadata {
   repeated Role workspace_owner_rbac_roles = 19;
   PrebuiltWorkspaceBuildStage prebuilt_workspace_build_stage = 20; // Indicates that a prebuilt workspace is being built.
   repeated RunningAgentAuthToken running_agent_auth_tokens = 21;
+  repeated Secret user_secrets = 22;
+}
+
+message Secret {
+  string name = 1;
+  string env_name = 2;
+  string file_path = 3;
+  string value = 4;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session
