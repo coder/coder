@@ -235,11 +235,17 @@ The system always maintains the desired number of prebuilt workspaces for the ac
 
 ### Managing resource quotas
 
-Prebuilt workspaces can be used in conjunction with [resource quotas](../../users/quotas.md).
+To help prevent unexpected infrastructure costs, prebuilt workspaces can be used in conjunction with [resource quotas](../../users/quotas.md).
 Because unclaimed prebuilt workspaces are owned by the `prebuilds` user, you can:
 
 1. Configure quotas for any group that includes this user.
 1. Set appropriate limits to balance prebuilt workspace availability with resource constraints.
+
+When prebuilt workspaces are configured for an organization, Coder creates a "prebuilds" group in that organization and adds the prebuilds user to it. This group has a default quota allowance of 0, which you should adjust based on your needs:
+
+- **Set a quota allowance** on the "prebuilds" group to control how many prebuilt workspaces can be provisioned
+- **Monitor usage** to ensure the quota is appropriate for your desired number of prebuilt instances
+- **Adjust as needed** based on your template costs and desired prebuilt workspace pool size
 
 If a quota is exceeded, the prebuilt workspace will fail provisioning the same way other workspaces do.
 
