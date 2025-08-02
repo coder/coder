@@ -16,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 	"tailscale.com/tailcfg"
@@ -98,8 +99,8 @@ func (c *Client) Close() {
 	c.derpMapOnce.Do(func() { close(c.derpMapUpdates) })
 }
 
-func (c *Client) ConnectRPC26(ctx context.Context) (
-	agentproto.DRPCAgentClient26, proto.DRPCTailnetClient26, error,
+func (c *Client) ConnectRPC27(ctx context.Context) (
+	agentproto.DRPCAgentClient27, proto.DRPCTailnetClient26, error,
 ) {
 	conn, lis := drpcsdk.MemTransportPipe()
 	c.LastWorkspaceAgent = func() {
@@ -525,6 +526,15 @@ func (f *FakeAgentAPI) GetSubAgentApps(id uuid.UUID) ([]*agentproto.CreateSubAge
 	}
 
 	return apps, nil
+}
+
+func (*FakeAgentAPI) StreamPrebuildStatus(_ *agentproto.StreamPrebuildStatusRequest, stream agentproto.DRPCAgent_StreamPrebuildStatusStream) error {
+	// For a fake implementation, send a normal prebuild status immediately
+	response := &agentproto.StreamPrebuildStatusResponse{
+		Status:    agentproto.PrebuildStatus_PREBUILD_CLAIM_STATUS_NORMAL,
+		UpdatedAt: timestamppb.Now(),
+	}
+	return stream.Send(response)
 }
 
 func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest, statsCh chan *agentproto.Stats) *FakeAgentAPI {
