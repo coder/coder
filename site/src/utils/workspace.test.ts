@@ -7,6 +7,8 @@ import {
 	getDisplayVersionStatus,
 	getDisplayWorkspaceBuildInitiatedBy,
 	getDisplayWorkspaceTemplateName,
+	getDisplayWorkspaceStatus,
+	hasStartingAgents,
 	isWorkspaceOn,
 } from "./workspace";
 
@@ -155,6 +157,127 @@ describe("util > workspace", () => {
 			};
 			const displayed = getDisplayWorkspaceTemplateName(workspace);
 			expect(displayed).toEqual(workspace.template_display_name);
+		});
+	});
+
+	describe("hasStartingAgents", () => {
+		it("returns true when agents are starting", () => {
+			const workspace: TypesGen.Workspace = {
+				...Mocks.MockWorkspace,
+				latest_build: {
+					...Mocks.MockWorkspaceBuild,
+					resources: [
+						{
+							...Mocks.MockWorkspaceResource,
+							agents: [
+								{
+									...Mocks.MockWorkspaceAgent,
+									lifecycle_state: "starting",
+								},
+							],
+						},
+					],
+				},
+			};
+			expect(hasStartingAgents(workspace)).toBe(true);
+		});
+
+		it("returns true when agents are created", () => {
+			const workspace: TypesGen.Workspace = {
+				...Mocks.MockWorkspace,
+				latest_build: {
+					...Mocks.MockWorkspaceBuild,
+					resources: [
+						{
+							...Mocks.MockWorkspaceResource,
+							agents: [
+								{
+									...Mocks.MockWorkspaceAgent,
+									lifecycle_state: "created",
+								},
+							],
+						},
+					],
+				},
+			};
+			expect(hasStartingAgents(workspace)).toBe(true);
+		});
+
+		it("returns false when all agents are ready", () => {
+			const workspace: TypesGen.Workspace = {
+				...Mocks.MockWorkspace,
+				latest_build: {
+					...Mocks.MockWorkspaceBuild,
+					resources: [
+						{
+							...Mocks.MockWorkspaceResource,
+							agents: [
+								{
+									...Mocks.MockWorkspaceAgent,
+									lifecycle_state: "ready",
+								},
+							],
+						},
+					],
+				},
+			};
+			expect(hasStartingAgents(workspace)).toBe(false);
+		});
+	});
+
+	describe("getDisplayWorkspaceStatus with starting agents", () => {
+		it("shows 'Running (Starting...)' when workspace is running with starting agents", () => {
+			const workspace: TypesGen.Workspace = {
+				...Mocks.MockWorkspace,
+				latest_build: {
+					...Mocks.MockWorkspaceBuild,
+					status: "running",
+					resources: [
+						{
+							...Mocks.MockWorkspaceResource,
+							agents: [
+								{
+									...Mocks.MockWorkspaceAgent,
+									lifecycle_state: "starting",
+								},
+							],
+						},
+					],
+				},
+			};
+			const status = getDisplayWorkspaceStatus("running", undefined, workspace);
+			expect(status.text).toBe("Running (Starting...)");
+			expect(status.type).toBe("active");
+		});
+
+		it("shows 'Running' when workspace is running with all agents ready", () => {
+			const workspace: TypesGen.Workspace = {
+				...Mocks.MockWorkspace,
+				latest_build: {
+					...Mocks.MockWorkspaceBuild,
+					status: "running",
+					resources: [
+						{
+							...Mocks.MockWorkspaceResource,
+							agents: [
+								{
+									...Mocks.MockWorkspaceAgent,
+									lifecycle_state: "ready",
+								},
+							],
+						},
+					],
+				},
+			};
+			const status = getDisplayWorkspaceStatus("running", undefined, workspace);
+			expect(status.text).toBe("Running");
+			expect(status.type).toBe("success");
+		});
+
+		it("shows 'Running' when workspace parameter is not provided", () => {
+			const status = getDisplayWorkspaceStatus("running", undefined);
+			expect(status.text).toBe("Running");
+			expect(status.type).toBe("success");
 		});
 	});
 });
