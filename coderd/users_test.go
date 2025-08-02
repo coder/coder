@@ -2630,3 +2630,54 @@ func BenchmarkUsersMe(b *testing.B) {
 		require.NoError(b, err)
 	}
 }
+
+func TestUserPreferredProxy(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Test getting preferred proxy when none is set
+	_, err := client.GetUserProxySettings(ctx, user.UserID.String())
+	require.Error(t, err)
+	var apiErr *codersdk.Error
+	require.ErrorAs(t, err, &apiErr)
+	require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+
+	// Test setting preferred proxy
+	proxy := "proxy1"
+	_, err = client.UpdateUserProxySettings(ctx, user.UserID.String(), codersdk.UpdateUserProxySettingsRequest{
+		PreferredProxy: proxy,
+	})
+	require.NoError(t, err)
+
+	// Test getting preferred proxy
+	resp, err := client.GetUserProxySettings(ctx, user.UserID.String())
+	require.NoError(t, err)
+	require.Equal(t, proxy, resp.PreferredProxy)
+
+	// Test updating preferred proxy
+	newProxy := "proxy2"
+	_, err = client.UpdateUserProxySettings(ctx, user.UserID.String(), codersdk.UpdateUserProxySettingsRequest{
+		PreferredProxy: newProxy,
+	})
+	require.NoError(t, err)
+
+	// Verify the update
+	resp, err = client.GetUserProxySettings(ctx, user.UserID.String())
+	require.NoError(t, err)
+	require.Equal(t, newProxy, resp.PreferredProxy)
+
+	// Test deleting preferred proxy
+	err = client.DeleteUserProxySettings(ctx, user.UserID.String())
+	require.NoError(t, err)
+
+	// Verify deletion
+	_, err = client.GetUserProxySettings(ctx, user.UserID.String())
+	require.Error(t, err)
+	require.ErrorAs(t, err, &apiErr)
+	require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+}

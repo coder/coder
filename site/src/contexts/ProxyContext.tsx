@@ -12,7 +12,8 @@ import {
 	useEffect,
 	useState,
 } from "react";
-import { useQuery } from "react-query";
+import { useQuery, useQueryClient } from "react-query";
+
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
 
 export type Proxies = readonly Region[] | readonly WorkspaceProxy[];
@@ -20,7 +21,6 @@ export type ProxyLatencies = Record<string, ProxyLatencyReport>;
 export interface ProxyContextValue {
 	// proxy is **always** the workspace proxy that should be used.
 	// The 'proxy.selectedProxy' field is the proxy being used and comes from either:
-	//   1. The user manually selected this proxy. (saved to local storage)
 	//   2. The default proxy auto selected because:
 	//    a. The user has not selected a proxy.
 	//    b. The user's selected proxy is not in the list of proxies.
@@ -72,8 +72,7 @@ export interface ProxyContextValue {
 interface PreferredProxy {
 	// proxy is the proxy being used. It is provided for
 	// getting the fields such as "display_name" and "id"
-	// Do not use the fields 'path_app_url' or 'wildcard_hostname' from this
-	// object. Use the preferred fields.
+	// Do not use the fields 'path_app_url' or 'wildcard_hostname' from this 	// object. Use the preferred fields.
 	proxy: Region | undefined;
 	// PreferredPathAppURL is the URL of the proxy or it is the empty string
 	// to indicate using relative paths. To add a path to this:
@@ -91,13 +90,16 @@ export const ProxyContext = createContext<ProxyContextValue | undefined>(
  * ProxyProvider interacts with local storage to indicate the preferred workspace proxy.
  */
 export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
+	const queryClient = useQueryClient();
+
 	// Using a useState so the caller always has the latest user saved
 	// proxy.
 	const [userSavedProxy, setUserSavedProxy] = useState(loadUserSelectedProxy());
 
-	// Load the initial state from local storage.
+	// Load the initial state from localStorage only
+	// Let useEffect handle proper initialization when data is available
 	const [proxy, setProxy] = useState<PreferredProxy>(
-		computeUsableURLS(userSavedProxy),
+		computeUsableURLS(loadUserSelectedProxy()),
 	);
 
 	const { permissions } = useAuthenticated();
@@ -134,8 +136,6 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	// updateProxy is a helper function that when called will
 	// update the proxy being used.
 	const updateProxy = useCallback(() => {
-		// Update the saved user proxy for the caller.
-		setUserSavedProxy(loadUserSelectedProxy());
 		setProxy(
 			getPreferredProxy(
 				proxiesResp ?? [],
@@ -180,6 +180,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
 		if (best?.proxy) {
 			saveUserSelectedProxy(best.proxy);
+			setUserSavedProxy(best.proxy);
 			updateProxy();
 		}
 	}, [latenciesLoaded, proxiesResp, proxyLatencies]);
@@ -199,14 +200,16 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
 				// These functions are exposed to allow the user to select a proxy.
 				setProxy: (proxy: Region) => {
-					// Save to local storage to persist the user's preference across reloads
+					// Save to localStorage
 					saveUserSelectedProxy(proxy);
+					setUserSavedProxy(proxy);
 					// Update the selected proxy
 					updateProxy();
 				},
 				clearProxy: () => {
-					// Clear the user's selection from local storage.
+					// Clear from localStorage
 					clearUserSelectedProxy();
+					setUserSavedProxy(undefined);
 					updateProxy();
 				},
 			}}

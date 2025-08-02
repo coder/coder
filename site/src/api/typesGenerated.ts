@@ -3226,6 +3226,11 @@ export interface UpdateUserProfileRequest {
 }
 
 // From codersdk/users.go
+export interface UpdateUserProxySettingsRequest {
+	readonly preferred_proxy: string;
+}
+
+// From codersdk/users.go
 export interface UpdateUserQuietHoursScheduleRequest {
 	readonly schedule: string;
 }
@@ -3376,6 +3381,11 @@ export interface UserLoginType {
 export interface UserParameter {
 	readonly name: string;
 	readonly value: string;
+}
+
+// From codersdk/users.go
+export interface UserProxySettings {
+	readonly preferred_proxy: string;
 }
 
 // From codersdk/deployment.go
