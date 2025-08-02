@@ -1943,6 +1943,17 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}
 		}
 
+		var knownAppIDs []string
+		for _, res := range jobType.WorkspaceBuild.Resources {
+			for _, agt := range res.Agents {
+				for _, app := range agt.Apps {
+					if app.Id == "" {
+						continue
+					}
+					knownAppIDs = append(knownAppIDs, app.Id)
+				}
+			}
+		}
 		var sidebarAppID uuid.NullUUID
 		hasAITask := len(jobType.WorkspaceBuild.AiTasks) == 1
 		if hasAITask {
@@ -1959,9 +1970,25 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			sidebarAppID = uuid.NullUUID{UUID: id, Valid: true}
 		}
 
+		// NOTE(Cian): If stopping a workspace build, we must ensure that the
+		// SidebarAppID corresponds to an extant coder_app. If it does not, the
+		// build will fail with a foreign key constraint violation as workspace_builds.ai_task_sidebar_app_id
+		// references coder_apps.id.
+		// Unfortunately, this behavior will result in the workspace build being
+		// 'silently' not configured as an AI task except for a warning in the logs.
+		// Ideally, we should also accept an app slug as these are less likely to change.
+		if sidebarAppID.Valid && !slices.Contains(knownAppIDs, sidebarAppID.UUID.String()) {
+			s.Logger.Warn(ctx, "workspace build has unknown sidebar app ID",
+				slog.F("workspace_build_id", workspaceBuild.ID),
+				slog.F("sidebar_app_id", sidebarAppID),
+				slog.F("known_app_ids", knownAppIDs),
+			)
+			sidebarAppID = uuid.NullUUID{}
+			hasAITask = false
+		}
 		// Regardless of whether there is an AI task or not, update the field to indicate one way or the other since it
 		// always defaults to nil. ONLY if has_ai_task=true MUST ai_task_sidebar_app_id be set.
-		err = db.UpdateWorkspaceBuildAITaskByID(ctx, database.UpdateWorkspaceBuildAITaskByIDParams{
+		if err = db.UpdateWorkspaceBuildAITaskByID(ctx, database.UpdateWorkspaceBuildAITaskByIDParams{
 			ID: workspaceBuild.ID,
 			HasAITask: sql.NullBool{
 				Bool:  hasAITask,
@@ -1969,8 +1996,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			},
 			SidebarAppID: sidebarAppID,
 			UpdatedAt:    now,
-		})
-		if err != nil {
+		}); err != nil {
 			return xerrors.Errorf("update workspace build ai tasks flag: %w", err)
 		}
 

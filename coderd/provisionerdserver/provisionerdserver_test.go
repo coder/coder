@@ -2794,6 +2794,20 @@ func TestCompleteJob(t *testing.T) {
 					},
 					expected: true,
 				},
+				{
+					name: "non-existing app",
+					input: &proto.CompletedJob_WorkspaceBuild{
+						AiTasks: []*sdkproto.AITask{
+							{
+								Id: uuid.NewString(),
+								SidebarApp: &sdkproto.AITaskSidebarApp{
+									Id: uuid.NewString(), // Non-existing app ID.
+								},
+							},
+						},
+					},
+					expected: false,
+				},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					t.Parallel()
