@@ -340,6 +340,11 @@ jobs:
       - name: Disable Spotlight Indexing
         if: runner.os == 'macOS'
         run: |
+          enabled=$(sudo mdutil -a -s | grep "Indexing enabled" | wc -l)
+          if [ $enabled -eq 0 ]; then
+            echo "Spotlight indexing is already disabled"
+            exit 0
+          fi
           sudo mdutil -a -i off
           sudo mdutil -X /
           sudo launchctl bootout system /System/Library/LaunchDaemons/com.apple.metadata.mds.plist
