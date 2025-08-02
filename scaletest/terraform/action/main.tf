@@ -16,7 +16,7 @@ terraform {
     }
 
     // We use the kubectl provider to apply Custom Resources.
-    // The kubernetes provider requires the CRD is already present 
+    // The kubernetes provider requires the CRD is already present
     // and would require a separate apply step beforehand.
     // https://github.com/hashicorp/terraform-provider-kubernetes/issues/1367
     kubectl = {
@@ -40,7 +40,7 @@ terraform {
     }
   }
 
-  required_version = "~> 1.9.0"
+  required_version = ">= 1.9.0"
 }
 
 provider "google" {
