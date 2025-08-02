@@ -169,7 +169,6 @@ foo   <nil>      10  [a, b, c]  foo1               11  foo2        12         fo
 		// Test with pointer values.
 		inPtr := make([]*tableTest1, len(in))
 		for i, v := range in {
-			v := v
 			inPtr[i] = &v
 		}
 		out, err = cliui.DisplayTable(inPtr, "", nil)

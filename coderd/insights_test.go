@@ -550,8 +550,6 @@ func TestTemplateInsights_Golden(t *testing.T) {
 
 		// Prepare all the templates.
 		for _, template := range templates {
-			template := template
-
 			var parameters []*proto.RichParameter
 			for _, parameter := range template.parameters {
 				var options []*proto.RichParameterOption
@@ -582,10 +580,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			)
 			var resources []*proto.Resource
 			for _, user := range users {
-				user := user
 				for _, workspace := range user.workspaces {
-					workspace := workspace
-
 					if workspace.template != template {
 						continue
 					}
@@ -609,8 +604,8 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						Name: "example",
 						Type: "aws_instance",
 						Agents: []*proto.Agent{{
-							Id:   uuid.NewString(), // Doesn't matter, not used in DB.
-							Name: "dev",
+							Id:   uuid.NewString(),                      // Doesn't matter, not used in DB.
+							Name: fmt.Sprintf("dev-%d", len(resources)), // Ensure unique name per agent
 							Auth: &proto.Agent_Token{
 								Token: authToken.String(),
 							},
@@ -670,10 +665,11 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			// where we can control the template ID.
 			// 	createdTemplate := coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
 			createdTemplate := dbgen.Template(t, db, database.Template{
-				ID:              template.id,
-				ActiveVersionID: version.ID,
-				OrganizationID:  firstUser.OrganizationID,
-				CreatedBy:       firstUser.UserID,
+				ID:                      template.id,
+				ActiveVersionID:         version.ID,
+				OrganizationID:          firstUser.OrganizationID,
+				CreatedBy:               firstUser.UserID,
+				UseClassicParameterFlow: true, // Required for testing classic parameter flow behavior
 				GroupACL: database.TemplateACL{
 					firstUser.OrganizationID.String(): db2sdk.TemplateRoleActions(codersdk.TemplateRoleUse),
 				},
@@ -1246,7 +1242,6 @@ func TestTemplateInsights_Golden(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1261,7 +1256,6 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			_, _ = <-events, <-events
 
 			for _, req := range tt.requests {
-				req := req
 				t.Run(req.name, func(t *testing.T) {
 					t.Parallel()
 
@@ -1489,8 +1483,6 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 
 		// Prepare all the templates.
 		for _, template := range templates {
-			template := template
-
 			// Prepare all workspace resources (agents and apps).
 			var (
 				createWorkspaces []func(uuid.UUID)
@@ -1498,10 +1490,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			)
 			var resources []*proto.Resource
 			for _, user := range users {
-				user := user
 				for _, workspace := range user.workspaces {
-					workspace := workspace
-
 					if workspace.template != template {
 						continue
 					}
@@ -1525,8 +1514,8 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 						Name: "example",
 						Type: "aws_instance",
 						Agents: []*proto.Agent{{
-							Id:   uuid.NewString(), // Doesn't matter, not used in DB.
-							Name: "dev",
+							Id:   uuid.NewString(),                      // Doesn't matter, not used in DB.
+							Name: fmt.Sprintf("dev-%d", len(resources)), // Ensure unique name per agent
 							Auth: &proto.Agent_Token{
 								Token: authToken.String(),
 							},
@@ -1568,10 +1557,11 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			// where we can control the template ID.
 			// 	createdTemplate := coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
 			createdTemplate := dbgen.Template(t, db, database.Template{
-				ID:              template.id,
-				ActiveVersionID: version.ID,
-				OrganizationID:  firstUser.OrganizationID,
-				CreatedBy:       firstUser.UserID,
+				ID:                      template.id,
+				ActiveVersionID:         version.ID,
+				OrganizationID:          firstUser.OrganizationID,
+				CreatedBy:               firstUser.UserID,
+				UseClassicParameterFlow: true, // Required for parameter usage tracking in this test
 				GroupACL: database.TemplateACL{
 					firstUser.OrganizationID.String(): db2sdk.TemplateRoleActions(codersdk.TemplateRoleUse),
 				},
@@ -2031,7 +2021,6 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -2046,7 +2035,6 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			_, _ = <-events, <-events
 
 			for _, req := range tt.requests {
-				req := req
 				t.Run(req.name, func(t *testing.T) {
 					t.Parallel()
 
@@ -2159,8 +2147,6 @@ func TestTemplateInsights_RBAC(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
-
 		t.Run(fmt.Sprintf("with interval=%q", tt.interval), func(t *testing.T) {
 			t.Parallel()
 
@@ -2279,9 +2265,6 @@ func TestGenericInsights_RBAC(t *testing.T) {
 	}
 
 	for endpointName, endpoint := range endpoints {
-		endpointName := endpointName
-		endpoint := endpoint
-
 		t.Run(fmt.Sprintf("With%sEndpoint", endpointName), func(t *testing.T) {
 			t.Parallel()
 
@@ -2291,8 +2274,6 @@ func TestGenericInsights_RBAC(t *testing.T) {
 			}
 
 			for _, tt := range tests {
-				tt := tt
-
 				t.Run("AsOwner", func(t *testing.T) {
 					t.Parallel()
 

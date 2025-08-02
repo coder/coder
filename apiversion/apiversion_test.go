@@ -72,7 +72,6 @@ func TestAPIVersionValidate(t *testing.T) {
 			expectedError: "no longer supported",
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

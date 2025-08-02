@@ -1,9 +1,12 @@
 package database
 
 import (
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/testutil"
@@ -53,4 +56,55 @@ func TestWorkspaceTableConvert(t *testing.T) {
 	require.Equal(t, workspace.WorkspaceTable(), subset,
 		"'workspace.WorkspaceTable()' is not missing at least 1 field when converting to 'WorkspaceTable'. "+
 			"To resolve this, go to the 'func (w Workspace) WorkspaceTable()' and ensure all fields are converted.")
+}
+
+// TestAuditLogsQueryConsistency ensures that GetAuditLogsOffset and CountAuditLogs
+// have identical WHERE clauses to prevent filtering inconsistencies.
+// This test is a guard rail to prevent developer oversight mistakes.
+func TestAuditLogsQueryConsistency(t *testing.T) {
+	t.Parallel()
+
+	getWhereClause := extractWhereClause(getAuditLogsOffset)
+	require.NotEmpty(t, getWhereClause, "failed to extract WHERE clause from GetAuditLogsOffset")
+
+	countWhereClause := extractWhereClause(countAuditLogs)
+	require.NotEmpty(t, countWhereClause, "failed to extract WHERE clause from CountAuditLogs")
+
+	// Compare the WHERE clauses
+	if diff := cmp.Diff(getWhereClause, countWhereClause); diff != "" {
+		t.Errorf("GetAuditLogsOffset and CountAuditLogs WHERE clauses must be identical to ensure consistent filtering.\nDiff:\n%s", diff)
+	}
+}
+
+// Same as TestAuditLogsQueryConsistency, but for connection logs.
+func TestConnectionLogsQueryConsistency(t *testing.T) {
+	t.Parallel()
+
+	getWhereClause := extractWhereClause(getConnectionLogsOffset)
+	require.NotEmpty(t, getWhereClause, "getConnectionLogsOffset query should have a WHERE clause")
+
+	countWhereClause := extractWhereClause(countConnectionLogs)
+	require.NotEmpty(t, countWhereClause, "countConnectionLogs query should have a WHERE clause")
+
+	require.Equal(t, getWhereClause, countWhereClause, "getConnectionLogsOffset and countConnectionLogs queries should have the same WHERE clause")
+}
+
+// extractWhereClause extracts the WHERE clause from a SQL query string
+func extractWhereClause(query string) string {
+	// Find WHERE and get everything after it
+	wherePattern := regexp.MustCompile(`(?is)WHERE\s+(.*)`)
+	whereMatches := wherePattern.FindStringSubmatch(query)
+	if len(whereMatches) < 2 {
+		return ""
+	}
+
+	whereClause := whereMatches[1]
+
+	// Remove ORDER BY, LIMIT, OFFSET clauses from the end
+	whereClause = regexp.MustCompile(`(?is)\s+(ORDER BY|LIMIT|OFFSET).*$`).ReplaceAllString(whereClause, "")
+
+	// Remove SQL comments
+	whereClause = regexp.MustCompile(`(?m)--.*$`).ReplaceAllString(whereClause, "")
+
+	return strings.TrimSpace(whereClause)
 }

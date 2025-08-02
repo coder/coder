@@ -300,8 +300,7 @@ that they are able to successfully connect to Coder. Otherwise, ensure
 is set to a value greater than 0.
 
 > [!NOTE]
-> This may be a transient issue if you are currently in the process of
-updating your deployment.
+> This may be a transient issue if you are currently in the process of updating your deployment.
 
 ### EPD02
 
@@ -316,8 +315,7 @@ of API incompatibility.
 version of Coder.
 
 > [!NOTE]
-> This may be a transient issue if you are currently in the process of
-updating your deployment.
+> This may be a transient issue if you are currently in the process of updating your deployment.
 
 ### EPD03
 
@@ -332,8 +330,7 @@ connect to Coder.
 version of Coder.
 
 > [!NOTE]
-> This may be a transient issue if you are currently in the process of
-updating your deployment.
+> This may be a transient issue if you are currently in the process of updating your deployment.
 
 ### EUNKNOWN
 

@@ -82,10 +82,17 @@ export const useActionFilterMenu = ({
 	value,
 	onChange,
 }: Pick<UseFilterMenuOptions, "value" | "onChange">) => {
-	const actionOptions: SelectFilterOption[] = AuditActions.map((action) => ({
-		value: action,
-		label: capitalize(action),
-	}));
+	const actionOptions: SelectFilterOption[] = AuditActions
+		// TODO(ethanndickson): Logs with these action types are no longer produced.
+		// Until we remove them from the database and API, we shouldn't suggest them
+		// in the filter dropdown.
+		.filter(
+			(action) => !["connect", "disconnect", "open", "close"].includes(action),
+		)
+		.map((action) => ({
+			value: action,
+			label: capitalize(action),
+		}));
 	return useFilterMenu({
 		onChange,
 		value,
@@ -96,7 +103,7 @@ export const useActionFilterMenu = ({
 	});
 };
 
-export type ActionFilterMenu = ReturnType<typeof useActionFilterMenu>;
+type ActionFilterMenu = ReturnType<typeof useActionFilterMenu>;
 
 interface ActionMenuProps {
 	menu: ActionFilterMenu;
@@ -154,9 +161,7 @@ export const useResourceTypeFilterMenu = ({
 	});
 };
 
-export type ResourceTypeFilterMenu = ReturnType<
-	typeof useResourceTypeFilterMenu
->;
+type ResourceTypeFilterMenu = ReturnType<typeof useResourceTypeFilterMenu>;
 
 interface ResourceTypeMenuProps {
 	menu: ResourceTypeFilterMenu;

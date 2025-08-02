@@ -193,9 +193,29 @@ func TestRegoQueries(t *testing.T) {
 				`"read" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
 				`"*" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
 			},
-			ExpectedSQL: "((user_acl->'d5389ccc-57a4-4b13-8c3f-31747bcdc9f1' ? 'read') OR " +
-				"(user_acl->'d5389ccc-57a4-4b13-8c3f-31747bcdc9f1' ? '*'))",
+			ExpectedSQL: "((user_acl->'d5389ccc-57a4-4b13-8c3f-31747bcdc9f1' ? 'read')" +
+				" OR (user_acl->'d5389ccc-57a4-4b13-8c3f-31747bcdc9f1' ? '*'))",
 			VariableConverter: regosql.DefaultVariableConverter(),
+		},
+		{
+			Name: "UserWorkspaceACLAllow",
+			Queries: []string{
+				`"read" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
+				`"*" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
+			},
+			ExpectedSQL: "((workspaces.user_acl#>array['d5389ccc-57a4-4b13-8c3f-31747bcdc9f1', 'permissions'] ? 'read')" +
+				" OR (workspaces.user_acl#>array['d5389ccc-57a4-4b13-8c3f-31747bcdc9f1', 'permissions'] ? '*'))",
+			VariableConverter: regosql.WorkspaceConverter(),
+		},
+		{
+			Name: "GroupWorkspaceACLAllow",
+			Queries: []string{
+				`"read" in input.object.acl_group_list["96c55a0e-73b4-44fc-abac-70d53c35c04c"]`,
+				`"*" in input.object.acl_group_list["96c55a0e-73b4-44fc-abac-70d53c35c04c"]`,
+			},
+			ExpectedSQL: "((workspaces.group_acl#>array['96c55a0e-73b4-44fc-abac-70d53c35c04c', 'permissions'] ? 'read')" +
+				" OR (workspaces.group_acl#>array['96c55a0e-73b4-44fc-abac-70d53c35c04c', 'permissions'] ? '*'))",
+			VariableConverter: regosql.WorkspaceConverter(),
 		},
 		{
 			Name: "NoACLConfig",
@@ -236,8 +256,8 @@ internal.member_2(input.object.org_owner, {"3bf82434-e40b-44ae-b3d8-d0115bba9bad
 neq(input.object.owner, "");
 "806dd721-775f-4c85-9ce3-63fbbd975954" = input.object.owner`,
 			},
-			ExpectedSQL: p(p("organization_id :: text != ''") + " AND " +
-				p("organization_id :: text = ANY(ARRAY ['3bf82434-e40b-44ae-b3d8-d0115bba9bad','5630fda3-26ab-462c-9014-a88a62d7a415','c304877a-bc0d-4e9b-9623-a38eae412929'])") + " AND " +
+			ExpectedSQL: p(p("t.organization_id :: text != ''") + " AND " +
+				p("t.organization_id :: text = ANY(ARRAY ['3bf82434-e40b-44ae-b3d8-d0115bba9bad','5630fda3-26ab-462c-9014-a88a62d7a415','c304877a-bc0d-4e9b-9623-a38eae412929'])") + " AND " +
 				p("false") + " AND " +
 				p("false")),
 			VariableConverter: regosql.TemplateConverter(),
@@ -265,7 +285,6 @@ neq(input.object.owner, "");
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			part := partialQueries(tc.Queries...)

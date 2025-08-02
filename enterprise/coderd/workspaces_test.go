@@ -10,9 +10,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/coder/coder/v2/coderd/files"
+	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -32,7 +39,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -288,11 +294,11 @@ func TestCreateUserWorkspace(t *testing.T) {
 			OrganizationID: first.OrganizationID,
 		})
 
-		version := coderdtest.CreateTemplateVersion(t, admin, first.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, admin, version.ID)
-		template := coderdtest.CreateTemplate(t, admin, first.OrganizationID, version.ID)
+		template, _ := coderdtest.DynamicParameterTemplate(t, admin, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{
+			Zip: true,
+		})
 
-		ctx = testutil.Context(t, testutil.WaitLong*1000) // Reset the context to avoid timeouts.
+		ctx = testutil.Context(t, testutil.WaitLong)
 
 		wrk, err := creator.CreateUserWorkspace(ctx, adminID.ID.String(), codersdk.CreateWorkspaceRequest{
 			TemplateID: template.ID,
@@ -302,6 +308,66 @@ func TestCreateUserWorkspace(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, admin, wrk.LatestBuild.ID)
 
 		_, err = creator.WorkspaceByOwnerAndName(ctx, adminID.Username, wrk.Name, codersdk.WorkspaceOptions{
+			IncludeDeleted: false,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("ForANonOrgMember", func(t *testing.T) {
+		t.Parallel()
+
+		owner, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:           1,
+					codersdk.FeatureTemplateRBAC:          1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // using owner to setup roles
+		r, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
+			Name:           "creator",
+			OrganizationID: first.OrganizationID.String(),
+			DisplayName:    "Creator",
+			OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace:          {codersdk.ActionCreate, codersdk.ActionWorkspaceStart, codersdk.ActionUpdate, codersdk.ActionRead},
+				codersdk.ResourceOrganizationMember: {codersdk.ActionRead},
+			}),
+		})
+		require.NoError(t, err)
+
+		// user to make the workspace for, **note** the user is not a member of the first org.
+		// This is strange, but technically valid. The creator can create a workspace for
+		// this user in this org, even though the user cannot access the workspace.
+		secondOrg := coderdenttest.CreateOrganization(t, owner, coderdenttest.CreateOrganizationOptions{})
+		_, forUser := coderdtest.CreateAnotherUser(t, owner, secondOrg.ID)
+
+		// try the test action with this user & custom role
+		creator, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleMember(),
+			rbac.RoleTemplateAdmin(), // Need site wide access to make workspace for non-org
+			rbac.RoleIdentifier{
+				Name:           r.Name,
+				OrganizationID: first.OrganizationID,
+			},
+		)
+
+		template, _ := coderdtest.DynamicParameterTemplate(t, creator, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{})
+
+		ctx = testutil.Context(t, testutil.WaitLong)
+
+		wrk, err := creator.CreateUserWorkspace(ctx, forUser.ID.String(), codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "workspace",
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, creator, wrk.LatestBuild.ID)
+
+		_, err = creator.WorkspaceByOwnerAndName(ctx, forUser.Username, wrk.Name, codersdk.WorkspaceOptions{
 			IncludeDeleted: false,
 		})
 		require.NoError(t, err)
@@ -474,10 +540,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 
 		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					err := dv.Experiments.Append(string(codersdk.ExperimentWorkspacePrebuilds))
-					require.NoError(t, err)
-				}),
+				DeploymentValues: coderdtest.DeploymentValues(t),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -496,7 +559,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 		}).Do()
 
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OwnerID:    prebuilds.SystemUserID,
+			OwnerID:    database.PrebuildsSystemUserID,
 			TemplateID: tv.Template.ID,
 		}).Seed(database.WorkspaceBuild{
 			TemplateVersionID: tv.TemplateVersion.ID,
@@ -963,7 +1026,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Stop the workspace so we can assert autobuild does nothing
 		// if we breach our inactivity threshold.
-		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Simulate not having accessed the workspace in a while.
 		ticker <- ws.LastUsedAt.Add(2 * inactiveTTL)
@@ -1151,7 +1214,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			cwr.AutostartSchedule = ptr.Ref(sched.String())
 		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Assert that autostart works when the workspace isn't dormant..
 		tickCh <- sched.Next(ws.LatestBuild.CreatedAt)
@@ -1320,7 +1383,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		})
 
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Create a new version so that we can assert we don't update
 		// to the latest by default.
@@ -1361,7 +1424,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Reset the workspace to the stopped state so we can try
 		// to autostart again.
-		coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop, func(req *codersdk.CreateWorkspaceBuildRequest) {
+		coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop, func(req *codersdk.CreateWorkspaceBuildRequest) {
 			req.TemplateVersionID = ws.LatestBuild.TemplateVersionID
 		})
 
@@ -1421,7 +1484,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		})
 
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 		next := ws.LatestBuild.CreatedAt
 
 		// For each day of the week (Monday-Sunday)
@@ -1449,7 +1512,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[ws.ID])
 
 				coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-				ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+				ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 			}
 
 			// Ensure that there is a valid next start at and that is is after
@@ -1512,7 +1575,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		})
 
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Our next start at should be Monday
 		require.NotNil(t, ws.NextStartAt)
@@ -1574,7 +1637,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		})
 
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Check we have a 'NextStartAt'
 		require.NotNil(t, ws.NextStartAt)
@@ -1659,6 +1722,798 @@ func TestTemplateDoesNotAllowUserAutostop(t *testing.T) {
 	})
 }
 
+func TestExecutorPrebuilds(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("this test requires postgres")
+	}
+
+	getRunningPrebuilds := func(
+		t *testing.T,
+		ctx context.Context,
+		db database.Store,
+		prebuildInstances int,
+	) []database.GetRunningPrebuiltWorkspacesRow {
+		t.Helper()
+
+		var runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			rows, err := db.GetRunningPrebuiltWorkspaces(ctx)
+			if err != nil {
+				return false
+			}
+
+			for _, row := range rows {
+				runningPrebuilds = append(runningPrebuilds, row)
+
+				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, row.ID)
+				if err != nil {
+					return false
+				}
+
+				for _, agent := range agents {
+					err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+						ID:             agent.ID,
+						LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+						StartedAt:      sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
+						ReadyAt:        sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
+					})
+					if err != nil {
+						return false
+					}
+				}
+			}
+
+			t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), prebuildInstances)
+			return len(runningPrebuilds) == prebuildInstances
+		}, testutil.IntervalSlow, "prebuilds not running")
+
+		return runningPrebuilds
+	}
+
+	runReconciliationLoop := func(
+		t *testing.T,
+		ctx context.Context,
+		db database.Store,
+		reconciler *prebuilds.StoreReconciler,
+		presets []codersdk.Preset,
+	) {
+		t.Helper()
+
+		state, err := reconciler.SnapshotState(ctx, db)
+		require.NoError(t, err)
+		ps, err := state.FilterByPreset(presets[0].ID)
+		require.NoError(t, err)
+		require.NotNil(t, ps)
+		actions, err := reconciler.CalculateActions(ctx, *ps)
+		require.NoError(t, err)
+		require.NotNil(t, actions)
+		require.NoError(t, reconciler.ReconcilePreset(ctx, *ps))
+	}
+
+	claimPrebuild := func(
+		t *testing.T,
+		ctx context.Context,
+		client *codersdk.Client,
+		userClient *codersdk.Client,
+		username string,
+		version codersdk.TemplateVersion,
+		presetID uuid.UUID,
+	) codersdk.Workspace {
+		t.Helper()
+
+		workspaceName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
+		userWorkspace, err := userClient.CreateUserWorkspace(ctx, username, codersdk.CreateWorkspaceRequest{
+			TemplateVersionID:       version.ID,
+			Name:                    workspaceName,
+			TemplateVersionPresetID: presetID,
+		})
+		require.NoError(t, err)
+		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)
+		require.Equal(t, build.Job.Status, codersdk.ProvisionerJobSucceeded)
+		workspace := coderdtest.MustWorkspace(t, client, userWorkspace.ID)
+		assert.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
+
+		return workspace
+	}
+
+	// Prebuilt workspaces should not be autostopped based on the default TTL.
+	// This test ensures that DefaultTTLMillis is ignored while the workspace is in a prebuild state.
+	// Once the workspace is claimed, the default autostop timer should take effect.
+	t.Run("DefaultTTLOnlyTriggersAfterClaim", func(t *testing.T) {
+		t.Parallel()
+
+		// Set the clock to Monday, January 1st, 2024 at 8:00 AM UTC to keep the test deterministic
+		clock := quartz.NewMock(t)
+		clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
+
+		// Setup
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		db, pb := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		logger := testutil.Logger(t)
+		tickCh := make(chan time.Time)
+		statsCh := make(chan autobuild.Stats)
+		notificationsNoop := notifications.NewNoopEnqueuer()
+		client, _, api, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database:                 db,
+				Pubsub:                   pb,
+				AutobuildTicker:          tickCh,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statsCh,
+				Clock:                    clock,
+				TemplateScheduleStore: schedule.NewEnterpriseTemplateScheduleStore(
+					agplUserQuietHoursScheduleStore(),
+					notificationsNoop,
+					logger,
+					clock,
+				),
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
+
+		// Setup Prebuild reconciler
+		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+		reconciler := prebuilds.NewStoreReconciler(
+			db, pb, cache,
+			codersdk.PrebuildsConfig{},
+			logger,
+			clock,
+			prometheus.NewRegistry(),
+			notificationsNoop,
+			api.AGPL.BuildUsageChecker,
+		)
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+		api.AGPL.PrebuildsClaimer.Store(&claimer)
+
+		// Setup user, template and template version with a preset with 1 prebuild instance
+		prebuildInstances := int32(1)
+		ttlTime := 2 * time.Hour
+		userClient, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithAgentAndPresetsWithPrebuilds(prebuildInstances))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			// Set a template level TTL to trigger the autostop
+			// Template level TTL can only be set if autostop is disabled for users
+			ctr.AllowUserAutostop = ptr.Ref[bool](false)
+			ctr.DefaultTTLMillis = ptr.Ref[int64](ttlTime.Milliseconds())
+		})
+		presets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, presets, 1)
+
+		// Given: Reconciliation loop runs and starts prebuilt workspace
+		runReconciliationLoop(t, ctx, db, reconciler, presets)
+		runningPrebuilds := getRunningPrebuilds(t, ctx, db, int(prebuildInstances))
+		require.Len(t, runningPrebuilds, int(prebuildInstances))
+
+		// Given: a running prebuilt workspace with a deadline, ready to be claimed
+		prebuild := coderdtest.MustWorkspace(t, client, runningPrebuilds[0].ID)
+		require.Equal(t, codersdk.WorkspaceTransitionStart, prebuild.LatestBuild.Transition)
+		require.NotZero(t, prebuild.LatestBuild.Deadline)
+
+		// When: the autobuild executor ticks *after* the deadline
+		next := prebuild.LatestBuild.Deadline.Time.Add(time.Minute)
+		clock.Set(next)
+		go func() {
+			tickCh <- next
+		}()
+
+		// Then: the prebuilt workspace should remain in a start transition
+		prebuildStats := <-statsCh
+		require.Len(t, prebuildStats.Errors, 0)
+		require.Len(t, prebuildStats.Transitions, 0)
+		require.Equal(t, codersdk.WorkspaceTransitionStart, prebuild.LatestBuild.Transition)
+		prebuild = coderdtest.MustWorkspace(t, client, prebuild.ID)
+		require.Equal(t, codersdk.BuildReasonInitiator, prebuild.LatestBuild.Reason)
+
+		// Given: a user claims the prebuilt workspace sometime later
+		clock.Set(clock.Now().Add(ttlTime))
+		workspace := claimPrebuild(t, ctx, client, userClient, user.Username, version, presets[0].ID)
+		require.Equal(t, prebuild.ID, workspace.ID)
+		// Workspace deadline must be ttlTime from the time it is claimed
+		require.True(t, workspace.LatestBuild.Deadline.Time.Equal(clock.Now().Add(ttlTime)))
+
+		// When: the autobuild executor ticks *after* the deadline
+		next = workspace.LatestBuild.Deadline.Time.Add(time.Minute)
+		clock.Set(next)
+		go func() {
+			tickCh <- next
+			close(tickCh)
+		}()
+
+		// Then: the workspace should be stopped
+		workspaceStats := <-statsCh
+		require.Len(t, workspaceStats.Errors, 0)
+		require.Len(t, workspaceStats.Transitions, 1)
+		require.Contains(t, workspaceStats.Transitions, workspace.ID)
+		require.Equal(t, database.WorkspaceTransitionStop, workspaceStats.Transitions[workspace.ID])
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		require.Equal(t, codersdk.BuildReasonAutostop, workspace.LatestBuild.Reason)
+	})
+
+	// Prebuild workspaces should not follow the autostop schedule.
+	// This test verifies that AutostopRequirement (autostop schedule) is ignored while the workspace is a prebuild.
+	// After being claimed, the workspace should be stopped according to the autostop schedule.
+	t.Run("AutostopScheduleOnlyTriggersAfterClaim", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name                    string
+			isClaimedBeforeDeadline bool
+		}{
+			// If the prebuild is claimed before the scheduled deadline,
+			// the claimed workspace should inherit and respect that same deadline.
+			{
+				name:                    "ClaimedBeforeDeadline_UsesSameDeadline",
+				isClaimedBeforeDeadline: true,
+			},
+			// If the prebuild is claimed after the scheduled deadline,
+			// the workspace should not stop immediately, but instead respect the next
+			// valid scheduled deadline (the next day).
+			{
+				name:                    "ClaimedAfterDeadline_SchedulesForNextDay",
+				isClaimedBeforeDeadline: false,
+			},
+		}
+
+		for _, tc := range cases {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				// Set the clock to Monday, January 1st, 2024 at 8:00 AM UTC to keep the test deterministic
+				clock := quartz.NewMock(t)
+				clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
+
+				// Setup
+				ctx := testutil.Context(t, testutil.WaitSuperLong)
+				db, pb := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+				logger := testutil.Logger(t)
+				tickCh := make(chan time.Time)
+				statsCh := make(chan autobuild.Stats)
+				notificationsNoop := notifications.NewNoopEnqueuer()
+				client, _, api, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+					Options: &coderdtest.Options{
+						Database:                 db,
+						Pubsub:                   pb,
+						AutobuildTicker:          tickCh,
+						IncludeProvisionerDaemon: true,
+						AutobuildStats:           statsCh,
+						Clock:                    clock,
+						TemplateScheduleStore: schedule.NewEnterpriseTemplateScheduleStore(
+							agplUserQuietHoursScheduleStore(),
+							notificationsNoop,
+							logger,
+							clock,
+						),
+					},
+					LicenseOptions: &coderdenttest.LicenseOptions{
+						Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+					},
+				})
+
+				// Setup Prebuild reconciler
+				cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+				reconciler := prebuilds.NewStoreReconciler(
+					db, pb, cache,
+					codersdk.PrebuildsConfig{},
+					logger,
+					clock,
+					prometheus.NewRegistry(),
+					notificationsNoop,
+					api.AGPL.BuildUsageChecker,
+				)
+				var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+				api.AGPL.PrebuildsClaimer.Store(&claimer)
+
+				// Setup user, template and template version with a preset with 1 prebuild instance
+				prebuildInstances := int32(1)
+				userClient, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+				version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithAgentAndPresetsWithPrebuilds(prebuildInstances))
+				coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+					// Set a template level Autostop schedule to trigger the autostop daily
+					ctr.AutostopRequirement = ptr.Ref[codersdk.TemplateAutostopRequirement](
+						codersdk.TemplateAutostopRequirement{
+							DaysOfWeek: []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"},
+							Weeks:      1,
+						})
+				})
+				presets, err := client.TemplateVersionPresets(ctx, version.ID)
+				require.NoError(t, err)
+				require.Len(t, presets, 1)
+
+				// Given: Reconciliation loop runs and starts prebuilt workspace
+				runReconciliationLoop(t, ctx, db, reconciler, presets)
+				runningPrebuilds := getRunningPrebuilds(t, ctx, db, int(prebuildInstances))
+				require.Len(t, runningPrebuilds, int(prebuildInstances))
+
+				// Given: a running prebuilt workspace with a deadline, ready to be claimed
+				prebuild := coderdtest.MustWorkspace(t, client, runningPrebuilds[0].ID)
+				require.Equal(t, codersdk.WorkspaceTransitionStart, prebuild.LatestBuild.Transition)
+				require.NotZero(t, prebuild.LatestBuild.Deadline)
+
+				next := clock.Now()
+				if tc.isClaimedBeforeDeadline {
+					// When: the autobuild executor ticks *before* the deadline:
+					next = next.Add(time.Minute)
+				} else {
+					// When: the autobuild executor ticks *after* the deadline:
+					next = next.Add(24 * time.Hour)
+				}
+
+				clock.Set(next)
+				go func() {
+					tickCh <- next
+				}()
+
+				// Then: the prebuilt workspace should remain in a start transition
+				prebuildStats := <-statsCh
+				require.Len(t, prebuildStats.Errors, 0)
+				require.Len(t, prebuildStats.Transitions, 0)
+				require.Equal(t, codersdk.WorkspaceTransitionStart, prebuild.LatestBuild.Transition)
+				prebuild = coderdtest.MustWorkspace(t, client, prebuild.ID)
+				require.Equal(t, codersdk.BuildReasonInitiator, prebuild.LatestBuild.Reason)
+
+				// Given: a user claims the prebuilt workspace
+				workspace := claimPrebuild(t, ctx, client, userClient, user.Username, version, presets[0].ID)
+				require.Equal(t, prebuild.ID, workspace.ID)
+
+				if tc.isClaimedBeforeDeadline {
+					// Then: the claimed workspace should inherit and respect that same deadline.
+					require.True(t, workspace.LatestBuild.Deadline.Time.Equal(prebuild.LatestBuild.Deadline.Time))
+				} else {
+					// Then: the claimed workspace should respect the next valid scheduled deadline (next day).
+					require.True(t, workspace.LatestBuild.Deadline.Time.Equal(clock.Now().Truncate(24*time.Hour).Add(24*time.Hour)))
+				}
+
+				// When: the autobuild executor ticks *after* the deadline:
+				next = workspace.LatestBuild.Deadline.Time.Add(time.Minute)
+				clock.Set(next)
+				go func() {
+					tickCh <- next
+					close(tickCh)
+				}()
+
+				// Then: the workspace should be stopped
+				workspaceStats := <-statsCh
+				require.Len(t, workspaceStats.Errors, 0)
+				require.Len(t, workspaceStats.Transitions, 1)
+				require.Contains(t, workspaceStats.Transitions, workspace.ID)
+				require.Equal(t, database.WorkspaceTransitionStop, workspaceStats.Transitions[workspace.ID])
+				workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+				require.Equal(t, codersdk.BuildReasonAutostop, workspace.LatestBuild.Reason)
+			})
+		}
+	})
+
+	// Prebuild workspaces should not follow the autostart schedule.
+	// This test verifies that AutostartRequirement (autostart schedule) is ignored while the workspace is a prebuild.
+	t.Run("AutostartScheduleOnlyTriggersAfterClaim", func(t *testing.T) {
+		t.Parallel()
+
+		// Set the clock to dbtime.Now() to match the workspace build's CreatedAt
+		clock := quartz.NewMock(t)
+		clock.Set(dbtime.Now())
+
+		// Setup
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		db, pb := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		logger := testutil.Logger(t)
+		tickCh := make(chan time.Time)
+		statsCh := make(chan autobuild.Stats)
+		notificationsNoop := notifications.NewNoopEnqueuer()
+		client, _, api, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database:                 db,
+				Pubsub:                   pb,
+				AutobuildTicker:          tickCh,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statsCh,
+				Clock:                    clock,
+				TemplateScheduleStore: schedule.NewEnterpriseTemplateScheduleStore(
+					agplUserQuietHoursScheduleStore(),
+					notificationsNoop,
+					logger,
+					clock,
+				),
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
+
+		// Setup Prebuild reconciler
+		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+		reconciler := prebuilds.NewStoreReconciler(
+			db, pb, cache,
+			codersdk.PrebuildsConfig{},
+			logger,
+			clock,
+			prometheus.NewRegistry(),
+			notificationsNoop,
+			api.AGPL.BuildUsageChecker,
+		)
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+		api.AGPL.PrebuildsClaimer.Store(&claimer)
+
+		// Setup user, template and template version with a preset with 1 prebuild instance
+		prebuildInstances := int32(1)
+		userClient, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithAgentAndPresetsWithPrebuilds(prebuildInstances))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			// Set a template level Autostart schedule to trigger the autostart daily
+			ctr.AllowUserAutostart = ptr.Ref[bool](true)
+			ctr.AutostartRequirement = &codersdk.TemplateAutostartRequirement{DaysOfWeek: codersdk.AllDaysOfWeek}
+		})
+		presets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, presets, 1)
+
+		// Given: Reconciliation loop runs and starts prebuilt workspace
+		runReconciliationLoop(t, ctx, db, reconciler, presets)
+		runningPrebuilds := getRunningPrebuilds(t, ctx, db, int(prebuildInstances))
+		require.Len(t, runningPrebuilds, int(prebuildInstances))
+
+		// Given: prebuilt workspace has autostart schedule daily at midnight
+		prebuild := coderdtest.MustWorkspace(t, client, runningPrebuilds[0].ID)
+		sched, err := cron.Weekly("CRON_TZ=UTC 0 0 * * *")
+		require.NoError(t, err)
+		err = client.UpdateWorkspaceAutostart(ctx, prebuild.ID, codersdk.UpdateWorkspaceAutostartRequest{
+			Schedule: ptr.Ref(sched.String()),
+		})
+		require.NoError(t, err)
+
+		// Given: prebuilt workspace is stopped
+		prebuild = coderdtest.MustTransitionWorkspace(t, client, prebuild.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, prebuild.LatestBuild.ID)
+
+		// Tick at the next scheduled time after the prebuild’s LatestBuild.CreatedAt,
+		// since the next allowed autostart is calculated starting from that point.
+		// When: the autobuild executor ticks after the scheduled time
+		go func() {
+			tickCh <- sched.Next(prebuild.LatestBuild.CreatedAt).Add(time.Minute)
+		}()
+
+		// Then: the prebuilt workspace should remain in a stop transition
+		prebuildStats := <-statsCh
+		require.Len(t, prebuildStats.Errors, 0)
+		require.Len(t, prebuildStats.Transitions, 0)
+		require.Equal(t, codersdk.WorkspaceTransitionStop, prebuild.LatestBuild.Transition)
+		prebuild = coderdtest.MustWorkspace(t, client, prebuild.ID)
+		require.Equal(t, codersdk.BuildReasonInitiator, prebuild.LatestBuild.Reason)
+
+		// Given: a prebuilt workspace that is running and ready to be claimed
+		prebuild = coderdtest.MustTransitionWorkspace(t, client, prebuild.ID, codersdk.WorkspaceTransitionStop, codersdk.WorkspaceTransitionStart)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, prebuild.LatestBuild.ID)
+
+		// Make sure the workspace's agent is again ready
+		getRunningPrebuilds(t, ctx, db, int(prebuildInstances))
+
+		// Given: a user claims the prebuilt workspace
+		workspace := claimPrebuild(t, ctx, client, userClient, user.Username, version, presets[0].ID)
+		require.Equal(t, prebuild.ID, workspace.ID)
+		require.NotNil(t, workspace.NextStartAt)
+
+		// Given: workspace is stopped
+		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// Then: the claimed workspace should inherit and respect that same NextStartAt
+		require.True(t, workspace.NextStartAt.Equal(*prebuild.NextStartAt))
+
+		// Tick at the next scheduled time after the prebuild’s LatestBuild.CreatedAt,
+		// since the next allowed autostart is calculated starting from that point.
+		// When: the autobuild executor ticks after the scheduled time
+		go func() {
+			tickCh <- sched.Next(prebuild.LatestBuild.CreatedAt).Add(time.Minute)
+		}()
+
+		// Then: the workspace should have a NextStartAt equal to the next autostart schedule
+		workspaceStats := <-statsCh
+		require.Len(t, workspaceStats.Errors, 0)
+		require.Len(t, workspaceStats.Transitions, 1)
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		require.NotNil(t, workspace.NextStartAt)
+		require.Equal(t, sched.Next(clock.Now()), workspace.NextStartAt.UTC())
+	})
+
+	// Prebuild workspaces should not transition to dormant when the inactive TTL is reached.
+	// This test verifies that TimeTilDormantMillis is ignored while the workspace is a prebuild.
+	// After being claimed, the workspace should become dormant according to the configured inactivity period.
+	t.Run("DormantOnlyAfterClaimed", func(t *testing.T) {
+		t.Parallel()
+
+		// Set the clock to Monday, January 1st, 2024 at 8:00 AM UTC to keep the test deterministic
+		clock := quartz.NewMock(t)
+		clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
+
+		// Setup
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		db, pb := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		logger := testutil.Logger(t)
+		tickCh := make(chan time.Time)
+		statsCh := make(chan autobuild.Stats)
+		notificationsNoop := notifications.NewNoopEnqueuer()
+		client, _, api, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database:                 db,
+				Pubsub:                   pb,
+				AutobuildTicker:          tickCh,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statsCh,
+				Clock:                    clock,
+				TemplateScheduleStore: schedule.NewEnterpriseTemplateScheduleStore(
+					agplUserQuietHoursScheduleStore(),
+					notificationsNoop,
+					logger,
+					clock,
+				),
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
+
+		// Setup Prebuild reconciler
+		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+		reconciler := prebuilds.NewStoreReconciler(
+			db, pb, cache,
+			codersdk.PrebuildsConfig{},
+			logger,
+			clock,
+			prometheus.NewRegistry(),
+			notificationsNoop,
+			api.AGPL.BuildUsageChecker,
+		)
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+		api.AGPL.PrebuildsClaimer.Store(&claimer)
+
+		// Setup user, template and template version with a preset with 1 prebuild instance
+		prebuildInstances := int32(1)
+		inactiveTTL := 2 * time.Hour
+		userClient, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithAgentAndPresetsWithPrebuilds(prebuildInstances))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			// Set a template level inactive TTL to trigger dormancy
+			ctr.TimeTilDormantMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
+		})
+		presets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, presets, 1)
+
+		// Given: reconciliation loop runs and starts prebuilt workspace
+		runReconciliationLoop(t, ctx, db, reconciler, presets)
+		runningPrebuilds := getRunningPrebuilds(t, ctx, db, int(prebuildInstances))
+		require.Len(t, runningPrebuilds, int(prebuildInstances))
+
+		// Given: a running prebuilt workspace, ready to be claimed
+		prebuild := coderdtest.MustWorkspace(t, client, runningPrebuilds[0].ID)
+		require.Equal(t, codersdk.WorkspaceTransitionStart, prebuild.LatestBuild.Transition)
+
+		// When: the autobuild executor ticks *after* the inactive TTL
+		go func() {
+			tickCh <- prebuild.LastUsedAt.Add(inactiveTTL).Add(time.Minute)
+		}()
+
+		// Then: the prebuilt workspace should remain in a start transition
+		prebuildStats := <-statsCh
+		require.Len(t, prebuildStats.Errors, 0)
+		require.Len(t, prebuildStats.Transitions, 0)
+		require.Equal(t, codersdk.WorkspaceTransitionStart, prebuild.LatestBuild.Transition)
+		prebuild = coderdtest.MustWorkspace(t, client, prebuild.ID)
+		require.Equal(t, codersdk.BuildReasonInitiator, prebuild.LatestBuild.Reason)
+
+		// Given: a user claims the prebuilt workspace sometime later
+		clock.Set(clock.Now().Add(inactiveTTL))
+		workspace := claimPrebuild(t, ctx, client, userClient, user.Username, version, presets[0].ID)
+		require.Equal(t, prebuild.ID, workspace.ID)
+		require.Nil(t, prebuild.DormantAt)
+
+		// When: the autobuild executor ticks *after* the inactive TTL
+		go func() {
+			tickCh <- prebuild.LastUsedAt.Add(inactiveTTL).Add(time.Minute)
+			close(tickCh)
+		}()
+
+		// Then: the workspace should transition to stopped state for breaching failure TTL
+		workspaceStats := <-statsCh
+		require.Len(t, workspaceStats.Errors, 0)
+		require.Len(t, workspaceStats.Transitions, 1)
+		require.Contains(t, workspaceStats.Transitions, workspace.ID)
+		require.Equal(t, database.WorkspaceTransitionStop, workspaceStats.Transitions[workspace.ID])
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		require.Equal(t, codersdk.BuildReasonDormancy, workspace.LatestBuild.Reason)
+		require.NotNil(t, workspace.DormantAt)
+	})
+
+	// Prebuild workspaces should not be deleted when the failure TTL is reached.
+	// This test verifies that FailureTTLMillis is ignored while the workspace is a prebuild.
+	t.Run("FailureTTLOnlyAfterClaimed", func(t *testing.T) {
+		t.Parallel()
+
+		// Set the clock to Monday, January 1st, 2024 at 8:00 AM UTC to keep the test deterministic
+		clock := quartz.NewMock(t)
+		clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
+
+		// Setup
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		db, pb := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		logger := testutil.Logger(t)
+		tickCh := make(chan time.Time)
+		statsCh := make(chan autobuild.Stats)
+		notificationsNoop := notifications.NewNoopEnqueuer()
+		client, _, api, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database:                 db,
+				Pubsub:                   pb,
+				AutobuildTicker:          tickCh,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statsCh,
+				Clock:                    clock,
+				TemplateScheduleStore: schedule.NewEnterpriseTemplateScheduleStore(
+					agplUserQuietHoursScheduleStore(),
+					notificationsNoop,
+					logger,
+					clock,
+				),
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+		})
+
+		// Setup Prebuild reconciler
+		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+		reconciler := prebuilds.NewStoreReconciler(
+			db, pb, cache,
+			codersdk.PrebuildsConfig{},
+			logger,
+			clock,
+			prometheus.NewRegistry(),
+			notificationsNoop,
+			api.AGPL.BuildUsageChecker,
+		)
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+		api.AGPL.PrebuildsClaimer.Store(&claimer)
+
+		// Setup user, template and template version with a preset with 1 prebuild instance
+		prebuildInstances := int32(1)
+		failureTTL := 2 * time.Hour
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithFailedResponseAndPresetsWithPrebuilds(prebuildInstances))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			// Set a template level Failure TTL to trigger workspace deletion
+			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
+		})
+		presets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, presets, 1)
+
+		// Given: reconciliation loop runs and starts prebuilt workspace in failed state
+		runReconciliationLoop(t, ctx, db, reconciler, presets)
+
+		var failedWorkspaceBuilds []database.GetFailedWorkspaceBuildsByTemplateIDRow
+		require.Eventually(t, func() bool {
+			rows, err := db.GetFailedWorkspaceBuildsByTemplateID(ctx, database.GetFailedWorkspaceBuildsByTemplateIDParams{
+				TemplateID: template.ID,
+			})
+			if err != nil {
+				return false
+			}
+
+			failedWorkspaceBuilds = append(failedWorkspaceBuilds, rows...)
+
+			t.Logf("found %d failed prebuilds so far, want %d", len(failedWorkspaceBuilds), prebuildInstances)
+			return len(failedWorkspaceBuilds) == int(prebuildInstances)
+		}, testutil.WaitSuperLong, testutil.IntervalSlow)
+		require.Len(t, failedWorkspaceBuilds, int(prebuildInstances))
+
+		// Given: a failed prebuilt workspace
+		prebuild := coderdtest.MustWorkspace(t, client, failedWorkspaceBuilds[0].WorkspaceID)
+		require.Equal(t, codersdk.WorkspaceStatusFailed, prebuild.LatestBuild.Status)
+
+		// When: the autobuild executor ticks *after* the failure TTL
+		go func() {
+			tickCh <- prebuild.LatestBuild.Job.CompletedAt.Add(failureTTL * 2)
+		}()
+
+		// Then: the prebuilt workspace should remain in a start transition
+		prebuildStats := <-statsCh
+		require.Len(t, prebuildStats.Errors, 0)
+		require.Len(t, prebuildStats.Transitions, 0)
+		require.Equal(t, codersdk.WorkspaceTransitionStart, prebuild.LatestBuild.Transition)
+		prebuild = coderdtest.MustWorkspace(t, client, prebuild.ID)
+		require.Equal(t, codersdk.BuildReasonInitiator, prebuild.LatestBuild.Reason)
+	})
+}
+
+func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Responses {
+	return &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Response{
+			{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						Presets: []*proto.Preset{
+							{
+								Name: "preset-test",
+								Parameters: []*proto.PresetParameter{
+									{
+										Name:  "k1",
+										Value: "v1",
+									},
+								},
+								Prebuild: &proto.Prebuild{
+									Instances: desiredInstances,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		ProvisionApply: []*proto.Response{
+			{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
+						Resources: []*proto.Resource{
+							{
+								Type: "compute",
+								Name: "main",
+								Agents: []*proto.Agent{
+									{
+										Name:            "smith",
+										OperatingSystem: "linux",
+										Architecture:    "i386",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func templateWithFailedResponseAndPresetsWithPrebuilds(desiredInstances int32) *echo.Responses {
+	return &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Response{
+			{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						Presets: []*proto.Preset{
+							{
+								Name: "preset-test",
+								Parameters: []*proto.PresetParameter{
+									{
+										Name:  "k1",
+										Value: "v1",
+									},
+								},
+								Prebuild: &proto.Prebuild{
+									Instances: desiredInstances,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		ProvisionApply: echo.ApplyFailed,
+	}
+}
+
 // TestWorkspaceTemplateParamsChange tests a workspace with a parameter that
 // validation changes on apply. The params used in create workspace are invalid
 // according to the static params on import.
@@ -1698,7 +2553,7 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false})
 	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
+
 	client, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			Logger: &logger,
@@ -1736,6 +2591,12 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	require.NoError(t, err, "failed to create template version")
 	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
 	tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
+
+	// Set to dynamic params
+	tpl, err = client.UpdateTemplateMeta(ctx, tpl.ID, codersdk.UpdateTemplateMeta{
+		UseClassicParameterFlow: ptr.Ref(false),
+	})
+	require.NoError(t, err, "failed to update template meta")
 	require.False(t, tpl.UseClassicParameterFlow, "template to use dynamic parameters")
 
 	// When: we create a workspace build using the above template but with
@@ -1754,7 +2615,6 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 				Value: "7",
 			},
 		},
-		EnableDynamicParameters: true,
 	})
 
 	// Then: the build should succeed. The updated value of param_min should be
@@ -1772,6 +2632,21 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	require.Equal(t, codersdk.WorkspaceStatusDeleted, build.Status)
 }
 
+type testWorkspaceTagsTerraformCase struct {
+	name string
+	// tags to apply to the external provisioner
+	provisionerTags map[string]string
+	// tags to apply to the create template version request
+	createTemplateVersionRequestTags map[string]string
+	// the coder_workspace_tags bit of main.tf.
+	// you can add more stuff here if you need
+	tfWorkspaceTags                  string
+	templateImportUserVariableValues []codersdk.VariableValue
+	// if we need to set parameters on workspace build
+	workspaceBuildParameters []codersdk.WorkspaceBuildParameter
+	skipCreateWorkspace      bool
+}
+
 // TestWorkspaceTagsTerraform tests that a workspace can be created with tags.
 // This is an end-to-end-style test, meaning that we actually run the
 // real Terraform provisioner and validate that the workspace is created
@@ -1781,7 +2656,7 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 // config file so that we only reference those
 // nolint:paralleltest // t.Setenv
 func TestWorkspaceTagsTerraform(t *testing.T) {
-	mainTfTemplate := `
+	coderProviderTemplate := `
 		terraform {
 			required_providers {
 				coder = {
@@ -1789,33 +2664,11 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 				}
 			}
 		}
-		provider "coder" {}
-		data "coder_workspace" "me" {}
-		data "coder_workspace_owner" "me" {}
-		data "coder_parameter" "unrelated" {
-			name    = "unrelated"
-			type    = "list(string)"
-			default = jsonencode(["a", "b"])
-		}
-		%s
 	`
-	tfCliConfigPath := downloadProviders(t, fmt.Sprintf(mainTfTemplate, ""))
+	tfCliConfigPath := downloadProviders(t, coderProviderTemplate)
 	t.Setenv("TF_CLI_CONFIG_FILE", tfCliConfigPath)
 
-	for _, tc := range []struct {
-		name string
-		// tags to apply to the external provisioner
-		provisionerTags map[string]string
-		// tags to apply to the create template version request
-		createTemplateVersionRequestTags map[string]string
-		// the coder_workspace_tags bit of main.tf.
-		// you can add more stuff here if you need
-		tfWorkspaceTags                  string
-		templateImportUserVariableValues []codersdk.VariableValue
-		// if we need to set parameters on workspace build
-		workspaceBuildParameters []codersdk.WorkspaceBuildParameter
-		skipCreateWorkspace      bool
-	}{
+	for _, tc := range []testWorkspaceTagsTerraformCase{
 		{
 			name:            "no tags",
 			tfWorkspaceTags: ``,
@@ -1947,55 +2800,112 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 				}`,
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			client, owner := coderdenttest.New(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					// We intentionally do not run a built-in provisioner daemon here.
-					IncludeProvisionerDaemon: false,
-				},
-				LicenseOptions: &coderdenttest.LicenseOptions{
-					Features: license.Features{
-						codersdk.FeatureExternalProvisionerDaemons: 1,
-					},
-				},
+			t.Run("dynamic", func(t *testing.T) {
+				workspaceTagsTerraform(t, tc, true)
 			})
-			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
-			member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-			_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, tc.provisionerTags)
-
-			// This can take a while, so set a relatively long timeout.
-			ctx := testutil.Context(t, 2*testutil.WaitSuperLong)
-
-			// Creating a template as a template admin must succeed
-			templateFiles := map[string]string{"main.tf": fmt.Sprintf(mainTfTemplate, tc.tfWorkspaceTags)}
-			tarBytes := testutil.CreateTar(t, templateFiles)
-			fi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarBytes))
-			require.NoError(t, err, "failed to upload file")
-			tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
-				Name:               testutil.GetRandomName(t),
-				FileID:             fi.ID,
-				StorageMethod:      codersdk.ProvisionerStorageMethodFile,
-				Provisioner:        codersdk.ProvisionerTypeTerraform,
-				ProvisionerTags:    tc.createTemplateVersionRequestTags,
-				UserVariableValues: tc.templateImportUserVariableValues,
+			// classic uses tfparse for tags. This sub test can be
+			// removed when tf parse is removed.
+			t.Run("classic", func(t *testing.T) {
+				workspaceTagsTerraform(t, tc, false)
 			})
-			require.NoError(t, err, "failed to create template version")
-			coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
-			tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
-
-			if !tc.skipCreateWorkspace {
-				// Creating a workspace as a non-privileged user must succeed
-				ws, err := member.CreateUserWorkspace(ctx, memberUser.Username, codersdk.CreateWorkspaceRequest{
-					TemplateID:          tpl.ID,
-					Name:                coderdtest.RandomUsername(t),
-					RichParameterValues: tc.workspaceBuildParameters,
-				})
-				require.NoError(t, err, "failed to create workspace")
-				coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
-			}
 		})
+	}
+}
+
+func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dynamic bool) {
+	mainTfTemplate := `
+		terraform {
+			required_providers {
+				coder = {
+					source = "coder/coder"
+				}
+			}
+		}
+
+		provider "coder" {}
+		data "coder_workspace" "me" {}
+		data "coder_workspace_owner" "me" {}
+		data "coder_parameter" "unrelated" {
+			name    = "unrelated"
+			type    = "list(string)"
+			default = jsonencode(["a", "b"])
+		}
+		%s
+	`
+
+	client, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			// We intentionally do not run a built-in provisioner daemon here.
+			IncludeProvisionerDaemon: false,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
+		},
+	})
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+	member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+	// This can take a while, so set a relatively long timeout.
+	ctx := testutil.Context(t, 2*testutil.WaitSuperLong)
+
+	emptyTar := testutil.CreateTar(t, map[string]string{"main.tf": ""})
+	emptyFi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(emptyTar))
+	require.NoError(t, err)
+
+	// This template version does not need to succeed in being created.
+	// It will be in pending forever. We just need it to create a template.
+	emptyTv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+		Name:          testutil.GetRandomName(t),
+		FileID:        emptyFi.ID,
+		StorageMethod: codersdk.ProvisionerStorageMethodFile,
+		Provisioner:   codersdk.ProvisionerTypeTerraform,
+	})
+	require.NoError(t, err)
+
+	tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, emptyTv.ID, func(request *codersdk.CreateTemplateRequest) {
+		request.UseClassicParameterFlow = ptr.Ref(!dynamic)
+	})
+
+	// The provisioner for the next template version
+	_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, tc.provisionerTags)
+
+	// Creating a template as a template admin must succeed
+	templateFiles := map[string]string{"main.tf": fmt.Sprintf(mainTfTemplate, tc.tfWorkspaceTags)}
+	tarBytes := testutil.CreateTar(t, templateFiles)
+	fi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarBytes))
+	require.NoError(t, err, "failed to upload file")
+	tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+		Name:               testutil.GetRandomName(t),
+		FileID:             fi.ID,
+		StorageMethod:      codersdk.ProvisionerStorageMethodFile,
+		Provisioner:        codersdk.ProvisionerTypeTerraform,
+		ProvisionerTags:    tc.createTemplateVersionRequestTags,
+		UserVariableValues: tc.templateImportUserVariableValues,
+		TemplateID:         tpl.ID,
+	})
+	require.NoError(t, err, "failed to create template version")
+	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
+
+	err = templateAdmin.UpdateActiveTemplateVersion(ctx, tpl.ID, codersdk.UpdateActiveTemplateVersion{
+		ID: tv.ID,
+	})
+	require.NoError(t, err, "set to active template version")
+
+	if !tc.skipCreateWorkspace {
+		// Creating a workspace as a non-privileged user must succeed
+		ws, err := member.CreateUserWorkspace(ctx, memberUser.Username, codersdk.CreateWorkspaceRequest{
+			TemplateID:          tpl.ID,
+			Name:                coderdtest.RandomUsername(t),
+			RichParameterValues: tc.workspaceBuildParameters,
+		})
+		require.NoError(t, err, "failed to create workspace")
+		tagJSON, _ := json.Marshal(ws.LatestBuild.Job.Tags)
+		t.Logf("Created workspace build [%s] with tags: %s", ws.LatestBuild.Job.Type, tagJSON)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
 	}
 }
 
@@ -2095,7 +3005,7 @@ func TestExecutorAutostartBlocked(t *testing.T) {
 	)
 
 	// Given: workspace is stopped
-	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 	// When: the autobuild executor ticks into the future
 	go func() {
@@ -2270,7 +3180,7 @@ func TestWorkspaceLock(t *testing.T) {
 		require.NotNil(t, workspace.DeletingAt)
 		require.NotNil(t, workspace.DormantAt)
 		require.Equal(t, workspace.DormantAt.Add(dormantTTL), *workspace.DeletingAt)
-		require.WithinRange(t, *workspace.DormantAt, time.Now().Add(-time.Second*10), time.Now())
+		require.WithinRange(t, *workspace.DormantAt, time.Now().Add(-time.Second), time.Now())
 		// Locking a workspace shouldn't update the last_used_at.
 		require.Equal(t, lastUsedAt, workspace.LastUsedAt)
 

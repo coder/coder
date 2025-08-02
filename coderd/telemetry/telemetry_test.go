@@ -20,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/idpsync"
@@ -41,48 +40,79 @@ func TestTelemetry(t *testing.T) {
 
 		var err error
 
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		org, err := db.GetDefaultOrganization(ctx)
 		require.NoError(t, err)
 
-		_, _ = dbgen.APIKey(t, db, database.APIKey{})
-		_ = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		user := dbgen.User(t, db, database.User{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		require.NoError(t, err)
+		_, _ = dbgen.APIKey(t, db, database.APIKey{
+			UserID: user.ID,
+		})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			Provisioner:    database.ProvisionerTypeTerraform,
 			StorageMethod:  database.ProvisionerStorageMethodFile,
 			Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
 			OrganizationID: org.ID,
 		})
-		_ = dbgen.Template(t, db, database.Template{
+		tpl := dbgen.Template(t, db, database.Template{
 			Provisioner:    database.ProvisionerTypeTerraform,
 			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
 		})
 		sourceExampleID := uuid.NewString()
-		_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 			SourceExampleID: sql.NullString{String: sourceExampleID, Valid: true},
 			OrganizationID:  org.ID,
+			TemplateID:      uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			CreatedBy:       user.ID,
+			JobID:           job.ID,
 		})
 		_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
 			OrganizationID: org.ID,
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			CreatedBy:      user.ID,
+			JobID:          job.ID,
 		})
-		user := dbgen.User(t, db, database.User{})
-		_ = dbgen.Workspace(t, db, database.WorkspaceTable{
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
 			OrganizationID: org.ID,
+			TemplateID:     tpl.ID,
+		})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonAutostart,
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: tv.ID,
+			JobID:             job.ID,
+		})
+		wsresource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+		wsagent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: wsresource.ID,
 		})
 		_ = dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
 			SharingLevel: database.AppSharingLevelOwner,
 			Health:       database.WorkspaceAppHealthDisabled,
 			OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+			AgentID:      wsagent.ID,
+		})
+		group := dbgen.Group(t, db, database.Group{
+			OrganizationID: org.ID,
 		})
 		_ = dbgen.TelemetryItem(t, db, database.TelemetryItem{
 			Key:   string(telemetry.TelemetryItemKeyHTMLFirstServedAt),
 			Value: time.Now().Format(time.RFC3339),
 		})
-		group := dbgen.Group(t, db, database.Group{})
 		_ = dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: user.ID, GroupID: group.ID})
-		wsagent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{})
 		// Update the workspace agent to have a valid subsystem.
 		err = db.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
 			ID:                wsagent.ID,
@@ -95,14 +125,9 @@ func TestTelemetry(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			Transition: database.WorkspaceTransitionStart,
-			Reason:     database.BuildReasonAutostart,
+		_ = dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+			ConnectionMedianLatencyMS: 1,
 		})
-		_ = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-			Transition: database.WorkspaceTransitionStart,
-		})
-		_ = dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{})
 		_, err = db.InsertLicense(ctx, database.InsertLicenseParams{
 			UploadedAt: dbtime.Now(),
 			JWT:        "",
@@ -112,9 +137,15 @@ func TestTelemetry(t *testing.T) {
 		assert.NoError(t, err)
 		_, _ = dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
 
-		_ = dbgen.WorkspaceModule(t, db, database.WorkspaceModule{})
-		_ = dbgen.WorkspaceAgentMemoryResourceMonitor(t, db, database.WorkspaceAgentMemoryResourceMonitor{})
-		_ = dbgen.WorkspaceAgentVolumeResourceMonitor(t, db, database.WorkspaceAgentVolumeResourceMonitor{})
+		_ = dbgen.WorkspaceModule(t, db, database.WorkspaceModule{
+			JobID: job.ID,
+		})
+		_ = dbgen.WorkspaceAgentMemoryResourceMonitor(t, db, database.WorkspaceAgentMemoryResourceMonitor{
+			AgentID: wsagent.ID,
+		})
+		_ = dbgen.WorkspaceAgentVolumeResourceMonitor(t, db, database.WorkspaceAgentVolumeResourceMonitor{
+			AgentID: wsagent.ID,
+		})
 
 		_, snapshot := collectSnapshot(ctx, t, db, nil)
 		require.Len(t, snapshot.ProvisionerJobs, 1)
@@ -170,7 +201,7 @@ func TestTelemetry(t *testing.T) {
 	t.Run("HashedEmail", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 		_ = dbgen.User(t, db, database.User{
 			Email: "kyle@coder.com",
 		})
@@ -324,7 +355,7 @@ func TestTelemetry(t *testing.T) {
 func TestTelemetryInstallSource(t *testing.T) {
 	t.Setenv("CODER_TELEMETRY_INSTALL_SOURCE", "aws_marketplace")
 	ctx := testutil.Context(t, testutil.WaitMedium)
-	db := dbmem.New()
+	db, _ := dbtestutil.NewDB(t)
 	deployment, _ := collectSnapshot(ctx, t, db, nil)
 	require.Equal(t, "aws_marketplace", deployment.InstallSource)
 }
@@ -370,6 +401,98 @@ func TestTelemetryItem(t *testing.T) {
 	require.Equal(t, item.Value, "new_value")
 }
 
+func TestPrebuiltWorkspacesTelemetry(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+
+	cases := []struct {
+		name                    string
+		storeFn                 func(store database.Store) database.Store
+		expectedSnapshotEntries int
+		expectedCreated         int
+		expectedFailed          int
+		expectedClaimed         int
+	}{
+		{
+			name: "prebuilds enabled",
+			storeFn: func(store database.Store) database.Store {
+				return &mockDB{Store: store}
+			},
+			expectedSnapshotEntries: 3,
+			expectedCreated:         5,
+			expectedFailed:          2,
+			expectedClaimed:         3,
+		},
+		{
+			name: "prebuilds not used",
+			storeFn: func(store database.Store) database.Store {
+				return &emptyMockDB{Store: store}
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			deployment, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+				opts.Database = tc.storeFn(db)
+				return opts
+			})
+
+			require.NotNil(t, deployment)
+			require.NotNil(t, snapshot)
+
+			require.Len(t, snapshot.PrebuiltWorkspaces, tc.expectedSnapshotEntries)
+
+			eventCounts := make(map[telemetry.PrebuiltWorkspaceEventType]int)
+			for _, event := range snapshot.PrebuiltWorkspaces {
+				eventCounts[event.EventType] = event.Count
+				require.NotEqual(t, uuid.Nil, event.ID)
+				require.False(t, event.CreatedAt.IsZero())
+			}
+
+			require.Equal(t, tc.expectedCreated, eventCounts[telemetry.PrebuiltWorkspaceEventTypeCreated])
+			require.Equal(t, tc.expectedFailed, eventCounts[telemetry.PrebuiltWorkspaceEventTypeFailed])
+			require.Equal(t, tc.expectedClaimed, eventCounts[telemetry.PrebuiltWorkspaceEventTypeClaimed])
+		})
+	}
+}
+
+type mockDB struct {
+	database.Store
+}
+
+func (*mockDB) GetPrebuildMetrics(context.Context) ([]database.GetPrebuildMetricsRow, error) {
+	return []database.GetPrebuildMetricsRow{
+		{
+			TemplateName:     "template1",
+			PresetName:       "preset1",
+			OrganizationName: "org1",
+			CreatedCount:     3,
+			FailedCount:      1,
+			ClaimedCount:     2,
+		},
+		{
+			TemplateName:     "template2",
+			PresetName:       "preset2",
+			OrganizationName: "org1",
+			CreatedCount:     2,
+			FailedCount:      1,
+			ClaimedCount:     1,
+		},
+	}, nil
+}
+
+type emptyMockDB struct {
+	database.Store
+}
+
+func (*emptyMockDB) GetPrebuildMetrics(context.Context) ([]database.GetPrebuildMetricsRow, error) {
+	return []database.GetPrebuildMetricsRow{}, nil
+}
+
 func TestShouldReportTelemetryDisabled(t *testing.T) {
 	t.Parallel()
 	// Description                            | telemetryEnabled (db) | telemetryEnabled (is) | Report Telemetry Disabled |
@@ -406,7 +529,6 @@ func TestRecordTelemetryStatus(t *testing.T) {
 		{name: "Telemetry was disabled still disabled", recordedTelemetryEnabled: "false", telemetryEnabled: false, shouldReport: false},
 		{name: "Telemetry was disabled still disabled, invalid value", recordedTelemetryEnabled: "invalid", telemetryEnabled: false, shouldReport: false},
 	} {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 

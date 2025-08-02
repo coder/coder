@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
+	strutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -359,7 +360,10 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 	}
 
 	switch req.State {
-	case codersdk.WorkspaceAppStatusStateComplete, codersdk.WorkspaceAppStatusStateFailure, codersdk.WorkspaceAppStatusStateWorking: // valid states
+	case codersdk.WorkspaceAppStatusStateComplete,
+		codersdk.WorkspaceAppStatusStateFailure,
+		codersdk.WorkspaceAppStatusStateWorking,
+		codersdk.WorkspaceAppStatusStateIdle: // valid states
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid state provided.",
@@ -380,6 +384,9 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// Treat the message as untrusted input.
+	cleaned := strutil.UISanitize(req.Message)
+
 	// nolint:gocritic // This is a system restricted operation.
 	_, err = api.Database.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
 		ID:          uuid.New(),
@@ -388,7 +395,7 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 		AgentID:     workspaceAgent.ID,
 		AppID:       app.ID,
 		State:       database.WorkspaceAppStatusState(req.State),
-		Message:     req.Message,
+		Message:     cleaned,
 		Uri: sql.NullString{
 			String: req.URI,
 			Valid:  req.URI != "",
@@ -578,7 +585,9 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	defer t.Stop()
 
 	// Log the request immediately instead of after it completes.
-	loggermw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
+	if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
+		rl.WriteLog(ctx, http.StatusAccepted)
+	}
 
 	go func() {
 		defer func() {
@@ -796,6 +805,106 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 	httpapi.Write(ctx, rw, http.StatusOK, portsResponse)
 }
 
+// @Summary Watch workspace agent for container updates.
+// @ID watch-workspace-agent-for-container-updates
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Success 200 {object} codersdk.WorkspaceAgentListContainersResponse
+// @Router /workspaceagents/{workspaceagent}/containers/watch [get]
+func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx            = r.Context()
+		workspaceAgent = httpmw.WorkspaceAgentParam(r)
+	)
+
+	// If the agent is unreachable, the request will hang. Assume that if we
+	// don't get a response after 30s that the agent is unreachable.
+	dialCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	apiAgent, err := db2sdk.WorkspaceAgent(
+		api.DERPMap(),
+		*api.TailnetCoordinator.Load(),
+		workspaceAgent,
+		nil,
+		nil,
+		nil,
+		api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
+		})
+		return
+	}
+
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error dialing workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer release()
+
+	watcherLogger := api.Logger.Named("agent_container_watcher").With(slog.F("agent_id", workspaceAgent.ID))
+	containersCh, closer, err := agentConn.WatchContainers(ctx, watcherLogger)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error watching agent's containers.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer closer.Close()
+
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to upgrade connection to websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Here we close the websocket for reading, so that the websocket library will handle pings and
+	// close frames.
+	_ = conn.CloseRead(context.Background())
+
+	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
+	defer wsNetConn.Close()
+
+	go httpapi.Heartbeat(ctx, conn)
+
+	encoder := json.NewEncoder(wsNetConn)
+
+	for {
+		select {
+		case <-api.ctx.Done():
+			return
+
+		case <-ctx.Done():
+			return
+
+		case containers := <-containersCh:
+			if err := encoder.Encode(containers); err != nil {
+				api.Logger.Error(ctx, "encode containers", slog.Error(err))
+				return
+			}
+		}
+	}
+}
+
 // @Summary Get running containers for workspace agent
 // @ID get-running-containers-for-workspace-agent
 // @Security CoderSessionToken
@@ -898,20 +1007,21 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 // @ID recreate-devcontainer-for-workspace-agent
 // @Security CoderSessionToken
 // @Tags Agents
+// @Produce json
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
-// @Param container path string true "Container ID or name"
-// @Success 204
-// @Router /workspaceagents/{workspaceagent}/containers/devcontainers/container/{container}/recreate [post]
+// @Param devcontainer path string true "Devcontainer ID"
+// @Success 202 {object} codersdk.Response
+// @Router /workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate [post]
 func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 
-	container := chi.URLParam(r, "container")
-	if container == "" {
+	devcontainer := chi.URLParam(r, "devcontainer")
+	if devcontainer == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Container ID or name is required.",
+			Message: "Devcontainer ID is required.",
 			Validations: []codersdk.ValidationError{
-				{Field: "container", Detail: "Container ID or name is required."},
+				{Field: "devcontainer", Detail: "Devcontainer ID is required."},
 			},
 		})
 		return
@@ -955,7 +1065,7 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 	}
 	defer release()
 
-	err = agentConn.RecreateDevcontainer(ctx, container)
+	m, err := agentConn.RecreateDevcontainer(ctx, devcontainer)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			httpapi.Write(ctx, rw, http.StatusRequestTimeout, codersdk.Response{
@@ -976,7 +1086,7 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+	httpapi.Write(ctx, rw, http.StatusAccepted, m)
 }
 
 // @Summary Get connection info for workspace agent
@@ -1046,7 +1156,9 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 	defer encoder.Close(websocket.StatusGoingAway)
 
 	// Log the request immediately instead of after it completes.
-	loggermw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
+	if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
+		rl.WriteLog(ctx, http.StatusAccepted)
+	}
 
 	go func(ctx context.Context) {
 		// TODO(mafredri): Is this too frequent? Use separate ping disconnect timeout?
@@ -1500,7 +1612,9 @@ func (api *API) watchWorkspaceAgentMetadata(
 	defer sendTicker.Stop()
 
 	// Log the request immediately instead of after it completes.
-	loggermw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
+	if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
+		rl.WriteLog(ctx, http.StatusAccepted)
+	}
 
 	// Send initial metadata.
 	sendMetadata()

@@ -75,7 +75,7 @@ fi
 				return xerrors.Errorf("agent token not found")
 			}
 
-			client, err := r.createAgentClient()
+			client, err := r.tryCreateAgentClient()
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}

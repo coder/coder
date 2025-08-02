@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/coder/coder/v2/coderd/database"
+
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -35,7 +37,6 @@ func (a authSubject) Subjects() []authSubject { return []authSubject{a} }
 func TestBuiltInRoles(t *testing.T) {
 	t.Parallel()
 	for _, r := range rbac.SiteBuiltInRoles() {
-		r := r
 		t.Run(r.Identifier.String(), func(t *testing.T) {
 			t.Parallel()
 			require.NoError(t, r.Valid(), "invalid role")
@@ -43,7 +44,6 @@ func TestBuiltInRoles(t *testing.T) {
 	}
 
 	for _, r := range rbac.OrganizationRoles(uuid.New()) {
-		r := r
 		t.Run(r.Identifier.String(), func(t *testing.T) {
 			t.Parallel()
 			require.NoError(t, r.Valid(), "invalid role")
@@ -496,6 +496,15 @@ func TestRolePermissions(t *testing.T) {
 				false: {setOtherOrg, userAdmin, templateAdmin, memberMe, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
+		{
+			Name:     "PrebuiltWorkspace",
+			Actions:  []policy.Action{policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourcePrebuiltWorkspace.WithID(uuid.New()).InOrg(orgID).WithOwner(database.PrebuildsSystemUserID.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, templateAdmin, orgTemplateAdmin},
+				false: {setOtherOrg, userAdmin, memberMe, orgUserAdmin, orgAuditor, orgMemberMe},
+			},
+		},
 		// Some admin style resources
 		{
 			Name:     "Licenses",
@@ -840,35 +849,13 @@ func TestRolePermissions(t *testing.T) {
 				},
 			},
 		},
-		// Members may read their own chats.
 		{
-			Name:     "CreateReadUpdateDeleteMyChats",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-			Resource: rbac.ResourceChat.WithOwner(currentUser.String()),
+			Name:     "ConnectionLogs",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceConnectionLog,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {memberMe, orgMemberMe, owner},
-				false: {
-					userAdmin, orgUserAdmin, templateAdmin,
-					orgAuditor, orgTemplateAdmin,
-					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
-					orgAdmin, otherOrgAdmin,
-				},
-			},
-		},
-		// Only owners can create, read, update, and delete other users' chats.
-		{
-			Name:     "CreateReadUpdateDeleteOtherUserChats",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-			Resource: rbac.ResourceChat.WithOwner(uuid.NewString()), // some other user
-			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {owner},
-				false: {
-					memberMe, orgMemberMe,
-					userAdmin, orgUserAdmin, templateAdmin,
-					orgAuditor, orgTemplateAdmin,
-					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
-					orgAdmin, otherOrgAdmin,
-				},
+				true:  {owner},
+				false: {setOtherOrg, setOrgNotMe, memberMe, orgMemberMe, templateAdmin, userAdmin},
 			},
 		},
 	}
@@ -885,7 +872,6 @@ func TestRolePermissions(t *testing.T) {
 	passed := true
 	// nolint:tparallel,paralleltest
 	for _, c := range testCases {
-		c := c
 		// nolint:tparallel,paralleltest // These share the same remainingPermissions map
 		t.Run(c.Name, func(t *testing.T) {
 			remainingSubjs := make(map[string]struct{})
@@ -984,7 +970,6 @@ func TestIsOrgRole(t *testing.T) {
 
 	// nolint:paralleltest
 	for _, c := range testCases {
-		c := c
 		t.Run(c.Identifier.String(), func(t *testing.T) {
 			t.Parallel()
 			ok := c.Identifier.IsOrgRole()
@@ -1081,7 +1066,6 @@ func TestChangeSet(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 

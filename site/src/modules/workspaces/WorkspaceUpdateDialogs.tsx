@@ -1,4 +1,4 @@
-import { MissingBuildParameters } from "api/api";
+import { MissingBuildParameters, ParameterValidationError } from "api/api";
 import { updateWorkspace } from "api/queries/workspaces";
 import type {
 	TemplateVersion,
@@ -9,6 +9,7 @@ import type {
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { UpdateBuildParametersDialog } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialog";
+import { UpdateBuildParametersDialogExperimental } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialogExperimental";
 import { type FC, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 
@@ -52,13 +53,17 @@ export const useWorkspaceUpdate = ({
 	};
 
 	const confirmUpdate = (buildParameters: WorkspaceBuildParameter[] = []) => {
-		updateWorkspaceMutation.mutate(buildParameters);
+		updateWorkspaceMutation.mutate({
+			buildParameters,
+			isDynamicParametersEnabled:
+				!workspace.template_use_classic_parameter_flow,
+		});
 		setIsConfirmingUpdate(false);
 	};
 
 	return {
 		update,
-		isUpdating: updateWorkspaceMutation.isLoading,
+		isUpdating: updateWorkspaceMutation.isPending,
 		dialogs: {
 			updateConfirmation: {
 				open: isConfirmingUpdate,
@@ -67,12 +72,16 @@ export const useWorkspaceUpdate = ({
 				latestVersion,
 			},
 			missingBuildParameters: {
+				workspace,
 				error: updateWorkspaceMutation.error,
 				onClose: () => {
 					updateWorkspaceMutation.reset();
 				},
 				onUpdate: (buildParameters: WorkspaceBuildParameter[]) => {
-					if (updateWorkspaceMutation.error instanceof MissingBuildParameters) {
+					if (
+						updateWorkspaceMutation.error instanceof MissingBuildParameters ||
+						updateWorkspaceMutation.error instanceof ParameterValidationError
+					) {
 						confirmUpdate(buildParameters);
 					}
 				},
@@ -134,22 +143,41 @@ const UpdateConfirmationDialog: FC<UpdateConfirmationDialogProps> = ({
 };
 
 type MissingBuildParametersDialogProps = {
+	workspace: Workspace;
 	error: unknown;
 	onClose: () => void;
 	onUpdate: (buildParameters: WorkspaceBuildParameter[]) => void;
 };
 
 const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
+	workspace,
 	error,
 	...dialogProps
 }) => {
-	return (
+	const missedParameters =
+		error instanceof MissingBuildParameters ? error.parameters : [];
+	const versionId =
+		error instanceof ParameterValidationError ? error.versionId : undefined;
+	const isOpen =
+		error instanceof MissingBuildParameters ||
+		error instanceof ParameterValidationError;
+
+	return workspace.template_use_classic_parameter_flow ? (
 		<UpdateBuildParametersDialog
-			missedParameters={
-				error instanceof MissingBuildParameters ? error.parameters : []
-			}
-			open={error instanceof MissingBuildParameters}
+			missedParameters={missedParameters}
+			open={isOpen}
 			{...dialogProps}
+		/>
+	) : (
+		<UpdateBuildParametersDialogExperimental
+			validations={
+				error instanceof ParameterValidationError ? error.validations : []
+			}
+			open={isOpen}
+			onClose={dialogProps.onClose}
+			workspaceOwnerName={workspace.owner_name}
+			workspaceName={workspace.name}
+			templateVersionId={versionId}
 		/>
 	);
 };

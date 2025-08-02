@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.11.4",
+  "terraform_version": "1.12.2",
   "values": {
     "root_module": {
       "resources": [
@@ -10,12 +10,13 @@
           "type": "coder_parameter",
           "name": "sample",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "default": "ok",
             "description": "blah blah",
             "display_name": null,
             "ephemeral": false,
+            "form_type": "input",
             "icon": null,
             "id": "491d202d-5658-40d9-9adc-fd3a67f6042b",
             "mutable": false,
@@ -23,6 +24,7 @@
             "option": null,
             "optional": true,
             "order": null,
+            "styling": "{}",
             "type": "string",
             "validation": [],
             "value": "ok"
@@ -37,8 +39,9 @@
           "type": "coder_workspace_preset",
           "name": "MyFirstProject",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
+            "default": false,
             "id": "My First Project",
             "name": "My First Project",
             "parameters": {
@@ -46,14 +49,46 @@
             },
             "prebuilds": [
               {
-                "instances": 4
+                "expiration_policy": [
+                  {
+                    "ttl": 86400
+                  }
+                ],
+                "instances": 4,
+                "scheduling": [
+                  {
+                    "schedule": [
+                      {
+                        "cron": "* 8-18 * * 1-5",
+                        "instances": 3
+                      },
+                      {
+                        "cron": "* 8-14 * * 6",
+                        "instances": 1
+                      }
+                    ],
+                    "timezone": "America/Los_Angeles"
+                  }
+                ]
               }
             ]
           },
           "sensitive_values": {
             "parameters": {},
             "prebuilds": [
-              {}
+              {
+                "expiration_policy": [
+                  {}
+                ],
+                "scheduling": [
+                  {
+                    "schedule": [
+                      {},
+                      {}
+                    ]
+                  }
+                ]
+              }
             ]
           }
         },
@@ -65,6 +100,7 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
+            "api_key_scope": "all",
             "arch": "arm64",
             "auth": "token",
             "connection_timeout": 120,
@@ -127,12 +163,13 @@
               "type": "coder_parameter",
               "name": "first_parameter_from_module",
               "provider_name": "registry.terraform.io/coder/coder",
-              "schema_version": 0,
+              "schema_version": 1,
               "values": {
                 "default": "abcdef",
                 "description": "First parameter from module",
                 "display_name": null,
                 "ephemeral": false,
+                "form_type": "input",
                 "icon": null,
                 "id": "0a4d1299-b174-43b0-91ad-50c1ca9a4c25",
                 "mutable": true,
@@ -140,6 +177,7 @@
                 "option": null,
                 "optional": true,
                 "order": null,
+                "styling": "{}",
                 "type": "string",
                 "validation": [],
                 "value": "abcdef"
@@ -154,12 +192,13 @@
               "type": "coder_parameter",
               "name": "second_parameter_from_module",
               "provider_name": "registry.terraform.io/coder/coder",
-              "schema_version": 0,
+              "schema_version": 1,
               "values": {
                 "default": "ghijkl",
                 "description": "Second parameter from module",
                 "display_name": null,
                 "ephemeral": false,
+                "form_type": "input",
                 "icon": null,
                 "id": "f0812474-29fd-4c3c-ab40-9e66e36d4017",
                 "mutable": true,
@@ -167,6 +206,7 @@
                 "option": null,
                 "optional": true,
                 "order": null,
+                "styling": "{}",
                 "type": "string",
                 "validation": [],
                 "value": "ghijkl"
@@ -186,12 +226,13 @@
                   "type": "coder_parameter",
                   "name": "child_first_parameter_from_module",
                   "provider_name": "registry.terraform.io/coder/coder",
-                  "schema_version": 0,
+                  "schema_version": 1,
                   "values": {
                     "default": "abcdef",
                     "description": "First parameter from child module",
                     "display_name": null,
                     "ephemeral": false,
+                    "form_type": "input",
                     "icon": null,
                     "id": "27b5fae3-7671-4e61-bdfe-c940627a21b8",
                     "mutable": true,
@@ -199,6 +240,7 @@
                     "option": null,
                     "optional": true,
                     "order": null,
+                    "styling": "{}",
                     "type": "string",
                     "validation": [],
                     "value": "abcdef"
@@ -213,12 +255,13 @@
                   "type": "coder_parameter",
                   "name": "child_second_parameter_from_module",
                   "provider_name": "registry.terraform.io/coder/coder",
-                  "schema_version": 0,
+                  "schema_version": 1,
                   "values": {
                     "default": "ghijkl",
                     "description": "Second parameter from child module",
                     "display_name": null,
                     "ephemeral": false,
+                    "form_type": "input",
                     "icon": null,
                     "id": "d285bb17-27ff-4a49-a12b-28582264b4d9",
                     "mutable": true,
@@ -226,6 +269,7 @@
                     "option": null,
                     "optional": true,
                     "order": null,
+                    "styling": "{}",
                     "type": "string",
                     "validation": [],
                     "value": "ghijkl"

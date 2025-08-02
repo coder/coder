@@ -5,6 +5,8 @@ import type {
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
+import { Label } from "components/Label/Label";
+import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
@@ -14,8 +16,12 @@ import {
 	useValidationSchemaForDynamicParameters,
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import type { FC } from "react";
-export type WorkspaceParametersPageViewExperimentalProps = {
+import { docs } from "utils/docs";
+import type { AutofillBuildParameter } from "utils/richParameters";
+
+type WorkspaceParametersPageViewExperimentalProps = {
 	workspace: Workspace;
+	autofillParameters: AutofillBuildParameter[];
 	parameters: PreviewParameter[];
 	diagnostics: PreviewParameter["diagnostics"];
 	canChangeVersions: boolean;
@@ -25,12 +31,14 @@ export type WorkspaceParametersPageViewExperimentalProps = {
 		rich_parameter_values: WorkspaceBuildParameter[];
 	}) => void;
 	sendMessage: (formValues: Record<string, string>) => void;
+	templateVersionId: string | undefined;
 };
 
 export const WorkspaceParametersPageViewExperimental: FC<
 	WorkspaceParametersPageViewExperimentalProps
 > = ({
 	workspace,
+	autofillParameters,
 	parameters,
 	diagnostics,
 	canChangeVersions,
@@ -38,21 +46,34 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	onSubmit,
 	sendMessage,
 	onCancel,
+	templateVersionId,
 }) => {
+	const autofillByName = Object.fromEntries(
+		autofillParameters.map((param) => [param.name, param]),
+	);
+	const initialTouched = parameters.reduce(
+		(touched, parameter) => {
+			if (autofillByName[parameter.name] !== undefined) {
+				touched[parameter.name] = true;
+			}
+			return touched;
+		},
+		{} as Record<string, boolean>,
+	);
 	const form = useFormik({
 		onSubmit,
 		initialValues: {
-			rich_parameter_values: getInitialParameterValues(parameters),
+			rich_parameter_values: getInitialParameterValues(
+				parameters,
+				autofillParameters,
+			),
 		},
+		initialTouched,
 		validationSchema: useValidationSchemaForDynamicParameters(parameters),
 		enableReinitialize: false,
 		validateOnChange: true,
 		validateOnBlur: true,
 	});
-
-	// Group parameters by ephemeral status
-	const ephemeralParameters = parameters.filter((p) => p.ephemeral);
-	const standardParameters = parameters.filter((p) => !p.ephemeral);
 
 	const disabled =
 		workspace.outdated &&
@@ -99,12 +120,51 @@ export const WorkspaceParametersPageViewExperimental: FC<
 		setFieldValue: form.setFieldValue,
 	});
 
+	const hasIncompatibleParameters = parameters.some((parameter) => {
+		if (!parameter.mutable && parameter.diagnostics.length > 0) {
+			return true;
+		}
+		return false;
+	});
+
 	return (
 		<>
 			{disabled && (
 				<Alert severity="warning" className="mb-8">
 					The template for this workspace requires automatic updates. Update the
 					workspace to edit parameters.
+				</Alert>
+			)}
+
+			{hasIncompatibleParameters && (
+				<Alert severity="error">
+					<p className="text-lg leading-tight font-bold m-0">
+						Workspace update blocked
+					</p>
+					<p className="mb-0">
+						The new template version includes parameter changes that are
+						incompatible with this workspace's existing parameter values. This
+						may be caused by:
+					</p>
+					<ul className="mb-0 pl-4 space-y-1">
+						<li>
+							New <strong>required</strong> parameters that cannot be provided
+							after workspace creation
+						</li>
+						<li>
+							Changes to <strong>valid options or validations</strong> for
+							existing parameters
+						</li>
+						<li>Logic changes that conflict with previously selected values</li>
+					</ul>
+					<p className="mb-0">
+						Please contact the <strong>template administrator</strong> to review
+						the changes and ensure compatibility for existing workspaces.
+					</p>
+					<p className="mb-0">
+						Consider supplying defaults for new parameters or validating
+						conditional logic against prior workspace states.
+					</p>
 				</Alert>
 			)}
 
@@ -131,18 +191,50 @@ export const WorkspaceParametersPageViewExperimental: FC<
 				</div>
 			)}
 
+			{(templateVersionId || workspace.latest_build.template_version_id) && (
+				<div className="flex flex-col gap-2">
+					<Label className="text-sm text-content-secondary">Version ID</Label>
+					<p className="m-0 text-xs font-medium font-mono">
+						{templateVersionId ?? workspace.latest_build.template_version_id}
+					</p>
+				</div>
+			)}
+
 			<form onSubmit={form.handleSubmit} className="flex flex-col gap-8">
-				{standardParameters.length > 0 && (
+				{parameters.length > 0 && (
 					<section className="flex flex-col gap-9">
 						<hgroup>
 							<h2 className="text-xl font-medium mb-0">Parameters</h2>
 							<p className="text-sm text-content-secondary m-0">
 								These are the settings used by your template. Immutable
 								parameters cannot be modified once the workspace is created.
+								<Link
+									href={docs(
+										"/admin/templates/extending-templates/dynamic-parameters",
+									)}
+								>
+									View docs
+								</Link>
 							</p>
 						</hgroup>
-						{standardParameters.map((parameter, index) => {
-							const parameterField = `rich_parameter_values.${index}`;
+						{parameters.map((parameter, index) => {
+							const currentParameterValueIndex =
+								form.values.rich_parameter_values?.findIndex(
+									(p) => p.name === parameter.name,
+								);
+							const parameterFieldIndex =
+								currentParameterValueIndex !== undefined
+									? currentParameterValueIndex
+									: index;
+							// Get the form value by parameter name to ensure correct value mapping
+							const formValue =
+								currentParameterValueIndex !== undefined
+									? form.values?.rich_parameter_values?.[
+											currentParameterValueIndex
+										]?.value || ""
+									: "";
+
+							const parameterField = `rich_parameter_values.${parameterFieldIndex}`;
 							const isDisabled =
 								disabled ||
 								parameter.styling?.disabled ||
@@ -158,47 +250,10 @@ export const WorkspaceParametersPageViewExperimental: FC<
 									}
 									autofill={false}
 									disabled={isDisabled}
-									value={
-										form.values?.rich_parameter_values?.[index]?.value || ""
-									}
+									value={formValue}
 								/>
 							);
 						})}
-					</section>
-				)}
-
-				{ephemeralParameters.length > 0 && (
-					<section className="flex flex-col gap-6">
-						<hgroup>
-							<h2 className="text-xl font-medium mb-1">Ephemeral Parameters</h2>
-							<p className="text-sm text-content-secondary m-0">
-								These parameters only apply for a single workspace start
-							</p>
-						</hgroup>
-
-						<div className="flex flex-col gap-9">
-							{ephemeralParameters.map((parameter, index) => {
-								const actualIndex = standardParameters.length + index;
-								const parameterField = `rich_parameter_values.${actualIndex}`;
-								const isDisabled =
-									disabled || parameter.styling?.disabled || isSubmitting;
-
-								return (
-									<DynamicParameter
-										key={parameter.name}
-										parameter={parameter}
-										onChange={(value) =>
-											handleChange(parameter, parameterField, value)
-										}
-										autofill={false}
-										disabled={isDisabled}
-										value={
-											form.values?.rich_parameter_values?.[index]?.value || ""
-										}
-									/>
-								);
-							})}
-						</div>
 					</section>
 				)}
 
@@ -208,10 +263,21 @@ export const WorkspaceParametersPageViewExperimental: FC<
 					</Button>
 					<Button
 						type="submit"
-						disabled={isSubmitting || disabled || !form.dirty}
+						disabled={
+							isSubmitting ||
+							disabled ||
+							diagnostics.some(
+								(diagnostic) => diagnostic.severity === "error",
+							) ||
+							parameters.some((parameter) =>
+								parameter.diagnostics.some(
+									(diagnostic) => diagnostic.severity === "error",
+								),
+							)
+						}
 					>
 						<Spinner loading={isSubmitting} />
-						Submit and restart
+						Update and restart
 					</Button>
 				</div>
 			</form>

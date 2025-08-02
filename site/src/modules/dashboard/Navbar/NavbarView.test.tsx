@@ -6,6 +6,7 @@ import { renderWithAuth } from "testHelpers/renderHelpers";
 import { NavbarView } from "./NavbarView";
 
 const proxyContextValue: ProxyContextValue = {
+	latenciesLoaded: true,
 	proxy: {
 		preferredPathAppURL: "",
 		preferredWildcardHostname: "",
@@ -32,6 +33,7 @@ describe("NavbarView", () => {
 				canViewOrganizations
 				canViewHealth
 				canViewAuditLog
+				canViewConnectionLog
 			/>,
 		);
 		const workspacesLink =
@@ -49,6 +51,7 @@ describe("NavbarView", () => {
 				canViewOrganizations
 				canViewHealth
 				canViewAuditLog
+				canViewConnectionLog
 			/>,
 		);
 		const templatesLink =
@@ -66,6 +69,7 @@ describe("NavbarView", () => {
 				canViewOrganizations
 				canViewHealth
 				canViewAuditLog
+				canViewConnectionLog
 			/>,
 		);
 		const deploymentMenu = await screen.findByText("Admin settings");
@@ -84,6 +88,7 @@ describe("NavbarView", () => {
 				canViewOrganizations
 				canViewHealth
 				canViewAuditLog
+				canViewConnectionLog
 			/>,
 		);
 		const deploymentMenu = await screen.findByText("Admin settings");

@@ -29,7 +29,7 @@ const AppearancePage: FC = () => {
 	return (
 		<>
 			<AppearanceForm
-				isUpdating={updateAppearanceSettingsMutation.isLoading}
+				isUpdating={updateAppearanceSettingsMutation.isPending}
 				error={updateAppearanceSettingsMutation.error}
 				initialValues={{
 					theme_preference: appearanceSettingsQuery.data.theme_preference,

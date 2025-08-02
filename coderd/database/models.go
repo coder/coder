@@ -137,6 +137,7 @@ type AppSharingLevel string
 const (
 	AppSharingLevelOwner         AppSharingLevel = "owner"
 	AppSharingLevelAuthenticated AppSharingLevel = "authenticated"
+	AppSharingLevelOrganization  AppSharingLevel = "organization"
 	AppSharingLevelPublic        AppSharingLevel = "public"
 )
 
@@ -179,6 +180,7 @@ func (e AppSharingLevel) Valid() bool {
 	switch e {
 	case AppSharingLevelOwner,
 		AppSharingLevelAuthenticated,
+		AppSharingLevelOrganization,
 		AppSharingLevelPublic:
 		return true
 	}
@@ -189,10 +191,12 @@ func AllAppSharingLevelValues() []AppSharingLevel {
 	return []AppSharingLevel{
 		AppSharingLevelOwner,
 		AppSharingLevelAuthenticated,
+		AppSharingLevelOrganization,
 		AppSharingLevelPublic,
 	}
 }
 
+// NOTE: `connect`, `disconnect`, `open`, and `close` are deprecated and no longer used - these events are now tracked in the connection_logs table.
 type AuditAction string
 
 const (
@@ -345,12 +349,17 @@ func AllAutomaticUpdatesValues() []AutomaticUpdates {
 type BuildReason string
 
 const (
-	BuildReasonInitiator  BuildReason = "initiator"
-	BuildReasonAutostart  BuildReason = "autostart"
-	BuildReasonAutostop   BuildReason = "autostop"
-	BuildReasonDormancy   BuildReason = "dormancy"
-	BuildReasonFailedstop BuildReason = "failedstop"
-	BuildReasonAutodelete BuildReason = "autodelete"
+	BuildReasonInitiator           BuildReason = "initiator"
+	BuildReasonAutostart           BuildReason = "autostart"
+	BuildReasonAutostop            BuildReason = "autostop"
+	BuildReasonDormancy            BuildReason = "dormancy"
+	BuildReasonFailedstop          BuildReason = "failedstop"
+	BuildReasonAutodelete          BuildReason = "autodelete"
+	BuildReasonDashboard           BuildReason = "dashboard"
+	BuildReasonCli                 BuildReason = "cli"
+	BuildReasonSshConnection       BuildReason = "ssh_connection"
+	BuildReasonVscodeConnection    BuildReason = "vscode_connection"
+	BuildReasonJetbrainsConnection BuildReason = "jetbrains_connection"
 )
 
 func (e *BuildReason) Scan(src interface{}) error {
@@ -395,7 +404,12 @@ func (e BuildReason) Valid() bool {
 		BuildReasonAutostop,
 		BuildReasonDormancy,
 		BuildReasonFailedstop,
-		BuildReasonAutodelete:
+		BuildReasonAutodelete,
+		BuildReasonDashboard,
+		BuildReasonCli,
+		BuildReasonSshConnection,
+		BuildReasonVscodeConnection,
+		BuildReasonJetbrainsConnection:
 		return true
 	}
 	return false
@@ -409,6 +423,197 @@ func AllBuildReasonValues() []BuildReason {
 		BuildReasonDormancy,
 		BuildReasonFailedstop,
 		BuildReasonAutodelete,
+		BuildReasonDashboard,
+		BuildReasonCli,
+		BuildReasonSshConnection,
+		BuildReasonVscodeConnection,
+		BuildReasonJetbrainsConnection,
+	}
+}
+
+type ConnectionStatus string
+
+const (
+	ConnectionStatusConnected    ConnectionStatus = "connected"
+	ConnectionStatusDisconnected ConnectionStatus = "disconnected"
+)
+
+func (e *ConnectionStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ConnectionStatus(s)
+	case string:
+		*e = ConnectionStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ConnectionStatus: %T", src)
+	}
+	return nil
+}
+
+type NullConnectionStatus struct {
+	ConnectionStatus ConnectionStatus `json:"connection_status"`
+	Valid            bool             `json:"valid"` // Valid is true if ConnectionStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullConnectionStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ConnectionStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ConnectionStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullConnectionStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ConnectionStatus), nil
+}
+
+func (e ConnectionStatus) Valid() bool {
+	switch e {
+	case ConnectionStatusConnected,
+		ConnectionStatusDisconnected:
+		return true
+	}
+	return false
+}
+
+func AllConnectionStatusValues() []ConnectionStatus {
+	return []ConnectionStatus{
+		ConnectionStatusConnected,
+		ConnectionStatusDisconnected,
+	}
+}
+
+type ConnectionType string
+
+const (
+	ConnectionTypeSsh             ConnectionType = "ssh"
+	ConnectionTypeVscode          ConnectionType = "vscode"
+	ConnectionTypeJetbrains       ConnectionType = "jetbrains"
+	ConnectionTypeReconnectingPty ConnectionType = "reconnecting_pty"
+	ConnectionTypeWorkspaceApp    ConnectionType = "workspace_app"
+	ConnectionTypePortForwarding  ConnectionType = "port_forwarding"
+)
+
+func (e *ConnectionType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ConnectionType(s)
+	case string:
+		*e = ConnectionType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ConnectionType: %T", src)
+	}
+	return nil
+}
+
+type NullConnectionType struct {
+	ConnectionType ConnectionType `json:"connection_type"`
+	Valid          bool           `json:"valid"` // Valid is true if ConnectionType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullConnectionType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ConnectionType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ConnectionType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullConnectionType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ConnectionType), nil
+}
+
+func (e ConnectionType) Valid() bool {
+	switch e {
+	case ConnectionTypeSsh,
+		ConnectionTypeVscode,
+		ConnectionTypeJetbrains,
+		ConnectionTypeReconnectingPty,
+		ConnectionTypeWorkspaceApp,
+		ConnectionTypePortForwarding:
+		return true
+	}
+	return false
+}
+
+func AllConnectionTypeValues() []ConnectionType {
+	return []ConnectionType{
+		ConnectionTypeSsh,
+		ConnectionTypeVscode,
+		ConnectionTypeJetbrains,
+		ConnectionTypeReconnectingPty,
+		ConnectionTypeWorkspaceApp,
+		ConnectionTypePortForwarding,
+	}
+}
+
+type CorsBehavior string
+
+const (
+	CorsBehaviorSimple   CorsBehavior = "simple"
+	CorsBehaviorPassthru CorsBehavior = "passthru"
+)
+
+func (e *CorsBehavior) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CorsBehavior(s)
+	case string:
+		*e = CorsBehavior(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CorsBehavior: %T", src)
+	}
+	return nil
+}
+
+type NullCorsBehavior struct {
+	CorsBehavior CorsBehavior `json:"cors_behavior"`
+	Valid        bool         `json:"valid"` // Valid is true if CorsBehavior is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCorsBehavior) Scan(value interface{}) error {
+	if value == nil {
+		ns.CorsBehavior, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CorsBehavior.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCorsBehavior) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CorsBehavior), nil
+}
+
+func (e CorsBehavior) Valid() bool {
+	switch e {
+	case CorsBehaviorSimple,
+		CorsBehaviorPassthru:
+		return true
+	}
+	return false
+}
+
+func AllCorsBehaviorValues() []CorsBehavior {
+	return []CorsBehavior{
+		CorsBehaviorSimple,
+		CorsBehaviorPassthru,
 	}
 }
 
@@ -1105,6 +1310,92 @@ func AllParameterDestinationSchemeValues() []ParameterDestinationScheme {
 		ParameterDestinationSchemeNone,
 		ParameterDestinationSchemeEnvironmentVariable,
 		ParameterDestinationSchemeProvisionerVariable,
+	}
+}
+
+// Enum set should match the terraform provider set. This is defined as future form_types are not supported, and should be rejected. Always include the empty string for using the default form type.
+type ParameterFormType string
+
+const (
+	ParameterFormTypeValue0      ParameterFormType = ""
+	ParameterFormTypeError       ParameterFormType = "error"
+	ParameterFormTypeRadio       ParameterFormType = "radio"
+	ParameterFormTypeDropdown    ParameterFormType = "dropdown"
+	ParameterFormTypeInput       ParameterFormType = "input"
+	ParameterFormTypeTextarea    ParameterFormType = "textarea"
+	ParameterFormTypeSlider      ParameterFormType = "slider"
+	ParameterFormTypeCheckbox    ParameterFormType = "checkbox"
+	ParameterFormTypeSwitch      ParameterFormType = "switch"
+	ParameterFormTypeTagSelect   ParameterFormType = "tag-select"
+	ParameterFormTypeMultiSelect ParameterFormType = "multi-select"
+)
+
+func (e *ParameterFormType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ParameterFormType(s)
+	case string:
+		*e = ParameterFormType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ParameterFormType: %T", src)
+	}
+	return nil
+}
+
+type NullParameterFormType struct {
+	ParameterFormType ParameterFormType `json:"parameter_form_type"`
+	Valid             bool              `json:"valid"` // Valid is true if ParameterFormType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullParameterFormType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ParameterFormType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ParameterFormType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullParameterFormType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ParameterFormType), nil
+}
+
+func (e ParameterFormType) Valid() bool {
+	switch e {
+	case ParameterFormTypeValue0,
+		ParameterFormTypeError,
+		ParameterFormTypeRadio,
+		ParameterFormTypeDropdown,
+		ParameterFormTypeInput,
+		ParameterFormTypeTextarea,
+		ParameterFormTypeSlider,
+		ParameterFormTypeCheckbox,
+		ParameterFormTypeSwitch,
+		ParameterFormTypeTagSelect,
+		ParameterFormTypeMultiSelect:
+		return true
+	}
+	return false
+}
+
+func AllParameterFormTypeValues() []ParameterFormType {
+	return []ParameterFormType{
+		ParameterFormTypeValue0,
+		ParameterFormTypeError,
+		ParameterFormTypeRadio,
+		ParameterFormTypeDropdown,
+		ParameterFormTypeInput,
+		ParameterFormTypeTextarea,
+		ParameterFormTypeSlider,
+		ParameterFormTypeCheckbox,
+		ParameterFormTypeSwitch,
+		ParameterFormTypeTagSelect,
+		ParameterFormTypeMultiSelect,
 	}
 }
 
@@ -1805,6 +2096,7 @@ const (
 	ResourceTypeIdpSyncSettingsRole         ResourceType = "idp_sync_settings_role"
 	ResourceTypeWorkspaceAgent              ResourceType = "workspace_agent"
 	ResourceTypeWorkspaceApp                ResourceType = "workspace_app"
+	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1867,7 +2159,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeIdpSyncSettingsGroup,
 		ResourceTypeIdpSyncSettingsRole,
 		ResourceTypeWorkspaceAgent,
-		ResourceTypeWorkspaceApp:
+		ResourceTypeWorkspaceApp,
+		ResourceTypePrebuildsSettings:
 		return true
 	}
 	return false
@@ -1899,6 +2192,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeIdpSyncSettingsRole,
 		ResourceTypeWorkspaceAgent,
 		ResourceTypeWorkspaceApp,
+		ResourceTypePrebuildsSettings,
 	}
 }
 
@@ -2539,6 +2833,7 @@ const (
 	WorkspaceAppStatusStateWorking  WorkspaceAppStatusState = "working"
 	WorkspaceAppStatusStateComplete WorkspaceAppStatusState = "complete"
 	WorkspaceAppStatusStateFailure  WorkspaceAppStatusState = "failure"
+	WorkspaceAppStatusStateIdle     WorkspaceAppStatusState = "idle"
 )
 
 func (e *WorkspaceAppStatusState) Scan(src interface{}) error {
@@ -2580,7 +2875,8 @@ func (e WorkspaceAppStatusState) Valid() bool {
 	switch e {
 	case WorkspaceAppStatusStateWorking,
 		WorkspaceAppStatusStateComplete,
-		WorkspaceAppStatusStateFailure:
+		WorkspaceAppStatusStateFailure,
+		WorkspaceAppStatusStateIdle:
 		return true
 	}
 	return false
@@ -2591,6 +2887,7 @@ func AllWorkspaceAppStatusStateValues() []WorkspaceAppStatusState {
 		WorkspaceAppStatusStateWorking,
 		WorkspaceAppStatusStateComplete,
 		WorkspaceAppStatusStateFailure,
+		WorkspaceAppStatusStateIdle,
 	}
 }
 
@@ -2689,21 +2986,30 @@ type AuditLog struct {
 	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
-type Chat struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	OwnerID   uuid.UUID `db:"owner_id" json:"owner_id"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
-	Title     string    `db:"title" json:"title"`
-}
-
-type ChatMessage struct {
-	ID        int64           `db:"id" json:"id"`
-	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
-	CreatedAt time.Time       `db:"created_at" json:"created_at"`
-	Model     string          `db:"model" json:"model"`
-	Provider  string          `db:"provider" json:"provider"`
-	Content   json.RawMessage `db:"content" json:"content"`
+type ConnectionLog struct {
+	ID               uuid.UUID      `db:"id" json:"id"`
+	ConnectTime      time.Time      `db:"connect_time" json:"connect_time"`
+	OrganizationID   uuid.UUID      `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID uuid.UUID      `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    string         `db:"workspace_name" json:"workspace_name"`
+	AgentName        string         `db:"agent_name" json:"agent_name"`
+	Type             ConnectionType `db:"type" json:"type"`
+	Ip               pqtype.Inet    `db:"ip" json:"ip"`
+	// Either the HTTP status code of the web request, or the exit code of an SSH connection. For non-web connections, this is Null until we receive a disconnect event for the same connection_id.
+	Code sql.NullInt32 `db:"code" json:"code"`
+	// Null for SSH events. For web connections, this is the User-Agent header from the request.
+	UserAgent sql.NullString `db:"user_agent" json:"user_agent"`
+	// Null for SSH events. For web connections, this is the ID of the user that made the request.
+	UserID uuid.NullUUID `db:"user_id" json:"user_id"`
+	// Null for SSH events. For web connections, this is the slug of the app or the port number being forwarded.
+	SlugOrPort sql.NullString `db:"slug_or_port" json:"slug_or_port"`
+	// The SSH connection ID. Used to correlate connections and disconnections. As it originates from the agent, it is not guaranteed to be unique.
+	ConnectionID uuid.NullUUID `db:"connection_id" json:"connection_id"`
+	// The time the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.
+	DisconnectTime sql.NullTime `db:"disconnect_time" json:"disconnect_time"`
+	// The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.
+	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
 }
 
 type CryptoKey struct {
@@ -2905,6 +3211,46 @@ type OAuth2ProviderApp struct {
 	Name        string    `db:"name" json:"name"`
 	Icon        string    `db:"icon" json:"icon"`
 	CallbackURL string    `db:"callback_url" json:"callback_url"`
+	// List of valid redirect URIs for the application
+	RedirectUris []string `db:"redirect_uris" json:"redirect_uris"`
+	// OAuth2 client type: confidential or public
+	ClientType sql.NullString `db:"client_type" json:"client_type"`
+	// Whether this app was created via dynamic client registration
+	DynamicallyRegistered sql.NullBool `db:"dynamically_registered" json:"dynamically_registered"`
+	// RFC 7591: Timestamp when client_id was issued
+	ClientIDIssuedAt sql.NullTime `db:"client_id_issued_at" json:"client_id_issued_at"`
+	// RFC 7591: Timestamp when client_secret expires (null for non-expiring)
+	ClientSecretExpiresAt sql.NullTime `db:"client_secret_expires_at" json:"client_secret_expires_at"`
+	// RFC 7591: Array of grant types the client is allowed to use
+	GrantTypes []string `db:"grant_types" json:"grant_types"`
+	// RFC 7591: Array of response types the client supports
+	ResponseTypes []string `db:"response_types" json:"response_types"`
+	// RFC 7591: Authentication method for token endpoint
+	TokenEndpointAuthMethod sql.NullString `db:"token_endpoint_auth_method" json:"token_endpoint_auth_method"`
+	// RFC 7591: Space-delimited scope values the client can request
+	Scope sql.NullString `db:"scope" json:"scope"`
+	// RFC 7591: Array of email addresses for responsible parties
+	Contacts []string `db:"contacts" json:"contacts"`
+	// RFC 7591: URL of the client home page
+	ClientUri sql.NullString `db:"client_uri" json:"client_uri"`
+	// RFC 7591: URL of the client logo image
+	LogoUri sql.NullString `db:"logo_uri" json:"logo_uri"`
+	// RFC 7591: URL of the client terms of service
+	TosUri sql.NullString `db:"tos_uri" json:"tos_uri"`
+	// RFC 7591: URL of the client privacy policy
+	PolicyUri sql.NullString `db:"policy_uri" json:"policy_uri"`
+	// RFC 7591: URL of the client JSON Web Key Set
+	JwksUri sql.NullString `db:"jwks_uri" json:"jwks_uri"`
+	// RFC 7591: JSON Web Key Set document value
+	Jwks pqtype.NullRawMessage `db:"jwks" json:"jwks"`
+	// RFC 7591: Identifier for the client software
+	SoftwareID sql.NullString `db:"software_id" json:"software_id"`
+	// RFC 7591: Version of the client software
+	SoftwareVersion sql.NullString `db:"software_version" json:"software_version"`
+	// RFC 7592: Hashed registration access token for client management
+	RegistrationAccessToken sql.NullString `db:"registration_access_token" json:"registration_access_token"`
+	// RFC 7592: URI for client configuration endpoint
+	RegistrationClientUri sql.NullString `db:"registration_client_uri" json:"registration_client_uri"`
 }
 
 // Codes are meant to be exchanged for access tokens.
@@ -2916,6 +3262,12 @@ type OAuth2ProviderAppCode struct {
 	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
 	UserID       uuid.UUID `db:"user_id" json:"user_id"`
 	AppID        uuid.UUID `db:"app_id" json:"app_id"`
+	// RFC 8707 resource parameter for audience restriction
+	ResourceUri sql.NullString `db:"resource_uri" json:"resource_uri"`
+	// PKCE code challenge for public clients
+	CodeChallenge sql.NullString `db:"code_challenge" json:"code_challenge"`
+	// PKCE challenge method (S256)
+	CodeChallengeMethod sql.NullString `db:"code_challenge_method" json:"code_challenge_method"`
 }
 
 type OAuth2ProviderAppSecret struct {
@@ -2938,6 +3290,10 @@ type OAuth2ProviderAppToken struct {
 	RefreshHash []byte    `db:"refresh_hash" json:"refresh_hash"`
 	AppSecretID uuid.UUID `db:"app_secret_id" json:"app_secret_id"`
 	APIKeyID    string    `db:"api_key_id" json:"api_key_id"`
+	// Token audience binding from resource parameter
+	Audience sql.NullString `db:"audience" json:"audience"`
+	// Denormalized user ID for performance optimization in authorization checks
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
 }
 
 type Organization struct {
@@ -3028,6 +3384,10 @@ type ProvisionerJob struct {
 	TraceMetadata  pqtype.NullRawMessage    `db:"trace_metadata" json:"trace_metadata"`
 	// Computed column to track the status of the job.
 	JobStatus ProvisionerJobStatus `db:"job_status" json:"job_status"`
+	// Total length of provisioner logs
+	LogsLength int32 `db:"logs_length" json:"logs_length"`
+	// Whether the provisioner logs overflowed in length
+	LogsOverflowed bool `db:"logs_overflowed" json:"logs_overflowed"`
 }
 
 type ProvisionerJobLog struct {
@@ -3176,8 +3536,10 @@ type Template struct {
 	ActivityBump                  int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	UseClassicParameterFlow       bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
+	CorsBehavior                  CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
+	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
 	OrganizationName              string          `db:"organization_name" json:"organization_name"`
 	OrganizationDisplayName       string          `db:"organization_display_name" json:"organization_display_name"`
 	OrganizationIcon              string          `db:"organization_icon" json:"organization_icon"`
@@ -3222,7 +3584,8 @@ type TemplateTable struct {
 	ActivityBump        int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	// Determines whether to default to the dynamic parameter creation flow for this template or continue using the legacy classic parameter creation flow.This is a template wide setting, the template admin can revert to the classic flow if there are any issues. An escape hatch is required, as workspace creation is a core workflow and cannot break. This column will be removed when the dynamic parameter creation flow is stable.
-	UseClassicParameterFlow bool `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
+	UseClassicParameterFlow bool         `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
+	CorsBehavior            CorsBehavior `db:"cors_behavior" json:"cors_behavior"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.
@@ -3268,8 +3631,10 @@ type TemplateVersion struct {
 	Message               string          `db:"message" json:"message"`
 	Archived              bool            `db:"archived" json:"archived"`
 	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
+	HasAITask             sql.NullBool    `db:"has_ai_task" json:"has_ai_task"`
 	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
+	CreatedByName         string          `db:"created_by_name" json:"created_by_name"`
 }
 
 type TemplateVersionParameter struct {
@@ -3306,6 +3671,8 @@ type TemplateVersionParameter struct {
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 	// The value of an ephemeral parameter will not be preserved between consecutive workspace builds.
 	Ephemeral bool `db:"ephemeral" json:"ephemeral"`
+	// Specify what form_type should be used to render the parameter in the UI. Unsupported values are rejected.
+	FormType ParameterFormType `db:"form_type" json:"form_type"`
 }
 
 type TemplateVersionPreset struct {
@@ -3316,6 +3683,12 @@ type TemplateVersionPreset struct {
 	DesiredInstances    sql.NullInt32  `db:"desired_instances" json:"desired_instances"`
 	InvalidateAfterSecs sql.NullInt32  `db:"invalidate_after_secs" json:"invalidate_after_secs"`
 	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
+	SchedulingTimezone  string         `db:"scheduling_timezone" json:"scheduling_timezone"`
+	IsDefault           bool           `db:"is_default" json:"is_default"`
+	// Short text describing the preset (max 128 characters).
+	Description string `db:"description" json:"description"`
+	// URL or path to an icon representing the preset (max 256 characters).
+	Icon string `db:"icon" json:"icon"`
 }
 
 type TemplateVersionPresetParameter struct {
@@ -3323,6 +3696,13 @@ type TemplateVersionPresetParameter struct {
 	TemplateVersionPresetID uuid.UUID `db:"template_version_preset_id" json:"template_version_preset_id"`
 	Name                    string    `db:"name" json:"name"`
 	Value                   string    `db:"value" json:"value"`
+}
+
+type TemplateVersionPresetPrebuildSchedule struct {
+	ID               uuid.UUID `db:"id" json:"id"`
+	PresetID         uuid.UUID `db:"preset_id" json:"preset_id"`
+	CronExpression   string    `db:"cron_expression" json:"cron_expression"`
+	DesiredInstances int32     `db:"desired_instances" json:"desired_instances"`
 }
 
 type TemplateVersionTable struct {
@@ -3341,6 +3721,7 @@ type TemplateVersionTable struct {
 	Message         string         `db:"message" json:"message"`
 	Archived        bool           `db:"archived" json:"archived"`
 	SourceExampleID sql.NullString `db:"source_example_id" json:"source_example_id"`
+	HasAITask       sql.NullBool   `db:"has_ai_task" json:"has_ai_task"`
 }
 
 type TemplateVersionTerraformValue struct {
@@ -3443,6 +3824,7 @@ type UserStatusChange struct {
 type VisibleUser struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 	Username  string    `db:"username" json:"username"`
+	Name      string    `db:"name" json:"name"`
 	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
 }
 
@@ -3473,8 +3855,11 @@ type Workspace struct {
 	AutomaticUpdates        AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
 	Favorite                bool             `db:"favorite" json:"favorite"`
 	NextStartAt             sql.NullTime     `db:"next_start_at" json:"next_start_at"`
+	GroupACL                WorkspaceACL     `db:"group_acl" json:"group_acl"`
+	UserACL                 WorkspaceACL     `db:"user_acl" json:"user_acl"`
 	OwnerAvatarUrl          string           `db:"owner_avatar_url" json:"owner_avatar_url"`
 	OwnerUsername           string           `db:"owner_username" json:"owner_username"`
+	OwnerName               string           `db:"owner_name" json:"owner_name"`
 	OrganizationName        string           `db:"organization_name" json:"organization_name"`
 	OrganizationDisplayName string           `db:"organization_display_name" json:"organization_display_name"`
 	OrganizationIcon        string           `db:"organization_icon" json:"organization_icon"`
@@ -3531,6 +3916,8 @@ type WorkspaceAgent struct {
 	ParentID     uuid.NullUUID `db:"parent_id" json:"parent_id"`
 	// Defines the scope of the API key associated with the agent. 'all' allows access to everything, 'no_user_data' restricts it to exclude user data.
 	APIKeyScope AgentKeyScopeEnum `db:"api_key_scope" json:"api_key_scope"`
+	// Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.
+	Deleted bool `db:"deleted" json:"deleted"`
 }
 
 // Workspace agent devcontainer configuration
@@ -3673,8 +4060,9 @@ type WorkspaceApp struct {
 	// Specifies the order in which to display agent app in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 	// Determines if the app is not shown in user interfaces.
-	Hidden bool               `db:"hidden" json:"hidden"`
-	OpenIn WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
+	Hidden       bool               `db:"hidden" json:"hidden"`
+	OpenIn       WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
+	DisplayGroup sql.NullString     `db:"display_group" json:"display_group"`
 }
 
 // Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.
@@ -3752,8 +4140,11 @@ type WorkspaceBuild struct {
 	DailyCost               int32               `db:"daily_cost" json:"daily_cost"`
 	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
+	HasAITask               sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
+	AITaskSidebarAppID      uuid.NullUUID       `db:"ai_task_sidebar_app_id" json:"ai_task_sidebar_app_id"`
 	InitiatorByAvatarUrl    string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
 	InitiatorByUsername     string              `db:"initiator_by_username" json:"initiator_by_username"`
+	InitiatorByName         string              `db:"initiator_by_name" json:"initiator_by_name"`
 }
 
 type WorkspaceBuildParameter struct {
@@ -3780,6 +4171,8 @@ type WorkspaceBuildTable struct {
 	DailyCost               int32               `db:"daily_cost" json:"daily_cost"`
 	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
+	HasAITask               sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
+	AITaskSidebarAppID      uuid.NullUUID       `db:"ai_task_sidebar_app_id" json:"ai_task_sidebar_app_id"`
 }
 
 type WorkspaceLatestBuild struct {
@@ -3885,4 +4278,6 @@ type WorkspaceTable struct {
 	// Favorite is true if the workspace owner has favorited the workspace.
 	Favorite    bool         `db:"favorite" json:"favorite"`
 	NextStartAt sql.NullTime `db:"next_start_at" json:"next_start_at"`
+	GroupACL    WorkspaceACL `db:"group_acl" json:"group_acl"`
+	UserACL     WorkspaceACL `db:"user_acl" json:"user_acl"`
 }

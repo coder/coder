@@ -6,15 +6,13 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (a *agent) apiHandler() (http.Handler, func() error) {
+func (a *agent) apiHandler() http.Handler {
 	r := chi.NewRouter()
 	r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
@@ -39,31 +37,19 @@ func (a *agent) apiHandler() (http.Handler, func() error) {
 		cacheDuration: cacheDuration,
 	}
 
-	if a.experimentalDevcontainersEnabled {
-		containerAPIOpts := []agentcontainers.Option{
-			agentcontainers.WithExecer(a.execer),
-			agentcontainers.WithScriptLogger(func(logSourceID uuid.UUID) agentcontainers.ScriptLogger {
-				return a.logSender.GetScriptLogger(logSourceID)
-			}),
-		}
-		manifest := a.manifest.Load()
-		if manifest != nil && len(manifest.Devcontainers) > 0 {
-			containerAPIOpts = append(
-				containerAPIOpts,
-				agentcontainers.WithDevcontainers(manifest.Devcontainers, manifest.Scripts),
-			)
-		}
-
-		// Append after to allow the agent options to override the default options.
-		containerAPIOpts = append(containerAPIOpts, a.containerAPIOptions...)
-
-		containerAPI := agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
-		r.Mount("/api/v0/containers", containerAPI.Routes())
-		a.containerAPI.Store(containerAPI)
+	if a.devcontainers {
+		r.Mount("/api/v0/containers", a.containerAPI.Routes())
+	} else if manifest := a.manifest.Load(); manifest != nil && manifest.ParentID != uuid.Nil {
+		r.HandleFunc("/api/v0/containers", func(w http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), w, http.StatusForbidden, codersdk.Response{
+				Message: "Dev Container feature not supported.",
+				Detail:  "Dev Container integration inside other Dev Containers is explicitly not supported.",
+			})
+		})
 	} else {
 		r.HandleFunc("/api/v0/containers", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(r.Context(), w, http.StatusForbidden, codersdk.Response{
-				Message: "The agent dev containers feature is experimental and not enabled by default.",
+				Message: "Dev Container feature not enabled.",
 				Detail:  "To enable this feature, set CODER_AGENT_DEVCONTAINERS_ENABLE=true in your template.",
 			})
 		})
@@ -80,12 +66,7 @@ func (a *agent) apiHandler() (http.Handler, func() error) {
 	r.Get("/debug/manifest", a.HandleHTTPDebugManifest)
 	r.Get("/debug/prometheus", promHandler.ServeHTTP)
 
-	return r, func() error {
-		if containerAPI := a.containerAPI.Load(); containerAPI != nil {
-			return containerAPI.Close()
-		}
-		return nil
-	}
+	return r
 }
 
 type listeningPortsHandler struct {

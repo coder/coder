@@ -196,7 +196,6 @@ func TestSSHConfig_ParseOptions(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		tt := tt
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
 			c := codersdk.SSHConfig{
@@ -277,7 +276,6 @@ func TestTimezoneOffsets(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -524,8 +522,6 @@ func TestFeatureComparison(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
-
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -558,10 +554,16 @@ func TestPremiumSuperSet(t *testing.T) {
 	// Premium ⊃ Enterprise
 	require.Subset(t, premium.Features(), enterprise.Features(), "premium should be a superset of enterprise. If this fails, update the premium feature set to include all enterprise features.")
 
-	// Premium = All Features
-	// This is currently true. If this assertion changes, update this test
-	// to reflect the change in feature sets.
-	require.ElementsMatch(t, premium.Features(), codersdk.FeatureNames, "premium should contain all features")
+	// Premium = All Features EXCEPT usage limit features
+	expectedPremiumFeatures := []codersdk.FeatureName{}
+	for _, feature := range codersdk.FeatureNames {
+		if feature.UsesLimit() {
+			continue
+		}
+		expectedPremiumFeatures = append(expectedPremiumFeatures, feature)
+	}
+	require.NotEmpty(t, expectedPremiumFeatures, "expectedPremiumFeatures should not be empty")
+	require.ElementsMatch(t, premium.Features(), expectedPremiumFeatures, "premium should contain all features except usage limit features")
 
 	// This check exists because if you misuse the slices.Delete, you can end up
 	// with zero'd values.
@@ -619,8 +621,6 @@ func TestNotificationsCanBeDisabled(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

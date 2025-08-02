@@ -107,12 +107,14 @@ func TestSSH(t *testing.T) {
 
 		cases := []string{
 			"myworkspace",
+			"myworkspace.dev",
 			"myuser/myworkspace",
 			"myuser--myworkspace",
 			"myuser/myworkspace--dev",
 			"myuser/myworkspace.dev",
 			"myuser--myworkspace--dev",
 			"myuser--myworkspace.dev",
+			"dev.myworkspace.myuser",
 		}
 
 		for _, tc := range cases {
@@ -1515,7 +1517,6 @@ func TestSSH(t *testing.T) {
 		pty.ExpectMatchContext(ctx, "ping pong")
 
 		for i, sock := range sockets {
-			i := i
 			// Start the listener on the "local machine".
 			l, err := net.Listen("unix", sock.local)
 			require.NoError(t, err)
@@ -1639,7 +1640,6 @@ func TestSSH(t *testing.T) {
 		}
 
 		for _, tc := range tcs {
-			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -2029,7 +2029,11 @@ func TestSSH_Container(t *testing.T) {
 		})
 
 		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
-			o.ExperimentalDevcontainersEnabled = true
+			o.Devcontainers = true
+			o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
+				agentcontainers.WithProjectDiscovery(false),
+				agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
+			)
 		})
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
@@ -2055,7 +2059,7 @@ func TestSSH_Container(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		ctrl := gomock.NewController(t)
-		mLister := acmock.NewMockLister(ctrl)
+		mLister := acmock.NewMockContainerCLI(ctrl)
 		mLister.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
 			Containers: []codersdk.WorkspaceAgentContainer{
 				{
@@ -2066,8 +2070,12 @@ func TestSSH_Container(t *testing.T) {
 			Warnings: nil,
 		}, nil).AnyTimes()
 		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
-			o.ExperimentalDevcontainersEnabled = true
-			o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithLister(mLister))
+			o.Devcontainers = true
+			o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
+				agentcontainers.WithContainerCLI(mLister),
+				agentcontainers.WithProjectDiscovery(false),
+				agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
+			)
 		})
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
@@ -2098,7 +2106,7 @@ func TestSSH_Container(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		err := inv.WithContext(ctx).Run()
-		require.ErrorContains(t, err, "The agent dev containers feature is experimental and not enabled by default.")
+		require.ErrorContains(t, err, "Dev Container feature not enabled.")
 	})
 }
 

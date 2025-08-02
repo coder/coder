@@ -20,10 +20,14 @@ import (
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/speedtest"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
+	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/websocket"
 )
 
 // NewAgentConn creates a new WorkspaceAgentConn. `conn` may be unique
@@ -387,20 +391,48 @@ func (c *AgentConn) ListContainers(ctx context.Context) (codersdk.WorkspaceAgent
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// RecreateDevcontainer recreates a devcontainer with the given container.
-// This is a blocking call and will wait for the container to be recreated.
-func (c *AgentConn) RecreateDevcontainer(ctx context.Context, containerIDOrName string) error {
+func (c *AgentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-chan codersdk.WorkspaceAgentListContainersResponse, io.Closer, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/containers/devcontainers/container/"+containerIDOrName+"/recreate", nil)
+
+	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
+	url := fmt.Sprintf("http://%s%s", host, "/api/v0/containers/watch")
+
+	conn, res, err := websocket.Dial(ctx, url, &websocket.DialOptions{
+		HTTPClient: c.apiClient(),
+	})
 	if err != nil {
-		return xerrors.Errorf("do request: %w", err)
+		if res == nil {
+			return nil, nil, err
+		}
+		return nil, nil, codersdk.ReadBodyAsError(res)
+	}
+	if res != nil && res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	d := wsjson.NewDecoder[codersdk.WorkspaceAgentListContainersResponse](conn, websocket.MessageText, logger)
+	return d.Chan(), d, nil
+}
+
+// RecreateDevcontainer recreates a devcontainer with the given container.
+// This is a blocking call and will wait for the container to be recreated.
+func (c *AgentConn) RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/containers/devcontainers/"+devcontainerID+"/recreate", nil)
+	if err != nil {
+		return codersdk.Response{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return codersdk.ReadBodyAsError(res)
+	if res.StatusCode != http.StatusAccepted {
+		return codersdk.Response{}, codersdk.ReadBodyAsError(res)
 	}
-	return nil
+	var m codersdk.Response
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		return codersdk.Response{}, xerrors.Errorf("decode response body: %w", err)
+	}
+	return m, nil
 }
 
 // apiRequest makes a request to the workspace agent's HTTP API server.

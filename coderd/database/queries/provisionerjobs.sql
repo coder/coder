@@ -26,7 +26,9 @@ WHERE
 			-- they are aliases and the code that calls this query already relies on a different type
 			AND provisioner_tagset_contains(@provisioner_tags :: jsonb, potential_job.tags :: jsonb)
 		ORDER BY
-			potential_job.created_at
+			-- Ensure that human-initiated jobs are prioritized over prebuilds.
+			potential_job.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid ASC,
+			potential_job.created_at ASC
 		FOR UPDATE
 		SKIP LOCKED
 		LIMIT
@@ -74,23 +76,27 @@ WITH filtered_provisioner_jobs AS (
 pending_jobs AS (
 	-- Step 2: Extract only pending jobs
 	SELECT
-		id, created_at, tags
+		id, initiator_id, created_at, tags
 	FROM
 		provisioner_jobs
 	WHERE
 		job_status = 'pending'
+),
+online_provisioner_daemons AS (
+	SELECT id, tags FROM provisioner_daemons pd
+	WHERE pd.last_seen_at IS NOT NULL AND pd.last_seen_at >= (NOW() - (@stale_interval_ms::bigint || ' ms')::interval)
 ),
 ranked_jobs AS (
 	-- Step 3: Rank only pending jobs based on provisioner availability
 	SELECT
 		pj.id,
 		pj.created_at,
-		ROW_NUMBER() OVER (PARTITION BY pd.id ORDER BY pj.created_at ASC) AS queue_position,
-		COUNT(*) OVER (PARTITION BY pd.id) AS queue_size
+		ROW_NUMBER() OVER (PARTITION BY opd.id ORDER BY pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid ASC, pj.created_at ASC) AS queue_position,
+		COUNT(*) OVER (PARTITION BY opd.id) AS queue_size
 	FROM
 		pending_jobs pj
-			INNER JOIN provisioner_daemons pd
-					ON provisioner_tagset_contains(pd.tags, pj.tags) -- Join only on the small pending set
+			INNER JOIN online_provisioner_daemons opd
+					ON provisioner_tagset_contains(opd.tags, pj.tags) -- Join only on the small pending set
 ),
 final_jobs AS (
 	-- Step 4: Compute best queue position and max queue size per job
@@ -124,7 +130,7 @@ ORDER BY
 -- name: GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner :many
 WITH pending_jobs AS (
     SELECT
-        id, created_at
+        id, initiator_id, created_at
     FROM
         provisioner_jobs
     WHERE
@@ -139,7 +145,7 @@ WITH pending_jobs AS (
 queue_position AS (
     SELECT
         id,
-        ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
+        ROW_NUMBER() OVER (ORDER BY initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid ASC, created_at ASC) AS queue_position
     FROM
         pending_jobs
 ),
@@ -241,10 +247,11 @@ INSERT INTO
 		"type",
 		"input",
 		tags,
-		trace_metadata
+		trace_metadata,
+		logs_overflowed
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
 
 -- name: UpdateProvisionerJobByID :exec
 UPDATE

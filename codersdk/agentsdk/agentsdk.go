@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
-	"strconv"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -27,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
+	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
 
@@ -36,18 +36,6 @@ import (
 // This is to support legacy API-consumers that do not create their own
 // log-source. This should be removed in the future.
 var ExternalLogSourceID = uuid.MustParse("3b579bf4-1ed8-4b99-87a8-e9a1e3410410")
-
-// ConnectionType is the type of connection that the agent is receiving.
-type ConnectionType string
-
-// Connection type enums.
-const (
-	ConnectionTypeUnspecified     ConnectionType = "Unspecified"
-	ConnectionTypeSSH             ConnectionType = "SSH"
-	ConnectionTypeVSCode          ConnectionType = "VS Code"
-	ConnectionTypeJetBrains       ConnectionType = "JetBrains"
-	ConnectionTypeReconnectingPTY ConnectionType = "Web Terminal"
-)
 
 // New returns a client that is used to interact with the
 // Coder API from a workspace agent.
@@ -102,9 +90,10 @@ type PostMetadataRequest struct {
 type PostMetadataRequestDeprecated = codersdk.WorkspaceAgentMetadataResult
 
 type Manifest struct {
+	ParentID  uuid.UUID `json:"parent_id"`
 	AgentID   uuid.UUID `json:"agent_id"`
 	AgentName string    `json:"agent_name"`
-	// OwnerName and WorkspaceID are used by an open-source user to identify the workspace.
+	// OwnerUsername and WorkspaceID are used by an open-source user to identify the workspace.
 	// We do not provide insurance that this will not be removed in the future,
 	// but if it's easy to persist lets keep it around.
 	OwnerName     string    `json:"owner_name"`
@@ -137,40 +126,13 @@ type Script struct {
 	Script string `json:"script"`
 }
 
-// RewriteDERPMap rewrites the DERP map to use the access URL of the SDK as the
-// "embedded relay" access URL. The passed derp map is modified in place.
+// RewriteDERPMap rewrites the DERP map to use the configured access URL of the
+// agent as the "embedded relay" access URL.
 //
-// Agents can provide an arbitrary access URL that may be different that the
-// globally configured one. This breaks the built-in DERP, which would continue
-// to reference the global access URL.
+// See tailnet.RewriteDERPMapDefaultRelay for more details on why this is
+// necessary.
 func (c *Client) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
-	accessingPort := c.SDK.URL.Port()
-	if accessingPort == "" {
-		accessingPort = "80"
-		if c.SDK.URL.Scheme == "https" {
-			accessingPort = "443"
-		}
-	}
-	accessPort, err := strconv.Atoi(accessingPort)
-	if err != nil {
-		// this should never happen because URL.Port() returns the empty string if the port is not
-		// valid.
-		c.SDK.Logger().Critical(context.Background(), "failed to parse URL port", slog.F("port", accessingPort))
-	}
-	for _, region := range derpMap.Regions {
-		if !region.EmbeddedRelay {
-			continue
-		}
-
-		for _, node := range region.Nodes {
-			if node.STUNOnly {
-				continue
-			}
-			node.HostName = c.SDK.URL.Hostname()
-			node.DERPPort = accessPort
-			node.ForceHTTP = c.SDK.URL.Scheme == "http"
-		}
-	}
+	tailnet.RewriteDERPMapDefaultRelay(context.Background(), c.SDK.Logger(), derpMap, c.SDK.URL)
 }
 
 // ConnectRPC20 returns a dRPC client to the Agent API v2.0.  Notably, it is missing
@@ -258,11 +220,23 @@ func (c *Client) ConnectRPC24(ctx context.Context) (
 }
 
 // ConnectRPC25 returns a dRPC client to the Agent API v2.5.  It is useful when you want to be
-// maximally compatible with Coderd Release Versions from 2.xx+ // TODO(DanielleMaywood): Update version
+// maximally compatible with Coderd Release Versions from 2.23+
 func (c *Client) ConnectRPC25(ctx context.Context) (
 	proto.DRPCAgentClient25, tailnetproto.DRPCTailnetClient25, error,
 ) {
 	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 5))
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC25 returns a dRPC client to the Agent API v2.5.  It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.24+
+func (c *Client) ConnectRPC26(ctx context.Context) (
+	proto.DRPCAgentClient26, tailnetproto.DRPCTailnetClient26, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 6))
 	if err != nil {
 		return nil, nil, err
 	}

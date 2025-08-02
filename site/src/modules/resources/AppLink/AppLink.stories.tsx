@@ -1,48 +1,25 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
+import { getPreferredProxy } from "contexts/ProxyContext";
 import {
 	MockPrimaryWorkspaceProxy,
-	MockProxyLatencies,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
 	MockWorkspaceProxies,
 } from "testHelpers/entities";
-import { withGlobalSnackbar } from "testHelpers/storybook";
+import { withGlobalSnackbar, withProxyProvider } from "testHelpers/storybook";
 import { AppLink } from "./AppLink";
 
 const meta: Meta<typeof AppLink> = {
 	title: "modules/resources/AppLink",
 	component: AppLink,
 	decorators: [
-		(Story) => (
-			<ProxyContext.Provider
-				value={{
-					proxyLatencies: MockProxyLatencies,
-					proxy: {
-						...getPreferredProxy(
-							MockWorkspaceProxies,
-							MockPrimaryWorkspaceProxy,
-						),
-						preferredWildcardHostname: "*.super_proxy.tld",
-					},
-					proxies: MockWorkspaceProxies,
-					isLoading: false,
-					isFetched: true,
-					setProxy: () => {
-						return;
-					},
-					clearProxy: () => {
-						return;
-					},
-					refetchProxyLatencies: (): Date => {
-						return new Date();
-					},
-				}}
-			>
-				<Story />
-			</ProxyContext.Provider>
-		),
+		withProxyProvider({
+			proxy: {
+				...getPreferredProxy(MockWorkspaceProxies, MockPrimaryWorkspaceProxy),
+				preferredWildcardHostname: "*.super_proxy.tld",
+			},
+		}),
 	],
 };
 
@@ -117,6 +94,17 @@ export const SharingLevelAuthenticated: Story = {
 		app: {
 			...MockWorkspaceApp,
 			sharing_level: "authenticated",
+		},
+		agent: MockWorkspaceAgent,
+	},
+};
+
+export const SharingLevelOrganization: Story = {
+	args: {
+		workspace: MockWorkspace,
+		app: {
+			...MockWorkspaceApp,
+			sharing_level: "organization",
 		},
 		agent: MockWorkspaceAgent,
 	},

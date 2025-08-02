@@ -24,7 +24,7 @@ import { getFormHelpers } from "utils/formUtils";
 import { Fieldset } from "../Fieldset";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
 
-export type AppearanceSettingsPageViewProps = {
+type AppearanceSettingsPageViewProps = {
 	appearance: UpdateAppearanceConfig;
 	isEntitled: boolean;
 	isPremium: boolean;
@@ -112,7 +112,7 @@ export const AppearanceSettingsPageView: FC<
           corner of the dashboard."
 				validation={
 					isEntitled
-						? "We recommend a transparent image with 3:1 aspect ratio."
+						? "An image with transparency and an aspect ratio of 3:1 or less will look best."
 						: "This is an Enterprise only feature."
 				}
 				onSubmit={logoForm.handleSubmit}

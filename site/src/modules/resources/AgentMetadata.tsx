@@ -23,7 +23,7 @@ import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 
 type ItemStatus = "stale" | "valid" | "loading";
 
-export interface AgentMetadataViewProps {
+interface AgentMetadataViewProps {
 	metadata: WorkspaceAgentMetadata[];
 }
 
@@ -42,24 +42,24 @@ export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
 
 interface AgentMetadataProps {
 	agent: WorkspaceAgent;
-	storybookMetadata?: WorkspaceAgentMetadata[];
+	initialMetadata?: WorkspaceAgentMetadata[];
 }
 
 const maxSocketErrorRetryCount = 3;
 
 export const AgentMetadata: FC<AgentMetadataProps> = ({
 	agent,
-	storybookMetadata,
+	initialMetadata,
 }) => {
-	const [activeMetadata, setActiveMetadata] = useState(storybookMetadata);
+	const [activeMetadata, setActiveMetadata] = useState(initialMetadata);
 	useEffect(() => {
 		// This is an unfortunate pitfall with this component's testing setup,
-		// but even though we use the value of storybookMetadata as the initial
+		// but even though we use the value of initialMetadata as the initial
 		// value of the activeMetadata, we cannot put activeMetadata itself into
 		// the dependency array. If we did, we would destroy and rebuild each
 		// connection every single time a new message comes in from the socket,
 		// because the socket has to be wired up to the state setter
-		if (storybookMetadata !== undefined) {
+		if (initialMetadata !== undefined) {
 			return;
 		}
 
@@ -118,7 +118,7 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 			window.clearTimeout(timeoutId);
 			activeSocket?.close();
 		};
-	}, [agent.id, storybookMetadata]);
+	}, [agent.id, initialMetadata]);
 
 	if (activeMetadata === undefined) {
 		return (

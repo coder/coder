@@ -46,7 +46,7 @@ export const TemplateSettingsLayout: FC = () => {
 		enabled: templateQuery.isSuccess,
 	});
 
-	if (templateQuery.isLoading || permissionsQuery.isLoading) {
+	if (!(templateQuery.data && permissionsQuery.data)) {
 		return <Loader />;
 	}
 

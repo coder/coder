@@ -4,18 +4,21 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -26,9 +29,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -1155,7 +1159,6 @@ func TestProxyByHostname(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1268,7 +1271,10 @@ func TestQueuePosition(t *testing.T) {
 		Tags: database.StringMap{},
 	})
 
-	queued, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	queued, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, queued, jobCount)
 	sort.Slice(queued, func(i, j int) bool {
@@ -1296,7 +1302,10 @@ func TestQueuePosition(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, jobs[0].ID, job.ID)
 
-	queued, err = db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	queued, err = db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, queued, jobCount)
 	sort.Slice(queued, func(i, j int) bool {
@@ -1311,6 +1320,101 @@ func TestQueuePosition(t *testing.T) {
 		require.Equal(t, job.QueuePosition, int64(index))
 		require.Equal(t, job.ProvisionerJob.ID, jobs[index].ID)
 	}
+}
+
+func TestAcquireProvisionerJob(t *testing.T) {
+	t.Parallel()
+
+	t.Run("HumanInitiatedJobsFirst", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _       = dbtestutil.NewDB(t)
+			ctx         = testutil.Context(t, testutil.WaitMedium)
+			org         = dbgen.Organization(t, db, database.Organization{})
+			_           = dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{}) // Required for queue position
+			now         = dbtime.Now()
+			numJobs     = 10
+			humanIDs    = make([]uuid.UUID, 0, numJobs/2)
+			prebuildIDs = make([]uuid.UUID, 0, numJobs/2)
+		)
+
+		// Given: a number of jobs in the queue, with prebuilds and non-prebuilds interleaved
+		for idx := range numJobs {
+			var initiator uuid.UUID
+			if idx%2 == 0 {
+				initiator = database.PrebuildsSystemUserID
+			} else {
+				initiator = uuid.MustParse("c0dec0de-c0de-c0de-c0de-c0dec0dec0de")
+			}
+			pj, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+				ID:             uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-00000000000%x", idx+1)),
+				CreatedAt:      time.Now().Add(-time.Second * time.Duration(idx)),
+				UpdatedAt:      time.Now().Add(-time.Second * time.Duration(idx)),
+				InitiatorID:    initiator,
+				OrganizationID: org.ID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				FileID:         uuid.New(),
+				Input:          json.RawMessage(`{}`),
+				Tags:           database.StringMap{},
+				TraceMetadata:  pqtype.NullRawMessage{},
+			})
+			require.NoError(t, err)
+			// We expected prebuilds to be acquired after human-initiated jobs.
+			if initiator == database.PrebuildsSystemUserID {
+				prebuildIDs = append([]uuid.UUID{pj.ID}, prebuildIDs...)
+			} else {
+				humanIDs = append([]uuid.UUID{pj.ID}, humanIDs...)
+			}
+			t.Logf("created job id=%q initiator=%q created_at=%q", pj.ID.String(), pj.InitiatorID.String(), pj.CreatedAt.String())
+		}
+
+		expectedIDs := append(humanIDs, prebuildIDs...) //nolint:gocritic // not the same slice
+
+		// When: we query the queue positions for the jobs
+		qjs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+			IDs:             expectedIDs,
+			StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+		})
+		require.NoError(t, err)
+		require.Len(t, qjs, numJobs)
+		// Ensure the jobs are sorted by queue position.
+		sort.Slice(qjs, func(i, j int) bool {
+			return qjs[i].QueuePosition < qjs[j].QueuePosition
+		})
+
+		// Then: the queue positions for the jobs should indicate the order in which
+		// they will be acquired, with human-initiated jobs first.
+		for idx, qj := range qjs {
+			t.Logf("queued job %d/%d id=%q initiator=%q created_at=%q queue_position=%d", idx+1, numJobs, qj.ProvisionerJob.ID.String(), qj.ProvisionerJob.InitiatorID.String(), qj.ProvisionerJob.CreatedAt.String(), qj.QueuePosition)
+			require.Equal(t, expectedIDs[idx].String(), qj.ProvisionerJob.ID.String(), "job %d/%d should match expected id", idx+1, numJobs)
+			require.Equal(t, int64(idx+1), qj.QueuePosition, "job %d/%d should have queue position %d", idx+1, numJobs, idx+1)
+		}
+
+		// When: the jobs are acquired
+		// Then: human-initiated jobs are prioritized first.
+		for idx := range numJobs {
+			acquired, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+				OrganizationID:  org.ID,
+				StartedAt:       sql.NullTime{Time: time.Now(), Valid: true},
+				WorkerID:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
+				Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+				ProvisionerTags: json.RawMessage(`{}`),
+			})
+			require.NoError(t, err)
+			require.Equal(t, expectedIDs[idx].String(), acquired.ID.String(), "acquired job %d/%d with initiator %q", idx+1, numJobs, acquired.InitiatorID.String())
+			t.Logf("acquired job id=%q initiator=%q created_at=%q", acquired.ID.String(), acquired.InitiatorID.String(), acquired.CreatedAt.String())
+			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+				ID:          acquired.ID,
+				UpdatedAt:   now,
+				CompletedAt: sql.NullTime{Time: now, Valid: true},
+				Error:       sql.NullString{},
+				ErrorCode:   sql.NullString{},
+			})
+			require.NoError(t, err, "mark job %d/%d as complete", idx+1, numJobs)
+		}
+	})
 }
 
 func TestUserLastSeenFilter(t *testing.T) {
@@ -1387,7 +1491,6 @@ func TestGetUsers_IncludeSystem(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1395,7 +1498,6 @@ func TestGetUsers_IncludeSystem(t *testing.T) {
 
 			// Given: a system user
 			// postgres: introduced by migration coderd/database/migrations/00030*_system_user.up.sql
-			// dbmem: created in dbmem/dbmem.go
 			db, _ := dbtestutil.NewDB(t)
 			other := dbgen.User(t, db, database.User{})
 			users, err := db.GetUsers(ctx, database.GetUsersParams{
@@ -1410,7 +1512,7 @@ func TestGetUsers_IncludeSystem(t *testing.T) {
 			for _, u := range users {
 				if u.IsSystem {
 					foundSystemUser = true
-					require.Equal(t, prebuilds.SystemUserID, u.ID)
+					require.Equal(t, database.PrebuildsSystemUserID, u.ID)
 				} else {
 					foundRegularUser = true
 					require.Equalf(t, other.ID.String(), u.ID.String(), "found unexpected regular user")
@@ -1560,6 +1662,26 @@ func TestAuditLogDefaultLimit(t *testing.T) {
 	// The length should match the default limit of the SQL query.
 	// Updating the sql query requires changing the number below to match.
 	require.Len(t, rows, 100)
+}
+
+func TestAuditLogCount(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	dbgen.AuditLog(t, db, database.AuditLog{})
+
+	count, err := db.CountAuditLogs(ctx, database.CountAuditLogsParams{})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), count)
 }
 
 func TestWorkspaceQuotas(t *testing.T) {
@@ -1855,8 +1977,6 @@ func TestReadCustomRoles(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
-
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1917,7 +2037,6 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 	}
 
 	// Now fetch all the logs
-	ctx := testutil.Context(t, testutil.WaitLong)
 	auditorRole, err := rbac.RoleByName(rbac.RoleAuditor())
 	require.NoError(t, err)
 
@@ -1934,6 +2053,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 
 	t.Run("NoAccess", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A user who is a member of 0 organizations
 		memberCtx := dbauthz.As(ctx, rbac.Subject{
@@ -1944,14 +2064,19 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 		})
 
 		// When: The user queries for audit logs
+		count, err := db.CountAuditLogs(memberCtx, database.CountAuditLogsParams{})
+		require.NoError(t, err)
 		logs, err := db.GetAuditLogsOffset(memberCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
-		// Then: No logs returned
+
+		// Then: No logs returned and count is 0
+		require.Equal(t, int64(0), count, "count should be 0")
 		require.Len(t, logs, 0, "no logs should be returned")
 	})
 
 	t.Run("SiteWideAuditor", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A site wide auditor
 		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
@@ -1962,14 +2087,19 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 		})
 
 		// When: the auditor queries for audit logs
+		count, err := db.CountAuditLogs(siteAuditorCtx, database.CountAuditLogsParams{})
+		require.NoError(t, err)
 		logs, err := db.GetAuditLogsOffset(siteAuditorCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
-		// Then: All logs are returned
-		require.ElementsMatch(t, auditOnlyIDs(allLogs), auditOnlyIDs(logs))
+
+		// Then: All logs are returned and count matches
+		require.Equal(t, int64(len(allLogs)), count, "count should match total number of logs")
+		require.ElementsMatch(t, auditOnlyIDs(allLogs), auditOnlyIDs(logs), "all logs should be returned")
 	})
 
 	t.Run("SingleOrgAuditor", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := orgIDs[0]
 		// Given: An organization scoped auditor
@@ -1981,14 +2111,19 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 		})
 
 		// When: The auditor queries for audit logs
+		count, err := db.CountAuditLogs(orgAuditCtx, database.CountAuditLogsParams{})
+		require.NoError(t, err)
 		logs, err := db.GetAuditLogsOffset(orgAuditCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
-		// Then: Only the logs for the organization are returned
-		require.ElementsMatch(t, orgAuditLogs[orgID], auditOnlyIDs(logs))
+
+		// Then: Only the logs for the organization are returned and count matches
+		require.Equal(t, int64(len(orgAuditLogs[orgID])), count, "count should match organization logs")
+		require.ElementsMatch(t, orgAuditLogs[orgID], auditOnlyIDs(logs), "only organization logs should be returned")
 	})
 
 	t.Run("TwoOrgAuditors", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		first := orgIDs[0]
 		second := orgIDs[1]
@@ -2001,14 +2136,21 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 		})
 
 		// When: The user queries for audit logs
+		count, err := db.CountAuditLogs(multiOrgAuditCtx, database.CountAuditLogsParams{})
+		require.NoError(t, err)
 		logs, err := db.GetAuditLogsOffset(multiOrgAuditCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
-		// Then: All logs for both organizations are returned
-		require.ElementsMatch(t, append(orgAuditLogs[first], orgAuditLogs[second]...), auditOnlyIDs(logs))
+
+		// Then: All logs for both organizations are returned and count matches
+		expectedLogs := append([]uuid.UUID{}, orgAuditLogs[first]...)
+		expectedLogs = append(expectedLogs, orgAuditLogs[second]...)
+		require.Equal(t, int64(len(expectedLogs)), count, "count should match sum of both organizations")
+		require.ElementsMatch(t, expectedLogs, auditOnlyIDs(logs), "logs from both organizations should be returned")
 	})
 
 	t.Run("ErroneousOrg", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A user who is an auditor for an organization that has 0 logs
 		userCtx := dbauthz.As(ctx, rbac.Subject{
@@ -2019,9 +2161,13 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 		})
 
 		// When: The user queries for audit logs
+		count, err := db.CountAuditLogs(userCtx, database.CountAuditLogsParams{})
+		require.NoError(t, err)
 		logs, err := db.GetAuditLogsOffset(userCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
-		// Then: No logs are returned
+
+		// Then: No logs are returned and count is 0
+		require.Equal(t, int64(0), count, "count should be 0")
 		require.Len(t, logs, 0, "no logs should be returned")
 	})
 }
@@ -2039,6 +2185,788 @@ func auditOnlyIDs[T database.AuditLog | database.GetAuditLogsOffsetRow](logs []T
 		}
 	}
 	return ids
+}
+
+func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
+	t.Parallel()
+
+	var allLogs []database.ConnectionLog
+	db, _ := dbtestutil.NewDB(t)
+	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
+	authDb := dbauthz.New(db, authz, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+
+	orgA := dbfake.Organization(t, db).Do()
+	orgB := dbfake.Organization(t, db).Do()
+
+	user := dbgen.User(t, db, database.User{})
+
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: orgA.Org.ID,
+		CreatedBy:      user.ID,
+	})
+
+	wsID := uuid.New()
+	createTemplateVersion(t, db, tpl, tvArgs{
+		WorkspaceTransition: database.WorkspaceTransitionStart,
+		Status:              database.ProvisionerJobStatusSucceeded,
+		CreateWorkspace:     true,
+		WorkspaceID:         wsID,
+	})
+
+	// This map is a simple way to insert a given number of organizations
+	// and audit logs for each organization.
+	// map[orgID][]ConnectionLogID
+	orgConnectionLogs := map[uuid.UUID][]uuid.UUID{
+		orgA.Org.ID: {uuid.New(), uuid.New()},
+		orgB.Org.ID: {uuid.New(), uuid.New()},
+	}
+	orgIDs := make([]uuid.UUID, 0, len(orgConnectionLogs))
+	for orgID := range orgConnectionLogs {
+		orgIDs = append(orgIDs, orgID)
+	}
+	for orgID, ids := range orgConnectionLogs {
+		for _, id := range ids {
+			allLogs = append(allLogs, dbgen.ConnectionLog(t, authDb, database.UpsertConnectionLogParams{
+				WorkspaceID:      wsID,
+				WorkspaceOwnerID: user.ID,
+				ID:               id,
+				OrganizationID:   orgID,
+			}))
+		}
+	}
+
+	// Now fetch all the logs
+	auditorRole, err := rbac.RoleByName(rbac.RoleAuditor())
+	require.NoError(t, err)
+
+	memberRole, err := rbac.RoleByName(rbac.RoleMember())
+	require.NoError(t, err)
+
+	orgAuditorRoles := func(t *testing.T, orgID uuid.UUID) rbac.Role {
+		t.Helper()
+
+		role, err := rbac.RoleByName(rbac.ScopedRoleOrgAuditor(orgID))
+		require.NoError(t, err)
+		return role
+	}
+
+	t.Run("NoAccess", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A user who is a member of 0 organizations
+		memberCtx := dbauthz.As(ctx, rbac.Subject{
+			FriendlyName: "member",
+			ID:           uuid.NewString(),
+			Roles:        rbac.Roles{memberRole},
+			Scope:        rbac.ScopeAll,
+		})
+
+		// When: The user queries for connection logs
+		logs, err := authDb.GetConnectionLogsOffset(memberCtx, database.GetConnectionLogsOffsetParams{})
+		require.NoError(t, err)
+		// Then: No logs returned
+		require.Len(t, logs, 0, "no logs should be returned")
+		// And: The count matches the number of logs returned
+		count, err := authDb.CountConnectionLogs(memberCtx, database.CountConnectionLogsParams{})
+		require.NoError(t, err)
+		require.EqualValues(t, len(logs), count)
+	})
+
+	t.Run("SiteWideAuditor", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A site wide auditor
+		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
+			FriendlyName: "owner",
+			ID:           uuid.NewString(),
+			Roles:        rbac.Roles{auditorRole},
+			Scope:        rbac.ScopeAll,
+		})
+
+		// When: the auditor queries for connection logs
+		logs, err := authDb.GetConnectionLogsOffset(siteAuditorCtx, database.GetConnectionLogsOffsetParams{})
+		require.NoError(t, err)
+		// Then: All logs are returned
+		require.ElementsMatch(t, connectionOnlyIDs(allLogs), connectionOnlyIDs(logs))
+		// And: The count matches the number of logs returned
+		count, err := authDb.CountConnectionLogs(siteAuditorCtx, database.CountConnectionLogsParams{})
+		require.NoError(t, err)
+		require.EqualValues(t, len(logs), count)
+	})
+
+	t.Run("SingleOrgAuditor", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		orgID := orgIDs[0]
+		// Given: An organization scoped auditor
+		orgAuditCtx := dbauthz.As(ctx, rbac.Subject{
+			FriendlyName: "org-auditor",
+			ID:           uuid.NewString(),
+			Roles:        rbac.Roles{orgAuditorRoles(t, orgID)},
+			Scope:        rbac.ScopeAll,
+		})
+
+		// When: The auditor queries for connection logs
+		logs, err := authDb.GetConnectionLogsOffset(orgAuditCtx, database.GetConnectionLogsOffsetParams{})
+		require.NoError(t, err)
+		// Then: Only the logs for the organization are returned
+		require.ElementsMatch(t, orgConnectionLogs[orgID], connectionOnlyIDs(logs))
+		// And: The count matches the number of logs returned
+		count, err := authDb.CountConnectionLogs(orgAuditCtx, database.CountConnectionLogsParams{})
+		require.NoError(t, err)
+		require.EqualValues(t, len(logs), count)
+	})
+
+	t.Run("TwoOrgAuditors", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		first := orgIDs[0]
+		second := orgIDs[1]
+		// Given: A user who is an auditor for two organizations
+		multiOrgAuditCtx := dbauthz.As(ctx, rbac.Subject{
+			FriendlyName: "org-auditor",
+			ID:           uuid.NewString(),
+			Roles:        rbac.Roles{orgAuditorRoles(t, first), orgAuditorRoles(t, second)},
+			Scope:        rbac.ScopeAll,
+		})
+
+		// When: The user queries for connection logs
+		logs, err := authDb.GetConnectionLogsOffset(multiOrgAuditCtx, database.GetConnectionLogsOffsetParams{})
+		require.NoError(t, err)
+		// Then: All logs for both organizations are returned
+		require.ElementsMatch(t, append(orgConnectionLogs[first], orgConnectionLogs[second]...), connectionOnlyIDs(logs))
+		// And: The count matches the number of logs returned
+		count, err := authDb.CountConnectionLogs(multiOrgAuditCtx, database.CountConnectionLogsParams{})
+		require.NoError(t, err)
+		require.EqualValues(t, len(logs), count)
+	})
+
+	t.Run("ErroneousOrg", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A user who is an auditor for an organization that has 0 logs
+		userCtx := dbauthz.As(ctx, rbac.Subject{
+			FriendlyName: "org-auditor",
+			ID:           uuid.NewString(),
+			Roles:        rbac.Roles{orgAuditorRoles(t, uuid.New())},
+			Scope:        rbac.ScopeAll,
+		})
+
+		// When: The user queries for audit logs
+		logs, err := authDb.GetConnectionLogsOffset(userCtx, database.GetConnectionLogsOffsetParams{})
+		require.NoError(t, err)
+		// Then: No logs are returned
+		require.Len(t, logs, 0, "no logs should be returned")
+		// And: The count matches the number of logs returned
+		count, err := authDb.CountConnectionLogs(userCtx, database.CountConnectionLogsParams{})
+		require.NoError(t, err)
+		require.EqualValues(t, len(logs), count)
+	})
+}
+
+func TestCountConnectionLogs(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	db, _ := dbtestutil.NewDB(t)
+
+	orgA := dbfake.Organization(t, db).Do()
+	userA := dbgen.User(t, db, database.User{})
+	tplA := dbgen.Template(t, db, database.Template{OrganizationID: orgA.Org.ID, CreatedBy: userA.ID})
+	wsA := dbgen.Workspace(t, db, database.WorkspaceTable{OwnerID: userA.ID, OrganizationID: orgA.Org.ID, TemplateID: tplA.ID})
+
+	orgB := dbfake.Organization(t, db).Do()
+	userB := dbgen.User(t, db, database.User{})
+	tplB := dbgen.Template(t, db, database.Template{OrganizationID: orgB.Org.ID, CreatedBy: userB.ID})
+	wsB := dbgen.Workspace(t, db, database.WorkspaceTable{OwnerID: userB.ID, OrganizationID: orgB.Org.ID, TemplateID: tplB.ID})
+
+	// Create logs for two different orgs.
+	for i := 0; i < 20; i++ {
+		dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+			OrganizationID:   wsA.OrganizationID,
+			WorkspaceOwnerID: wsA.OwnerID,
+			WorkspaceID:      wsA.ID,
+			Type:             database.ConnectionTypeSsh,
+		})
+	}
+	for i := 0; i < 10; i++ {
+		dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+			OrganizationID:   wsB.OrganizationID,
+			WorkspaceOwnerID: wsB.OwnerID,
+			WorkspaceID:      wsB.ID,
+			Type:             database.ConnectionTypeSsh,
+		})
+	}
+
+	// Count with a filter for orgA.
+	countParams := database.CountConnectionLogsParams{
+		OrganizationID: orgA.Org.ID,
+	}
+	totalCount, err := db.CountConnectionLogs(ctx, countParams)
+	require.NoError(t, err)
+	require.Equal(t, int64(20), totalCount)
+
+	// Get a paginated result for the same filter.
+	getParams := database.GetConnectionLogsOffsetParams{
+		OrganizationID: orgA.Org.ID,
+		LimitOpt:       5,
+		OffsetOpt:      10,
+	}
+	logs, err := db.GetConnectionLogsOffset(ctx, getParams)
+	require.NoError(t, err)
+	require.Len(t, logs, 5)
+
+	// The count with the filter should remain the same, independent of pagination.
+	countAfterGet, err := db.CountConnectionLogs(ctx, countParams)
+	require.NoError(t, err)
+	require.Equal(t, int64(20), countAfterGet)
+}
+
+func TestConnectionLogsOffsetFilters(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	orgA := dbfake.Organization(t, db).Do()
+	orgB := dbfake.Organization(t, db).Do()
+
+	user1 := dbgen.User(t, db, database.User{
+		Username: "user1",
+		Email:    "user1@test.com",
+	})
+	user2 := dbgen.User(t, db, database.User{
+		Username: "user2",
+		Email:    "user2@test.com",
+	})
+	user3 := dbgen.User(t, db, database.User{
+		Username: "user3",
+		Email:    "user3@test.com",
+	})
+
+	ws1Tpl := dbgen.Template(t, db, database.Template{OrganizationID: orgA.Org.ID, CreatedBy: user1.ID})
+	ws1 := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        user1.ID,
+		OrganizationID: orgA.Org.ID,
+		TemplateID:     ws1Tpl.ID,
+	})
+	ws2Tpl := dbgen.Template(t, db, database.Template{OrganizationID: orgB.Org.ID, CreatedBy: user2.ID})
+	ws2 := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        user2.ID,
+		OrganizationID: orgB.Org.ID,
+		TemplateID:     ws2Tpl.ID,
+	})
+
+	now := dbtime.Now()
+	log1ConnID := uuid.New()
+	log1 := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+		Time:             now.Add(-4 * time.Hour),
+		OrganizationID:   ws1.OrganizationID,
+		WorkspaceOwnerID: ws1.OwnerID,
+		WorkspaceID:      ws1.ID,
+		WorkspaceName:    ws1.Name,
+		Type:             database.ConnectionTypeWorkspaceApp,
+		ConnectionStatus: database.ConnectionStatusConnected,
+		UserID:           uuid.NullUUID{UUID: user1.ID, Valid: true},
+		UserAgent:        sql.NullString{String: "Mozilla/5.0", Valid: true},
+		SlugOrPort:       sql.NullString{String: "code-server", Valid: true},
+		ConnectionID:     uuid.NullUUID{UUID: log1ConnID, Valid: true},
+	})
+
+	log2ConnID := uuid.New()
+	log2 := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+		Time:             now.Add(-3 * time.Hour),
+		OrganizationID:   ws1.OrganizationID,
+		WorkspaceOwnerID: ws1.OwnerID,
+		WorkspaceID:      ws1.ID,
+		WorkspaceName:    ws1.Name,
+		Type:             database.ConnectionTypeVscode,
+		ConnectionStatus: database.ConnectionStatusConnected,
+		ConnectionID:     uuid.NullUUID{UUID: log2ConnID, Valid: true},
+	})
+
+	// Mark log2 as disconnected
+	log2 = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+		Time:             now.Add(-2 * time.Hour),
+		ConnectionID:     log2.ConnectionID,
+		WorkspaceID:      ws1.ID,
+		WorkspaceOwnerID: ws1.OwnerID,
+		AgentName:        log2.AgentName,
+		ConnectionStatus: database.ConnectionStatusDisconnected,
+
+		OrganizationID: log2.OrganizationID,
+	})
+
+	log3ConnID := uuid.New()
+	log3 := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+		Time:             now.Add(-2 * time.Hour),
+		OrganizationID:   ws2.OrganizationID,
+		WorkspaceOwnerID: ws2.OwnerID,
+		WorkspaceID:      ws2.ID,
+		WorkspaceName:    ws2.Name,
+		Type:             database.ConnectionTypeSsh,
+		ConnectionStatus: database.ConnectionStatusConnected,
+		UserID:           uuid.NullUUID{UUID: user2.ID, Valid: true},
+		ConnectionID:     uuid.NullUUID{UUID: log3ConnID, Valid: true},
+	})
+
+	// Mark log3 as disconnected
+	log3 = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+		Time:             now.Add(-1 * time.Hour),
+		ConnectionID:     log3.ConnectionID,
+		WorkspaceOwnerID: log3.WorkspaceOwnerID,
+		WorkspaceID:      ws2.ID,
+		AgentName:        log3.AgentName,
+		ConnectionStatus: database.ConnectionStatusDisconnected,
+
+		OrganizationID: log3.OrganizationID,
+	})
+
+	log4 := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+		Time:             now.Add(-1 * time.Hour),
+		OrganizationID:   ws2.OrganizationID,
+		WorkspaceOwnerID: ws2.OwnerID,
+		WorkspaceID:      ws2.ID,
+		WorkspaceName:    ws2.Name,
+		Type:             database.ConnectionTypeVscode,
+		ConnectionStatus: database.ConnectionStatusConnected,
+		UserID:           uuid.NullUUID{UUID: user3.ID, Valid: true},
+	})
+
+	testCases := []struct {
+		name           string
+		params         database.GetConnectionLogsOffsetParams
+		expectedLogIDs []uuid.UUID
+	}{
+		{
+			name:   "NoFilter",
+			params: database.GetConnectionLogsOffsetParams{},
+			expectedLogIDs: []uuid.UUID{
+				log1.ID, log2.ID, log3.ID, log4.ID,
+			},
+		},
+		{
+			name: "OrganizationID",
+			params: database.GetConnectionLogsOffsetParams{
+				OrganizationID: orgB.Org.ID,
+			},
+			expectedLogIDs: []uuid.UUID{log3.ID, log4.ID},
+		},
+		{
+			name: "WorkspaceOwner",
+			params: database.GetConnectionLogsOffsetParams{
+				WorkspaceOwner: user1.Username,
+			},
+			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID},
+		},
+		{
+			name: "WorkspaceOwnerID",
+			params: database.GetConnectionLogsOffsetParams{
+				WorkspaceOwnerID: user1.ID,
+			},
+			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID},
+		},
+		{
+			name: "WorkspaceOwnerEmail",
+			params: database.GetConnectionLogsOffsetParams{
+				WorkspaceOwnerEmail: user2.Email,
+			},
+			expectedLogIDs: []uuid.UUID{log3.ID, log4.ID},
+		},
+		{
+			name: "Type",
+			params: database.GetConnectionLogsOffsetParams{
+				Type: string(database.ConnectionTypeVscode),
+			},
+			expectedLogIDs: []uuid.UUID{log2.ID, log4.ID},
+		},
+		{
+			name: "UserID",
+			params: database.GetConnectionLogsOffsetParams{
+				UserID: user1.ID,
+			},
+			expectedLogIDs: []uuid.UUID{log1.ID},
+		},
+		{
+			name: "Username",
+			params: database.GetConnectionLogsOffsetParams{
+				Username: user1.Username,
+			},
+			expectedLogIDs: []uuid.UUID{log1.ID},
+		},
+		{
+			name: "UserEmail",
+			params: database.GetConnectionLogsOffsetParams{
+				UserEmail: user3.Email,
+			},
+			expectedLogIDs: []uuid.UUID{log4.ID},
+		},
+		{
+			name: "ConnectedAfter",
+			params: database.GetConnectionLogsOffsetParams{
+				ConnectedAfter: now.Add(-90 * time.Minute), // 1.5 hours ago
+			},
+			expectedLogIDs: []uuid.UUID{log4.ID},
+		},
+		{
+			name: "ConnectedBefore",
+			params: database.GetConnectionLogsOffsetParams{
+				ConnectedBefore: now.Add(-150 * time.Minute),
+			},
+			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID},
+		},
+		{
+			name: "WorkspaceID",
+			params: database.GetConnectionLogsOffsetParams{
+				WorkspaceID: ws2.ID,
+			},
+			expectedLogIDs: []uuid.UUID{log3.ID, log4.ID},
+		},
+		{
+			name: "ConnectionID",
+			params: database.GetConnectionLogsOffsetParams{
+				ConnectionID: log1.ConnectionID.UUID,
+			},
+			expectedLogIDs: []uuid.UUID{log1.ID},
+		},
+		{
+			name: "StatusOngoing",
+			params: database.GetConnectionLogsOffsetParams{
+				Status: string(codersdk.ConnectionLogStatusOngoing),
+			},
+			expectedLogIDs: []uuid.UUID{log4.ID},
+		},
+		{
+			name: "StatusCompleted",
+			params: database.GetConnectionLogsOffsetParams{
+				Status: string(codersdk.ConnectionLogStatusCompleted),
+			},
+			expectedLogIDs: []uuid.UUID{log2.ID, log3.ID},
+		},
+		{
+			name: "OrganizationAndTypeAndStatus",
+			params: database.GetConnectionLogsOffsetParams{
+				OrganizationID: orgA.Org.ID,
+				Type:           string(database.ConnectionTypeVscode),
+				Status:         string(codersdk.ConnectionLogStatusCompleted),
+			},
+			expectedLogIDs: []uuid.UUID{log2.ID},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			logs, err := db.GetConnectionLogsOffset(ctx, tc.params)
+			require.NoError(t, err)
+			count, err := db.CountConnectionLogs(ctx, database.CountConnectionLogsParams{
+				OrganizationID:      tc.params.OrganizationID,
+				WorkspaceOwner:      tc.params.WorkspaceOwner,
+				Type:                tc.params.Type,
+				UserID:              tc.params.UserID,
+				Username:            tc.params.Username,
+				UserEmail:           tc.params.UserEmail,
+				ConnectedAfter:      tc.params.ConnectedAfter,
+				ConnectedBefore:     tc.params.ConnectedBefore,
+				WorkspaceID:         tc.params.WorkspaceID,
+				ConnectionID:        tc.params.ConnectionID,
+				Status:              tc.params.Status,
+				WorkspaceOwnerID:    tc.params.WorkspaceOwnerID,
+				WorkspaceOwnerEmail: tc.params.WorkspaceOwnerEmail,
+			})
+			require.NoError(t, err)
+			require.ElementsMatch(t, tc.expectedLogIDs, connectionOnlyIDs(logs))
+			require.Equal(t, len(tc.expectedLogIDs), int(count), "CountConnectionLogs should match the number of returned logs (no offset or limit)")
+		})
+	}
+}
+
+func connectionOnlyIDs[T database.ConnectionLog | database.GetConnectionLogsOffsetRow](logs []T) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(logs))
+	for _, log := range logs {
+		switch log := any(log).(type) {
+		case database.ConnectionLog:
+			ids = append(ids, log.ID)
+		case database.GetConnectionLogsOffsetRow:
+			ids = append(ids, log.ConnectionLog.ID)
+		default:
+			panic("unreachable")
+		}
+	}
+	return ids
+}
+
+func TestUpsertConnectionLog(t *testing.T) {
+	t.Parallel()
+	createWorkspace := func(t *testing.T, db database.Store) database.WorkspaceTable {
+		u := dbgen.User(t, db, database.User{})
+		o := dbgen.Organization(t, db, database.Organization{})
+		tpl := dbgen.Template(t, db, database.Template{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		return dbgen.Workspace(t, db, database.WorkspaceTable{
+			ID:               uuid.New(),
+			OwnerID:          u.ID,
+			OrganizationID:   o.ID,
+			AutomaticUpdates: database.AutomaticUpdatesNever,
+			TemplateID:       tpl.ID,
+		})
+	}
+
+	t.Run("ConnectThenDisconnect", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+
+		ws := createWorkspace(t, db)
+
+		connectionID := uuid.New()
+		agentName := "test-agent"
+
+		// 1. Insert a 'connect' event.
+		connectTime := dbtime.Now()
+		connectParams := database.UpsertConnectionLogParams{
+			ID:               uuid.New(),
+			Time:             connectTime,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			WorkspaceID:      ws.ID,
+			WorkspaceName:    ws.Name,
+			AgentName:        agentName,
+			Type:             database.ConnectionTypeSsh,
+			ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
+			ConnectionStatus: database.ConnectionStatusConnected,
+			Ip: pqtype.Inet{
+				IPNet: net.IPNet{
+					IP:   net.IPv4(127, 0, 0, 1),
+					Mask: net.IPv4Mask(255, 255, 255, 255),
+				},
+				Valid: true,
+			},
+		}
+
+		log1, err := db.UpsertConnectionLog(ctx, connectParams)
+		require.NoError(t, err)
+		require.Equal(t, connectParams.ID, log1.ID)
+		require.False(t, log1.DisconnectTime.Valid, "DisconnectTime should not be set on connect")
+
+		// Check that one row exists.
+		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+
+		// 2. Insert a 'disconnected' event for the same connection.
+		disconnectTime := connectTime.Add(time.Second)
+		disconnectParams := database.UpsertConnectionLogParams{
+			ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
+			WorkspaceID:      ws.ID,
+			AgentName:        agentName,
+			ConnectionStatus: database.ConnectionStatusDisconnected,
+
+			// Updated to:
+			Time:             disconnectTime,
+			DisconnectReason: sql.NullString{String: "test disconnect", Valid: true},
+			Code:             sql.NullInt32{Int32: 1, Valid: true},
+
+			// Ignored
+			ID:               uuid.New(),
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			WorkspaceName:    ws.Name,
+			Type:             database.ConnectionTypeSsh,
+			Ip: pqtype.Inet{
+				IPNet: net.IPNet{
+					IP:   net.IPv4(127, 0, 0, 1),
+					Mask: net.IPv4Mask(255, 255, 255, 254),
+				},
+				Valid: true,
+			},
+		}
+
+		log2, err := db.UpsertConnectionLog(ctx, disconnectParams)
+		require.NoError(t, err)
+
+		// Updated
+		require.Equal(t, log1.ID, log2.ID)
+		require.True(t, log2.DisconnectTime.Valid)
+		require.True(t, disconnectTime.Equal(log2.DisconnectTime.Time))
+		require.Equal(t, disconnectParams.DisconnectReason.String, log2.DisconnectReason.String)
+
+		rows, err = db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{})
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+	})
+
+	t.Run("ConnectDoesNotUpdate", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+
+		ws := createWorkspace(t, db)
+
+		connectionID := uuid.New()
+		agentName := "test-agent"
+
+		// 1. Insert a 'connect' event.
+		connectTime := dbtime.Now()
+		connectParams := database.UpsertConnectionLogParams{
+			ID:               uuid.New(),
+			Time:             connectTime,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			WorkspaceID:      ws.ID,
+			WorkspaceName:    ws.Name,
+			AgentName:        agentName,
+			Type:             database.ConnectionTypeSsh,
+			ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
+			ConnectionStatus: database.ConnectionStatusConnected,
+			Ip: pqtype.Inet{
+				IPNet: net.IPNet{
+					IP:   net.IPv4(127, 0, 0, 1),
+					Mask: net.IPv4Mask(255, 255, 255, 255),
+				},
+				Valid: true,
+			},
+		}
+
+		log, err := db.UpsertConnectionLog(ctx, connectParams)
+		require.NoError(t, err)
+
+		// 2. Insert another 'connect' event for the same connection.
+		connectTime2 := connectTime.Add(time.Second)
+		connectParams2 := database.UpsertConnectionLogParams{
+			ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
+			WorkspaceID:      ws.ID,
+			AgentName:        agentName,
+			ConnectionStatus: database.ConnectionStatusConnected,
+
+			// Ignored
+			ID:               uuid.New(),
+			Time:             connectTime2,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			WorkspaceName:    ws.Name,
+			Type:             database.ConnectionTypeSsh,
+			Code:             sql.NullInt32{Int32: 0, Valid: false},
+			Ip: pqtype.Inet{
+				IPNet: net.IPNet{
+					IP:   net.IPv4(127, 0, 0, 1),
+					Mask: net.IPv4Mask(255, 255, 255, 254),
+				},
+				Valid: true,
+			},
+		}
+
+		origLog, err := db.UpsertConnectionLog(ctx, connectParams2)
+		require.NoError(t, err)
+		require.Equal(t, log, origLog, "connect update should be a no-op")
+
+		// Check that still only one row exists.
+		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{})
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		require.Equal(t, log, rows[0].ConnectionLog)
+	})
+
+	t.Run("DisconnectThenConnect", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+
+		ws := createWorkspace(t, db)
+
+		connectionID := uuid.New()
+		agentName := "test-agent"
+
+		// Insert just a 'disconect' event
+		disconnectTime := dbtime.Now()
+		disconnectParams := database.UpsertConnectionLogParams{
+			ID:               uuid.New(),
+			Time:             disconnectTime,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			WorkspaceID:      ws.ID,
+			WorkspaceName:    ws.Name,
+			AgentName:        agentName,
+			Type:             database.ConnectionTypeSsh,
+			ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
+			ConnectionStatus: database.ConnectionStatusDisconnected,
+			DisconnectReason: sql.NullString{String: "server shutting down", Valid: true},
+			Ip: pqtype.Inet{
+				IPNet: net.IPNet{
+					IP:   net.IPv4(127, 0, 0, 1),
+					Mask: net.IPv4Mask(255, 255, 255, 255),
+				},
+				Valid: true,
+			},
+		}
+
+		_, err := db.UpsertConnectionLog(ctx, disconnectParams)
+		require.NoError(t, err)
+
+		firstRows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{})
+		require.NoError(t, err)
+		require.Len(t, firstRows, 1)
+
+		// We expect the connection event to be marked as closed with the start
+		// and close time being the same.
+		require.True(t, firstRows[0].ConnectionLog.DisconnectTime.Valid)
+		require.Equal(t, disconnectTime, firstRows[0].ConnectionLog.DisconnectTime.Time.UTC())
+		require.Equal(t, firstRows[0].ConnectionLog.ConnectTime.UTC(), firstRows[0].ConnectionLog.DisconnectTime.Time.UTC())
+
+		// Now insert a 'connect' event for the same connection.
+		// This should be a no op
+		connectTime := disconnectTime.Add(time.Second)
+		connectParams := database.UpsertConnectionLogParams{
+			ID:               uuid.New(),
+			Time:             connectTime,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			WorkspaceID:      ws.ID,
+			WorkspaceName:    ws.Name,
+			AgentName:        agentName,
+			Type:             database.ConnectionTypeSsh,
+			ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
+			ConnectionStatus: database.ConnectionStatusConnected,
+			DisconnectReason: sql.NullString{String: "reconnected", Valid: true},
+			Code:             sql.NullInt32{Int32: 0, Valid: false},
+			Ip: pqtype.Inet{
+				IPNet: net.IPNet{
+					IP:   net.IPv4(127, 0, 0, 1),
+					Mask: net.IPv4Mask(255, 255, 255, 255),
+				},
+				Valid: true,
+			},
+		}
+
+		_, err = db.UpsertConnectionLog(ctx, connectParams)
+		require.NoError(t, err)
+
+		secondRows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{})
+		require.NoError(t, err)
+		require.Len(t, secondRows, 1)
+		require.Equal(t, firstRows, secondRows)
+
+		// Upsert a disconnection, which should also be a no op
+		disconnectParams.DisconnectReason = sql.NullString{
+			String: "updated close reason",
+			Valid:  true,
+		}
+		_, err = db.UpsertConnectionLog(ctx, disconnectParams)
+		require.NoError(t, err)
+		thirdRows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{})
+		require.NoError(t, err)
+		require.Len(t, secondRows, 1)
+		// The close reason shouldn't be updated
+		require.Equal(t, secondRows, thirdRows)
+	})
 }
 
 type tvArgs struct {
@@ -2499,7 +3427,6 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // Capture loop variable to avoid data races
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			db, _ := dbtestutil.NewDB(t)
@@ -2550,7 +3477,10 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			}
 
 			// When: we fetch the jobs by their IDs
-			actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, filteredJobIDs)
+			actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+				IDs:             filteredJobIDs,
+				StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+			})
 			require.NoError(t, err)
 			require.Len(t, actualJobs, len(filteredJobs), "should return all unskipped jobs")
 
@@ -2693,7 +3623,10 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 	}
 
 	// When: we fetch the jobs by their IDs
-	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, actualJobs, len(allJobs), "should return all jobs")
 
@@ -2788,7 +3721,10 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) 
 	}
 
 	// When: we fetch the jobs by their IDs
-	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, actualJobs, len(allJobs), "should return all jobs")
 
@@ -2931,7 +3867,6 @@ func TestGetUserStatusCounts(t *testing.T) {
 	}
 
 	for _, tz := range timezones {
-		tz := tz
 		t.Run(tz, func(t *testing.T) {
 			t.Parallel()
 
@@ -2979,7 +3914,6 @@ func TestGetUserStatusCounts(t *testing.T) {
 				}
 
 				for _, tc := range testCases {
-					tc := tc
 					t.Run(tc.name, func(t *testing.T) {
 						t.Parallel()
 						db, _ := dbtestutil.NewDB(t)
@@ -3147,7 +4081,6 @@ func TestGetUserStatusCounts(t *testing.T) {
 				}
 
 				for _, tc := range testCases {
-					tc := tc
 					t.Run(tc.name, func(t *testing.T) {
 						t.Parallel()
 						db, _ := dbtestutil.NewDB(t)
@@ -3280,7 +4213,6 @@ func TestGetUserStatusCounts(t *testing.T) {
 				}
 
 				for _, tc := range testCases {
-					tc := tc
 					t.Run(tc.name, func(t *testing.T) {
 						t.Parallel()
 
@@ -4705,7 +5637,369 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 	})
 }
 
+func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test makes use of a database trigger not implemented in dbmem")
+	}
+
+	createWorkspaceWithAgent := func(t *testing.T, db database.Store, org database.Organization, agentName string) (database.WorkspaceBuild, database.WorkspaceResource, database.WorkspaceAgent) {
+		t.Helper()
+
+		user := dbgen.User(t, db, database.User{})
+		template := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{Valid: true, UUID: template.ID},
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			TemplateID:     template.ID,
+			OwnerID:        user.ID,
+		})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			OrganizationID: org.ID,
+		})
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			BuildNumber:       1,
+			JobID:             job.ID,
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: templateVersion.ID,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: build.JobID,
+		})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+			Name:       agentName,
+		})
+
+		return build, resource, agent
+	}
+
+	t.Run("DuplicateNamesInSameWorkspaceResource", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A workspace with an agent
+		_, resource, _ := createWorkspaceWithAgent(t, db, org, "duplicate-agent")
+
+		// When: Another agent is created for that workspace with the same name.
+		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+			ID:              uuid.New(),
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+			Name:            "duplicate-agent", // Same name as agent1
+			ResourceID:      resource.ID,
+			AuthToken:       uuid.New(),
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			APIKeyScope:     database.AgentKeyScopeEnumAll,
+		})
+
+		// Then: We expect it to fail.
+		require.Error(t, err)
+		var pqErr *pq.Error
+		require.True(t, errors.As(err, &pqErr))
+		require.Equal(t, pq.ErrorCode("23505"), pqErr.Code) // unique_violation
+		require.Contains(t, pqErr.Message, `workspace agent name "duplicate-agent" already exists in this workspace build`)
+	})
+
+	t.Run("DuplicateNamesInSameProvisionerJob", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A workspace with an agent
+		_, resource, agent := createWorkspaceWithAgent(t, db, org, "duplicate-agent")
+
+		// When: A child agent is created for that workspace with the same name.
+		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+			ID:              uuid.New(),
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+			Name:            agent.Name,
+			ResourceID:      resource.ID,
+			AuthToken:       uuid.New(),
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			APIKeyScope:     database.AgentKeyScopeEnumAll,
+		})
+
+		// Then: We expect it to fail.
+		require.Error(t, err)
+		var pqErr *pq.Error
+		require.True(t, errors.As(err, &pqErr))
+		require.Equal(t, pq.ErrorCode("23505"), pqErr.Code) // unique_violation
+		require.Contains(t, pqErr.Message, `workspace agent name "duplicate-agent" already exists in this workspace build`)
+	})
+
+	t.Run("DuplicateChildNamesOverMultipleResources", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A workspace with two agents
+		_, resource1, agent1 := createWorkspaceWithAgent(t, db, org, "parent-agent-1")
+
+		resource2 := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: resource1.JobID})
+		agent2 := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource2.ID,
+			Name:       "parent-agent-2",
+		})
+
+		// Given: One agent has a child agent
+		agent1Child := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ParentID:   uuid.NullUUID{Valid: true, UUID: agent1.ID},
+			Name:       "child-agent",
+			ResourceID: resource1.ID,
+		})
+
+		// When: A child agent is inserted for the other parent.
+		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+			ID:              uuid.New(),
+			ParentID:        uuid.NullUUID{Valid: true, UUID: agent2.ID},
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+			Name:            agent1Child.Name,
+			ResourceID:      resource2.ID,
+			AuthToken:       uuid.New(),
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			APIKeyScope:     database.AgentKeyScopeEnumAll,
+		})
+
+		// Then: We expect it to fail.
+		require.Error(t, err)
+		var pqErr *pq.Error
+		require.True(t, errors.As(err, &pqErr))
+		require.Equal(t, pq.ErrorCode("23505"), pqErr.Code) // unique_violation
+		require.Contains(t, pqErr.Message, `workspace agent name "child-agent" already exists in this workspace build`)
+	})
+
+	t.Run("SameNamesInDifferentWorkspaces", func(t *testing.T) {
+		t.Parallel()
+
+		agentName := "same-name-different-workspace"
+
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		// Given: A workspace with an agent
+		_, _, agent1 := createWorkspaceWithAgent(t, db, org, agentName)
+		require.Equal(t, agentName, agent1.Name)
+
+		// When: A second workspace is created with an agent having the same name
+		_, _, agent2 := createWorkspaceWithAgent(t, db, org, agentName)
+		require.Equal(t, agentName, agent2.Name)
+
+		// Then: We expect there to be different agents with the same name.
+		require.NotEqual(t, agent1.ID, agent2.ID)
+		require.Equal(t, agent1.Name, agent2.Name)
+	})
+
+	t.Run("NullWorkspaceID", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A resource that does not belong to a workspace build (simulating template import)
+		orphanJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			OrganizationID: org.ID,
+		})
+		orphanResource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: orphanJob.ID,
+		})
+
+		// And this resource has a workspace agent.
+		agent1, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+			ID:              uuid.New(),
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+			Name:            "orphan-agent",
+			ResourceID:      orphanResource.ID,
+			AuthToken:       uuid.New(),
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			APIKeyScope:     database.AgentKeyScopeEnumAll,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "orphan-agent", agent1.Name)
+
+		// When: We created another resource that does not belong to a workspace build.
+		orphanJob2 := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			OrganizationID: org.ID,
+		})
+		orphanResource2 := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: orphanJob2.ID,
+		})
+
+		// Then: We expect to be able to create an agent in this new resource that has the same name.
+		agent2, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+			ID:              uuid.New(),
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+			Name:            "orphan-agent", // Same name as agent1
+			ResourceID:      orphanResource2.ID,
+			AuthToken:       uuid.New(),
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			APIKeyScope:     database.AgentKeyScopeEnumAll,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "orphan-agent", agent2.Name)
+		require.NotEqual(t, agent1.ID, agent2.ID)
+	})
+}
+
+func TestGetWorkspaceAgentsByParentID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NilParentDoesNotReturnAllParentAgents", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A workspace agent
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			OrganizationID: org.ID,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+
+		// When: We attempt to select agents with a null parent id
+		agents, err := db.GetWorkspaceAgentsByParentID(ctx, uuid.Nil)
+		require.NoError(t, err)
+
+		// Then: We expect to see no agents.
+		require.Len(t, agents, 0)
+	})
+}
+
 func requireUsersMatch(t testing.TB, expected []database.User, found []database.GetUsersRow, msg string) {
 	t.Helper()
 	require.ElementsMatch(t, expected, database.ConvertUserRows(found), msg)
+}
+
+// TestGetRunningPrebuiltWorkspaces ensures the correct behavior of the
+// GetRunningPrebuiltWorkspaces query.
+func TestGetRunningPrebuiltWorkspaces(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("Test requires PostgreSQL for complex queries")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	now := dbtime.Now()
+
+	// Given: a prebuilt workspace with a successful start build and a stop build.
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	preset := dbgen.Preset(t, db, database.InsertPresetParams{
+		TemplateVersionID: templateVersion.ID,
+		DesiredInstances:  sql.NullInt32{Int32: 1, Valid: true},
+	})
+
+	setupFixture := func(t *testing.T, db database.Store, name string, deleted bool, transition database.WorkspaceTransition, jobStatus database.ProvisionerJobStatus) database.WorkspaceTable {
+		t.Helper()
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:    database.PrebuildsSystemUserID,
+			TemplateID: template.ID,
+			Name:       name,
+			Deleted:    deleted,
+		})
+		var canceledAt sql.NullTime
+		var jobError sql.NullString
+		switch jobStatus {
+		case database.ProvisionerJobStatusFailed:
+			jobError = sql.NullString{String: assert.AnError.Error(), Valid: true}
+		case database.ProvisionerJobStatusCanceled:
+			canceledAt = sql.NullTime{Time: now, Valid: true}
+		}
+		pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			InitiatorID:    database.PrebuildsSystemUserID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			StartedAt:      sql.NullTime{Time: now.Add(-time.Minute), Valid: true},
+			CanceledAt:     canceledAt,
+			CompletedAt:    sql.NullTime{Time: now, Valid: true},
+			Error:          jobError,
+		})
+		wb := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:             ws.ID,
+			TemplateVersionID:       templateVersion.ID,
+			TemplateVersionPresetID: uuid.NullUUID{UUID: preset.ID, Valid: true},
+			JobID:                   pj.ID,
+			BuildNumber:             1,
+			Transition:              transition,
+			InitiatorID:             database.PrebuildsSystemUserID,
+			Reason:                  database.BuildReasonInitiator,
+		})
+		// Ensure things are set up as expectd
+		require.Equal(t, transition, wb.Transition)
+		require.Equal(t, int32(1), wb.BuildNumber)
+		require.Equal(t, jobStatus, pj.JobStatus)
+		require.Equal(t, deleted, ws.Deleted)
+
+		return ws
+	}
+
+	// Given: a number of prebuild workspaces with different states exist.
+	runningPrebuild := setupFixture(t, db, "running-prebuild", false, database.WorkspaceTransitionStart, database.ProvisionerJobStatusSucceeded)
+	_ = setupFixture(t, db, "stopped-prebuild", false, database.WorkspaceTransitionStop, database.ProvisionerJobStatusSucceeded)
+	_ = setupFixture(t, db, "failed-prebuild", false, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed)
+	_ = setupFixture(t, db, "canceled-prebuild", false, database.WorkspaceTransitionStart, database.ProvisionerJobStatusCanceled)
+	_ = setupFixture(t, db, "deleted-prebuild", true, database.WorkspaceTransitionStart, database.ProvisionerJobStatusSucceeded)
+
+	// Given: a regular workspace also exists.
+	_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:    user.ID,
+		TemplateID: template.ID,
+		Name:       "test-running-regular-workspace",
+		Deleted:    false,
+	})
+
+	// When: we query for running prebuild workspaces
+	runningPrebuilds, err := db.GetRunningPrebuiltWorkspaces(ctx)
+	require.NoError(t, err)
+
+	// Then: only the running prebuild workspace should be returned.
+	require.Len(t, runningPrebuilds, 1, "expected only one running prebuilt workspace")
+	require.Equal(t, runningPrebuild.ID, runningPrebuilds[0].ID, "expected the running prebuilt workspace to be returned")
 }

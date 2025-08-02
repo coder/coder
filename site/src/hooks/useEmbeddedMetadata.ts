@@ -2,7 +2,7 @@ import type {
 	AppearanceConfig,
 	BuildInfoResponse,
 	Entitlements,
-	Experiments,
+	Experiment,
 	Region,
 	User,
 	UserAppearanceSettings,
@@ -24,12 +24,13 @@ export const DEFAULT_METADATA_KEY = "property";
  */
 type AvailableMetadata = Readonly<{
 	user: User;
-	experiments: Experiments;
+	experiments: Experiment[];
 	appearance: AppearanceConfig;
 	userAppearance: UserAppearanceSettings;
 	entitlements: Entitlements;
 	regions: readonly Region[];
 	"build-info": BuildInfoResponse;
+	"tasks-tab-visible": boolean;
 }>;
 
 export type MetadataKey = keyof AvailableMetadata;
@@ -88,9 +89,10 @@ export class MetadataManager implements MetadataManagerApi {
 			userAppearance:
 				this.registerValue<UserAppearanceSettings>("userAppearance"),
 			entitlements: this.registerValue<Entitlements>("entitlements"),
-			experiments: this.registerValue<Experiments>("experiments"),
+			experiments: this.registerValue<Experiment[]>("experiments"),
 			"build-info": this.registerValue<BuildInfoResponse>("build-info"),
 			regions: this.registerRegionValue(),
+			"tasks-tab-visible": this.registerValue<boolean>("tasks-tab-visible"),
 		};
 	}
 

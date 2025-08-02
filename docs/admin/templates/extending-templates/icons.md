@@ -32,7 +32,7 @@ come bundled with your Coder deployment.
   }
   ```
 
-- [**Authentication Providers**](https://coder.com/docs/admin/external-auth):
+- [**Authentication Providers**](../../external-auth/index.md):
 
   - Use icons for external authentication providers to make them recognizable.
     You can set an icon for each provider by setting the

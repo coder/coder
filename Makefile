@@ -36,7 +36,9 @@ GOOS         := $(shell go env GOOS)
 GOARCH       := $(shell go env GOARCH)
 GOOS_BIN_EXT := $(if $(filter windows, $(GOOS)),.exe,)
 VERSION      := $(shell ./scripts/version.sh)
-POSTGRES_VERSION ?= 16
+
+POSTGRES_VERSION ?= 17
+POSTGRES_IMAGE   ?= us-docker.pkg.dev/coder-v2-images-public/public/postgres:$(POSTGRES_VERSION)
 
 # Use the highest ZSTD compression level in CI.
 ifdef CI
@@ -250,6 +252,10 @@ $(CODER_ALL_BINARIES): go.mod go.sum \
 		fi
 
 		cp "$@" "./site/out/bin/coder-$$os-$$arch$$dot_ext"
+
+		if [[ "$${CODER_SIGN_GPG:-0}" == "1" ]]; then
+			cp "$@.asc" "./site/out/bin/coder-$$os-$$arch$$dot_ext.asc"
+		fi
 	fi
 
 # This task builds Coder Desktop dylibs
@@ -454,16 +460,31 @@ fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/biome fmt/markdown
 .PHONY: fmt
 
 fmt/go:
+ifdef FILE
+	# Format single file
+	if [[ -f "$(FILE)" ]] && [[ "$(FILE)" == *.go ]] && ! grep -q "DO NOT EDIT" "$(FILE)"; then \
+		echo "$(GREEN)==>$(RESET) $(BOLD)fmt/go$(RESET) $(FILE)"; \
+		go run mvdan.cc/gofumpt@v0.8.0 -w -l "$(FILE)"; \
+	fi
+else
 	go mod tidy
 	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/go$(RESET)"
 	# VS Code users should check out
 	# https://github.com/mvdan/gofumpt#visual-studio-code
 	find . $(FIND_EXCLUSIONS) -type f -name '*.go' -print0 | \
-		xargs -0 grep --null -L "DO NOT EDIT" | \
-		xargs -0 go run mvdan.cc/gofumpt@v0.4.0 -w -l
+		xargs -0 grep -E --null -L '^// Code generated .* DO NOT EDIT\.$$' | \
+		xargs -0 go run mvdan.cc/gofumpt@v0.8.0 -w -l
+endif
 .PHONY: fmt/go
 
 fmt/ts: site/node_modules/.installed
+ifdef FILE
+	# Format single TypeScript/JavaScript file
+	if [[ -f "$(FILE)" ]] && [[ "$(FILE)" == *.ts ]] || [[ "$(FILE)" == *.tsx ]] || [[ "$(FILE)" == *.js ]] || [[ "$(FILE)" == *.jsx ]]; then \
+		echo "$(GREEN)==>$(RESET) $(BOLD)fmt/ts$(RESET) $(FILE)"; \
+		(cd site/ && pnpm exec biome format --write "../$(FILE)"); \
+	fi
+else
 	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/ts$(RESET)"
 	cd site
 # Avoid writing files in CI to reduce file write activity
@@ -472,9 +493,17 @@ ifdef CI
 else
 	pnpm run check:fix
 endif
+endif
 .PHONY: fmt/ts
 
 fmt/biome: site/node_modules/.installed
+ifdef FILE
+	# Format single file with biome
+	if [[ -f "$(FILE)" ]] && [[ "$(FILE)" == *.ts ]] || [[ "$(FILE)" == *.tsx ]] || [[ "$(FILE)" == *.js ]] || [[ "$(FILE)" == *.jsx ]]; then \
+		echo "$(GREEN)==>$(RESET) $(BOLD)fmt/biome$(RESET) $(FILE)"; \
+		(cd site/ && pnpm exec biome format --write "../$(FILE)"); \
+	fi
+else
 	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/biome$(RESET)"
 	cd site/
 # Avoid writing files in CI to reduce file write activity
@@ -483,14 +512,30 @@ ifdef CI
 else
 	pnpm run format
 endif
+endif
 .PHONY: fmt/biome
 
 fmt/terraform: $(wildcard *.tf)
+ifdef FILE
+	# Format single Terraform file
+	if [[ -f "$(FILE)" ]] && [[ "$(FILE)" == *.tf ]] || [[ "$(FILE)" == *.tfvars ]]; then \
+		echo "$(GREEN)==>$(RESET) $(BOLD)fmt/terraform$(RESET) $(FILE)"; \
+		terraform fmt "$(FILE)"; \
+	fi
+else
 	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/terraform$(RESET)"
 	terraform fmt -recursive
+endif
 .PHONY: fmt/terraform
 
 fmt/shfmt: $(SHELL_SRC_FILES)
+ifdef FILE
+	# Format single shell script
+	if [[ -f "$(FILE)" ]] && [[ "$(FILE)" == *.sh ]]; then \
+		echo "$(GREEN)==>$(RESET) $(BOLD)fmt/shfmt$(RESET) $(FILE)"; \
+		shfmt -w "$(FILE)"; \
+	fi
+else
 	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/shfmt$(RESET)"
 # Only do diff check in CI, errors on diff.
 ifdef CI
@@ -498,11 +543,20 @@ ifdef CI
 else
 	shfmt -w $(SHELL_SRC_FILES)
 endif
+endif
 .PHONY: fmt/shfmt
 
 fmt/markdown: node_modules/.installed
+ifdef FILE
+	# Format single markdown file
+	if [[ -f "$(FILE)" ]] && [[ "$(FILE)" == *.md ]]; then \
+		echo "$(GREEN)==>$(RESET) $(BOLD)fmt/markdown$(RESET) $(FILE)"; \
+		pnpm exec markdown-table-formatter "$(FILE)"; \
+	fi
+else
 	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/markdown$(RESET)"
 	pnpm format-docs
+endif
 .PHONY: fmt/markdown
 
 lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown
@@ -549,7 +603,6 @@ DB_GEN_FILES := \
 	coderd/database/dump.sql \
 	coderd/database/querier.go \
 	coderd/database/unique_constraint.go \
-	coderd/database/dbmem/dbmem.go \
 	coderd/database/dbmetrics/dbmetrics.go \
 	coderd/database/dbauthz/dbauthz.go \
 	coderd/database/dbmock/dbmock.go
@@ -923,7 +976,7 @@ sqlc-vet: test-postgres-docker
 test-postgres: test-postgres-docker
 	# The postgres test is prone to failure, so we limit parallelism for
 	# more consistent execution.
-	$(GIT_FLAGS)  DB=ci gotestsum \
+	$(GIT_FLAGS)  gotestsum \
 		--junitfile="gotests.xml" \
 		--jsonfile="gotests.json" \
 		$(GOTESTSUM_RETRY_FLAGS) \
@@ -949,12 +1002,12 @@ test-postgres-docker:
 	docker rm -f test-postgres-docker-${POSTGRES_VERSION} || true
 
 	# Try pulling up to three times to avoid CI flakes.
-	docker pull gcr.io/coder-dev-1/postgres:${POSTGRES_VERSION} || {
+	docker pull ${POSTGRES_IMAGE} || {
 		retries=2
 		for try in $(seq 1 ${retries}); do
 			echo "Failed to pull image, retrying (${try}/${retries})..."
 			sleep 1
-			if docker pull gcr.io/coder-dev-1/postgres:${POSTGRES_VERSION}; then
+			if docker pull ${POSTGRES_IMAGE}; then
 				break
 			fi
 		done
@@ -982,7 +1035,7 @@ test-postgres-docker:
 		--restart no \
 		--detach \
 		--memory 16GB \
-		gcr.io/coder-dev-1/postgres:${POSTGRES_VERSION} \
+		${POSTGRES_IMAGE} \
 		-c shared_buffers=2GB \
 		-c effective_cache_size=1GB \
 		-c work_mem=8MB \

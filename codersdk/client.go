@@ -29,9 +29,11 @@ import (
 // These cookies are Coder-specific. If a new one is added or changed, the name
 // shouldn't be likely to conflict with any user-application set cookies.
 // Be sure to strip additional cookies in httpapi.StripCoderCookies!
+// SessionTokenCookie represents the name of the cookie or query parameter the API key is stored in.
+// NOTE: This is declared as a var so that we can override it in `develop.sh` if required.
+var SessionTokenCookie = "coder_session_token"
+
 const (
-	// SessionTokenCookie represents the name of the cookie or query parameter the API key is stored in.
-	SessionTokenCookie = "coder_session_token"
 	// SessionTokenHeader is the custom header to use for authentication.
 	SessionTokenHeader = "Coder-Session-Token"
 	// OAuth2StateCookie is the name of the cookie that stores the oauth2 state.
@@ -354,7 +356,7 @@ func (c *Client) Dial(ctx context.Context, path string, opts *websocket.DialOpti
 	if opts.HTTPHeader == nil {
 		opts.HTTPHeader = http.Header{}
 	}
-	if opts.HTTPHeader.Get("tokenHeader") == "" {
+	if opts.HTTPHeader.Get(tokenHeader) == "" {
 		opts.HTTPHeader.Set(tokenHeader, c.SessionToken())
 	}
 

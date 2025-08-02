@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -8,6 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
+	stdslog "log/slog"
 	"net/http"
 	"os"
 
@@ -15,9 +18,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	archivefs "github.com/coder/coder/v2/archive/fs"
+	"github.com/coder/coder/v2/coderd/dynamicparameters"
+	"github.com/coder/preview"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -31,14 +38,12 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
-	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 // @Summary Get template version by ID
@@ -53,7 +58,10 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	templateVersion := httpmw.TemplateVersionParam(r)
 
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{templateVersion.JobID})
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             []uuid.UUID{templateVersion.JobID},
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
@@ -182,7 +190,10 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{templateVersion.JobID})
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             []uuid.UUID{templateVersion.JobID},
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
@@ -301,7 +312,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	templateVersionParameters, err := convertTemplateVersionParameters(dbTemplateVersionParameters)
+	templateVersionParameters, err := db2sdk.TemplateVersionParameters(dbTemplateVersionParameters)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error converting template version parameter.",
@@ -541,6 +552,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 			Valid:      true,
 			RawMessage: metadataRaw,
 		},
+		LogsOverflowed: false,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -733,7 +745,10 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 		return database.GetProvisionerJobsByIDsWithQueuePositionRow{}, false
 	}
 
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{jobUUID})
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             []uuid.UUID{jobUUID},
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Provisioner job %q not found.", jobUUID),
@@ -794,7 +809,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
 
-	paginationParams, ok := parsePagination(rw, r)
+	paginationParams, ok := ParsePagination(rw, r)
 	if !ok {
 		return
 	}
@@ -865,7 +880,10 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 		for _, version := range versions {
 			jobIDs = append(jobIDs, version.JobID)
 		}
-		jobs, err := store.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+		jobs, err := store.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+			IDs:             jobIDs,
+			StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching provisioner job.",
@@ -933,7 +951,10 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{templateVersion.JobID})
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             []uuid.UUID{templateVersion.JobID},
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
@@ -1013,7 +1034,10 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 		})
 		return
 	}
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{templateVersion.JobID})
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             []uuid.UUID{templateVersion.JobID},
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
@@ -1115,7 +1139,10 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		return
 	}
 
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{previousTemplateVersion.JobID})
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             []uuid.UUID{previousTemplateVersion.JobID},
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
@@ -1445,8 +1472,9 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
+	dynamicTemplate := true // Default to using dynamic templates
 	if req.TemplateID != uuid.Nil {
-		_, err := api.Database.GetTemplateByID(ctx, req.TemplateID)
+		tpl, err := api.Database.GetTemplateByID(ctx, req.TemplateID)
 		if httpapi.Is404Error(err) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Template does not exist.",
@@ -1460,6 +1488,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			})
 			return
 		}
+		dynamicTemplate = !tpl.UseClassicParameterFlow
 	}
 
 	if req.ExampleID != "" && req.FileID != uuid.Nil {
@@ -1555,45 +1584,18 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		}
 	}
 
-	// Try to parse template tags from the given file.
-	tempDir, err := os.MkdirTemp(api.Options.CacheDir, "tfparse-*")
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error checking workspace tags",
-			Detail:  "create tempdir: " + err.Error(),
-		})
-		return
-	}
-	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			api.Logger.Error(ctx, "failed to remove temporary tfparse dir", slog.Error(err))
+	var parsedTags map[string]string
+	var ok bool
+	if dynamicTemplate {
+		parsedTags, ok = api.dynamicTemplateVersionTags(ctx, rw, organization.ID, apiKey.UserID, file, req.UserVariableValues)
+		if !ok {
+			return
 		}
-	}()
-
-	if err := tfparse.WriteArchive(file.Data, file.Mimetype, tempDir); err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error checking workspace tags",
-			Detail:  "extract archive to tempdir: " + err.Error(),
-		})
-		return
-	}
-
-	parser, diags := tfparse.New(tempDir, tfparse.WithLogger(api.Logger.Named("tfparse")))
-	if diags.HasErrors() {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error checking workspace tags",
-			Detail:  "parse module: " + diags.Error(),
-		})
-		return
-	}
-
-	parsedTags, err := parser.WorkspaceTagDefaults(ctx)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error checking workspace tags",
-			Detail:  "evaluate default values of workspace tags: " + err.Error(),
-		})
-		return
+	} else {
+		parsedTags, ok = api.classicTemplateVersionTags(ctx, rw, file)
+		if !ok {
+			return
+		}
 	}
 
 	// Ensure the "owner" tag is properly applied in addition to request tags and coder_workspace_tags.
@@ -1645,6 +1647,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 				Valid:      true,
 				RawMessage: traceMetadataRaw,
 			},
+			LogsOverflowed: false,
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1762,6 +1765,121 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		warnings))
 }
 
+func (api *API) dynamicTemplateVersionTags(ctx context.Context, rw http.ResponseWriter, orgID uuid.UUID, owner uuid.UUID, file database.File, templateVariables []codersdk.VariableValue) (map[string]string, bool) {
+	ownerData, err := dynamicparameters.WorkspaceOwner(ctx, api.Database, orgID, owner)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Internal error checking workspace tags",
+				Detail:  fmt.Sprintf("Owner not found, uuid=%s", owner.String()),
+			})
+			return nil, false
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace tags",
+			Detail:  "fetch owner data: " + err.Error(),
+		})
+		return nil, false
+	}
+
+	var files fs.FS
+	switch file.Mimetype {
+	case "application/x-tar":
+		files = archivefs.FromTarReader(bytes.NewBuffer(file.Data))
+	case "application/zip":
+		files, err = archivefs.FromZipReader(bytes.NewReader(file.Data), int64(len(file.Data)))
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error checking workspace tags",
+				Detail:  "extract zip archive: " + err.Error(),
+			})
+			return nil, false
+		}
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Unsupported file type for dynamic template version tags",
+			Detail:  fmt.Sprintf("Mimetype %q is not supported for dynamic template version tags", file.Mimetype),
+		})
+		return nil, false
+	}
+
+	// Pass in any manually specified template variables as TFVars.
+	// TODO: Does this break if the type is not a string?
+	tfVarValues := make(map[string]cty.Value)
+	for _, variable := range templateVariables {
+		tfVarValues[variable.Name] = cty.StringVal(variable.Value)
+	}
+
+	output, diags := preview.Preview(ctx, preview.Input{
+		PlanJSON:        nil, // Template versions are before `terraform plan`
+		ParameterValues: nil, // No user-specified parameters
+		Owner:           *ownerData,
+		Logger:          stdslog.New(stdslog.DiscardHandler),
+		TFVars:          tfVarValues,
+	}, files)
+	tagErr := dynamicparameters.CheckTags(output, diags)
+	if tagErr != nil {
+		code, resp := tagErr.Response()
+		httpapi.Write(ctx, rw, code, resp)
+		return nil, false
+	}
+
+	// Fails early if presets are invalid to prevent downstream workspace creation errors
+	presetErr := dynamicparameters.CheckPresets(output, nil)
+	if presetErr != nil {
+		code, resp := presetErr.Response()
+		httpapi.Write(ctx, rw, code, resp)
+		return nil, false
+	}
+
+	return output.WorkspaceTags.Tags(), true
+}
+
+func (api *API) classicTemplateVersionTags(ctx context.Context, rw http.ResponseWriter, file database.File) (map[string]string, bool) {
+	// Try to parse template tags from the given file.
+	tempDir, err := os.MkdirTemp(api.Options.CacheDir, "tfparse-*")
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace tags",
+			Detail:  "create tempdir: " + err.Error(),
+		})
+		return nil, false
+	}
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			api.Logger.Error(ctx, "failed to remove temporary tfparse dir", slog.Error(err))
+		}
+	}()
+
+	if err := tfparse.WriteArchive(file.Data, file.Mimetype, tempDir); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace tags",
+			Detail:  "extract archive to tempdir: " + err.Error(),
+		})
+		return nil, false
+	}
+
+	parser, diags := tfparse.New(tempDir, tfparse.WithLogger(api.Logger.Named("tfparse")))
+	if diags.HasErrors() {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace tags",
+			Detail:  "parse module: " + diags.Error(),
+		})
+		return nil, false
+	}
+
+	parsedTags, err := parser.WorkspaceTagDefaults(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace tags",
+			Detail:  "evaluate default values of workspace tags: " + err.Error(),
+		})
+		return nil, false
+	}
+
+	return parsedTags, true
+}
+
 // templateVersionResources returns the workspace agent resources associated
 // with a template version. A template can specify more than one resource to be
 // provisioned, each resource can have an agent that dials back to coderd. The
@@ -1846,67 +1964,6 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		Warnings:            warnings,
 		MatchedProvisioners: matchedProvisioners,
 	}
-}
-
-func convertTemplateVersionParameters(dbParams []database.TemplateVersionParameter) ([]codersdk.TemplateVersionParameter, error) {
-	params := make([]codersdk.TemplateVersionParameter, 0)
-	for _, dbParameter := range dbParams {
-		param, err := convertTemplateVersionParameter(dbParameter)
-		if err != nil {
-			return nil, err
-		}
-		params = append(params, param)
-	}
-	return params, nil
-}
-
-func convertTemplateVersionParameter(param database.TemplateVersionParameter) (codersdk.TemplateVersionParameter, error) {
-	var protoOptions []*sdkproto.RichParameterOption
-	err := json.Unmarshal(param.Options, &protoOptions)
-	if err != nil {
-		return codersdk.TemplateVersionParameter{}, err
-	}
-	options := make([]codersdk.TemplateVersionParameterOption, 0)
-	for _, option := range protoOptions {
-		options = append(options, codersdk.TemplateVersionParameterOption{
-			Name:        option.Name,
-			Description: option.Description,
-			Value:       option.Value,
-			Icon:        option.Icon,
-		})
-	}
-
-	descriptionPlaintext, err := render.PlaintextFromMarkdown(param.Description)
-	if err != nil {
-		return codersdk.TemplateVersionParameter{}, err
-	}
-
-	var validationMin, validationMax *int32
-	if param.ValidationMin.Valid {
-		validationMin = &param.ValidationMin.Int32
-	}
-	if param.ValidationMax.Valid {
-		validationMax = &param.ValidationMax.Int32
-	}
-
-	return codersdk.TemplateVersionParameter{
-		Name:                 param.Name,
-		DisplayName:          param.DisplayName,
-		Description:          param.Description,
-		DescriptionPlaintext: descriptionPlaintext,
-		Type:                 param.Type,
-		Mutable:              param.Mutable,
-		DefaultValue:         param.DefaultValue,
-		Icon:                 param.Icon,
-		Options:              options,
-		ValidationRegex:      param.ValidationRegex,
-		ValidationMin:        validationMin,
-		ValidationMax:        validationMax,
-		ValidationError:      param.ValidationError,
-		ValidationMonotonic:  codersdk.ValidationMonotonicOrder(param.ValidationMonotonic),
-		Required:             param.Required,
-		Ephemeral:            param.Ephemeral,
-	}, nil
 }
 
 func convertTemplateVersionVariables(dbVariables []database.TemplateVersionVariable) []codersdk.TemplateVersionVariable {

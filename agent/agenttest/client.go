@@ -98,8 +98,8 @@ func (c *Client) Close() {
 	c.derpMapOnce.Do(func() { close(c.derpMapUpdates) })
 }
 
-func (c *Client) ConnectRPC25(ctx context.Context) (
-	agentproto.DRPCAgentClient25, proto.DRPCTailnetClient25, error,
+func (c *Client) ConnectRPC26(ctx context.Context) (
+	agentproto.DRPCAgentClient26, proto.DRPCTailnetClient26, error,
 ) {
 	conn, lis := drpcsdk.MemTransportPipe()
 	c.LastWorkspaceAgent = func() {
@@ -163,20 +163,40 @@ func (c *Client) GetConnectionReports() []*agentproto.ReportConnectionRequest {
 	return c.fakeAgentAPI.GetConnectionReports()
 }
 
+func (c *Client) GetSubAgents() []*agentproto.SubAgent {
+	return c.fakeAgentAPI.GetSubAgents()
+}
+
+func (c *Client) GetSubAgentDirectory(id uuid.UUID) (string, error) {
+	return c.fakeAgentAPI.GetSubAgentDirectory(id)
+}
+
+func (c *Client) GetSubAgentDisplayApps(id uuid.UUID) ([]agentproto.CreateSubAgentRequest_DisplayApp, error) {
+	return c.fakeAgentAPI.GetSubAgentDisplayApps(id)
+}
+
+func (c *Client) GetSubAgentApps(id uuid.UUID) ([]*agentproto.CreateSubAgentRequest_App, error) {
+	return c.fakeAgentAPI.GetSubAgentApps(id)
+}
+
 type FakeAgentAPI struct {
 	sync.Mutex
 	t      testing.TB
 	logger slog.Logger
 
-	manifest          *agentproto.Manifest
-	startupCh         chan *agentproto.Startup
-	statsCh           chan *agentproto.Stats
-	appHealthCh       chan *agentproto.BatchUpdateAppHealthRequest
-	logsCh            chan<- *agentproto.BatchCreateLogsRequest
-	lifecycleStates   []codersdk.WorkspaceAgentLifecycle
-	metadata          map[string]agentsdk.Metadata
-	timings           []*agentproto.Timing
-	connectionReports []*agentproto.ReportConnectionRequest
+	manifest            *agentproto.Manifest
+	startupCh           chan *agentproto.Startup
+	statsCh             chan *agentproto.Stats
+	appHealthCh         chan *agentproto.BatchUpdateAppHealthRequest
+	logsCh              chan<- *agentproto.BatchCreateLogsRequest
+	lifecycleStates     []codersdk.WorkspaceAgentLifecycle
+	metadata            map[string]agentsdk.Metadata
+	timings             []*agentproto.Timing
+	connectionReports   []*agentproto.ReportConnectionRequest
+	subAgents           map[uuid.UUID]*agentproto.SubAgent
+	subAgentDirs        map[uuid.UUID]string
+	subAgentDisplayApps map[uuid.UUID][]agentproto.CreateSubAgentRequest_DisplayApp
+	subAgentApps        map[uuid.UUID][]*agentproto.CreateSubAgentRequest_App
 
 	getAnnouncementBannersFunc              func() ([]codersdk.BannerConfig, error)
 	getResourcesMonitoringConfigurationFunc func() (*agentproto.GetResourcesMonitoringConfigurationResponse, error)
@@ -363,6 +383,148 @@ func (f *FakeAgentAPI) GetConnectionReports() []*agentproto.ReportConnectionRequ
 	f.Lock()
 	defer f.Unlock()
 	return slices.Clone(f.connectionReports)
+}
+
+func (f *FakeAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.CreateSubAgentRequest) (*agentproto.CreateSubAgentResponse, error) {
+	f.Lock()
+	defer f.Unlock()
+
+	f.logger.Debug(ctx, "create sub agent called", slog.F("req", req))
+
+	// Generate IDs for the new sub-agent.
+	subAgentID := uuid.New()
+	authToken := uuid.New()
+
+	// Create the sub-agent proto object.
+	subAgent := &agentproto.SubAgent{
+		Id:        subAgentID[:],
+		Name:      req.Name,
+		AuthToken: authToken[:],
+	}
+
+	// Store the sub-agent in our map.
+	if f.subAgents == nil {
+		f.subAgents = make(map[uuid.UUID]*agentproto.SubAgent)
+	}
+	f.subAgents[subAgentID] = subAgent
+	if f.subAgentDirs == nil {
+		f.subAgentDirs = make(map[uuid.UUID]string)
+	}
+	f.subAgentDirs[subAgentID] = req.GetDirectory()
+	if f.subAgentDisplayApps == nil {
+		f.subAgentDisplayApps = make(map[uuid.UUID][]agentproto.CreateSubAgentRequest_DisplayApp)
+	}
+	f.subAgentDisplayApps[subAgentID] = req.GetDisplayApps()
+	if f.subAgentApps == nil {
+		f.subAgentApps = make(map[uuid.UUID][]*agentproto.CreateSubAgentRequest_App)
+	}
+	f.subAgentApps[subAgentID] = req.GetApps()
+
+	// For a fake implementation, we don't create workspace apps.
+	// Real implementations would handle req.Apps here.
+	return &agentproto.CreateSubAgentResponse{
+		Agent:             subAgent,
+		AppCreationErrors: nil,
+	}, nil
+}
+
+func (f *FakeAgentAPI) DeleteSubAgent(ctx context.Context, req *agentproto.DeleteSubAgentRequest) (*agentproto.DeleteSubAgentResponse, error) {
+	f.Lock()
+	defer f.Unlock()
+
+	f.logger.Debug(ctx, "delete sub agent called", slog.F("req", req))
+
+	subAgentID, err := uuid.FromBytes(req.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Remove the sub-agent from our map.
+	if f.subAgents != nil {
+		delete(f.subAgents, subAgentID)
+	}
+
+	return &agentproto.DeleteSubAgentResponse{}, nil
+}
+
+func (f *FakeAgentAPI) ListSubAgents(ctx context.Context, req *agentproto.ListSubAgentsRequest) (*agentproto.ListSubAgentsResponse, error) {
+	f.Lock()
+	defer f.Unlock()
+
+	f.logger.Debug(ctx, "list sub agents called", slog.F("req", req))
+
+	var agents []*agentproto.SubAgent
+	if f.subAgents != nil {
+		agents = make([]*agentproto.SubAgent, 0, len(f.subAgents))
+		for _, agent := range f.subAgents {
+			agents = append(agents, agent)
+		}
+	}
+
+	return &agentproto.ListSubAgentsResponse{
+		Agents: agents,
+	}, nil
+}
+
+func (f *FakeAgentAPI) GetSubAgents() []*agentproto.SubAgent {
+	f.Lock()
+	defer f.Unlock()
+	var agents []*agentproto.SubAgent
+	if f.subAgents != nil {
+		agents = make([]*agentproto.SubAgent, 0, len(f.subAgents))
+		for _, agent := range f.subAgents {
+			agents = append(agents, agent)
+		}
+	}
+	return agents
+}
+
+func (f *FakeAgentAPI) GetSubAgentDirectory(id uuid.UUID) (string, error) {
+	f.Lock()
+	defer f.Unlock()
+
+	if f.subAgentDirs == nil {
+		return "", xerrors.New("no sub-agent directories available")
+	}
+
+	dir, ok := f.subAgentDirs[id]
+	if !ok {
+		return "", xerrors.New("sub-agent directory not found")
+	}
+
+	return dir, nil
+}
+
+func (f *FakeAgentAPI) GetSubAgentDisplayApps(id uuid.UUID) ([]agentproto.CreateSubAgentRequest_DisplayApp, error) {
+	f.Lock()
+	defer f.Unlock()
+
+	if f.subAgentDisplayApps == nil {
+		return nil, xerrors.New("no sub-agent display apps available")
+	}
+
+	displayApps, ok := f.subAgentDisplayApps[id]
+	if !ok {
+		return nil, xerrors.New("sub-agent display apps not found")
+	}
+
+	return displayApps, nil
+}
+
+func (f *FakeAgentAPI) GetSubAgentApps(id uuid.UUID) ([]*agentproto.CreateSubAgentRequest_App, error) {
+	f.Lock()
+	defer f.Unlock()
+
+	if f.subAgentApps == nil {
+		return nil, xerrors.New("no sub-agent apps available")
+	}
+
+	apps, ok := f.subAgentApps[id]
+	if !ok {
+		return nil, xerrors.New("sub-agent apps not found")
+	}
+
+	return apps, nil
 }
 
 func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest, statsCh chan *agentproto.Stats) *FakeAgentAPI {

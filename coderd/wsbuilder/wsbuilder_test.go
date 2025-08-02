@@ -5,25 +5,30 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/provisionersdk"
-
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionersdk"
 )
 
 var (
@@ -94,11 +99,12 @@ func TestBuilder_NoOptions(t *testing.T) {
 			asrt.Empty(params.Value)
 		}),
 	)
+	fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
-	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart)
+	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart, wsbuilder.NoopUsageChecker{})
 	// nolint: dogsled
-	_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+	_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 	req.NoError(err)
 }
 
@@ -133,11 +139,13 @@ func TestBuilder_Initiator(t *testing.T) {
 		}),
 		withBuild,
 	)
+	fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
-	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).Initiator(otherUserID)
+	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart, wsbuilder.NoopUsageChecker{}).
+		Initiator(otherUserID)
 	// nolint: dogsled
-	_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+	_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 	req.NoError(err)
 }
 
@@ -178,11 +186,13 @@ func TestBuilder_Baggage(t *testing.T) {
 		}),
 		withBuild,
 	)
+	fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
-	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).Initiator(otherUserID)
+	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart, wsbuilder.NoopUsageChecker{}).
+		Initiator(otherUserID)
 	// nolint: dogsled
-	_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
+	_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
 	req.NoError(err)
 }
 
@@ -216,11 +226,13 @@ func TestBuilder_Reason(t *testing.T) {
 		}),
 		withBuild,
 	)
+	fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
-	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).Reason(database.BuildReasonAutostart)
+	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart, wsbuilder.NoopUsageChecker{}).
+		Reason(database.BuildReasonAutostart)
 	// nolint: dogsled
-	_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+	_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 	req.NoError(err)
 }
 
@@ -259,11 +271,13 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 		}),
 		withBuild,
 	)
+	fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
-	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).ActiveVersion()
+	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart, wsbuilder.NoopUsageChecker{}).
+		ActiveVersion()
 	// nolint: dogsled
-	_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+	_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 	req.NoError(err)
 }
 
@@ -373,11 +387,13 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 		}),
 		withBuild,
 	)
+	fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
-	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).RichParameterValues(buildParameters)
+	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart, wsbuilder.NoopUsageChecker{}).
+		RichParameterValues(buildParameters)
 	// nolint: dogsled
-	_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+	_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 	req.NoError(err)
 }
 
@@ -455,11 +471,13 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			}),
 			withBuild,
 		)
+		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
-		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).RichParameterValues(nextBuildParameters)
+		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart, wsbuilder.NoopUsageChecker{}).
+			RichParameterValues(nextBuildParameters)
 		// nolint: dogsled
-		_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 		req.NoError(err)
 	})
 	t.Run("UsePreviousParameterValues", func(t *testing.T) {
@@ -502,11 +520,13 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			}),
 			withBuild,
 		)
+		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
-		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).RichParameterValues(nextBuildParameters)
+		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart, wsbuilder.NoopUsageChecker{}).
+			RichParameterValues(nextBuildParameters)
 		// nolint: dogsled
-		_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 		req.NoError(err)
 	})
 
@@ -533,17 +553,18 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		mDB := expectDB(t,
 			// Inputs
 			withTemplate,
-			withInactiveVersion(richParameters),
+			withInactiveVersionNoParams(),
 			withLastBuildFound,
 			withTemplateVersionVariables(inactiveVersionID, nil),
-			withRichParameters(nil),
 			withParameterSchemas(inactiveJobID, schemas),
 			withWorkspaceTags(inactiveVersionID, nil),
 		)
+		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
-		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart)
-		_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart, wsbuilder.NoopUsageChecker{})
+		// nolint: dogsled
+		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 		bldErr := wsbuilder.BuildError{}
 		req.ErrorAs(err, &bldErr)
 		asrt.Equal(http.StatusBadRequest, bldErr.Status)
@@ -575,11 +596,13 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			// Outputs
 			// no transaction, since we failed fast while validation build parameters
 		)
+		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
-		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).RichParameterValues(nextBuildParameters)
+		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart, wsbuilder.NoopUsageChecker{}).
+			RichParameterValues(nextBuildParameters)
 		// nolint: dogsled
-		_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 		bldErr := wsbuilder.BuildError{}
 		req.ErrorAs(err, &bldErr)
 		asrt.Equal(http.StatusBadRequest, bldErr.Status)
@@ -639,12 +662,13 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			}),
 			withBuild,
 		)
+		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
-		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).
+		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart, wsbuilder.NoopUsageChecker{}).
 			RichParameterValues(nextBuildParameters).
 			VersionID(activeVersionID)
-		_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 		req.NoError(err)
 	})
 
@@ -702,12 +726,13 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			}),
 			withBuild,
 		)
+		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
-		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).
+		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart, wsbuilder.NoopUsageChecker{}).
 			RichParameterValues(nextBuildParameters).
 			VersionID(activeVersionID)
-		_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 		req.NoError(err)
 	})
 
@@ -763,13 +788,14 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			}),
 			withBuild,
 		)
+		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
-		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).
+		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart, wsbuilder.NoopUsageChecker{}).
 			RichParameterValues(nextBuildParameters).
 			VersionID(activeVersionID)
 		// nolint: dogsled
-		_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 		req.NoError(err)
 	})
 }
@@ -829,40 +855,285 @@ func TestWorkspaceBuildWithPreset(t *testing.T) {
 			asrt.Empty(params.Value)
 		}),
 	)
+	fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
-	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).
+	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart, wsbuilder.NoopUsageChecker{}).
 		ActiveVersion().
 		TemplateVersionPresetID(presetID)
 	// nolint: dogsled
-	_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+	_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 	req.NoError(err)
 }
 
-func TestProvisionerVersionSupportsDynamicParameters(t *testing.T) {
+func TestWorkspaceBuildDeleteOrphan(t *testing.T) {
 	t.Parallel()
 
-	for v, dyn := range map[string]bool{
-		"":     false,
-		"na":   false,
-		"0.0":  false,
-		"0.10": false,
-		"1.4":  false,
-		"1.5":  false,
-		"1.6":  true,
-		"1.7":  true,
-		"1.8":  true,
-		"2.0":  true,
-		"2.17": true,
-		"4.0":  true,
-	} {
-		t.Run(v, func(t *testing.T) {
+	t.Run("WithActiveProvisioners", func(t *testing.T) {
+		t.Parallel()
+		req := require.New(t)
+		asrt := assert.New(t)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		var buildID uuid.UUID
+
+		mDB := expectDB(t,
+			// Inputs
+			withTemplate,
+			withInactiveVersion(nil),
+			withLastBuildFound,
+			withTemplateVersionVariables(inactiveVersionID, nil),
+			withRichParameters(nil),
+			withWorkspaceTags(inactiveVersionID, nil),
+			withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{{
+				JobID: inactiveJobID,
+				ProvisionerDaemon: database.ProvisionerDaemon{
+					LastSeenAt: sql.NullTime{Valid: true, Time: dbtime.Now()},
+				},
+			}}),
+
+			// Outputs
+			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
+				asrt.Equal(userID, job.InitiatorID)
+				asrt.Equal(inactiveFileID, job.FileID)
+				input := provisionerdserver.WorkspaceProvisionJob{}
+				err := json.Unmarshal(job.Input, &input)
+				req.NoError(err)
+				// store build ID for later
+				buildID = input.WorkspaceBuildID
+			}),
+
+			withInTx,
+			expectBuild(func(bld database.InsertWorkspaceBuildParams) {
+				asrt.Equal(inactiveVersionID, bld.TemplateVersionID)
+				asrt.Equal(workspaceID, bld.WorkspaceID)
+				asrt.Equal(int32(2), bld.BuildNumber)
+				asrt.Empty(string(bld.ProvisionerState))
+				asrt.Equal(userID, bld.InitiatorID)
+				asrt.Equal(database.WorkspaceTransitionDelete, bld.Transition)
+				asrt.Equal(database.BuildReasonInitiator, bld.Reason)
+				asrt.Equal(buildID, bld.ID)
+			}),
+			withBuild,
+			expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
+				asrt.Equal(buildID, params.WorkspaceBuildID)
+				asrt.Empty(params.Name)
+				asrt.Empty(params.Value)
+			}),
+		)
+
+		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
+		uut := wsbuilder.New(ws, database.WorkspaceTransitionDelete, wsbuilder.NoopUsageChecker{}).Orphan()
+		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+
+		// nolint: dogsled
+		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
+		req.NoError(err)
+	})
+
+	t.Run("NoActiveProvisioners", func(t *testing.T) {
+		t.Parallel()
+		req := require.New(t)
+		asrt := assert.New(t)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		var buildID uuid.UUID
+		var jobID uuid.UUID
+
+		mDB := expectDB(t,
+			// Inputs
+			withTemplate,
+			withInactiveVersion(nil),
+			withLastBuildFound,
+			withTemplateVersionVariables(inactiveVersionID, nil),
+			withRichParameters(nil),
+			withWorkspaceTags(inactiveVersionID, nil),
+			withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
+
+			// Outputs
+			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
+				asrt.Equal(userID, job.InitiatorID)
+				asrt.Equal(inactiveFileID, job.FileID)
+				input := provisionerdserver.WorkspaceProvisionJob{}
+				err := json.Unmarshal(job.Input, &input)
+				req.NoError(err)
+				// store build ID for later
+				buildID = input.WorkspaceBuildID
+				// store job ID for later
+				jobID = job.ID
+			}),
+
+			withInTx,
+			expectBuild(func(bld database.InsertWorkspaceBuildParams) {
+				asrt.Equal(inactiveVersionID, bld.TemplateVersionID)
+				asrt.Equal(workspaceID, bld.WorkspaceID)
+				asrt.Equal(int32(2), bld.BuildNumber)
+				asrt.Empty(string(bld.ProvisionerState))
+				asrt.Equal(userID, bld.InitiatorID)
+				asrt.Equal(database.WorkspaceTransitionDelete, bld.Transition)
+				asrt.Equal(database.BuildReasonInitiator, bld.Reason)
+				asrt.Equal(buildID, bld.ID)
+			}),
+			withBuild,
+			expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
+				asrt.Equal(buildID, params.WorkspaceBuildID)
+				asrt.Empty(params.Name)
+				asrt.Empty(params.Value)
+			}),
+
+			// Because no provisioners were available and the request was to delete --orphan
+			expectUpdateProvisionerJobWithCompleteWithStartedAtByID(func(params database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) {
+				asrt.Equal(jobID, params.ID)
+				asrt.False(params.Error.Valid)
+				asrt.True(params.CompletedAt.Valid)
+				asrt.True(params.StartedAt.Valid)
+			}),
+			expectUpdateWorkspaceDeletedByID(func(params database.UpdateWorkspaceDeletedByIDParams) {
+				asrt.Equal(workspaceID, params.ID)
+				asrt.True(params.Deleted)
+			}),
+			expectGetProvisionerJobByID(func(job database.ProvisionerJob) {
+				asrt.Equal(jobID, job.ID)
+			}),
+		)
+
+		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
+		uut := wsbuilder.New(ws, database.WorkspaceTransitionDelete, wsbuilder.NoopUsageChecker{}).Orphan()
+		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+		// nolint: dogsled
+		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
+		req.NoError(err)
+	})
+}
+
+func TestWorkspaceBuildUsageChecker(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Permitted", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		var calls int64
+		fakeUsageChecker := &fakeUsageChecker{
+			checkBuildUsageFunc: func(_ context.Context, _ database.Store, templateVersion *database.TemplateVersion) (wsbuilder.UsageCheckResponse, error) {
+				atomic.AddInt64(&calls, 1)
+				return wsbuilder.UsageCheckResponse{Permitted: true}, nil
+			},
+		}
+
+		mDB := expectDB(t,
+			// Inputs
+			withTemplate,
+			withInactiveVersion(nil),
+			withLastBuildFound,
+			withTemplateVersionVariables(inactiveVersionID, nil),
+			withRichParameters(nil),
+			withParameterSchemas(inactiveJobID, nil),
+			withWorkspaceTags(inactiveVersionID, nil),
+			withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
+
+			// Outputs
+			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
+			withInTx,
+			expectBuild(func(bld database.InsertWorkspaceBuildParams) {}),
+			withBuild,
+			expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {}),
+		)
+		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+
+		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
+		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart, fakeUsageChecker)
+		// nolint: dogsled
+		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, calls)
+	})
+
+	// The failure cases are mostly identical from a test perspective.
+	const message = "fake test message"
+	cases := []struct {
+		name        string
+		response    wsbuilder.UsageCheckResponse
+		responseErr error
+		assertions  func(t *testing.T, err error)
+	}{
+		{
+			name: "NotPermitted",
+			response: wsbuilder.UsageCheckResponse{
+				Permitted: false,
+				Message:   message,
+			},
+			assertions: func(t *testing.T, err error) {
+				require.ErrorContains(t, err, message)
+				var buildErr wsbuilder.BuildError
+				require.ErrorAs(t, err, &buildErr)
+				require.Equal(t, http.StatusForbidden, buildErr.Status)
+			},
+		},
+		{
+			name:        "Error",
+			responseErr: xerrors.New("fake error"),
+			assertions: func(t *testing.T, err error) {
+				require.ErrorContains(t, err, "fake error")
+				require.ErrorAs(t, err, &wsbuilder.BuildError{})
+			},
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			does := wsbuilder.ProvisionerVersionSupportsDynamicParameters(v)
-			require.Equal(t, dyn, does)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			var calls int64
+			fakeUsageChecker := &fakeUsageChecker{
+				checkBuildUsageFunc: func(_ context.Context, _ database.Store, templateVersion *database.TemplateVersion) (wsbuilder.UsageCheckResponse, error) {
+					atomic.AddInt64(&calls, 1)
+					return c.response, c.responseErr
+				},
+			}
+
+			mDB := expectDB(t,
+				withTemplate,
+				withInactiveVersionNoParams(),
+			)
+			fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+
+			ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
+			uut := wsbuilder.New(ws, database.WorkspaceTransitionStart, fakeUsageChecker).
+				VersionID(inactiveVersionID)
+			// nolint: dogsled
+			_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
+			c.assertions(t, err)
+			require.EqualValues(t, 1, calls)
 		})
 	}
+}
+
+func TestWsbuildError(t *testing.T) {
+	t.Parallel()
+
+	const msg = "test error"
+	var buildErr error = wsbuilder.BuildError{
+		Status:  http.StatusBadRequest,
+		Message: msg,
+	}
+
+	respErr, ok := httperror.IsResponder(buildErr)
+	require.True(t, ok, "should be a Coder SDK error")
+
+	code, resp := respErr.Response()
+	require.Equal(t, http.StatusBadRequest, code)
+	require.Equal(t, msg, resp.Message)
 }
 
 type txExpect func(mTx *dbmock.MockStore)
@@ -894,10 +1165,11 @@ func withTemplate(mTx *dbmock.MockStore) {
 	mTx.EXPECT().GetTemplateByID(gomock.Any(), templateID).
 		Times(1).
 		Return(database.Template{
-			ID:              templateID,
-			OrganizationID:  orgID,
-			Provisioner:     database.ProvisionerTypeTerraform,
-			ActiveVersionID: activeVersionID,
+			ID:                      templateID,
+			OrganizationID:          orgID,
+			Provisioner:             database.ProvisionerTypeTerraform,
+			ActiveVersionID:         activeVersionID,
+			UseClassicParameterFlow: true,
 		}, nil)
 }
 
@@ -910,7 +1182,7 @@ func withInTx(mTx *dbmock.MockStore) {
 	)
 }
 
-func withActiveVersion(params []database.TemplateVersionParameter) func(mTx *dbmock.MockStore) {
+func withActiveVersionNoParams() func(mTx *dbmock.MockStore) {
 	return func(mTx *dbmock.MockStore) {
 		mTx.EXPECT().GetTemplateVersionByID(gomock.Any(), activeVersionID).
 			Times(1).
@@ -940,6 +1212,12 @@ func withActiveVersion(params []database.TemplateVersionParameter) func(mTx *dbm
 			UpdatedAt:   time.Now(),
 			CompletedAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
 		}, nil)
+	}
+}
+
+func withActiveVersion(params []database.TemplateVersionParameter) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
+		withActiveVersionNoParams()(mTx)
 		paramsCall := mTx.EXPECT().GetTemplateVersionParameters(gomock.Any(), activeVersionID).
 			Times(1)
 		if len(params) > 0 {
@@ -950,7 +1228,7 @@ func withActiveVersion(params []database.TemplateVersionParameter) func(mTx *dbm
 	}
 }
 
-func withInactiveVersion(params []database.TemplateVersionParameter) func(mTx *dbmock.MockStore) {
+func withInactiveVersionNoParams() func(mTx *dbmock.MockStore) {
 	return func(mTx *dbmock.MockStore) {
 		mTx.EXPECT().GetTemplateVersionByID(gomock.Any(), inactiveVersionID).
 			Times(1).
@@ -980,6 +1258,13 @@ func withInactiveVersion(params []database.TemplateVersionParameter) func(mTx *d
 			UpdatedAt:   time.Now(),
 			CompletedAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
 		}, nil)
+	}
+}
+
+func withInactiveVersion(params []database.TemplateVersionParameter) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
+		withInactiveVersionNoParams()(mTx)
+
 		paramsCall := mTx.EXPECT().GetTemplateVersionParameters(gomock.Any(), inactiveVersionID).
 			Times(1)
 		if len(params) > 0 {
@@ -1106,6 +1391,53 @@ func expectProvisionerJob(
 	}
 }
 
+// expectUpdateProvisionerJobWithCompleteWithStartedAtByID asserts a call to
+// expectUpdateProvisionerJobWithCompleteWithStartedAtByID and runs the provided
+// assertions against it.
+func expectUpdateProvisionerJobWithCompleteWithStartedAtByID(assertions func(params database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams)) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
+		mTx.EXPECT().UpdateProvisionerJobWithCompleteWithStartedAtByID(gomock.Any(), gomock.Any()).
+			Times(1).
+			DoAndReturn(
+				func(ctx context.Context, params database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) error {
+					assertions(params)
+					return nil
+				},
+			)
+	}
+}
+
+// expectUpdateWorkspaceDeletedByID asserts a call to UpdateWorkspaceDeletedByID
+// and runs the provided assertions against it.
+func expectUpdateWorkspaceDeletedByID(assertions func(params database.UpdateWorkspaceDeletedByIDParams)) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
+		mTx.EXPECT().UpdateWorkspaceDeletedByID(gomock.Any(), gomock.Any()).
+			Times(1).
+			DoAndReturn(
+				func(ctx context.Context, params database.UpdateWorkspaceDeletedByIDParams) error {
+					assertions(params)
+					return nil
+				},
+			)
+	}
+}
+
+// expectGetProvisionerJobByID asserts a call to GetProvisionerJobByID
+// and runs the provided assertions against it.
+func expectGetProvisionerJobByID(assertions func(job database.ProvisionerJob)) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
+		mTx.EXPECT().GetProvisionerJobByID(gomock.Any(), gomock.Any()).
+			Times(1).
+			DoAndReturn(
+				func(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+					job := database.ProvisionerJob{ID: id}
+					assertions(job)
+					return job, nil
+				},
+			)
+	}
+}
+
 func withBuild(mTx *dbmock.MockStore) {
 	mTx.EXPECT().GetWorkspaceBuildByID(gomock.Any(), gomock.Any()).Times(1).
 		DoAndReturn(func(ctx context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
@@ -1151,4 +1483,12 @@ func withProvisionerDaemons(provisionerDaemons []database.GetEligibleProvisioner
 	return func(mTx *dbmock.MockStore) {
 		mTx.EXPECT().GetEligibleProvisionerDaemonsByProvisionerJobIDs(gomock.Any(), gomock.Any()).Return(provisionerDaemons, nil)
 	}
+}
+
+type fakeUsageChecker struct {
+	checkBuildUsageFunc func(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion) (wsbuilder.UsageCheckResponse, error)
+}
+
+func (f *fakeUsageChecker) CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion) (wsbuilder.UsageCheckResponse, error) {
+	return f.checkBuildUsageFunc(ctx, store, templateVersion)
 }

@@ -533,6 +533,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
       "command": "string",
       "display_name": "string",
       "external": true,
+      "group": "string",
       "health": "disabled",
       "healthcheck": {
         "interval": 0,
@@ -776,7 +777,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
   "containers": [
     {
       "created_at": "2019-08-24T14:15:22Z",
-      "devcontainer_dirty": true,
       "id": "string",
       "image": "string",
       "labels": {
@@ -800,6 +800,46 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
       }
     }
   ],
+  "devcontainers": [
+    {
+      "agent": {
+        "directory": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      },
+      "config_path": "string",
+      "container": {
+        "created_at": "2019-08-24T14:15:22Z",
+        "id": "string",
+        "image": "string",
+        "labels": {
+          "property1": "string",
+          "property2": "string"
+        },
+        "name": "string",
+        "ports": [
+          {
+            "host_ip": "string",
+            "host_port": 0,
+            "network": "string",
+            "port": 0
+          }
+        ],
+        "running": true,
+        "status": "string",
+        "volumes": {
+          "property1": "string",
+          "property2": "string"
+        }
+      },
+      "dirty": true,
+      "error": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "status": "running",
+      "workspace_folder": "string"
+    }
+  ],
   "warnings": [
     "string"
   ]
@@ -820,24 +860,147 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/container/{container}/recreate \
+curl -X POST http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate \
+  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /workspaceagents/{workspaceagent}/containers/devcontainers/container/{container}/recreate`
+`POST /workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate`
 
 ### Parameters
 
-| Name             | In   | Type         | Required | Description          |
-|------------------|------|--------------|----------|----------------------|
-| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID   |
-| `container`      | path | string       | true     | Container ID or name |
+| Name             | In   | Type         | Required | Description        |
+|------------------|------|--------------|----------|--------------------|
+| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
+| `devcontainer`   | path | string       | true     | Devcontainer ID    |
+
+### Example responses
+
+> 202 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+| Status | Meaning                                                       | Description | Schema                                           |
+|--------|---------------------------------------------------------------|-------------|--------------------------------------------------|
+| 202    | [Accepted](https://tools.ietf.org/html/rfc7231#section-6.3.3) | Accepted    | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Watch workspace agent for container updates
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/containers/watch \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/{workspaceagent}/containers/watch`
+
+### Parameters
+
+| Name             | In   | Type         | Required | Description        |
+|------------------|------|--------------|----------|--------------------|
+| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "containers": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "string",
+      "image": "string",
+      "labels": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "name": "string",
+      "ports": [
+        {
+          "host_ip": "string",
+          "host_port": 0,
+          "network": "string",
+          "port": 0
+        }
+      ],
+      "running": true,
+      "status": "string",
+      "volumes": {
+        "property1": "string",
+        "property2": "string"
+      }
+    }
+  ],
+  "devcontainers": [
+    {
+      "agent": {
+        "directory": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      },
+      "config_path": "string",
+      "container": {
+        "created_at": "2019-08-24T14:15:22Z",
+        "id": "string",
+        "image": "string",
+        "labels": {
+          "property1": "string",
+          "property2": "string"
+        },
+        "name": "string",
+        "ports": [
+          {
+            "host_ip": "string",
+            "host_port": 0,
+            "network": "string",
+            "port": 0
+          }
+        ],
+        "running": true,
+        "status": "string",
+        "volumes": {
+          "property1": "string",
+          "property2": "string"
+        }
+      },
+      "dirty": true,
+      "error": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "status": "running",
+      "workspace_folder": "string"
+    }
+  ],
+  "warnings": [
+    "string"
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                                   |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentListContainersResponse](schemas.md#codersdkworkspaceagentlistcontainersresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

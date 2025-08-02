@@ -3,6 +3,7 @@ import { DetailedError, isApiValidationError } from "api/errors";
 import type {
 	CreateWorkspaceRequest,
 	ProvisionerLogLevel,
+	UpdateWorkspaceACL,
 	UsageAppName,
 	Workspace,
 	WorkspaceAgentLog,
@@ -27,12 +28,10 @@ import { checkAuthorization } from "./authCheck";
 import { disabledRefetchOptions } from "./util";
 import { workspaceBuildsKey } from "./workspaceBuilds";
 
-export const workspaceByOwnerAndNameKey = (owner: string, name: string) => [
-	"workspace",
-	owner,
-	name,
-	"settings",
-];
+export const workspaceByOwnerAndNameKey = (
+	ownerUsername: string,
+	name: string,
+) => ["workspace", ownerUsername, name, "settings"];
 
 export const workspaceByOwnerAndName = (owner: string, name: string) => {
 	return {
@@ -55,7 +54,7 @@ export const createWorkspace = (queryClient: QueryClient) => {
 			return API.createWorkspace(userId, req);
 		},
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(["workspaces"]);
+			await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
 		},
 	};
 };
@@ -114,7 +113,7 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
 			});
 		},
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(["workspaces"]);
+			await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
 		},
 	};
 };
@@ -165,6 +164,7 @@ export const updateDeadline = (
 export const changeVersion = (
 	workspace: Workspace,
 	queryClient: QueryClient,
+	isDynamicParametersEnabled: boolean,
 ) => {
 	return {
 		mutationFn: ({
@@ -174,7 +174,12 @@ export const changeVersion = (
 			versionId: string;
 			buildParameters?: WorkspaceBuildParameter[];
 		}) => {
-			return API.changeWorkspaceVersion(workspace, versionId, buildParameters);
+			return API.changeWorkspaceVersion(
+				workspace,
+				versionId,
+				buildParameters,
+				isDynamicParametersEnabled,
+			);
 		},
 		onSuccess: async (build: WorkspaceBuild) => {
 			await updateWorkspaceBuild(build, queryClient);
@@ -187,8 +192,18 @@ export const updateWorkspace = (
 	queryClient: QueryClient,
 ) => {
 	return {
-		mutationFn: (buildParameters?: WorkspaceBuildParameter[]) => {
-			return API.updateWorkspace(workspace, buildParameters);
+		mutationFn: ({
+			buildParameters,
+			isDynamicParametersEnabled,
+		}: {
+			buildParameters?: WorkspaceBuildParameter[];
+			isDynamicParametersEnabled: boolean;
+		}) => {
+			return API.updateWorkspace(
+				workspace,
+				buildParameters,
+				isDynamicParametersEnabled,
+			);
 		},
 		onSuccess: async (build: WorkspaceBuild) => {
 			await updateWorkspaceBuild(build, queryClient);
@@ -252,7 +267,12 @@ export const startWorkspace = (
 export const cancelBuild = (workspace: Workspace, queryClient: QueryClient) => {
 	return {
 		mutationFn: () => {
-			return API.cancelWorkspaceBuild(workspace.latest_build.id);
+			const { status } = workspace.latest_build;
+			const params =
+				status === "pending" || status === "running"
+					? { expect_status: status }
+					: undefined;
+			return API.cancelWorkspaceBuild(workspace.latest_build.id, params);
 		},
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({
@@ -355,7 +375,7 @@ export const agentLogs = (agentId: string) => {
 };
 
 // workspace usage options
-export interface WorkspaceUsageOptions {
+interface WorkspaceUsageOptions {
 	usageApp: UsageAppName;
 	connectionStatus: ConnectionStatus;
 	workspaceId: string | undefined;
@@ -400,5 +420,13 @@ export const workspacePermissions = (workspace?: Workspace) => {
 		queryKey: ["workspaces", workspace?.id, "permissions"],
 		enabled: !!workspace,
 		staleTime: Number.POSITIVE_INFINITY,
+	};
+};
+
+export const updateWorkspaceACL = (workspaceId: string) => {
+	return {
+		mutationFn: async (patch: UpdateWorkspaceACL) => {
+			await API.updateWorkspaceACL(workspaceId, patch);
+		},
 	};
 };

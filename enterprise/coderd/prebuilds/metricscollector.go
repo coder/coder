@@ -27,7 +27,9 @@ const (
 	MetricDesiredGauge              = namespace + "desired"
 	MetricRunningGauge              = namespace + "running"
 	MetricEligibleGauge             = namespace + "eligible"
+	MetricPresetHardLimitedGauge    = namespace + "preset_hard_limited"
 	MetricLastUpdatedGauge          = namespace + "metrics_last_updated"
+	MetricReconciliationPausedGauge = namespace + "reconciliation_paused"
 )
 
 var (
@@ -82,9 +84,21 @@ var (
 		labels,
 		nil,
 	)
+	presetHardLimitedDesc = prometheus.NewDesc(
+		MetricPresetHardLimitedGauge,
+		"Indicates whether a given preset has reached the hard failure limit (1 = hard-limited). Metric is omitted otherwise.",
+		labels,
+		nil,
+	)
 	lastUpdateDesc = prometheus.NewDesc(
 		MetricLastUpdatedGauge,
 		"The unix timestamp when the metrics related to prebuilt workspaces were last updated; these metrics are cached.",
+		[]string{},
+		nil,
+	)
+	reconciliationPausedDesc = prometheus.NewDesc(
+		MetricReconciliationPausedGauge,
+		"Indicates whether prebuilds reconciliation is currently paused (1 = paused, 0 = not paused).",
 		[]string{},
 		nil,
 	)
@@ -104,17 +118,25 @@ type MetricsCollector struct {
 
 	replacementsCounter   map[replacementKey]float64
 	replacementsCounterMu sync.Mutex
+
+	isPresetHardLimited   map[hardLimitedPresetKey]bool
+	isPresetHardLimitedMu sync.Mutex
+
+	reconciliationPaused   bool
+	reconciliationPausedMu sync.RWMutex
 }
 
 var _ prometheus.Collector = new(MetricsCollector)
 
 func NewMetricsCollector(db database.Store, logger slog.Logger, snapshotter prebuilds.StateSnapshotter) *MetricsCollector {
 	log := logger.Named("prebuilds_metrics_collector")
+
 	return &MetricsCollector{
 		database:            db,
 		logger:              log,
 		snapshotter:         snapshotter,
 		replacementsCounter: make(map[replacementKey]float64),
+		isPresetHardLimited: make(map[hardLimitedPresetKey]bool),
 	}
 }
 
@@ -126,13 +148,24 @@ func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
 	descCh <- desiredPrebuildsDesc
 	descCh <- runningPrebuildsDesc
 	descCh <- eligiblePrebuildsDesc
+	descCh <- presetHardLimitedDesc
 	descCh <- lastUpdateDesc
+	descCh <- reconciliationPausedDesc
 }
 
 // Collect uses the cached state to set configured metrics.
 // The state is cached because this function can be called multiple times per second and retrieving the current state
 // is an expensive operation.
 func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
+	mc.reconciliationPausedMu.RLock()
+	var pausedValue float64
+	if mc.reconciliationPaused {
+		pausedValue = 1
+	}
+	mc.reconciliationPausedMu.RUnlock()
+
+	metricsCh <- prometheus.MustNewConstMetric(reconciliationPausedDesc, prometheus.GaugeValue, pausedValue)
+
 	currentState := mc.latestState.Load() // Grab a copy; it's ok if it goes stale during the course of this func.
 	if currentState == nil {
 		mc.logger.Warn(context.Background(), "failed to set prebuilds metrics; state not set")
@@ -172,6 +205,17 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 		metricsCh <- prometheus.MustNewConstMetric(runningPrebuildsDesc, prometheus.GaugeValue, float64(state.Actual), preset.TemplateName, preset.Name, preset.OrganizationName)
 		metricsCh <- prometheus.MustNewConstMetric(eligiblePrebuildsDesc, prometheus.GaugeValue, float64(state.Eligible), preset.TemplateName, preset.Name, preset.OrganizationName)
 	}
+
+	mc.isPresetHardLimitedMu.Lock()
+	for key, isHardLimited := range mc.isPresetHardLimited {
+		var val float64
+		if isHardLimited {
+			val = 1
+		}
+
+		metricsCh <- prometheus.MustNewConstMetric(presetHardLimitedDesc, prometheus.GaugeValue, val, key.templateName, key.presetName, key.orgName)
+	}
+	mc.isPresetHardLimitedMu.Unlock()
 
 	metricsCh <- prometheus.MustNewConstMetric(lastUpdateDesc, prometheus.GaugeValue, float64(currentState.createdAt.Unix()))
 }
@@ -246,4 +290,26 @@ func (mc *MetricsCollector) trackResourceReplacement(orgName, templateName, pres
 	// For example, say we have 2 replacements: a docker_container and a null_resource; we don't know which one might
 	// cause an issue (or indeed if either would), so we just track the replacement.
 	mc.replacementsCounter[key]++
+}
+
+type hardLimitedPresetKey struct {
+	orgName, templateName, presetName string
+}
+
+func (k hardLimitedPresetKey) String() string {
+	return fmt.Sprintf("%s:%s:%s", k.orgName, k.templateName, k.presetName)
+}
+
+func (mc *MetricsCollector) registerHardLimitedPresets(isPresetHardLimited map[hardLimitedPresetKey]bool) {
+	mc.isPresetHardLimitedMu.Lock()
+	defer mc.isPresetHardLimitedMu.Unlock()
+
+	mc.isPresetHardLimited = isPresetHardLimited
+}
+
+func (mc *MetricsCollector) setReconciliationPaused(paused bool) {
+	mc.reconciliationPausedMu.Lock()
+	defer mc.reconciliationPausedMu.Unlock()
+
+	mc.reconciliationPaused = paused
 }

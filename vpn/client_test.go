@@ -43,14 +43,19 @@ func TestClient_WorkspaceUpdates(t *testing.T) {
 		hostnames           []string
 	}{
 		{
-			name:                "empty",
-			agentConnectionInfo: workspacesdk.AgentConnectionInfo{},
-			hostnames:           []string{"wrk.coder.", "agnt.wrk.me.coder.", "agnt.wrk.rootbeer.coder."},
+			name: "empty",
+			agentConnectionInfo: workspacesdk.AgentConnectionInfo{
+				DERPMap: &tailcfg.DERPMap{},
+			},
+			hostnames: []string{"wrk.coder.", "agnt.wrk.me.coder.", "agnt.wrk.rootbeer.coder."},
 		},
 		{
-			name:                "suffix",
-			agentConnectionInfo: workspacesdk.AgentConnectionInfo{HostnameSuffix: "float"},
-			hostnames:           []string{"wrk.float.", "agnt.wrk.me.float.", "agnt.wrk.rootbeer.float."},
+			name: "suffix",
+			agentConnectionInfo: workspacesdk.AgentConnectionInfo{
+				HostnameSuffix: "float",
+				DERPMap:        &tailcfg.DERPMap{},
+			},
+			hostnames: []string{"wrk.float.", "agnt.wrk.me.float.", "agnt.wrk.rootbeer.float."},
 		},
 	}
 	for _, tc := range testCases {
@@ -90,6 +95,8 @@ func TestClient_WorkspaceUpdates(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
 				case "/api/v2/users/me":
+					values := r.Header.Values(codersdk.SessionTokenHeader)
+					assert.Len(t, values, 1, "expected exactly one session token header value")
 					httpapi.Write(ctx, w, http.StatusOK, codersdk.User{
 						ReducedUser: codersdk.ReducedUser{
 							MinimalUser: codersdk.MinimalUser{
@@ -101,6 +108,8 @@ func TestClient_WorkspaceUpdates(t *testing.T) {
 					user <- struct{}{}
 
 				case "/api/v2/workspaceagents/connection":
+					values := r.Header.Values(codersdk.SessionTokenHeader)
+					assert.Len(t, values, 1, "expected exactly one session token header value")
 					httpapi.Write(ctx, w, http.StatusOK, tc.agentConnectionInfo)
 					connInfo <- struct{}{}
 
@@ -108,6 +117,9 @@ func TestClient_WorkspaceUpdates(t *testing.T) {
 					// need 2.3 for WorkspaceUpdates RPC
 					cVer := r.URL.Query().Get("version")
 					assert.Equal(t, "2.3", cVer)
+
+					values := r.Header.Values(codersdk.SessionTokenHeader)
+					assert.Len(t, values, 1, "expected exactly one session token header value")
 
 					sws, err := websocket.Accept(w, r, nil)
 					if !assert.NoError(t, err) {

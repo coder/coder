@@ -16,8 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 	protobuf "google.golang.org/protobuf/proto"
 
+	"github.com/coder/terraform-provider-coder/v2/provider"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/testutil"
 
 	"github.com/coder/coder/v2/cryptorand"
@@ -66,6 +69,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "linux",
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -84,6 +88,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "linux",
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -103,6 +108,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "linux",
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_InstanceId{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -120,6 +126,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "linux",
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -138,6 +145,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "linux",
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -146,6 +154,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "darwin",
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 1,
 					MotdFile:                 "/etc/motd",
 					DisplayApps:              &displayApps,
@@ -162,6 +171,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "windows",
 					Architecture:             "arm64",
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					TroubleshootingUrl:       "https://coder.com/troubleshoot",
 					DisplayApps:              &displayApps,
@@ -171,6 +181,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "linux",
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -213,6 +224,7 @@ func TestConvertResources(t *testing.T) {
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -240,6 +252,7 @@ func TestConvertResources(t *testing.T) {
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -275,6 +288,7 @@ func TestConvertResources(t *testing.T) {
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -295,6 +309,7 @@ func TestConvertResources(t *testing.T) {
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -320,6 +335,7 @@ func TestConvertResources(t *testing.T) {
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -338,6 +354,7 @@ func TestConvertResources(t *testing.T) {
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -383,6 +400,7 @@ func TestConvertResources(t *testing.T) {
 							},
 						},
 						Auth:                     &proto.Agent_Token{},
+						ApiKeyScope:              "all",
 						ConnectionTimeoutSeconds: 120,
 						DisplayApps:              &displayApps,
 						ResourcesMonitoring: &proto.ResourcesMonitoring{
@@ -398,6 +416,7 @@ func TestConvertResources(t *testing.T) {
 						Architecture:             "amd64",
 						Apps:                     []*proto.App{},
 						Auth:                     &proto.Agent_Token{},
+						ApiKeyScope:              "all",
 						ConnectionTimeoutSeconds: 120,
 						DisplayApps:              &displayApps,
 						ResourcesMonitoring: &proto.ResourcesMonitoring{
@@ -443,6 +462,7 @@ func TestConvertResources(t *testing.T) {
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -462,6 +482,7 @@ func TestConvertResources(t *testing.T) {
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -492,6 +513,7 @@ func TestConvertResources(t *testing.T) {
 				Agents: []*proto.Agent{{
 					Name:            "main",
 					Auth:            &proto.Agent_Token{},
+					ApiKeyScope:     "all",
 					OperatingSystem: "linux",
 					Architecture:    "amd64",
 					Metadata: []*proto.Agent_Metadata{{
@@ -577,6 +599,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "windows",
 					Architecture:             "arm64",
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -588,24 +611,28 @@ func TestConvertResources(t *testing.T) {
 				Description:  "First parameter from child module",
 				Mutable:      true,
 				DefaultValue: "abcdef",
+				FormType:     proto.ParameterFormType_INPUT,
 			}, {
 				Name:         "Second parameter from child module",
 				Type:         "string",
 				Description:  "Second parameter from child module",
 				Mutable:      true,
 				DefaultValue: "ghijkl",
+				FormType:     proto.ParameterFormType_INPUT,
 			}, {
 				Name:         "First parameter from module",
 				Type:         "string",
 				Description:  "First parameter from module",
 				Mutable:      true,
 				DefaultValue: "abcdef",
+				FormType:     proto.ParameterFormType_INPUT,
 			}, {
 				Name:         "Second parameter from module",
 				Type:         "string",
 				Description:  "Second parameter from module",
 				Mutable:      true,
 				DefaultValue: "ghijkl",
+				FormType:     proto.ParameterFormType_INPUT,
 			}, {
 				Name: "Example",
 				Type: "string",
@@ -617,35 +644,41 @@ func TestConvertResources(t *testing.T) {
 					Value: "second",
 				}},
 				Required: true,
+				FormType: proto.ParameterFormType_RADIO,
 			}, {
 				Name:          "number_example",
 				Type:          "number",
 				DefaultValue:  "4",
 				ValidationMin: nil,
 				ValidationMax: nil,
+				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_max_zero",
 				Type:          "number",
 				DefaultValue:  "-2",
 				ValidationMin: terraform.PtrInt32(-3),
 				ValidationMax: terraform.PtrInt32(0),
+				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_max",
 				Type:          "number",
 				DefaultValue:  "4",
 				ValidationMin: terraform.PtrInt32(3),
 				ValidationMax: terraform.PtrInt32(6),
+				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_zero",
 				Type:          "number",
 				DefaultValue:  "4",
 				ValidationMin: terraform.PtrInt32(0),
 				ValidationMax: terraform.PtrInt32(6),
+				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:         "Sample",
 				Type:         "string",
 				Description:  "blah blah",
 				DefaultValue: "ok",
+				FormType:     proto.ParameterFormType_INPUT,
 			}},
 		},
 		"rich-parameters-order": {
@@ -657,6 +690,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "windows",
 					Architecture:             "arm64",
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -667,12 +701,14 @@ func TestConvertResources(t *testing.T) {
 				Type:     "string",
 				Required: true,
 				Order:    55,
+				FormType: proto.ParameterFormType_INPUT,
 			}, {
 				Name:         "Sample",
 				Type:         "string",
 				Description:  "blah blah",
 				DefaultValue: "ok",
 				Order:        99,
+				FormType:     proto.ParameterFormType_INPUT,
 			}},
 		},
 		"rich-parameters-validation": {
@@ -684,6 +720,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "windows",
 					Architecture:             "arm64",
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -697,36 +734,42 @@ func TestConvertResources(t *testing.T) {
 				Mutable:       true,
 				ValidationMin: nil,
 				ValidationMax: nil,
+				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_max",
 				Type:          "number",
 				DefaultValue:  "4",
 				ValidationMin: nil,
 				ValidationMax: terraform.PtrInt32(6),
+				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_max_zero",
 				Type:          "number",
 				DefaultValue:  "-3",
 				ValidationMin: nil,
 				ValidationMax: terraform.PtrInt32(0),
+				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min",
 				Type:          "number",
 				DefaultValue:  "4",
 				ValidationMin: terraform.PtrInt32(3),
 				ValidationMax: nil,
+				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_max",
 				Type:          "number",
 				DefaultValue:  "4",
 				ValidationMin: terraform.PtrInt32(3),
 				ValidationMax: terraform.PtrInt32(6),
+				FormType:      proto.ParameterFormType_INPUT,
 			}, {
 				Name:          "number_example_min_zero",
 				Type:          "number",
 				DefaultValue:  "4",
 				ValidationMin: terraform.PtrInt32(0),
 				ValidationMax: nil,
+				FormType:      proto.ParameterFormType_INPUT,
 			}},
 		},
 		"external-auth-providers": {
@@ -738,6 +781,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "linux",
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -754,6 +798,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "linux",
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps: &proto.DisplayApps{
 						VscodeInsiders: true,
@@ -772,6 +817,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "linux",
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &proto.DisplayApps{},
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -787,6 +833,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "windows",
 					Architecture:             "arm64",
 					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -798,29 +845,34 @@ func TestConvertResources(t *testing.T) {
 				Description:  "First parameter from child module",
 				Mutable:      true,
 				DefaultValue: "abcdef",
+				FormType:     proto.ParameterFormType_INPUT,
 			}, {
 				Name:         "Second parameter from child module",
 				Type:         "string",
 				Description:  "Second parameter from child module",
 				Mutable:      true,
 				DefaultValue: "ghijkl",
+				FormType:     proto.ParameterFormType_INPUT,
 			}, {
 				Name:         "First parameter from module",
 				Type:         "string",
 				Description:  "First parameter from module",
 				Mutable:      true,
 				DefaultValue: "abcdef",
+				FormType:     proto.ParameterFormType_INPUT,
 			}, {
 				Name:         "Second parameter from module",
 				Type:         "string",
 				Description:  "Second parameter from module",
 				Mutable:      true,
 				DefaultValue: "ghijkl",
+				FormType:     proto.ParameterFormType_INPUT,
 			}, {
 				Name:         "Sample",
 				Type:         "string",
 				Description:  "blah blah",
 				DefaultValue: "ok",
+				FormType:     proto.ParameterFormType_INPUT,
 			}},
 			Presets: []*proto.Preset{{
 				Name: "My First Project",
@@ -830,6 +882,22 @@ func TestConvertResources(t *testing.T) {
 				}},
 				Prebuild: &proto.Prebuild{
 					Instances: 4,
+					ExpirationPolicy: &proto.ExpirationPolicy{
+						Ttl: 86400,
+					},
+					Scheduling: &proto.Scheduling{
+						Timezone: "America/Los_Angeles",
+						Schedule: []*proto.Schedule{
+							{
+								Cron:      "* 8-18 * * 1-5",
+								Instances: 3,
+							},
+							{
+								Cron:      "* 8-14 * * 6",
+								Instances: 1,
+							},
+						},
+					},
 				},
 			}},
 		},
@@ -843,6 +911,7 @@ func TestConvertResources(t *testing.T) {
 						OperatingSystem:          "linux",
 						Architecture:             "amd64",
 						Auth:                     &proto.Agent_Token{},
+						ApiKeyScope:              "all",
 						ConnectionTimeoutSeconds: 120,
 						DisplayApps:              &displayApps,
 						ResourcesMonitoring:      &proto.ResourcesMonitoring{},
@@ -864,8 +933,6 @@ func TestConvertResources(t *testing.T) {
 			},
 		},
 	} {
-		folderName := folderName
-		expected := expected
 		t.Run(folderName, func(t *testing.T) {
 			t.Parallel()
 			dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", folderName)
@@ -902,6 +969,9 @@ func TestConvertResources(t *testing.T) {
 						}
 						if agent.GetInstanceId() != "" {
 							agent.Auth = &proto.Agent_InstanceId{}
+						}
+						for _, app := range agent.Apps {
+							app.Id = ""
 						}
 					}
 				}
@@ -972,6 +1042,9 @@ func TestConvertResources(t *testing.T) {
 						}
 						if agent.GetInstanceId() != "" {
 							agent.Auth = &proto.Agent_InstanceId{}
+						}
+						for _, app := range agent.Apps {
+							app.Id = ""
 						}
 					}
 				}
@@ -1048,7 +1121,6 @@ func TestAppSlugValidation(t *testing.T) {
 
 	//nolint:paralleltest
 	for i, c := range cases {
-		c := c
 		t.Run(fmt.Sprintf("case-%d", i), func(t *testing.T) {
 			// Change the first app slug to match the current case.
 			for _, resource := range tfPlan.PlannedValues.RootModule.Resources {
@@ -1125,7 +1197,6 @@ func TestAgentNameInvalid(t *testing.T) {
 
 	//nolint:paralleltest
 	for i, c := range cases {
-		c := c
 		t.Run(fmt.Sprintf("case-%d", i), func(t *testing.T) {
 			// Change the first agent name to match the current case.
 			for _, resource := range tfPlan.PlannedValues.RootModule.Resources {
@@ -1255,6 +1326,80 @@ func TestParameterValidation(t *testing.T) {
 	require.ErrorContains(t, err, "coder_parameter names must be unique but \"identical-0\", \"identical-1\" and \"identical-2\" appear multiple times")
 }
 
+func TestDefaultPresets(t *testing.T) {
+	t.Parallel()
+
+	// nolint:dogsled
+	_, filename, _, _ := runtime.Caller(0)
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "resources")
+
+	cases := map[string]struct {
+		fixtureFile string
+		expectError bool
+		errorMsg    string
+		validate    func(t *testing.T, state *terraform.State)
+	}{
+		"multiple defaults should fail": {
+			fixtureFile: "presets-multiple-defaults",
+			expectError: true,
+			errorMsg:    "a maximum of 1 coder_workspace_preset can be marked as default, but 2 are set",
+		},
+		"single default should succeed": {
+			fixtureFile: "presets-single-default",
+			expectError: false,
+			validate: func(t *testing.T, state *terraform.State) {
+				require.Len(t, state.Presets, 2)
+				var defaultCount int
+				for _, preset := range state.Presets {
+					if preset.Default {
+						defaultCount++
+						require.Equal(t, "development", preset.Name)
+					}
+				}
+				require.Equal(t, 1, defaultCount)
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx, logger := ctxAndLogger(t)
+
+			tfPlanRaw, err := os.ReadFile(filepath.Join(dir, tc.fixtureFile, tc.fixtureFile+".tfplan.json"))
+			require.NoError(t, err)
+			var tfPlan tfjson.Plan
+			err = json.Unmarshal(tfPlanRaw, &tfPlan)
+			require.NoError(t, err)
+			tfPlanGraph, err := os.ReadFile(filepath.Join(dir, tc.fixtureFile, tc.fixtureFile+".tfplan.dot"))
+			require.NoError(t, err)
+
+			modules := []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}
+			if tfPlan.PriorState != nil {
+				modules = append(modules, tfPlan.PriorState.Values.RootModule)
+			} else {
+				modules = append(modules, tfPlan.PlannedValues.RootModule)
+			}
+			state, err := terraform.ConvertState(ctx, modules, string(tfPlanGraph), logger)
+
+			if tc.expectError {
+				require.Error(t, err)
+				require.Nil(t, state)
+				if tc.errorMsg != "" {
+					require.ErrorContains(t, err, tc.errorMsg)
+				}
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, state)
+				if tc.validate != nil {
+					tc.validate(t, state)
+				}
+			}
+		})
+	}
+}
+
 func TestInstanceTypeAssociation(t *testing.T) {
 	t.Parallel()
 	type tc struct {
@@ -1277,7 +1422,6 @@ func TestInstanceTypeAssociation(t *testing.T) {
 		ResourceType:    "azurerm_windows_virtual_machine",
 		InstanceTypeKey: "size",
 	}} {
-		tc := tc
 		t.Run(tc.ResourceType, func(t *testing.T) {
 			t.Parallel()
 			ctx, logger := ctxAndLogger(t)
@@ -1336,7 +1480,6 @@ func TestInstanceIDAssociation(t *testing.T) {
 		ResourceType:  "azurerm_windows_virtual_machine",
 		InstanceIDKey: "virtual_machine_id",
 	}} {
-		tc := tc
 		t.Run(tc.ResourceType, func(t *testing.T) {
 			t.Parallel()
 			ctx, logger := ctxAndLogger(t)
@@ -1379,6 +1522,55 @@ func TestInstanceIDAssociation(t *testing.T) {
 			require.Equal(t, state.Resources[0].Agents[0].GetInstanceId(), instanceID)
 		})
 	}
+}
+
+func TestAITasks(t *testing.T) {
+	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
+
+	t.Run("Prompt parameter is required", func(t *testing.T) {
+		t.Parallel()
+
+		// nolint:dogsled
+		_, filename, _, _ := runtime.Caller(0)
+
+		dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "ai-tasks-missing-prompt")
+		tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "ai-tasks-missing-prompt.tfplan.json"))
+		require.NoError(t, err)
+		var tfPlan tfjson.Plan
+		err = json.Unmarshal(tfPlanRaw, &tfPlan)
+		require.NoError(t, err)
+		tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "ai-tasks-missing-prompt.tfplan.dot"))
+		require.NoError(t, err)
+
+		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule, tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
+		require.Nil(t, state)
+		require.ErrorContains(t, err, fmt.Sprintf("coder_parameter named '%s' is required when 'coder_ai_task' resource is defined", provider.TaskPromptParameterName))
+	})
+
+	t.Run("Multiple tasks can be defined", func(t *testing.T) {
+		t.Parallel()
+
+		// nolint:dogsled
+		_, filename, _, _ := runtime.Caller(0)
+
+		dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "ai-tasks-multiple")
+		tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "ai-tasks-multiple.tfplan.json"))
+		require.NoError(t, err)
+		var tfPlan tfjson.Plan
+		err = json.Unmarshal(tfPlanRaw, &tfPlan)
+		require.NoError(t, err)
+		tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "ai-tasks-multiple.tfplan.dot"))
+		require.NoError(t, err)
+
+		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule, tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
+		require.NotNil(t, state)
+		require.NoError(t, err)
+		require.True(t, state.HasAITasks)
+		// Multiple coder_ai_tasks resources can be defined, but only 1 is allowed.
+		// This is validated once all parameters are resolved etc as part of the workspace build, but for now we can allow it.
+		require.Len(t, state.AITasks, 2)
+	})
 }
 
 // sortResource ensures resources appear in a consistent ordering

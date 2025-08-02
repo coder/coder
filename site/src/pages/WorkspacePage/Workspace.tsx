@@ -25,16 +25,12 @@ import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 
-export interface WorkspaceProps {
+interface WorkspaceProps {
 	workspace: TypesGen.Workspace;
 	template: TypesGen.Template;
 	permissions: WorkspacePermissions;
 	isUpdating: boolean;
 	isRestarting: boolean;
-	hideSSHButton?: boolean;
-	hideVSCodeDesktopButton?: boolean;
-	buildInfo?: TypesGen.BuildInfoResponse;
-	sshPrefix?: string;
 	buildLogs?: TypesGen.ProvisionerJobLog[];
 	latestVersion?: TypesGen.TemplateVersion;
 	timings?: TypesGen.WorkspaceBuildTimings;
@@ -56,10 +52,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 	workspace,
 	isUpdating,
 	isRestarting,
-	hideSSHButton,
-	hideVSCodeDesktopButton,
-	buildInfo,
-	sshPrefix,
 	template,
 	buildLogs,
 	latestVersion,
@@ -250,15 +242,11 @@ export const Workspace: FC<WorkspaceProps> = ({
 									<AgentRow
 										key={agent.id}
 										agent={agent}
+										subAgents={selectedResource.agents?.filter(
+											(a) => a.parent_id === agent.id,
+										)}
 										workspace={workspace}
 										template={template}
-										sshPrefix={sshPrefix}
-										showApps={permissions.updateWorkspace}
-										showBuiltinApps={permissions.updateWorkspace}
-										hideSSHButton={hideSSHButton}
-										hideVSCodeDesktopButton={hideVSCodeDesktopButton}
-										serverVersion={buildInfo?.version || ""}
-										serverAPIVersion={buildInfo?.agent_api_version || ""}
 										onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
 									/>
 								))}

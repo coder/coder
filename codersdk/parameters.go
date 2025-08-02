@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/websocket"
@@ -90,6 +91,7 @@ type PreviewParameterStyling struct {
 	Placeholder *string `json:"placeholder,omitempty"`
 	Disabled    *bool   `json:"disabled,omitempty"`
 	Label       *string `json:"label,omitempty"`
+	MaskInput   *bool   `json:"mask_input,omitempty"`
 }
 
 type PreviewParameterOption struct {
@@ -114,6 +116,8 @@ type DynamicParametersRequest struct {
 	// ID so that the client can match it to the request.
 	ID     int               `json:"id"`
 	Inputs map[string]string `json:"inputs"`
+	// OwnerID if uuid.Nil, it defaults to `codersdk.Me`
+	OwnerID uuid.UUID `json:"owner_id,omitempty" format:"uuid"`
 }
 
 type DynamicParametersResponse struct {
@@ -123,8 +127,17 @@ type DynamicParametersResponse struct {
 	// TODO: Workspace tags
 }
 
-func (c *Client) TemplateVersionDynamicParameters(ctx context.Context, userID, version uuid.UUID) (*wsjson.Stream[DynamicParametersResponse, DynamicParametersRequest], error) {
-	conn, err := c.Dial(ctx, fmt.Sprintf("/api/v2/users/%s/templateversions/%s/parameters", userID, version), nil)
+func (c *Client) TemplateVersionDynamicParameters(ctx context.Context, userID string, version uuid.UUID) (*wsjson.Stream[DynamicParametersResponse, DynamicParametersRequest], error) {
+	endpoint := fmt.Sprintf("/api/v2/templateversions/%s/dynamic-parameters", version)
+	if userID != Me {
+		uid, err := uuid.Parse(userID)
+		if err != nil {
+			return nil, xerrors.Errorf("invalid user ID: %w", err)
+		}
+		endpoint += fmt.Sprintf("?user_id=%s", uid.String())
+	}
+
+	conn, err := c.Dial(ctx, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}

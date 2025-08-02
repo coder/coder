@@ -4,11 +4,10 @@ import { isApiValidationError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button as ShadcnButton } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
 import { ExternalLinkIcon } from "lucide-react";
-import { type FC, useContext } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router-dom";
@@ -18,7 +17,6 @@ import {
 	type WorkspacePermissions,
 	workspaceChecks,
 } from "../../../modules/workspaces/permissions";
-import { ExperimentalFormContext } from "../../CreateWorkspacePage/ExperimentalFormContext";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import {
 	WorkspaceParametersForm,
@@ -37,6 +35,7 @@ const WorkspaceParametersPage: FC = () => {
 			API.postWorkspaceBuild(workspace.id, {
 				transition: "start",
 				rich_parameter_values: buildParameters,
+				reason: "dashboard",
 			}),
 		onSuccess: () => {
 			navigate(`/${workspace.owner_name}/${workspace.name}`);
@@ -52,6 +51,25 @@ const WorkspaceParametersPage: FC = () => {
 	const permissions = permissionsQuery.data as WorkspacePermissions | undefined;
 	const canChangeVersions = Boolean(permissions?.updateWorkspaceVersion);
 
+	const templatePermissionsQuery = useQuery({
+		...checkAuthorization({
+			checks: {
+				canUpdateTemplate: {
+					object: {
+						resource_type: "template",
+						resource_id: workspace.template_id,
+					},
+					action: "update",
+				},
+			},
+		}),
+		enabled: workspace !== undefined,
+	});
+
+	const templatePermissions = templatePermissionsQuery.data as
+		| { canUpdateTemplate: boolean }
+		| undefined;
+
 	return (
 		<>
 			<Helmet>
@@ -61,9 +79,10 @@ const WorkspaceParametersPage: FC = () => {
 			<WorkspaceParametersPageView
 				workspace={workspace}
 				canChangeVersions={canChangeVersions}
+				templatePermissions={templatePermissions}
 				data={parameters.data}
 				submitError={updateParameters.error}
-				isSubmitting={updateParameters.isLoading}
+				isSubmitting={updateParameters.isPending}
 				onSubmit={(values) => {
 					if (!parameters.data) {
 						return;
@@ -92,9 +111,10 @@ const WorkspaceParametersPage: FC = () => {
 	);
 };
 
-export type WorkspaceParametersPageViewProps = {
+type WorkspaceParametersPageViewProps = {
 	workspace: Workspace;
 	canChangeVersions: boolean;
+	templatePermissions: { canUpdateTemplate: boolean } | undefined;
 	data: Awaited<ReturnType<typeof API.getWorkspaceParameters>> | undefined;
 	submitError: unknown;
 	isSubmitting: boolean;
@@ -107,28 +127,19 @@ export const WorkspaceParametersPageView: FC<
 > = ({
 	workspace,
 	canChangeVersions,
+	templatePermissions,
 	data,
 	submitError,
 	onSubmit,
 	isSubmitting,
 	onCancel,
 }) => {
-	const experimentalFormContext = useContext(ExperimentalFormContext);
 	return (
 		<div className="flex flex-col gap-10">
 			<header className="flex flex-col items-start gap-2">
-				<span className="flex flex-row justify-between items-center gap-2">
+				<span className="flex flex-row justify-between w-full items-center gap-2">
 					<h1 className="text-3xl m-0">Workspace parameters</h1>
 				</span>
-				{experimentalFormContext && (
-					<ShadcnButton
-						size="sm"
-						variant="outline"
-						onClick={experimentalFormContext.toggleOptedOut}
-					>
-						Try out the new workspace parameters ✨
-					</ShadcnButton>
-				)}
 			</header>
 
 			{submitError && !isApiValidationError(submitError) ? (
@@ -140,6 +151,7 @@ export const WorkspaceParametersPageView: FC<
 					<WorkspaceParametersForm
 						workspace={workspace}
 						canChangeVersions={canChangeVersions}
+						templatePermissions={templatePermissions}
 						autofillParams={data.buildParameters.map((p) => ({
 							...p,
 							source: "active_build",

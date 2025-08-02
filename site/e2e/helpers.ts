@@ -127,6 +127,10 @@ export const createWorkspace = async (
 	const name = randomName();
 	await page.getByLabel("name").fill(name);
 
+	if (buildParameters.length > 0) {
+		await page.waitForSelector("form", { state: "visible" });
+	}
+
 	await fillParameters(page, richParameters, buildParameters);
 
 	if (useExternalAuth) {
@@ -584,6 +588,7 @@ const createTemplateVersionTar = async (
 					resourceReplacements: [],
 					plan: emptyPlan,
 					moduleFiles: new Uint8Array(),
+					moduleFilesHash: new Uint8Array(),
 				},
 			};
 		});
@@ -619,6 +624,7 @@ const createTemplateVersionTar = async (
 								slug: "example",
 								subdomain: false,
 								url: "",
+								group: "",
 								...app,
 							} as App;
 						});
@@ -689,6 +695,7 @@ const createTemplateVersionTar = async (
 			parameters: [],
 			externalAuthProviders: [],
 			timings: [],
+			aiTasks: [],
 			...response.apply,
 		} as ApplyComplete;
 		response.apply.resources = response.apply.resources?.map(fillResource);
@@ -710,6 +717,8 @@ const createTemplateVersionTar = async (
 			resourceReplacements: [],
 			plan: emptyPlan,
 			moduleFiles: new Uint8Array(),
+			moduleFilesHash: new Uint8Array(),
+			aiTasks: [],
 			...response.plan,
 		} as PlanComplete;
 		response.plan.resources = response.plan.resources?.map(fillResource);
@@ -893,28 +902,29 @@ const fillParameters = async (
 			);
 		}
 
-		const parameterLabel = await page.waitForSelector(
-			`[data-testid='parameter-field-${richParameter.name}']`,
-			{ state: "visible" },
+		// Use modern locator approach instead of waitForSelector
+		const parameterLabel = page.getByTestId(
+			`parameter-field-${richParameter.name}`,
 		);
+		await expect(parameterLabel).toBeVisible();
 
 		if (richParameter.type === "bool") {
-			const parameterField = await parameterLabel.waitForSelector(
-				`[data-testid='parameter-field-bool'] .MuiRadio-root input[value='${buildParameter.value}']`,
-			);
+			const parameterField = parameterLabel
+				.getByTestId("parameter-field-bool")
+				.locator(`.MuiRadio-root input[value='${buildParameter.value}']`);
 			await parameterField.click();
 		} else if (richParameter.options.length > 0) {
-			const parameterField = await parameterLabel.waitForSelector(
-				`[data-testid='parameter-field-options'] .MuiRadio-root input[value='${buildParameter.value}']`,
-			);
+			const parameterField = parameterLabel
+				.getByTestId("parameter-field-options")
+				.locator(`.MuiRadio-root input[value='${buildParameter.value}']`);
 			await parameterField.click();
 		} else if (richParameter.type === "list(string)") {
 			throw new Error("not implemented yet"); // FIXME
 		} else {
 			// text or number
-			const parameterField = await parameterLabel.waitForSelector(
-				"[data-testid='parameter-field-text'] input",
-			);
+			const parameterField = parameterLabel
+				.getByTestId("parameter-field-text")
+				.locator("input");
 			await parameterField.fill(buildParameter.value);
 		}
 	}
@@ -1010,12 +1020,27 @@ export const updateWorkspace = async (
 	await page.getByTestId("workspace-update-button").click();
 	await page.getByTestId("confirm-button").click();
 
+	await page.waitForSelector('[data-testid="dialog"]', { state: "visible" });
+
 	await fillParameters(page, richParameters, buildParameters);
 	await page.getByRole("button", { name: /update parameters/i }).click();
 
+	// Wait for the update button to detach.
+	await page.waitForSelector(
+		"button[data-testid='workspace-update-button']:enabled",
+		{ state: "detached" },
+	);
+	// Wait for the workspace to be running again.
 	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
 	});
+	// Wait for the stop button to be enabled again
+	await page.waitForSelector(
+		"button[data-testid='workspace-stop-button']:enabled",
+		{
+			state: "visible",
+		},
+	);
 };
 
 export const updateWorkspaceParameters = async (
@@ -1183,3 +1208,48 @@ export async function addUserToOrganization(
 	}
 	await page.mouse.click(10, 10); // close the popover by clicking outside of it
 }
+
+/**
+ * disableDynamicParameters navigates to the template settings page and disables
+ * dynamic parameters by unchecking the "Enable dynamic parameters" checkbox.
+ */
+export const disableDynamicParameters = async (
+	page: Page,
+	templateName: string,
+	orgName = defaultOrganizationName,
+) => {
+	await page.goto(`/templates/${orgName}/${templateName}/settings`, {
+		waitUntil: "domcontentloaded",
+	});
+
+	await page.waitForSelector("form", { state: "visible" });
+
+	// Find and uncheck the "Enable dynamic parameters" checkbox
+	const dynamicParamsCheckbox = page.getByRole("checkbox", {
+		name: /Enable dynamic parameters for workspace creation/,
+	});
+
+	await dynamicParamsCheckbox.waitFor({ state: "visible" });
+
+	// If the checkbox is checked, uncheck it
+	if (await dynamicParamsCheckbox.isChecked()) {
+		await dynamicParamsCheckbox.click();
+	}
+
+	// Save the changes
+	const saveButton = page.getByRole("button", { name: /save/i });
+	await saveButton.waitFor({ state: "visible" });
+	await saveButton.click();
+
+	// Wait for the success message or page to update
+	await page
+		.locator("[role='alert']:has-text('Template updated successfully')")
+		.first()
+		.waitFor({
+			state: "visible",
+			timeout: 15000,
+		});
+
+	// Additional wait to ensure the changes are persisted
+	await page.waitForTimeout(500);
+};

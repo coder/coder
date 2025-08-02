@@ -4,6 +4,11 @@ import { getAuthorizationKey } from "api/queries/authCheck";
 import { hasFirstUserKey, meKey } from "api/queries/users";
 import type { Entitlements } from "api/typesGenerated";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
+import {
+	ProxyContext,
+	type ProxyContextValue,
+	getPreferredProxy,
+} from "contexts/ProxyContext";
 import { AuthProvider } from "contexts/auth/AuthProvider";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import { DeploymentConfigContext } from "modules/management/DeploymentConfigProvider";
@@ -13,10 +18,12 @@ import type { FC } from "react";
 import { useQueryClient } from "react-query";
 import {
 	MockAppearanceConfig,
+	MockBuildInfo,
 	MockDefaultOrganization,
 	MockDeploymentConfig,
 	MockEntitlements,
 	MockOrganizationPermissions,
+	MockProxyLatencies,
 } from "./entities";
 
 export const withDashboardProvider = (
@@ -50,6 +57,10 @@ export const withDashboardProvider = (
 				entitlements,
 				experiments,
 				appearance: MockAppearanceConfig,
+				buildInfo: {
+					...MockBuildInfo,
+					version: "v0.0.0-test",
+				},
 				organizations,
 				showOrganizations,
 				canViewOrganizationSettings,
@@ -155,3 +166,31 @@ export const withOrganizationSettingsProvider = (Story: FC) => {
 		</OrganizationSettingsContext.Provider>
 	);
 };
+
+export const withProxyProvider =
+	(value?: Partial<ProxyContextValue>) => (Story: FC) => {
+		return (
+			<ProxyContext.Provider
+				value={{
+					latenciesLoaded: true,
+					proxyLatencies: MockProxyLatencies,
+					proxy: getPreferredProxy([], undefined),
+					proxies: [],
+					isLoading: false,
+					isFetched: true,
+					setProxy: () => {
+						return;
+					},
+					clearProxy: () => {
+						return;
+					},
+					refetchProxyLatencies: (): Date => {
+						return new Date();
+					},
+					...value,
+				}}
+			>
+				<Story />
+			</ProxyContext.Provider>
+		);
+	};

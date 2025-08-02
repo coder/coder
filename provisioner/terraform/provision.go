@@ -163,7 +163,7 @@ func (s *server) Plan(
 		return provisionersdk.PlanErrorf("plan vars: %s", err)
 	}
 
-	resp, err := e.plan(ctx, killCtx, env, vars, sess, request.Metadata)
+	resp, err := e.plan(ctx, killCtx, env, vars, sess, request)
 	if err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}

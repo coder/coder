@@ -393,11 +393,16 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
 }
 
-// WorkspaceAgentDevcontainersResponse is the response to the devcontainers
-// request.
-type WorkspaceAgentDevcontainersResponse struct {
-	Devcontainers []WorkspaceAgentDevcontainer `json:"devcontainers"`
-}
+// WorkspaceAgentDevcontainerStatus is the status of a devcontainer.
+type WorkspaceAgentDevcontainerStatus string
+
+// WorkspaceAgentDevcontainerStatus enums.
+const (
+	WorkspaceAgentDevcontainerStatusRunning  WorkspaceAgentDevcontainerStatus = "running"
+	WorkspaceAgentDevcontainerStatusStopped  WorkspaceAgentDevcontainerStatus = "stopped"
+	WorkspaceAgentDevcontainerStatusStarting WorkspaceAgentDevcontainerStatus = "starting"
+	WorkspaceAgentDevcontainerStatusError    WorkspaceAgentDevcontainerStatus = "error"
+)
 
 // WorkspaceAgentDevcontainer defines the location of a devcontainer
 // configuration in a workspace that is visible to the workspace agent.
@@ -408,9 +413,33 @@ type WorkspaceAgentDevcontainer struct {
 	ConfigPath      string    `json:"config_path,omitempty"`
 
 	// Additional runtime fields.
-	Running   bool                     `json:"running"`
-	Dirty     bool                     `json:"dirty"`
-	Container *WorkspaceAgentContainer `json:"container,omitempty"`
+	Status    WorkspaceAgentDevcontainerStatus `json:"status"`
+	Dirty     bool                             `json:"dirty"`
+	Container *WorkspaceAgentContainer         `json:"container,omitempty"`
+	Agent     *WorkspaceAgentDevcontainerAgent `json:"agent,omitempty"`
+
+	Error string `json:"error,omitempty"`
+}
+
+func (d WorkspaceAgentDevcontainer) Equals(other WorkspaceAgentDevcontainer) bool {
+	return d.ID == other.ID &&
+		d.Name == other.Name &&
+		d.WorkspaceFolder == other.WorkspaceFolder &&
+		d.Status == other.Status &&
+		d.Dirty == other.Dirty &&
+		(d.Container == nil && other.Container == nil ||
+			(d.Container != nil && other.Container != nil && d.Container.ID == other.Container.ID)) &&
+		(d.Agent == nil && other.Agent == nil ||
+			(d.Agent != nil && other.Agent != nil && *d.Agent == *other.Agent)) &&
+		d.Error == other.Error
+}
+
+// WorkspaceAgentDevcontainerAgent represents the sub agent for a
+// devcontainer.
+type WorkspaceAgentDevcontainerAgent struct {
+	ID        uuid.UUID `json:"id" format:"uuid"`
+	Name      string    `json:"name"`
+	Directory string    `json:"directory"`
 }
 
 // WorkspaceAgentContainer describes a devcontainer of some sort
@@ -439,10 +468,6 @@ type WorkspaceAgentContainer struct {
 	// Volumes is a map of "things" mounted into the container. Again, this
 	// is somewhat implementation-dependent.
 	Volumes map[string]string `json:"volumes"`
-	// DevcontainerDirty is true if the devcontainer configuration has changed
-	// since the container was created. This is used to determine if the
-	// container needs to be rebuilt.
-	DevcontainerDirty bool `json:"devcontainer_dirty"`
 }
 
 func (c *WorkspaceAgentContainer) Match(idOrName string) bool {
@@ -471,6 +496,8 @@ type WorkspaceAgentContainerPort struct {
 // WorkspaceAgentListContainersResponse is the response to the list containers
 // request.
 type WorkspaceAgentListContainersResponse struct {
+	// Devcontainers is a list of devcontainers visible to the workspace agent.
+	Devcontainers []WorkspaceAgentDevcontainer `json:"devcontainers"`
 	// Containers is a list of containers visible to the workspace agent.
 	Containers []WorkspaceAgentContainer `json:"containers"`
 	// Warnings is a list of warnings that may have occurred during the
@@ -506,17 +533,55 @@ func (c *Client) WorkspaceAgentListContainers(ctx context.Context, agentID uuid.
 	return cr, json.NewDecoder(res.Body).Decode(&cr)
 }
 
-// WorkspaceAgentRecreateDevcontainer recreates the devcontainer with the given ID.
-func (c *Client) WorkspaceAgentRecreateDevcontainer(ctx context.Context, agentID uuid.UUID, containerIDOrName string) error {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/containers/devcontainers/container/%s/recreate", agentID, containerIDOrName), nil)
+func (c *Client) WatchWorkspaceAgentContainers(ctx context.Context, agentID uuid.UUID) (<-chan WorkspaceAgentListContainersResponse, io.Closer, error) {
+	reqURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/containers/watch", agentID))
 	if err != nil {
-		return err
+		return nil, nil, err
+	}
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
+	}
+
+	jar.SetCookies(reqURL, []*http.Cookie{{
+		Name:  SessionTokenCookie,
+		Value: c.SessionToken(),
+	}})
+
+	conn, res, err := websocket.Dial(ctx, reqURL.String(), &websocket.DialOptions{
+		CompressionMode: websocket.CompressionDisabled,
+		HTTPClient: &http.Client{
+			Jar:       jar,
+			Transport: c.HTTPClient.Transport,
+		},
+	})
+	if err != nil {
+		if res == nil {
+			return nil, nil, err
+		}
+		return nil, nil, ReadBodyAsError(res)
+	}
+
+	d := wsjson.NewDecoder[WorkspaceAgentListContainersResponse](conn, websocket.MessageText, c.logger)
+	return d.Chan(), d, nil
+}
+
+// WorkspaceAgentRecreateDevcontainer recreates the devcontainer with the given ID.
+func (c *Client) WorkspaceAgentRecreateDevcontainer(ctx context.Context, agentID uuid.UUID, devcontainerID string) (Response, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/containers/devcontainers/%s/recreate", agentID, devcontainerID), nil)
+	if err != nil {
+		return Response{}, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
+	if res.StatusCode != http.StatusAccepted {
+		return Response{}, ReadBodyAsError(res)
 	}
-	return nil
+	var m Response
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		return Response{}, xerrors.Errorf("decode response body: %w", err)
+	}
+	return m, nil
 }
 
 //nolint:revive // Follow is a control flag on the server as well.

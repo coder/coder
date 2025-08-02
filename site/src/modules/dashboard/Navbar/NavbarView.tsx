@@ -4,8 +4,8 @@ import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import type { ProxyContextValue } from "contexts/ProxyContext";
-import { useAgenticChat } from "contexts/useAgenticChat";
 import { useWebpushNotifications } from "contexts/useWebpushNotifications";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
 import type { FC } from "react";
 import { NavLink, useLocation } from "react-router-dom";
@@ -15,7 +15,7 @@ import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 
-export interface NavbarViewProps {
+interface NavbarViewProps {
 	logo_url?: string;
 	user?: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
@@ -24,6 +24,7 @@ export interface NavbarViewProps {
 	canViewDeployment: boolean;
 	canViewOrganizations: boolean;
 	canViewAuditLog: boolean;
+	canViewConnectionLog: boolean;
 	canViewHealth: boolean;
 	proxyContextValue?: ProxyContextValue;
 }
@@ -44,6 +45,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	canViewOrganizations,
 	canViewHealth,
 	canViewAuditLog,
+	canViewConnectionLog,
 	proxyContextValue,
 }) => {
 	const webPush = useWebpushNotifications();
@@ -73,6 +75,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						canViewOrganizations={canViewOrganizations}
 						canViewDeployment={canViewDeployment}
 						canViewHealth={canViewHealth}
+						canViewConnectionLog={canViewConnectionLog}
 					/>
 				</div>
 
@@ -124,6 +127,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						supportLinks={supportLinks}
 						onSignOut={onSignOut}
 						canViewAuditLog={canViewAuditLog}
+						canViewConnectionLog={canViewConnectionLog}
 						canViewOrganizations={canViewOrganizations}
 						canViewDeployment={canViewDeployment}
 						canViewHealth={canViewHealth}
@@ -140,7 +144,7 @@ interface NavItemsProps {
 
 const NavItems: FC<NavItemsProps> = ({ className }) => {
 	const location = useLocation();
-	const agenticChat = useAgenticChat();
+	const { metadata } = useEmbeddedMetadata();
 
 	return (
 		<nav className={cn("flex items-center gap-4 h-full", className)}>
@@ -163,16 +167,16 @@ const NavItems: FC<NavItemsProps> = ({ className }) => {
 			>
 				Templates
 			</NavLink>
-			{agenticChat.enabled ? (
+			{metadata["tasks-tab-visible"].value && (
 				<NavLink
 					className={({ isActive }) => {
 						return cn(linkStyles.default, isActive ? linkStyles.active : "");
 					}}
-					to="/chat"
+					to="/tasks"
 				>
-					Chat
+					Tasks
 				</NavLink>
-			) : null}
+			)}
 		</nav>
 	);
 };

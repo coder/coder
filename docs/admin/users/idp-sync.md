@@ -107,10 +107,9 @@ Below is an example that uses the `groups` claim and maps all groups prefixed by
 }
 ```
 
-> [!IMPORTANT]
-> You must specify Coder group IDs instead of group names. The fastest way to find
-> the ID for a corresponding group is by visiting
-> `https://coder.example.com/api/v2/groups`.
+You must specify Coder group IDs instead of group names.
+You can find the ID for a corresponding group by visiting
+`https://coder.example.com/api/v2/groups`.
 
 Here is another example which maps `coder-admins` from the identity provider to
 two groups in Coder and `coder-users` from the identity provider to another
@@ -204,7 +203,7 @@ Visit the Coder UI to confirm these changes:
 ### Group allowlist
 
 You can limit which groups from your identity provider can log in to Coder with
-[CODER_OIDC_ALLOWED_GROUPS](https://coder.com/docs/cli/server#--oidc-allowed-groups).
+[CODER_OIDC_ALLOWED_GROUPS](../../reference/cli/server.md#--oidc-allowed-groups).
 Users who are not in a matching group will see the following error:
 
 <Image height="412px" src="../../images/admin/group-allowlist.png" alt="Unauthorized group error" align="center" />
@@ -304,7 +303,7 @@ Visit the Coder UI to confirm these changes:
 
    ```env
     # Depending on your identity provider configuration, you may need to explicitly request a "roles" scope
-   CODER_OIDC_SCOPES=openid,profile,email,roles
+   CODER_OIDC_SCOPES=openid,profile,email,offline_access,roles
 
    # The following fields are required for role sync:
    CODER_OIDC_USER_ROLE_FIELD=roles
@@ -420,7 +419,6 @@ If you are running into issues with a sync:
 1. To reduce noise, you can filter for only logs related to group/role sync:
 
    ```sh
-   CODER_VERBOSE=true
    CODER_LOG_FILTER=".*userauth.*|.*groups returned.*"
    ```
 
@@ -517,7 +515,7 @@ Steps to troubleshoot.
 
 ## Provider-Specific Guides
 
-Below are some details specific to individual OIDC providers.
+<div class="tabs">
 
 ### Active Directory Federation Services (ADFS)
 
@@ -577,21 +575,8 @@ Below are some details specific to individual OIDC providers.
      groups claim field.
      Use [this answer from Stack Overflow](https://stackoverflow.com/a/55570286) for an example.
 
-### Keycloak
+## Next Steps
 
-The `access_type` parameter has two possible values: `online` and `offline`.
-By default, the value is set to `offline`.
-
-This means that when a user authenticates using OIDC, the application requests
-offline access to the user's resources, including the ability to refresh access
-tokens without requiring the user to reauthenticate.
-
-To enable the `offline_access` scope which allows for the refresh token
-functionality, you need to add it to the list of requested scopes during the
-authentication flow.
-Including the `offline_access` scope in the requested scopes ensures that the
-user is granted the necessary permissions to obtain refresh tokens.
-
-By combining the `{"access_type":"offline"}` parameter in the OIDC Auth URL with
-the `offline_access` scope, you can achieve the desired behavior of obtaining
-refresh tokens for offline access to the user's resources.
+- [Configure OIDC Refresh Tokens](./oidc-auth/refresh-tokens.md)
+- [Organizations](./organizations.md)
+- [Groups & Roles](./groups-roles.md)

@@ -26,10 +26,11 @@ const (
 // Workspace is a deployment of a template. It references a specific
 // version and can be updated.
 type Workspace struct {
-	ID                                   uuid.UUID           `json:"id" format:"uuid"`
-	CreatedAt                            time.Time           `json:"created_at" format:"date-time"`
-	UpdatedAt                            time.Time           `json:"updated_at" format:"date-time"`
-	OwnerID                              uuid.UUID           `json:"owner_id" format:"uuid"`
+	ID        uuid.UUID `json:"id" format:"uuid"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
+	OwnerID   uuid.UUID `json:"owner_id" format:"uuid"`
+	// OwnerName is the username of the owner of the workspace.
 	OwnerName                            string              `json:"owner_name"`
 	OwnerAvatarURL                       string              `json:"owner_avatar_url"`
 	OrganizationID                       uuid.UUID           `json:"organization_id" format:"uuid"`
@@ -49,7 +50,6 @@ type Workspace struct {
 	AutostartSchedule                    *string             `json:"autostart_schedule,omitempty"`
 	TTLMillis                            *int64              `json:"ttl_ms,omitempty"`
 	LastUsedAt                           time.Time           `json:"last_used_at" format:"date-time"`
-
 	// DeletingAt indicates the time at which the workspace will be permanently deleted.
 	// A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value)
 	// and a value has been specified for time_til_dormant_autodelete on its template.
@@ -66,6 +66,12 @@ type Workspace struct {
 	AllowRenames     bool             `json:"allow_renames"`
 	Favorite         bool             `json:"favorite"`
 	NextStartAt      *time.Time       `json:"next_start_at" format:"date-time"`
+	// IsPrebuild indicates whether the workspace is a prebuilt workspace.
+	// Prebuilt workspaces are owned by the prebuilds system user and have specific behavior,
+	// such as being managed differently from regular workspaces.
+	// Once a prebuilt workspace is claimed by a user, it transitions to a regular workspace,
+	// and IsPrebuild returns false.
+	IsPrebuild bool `json:"is_prebuild"`
 }
 
 func (w Workspace) FullName() string {
@@ -93,6 +99,16 @@ const (
 	ProvisionerLogLevelDebug ProvisionerLogLevel = "debug"
 )
 
+type CreateWorkspaceBuildReason string
+
+const (
+	CreateWorkspaceBuildReasonDashboard           CreateWorkspaceBuildReason = "dashboard"
+	CreateWorkspaceBuildReasonCLI                 CreateWorkspaceBuildReason = "cli"
+	CreateWorkspaceBuildReasonSSHConnection       CreateWorkspaceBuildReason = "ssh_connection"
+	CreateWorkspaceBuildReasonVSCodeConnection    CreateWorkspaceBuildReason = "vscode_connection"
+	CreateWorkspaceBuildReasonJetbrainsConnection CreateWorkspaceBuildReason = "jetbrains_connection"
+)
+
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
 	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty" format:"uuid"`
@@ -110,10 +126,8 @@ type CreateWorkspaceBuildRequest struct {
 	LogLevel ProvisionerLogLevel `json:"log_level,omitempty" validate:"omitempty,oneof=debug"`
 	// TemplateVersionPresetID is the ID of the template version preset to use for the build.
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
-	// EnableDynamicParameters skips some of the static parameter checking.
-	// It will default to whatever the template has marked as the default experience.
-	// Requires the "dynamic-experiment" to be used.
-	EnableDynamicParameters *bool `json:"enable_dynamic_parameters,omitempty"`
+	// Reason sets the reason for the workspace build.
+	Reason CreateWorkspaceBuildReason `json:"reason,omitempty" validate:"omitempty,oneof=dashboard cli ssh_connection vscode_connection jetbrains_connection"`
 }
 
 type WorkspaceOptions struct {
@@ -647,4 +661,31 @@ func (c *Client) WorkspaceTimings(ctx context.Context, id uuid.UUID) (WorkspaceB
 	}
 	var timings WorkspaceBuildTimings
 	return timings, json.NewDecoder(res.Body).Decode(&timings)
+}
+
+type UpdateWorkspaceACL struct {
+	// Keys must be valid UUIDs. To remove a user/group from the ACL use "" as the
+	// role name (available as a constant named `codersdk.WorkspaceRoleDeleted`)
+	UserRoles  map[string]WorkspaceRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]WorkspaceRole `json:"group_roles,omitempty"`
+}
+
+type WorkspaceRole string
+
+const (
+	WorkspaceRoleAdmin   WorkspaceRole = "admin"
+	WorkspaceRoleUse     WorkspaceRole = "use"
+	WorkspaceRoleDeleted WorkspaceRole = ""
+)
+
+func (c *Client) UpdateWorkspaceACL(ctx context.Context, workspaceID uuid.UUID, req UpdateWorkspaceACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/workspaces/%s/acl", workspaceID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }

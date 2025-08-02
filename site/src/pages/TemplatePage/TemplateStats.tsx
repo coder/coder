@@ -18,7 +18,7 @@ const Language = {
 	createdByLabel: "Created by",
 };
 
-export interface TemplateStatsProps {
+interface TemplateStatsProps {
 	template: Template;
 	activeVersion: TemplateVersion;
 }

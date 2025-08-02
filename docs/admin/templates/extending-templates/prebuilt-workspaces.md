@@ -1,5 +1,12 @@
 # Prebuilt workspaces
 
+> [!WARNING]
+> Prebuilds Compatibility Limitations:
+> Prebuilt workspaces currently do not work reliably with [DevContainers feature](../managing-templates/devcontainers/index.md).
+> If your project relies on DevContainer configuration, we recommend disabling prebuilds or carefully testing behavior before enabling them.
+>
+> We’re actively working to improve compatibility, but for now, please avoid using prebuilds with this feature to ensure stability and expected behavior.
+
 Prebuilt workspaces allow template administrators to improve the developer experience by reducing workspace
 creation time with an automatically maintained pool of ready-to-use workspaces for specific parameter presets.
 
@@ -12,10 +19,11 @@ Prebuilt workspaces are:
 - Created and maintained automatically by Coder to match your specified preset configurations.
 - Claimed transparently when developers create workspaces.
 - Monitored and replaced automatically to maintain your desired pool size.
+- Automatically scaled based on time-based schedules to optimize resource usage.
 
 ## Relationship to workspace presets
 
-Prebuilt workspaces are tightly integrated with [workspace presets](./parameters.md#workspace-presets-beta):
+Prebuilt workspaces are tightly integrated with [workspace presets](./parameters.md#workspace-presets):
 
 1. Each prebuilt workspace is associated with a specific template preset.
 1. The preset must define all required parameters needed to build the workspace.
@@ -26,12 +34,12 @@ Prebuilt workspaces are tightly integrated with [workspace presets](./parameters
 
 - [**Premium license**](../../licensing/index.md)
 - **Compatible Terraform provider**: Use `coder/coder` Terraform provider `>= 2.4.1`.
-- **Feature flag**: Enable the `workspace-prebuilds` [experiment](../../../reference/cli/server.md#--experiments).
 
 ## Enable prebuilt workspaces for template presets
 
 In your template, add a `prebuilds` block within a `coder_workspace_preset` definition to identify the number of prebuilt
-instances your Coder deployment should maintain:
+instances your Coder deployment should maintain, and optionally configure a `expiration_policy` block to set a TTL
+(Time To Live) for unclaimed prebuilt workspaces to ensure stale resources are automatically cleaned up.
 
    ```hcl
    data "coder_workspace_preset" "goland" {
@@ -42,13 +50,19 @@ instances your Coder deployment should maintain:
        memory        = 16
      }
      prebuilds {
-       instances = 3  # Number of prebuilt workspaces to maintain
+       instances = 3   # Number of prebuilt workspaces to maintain
+       expiration_policy {
+          ttl = 86400  # Time (in seconds) after which unclaimed prebuilds are expired (1 day)
+      }
      }
    }
    ```
 
 After you publish a new template version, Coder will automatically provision and maintain prebuilt workspaces through an
 internal reconciliation loop (similar to Kubernetes) to ensure the defined `instances` count are running.
+
+The `expiration_policy` block ensures that any prebuilt workspaces left unclaimed for more than `ttl` seconds is considered
+expired and automatically cleaned up.
 
 ## Prebuilt workspace lifecycle
 
@@ -94,6 +108,114 @@ _Note the search term `owner:prebuilds`._
 Unclaimed prebuilt workspaces can be interacted with in the same way as any other workspace.
 However, if a Prebuilt workspace is stopped, the reconciliation loop will not destroy it.
 This gives template admins the ability to park problematic prebuilt workspaces in a stopped state for further investigation.
+
+### Expiration Policy
+
+Prebuilt workspaces support expiration policies through the `ttl` setting inside the `expiration_policy` block.
+This value defines the Time To Live (TTL) of a prebuilt workspace, i.e., the duration in seconds that an unclaimed
+prebuilt workspace can remain before it is considered expired and eligible for cleanup.
+
+Expired prebuilt workspaces are removed during the reconciliation loop to avoid stale environments and resource waste.
+New prebuilt workspaces are only created to maintain the desired count if needed.
+
+### Scheduling
+
+Prebuilt workspaces support time-based scheduling to scale the number of instances up or down.
+This allows you to reduce resource costs during off-hours while maintaining availability during peak usage times.
+
+Configure scheduling by adding a `scheduling` block within your `prebuilds` configuration:
+
+```tf
+data "coder_workspace_preset" "goland" {
+   name = "GoLand: Large"
+   parameters {
+     jetbrains_ide = "GO"
+     cpus          = 8
+     memory        = 16
+   }
+
+   prebuilds {
+     instances = 0                  # default to 0 instances
+
+     scheduling {
+       timezone = "UTC"             # only a single timezone may be used for simplicity
+
+       # scale to 3 instances during the work week
+       schedule {
+         cron = "* 8-18 * * 1-5"    # from 8AM-6:59PM, Mon-Fri, UTC
+         instances = 3              # scale to 3 instances
+       }
+
+       # scale to 1 instance on Saturdays for urgent support queries
+       schedule {
+         cron = "* 8-14 * * 6"      # from 8AM-2:59PM, Sat, UTC
+         instances = 1              # scale to 1 instance
+       }
+     }
+   }
+}
+```
+
+**Scheduling configuration:**
+
+- **`timezone`**: The timezone for all cron expressions (required). Only a single timezone is supported per scheduling configuration.
+- **`schedule`**: One or more schedule blocks defining when to scale to specific instance counts.
+  - **`cron`**: Cron expression interpreted as continuous time ranges (required).
+  - **`instances`**: Number of prebuilt workspaces to maintain during this schedule (required).
+
+**How scheduling works:**
+
+1. The reconciliation loop evaluates all active schedules every reconciliation interval (`CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL`).
+2. The schedule that matches the current time becomes active. Overlapping schedules are disallowed by validation rules.
+3. If no schedules match the current time, the base `instances` count is used.
+4. The reconciliation loop automatically creates or destroys prebuilt workspaces to match the target count.
+
+**Cron expression format:**
+
+Cron expressions follow the format: `* HOUR DOM MONTH DAY-OF-WEEK`
+
+- `*` (minute): Must always be `*` to ensure the schedule covers entire hours rather than specific minute intervals
+- `HOUR`: 0-23, range (e.g., 8-18 for 8AM-6:59PM), or `*`
+- `DOM` (day-of-month): 1-31, range, or `*`
+- `MONTH`: 1-12, range, or `*`
+- `DAY-OF-WEEK`: 0-6 (Sunday=0, Saturday=6), range (e.g., 1-5 for Monday to Friday), or `*`
+
+**Important notes about cron expressions:**
+
+- **Minutes must always be `*`**: To ensure the schedule covers entire hours
+- **Time ranges are continuous**: A range like `8-18` means from 8AM to 6:59PM (inclusive of both start and end hours)
+- **Weekday ranges**: `1-5` means Monday through Friday (Monday=1, Friday=5)
+- **No overlapping schedules**: The validation system prevents overlapping schedules.
+
+**Example schedules:**
+
+```tf
+# Business hours only (8AM-6:59PM, Mon-Fri)
+schedule {
+  cron = "* 8-18 * * 1-5"
+  instances = 5
+}
+
+# 24/7 coverage with reduced capacity overnight and on weekends
+schedule {
+  cron = "* 8-18 * * 1-5"  # Business hours (8AM-6:59PM, Mon-Fri)
+  instances = 10
+}
+schedule {
+  cron = "* 19-23,0-7 * * 1,5"  # Evenings and nights (7PM-11:59PM, 12AM-7:59AM, Mon-Fri)
+  instances = 2
+}
+schedule {
+  cron = "* * * * 6,0"  # Weekends
+  instances = 2
+}
+
+# Weekend support (10AM-4:59PM, Sat-Sun)
+schedule {
+  cron = "* 10-16 * * 6,0"
+  instances = 1
+}
+```
 
 ### Template updates and the prebuilt workspace lifecycle
 
@@ -178,12 +300,6 @@ The prebuilt workspaces feature has these current limitations:
   Prebuilt workspaces can only be used with the default organization.
 
   [View issue](https://github.com/coder/internal/issues/364)
-
-- **Autoscaling**
-
-  Prebuilt workspaces remain running until claimed. There's no automated mechanism to reduce instances during off-hours.
-
-  [View issue](https://github.com/coder/internal/issues/312)
 
 ### Monitoring and observability
 

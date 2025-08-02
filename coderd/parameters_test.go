@@ -3,10 +3,12 @@ package coderd_test
 import (
 	"context"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd"
@@ -28,11 +30,9 @@ import (
 func TestDynamicParametersOwnerSSHPublicKey(t *testing.T) {
 	t.Parallel()
 
-	cfg := coderdtest.DeploymentValues(t)
-	cfg.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
-	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: cfg})
+	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
-	templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 	dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/public_key/main.tf")
 	require.NoError(t, err)
@@ -57,7 +57,7 @@ func TestDynamicParametersOwnerSSHPublicKey(t *testing.T) {
 	_ = coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, templateAdminUser.ID, version.ID)
+	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, codersdk.Me, version.ID)
 	require.NoError(t, err)
 	defer stream.Close(websocket.StatusGoingAway)
 
@@ -72,6 +72,8 @@ func TestDynamicParametersOwnerSSHPublicKey(t *testing.T) {
 	require.Equal(t, sshKey.PublicKey, preview.Parameters[0].Value.Value)
 }
 
+// TestDynamicParametersWithTerraformValues is for testing the websocket flow of
+// dynamic parameters. No workspaces are created.
 func TestDynamicParametersWithTerraformValues(t *testing.T) {
 	t.Parallel()
 
@@ -101,10 +103,11 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		require.Equal(t, -1, preview.ID)
 		require.Empty(t, preview.Diagnostics)
 
-		require.Len(t, preview.Parameters, 1)
-		require.Equal(t, "jetbrains_ide", preview.Parameters[0].Name)
-		require.True(t, preview.Parameters[0].Value.Valid)
-		require.Equal(t, "CL", preview.Parameters[0].Value.Value)
+		require.Len(t, preview.Parameters, 2)
+		coderdtest.AssertParameter(t, "jetbrains_ide", preview.Parameters).
+			Exists().Value("CL")
+		coderdtest.AssertParameter(t, "region", preview.Parameters).
+			Exists().Value("na")
 	})
 
 	// OldProvisioners use the static parameters in the dynamic param flow
@@ -198,17 +201,186 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		modulesArchive, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
 		require.NoError(t, err)
 
+		c := atomic.NewInt32(0)
+		reject := &dbRejectGitSSHKey{Store: db, hook: func(d *dbRejectGitSSHKey) {
+			if c.Add(1) > 1 {
+				// Second call forward, reject
+				d.SetReject(true)
+			}
+		}}
 		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
-			db:                       &dbRejectGitSSHKey{Store: db},
+			db:                       reject,
 			ps:                       ps,
 			provisionerDaemonVersion: provProto.CurrentVersion.String(),
 			mainTF:                   dynamicParametersTerraformSource,
 			modulesArchive:           modulesArchive,
-			expectWebsocketError:     true,
 		})
-		// This is checked in setupDynamicParamsTest. Just doing this in the
-		// test to make it obvious what this test is doing.
-		require.Zero(t, setup.api.FileCache.Count())
+
+		stream := setup.stream
+		previews := stream.Chan()
+
+		// Assert the failed owner
+		ctx := testutil.Context(t, testutil.WaitShort)
+		preview := testutil.RequireReceive(ctx, t, previews)
+		require.Len(t, preview.Diagnostics, 1)
+		require.Equal(t, preview.Diagnostics[0].Summary, "Failed to fetch workspace owner")
+	})
+
+	t.Run("RebuildParameters", func(t *testing.T) {
+		t.Parallel()
+
+		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/modules/main.tf")
+		require.NoError(t, err)
+
+		modulesArchive, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
+		require.NoError(t, err)
+
+		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
+			provisionerDaemonVersion: provProto.CurrentVersion.String(),
+			mainTF:                   dynamicParametersTerraformSource,
+			modulesArchive:           modulesArchive,
+			plan:                     nil,
+			static:                   nil,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		stream := setup.stream
+		previews := stream.Chan()
+
+		// Should see the output of the module represented
+		preview := testutil.RequireReceive(ctx, t, previews)
+		require.Equal(t, -1, preview.ID)
+		require.Empty(t, preview.Diagnostics)
+
+		require.Len(t, preview.Parameters, 2)
+		coderdtest.AssertParameter(t, "jetbrains_ide", preview.Parameters).
+			Exists().Value("CL")
+		coderdtest.AssertParameter(t, "region", preview.Parameters).
+			Exists().Value("na")
+		_ = stream.Close(websocket.StatusGoingAway)
+
+		wrk := coderdtest.CreateWorkspace(t, setup.client, setup.template.ID, func(request *codersdk.CreateWorkspaceRequest) {
+			request.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{
+					Name:  preview.Parameters[0].Name,
+					Value: "GO",
+				},
+				{
+					Name:  preview.Parameters[1].Name,
+					Value: "eu",
+				},
+			}
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, wrk.LatestBuild.ID)
+
+		params, err := setup.client.WorkspaceBuildParameters(ctx, wrk.LatestBuild.ID)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []codersdk.WorkspaceBuildParameter{
+			{Name: "jetbrains_ide", Value: "GO"}, {Name: "region", Value: "eu"},
+		}, params)
+
+		regionOptions := []string{"na", "af", "sa", "as"}
+
+		// A helper function to assert params
+		doTransition := func(t *testing.T, trans codersdk.WorkspaceTransition) {
+			t.Helper()
+
+			regionVal := regionOptions[0]
+			regionOptions = regionOptions[1:] // Choose the next region on the next build
+
+			bld, err := setup.client.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+				TemplateVersionID: setup.template.ActiveVersionID,
+				Transition:        trans,
+				RichParameterValues: []codersdk.WorkspaceBuildParameter{
+					{Name: "region", Value: regionVal},
+				},
+			})
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, bld.ID)
+
+			latestParams, err := setup.client.WorkspaceBuildParameters(ctx, bld.ID)
+			require.NoError(t, err)
+			require.ElementsMatch(t, latestParams, []codersdk.WorkspaceBuildParameter{
+				{Name: "jetbrains_ide", Value: "GO"},
+				{Name: "region", Value: regionVal},
+			})
+		}
+
+		// Restart the workspace, then delete. Asserting params on all builds.
+		doTransition(t, codersdk.WorkspaceTransitionStop)
+		doTransition(t, codersdk.WorkspaceTransitionStart)
+		doTransition(t, codersdk.WorkspaceTransitionDelete)
+	})
+
+	t.Run("BadOwner", func(t *testing.T) {
+		t.Parallel()
+
+		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/modules/main.tf")
+		require.NoError(t, err)
+
+		modulesArchive, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
+		require.NoError(t, err)
+
+		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
+			provisionerDaemonVersion: provProto.CurrentVersion.String(),
+			mainTF:                   dynamicParametersTerraformSource,
+			modulesArchive:           modulesArchive,
+			plan:                     nil,
+			static:                   nil,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		stream := setup.stream
+		previews := stream.Chan()
+
+		// Should see the output of the module represented
+		preview := testutil.RequireReceive(ctx, t, previews)
+		require.Equal(t, -1, preview.ID)
+		require.Empty(t, preview.Diagnostics)
+
+		err = stream.Send(codersdk.DynamicParametersRequest{
+			ID: 1,
+			Inputs: map[string]string{
+				"jetbrains_ide": "GO",
+			},
+			OwnerID: uuid.New(),
+		})
+		require.NoError(t, err)
+
+		preview = testutil.RequireReceive(ctx, t, previews)
+		require.Equal(t, 1, preview.ID)
+		require.Len(t, preview.Diagnostics, 1)
+		require.Equal(t, preview.Diagnostics[0].Extra.Code, "owner_not_found")
+	})
+
+	t.Run("TemplateVariables", func(t *testing.T) {
+		t.Parallel()
+
+		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/variables/main.tf")
+		require.NoError(t, err)
+
+		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
+			provisionerDaemonVersion: provProto.CurrentVersion.String(),
+			mainTF:                   dynamicParametersTerraformSource,
+			variables: []codersdk.TemplateVersionVariable{
+				{Name: "one", Value: "austin", DefaultValue: "alice", Type: "string"},
+			},
+			plan:   nil,
+			static: nil,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		stream := setup.stream
+		previews := stream.Chan()
+
+		// Should see the output of the module represented
+		preview := testutil.RequireReceive(ctx, t, previews)
+		require.Equal(t, -1, preview.ID)
+		require.Empty(t, preview.Diagnostics)
+
+		require.Len(t, preview.Parameters, 1)
+		coderdtest.AssertParameter(t, "variable_values", preview.Parameters).
+			Exists().Value("austin")
 	})
 }
 
@@ -222,47 +394,37 @@ type setupDynamicParamsTestParams struct {
 
 	static               []*proto.RichParameter
 	expectWebsocketError bool
+	variables            []codersdk.TemplateVersionVariable
 }
 
 type dynamicParamsTest struct {
-	client *codersdk.Client
-	api    *coderd.API
-	stream *wsjson.Stream[codersdk.DynamicParametersResponse, codersdk.DynamicParametersRequest]
+	client   *codersdk.Client
+	api      *coderd.API
+	stream   *wsjson.Stream[codersdk.DynamicParametersResponse, codersdk.DynamicParametersRequest]
+	template codersdk.Template
 }
 
 func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dynamicParamsTest {
-	cfg := coderdtest.DeploymentValues(t)
-	cfg.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
 	ownerClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		Database:                 args.db,
 		Pubsub:                   args.ps,
 		IncludeProvisionerDaemon: true,
 		ProvisionerDaemonVersion: args.provisionerDaemonVersion,
-		DeploymentValues:         cfg,
 	})
 
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
-	templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
-	files := echo.WithExtraFiles(map[string][]byte{
-		"main.tf": args.mainTF,
+	tpl, version := coderdtest.DynamicParameterTemplate(t, templateAdmin, owner.OrganizationID, coderdtest.DynamicParameterTemplateParams{
+		MainTF:         string(args.mainTF),
+		Plan:           args.plan,
+		ModulesArchive: args.modulesArchive,
+		StaticParams:   args.static,
+		Variables:      args.variables,
 	})
-	files.ProvisionPlan = []*proto.Response{{
-		Type: &proto.Response_Plan{
-			Plan: &proto.PlanComplete{
-				Plan:        args.plan,
-				ModuleFiles: args.modulesArchive,
-				Parameters:  args.static,
-			},
-		},
-	}}
-
-	version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, files)
-	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
-	_ = coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, templateAdminUser.ID, version.ID)
+	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, codersdk.Me, version.ID)
 	if args.expectWebsocketError {
 		require.Errorf(t, err, "expected error forming websocket")
 	} else {
@@ -280,9 +442,10 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 	})
 
 	return dynamicParamsTest{
-		client: ownerClient,
-		stream: stream,
-		api:    api,
+		client:   ownerClient,
+		api:      api,
+		stream:   stream,
+		template: tpl,
 	}
 }
 
@@ -290,8 +453,30 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 // that is generally impossible to force an error.
 type dbRejectGitSSHKey struct {
 	database.Store
+	rejectMu sync.RWMutex
+	reject   bool
+	hook     func(d *dbRejectGitSSHKey)
 }
 
-func (*dbRejectGitSSHKey) GetGitSSHKey(_ context.Context, _ uuid.UUID) (database.GitSSHKey, error) {
-	return database.GitSSHKey{}, xerrors.New("forcing a fake error")
+// SetReject toggles whether GetGitSSHKey should return an error or passthrough to the underlying store.
+func (d *dbRejectGitSSHKey) SetReject(reject bool) {
+	d.rejectMu.Lock()
+	defer d.rejectMu.Unlock()
+	d.reject = reject
+}
+
+func (d *dbRejectGitSSHKey) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
+	if d.hook != nil {
+		d.hook(d)
+	}
+
+	d.rejectMu.RLock()
+	reject := d.reject
+	d.rejectMu.RUnlock()
+
+	if reject {
+		return database.GitSSHKey{}, xerrors.New("forcing a fake error")
+	}
+
+	return d.Store.GetGitSSHKey(ctx, userID)
 }

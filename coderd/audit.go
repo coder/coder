@@ -40,13 +40,13 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	page, ok := parsePagination(rw, r)
+	page, ok := ParsePagination(rw, r)
 	if !ok {
 		return
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.AuditLogs(ctx, api.Database, queryStr)
+	filter, countFilter, errs := searchquery.AuditLogs(ctx, api.Database, queryStr)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid audit search query.",
@@ -62,6 +62,27 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	if filter.Username == "me" {
 		filter.UserID = apiKey.UserID
 		filter.Username = ""
+		countFilter.UserID = apiKey.UserID
+		countFilter.Username = ""
+	}
+
+	// Use the same filters to count the number of audit logs
+	count, err := api.Database.CountAuditLogs(ctx, countFilter)
+	if dbauthz.IsNotAuthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	// If count is 0, then we don't need to query audit logs
+	if count == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
+			AuditLogs: []codersdk.AuditLog{},
+			Count:     0,
+		})
+		return
 	}
 
 	dblogs, err := api.Database.GetAuditLogsOffset(ctx, filter)
@@ -73,19 +94,10 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	// GetAuditLogsOffset does not return ErrNoRows because it uses a window function to get the count.
-	// So we need to check if the dblogs is empty and return an empty array if so.
-	if len(dblogs) == 0 {
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
-			AuditLogs: []codersdk.AuditLog{},
-			Count:     0,
-		})
-		return
-	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
 		AuditLogs: api.convertAuditLogs(ctx, dblogs),
-		Count:     dblogs[0].Count,
+		Count:     count,
 	})
 }
 
@@ -462,7 +474,7 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		if getWorkspaceErr != nil {
 			return ""
 		}
-		return fmt.Sprintf("/@%s/%s", workspace.OwnerUsername, workspace.Name)
+		return fmt.Sprintf("/@%s/%s", workspace.OwnerName, workspace.Name)
 
 	case database.ResourceTypeWorkspaceApp:
 		if additionalFields.WorkspaceOwner != "" && additionalFields.WorkspaceName != "" {
@@ -472,7 +484,7 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		if getWorkspaceErr != nil {
 			return ""
 		}
-		return fmt.Sprintf("/@%s/%s", workspace.OwnerUsername, workspace.Name)
+		return fmt.Sprintf("/@%s/%s", workspace.OwnerName, workspace.Name)
 
 	case database.ResourceTypeOauth2ProviderApp:
 		return fmt.Sprintf("/deployment/oauth2-provider/apps/%s", alog.AuditLog.ResourceID)

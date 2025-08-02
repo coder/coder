@@ -16,7 +16,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -31,7 +30,6 @@ import (
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
-	"tailscale.com/tailcfg"
 	"tailscale.com/types/netlogtype"
 
 	"cdr.dev/slog"
@@ -40,11 +38,13 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/autobuild/notify"
+	"github.com/coder/coder/v2/coderd/util/maps"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/pty"
+	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/quartz"
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
@@ -754,7 +754,8 @@ func findWorkspaceAndAgentByHostname(
 		hostname = strings.TrimSuffix(hostname, qualifiedSuffix)
 	}
 	hostname = normalizeWorkspaceInput(hostname)
-	return getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, hostname)
+	ws, agent, _, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, hostname)
+	return ws, agent, err
 }
 
 // watchAndClose ensures closer is called if the context is canceled or
@@ -827,9 +828,10 @@ startWatchLoop:
 }
 
 // getWorkspaceAgent returns the workspace and agent selected using either the
-// `<workspace>[.<agent>]` syntax via `in`.
+// `<workspace>[.<agent>]` syntax via `in`. It will also return any other agents
+// in the workspace as a slice for use in child->parent lookups.
 // If autoStart is true, the workspace will be started if it is not already running.
-func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, autostart bool, input string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
+func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, autostart bool, input string) (codersdk.Workspace, codersdk.WorkspaceAgent, []codersdk.WorkspaceAgent, error) { //nolint:revive
 	var (
 		workspace codersdk.Workspace
 		// The input will be `owner/name.agent`
@@ -840,27 +842,27 @@ func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 
 	workspace, err = namedWorkspace(ctx, client, workspaceParts[0])
 	if err != nil {
-		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, err
 	}
 
 	if workspace.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
 		if !autostart {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be started")
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, xerrors.New("workspace must be started")
 		}
 		// Autostart the workspace for the user.
 		// For some failure modes, return a better message.
 		if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionDelete {
 			// Any sort of deleting status, we should reject with a nicer error.
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is deleted", workspace.Name)
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, xerrors.Errorf("workspace %q is deleted", workspace.Name)
 		}
 		if workspace.LatestBuild.Job.Status == codersdk.ProvisionerJobFailed {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{},
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil,
 				xerrors.Errorf("workspace %q is in failed state, unable to autostart the workspace", workspace.Name)
 		}
 		// The workspace needs to be stopped before we can start it.
 		// It cannot be in any pending or failed state.
 		if workspace.LatestBuild.Status != codersdk.WorkspaceStatusStopped {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{},
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil,
 				xerrors.Errorf("workspace must be started; was unable to autostart as the last build job is %q, expected %q",
 					workspace.LatestBuild.Status,
 					codersdk.WorkspaceStatusStopped,
@@ -871,7 +873,9 @@ func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 		// It's possible for a workspace build to fail due to the template requiring starting
 		// workspaces with the active version.
 		_, _ = fmt.Fprintf(inv.Stderr, "Workspace was stopped, starting workspace to allow connecting to %q...\n", workspace.Name)
-		_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, buildFlags{}, WorkspaceStart)
+		_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, buildFlags{
+			reason: string(codersdk.BuildReasonSSHConnection),
+		}, WorkspaceStart)
 		if cerr, ok := codersdk.AsError(err); ok {
 			switch cerr.StatusCode() {
 			case http.StatusConflict:
@@ -881,80 +885,78 @@ func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 			case http.StatusForbidden:
 				_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, buildFlags{}, WorkspaceUpdate)
 				if err != nil {
-					return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("start workspace with active template version: %w", err)
+					return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, xerrors.Errorf("start workspace with active template version: %w", err)
 				}
 				_, _ = fmt.Fprintln(inv.Stdout, "Unable to start the workspace with template version from last build. Your workspace has been updated to the current active template version.")
 			}
 		} else if err != nil {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("start workspace with current template version: %w", err)
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, xerrors.Errorf("start workspace with current template version: %w", err)
 		}
 
 		// Refresh workspace state so that `outdated`, `build`,`template_*` fields are up-to-date.
 		workspace, err = namedWorkspace(ctx, client, workspaceParts[0])
 		if err != nil {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, err
 		}
 	}
 	if workspace.LatestBuild.Job.CompletedAt == nil {
 		err := cliui.WorkspaceBuild(ctx, inv.Stderr, client, workspace.LatestBuild.ID)
 		if err != nil {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, err
 		}
 		// Fetch up-to-date build information after completion.
 		workspace.LatestBuild, err = client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
 		if err != nil {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, err
 		}
 	}
 	if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionDelete {
-		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is being deleted", workspace.Name)
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, xerrors.Errorf("workspace %q is being deleted", workspace.Name)
 	}
 
 	var agentName string
 	if len(workspaceParts) >= 2 {
 		agentName = workspaceParts[1]
 	}
-	workspaceAgent, err := getWorkspaceAgent(workspace, agentName)
+	workspaceAgent, otherWorkspaceAgents, err := getWorkspaceAgent(workspace, agentName)
 	if err != nil {
-		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, err
 	}
 
-	return workspace, workspaceAgent, nil
+	return workspace, workspaceAgent, otherWorkspaceAgents, nil
 }
 
-func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (workspaceAgent codersdk.WorkspaceAgent, err error) {
+func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (workspaceAgent codersdk.WorkspaceAgent, otherAgents []codersdk.WorkspaceAgent, err error) {
 	resources := workspace.LatestBuild.Resources
 
-	agents := make([]codersdk.WorkspaceAgent, 0)
+	var (
+		availableNames []string
+		agents         []codersdk.WorkspaceAgent
+	)
 	for _, resource := range resources {
-		agents = append(agents, resource.Agents...)
+		for _, agent := range resource.Agents {
+			availableNames = append(availableNames, agent.Name)
+			agents = append(agents, agent)
+		}
 	}
 	if len(agents) == 0 {
-		return codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q has no agents", workspace.Name)
+		return codersdk.WorkspaceAgent{}, nil, xerrors.Errorf("workspace %q has no agents", workspace.Name)
 	}
+	slices.Sort(availableNames)
 	if agentName != "" {
-		for _, otherAgent := range agents {
-			if otherAgent.Name != agentName {
+		for i, agent := range agents {
+			if agent.Name != agentName || agent.ID.String() == agentName {
 				continue
 			}
-			workspaceAgent = otherAgent
-			break
+			otherAgents := slices.Delete(agents, i, i+1)
+			return agent, otherAgents, nil
 		}
-		if workspaceAgent.ID == uuid.Nil {
-			return codersdk.WorkspaceAgent{}, xerrors.Errorf("agent not found by name %q", agentName)
-		}
+		return codersdk.WorkspaceAgent{}, nil, xerrors.Errorf("agent not found by name %q, available agents: %v", agentName, availableNames)
 	}
-	if workspaceAgent.ID == uuid.Nil {
-		if len(agents) > 1 {
-			workspaceAgent, err = cryptorand.Element(agents)
-			if err != nil {
-				return codersdk.WorkspaceAgent{}, err
-			}
-		} else {
-			workspaceAgent = agents[0]
-		}
+	if len(agents) == 1 {
+		return agents[0], nil, nil
 	}
-	return workspaceAgent, nil
+	return codersdk.WorkspaceAgent{}, nil, xerrors.Errorf("multiple agents found, please specify the agent name, available agents: %v", availableNames)
 }
 
 // Attempt to poll workspace autostop. We write a per-workspace lockfile to
@@ -1456,28 +1458,6 @@ func collectNetworkStats(ctx context.Context, agentConn *workspacesdk.AgentConn,
 	}
 	node := agentConn.Node()
 	derpMap := agentConn.DERPMap()
-	derpLatency := map[string]float64{}
-
-	// Convert DERP region IDs to friendly names for display in the UI.
-	for rawRegion, latency := range node.DERPLatency {
-		regionParts := strings.SplitN(rawRegion, "-", 2)
-		regionID, err := strconv.Atoi(regionParts[0])
-		if err != nil {
-			continue
-		}
-		region, found := derpMap.Regions[regionID]
-		if !found {
-			// It's possible that a workspace agent is using an old DERPMap
-			// and reports regions that do not exist. If that's the case,
-			// report the region as unknown!
-			region = &tailcfg.DERPRegion{
-				RegionID:   regionID,
-				RegionName: fmt.Sprintf("Unnamed %d", regionID),
-			}
-		}
-		// Convert the microseconds to milliseconds.
-		derpLatency[region.RegionName] = latency * 1000
-	}
 
 	totalRx := uint64(0)
 	totalTx := uint64(0)
@@ -1491,27 +1471,20 @@ func collectNetworkStats(ctx context.Context, agentConn *workspacesdk.AgentConn,
 	uploadSecs := float64(totalTx) / dur.Seconds()
 	downloadSecs := float64(totalRx) / dur.Seconds()
 
-	// Sometimes the preferred DERP doesn't match the one we're actually
-	// connected with. Perhaps because the agent prefers a different DERP and
-	// we're using that server instead.
-	preferredDerpID := node.PreferredDERP
-	if pingResult.DERPRegionID != 0 {
-		preferredDerpID = pingResult.DERPRegionID
-	}
-	preferredDerp, ok := derpMap.Regions[preferredDerpID]
-	preferredDerpName := fmt.Sprintf("Unnamed %d", preferredDerpID)
-	if ok {
-		preferredDerpName = preferredDerp.RegionName
-	}
+	preferredDerpName := tailnet.ExtractPreferredDERPName(pingResult, node, derpMap)
+	derpLatency := tailnet.ExtractDERPLatency(node, derpMap)
 	if _, ok := derpLatency[preferredDerpName]; !ok {
 		derpLatency[preferredDerpName] = 0
 	}
+	derpLatencyMs := maps.Map(derpLatency, func(dur time.Duration) float64 {
+		return float64(dur) / float64(time.Millisecond)
+	})
 
 	return &sshNetworkStats{
 		P2P:              p2p,
 		Latency:          float64(latency.Microseconds()) / 1000,
 		PreferredDERP:    preferredDerpName,
-		DERPLatency:      derpLatency,
+		DERPLatency:      derpLatencyMs,
 		UploadBytesSec:   int64(uploadSecs),
 		DownloadBytesSec: int64(downloadSecs),
 	}, nil
@@ -1594,12 +1567,14 @@ func writeCoderConnectNetInfo(ctx context.Context, networkInfoDir string) error 
 // Converts workspace name input to owner/workspace.agent format
 // Possible valid input formats:
 // workspace
+// workspace.agent
 // owner/workspace
 // owner--workspace
 // owner/workspace--agent
 // owner/workspace.agent
 // owner--workspace--agent
 // owner--workspace.agent
+// agent.workspace.owner - for parity with Coder Connect
 func normalizeWorkspaceInput(input string) string {
 	// Split on "/", "--", and "."
 	parts := workspaceNameRe.Split(input, -1)
@@ -1608,8 +1583,15 @@ func normalizeWorkspaceInput(input string) string {
 	case 1:
 		return input // "workspace"
 	case 2:
+		if strings.Contains(input, ".") {
+			return fmt.Sprintf("%s.%s", parts[0], parts[1]) // "workspace.agent"
+		}
 		return fmt.Sprintf("%s/%s", parts[0], parts[1]) // "owner/workspace"
 	case 3:
+		// If the only separator is a dot, it's the Coder Connect format
+		if !strings.Contains(input, "/") && !strings.Contains(input, "--") {
+			return fmt.Sprintf("%s/%s.%s", parts[2], parts[1], parts[0]) // "owner/workspace.agent"
+		}
 		return fmt.Sprintf("%s/%s.%s", parts[0], parts[1], parts[2]) // "owner/workspace.agent"
 	default:
 		return input // Fallback

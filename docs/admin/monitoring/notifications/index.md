@@ -282,7 +282,7 @@ troubleshoot:
 1. Review the logs. Search for the term `notifications` for diagnostic information.
 
    - If you do not see any relevant logs, set
-    `CODER_VERBOSE=true` or `--verbose` to output debug logs.
+    `CODER_LOG_FILTER=".*notifications.*"` to filter for notification-related logs.
 1. If you are on version 2.15.x, notifications must be enabled using the
     `notifications`
     [experiment](../../../install/releases/feature-stages.md#early-access-features).

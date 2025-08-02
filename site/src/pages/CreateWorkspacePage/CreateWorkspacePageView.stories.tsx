@@ -1,5 +1,6 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, screen, waitFor } from "@storybook/test";
 import { within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { chromatic } from "testHelpers/chromatic";
@@ -11,6 +12,7 @@ import {
 	MockUserOwner,
 	mockApiError,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
 const meta: Meta<typeof CreateWorkspacePageView> = {
@@ -28,9 +30,12 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 		mode: "form",
 		permissions: {
 			createWorkspaceForAny: true,
+			canUpdateTemplate: false,
 		},
 		onCancel: action("onCancel"),
+		templatePermissions: { canUpdateTemplate: true },
 	},
+	decorators: [withDashboardProvider],
 };
 
 export default meta;
@@ -77,6 +82,7 @@ export const Parameters: Story = {
 				description: "",
 				description_plaintext: "",
 				type: "string",
+				form_type: "radio",
 				mutable: false,
 				default_value: "",
 				icon: "/emojis/1f30e.png",
@@ -124,22 +130,30 @@ export const PresetsButNoneSelected: Story = {
 			{
 				ID: "preset-1",
 				Name: "Preset 1",
+				Description: "Preset 1 description",
+				Icon: "/emojis/0031-fe0f-20e3.png",
+				Default: false,
 				Parameters: [
 					{
 						Name: MockTemplateVersionParameter1.name,
 						Value: "preset 1 override",
 					},
 				],
+				DesiredPrebuildInstances: null,
 			},
 			{
 				ID: "preset-2",
 				Name: "Preset 2",
+				Description: "Preset 2 description",
+				Icon: "/emojis/0032-fe0f-20e3.png",
+				Default: false,
 				Parameters: [
 					{
 						Name: MockTemplateVersionParameter2.name,
 						Value: "42",
 					},
 				],
+				DesiredPrebuildInstances: null,
 			},
 		],
 		parameters: [
@@ -154,18 +168,9 @@ export const PresetSelected: Story = {
 	args: PresetsButNoneSelected.args,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByLabelText("Preset"));
-		await userEvent.click(canvas.getByText("Preset 1"));
-	},
-};
-
-export const PresetSelectedWithHiddenParameters: Story = {
-	args: PresetsButNoneSelected.args,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
 		// Select a preset
-		await userEvent.click(canvas.getByLabelText("Preset"));
-		await userEvent.click(canvas.getByText("Preset 1"));
+		await userEvent.click(canvas.getByRole("button", { name: "None" }));
+		await userEvent.click(screen.getByText("Preset 1"));
 	},
 };
 
@@ -174,8 +179,8 @@ export const PresetSelectedWithVisibleParameters: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		// Select a preset
-		await userEvent.click(canvas.getByLabelText("Preset"));
-		await userEvent.click(canvas.getByText("Preset 1"));
+		await userEvent.click(canvas.getByRole("button", { name: "None" }));
+		await userEvent.click(screen.getByText("Preset 1"));
 		// Toggle off the show preset parameters switch
 		await userEvent.click(canvas.getByLabelText("Show preset parameters"));
 	},
@@ -187,16 +192,102 @@ export const PresetReselected: Story = {
 		const canvas = within(canvasElement);
 
 		// First selection of Preset 1
-		await userEvent.click(canvas.getByLabelText("Preset"));
-		await userEvent.click(
-			canvas.getByText("Preset 1", { selector: ".MuiMenuItem-root" }),
-		);
+		await userEvent.click(canvas.getByRole("button", { name: "None" }));
+		await userEvent.click(screen.getByText("Preset 1"));
 
 		// Reselect the same preset
-		await userEvent.click(canvas.getByLabelText("Preset"));
-		await userEvent.click(
-			canvas.getByText("Preset 1", { selector: ".MuiMenuItem-root" }),
+		await userEvent.click(canvas.getByRole("button", { name: "Preset 1" }));
+		await userEvent.click(canvas.getByText("Preset 1"));
+	},
+};
+
+export const PresetNoneSelected: Story = {
+	args: {
+		...PresetsButNoneSelected.args,
+		onSubmit: (request, owner) => {
+			// Assert that template_version_preset_id is not present in the request
+			console.assert(
+				!("template_version_preset_id" in request),
+				'template_version_preset_id should not be present when "None" is selected',
+			);
+			action("onSubmit")(request, owner);
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// First select a preset to set the field value
+		await userEvent.click(canvas.getByRole("button", { name: "None" }));
+		await userEvent.click(screen.getByText("Preset 1"));
+
+		// Then select "None" to unset the field value
+		await userEvent.click(screen.getByText("None"));
+
+		// Fill in required fields and submit to test the API call
+		await userEvent.type(
+			canvas.getByLabelText("Workspace Name"),
+			"test-workspace",
 		);
+		await userEvent.click(canvas.getByText("Create workspace"));
+	},
+	parameters: {
+		docs: {
+			description: {
+				story:
+					"This story tests that when 'None' preset is selected, the template_version_preset_id field is not included in the form submission. The story first selects a preset to set the field value, then selects 'None' to unset it, and finally submits the form to verify the API call behavior.",
+			},
+		},
+	},
+};
+
+export const PresetsWithDefault: Story = {
+	args: {
+		presets: [
+			{
+				ID: "preset-1",
+				Name: "Preset 1",
+				Description: "Preset 1 description",
+				Icon: "/emojis/0031-fe0f-20e3.png",
+				Default: false,
+				Parameters: [
+					{
+						Name: MockTemplateVersionParameter1.name,
+						Value: "preset 1 override",
+					},
+				],
+				DesiredPrebuildInstances: null,
+			},
+			{
+				ID: "preset-2",
+				Name: "Preset 2",
+				Description: "Preset 2 description",
+				Icon: "/emojis/0032-fe0f-20e3.png",
+				Default: true,
+				Parameters: [
+					{
+						Name: MockTemplateVersionParameter2.name,
+						Value: "150189",
+					},
+				],
+				DesiredPrebuildInstances: null,
+			},
+		],
+		parameters: [
+			MockTemplateVersionParameter1,
+			MockTemplateVersionParameter2,
+			MockTemplateVersionParameter3,
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Should have the default preset listed first
+		await waitFor(() =>
+			expect(canvas.getByRole("button", { name: "Preset 2 (Default)" })),
+		);
+		// Wait for the switch to be available since preset parameters are populated asynchronously
+		await canvas.findByLabelText("Show preset parameters");
+		// Toggle off the show preset parameters switch
+		await userEvent.click(canvas.getByLabelText("Show preset parameters"));
 	},
 };
 
@@ -296,5 +387,25 @@ export const ExternalAuthAllConnected: Story = {
 				optional: true,
 			},
 		],
+	},
+};
+
+export const WithViewSourceButton: Story = {
+	args: {
+		canUpdateTemplate: true,
+		versionId: "template-version-123",
+		template: {
+			...MockTemplate,
+			organization_name: "default",
+			name: "docker-template",
+		},
+	},
+	parameters: {
+		docs: {
+			description: {
+				story:
+					"This story shows the View Source button that appears for template administrators. The button allows quick navigation to the template editor from the workspace creation page.",
+			},
+		},
 	},
 };

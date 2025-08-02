@@ -104,3 +104,21 @@ updates:
         update-types:
           - version-update:semver-major
     open-pull-requests-limit: 15
+
+  - package-ecosystem: "terraform"
+    directories:
+      - "dogfood/*/"
+      - "examples/templates/*/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore"
+    groups:
+      coder:
+        patterns:
+          - "registry.coder.com/coder/*/coder"
+    labels: []
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major

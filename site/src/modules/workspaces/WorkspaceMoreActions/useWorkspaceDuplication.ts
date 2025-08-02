@@ -34,11 +34,10 @@ function getDuplicationUrlParams(
 export function useWorkspaceDuplication(workspace?: Workspace) {
 	const navigate = useNavigate();
 	const getLink = useLinks();
-	const buildParametersQuery = useQuery(
-		workspace !== undefined
-			? workspaceBuildParameters(workspace.latest_build.id)
-			: { enabled: false },
-	);
+	const buildParametersQuery = useQuery({
+		...workspaceBuildParameters(workspace?.latest_build.id ?? ""),
+		enabled: !!workspace,
+	});
 
 	// Not using useEffectEvent for this, because useEffect isn't really an
 	// intended use case for this custom hook

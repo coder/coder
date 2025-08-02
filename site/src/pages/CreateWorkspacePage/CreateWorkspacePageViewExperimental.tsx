@@ -3,25 +3,27 @@ import type { FriendlyDiagnostic, PreviewParameter } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
+import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
+import { Combobox } from "components/Combobox/Combobox";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
-import { Pill } from "components/Pill/Pill";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "components/Select/Select";
+import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
-import { ArrowLeft, CircleAlert, TriangleAlert } from "lucide-react";
+import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
+import { ArrowLeft, CircleHelp, ExternalLinkIcon } from "lucide-react";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
 import {
+	Diagnostics,
 	DynamicParameter,
 	getInitialParameterValues,
 	useValidationSchemaForDynamicParameters,
@@ -30,25 +32,23 @@ import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName"
 import {
 	type FC,
 	useCallback,
-	useContext,
 	useEffect,
 	useId,
 	useRef,
 	useState,
 } from "react";
+import { Link as RouterLink } from "react-router-dom";
+import { docs } from "utils/docs";
 import { nameValidator } from "utils/formUtils";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
-import type {
-	CreateWorkspaceMode,
-	ExternalAuthPollingState,
-} from "./CreateWorkspacePage";
-import { ExperimentalFormContext } from "./ExperimentalFormContext";
+import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
-export interface CreateWorkspacePageViewExperimentalProps {
+interface CreateWorkspacePageViewExperimentalProps {
 	autofillParameters: AutofillBuildParameter[];
+	canUpdateTemplate?: boolean;
 	creatingWorkspace: boolean;
 	defaultName?: string | null;
 	defaultOwner: TypesGen.User;
@@ -70,7 +70,7 @@ export interface CreateWorkspacePageViewExperimentalProps {
 		owner: TypesGen.User,
 	) => void;
 	resetMutation: () => void;
-	sendMessage: (message: Record<string, string>) => void;
+	sendMessage: (message: Record<string, string>, ownerId?: string) => void;
 	startPollingExternalAuth: () => void;
 	owner: TypesGen.User;
 	setOwner: (user: TypesGen.User) => void;
@@ -80,6 +80,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 	CreateWorkspacePageViewExperimentalProps
 > = ({
 	autofillParameters,
+	canUpdateTemplate,
 	creatingWorkspace,
 	defaultName,
 	defaultOwner,
@@ -103,7 +104,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 	owner,
 	setOwner,
 }) => {
-	const experimentalFormContext = useContext(ExperimentalFormContext);
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
 	);
@@ -170,7 +170,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 	}, [error]);
 
 	useEffect(() => {
-		if (form.submitCount > 0 && form.errors) {
+		if (form.submitCount > 0 && Object.keys(form.errors).length > 0) {
 			workspaceNameInputRef.current?.scrollIntoView({
 				behavior: "smooth",
 				block: "center",
@@ -180,19 +180,32 @@ export const CreateWorkspacePageViewExperimental: FC<
 	}, [form.submitCount, form.errors]);
 
 	const [presetOptions, setPresetOptions] = useState([
-		{ label: "None", value: "None" },
+		{ displayName: "None", value: "undefined", icon: "", description: "" },
 	]);
-	useEffect(() => {
-		setPresetOptions([
-			{ label: "None", value: "None" },
-			...presets.map((preset) => ({
-				label: preset.Name,
-				value: preset.ID,
-			})),
-		]);
-	}, [presets]);
-
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
+	// Build options and keep default label/value in sync
+	useEffect(() => {
+		const options = [
+			{ displayName: "None", value: "undefined", icon: "", description: "" },
+			...presets.map((preset) => ({
+				displayName: preset.Default ? `${preset.Name} (Default)` : preset.Name,
+				value: preset.ID,
+				icon: preset.Icon,
+				description: preset.Description,
+			})),
+		];
+		setPresetOptions(options);
+		const defaultPreset = presets.find((p) => p.Default);
+		if (defaultPreset) {
+			const idx = presets.indexOf(defaultPreset) + 1; // +1 for "None"
+			setSelectedPresetIndex(idx);
+			form.setFieldValue("template_version_preset_id", defaultPreset.ID);
+		} else {
+			setSelectedPresetIndex(0); // Explicitly set to "None"
+			form.setFieldValue("template_version_preset_id", undefined);
+		}
+	}, [presets, form.setFieldValue]);
+
 	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
 		[],
 	);
@@ -271,9 +284,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 		form.values.rich_parameter_values,
 	]);
 
-	// send the last user modified parameter and all touched parameters to the websocket
+	// include any modified parameters and all touched parameters to the websocket request
 	const sendDynamicParamsRequest = (
 		parameters: Array<{ parameter: PreviewParameter; value: string }>,
+		ownerId?: string,
 	) => {
 		const formInputs: Record<string, string> = {};
 		const formParameters = form.values.rich_parameter_values ?? [];
@@ -294,7 +308,12 @@ export const CreateWorkspacePageViewExperimental: FC<
 			}
 		}
 
-		sendMessage(formInputs);
+		sendMessage(formInputs, ownerId);
+	};
+
+	const handleOwnerChange = (user: TypesGen.User) => {
+		setOwner(user);
+		sendDynamicParamsRequest([], user.id);
 	};
 
 	const handleChange = async (
@@ -337,33 +356,61 @@ export const CreateWorkspacePageViewExperimental: FC<
 				</button>
 			</div>
 			<div className="flex flex-col gap-6 max-w-screen-md mx-auto">
-				<header className="flex flex-col items-start gap-2 mt-10">
-					<div className="flex items-center gap-2">
-						<Avatar
-							variant="icon"
-							size="md"
-							src={template.icon}
-							fallback={template.name}
-						/>
-						<p className="text-base font-medium m-0">
-							{template.display_name.length > 0
-								? template.display_name
-								: template.name}
-						</p>
+				<header className="flex flex-col items-start gap-3 mt-10">
+					<div className="flex items-center gap-2 justify-between w-full">
+						<span className="flex items-center gap-2">
+							<Avatar
+								variant="icon"
+								size="md"
+								src={template.icon}
+								fallback={template.name}
+							/>
+							<p className="text-base font-medium m-0">
+								{template.display_name.length > 0
+									? template.display_name
+									: template.name}
+							</p>
+							{template.deprecated && (
+								<Badge variant="warning" size="sm">
+									Deprecated
+								</Badge>
+							)}
+						</span>
+						{canUpdateTemplate && (
+							<Button asChild size="sm" variant="outline">
+								<RouterLink
+									to={`/templates/${template.organization_name}/${template.name}/versions/${versionId}/edit`}
+								>
+									<ExternalLinkIcon />
+									View source
+								</RouterLink>
+							</Button>
+						)}
 					</div>
-					<h1 className="text-3xl font-semibold m-0">New workspace</h1>
+					<span className="flex flex-row items-center gap-2">
+						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
 
-					{template.deprecated && <Pill type="warning">Deprecated</Pill>}
-
-					{experimentalFormContext && (
-						<Button
-							size="sm"
-							variant="subtle"
-							onClick={experimentalFormContext.toggleOptedOut}
-						>
-							Go back to the classic workspace creation flow
-						</Button>
-					)}
+						<TooltipProvider delayDuration={100}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<CircleHelp className="size-icon-xs text-content-secondary" />
+								</TooltipTrigger>
+								<TooltipContent className="max-w-xs text-sm">
+									Dynamic Parameters enhances Coder's existing parameter system
+									with real-time validation, conditional parameter behavior, and
+									richer input types.
+									<br />
+									<Link
+										href={docs(
+											"/admin/templates/extending-templates/dynamic-parameters",
+										)}
+									>
+										View docs
+									</Link>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					</span>
 				</header>
 
 				<form
@@ -449,7 +496,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 										<UserAutocomplete
 											value={owner}
 											onChange={(user) => {
-												setOwner(user ?? defaultOwner);
+												handleOwnerChange(user ?? defaultOwner);
 											}}
 											size="medium"
 										/>
@@ -501,6 +548,13 @@ export const CreateWorkspacePageViewExperimental: FC<
 								<p className="text-sm text-content-secondary m-0">
 									These are the settings used by your template. Immutable
 									parameters cannot be modified once the workspace is created.
+									<Link
+										href={docs(
+											"/admin/templates/extending-templates/dynamic-parameters",
+										)}
+									>
+										View docs
+									</Link>
 								</p>
 							</hgroup>
 							{diagnostics.length > 0 && (
@@ -510,50 +564,69 @@ export const CreateWorkspacePageViewExperimental: FC<
 								<div className="flex flex-col gap-2">
 									<div className="flex gap-2 items-center">
 										<Label className="text-sm">Preset</Label>
-										<FeatureStageBadge contentType={"beta"} size="md" />
 									</div>
 									<div className="flex flex-col gap-4">
 										<div className="max-w-lg">
-											<Select
-												onValueChange={(option) => {
+											<Combobox
+												value={
+													presetOptions[selectedPresetIndex]?.displayName || ""
+												}
+												options={presetOptions}
+												placeholder="Select a preset"
+												onSelect={(value) => {
 													const index = presetOptions.findIndex(
-														(preset) => preset.value === option,
+														(preset) => preset.value === value,
 													);
 													if (index === -1) {
 														return;
 													}
 													setSelectedPresetIndex(index);
+													form.setFieldValue(
+														"template_version_preset_id",
+														// "undefined" string is equivalent to using None option
+														// Combobox requires a value in order to correctly highlight the None option
+														presetOptions[index].value === "undefined"
+															? undefined
+															: presetOptions[index].value,
+													);
 												}}
-											>
-												<SelectTrigger>
-													<SelectValue placeholder={"Select a preset"} />
-												</SelectTrigger>
-												<SelectContent>
-													{presetOptions.map((option) => (
-														<SelectItem key={option.value} value={option.value}>
-															{option.label}
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
-										</div>
-										<span className="flex items-center gap-3">
-											<Switch
-												id="show-preset-parameters"
-												checked={showPresetParameters}
-												onCheckedChange={setShowPresetParameters}
 											/>
-											<Label htmlFor="show-preset-parameters">
-												Show preset parameters
-											</Label>
-										</span>
+										</div>
+										{/* Only show the preset parameter visibility toggle if preset parameters are actually being modified, otherwise it is ineffectual */}
+										{presetParameterNames.length > 0 && (
+											<span className="flex items-center gap-3">
+												<Switch
+													id="show-preset-parameters"
+													checked={showPresetParameters}
+													onCheckedChange={setShowPresetParameters}
+												/>
+												<Label htmlFor="show-preset-parameters">
+													Show preset parameters
+												</Label>
+											</span>
+										)}
 									</div>
 								</div>
 							)}
 
 							<div className="flex flex-col gap-9">
 								{parameters.map((parameter, index) => {
-									const parameterField = `rich_parameter_values.${index}`;
+									const currentParameterValueIndex =
+										form.values.rich_parameter_values?.findIndex(
+											(p) => p.name === parameter.name,
+										);
+									const parameterFieldIndex =
+										currentParameterValueIndex !== undefined
+											? currentParameterValueIndex
+											: index;
+									// Get the form value by parameter name to ensure correct value mapping
+									const formValue =
+										currentParameterValueIndex !== undefined
+											? form.values?.rich_parameter_values?.[
+													currentParameterValueIndex
+												]?.value || ""
+											: "";
+									const parameterField = `rich_parameter_values.${parameterFieldIndex}`;
 									const isPresetParameter = presetParameterNames.includes(
 										parameter.name,
 									);
@@ -565,13 +638,14 @@ export const CreateWorkspacePageViewExperimental: FC<
 										creatingWorkspace ||
 										isPresetParameter;
 
-									// Hide preset parameters if showPresetParameters is false
-									if (!showPresetParameters && isPresetParameter) {
+									// Always show preset parameters if they have any diagnostics
+									if (
+										!showPresetParameters &&
+										isPresetParameter &&
+										parameter.diagnostics.length === 0
+									) {
 										return null;
 									}
-
-									const formValue =
-										form.values?.rich_parameter_values?.[index]?.value || "";
 
 									return (
 										<DynamicParameter
@@ -614,46 +688,5 @@ export const CreateWorkspacePageViewExperimental: FC<
 				</form>
 			</div>
 		</>
-	);
-};
-
-interface DiagnosticsProps {
-	diagnostics: PreviewParameter["diagnostics"];
-}
-
-const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
-	return (
-		<div className="flex flex-col gap-4">
-			{diagnostics.map((diagnostic, index) => (
-				<div
-					key={`diagnostic-${diagnostic.summary}-${index}`}
-					className={`text-xs font-semibold flex flex-col rounded-md border px-3.5 py-3.5 border-solid
-                        ${
-													diagnostic.severity === "error"
-														? "text-content-primary border-border-destructive bg-content-destructive/15"
-														: "text-content-primary border-border-warning bg-content-warning/15"
-												}`}
-				>
-					<div className="flex flex-row items-start">
-						{diagnostic.severity === "error" && (
-							<CircleAlert
-								className="me-2 inline-flex shrink-0 text-content-destructive size-icon-sm"
-								aria-hidden="true"
-							/>
-						)}
-						{diagnostic.severity === "warning" && (
-							<TriangleAlert
-								className="me-2 inline-flex shrink-0 text-content-warning size-icon-sm"
-								aria-hidden="true"
-							/>
-						)}
-						<div className="flex flex-col gap-3">
-							<p className="m-0">{diagnostic.summary}</p>
-							{diagnostic.detail && <p className="m-0">{diagnostic.detail}</p>}
-						</div>
-					</div>
-				</div>
-			))}
-		</div>
 	);
 };

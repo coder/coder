@@ -9,12 +9,14 @@ import { type FC, useRef, useState } from "react";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
-export interface VSCodeDevContainerButtonProps {
+interface VSCodeDevContainerButtonProps {
 	userName: string;
 	workspaceName: string;
 	agentName?: string;
 	devContainerName: string;
 	devContainerFolder: string;
+	localWorkspaceFolder: string;
+	localConfigFile: string;
 	displayApps: readonly DisplayApp[];
 }
 
@@ -101,9 +103,9 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 		</>
 	) : includesVSCodeDesktop ? (
 		<VSCodeButton {...props} />
-	) : (
+	) : includesVSCodeInsiders ? (
 		<VSCodeInsidersButton {...props} />
-	);
+	) : null;
 };
 
 const VSCodeButton: FC<VSCodeDevContainerButtonProps> = ({
@@ -112,6 +114,8 @@ const VSCodeButton: FC<VSCodeDevContainerButtonProps> = ({
 	agentName,
 	devContainerName,
 	devContainerFolder,
+	localWorkspaceFolder,
+	localConfigFile,
 }) => {
 	const [loading, setLoading] = useState(false);
 
@@ -129,6 +133,8 @@ const VSCodeButton: FC<VSCodeDevContainerButtonProps> = ({
 							token: key,
 							devContainerName,
 							devContainerFolder,
+							localWorkspaceFolder,
+							localConfigFile,
 						});
 						if (agentName) {
 							query.set("agent", agentName);
@@ -156,6 +162,8 @@ const VSCodeInsidersButton: FC<VSCodeDevContainerButtonProps> = ({
 	agentName,
 	devContainerName,
 	devContainerFolder,
+	localWorkspaceFolder,
+	localConfigFile,
 }) => {
 	const [loading, setLoading] = useState(false);
 
@@ -173,6 +181,8 @@ const VSCodeInsidersButton: FC<VSCodeDevContainerButtonProps> = ({
 							token: key,
 							devContainerName,
 							devContainerFolder,
+							localWorkspaceFolder,
+							localConfigFile,
 						});
 						if (agentName) {
 							query.set("agent", agentName);

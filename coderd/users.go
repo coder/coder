@@ -290,7 +290,7 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 		return nil, -1, false
 	}
 
-	paginationParams, ok := parsePagination(rw, r)
+	paginationParams, ok := ParsePagination(rw, r)
 	if !ok {
 		return nil, -1, false
 	}
@@ -525,7 +525,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	auditor := *api.Auditor.Load()
 	user := httpmw.UserParam(r)
-	auth := httpmw.UserAuthorization(r)
+	auth := httpmw.UserAuthorization(r.Context())
 	aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
 		Audit:   auditor,
 		Log:     api.Logger,

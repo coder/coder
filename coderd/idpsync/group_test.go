@@ -69,11 +69,6 @@ func TestParseGroupClaims(t *testing.T) {
 func TestGroupSyncTable(t *testing.T) {
 	t.Parallel()
 
-	// Last checked, takes 30s with postgres on a fast machine.
-	if dbtestutil.WillUsePostgres() {
-		t.Skip("Skipping test because it populates a lot of db entries, which is slow on postgres.")
-	}
-
 	userClaims := jwt.MapClaims{
 		"groups": []string{
 			"foo", "bar", "baz",
@@ -248,7 +243,6 @@ func TestGroupSyncTable(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		// The final test, "AllTogether", cannot run in parallel.
 		// These tests are nearly instant using the memory db, so
 		// this is still fast without being in parallel.
@@ -346,8 +340,6 @@ func TestGroupSyncTable(t *testing.T) {
 		})
 
 		for _, tc := range testCases {
-			tc := tc
-
 			orgID := uuid.New()
 			SetupOrganization(t, s, db, user, orgID, tc)
 			asserts = append(asserts, func(t *testing.T) {
@@ -378,10 +370,6 @@ func TestGroupSyncTable(t *testing.T) {
 
 func TestSyncDisabled(t *testing.T) {
 	t.Parallel()
-
-	if dbtestutil.WillUsePostgres() {
-		t.Skip("Skipping test because it populates a lot of db entries, which is slow on postgres.")
-	}
 
 	db, _ := dbtestutil.NewDB(t)
 	manager := runtimeconfig.NewManager()
@@ -532,7 +520,6 @@ func TestApplyGroupDifference(t *testing.T) {
 	}
 
 	for _, tc := range testCase {
-		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -722,7 +709,6 @@ func TestExpectedGroupEqual(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 

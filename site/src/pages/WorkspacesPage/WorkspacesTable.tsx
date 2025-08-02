@@ -18,6 +18,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { Button } from "components/Button/Button";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
@@ -47,8 +48,10 @@ import { ExternalLinkIcon, FileIcon, StarIcon } from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import {
 	BanIcon,
+	CloudIcon,
 	PlayIcon,
 	RefreshCcwIcon,
+	SquareIcon,
 	SquareTerminalIcon,
 } from "lucide-react";
 import {
@@ -59,6 +62,7 @@ import {
 import { useAppLink } from "modules/apps/useAppLink";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
+import { WorkspaceBuildCancelDialog } from "modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
 import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
@@ -74,6 +78,7 @@ import {
 	type PropsWithChildren,
 	type ReactNode,
 	useMemo,
+	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
@@ -84,7 +89,7 @@ import {
 } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
 
-export interface WorkspacesTableProps {
+interface WorkspacesTableProps {
 	workspaces?: readonly Workspace[];
 	checkedWorkspaces: readonly Workspace[];
 	error?: unknown;
@@ -297,7 +302,10 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 
 							{hasActivity && (
 								<TableCell>
-									<WorkspaceAppStatus status={workspace.latest_app_status} />
+									<WorkspaceAppStatus
+										status={workspace.latest_app_status}
+										disabled={workspace.latest_build.status !== "running"}
+									/>
 								</TableCell>
 							)}
 
@@ -488,10 +496,13 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 		onError: onActionError,
 	});
 
+	const [isStopConfirmOpen, setIsStopConfirmOpen] = useState(false);
+	const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+
 	const isRetrying =
-		startWorkspaceMutation.isLoading ||
-		stopWorkspaceMutation.isLoading ||
-		deleteWorkspaceMutation.isLoading;
+		startWorkspaceMutation.isPending ||
+		stopWorkspaceMutation.isPending ||
+		deleteWorkspaceMutation.isPending;
 
 	const retry = () => {
 		switch (workspace.latest_build.transition) {
@@ -525,10 +536,20 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 				{abilities.actions.includes("start") && (
 					<PrimaryAction
 						onClick={() => startWorkspaceMutation.mutate({})}
-						isLoading={startWorkspaceMutation.isLoading}
+						isLoading={startWorkspaceMutation.isPending}
 						label="Start workspace"
 					>
 						<PlayIcon />
+					</PrimaryAction>
+				)}
+
+				{abilities.actions.includes("stop") && (
+					<PrimaryAction
+						onClick={() => setIsStopConfirmOpen(true)}
+						isLoading={stopWorkspaceMutation.isPending}
+						label="Stop workspace"
+					>
+						<SquareIcon />
 					</PrimaryAction>
 				)}
 
@@ -539,6 +560,45 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 							isLoading={workspaceUpdate.isUpdating}
 							label="Update and start workspace"
 						>
+							<CloudIcon />
+						</PrimaryAction>
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+					</>
+				)}
+
+				{abilities.actions.includes("updateAndStartRequireActiveVersion") && (
+					<>
+						<PrimaryAction
+							onClick={workspaceUpdate.update}
+							isLoading={workspaceUpdate.isUpdating}
+							label="This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version."
+						>
+							<PlayIcon />
+						</PrimaryAction>
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+					</>
+				)}
+
+				{abilities.actions.includes("updateAndRestart") && (
+					<>
+						<PrimaryAction
+							onClick={workspaceUpdate.update}
+							isLoading={workspaceUpdate.isUpdating}
+							label="Update and restart workspace"
+						>
+							<CloudIcon />
+						</PrimaryAction>
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+					</>
+				)}
+
+				{abilities.actions.includes("updateAndRestartRequireActiveVersion") && (
+					<>
+						<PrimaryAction
+							onClick={workspaceUpdate.update}
+							isLoading={workspaceUpdate.isUpdating}
+							label="This template requires automatic updates on workspace restart. Contact your administrator if you want to preserve the template version."
+						>
 							<PlayIcon />
 						</PrimaryAction>
 						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
@@ -547,8 +607,8 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 
 				{abilities.canCancel && (
 					<PrimaryAction
-						onClick={cancelBuildMutation.mutate}
-						isLoading={cancelBuildMutation.isLoading}
+						onClick={() => setIsCancelConfirmOpen(true)}
+						isLoading={cancelBuildMutation.isPending}
 						label="Cancel build"
 					>
 						<BanIcon />
@@ -570,6 +630,30 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 					disabled={!abilities.canAcceptJobs}
 				/>
 			</div>
+
+			{/* Stop workspace confirmation dialog */}
+			<ConfirmDialog
+				open={isStopConfirmOpen}
+				title="Stop workspace"
+				description={`Are you sure you want to stop the workspace "${workspace.name}"? This will terminate all running processes and disconnect any active sessions.`}
+				confirmText="Stop"
+				onClose={() => setIsStopConfirmOpen(false)}
+				onConfirm={() => {
+					stopWorkspaceMutation.mutate({});
+					setIsStopConfirmOpen(false);
+				}}
+				type="delete"
+			/>
+
+			<WorkspaceBuildCancelDialog
+				open={isCancelConfirmOpen}
+				onClose={() => setIsCancelConfirmOpen(false)}
+				onConfirm={() => {
+					cancelBuildMutation.mutate();
+					setIsCancelConfirmOpen(false);
+				}}
+				workspace={workspace}
+			/>
 		</TableCell>
 	);
 };
@@ -590,7 +674,12 @@ const PrimaryAction: FC<PrimaryActionProps> = ({
 		<TooltipProvider>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<Button variant="outline" size="icon-lg" onClick={onClick}>
+					<Button
+						variant="outline"
+						size="icon-lg"
+						onClick={onClick}
+						disabled={isLoading}
+					>
 						<Spinner loading={isLoading}>{children}</Spinner>
 						<span className="sr-only">{label}</span>
 					</Button>

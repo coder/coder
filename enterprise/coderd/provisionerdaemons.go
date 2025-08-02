@@ -133,7 +133,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, org database.Organiza
 			tags:  tags,
 		}, nil
 	}
-	ua := httpmw.UserAuthorization(r)
+	ua := httpmw.UserAuthorization(r.Context())
 	err = p.authorizer.Authorize(ctx, ua, policy.ActionCreate, rbac.ResourceProvisionerDaemon.InOrg(org.ID))
 	if err != nil {
 		return provisiionerDaemonAuthResponse{}, xerrors.New("user unauthorized")
@@ -384,7 +384,9 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	})
 
 	// Log the request immediately instead of after it completes.
-	loggermw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
+	if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
+		rl.WriteLog(ctx, http.StatusAccepted)
+	}
 
 	err = server.Serve(ctx, session)
 	srvCancel()

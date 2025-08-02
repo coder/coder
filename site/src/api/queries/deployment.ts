@@ -1,4 +1,5 @@
 import { API } from "api/api";
+import { disabledRefetchOptions } from "./util";
 
 export const deploymentConfigQueryKey = ["deployment", "config"];
 
@@ -26,6 +27,7 @@ export const deploymentStats = () => {
 
 export const deploymentSSHConfig = () => {
 	return {
+		...disabledRefetchOptions,
 		queryKey: ["deployment", "sshConfig"],
 		queryFn: API.getDeploymentSSHConfig,
 	};
@@ -35,12 +37,5 @@ export const deploymentIdpSyncFieldValues = (field: string) => {
 	return {
 		queryKey: ["deployment", "idpSync", "fieldValues", field],
 		queryFn: () => API.getDeploymentIdpSyncFieldValues(field),
-	};
-};
-
-export const deploymentLanguageModels = () => {
-	return {
-		queryKey: ["deployment", "llms"],
-		queryFn: API.getDeploymentLLMs,
 	};
 };

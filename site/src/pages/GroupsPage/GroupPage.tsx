@@ -67,9 +67,10 @@ const GroupPage: FC = () => {
 	const navigate = useNavigate();
 	const groupQuery = useQuery(group(organization, groupName));
 	const groupData = groupQuery.data;
-	const { data: permissions } = useQuery(
-		groupData ? groupPermissions(groupData.id) : { enabled: false },
-	);
+	const { data: permissions } = useQuery({
+		...groupPermissions(groupData?.id ?? ""),
+		enabled: !!groupData,
+	});
 	const addMemberMutation = useMutation(addMember(queryClient));
 	const removeMemberMutation = useMutation(removeMember(queryClient));
 	const deleteGroupMutation = useMutation(deleteGroup(queryClient));
@@ -145,7 +146,7 @@ const GroupPage: FC = () => {
 			<Stack spacing={1}>
 				{canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
 					<AddGroupMember
-						isLoading={addMemberMutation.isLoading}
+						isLoading={addMemberMutation.isPending}
 						organizationId={groupData.organization_id}
 						onSubmit={async (member, reset) => {
 							try {
@@ -220,7 +221,7 @@ const GroupPage: FC = () => {
 			{groupQuery.data && (
 				<DeleteDialog
 					isOpen={isDeletingGroup}
-					confirmLoading={deleteGroupMutation.isLoading}
+					confirmLoading={deleteGroupMutation.isPending}
 					name={groupQuery.data.name}
 					entity="group"
 					onConfirm={async () => {

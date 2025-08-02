@@ -24,7 +24,11 @@ import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
 import { OneWayWebSocket } from "../utils/OneWayWebSocket";
 import { delay } from "../utils/delay";
-import type { PostWorkspaceUsageRequest } from "./typesGenerated";
+import { type FieldError, isApiError } from "./errors";
+import type {
+	DynamicParametersRequest,
+	PostWorkspaceUsageRequest,
+} from "./typesGenerated";
 import * as TypesGen from "./typesGenerated";
 
 const getMissingParameters = (
@@ -73,8 +77,10 @@ const getMissingParameters = (
 		if (templateParameter.options.length === 0) {
 			continue;
 		}
-
-		// Check if there is a new value
+		// For multi-select, extra steps are necessary to JSON parse the value.
+		if (templateParameter.form_type === "multi-select") {
+			continue;
+		}
 		let buildParameter = newBuildParameters.find(
 			(p) => p.name === templateParameter.name,
 		);
@@ -102,6 +108,13 @@ const getMissingParameters = (
 };
 
 /**
+ * Originally from codersdk/client.go.
+ * The below declaration is required to stop Knip from complaining.
+ * @public
+ */
+export const SessionTokenCookie = "coder_session_token";
+
+/**
  * @param agentId
  * @returns {OneWayWebSocket} A OneWayWebSocket that emits Server-Sent Events.
  */
@@ -121,6 +134,14 @@ export const watchWorkspace = (
 ): OneWayWebSocket<TypesGen.ServerSentEvent> => {
 	return new OneWayWebSocket({
 		apiRoute: `/api/v2/workspaces/${workspaceId}/watch-ws`,
+	});
+};
+
+export const watchAgentContainers = (
+	agentId: string,
+): OneWayWebSocket<TypesGen.WorkspaceAgentListContainersResponse> => {
+	return new OneWayWebSocket({
+		apiRoute: `/api/v2/workspaceagents/${agentId}/containers/watch`,
 	});
 };
 
@@ -231,7 +252,7 @@ export const watchWorkspaceAgentLogs = (
 	/**
 	 * WebSocket compression in Safari (confirmed in 16.5) is broken when
 	 * the server sends large messages. The following error is seen:
-	 * WebSocket connection to 'wss://...' failed: The operation couldn’t be completed.
+	 * WebSocket connection to 'wss://...' failed: The operation couldn't be completed.
 	 */
 	if (userAgentParser(navigator.userAgent).browser.name === "Safari") {
 		searchParams.set("no_compression", "");
@@ -377,6 +398,15 @@ export class MissingBuildParameters extends Error {
 	}
 }
 
+export class ParameterValidationError extends Error {
+	constructor(
+		public readonly versionId: string,
+		public readonly validations: FieldError[],
+	) {
+		super("Parameters are not valid for new template version");
+	}
+}
+
 export type GetProvisionerJobsParams = {
 	status?: string;
 	limit?: number;
@@ -406,7 +436,11 @@ export type GetProvisionerDaemonsParams = {
  * lexical scope.
  */
 class ApiMethods {
-	constructor(protected readonly axios: AxiosInstance) {}
+	experimental: ExperimentalApiMethods;
+
+	constructor(protected readonly axios: AxiosInstance) {
+		this.experimental = new ExperimentalApiMethods(this.axios);
+	}
 
 	login = async (
 		email: string,
@@ -809,13 +843,6 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getDeploymentLLMs = async (): Promise<TypesGen.LanguageModelConfig> => {
-		const response = await this.axios.get<TypesGen.LanguageModelConfig>(
-			"/api/v2/deployment/llms",
-		);
-		return response.data;
-	};
-
 	getOrganizationIdpSyncClaimFieldValues = async (
 		organization: string,
 		field: string,
@@ -990,6 +1017,17 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getTemplateVersionDynamicParameters = async (
+		versionId: string,
+		data: TypesGen.DynamicParametersRequest,
+	): Promise<TypesGen.DynamicParametersResponse> => {
+		const response = await this.axios.post(
+			`/api/v2/templateversions/${versionId}/dynamic-parameters/evaluate`,
+			data,
+		);
+		return response.data;
+	};
+
 	getTemplateVersionRichParameters = async (
 		versionId: string,
 	): Promise<TypesGen.TemplateVersionParameter[]> => {
@@ -1000,8 +1038,8 @@ class ApiMethods {
 	};
 
 	templateVersionDynamicParameters = (
-		userId: string,
 		versionId: string,
+		userId: string,
 		{
 			onMessage,
 			onError,
@@ -1013,7 +1051,8 @@ class ApiMethods {
 		},
 	): WebSocket => {
 		const socket = createWebSocket(
-			`/api/v2/users/${userId}/templateversions/${versionId}/parameters`,
+			`/api/v2/templateversions/${versionId}/dynamic-parameters`,
+			new URLSearchParams({ user_id: userId }),
 		);
 
 		socket.addEventListener("message", (event) =>
@@ -1082,6 +1121,31 @@ class ApiMethods {
 		const response = await this.axios.post<TypesGen.TemplateVersion>(
 			`/api/v2/templateversions/${templateVersionId}/unarchive`,
 		);
+		return response.data;
+	};
+
+	/**
+	 * Downloads a template version as a tar or zip archive
+	 * @param fileId The file ID from the template version's job
+	 * @param format Optional format: "zip" for zip archive, empty/undefined for tar
+	 * @returns Promise that resolves to a Blob containing the archive
+	 */
+	downloadTemplateVersion = async (
+		fileId: string,
+		format?: "zip",
+	): Promise<Blob> => {
+		const params = new URLSearchParams();
+		if (format) {
+			params.set("format", format);
+		}
+
+		const response = await this.axios.get(
+			`/api/v2/files/${fileId}?${params.toString()}`,
+			{
+				responseType: "blob",
+			},
+		);
+
 		return response.data;
 	};
 
@@ -1192,13 +1256,12 @@ class ApiMethods {
 			`/api/v2/workspaces/${workspaceId}/builds`,
 			data,
 		);
-
 		return response.data;
 	};
 
 	getTemplateVersionPresets = async (
 		templateVersionId: string,
-	): Promise<TypesGen.Preset[]> => {
+	): Promise<TypesGen.Preset[] | null> => {
 		const response = await this.axios.get<TypesGen.Preset[]>(
 			`/api/v2/templateversions/${templateVersionId}/presets`,
 		);
@@ -1216,6 +1279,7 @@ class ApiMethods {
 			template_version_id: templateVersionId,
 			log_level: logLevel,
 			rich_parameter_values: buildParameters,
+			reason: "dashboard",
 		});
 	};
 
@@ -1238,9 +1302,12 @@ class ApiMethods {
 
 	cancelWorkspaceBuild = async (
 		workspaceBuildId: TypesGen.WorkspaceBuild["id"],
+		params?: TypesGen.CancelWorkspaceBuildParams,
 	): Promise<TypesGen.Response> => {
 		const response = await this.axios.patch(
 			`/api/v2/workspacebuilds/${workspaceBuildId}/cancel`,
+			null,
+			{ params },
 		);
 
 		return response.data;
@@ -1763,6 +1830,14 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getConnectionLogs = async (
+		options: TypesGen.ConnectionLogsRequest,
+	): Promise<TypesGen.ConnectionLogResponse> => {
+		const url = getURLWithSearchParams("/api/v2/connectionlog", options);
+		const response = await this.axios.get(url);
+		return response.data;
+	};
+
 	getTemplateDAUs = async (
 		templateId: string,
 	): Promise<TypesGen.DAUsResponse> => {
@@ -1819,6 +1894,13 @@ class ApiMethods {
 		);
 
 		return response.data;
+	};
+
+	updateWorkspaceACL = async (
+		workspaceId: string,
+		data: TypesGen.UpdateWorkspaceACL,
+	): Promise<void> => {
+		await this.axios.patch(`/api/v2/workspaces/${workspaceId}/acl`, data);
 	};
 
 	getApplicationsHost = async (): Promise<TypesGen.AppHostResponse> => {
@@ -2108,6 +2190,38 @@ class ApiMethods {
 		await this.axios.delete(`/api/v2/licenses/${licenseId}`);
 	};
 
+	getDynamicParameters = async (
+		templateVersionId: string,
+		ownerId: string,
+		oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
+	) => {
+		const request: DynamicParametersRequest = {
+			id: 1,
+			owner_id: ownerId,
+			inputs: Object.fromEntries(
+				new Map(oldBuildParameters.map((param) => [param.name, param.value])),
+			),
+		};
+
+		const dynamicParametersResponse =
+			await this.getTemplateVersionDynamicParameters(
+				templateVersionId,
+				request,
+			);
+
+		return dynamicParametersResponse.parameters.map((p) => ({
+			...p,
+			description_plaintext: p.description || "",
+			default_value: p.default_value?.valid ? p.default_value.value : "",
+			options: p.options
+				? p.options.map((opt) => ({
+						...opt,
+						value: opt.value?.valid ? opt.value.value : "",
+					}))
+				: [],
+		}));
+	};
+
 	/** Steps to change the workspace version
 	 * - Get the latest template to access the latest active version
 	 * - Get the current build parameters
@@ -2121,11 +2235,23 @@ class ApiMethods {
 		workspace: TypesGen.Workspace,
 		templateVersionId: string,
 		newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
+		isDynamicParametersEnabled = false,
 	): Promise<TypesGen.WorkspaceBuild> => {
-		const [currentBuildParameters, templateParameters] = await Promise.all([
-			this.getWorkspaceBuildParameters(workspace.latest_build.id),
-			this.getTemplateVersionRichParameters(templateVersionId),
-		]);
+		const currentBuildParameters = await this.getWorkspaceBuildParameters(
+			workspace.latest_build.id,
+		);
+
+		let templateParameters: TypesGen.TemplateVersionParameter[] = [];
+		if (isDynamicParametersEnabled) {
+			templateParameters = await this.getDynamicParameters(
+				templateVersionId,
+				workspace.owner_id,
+				currentBuildParameters,
+			);
+		} else {
+			templateParameters =
+				await this.getTemplateVersionRichParameters(templateVersionId);
+		}
 
 		const missingParameters = getMissingParameters(
 			currentBuildParameters,
@@ -2151,11 +2277,13 @@ class ApiMethods {
 	 * - Update the build parameters and check if there are missed parameters for
 	 *   the newest version
 	 *   - If there are missing parameters raise an error
+	 * - Stop the workspace with the current template version if it is already running
 	 * - Create a build with the latest version and updated build parameters
 	 */
 	updateWorkspace = async (
 		workspace: TypesGen.Workspace,
 		newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
+		isDynamicParametersEnabled = false,
 	): Promise<TypesGen.WorkspaceBuild> => {
 		const [template, oldBuildParameters] = await Promise.all([
 			this.getTemplate(workspace.template_id),
@@ -2163,6 +2291,32 @@ class ApiMethods {
 		]);
 
 		const activeVersionId = template.active_version_id;
+
+		if (isDynamicParametersEnabled) {
+			try {
+				return await this.postWorkspaceBuild(workspace.id, {
+					transition: "start",
+					template_version_id: activeVersionId,
+					rich_parameter_values: newBuildParameters,
+				});
+			} catch (error) {
+				// If the build failed because of a parameter validation error, then we
+				// throw a special sentinel error that can be caught by the caller.
+				if (
+					isApiError(error) &&
+					error.response.status === 400 &&
+					error.response.data.validations &&
+					error.response.data.validations.length > 0
+				) {
+					throw new ParameterValidationError(
+						activeVersionId,
+						error.response.data.validations,
+					);
+				}
+				throw error;
+			}
+		}
+
 		const templateParameters =
 			await this.getTemplateVersionRichParameters(activeVersionId);
 
@@ -2174,6 +2328,19 @@ class ApiMethods {
 
 		if (missingParameters.length > 0) {
 			throw new MissingBuildParameters(missingParameters, activeVersionId);
+		}
+
+		// Stop the workspace if it is already running.
+		if (workspace.latest_build.status === "running") {
+			const stopBuild = await this.stopWorkspace(workspace.id);
+			const awaitedStopBuild = await this.waitForBuild(stopBuild);
+			// If the stop is canceled halfway through, we bail.
+			// This is the same behaviour as restartWorkspace.
+			if (awaitedStopBuild?.status === "canceled") {
+				return Promise.reject(
+					new Error("Workspace stop was canceled, not proceeding with update."),
+				);
+			}
 		}
 
 		return this.postWorkspaceBuild(workspace.id, {
@@ -2468,22 +2635,35 @@ class ApiMethods {
 	markAllInboxNotificationsAsRead = async () => {
 		await this.axios.put<void>("/api/v2/notifications/inbox/mark-all-as-read");
 	};
+}
 
-	createChat = async () => {
-		const res = await this.axios.post<TypesGen.Chat>("/api/v2/chats");
-		return res.data;
-	};
+// Experimental API methods call endpoints under the /api/experimental/ prefix.
+// These endpoints are not stable and may change or be removed at any time.
+//
+// All methods must be defined with arrow function syntax. See the docstring
+// above the ApiMethods class for a full explanation.
+class ExperimentalApiMethods {
+	constructor(protected readonly axios: AxiosInstance) {}
 
-	getChats = async () => {
-		const res = await this.axios.get<TypesGen.Chat[]>("/api/v2/chats");
-		return res.data;
-	};
+	getAITasksPrompts = async (
+		buildIds: TypesGen.WorkspaceBuild["id"][],
+	): Promise<TypesGen.AITasksPromptsResponse> => {
+		if (buildIds.length === 0) {
+			return {
+				prompts: {},
+			};
+		}
 
-	getChatMessages = async (chatId: string) => {
-		const res = await this.axios.get<TypesGen.ChatMessage[]>(
-			`/api/v2/chats/${chatId}/messages`,
+		const response = await this.axios.get<TypesGen.AITasksPromptsResponse>(
+			"/api/experimental/aitasks/prompts",
+			{
+				params: {
+					build_ids: buildIds.join(","),
+				},
+			},
 		);
-		return res.data;
+
+		return response.data;
 	};
 }
 

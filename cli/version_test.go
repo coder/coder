@@ -50,7 +50,6 @@ Full build of Coder, supports the server subcommand.
 			Expected: expectedText,
 		},
 	} {
-		tt := tt
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)

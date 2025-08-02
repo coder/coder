@@ -22,6 +22,7 @@ const ALLOWED_EXTERNAL_APP_PROTOCOLS = [
 	"cursor:",
 	"jetbrains-gateway:",
 	"jetbrains:",
+	"kiro:",
 ];
 
 type GetVSCodeHrefParams = {
@@ -79,7 +80,7 @@ export const openAppInNewWindow = (href: string) => {
 	window.open(href, "_blank", "width=900,height=600");
 };
 
-export type GetAppHrefParams = {
+type GetAppHrefParams = {
 	path: string;
 	host: string;
 	workspace: Workspace;

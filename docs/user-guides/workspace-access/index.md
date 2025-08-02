@@ -68,7 +68,7 @@ successful, you'll see the following message:
    ```console
    You should now be able to ssh into your workspace.
    For example, try running:
-   
+
    $ ssh coder.<workspaceName>
    ```
 
@@ -78,12 +78,12 @@ Your workspace is now accessible via `ssh coder.<workspace_name>`
 ## Visual Studio Code
 
 You can develop in your Coder workspace remotely with
-[VSCode](https://code.visualstudio.com/download). We support connecting with the
-desktop client and VSCode in the browser with [code-server](#code-server).
+[VS Code](https://code.visualstudio.com/download).
+We support connecting with the desktop client and VS Code in the browser with [code-server](#code-server).
 
 ![Demo](https://github.com/coder/vscode-coder/raw/main/demo.gif?raw=true)
 
-Read more details on [using VSCode in your workspace](./vscode.md).
+Read more details on [using VS Code in your workspace](./vscode.md).
 
 ## Cursor
 
@@ -110,15 +110,16 @@ IDEs are supported for remote development:
 - Rider
 - RubyMine
 - WebStorm
-- [JetBrains Fleet](./jetbrains/index.md#jetbrains-fleet)
+- [JetBrains Fleet](./jetbrains/fleet.md)
 
-Read our [docs on JetBrains Gateway](./jetbrains/index.md) for more information
+Read our [docs on JetBrains](./jetbrains/index.md) for more information
 on connecting your JetBrains IDEs.
 
 ## code-server
 
 [code-server](https://github.com/coder/code-server) is our supported method of
-running VS Code in the web browser. You can read more in our
+running VS Code in the web browser.
+Learn more about [what makes code-server different from VS Code web](./code-server.md) or visit the
 [documentation for code-server](https://coder.com/docs/code-server/latest).
 
 ![code-server in a workspace](../../images/code-server-ide.png)
@@ -140,7 +141,7 @@ Supported IDEs:
 Our [Module Registry](https://registry.coder.com/modules) also hosts a variety
 of tools for extending the capability of your workspace. If you have a request
 for a new IDE or tool, please file an issue in our
-[Modules repo](https://github.com/coder/modules/issues).
+[Modules repo](https://github.com/coder/registry/issues).
 
 ## Ports and Port forwarding
 

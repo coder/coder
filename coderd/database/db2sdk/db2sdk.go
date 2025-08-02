@@ -16,16 +16,19 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
+	previewtypes "github.com/coder/preview/types"
+
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
-	previewtypes "github.com/coder/preview/types"
 )
 
 // List is a helper function to reduce boilerplate when converting slices of
@@ -45,14 +48,6 @@ func ListLazy[F any, T any](convert func(F) T) func(list []F) []T {
 		}
 		return into
 	}
-}
-
-func Map[K comparable, F any, T any](params map[K]F, convert func(F) T) map[K]T {
-	into := make(map[K]T)
-	for k, item := range params {
-		into[k] = convert(item)
-	}
-	return into
 }
 
 type ExternalAuthMeta struct {
@@ -92,16 +87,59 @@ func WorkspaceBuildParameters(params []database.WorkspaceBuildParameter) []coder
 }
 
 func TemplateVersionParameters(params []database.TemplateVersionParameter) ([]codersdk.TemplateVersionParameter, error) {
-	out := make([]codersdk.TemplateVersionParameter, len(params))
-	var err error
-	for i, p := range params {
-		out[i], err = TemplateVersionParameter(p)
+	out := make([]codersdk.TemplateVersionParameter, 0, len(params))
+	for _, p := range params {
+		np, err := TemplateVersionParameter(p)
 		if err != nil {
 			return nil, xerrors.Errorf("convert template version parameter %q: %w", p.Name, err)
 		}
+		out = append(out, np)
 	}
 
 	return out, nil
+}
+
+func TemplateVersionParameterFromPreview(param previewtypes.Parameter) (codersdk.TemplateVersionParameter, error) {
+	descriptionPlaintext, err := render.PlaintextFromMarkdown(param.Description)
+	if err != nil {
+		return codersdk.TemplateVersionParameter{}, err
+	}
+
+	sdkParam := codersdk.TemplateVersionParameter{
+		Name:                 param.Name,
+		DisplayName:          param.DisplayName,
+		Description:          param.Description,
+		DescriptionPlaintext: descriptionPlaintext,
+		Type:                 string(param.Type),
+		FormType:             string(param.FormType),
+		Mutable:              param.Mutable,
+		DefaultValue:         param.DefaultValue.AsString(),
+		Icon:                 param.Icon,
+		Required:             param.Required,
+		Ephemeral:            param.Ephemeral,
+		Options:              List(param.Options, TemplateVersionParameterOptionFromPreview),
+		// Validation set after
+	}
+	if len(param.Validations) > 0 {
+		validation := param.Validations[0]
+		sdkParam.ValidationError = validation.Error
+		if validation.Monotonic != nil {
+			sdkParam.ValidationMonotonic = codersdk.ValidationMonotonicOrder(*validation.Monotonic)
+		}
+		if validation.Regex != nil {
+			sdkParam.ValidationRegex = *validation.Regex
+		}
+		if validation.Min != nil {
+			//nolint:gosec // No other choice
+			sdkParam.ValidationMin = ptr.Ref(int32(*validation.Min))
+		}
+		if validation.Max != nil {
+			//nolint:gosec // No other choice
+			sdkParam.ValidationMax = ptr.Ref(int32(*validation.Max))
+		}
+	}
+
+	return sdkParam, nil
 }
 
 func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk.TemplateVersionParameter, error) {
@@ -131,6 +169,7 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 		Description:          param.Description,
 		DescriptionPlaintext: descriptionPlaintext,
 		Type:                 param.Type,
+		FormType:             string(param.FormType),
 		Mutable:              param.Mutable,
 		DefaultValue:         param.DefaultValue,
 		Icon:                 param.Icon,
@@ -293,7 +332,8 @@ func templateVersionParameterOptions(rawOptions json.RawMessage) ([]codersdk.Tem
 	if err != nil {
 		return nil, err
 	}
-	var options []codersdk.TemplateVersionParameterOption
+
+	options := make([]codersdk.TemplateVersionParameterOption, 0)
 	for _, option := range protoOptions {
 		options = append(options, codersdk.TemplateVersionParameterOption{
 			Name:        option.Name,
@@ -303,6 +343,15 @@ func templateVersionParameterOptions(rawOptions json.RawMessage) ([]codersdk.Tem
 		})
 	}
 	return options, nil
+}
+
+func TemplateVersionParameterOptionFromPreview(option *previewtypes.ParameterOption) codersdk.TemplateVersionParameterOption {
+	return codersdk.TemplateVersionParameterOption{
+		Name:        option.Name,
+		Description: option.Description,
+		Value:       option.Value.AsString(),
+		Icon:        option.Icon,
+	}
 }
 
 func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
@@ -384,6 +433,7 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 
 	workspaceAgent := codersdk.WorkspaceAgent{
 		ID:                       dbAgent.ID,
+		ParentID:                 dbAgent.ParentID,
 		CreatedAt:                dbAgent.CreatedAt,
 		UpdatedAt:                dbAgent.UpdatedAt,
 		ResourceID:               dbAgent.ResourceID,
@@ -525,6 +575,7 @@ func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus
 				Threshold: dbApp.HealthcheckThreshold,
 			},
 			Health:   codersdk.WorkspaceAppHealth(dbApp.Health),
+			Group:    dbApp.DisplayGroup.String,
 			Hidden:   dbApp.Hidden,
 			OpenIn:   codersdk.WorkspaceAppOpenIn(dbApp.OpenIn),
 			Statuses: WorkspaceAppStatuses(statuses),
@@ -731,40 +782,55 @@ func TemplateRoleActions(role codersdk.TemplateRole) []policy.Action {
 	return []policy.Action{}
 }
 
-func AuditActionFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.AuditAction, error) {
+func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
+	switch role {
+	case codersdk.WorkspaceRoleAdmin:
+		return slice.Omit(
+			// Small note: This intentionally includes "create" because it's sort of
+			// double purposed as "can edit ACL". That's maybe a bit "incorrect", but
+			// it's what templates do already and we're copying that implementation.
+			rbac.ResourceWorkspace.AvailableActions(),
+			// Don't let anyone delete something they can't recreate.
+			policy.ActionDelete,
+		)
+	case codersdk.WorkspaceRoleUse:
+		return []policy.Action{
+			policy.ActionApplicationConnect,
+			policy.ActionRead,
+			policy.ActionSSH,
+			policy.ActionWorkspaceStart,
+			policy.ActionWorkspaceStop,
+		}
+	}
+	return []policy.Action{}
+}
+
+func ConnectionLogConnectionTypeFromAgentProtoConnectionType(typ agentproto.Connection_Type) (database.ConnectionType, error) {
+	switch typ {
+	case agentproto.Connection_SSH:
+		return database.ConnectionTypeSsh, nil
+	case agentproto.Connection_JETBRAINS:
+		return database.ConnectionTypeJetbrains, nil
+	case agentproto.Connection_VSCODE:
+		return database.ConnectionTypeVscode, nil
+	case agentproto.Connection_RECONNECTING_PTY:
+		return database.ConnectionTypeReconnectingPty, nil
+	default:
+		// Also Connection_TYPE_UNSPECIFIED, no mapping.
+		return "", xerrors.Errorf("unknown agent connection type %q", typ)
+	}
+}
+
+func ConnectionLogStatusFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.ConnectionStatus, error) {
 	switch action {
 	case agentproto.Connection_CONNECT:
-		return database.AuditActionConnect, nil
+		return database.ConnectionStatusConnected, nil
 	case agentproto.Connection_DISCONNECT:
-		return database.AuditActionDisconnect, nil
+		return database.ConnectionStatusDisconnected, nil
 	default:
 		// Also Connection_ACTION_UNSPECIFIED, no mapping.
 		return "", xerrors.Errorf("unknown agent connection action %q", action)
 	}
-}
-
-func AgentProtoConnectionActionToAuditAction(action database.AuditAction) (agentproto.Connection_Action, error) {
-	switch action {
-	case database.AuditActionConnect:
-		return agentproto.Connection_CONNECT, nil
-	case database.AuditActionDisconnect:
-		return agentproto.Connection_DISCONNECT, nil
-	default:
-		return agentproto.Connection_ACTION_UNSPECIFIED, xerrors.Errorf("unknown agent connection action %q", action)
-	}
-}
-
-func Chat(chat database.Chat) codersdk.Chat {
-	return codersdk.Chat{
-		ID:        chat.ID,
-		Title:     chat.Title,
-		CreatedAt: chat.CreatedAt,
-		UpdatedAt: chat.UpdatedAt,
-	}
-}
-
-func Chats(chats []database.Chat) []codersdk.Chat {
-	return List(chats, Chat)
 }
 
 func PreviewParameter(param previewtypes.Parameter) codersdk.PreviewParameter {
@@ -779,6 +845,7 @@ func PreviewParameter(param previewtypes.Parameter) codersdk.PreviewParameter {
 				Placeholder: param.Styling.Placeholder,
 				Disabled:    param.Styling.Disabled,
 				Label:       param.Styling.Label,
+				MaskInput:   param.Styling.MaskInput,
 			},
 			Mutable:      param.Mutable,
 			DefaultValue: PreviewHCLString(param.DefaultValue),

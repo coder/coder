@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
@@ -136,7 +137,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task."
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.WorkspacesResponse
@@ -145,7 +146,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	page, ok := parsePagination(rw, r)
+	page, ok := ParsePagination(rw, r)
 	if !ok {
 		return
 	}
@@ -700,7 +701,7 @@ func createWorkspace(
 			return xerrors.Errorf("get workspace by ID: %w", err)
 		}
 
-		builder := wsbuilder.New(workspace, database.WorkspaceTransitionStart).
+		builder := wsbuilder.New(workspace, database.WorkspaceTransitionStart, *api.BuildUsageChecker.Load()).
 			Reason(database.BuildReasonInitiator).
 			Initiator(initiatorID).
 			ActiveVersion().
@@ -717,13 +718,10 @@ func createWorkspace(
 			builder = builder.MarkPrebuiltWorkspaceClaim()
 		}
 
-		if req.EnableDynamicParameters && api.Experiments.Enabled(codersdk.ExperimentDynamicParameters) {
-			builder = builder.DynamicParameters(req.EnableDynamicParameters)
-		}
-
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
 			ctx,
 			db,
+			api.FileCache,
 			func(action policy.Action, object rbac.Objecter) bool {
 				return api.Authorize(r, action, object)
 			},
@@ -731,21 +729,11 @@ func createWorkspace(
 		)
 		return err
 	}, nil)
-	var bldErr wsbuilder.BuildError
-	if xerrors.As(err, &bldErr) {
-		httpapi.Write(ctx, rw, bldErr.Status, codersdk.Response{
-			Message: bldErr.Message,
-			Detail:  bldErr.Error(),
-		})
-		return
-	}
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error creating workspace.",
-			Detail:  err.Error(),
-		})
+		httperror.WriteWorkspaceBuildError(ctx, rw, err)
 		return
 	}
+
 	err = provisionerjobs.PostJob(api.Pubsub, *provisionerJob)
 	if err != nil {
 		// Client probably doesn't care about this error, so just log it.
@@ -2053,6 +2041,104 @@ func (api *API) workspaceTimings(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, timings)
 }
 
+// @Summary Update workspace ACL
+// @ID update-workspace-acl
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param request body codersdk.UpdateWorkspaceACL true "Update workspace ACL request"
+// @Success 204
+// @Router /workspaces/{workspace}/acl [patch]
+func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		workspace         = httpmw.WorkspaceParam(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.WorkspaceTable](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: workspace.OrganizationID,
+		})
+	)
+	defer commitAudit()
+	aReq.Old = workspace.WorkspaceTable()
+
+	var req codersdk.UpdateWorkspaceACL
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	validErrs := validateWorkspaceACLPerms(ctx, api.Database, req.UserRoles, "user_roles")
+	validErrs = append(validErrs, validateWorkspaceACLPerms(
+		ctx,
+		api.Database,
+		req.GroupRoles,
+		"group_roles",
+	)...)
+
+	if len(validErrs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid request to update template metadata!",
+			Validations: validErrs,
+		})
+		return
+	}
+
+	err := api.Database.InTx(func(tx database.Store) error {
+		var err error
+		workspace, err = tx.GetWorkspaceByID(ctx, workspace.ID)
+		if err != nil {
+			return xerrors.Errorf("get template by ID: %w", err)
+		}
+
+		for id, role := range req.UserRoles {
+			if role == codersdk.WorkspaceRoleDeleted {
+				delete(workspace.UserACL, id)
+				continue
+			}
+			workspace.UserACL[id] = database.WorkspaceACLEntry{
+				Permissions: db2sdk.WorkspaceRoleActions(role),
+			}
+		}
+
+		for id, role := range req.GroupRoles {
+			if role == codersdk.WorkspaceRoleDeleted {
+				delete(workspace.GroupACL, id)
+				continue
+			}
+			workspace.GroupACL[id] = database.WorkspaceACLEntry{
+				Permissions: db2sdk.WorkspaceRoleActions(role),
+			}
+		}
+
+		err = tx.UpdateWorkspaceACLByID(ctx, database.UpdateWorkspaceACLByIDParams{
+			ID:       workspace.ID,
+			UserACL:  workspace.UserACL,
+			GroupACL: workspace.GroupACL,
+		})
+		if err != nil {
+			return xerrors.Errorf("update workspace ACL by ID: %w", err)
+		}
+		workspace, err = tx.GetWorkspaceByID(ctx, workspace.ID)
+		if err != nil {
+			return xerrors.Errorf("get updated workspace by ID: %w", err)
+		}
+		return nil
+	}, nil)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	aReq.New = workspace.WorkspaceTable()
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 type workspaceData struct {
 	templates    []database.Template
 	builds       []codersdk.WorkspaceBuild
@@ -2243,6 +2329,7 @@ func convertWorkspace(
 	if latestAppStatus.ID == uuid.Nil {
 		appStatus = nil
 	}
+
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
 		CreatedAt:                            workspace.CreatedAt,
@@ -2277,6 +2364,7 @@ func convertWorkspace(
 		AllowRenames:     allowRenames,
 		Favorite:         requesterFavorite,
 		NextStartAt:      nextStartAt,
+		IsPrebuild:       workspace.IsPrebuild(),
 	}, nil
 }
 
@@ -2389,3 +2477,64 @@ func (api *API) publishWorkspaceAgentLogsUpdate(ctx context.Context, workspaceAg
 		api.Logger.Warn(ctx, "failed to publish workspace agent logs update", slog.F("workspace_agent_id", workspaceAgentID), slog.Error(err))
 	}
 }
+
+func validateWorkspaceACLPerms(ctx context.Context, db database.Store, perms map[string]codersdk.WorkspaceRole, field string) []codersdk.ValidationError {
+	// nolint:gocritic // Validate requires full read access to users and groups
+	ctx = dbauthz.AsSystemRestricted(ctx)
+	var validErrs []codersdk.ValidationError
+	for idStr, role := range perms {
+		if err := validateWorkspaceRole(role); err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: err.Error()})
+			continue
+		}
+
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: idStr + "is not a valid UUID."})
+			continue
+		}
+
+		switch field {
+		case "user_roles":
+			// TODO(lilac): put this back after Kirby button shenanigans are over
+			// This could get slow if we get a ton of user perm updates.
+			// _, err = db.GetUserByID(ctx, id)
+			// if err != nil {
+			// 	validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: fmt.Sprintf("Failed to find resource with ID %q: %v", idStr, err.Error())})
+			// 	continue
+			// }
+		case "group_roles":
+			// This could get slow if we get a ton of group perm updates.
+			_, err = db.GetGroupByID(ctx, id)
+			if err != nil {
+				validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: fmt.Sprintf("Failed to find resource with ID %q: %v", idStr, err.Error())})
+				continue
+			}
+		default:
+			validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: "invalid field"})
+		}
+	}
+
+	return validErrs
+}
+
+func validateWorkspaceRole(role codersdk.WorkspaceRole) error {
+	actions := db2sdk.WorkspaceRoleActions(role)
+	if len(actions) == 0 && role != codersdk.WorkspaceRoleDeleted {
+		return xerrors.Errorf("role %q is not a valid Workspace role", role)
+	}
+
+	return nil
+}
+
+// TODO: This will go here
+// func convertToWorkspaceRole(actions []policy.Action) codersdk.TemplateRole {
+// 	switch {
+// 	case len(actions) == 2 && slice.SameElements(actions, []policy.Action{policy.ActionUse, policy.ActionRead}):
+// 		return codersdk.TemplateRoleUse
+// 	case len(actions) == 1 && actions[0] == policy.WildcardSymbol:
+// 		return codersdk.TemplateRoleAdmin
+// 	}
+
+// 	return ""
+// }

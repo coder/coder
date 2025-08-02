@@ -122,6 +122,15 @@ SET
 WHERE
 	job_id = $1;
 
+-- name: UpdateTemplateVersionAITaskByJobID :exec
+UPDATE
+	template_versions
+SET
+	has_ai_task = $2,
+	updated_at = $3
+WHERE
+	job_id = $1;
+
 -- name: GetPreviousTemplateVersion :one
 SELECT
 	*
@@ -225,3 +234,7 @@ FROM
 WHERE
 	template_versions.id IN (archived_versions.id)
 RETURNING template_versions.id;
+
+-- name: HasTemplateVersionsWithAITask :one
+-- Determines if the template versions table has any rows with has_ai_task = TRUE.
+SELECT EXISTS (SELECT 1 FROM template_versions WHERE has_ai_task = TRUE);

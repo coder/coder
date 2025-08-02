@@ -12,7 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
@@ -46,7 +46,6 @@ func TestInsertCustomRoles(t *testing.T) {
 	merge := func(u ...interface{}) rbac.Roles {
 		all := make([]rbac.Role, 0)
 		for _, v := range u {
-			v := v
 			switch t := v.(type) {
 			case rbac.Role:
 				all = append(all, t)
@@ -201,11 +200,9 @@ func TestInsertCustomRoles(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			db := dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
 			rec := &coderdtest.RecordingAuthorizer{
 				Wrapped: rbac.NewAuthorizer(prometheus.NewRegistry()),
 			}

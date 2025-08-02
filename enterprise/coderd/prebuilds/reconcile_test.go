@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -12,10 +14,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 
 	"github.com/google/uuid"
@@ -32,7 +37,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/testutil"
@@ -43,7 +47,7 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 	t.Parallel()
 
 	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
+		t.Skip("dbmem times out on nesting transactions, postgres ignores the inner ones")
 	}
 
 	clock := quartz.NewMock(t)
@@ -53,7 +57,8 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 	}
 	logger := testutil.Logger(t)
-	controller := prebuilds.NewStoreReconciler(db, ps, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	controller := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 
 	// given a template version with no presets
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -88,7 +93,7 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 	t.Parallel()
 
 	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
+		t.Skip("dbmem times out on nesting transactions, postgres ignores the inner ones")
 	}
 
 	clock := quartz.NewMock(t)
@@ -98,7 +103,8 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 	}
 	logger := testutil.Logger(t)
-	controller := prebuilds.NewStoreReconciler(db, ps, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	controller := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 
 	// given there are presets, but no prebuilds
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -308,7 +314,6 @@ func TestPrebuildReconciliation(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		tc := tc // capture for parallel
 		for _, templateVersionActive := range tc.templateVersionActive {
 			for _, prebuildLatestTransition := range tc.prebuildLatestTransitions {
 				for _, prebuildJobStatus := range tc.prebuildJobStatuses {
@@ -367,6 +372,8 @@ func TestPrebuildReconciliation(t *testing.T) {
 									templateVersionID,
 								)
 
+								setupTestDBPrebuildAntagonists(t, db, pubSub, org)
+
 								if !templateVersionActive {
 									// Create a new template version and mark it as active
 									// This marks the template version that we care about as inactive
@@ -376,7 +383,8 @@ func TestPrebuildReconciliation(t *testing.T) {
 								if useBrokenPubsub {
 									pubSub = &brokenPublisher{Pubsub: pubSub}
 								}
-								controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+								cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+								controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 
 								// Run the reconciliation multiple times to ensure idempotency
 								// 8 was arbitrary, but large enough to reasonably trust the result
@@ -453,7 +461,8 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -521,6 +530,152 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 	}
 }
 
+func TestPrebuildScheduling(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	templateDeleted := false
+
+	// The test includes 2 presets, each with 2 schedules.
+	// It checks that the number of created prebuilds match expectations for various provided times,
+	// based on the corresponding schedules.
+	testCases := []struct {
+		name string
+		// now specifies the current time.
+		now time.Time
+		// expected prebuild counts for preset1 and preset2, respectively.
+		expectedPrebuildCounts []int
+	}{
+		{
+			name:                   "Before the 1st schedule",
+			now:                    mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 01:00:00 UTC"),
+			expectedPrebuildCounts: []int{1, 1},
+		},
+		{
+			name:                   "1st schedule",
+			now:                    mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 03:00:00 UTC"),
+			expectedPrebuildCounts: []int{2, 1},
+		},
+		{
+			name:                   "2nd schedule",
+			now:                    mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 07:00:00 UTC"),
+			expectedPrebuildCounts: []int{3, 1},
+		},
+		{
+			name:                   "3rd schedule",
+			now:                    mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 11:00:00 UTC"),
+			expectedPrebuildCounts: []int{1, 4},
+		},
+		{
+			name:                   "4th schedule",
+			now:                    mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 15:00:00 UTC"),
+			expectedPrebuildCounts: []int{1, 5},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			clock := quartz.NewMock(t)
+			clock.Set(tc.now)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			cfg := codersdk.PrebuildsConfig{}
+			logger := slogtest.Make(
+				t, &slogtest.Options{IgnoreErrors: true},
+			).Leveled(slog.LevelDebug)
+			db, pubSub := dbtestutil.NewDB(t)
+			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
+
+			ownerID := uuid.New()
+			dbgen.User(t, db, database.User{
+				ID: ownerID,
+			})
+			org, template := setupTestDBTemplate(t, db, ownerID, templateDeleted)
+			templateVersionID := setupTestDBTemplateVersion(
+				ctx,
+				t,
+				clock,
+				db,
+				pubSub,
+				org.ID,
+				ownerID,
+				template.ID,
+			)
+			preset1 := setupTestDBPresetWithScheduling(
+				t,
+				db,
+				templateVersionID,
+				1,
+				uuid.New().String(),
+				"UTC",
+			)
+			preset2 := setupTestDBPresetWithScheduling(
+				t,
+				db,
+				templateVersionID,
+				1,
+				uuid.New().String(),
+				"UTC",
+			)
+
+			dbgen.PresetPrebuildSchedule(t, db, database.InsertPresetPrebuildScheduleParams{
+				PresetID:         preset1.ID,
+				CronExpression:   "* 2-4 * * 1-5",
+				DesiredInstances: 2,
+			})
+			dbgen.PresetPrebuildSchedule(t, db, database.InsertPresetPrebuildScheduleParams{
+				PresetID:         preset1.ID,
+				CronExpression:   "* 6-8 * * 1-5",
+				DesiredInstances: 3,
+			})
+			dbgen.PresetPrebuildSchedule(t, db, database.InsertPresetPrebuildScheduleParams{
+				PresetID:         preset2.ID,
+				CronExpression:   "* 10-12 * * 1-5",
+				DesiredInstances: 4,
+			})
+			dbgen.PresetPrebuildSchedule(t, db, database.InsertPresetPrebuildScheduleParams{
+				PresetID:         preset2.ID,
+				CronExpression:   "* 14-16 * * 1-5",
+				DesiredInstances: 5,
+			})
+
+			err := controller.ReconcileAll(ctx)
+			require.NoError(t, err)
+
+			// get workspace builds
+			workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+			require.NoError(t, err)
+			workspaceIDs := make([]uuid.UUID, 0, len(workspaces))
+			for _, workspace := range workspaces {
+				workspaceIDs = append(workspaceIDs, workspace.ID)
+			}
+			workspaceBuilds, err := db.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, workspaceIDs)
+			require.NoError(t, err)
+
+			// calculate number of workspace builds per preset
+			var (
+				preset1PrebuildCount int
+				preset2PrebuildCount int
+			)
+			for _, workspaceBuild := range workspaceBuilds {
+				if preset1.ID == workspaceBuild.TemplateVersionPresetID.UUID {
+					preset1PrebuildCount++
+				}
+				if preset2.ID == workspaceBuild.TemplateVersionPresetID.UUID {
+					preset2PrebuildCount++
+				}
+			}
+
+			require.Equal(t, tc.expectedPrebuildCounts[0], preset1PrebuildCount)
+			require.Equal(t, tc.expectedPrebuildCounts[1], preset2PrebuildCount)
+		})
+	}
+}
+
 func TestInvalidPreset(t *testing.T) {
 	t.Parallel()
 
@@ -537,7 +692,8 @@ func TestInvalidPreset(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -601,7 +757,8 @@ func TestDeletionOfPrebuiltWorkspaceWithInvalidPreset(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -696,12 +853,9 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			).Leveled(slog.LevelDebug)
 			db, pubSub := dbtestutil.NewDB(t)
 			fakeEnqueuer := newFakeEnqueuer()
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, prometheus.NewRegistry(), fakeEnqueuer)
-
-			// Template admin to receive a notification.
-			templateAdmin := dbgen.User(t, db, database.User{
-				RBACRoles: []string{codersdk.RoleTemplateAdmin},
-			})
+			registry := prometheus.NewRegistry()
+			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr())
 
 			// Set up test environment with a template, version, and preset.
 			ownerID := uuid.New()
@@ -732,6 +886,17 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			workspaceCount := len(workspaces)
 			require.Equal(t, 1, workspaceCount)
 
+			// Verify initial state: metric is not set - meaning preset is not hard limited.
+			require.NoError(t, controller.ForceMetricsUpdate(ctx))
+			mf, err := registry.Gather()
+			require.NoError(t, err)
+			metric := findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
+				"template_name": template.Name,
+				"preset_name":   preset.Name,
+				"org_name":      org.Name,
+			})
+			require.Nil(t, metric)
+
 			// We simulate a failed prebuild in the test; Consequently, the backoff mechanism is triggered when ReconcileAll is called.
 			// Even though ReconciliationBackoffInterval is set to zero, we still need to advance the clock by at least one nanosecond.
 			clock.Advance(time.Nanosecond).MustWait(ctx)
@@ -755,6 +920,16 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 				// When hard limit is not reached, a new workspace should be created.
 				require.Equal(t, 2, len(workspaces))
 				require.Equal(t, database.PrebuildStatusHealthy, updatedPreset.PrebuildStatus)
+
+				// When hard limit is not reached, metric is not set.
+				mf, err = registry.Gather()
+				require.NoError(t, err)
+				metric = findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
+					"template_name": template.Name,
+					"preset_name":   preset.Name,
+					"org_name":      org.Name,
+				})
+				require.Nil(t, metric)
 				return
 			}
 
@@ -762,19 +937,233 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			require.Equal(t, 1, len(workspaces))
 			require.Equal(t, database.PrebuildStatusHardLimited, updatedPreset.PrebuildStatus)
 
-			// When hard limit is reached, a notification should be sent.
-			matching := fakeEnqueuer.Sent(func(notification *notificationstest.FakeNotification) bool {
-				if !assert.Equal(t, notifications.PrebuildFailureLimitReached, notification.TemplateID, "unexpected template") {
-					return false
-				}
-
-				if !assert.Equal(t, templateAdmin.ID, notification.UserID, "unexpected receiver") {
-					return false
-				}
-
-				return true
+			// When hard limit is reached, metric is set to 1.
+			mf, err = registry.Gather()
+			require.NoError(t, err)
+			metric = findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
+				"template_name": template.Name,
+				"preset_name":   preset.Name,
+				"org_name":      org.Name,
 			})
-			require.Len(t, matching, 1)
+			require.NotNil(t, metric)
+			require.NotNil(t, metric.GetGauge())
+			require.EqualValues(t, 1, metric.GetGauge().GetValue())
+		})
+	}
+}
+
+func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	// Test cases verify the behavior of prebuild creation depending on configured failure limits.
+	testCases := []struct {
+		name                     string
+		hardLimit                int64
+		createNewTemplateVersion bool
+		deleteTemplate           bool
+	}{
+		{
+			// hard limit is hit - but we allow deletion of prebuilt workspace because it's outdated (new template version was created)
+			name:                     "new template version is created",
+			hardLimit:                1,
+			createNewTemplateVersion: true,
+			deleteTemplate:           false,
+		},
+		{
+			// hard limit is hit - but we allow deletion of prebuilt workspace because template is deleted
+			name:                     "template is deleted",
+			hardLimit:                1,
+			createNewTemplateVersion: false,
+			deleteTemplate:           true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			clock := quartz.NewMock(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			cfg := codersdk.PrebuildsConfig{
+				FailureHardLimit:              serpent.Int64(tc.hardLimit),
+				ReconciliationBackoffInterval: 0,
+			}
+			logger := slogtest.Make(
+				t, &slogtest.Options{IgnoreErrors: true},
+			).Leveled(slog.LevelDebug)
+			db, pubSub := dbtestutil.NewDB(t)
+			fakeEnqueuer := newFakeEnqueuer()
+			registry := prometheus.NewRegistry()
+			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr())
+
+			// Set up test environment with a template, version, and preset.
+			ownerID := uuid.New()
+			dbgen.User(t, db, database.User{
+				ID: ownerID,
+			})
+			org, template := setupTestDBTemplate(t, db, ownerID, false)
+			templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
+			preset := setupTestDBPreset(t, db, templateVersionID, 2, uuid.New().String())
+
+			// Create a successful prebuilt workspace.
+			successfulWorkspace, _ := setupTestDBPrebuild(
+				t,
+				clock,
+				db,
+				pubSub,
+				database.WorkspaceTransitionStart,
+				database.ProvisionerJobStatusSucceeded,
+				org.ID,
+				preset,
+				template.ID,
+				templateVersionID,
+			)
+
+			// Make sure that prebuilt workspaces created in such order: [successful, failed].
+			clock.Advance(time.Second).MustWait(ctx)
+
+			// Create a failed prebuilt workspace that counts toward the hard failure limit.
+			setupTestDBPrebuild(
+				t,
+				clock,
+				db,
+				pubSub,
+				database.WorkspaceTransitionStart,
+				database.ProvisionerJobStatusFailed,
+				org.ID,
+				preset,
+				template.ID,
+				templateVersionID,
+			)
+
+			getJobStatusMap := func(workspaces []database.WorkspaceTable) map[database.ProvisionerJobStatus]int {
+				jobStatusMap := make(map[database.ProvisionerJobStatus]int)
+				for _, workspace := range workspaces {
+					workspaceBuilds, err := db.GetWorkspaceBuildsByWorkspaceID(ctx, database.GetWorkspaceBuildsByWorkspaceIDParams{
+						WorkspaceID: workspace.ID,
+					})
+					require.NoError(t, err)
+
+					for _, workspaceBuild := range workspaceBuilds {
+						job, err := db.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
+						require.NoError(t, err)
+						jobStatusMap[job.JobStatus]++
+					}
+				}
+				return jobStatusMap
+			}
+
+			// Verify initial state: two workspaces exist, one successful, one failed.
+			workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+			require.NoError(t, err)
+			require.Equal(t, 2, len(workspaces))
+			jobStatusMap := getJobStatusMap(workspaces)
+			require.Len(t, jobStatusMap, 2)
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusSucceeded])
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusFailed])
+
+			// Verify initial state: metric is not set - meaning preset is not hard limited.
+			require.NoError(t, controller.ForceMetricsUpdate(ctx))
+			mf, err := registry.Gather()
+			require.NoError(t, err)
+			metric := findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
+				"template_name": template.Name,
+				"preset_name":   preset.Name,
+				"org_name":      org.Name,
+			})
+			require.Nil(t, metric)
+
+			// We simulate a failed prebuild in the test; Consequently, the backoff mechanism is triggered when ReconcileAll is called.
+			// Even though ReconciliationBackoffInterval is set to zero, we still need to advance the clock by at least one nanosecond.
+			clock.Advance(time.Nanosecond).MustWait(ctx)
+
+			// Trigger reconciliation to attempt creating a new prebuild.
+			// The outcome depends on whether the hard limit has been reached.
+			require.NoError(t, controller.ReconcileAll(ctx))
+
+			// These two additional calls to ReconcileAll should not trigger any notifications.
+			// A notification is only sent once.
+			require.NoError(t, controller.ReconcileAll(ctx))
+			require.NoError(t, controller.ReconcileAll(ctx))
+
+			// Verify the final state after reconciliation.
+			// When hard limit is reached, no new workspace should be created.
+			workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+			require.NoError(t, err)
+			require.Equal(t, 2, len(workspaces))
+			jobStatusMap = getJobStatusMap(workspaces)
+			require.Len(t, jobStatusMap, 2)
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusSucceeded])
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusFailed])
+
+			updatedPreset, err := db.GetPresetByID(ctx, preset.ID)
+			require.NoError(t, err)
+			require.Equal(t, database.PrebuildStatusHardLimited, updatedPreset.PrebuildStatus)
+
+			// When hard limit is reached, metric is set to 1.
+			mf, err = registry.Gather()
+			require.NoError(t, err)
+			metric = findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
+				"template_name": template.Name,
+				"preset_name":   preset.Name,
+				"org_name":      org.Name,
+			})
+			require.NotNil(t, metric)
+			require.NotNil(t, metric.GetGauge())
+			require.EqualValues(t, 1, metric.GetGauge().GetValue())
+
+			if tc.createNewTemplateVersion {
+				// Create a new template version and mark it as active
+				// This marks the template version that we care about as inactive
+				setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
+			}
+
+			if tc.deleteTemplate {
+				require.NoError(t, db.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
+					ID:        template.ID,
+					Deleted:   true,
+					UpdatedAt: dbtime.Now(),
+				}))
+			}
+
+			// Trigger reconciliation to make sure that successful, but outdated prebuilt workspace will be deleted.
+			require.NoError(t, controller.ReconcileAll(ctx))
+
+			workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+			require.NoError(t, err)
+			require.Equal(t, 2, len(workspaces))
+
+			jobStatusMap = getJobStatusMap(workspaces)
+			require.Len(t, jobStatusMap, 3)
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusSucceeded])
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusFailed])
+			// Pending job should be the job that deletes successful, but outdated prebuilt workspace.
+			// Prebuilt workspace MUST be deleted, despite the fact that preset is marked as hard limited.
+			require.Equal(t, 1, jobStatusMap[database.ProvisionerJobStatusPending])
+
+			workspaceBuilds, err := db.GetWorkspaceBuildsByWorkspaceID(ctx, database.GetWorkspaceBuildsByWorkspaceIDParams{
+				WorkspaceID: successfulWorkspace.ID,
+			})
+			require.NoError(t, err)
+			require.Equal(t, 2, len(workspaceBuilds))
+			// Make sure that successfully created, but outdated prebuilt workspace was scheduled for deletion.
+			require.Equal(t, database.WorkspaceTransitionDelete, workspaceBuilds[0].Transition)
+			require.Equal(t, database.WorkspaceTransitionStart, workspaceBuilds[1].Transition)
+
+			// Metric is deleted after preset became outdated.
+			mf, err = registry.Gather()
+			require.NoError(t, err)
+			metric = findMetric(mf, prebuilds.MetricPresetHardLimitedGauge, map[string]string{
+				"template_name": template.Name,
+				"preset_name":   preset.Name,
+				"org_name":      org.Name,
+			})
+			require.Nil(t, metric)
 		})
 	}
 }
@@ -803,7 +1192,8 @@ func TestRunLoop(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
-	reconciler := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	reconciler := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -869,7 +1259,7 @@ func TestRunLoop(t *testing.T) {
 	trap := clock.Trap().NewTicker()
 	go reconciler.Run(ctx)
 	// wait until ticker is initialized
-	trap.MustWait(ctx).Release()
+	trap.MustWait(ctx).MustRelease(ctx)
 	// start 1st iteration of ReconciliationLoop
 	// NOTE: at this point MustWait waits that iteration is started (ReconcileAll is called), but it doesn't wait until it completes
 	clock.Advance(cfg.ReconciliationInterval.Value()).MustWait(ctx)
@@ -933,7 +1323,8 @@ func TestFailedBuildBackoff(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, ps := dbtestutil.NewDB(t)
-	reconciler := prebuilds.NewStoreReconciler(db, ps, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
 
 	// Given: an active template version with presets and prebuilds configured.
 	const desiredInstances = 2
@@ -958,17 +1349,18 @@ func TestFailedBuildBackoff(t *testing.T) {
 	state := presetState.CalculateState()
 	actions, err := reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
+	require.Equal(t, 1, len(actions))
 
 	// Then: the backoff time is in the future, no prebuilds are running, and we won't create any new prebuilds.
 	require.EqualValues(t, 0, state.Actual)
-	require.EqualValues(t, 0, actions.Create)
+	require.EqualValues(t, 0, actions[0].Create)
 	require.EqualValues(t, desiredInstances, state.Desired)
-	require.True(t, clock.Now().Before(actions.BackoffUntil))
+	require.True(t, clock.Now().Before(actions[0].BackoffUntil))
 
 	// Then: the backoff time is as expected based on the number of failed builds.
 	require.NotNil(t, presetState.Backoff)
 	require.EqualValues(t, desiredInstances, presetState.Backoff.NumFailed)
-	require.EqualValues(t, backoffInterval*time.Duration(presetState.Backoff.NumFailed), clock.Until(actions.BackoffUntil).Truncate(backoffInterval))
+	require.EqualValues(t, backoffInterval*time.Duration(presetState.Backoff.NumFailed), clock.Until(actions[0].BackoffUntil).Truncate(backoffInterval))
 
 	// When: advancing to the next tick which is still within the backoff time.
 	clock.Advance(cfg.ReconciliationInterval.Value())
@@ -981,13 +1373,15 @@ func TestFailedBuildBackoff(t *testing.T) {
 	newState := presetState.CalculateState()
 	newActions, err := reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
+	require.Equal(t, 1, len(newActions))
+
 	require.EqualValues(t, 0, newState.Actual)
-	require.EqualValues(t, 0, newActions.Create)
+	require.EqualValues(t, 0, newActions[0].Create)
 	require.EqualValues(t, desiredInstances, newState.Desired)
-	require.EqualValues(t, actions.BackoffUntil, newActions.BackoffUntil)
+	require.EqualValues(t, actions[0].BackoffUntil, newActions[0].BackoffUntil)
 
 	// When: advancing beyond the backoff time.
-	clock.Advance(clock.Until(actions.BackoffUntil.Add(time.Second)))
+	clock.Advance(clock.Until(actions[0].BackoffUntil.Add(time.Second)))
 
 	// Then: we will attempt to create a new prebuild.
 	snapshot, err = reconciler.SnapshotState(ctx, db)
@@ -997,9 +1391,11 @@ func TestFailedBuildBackoff(t *testing.T) {
 	state = presetState.CalculateState()
 	actions, err = reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
+	require.Equal(t, 1, len(actions))
+
 	require.EqualValues(t, 0, state.Actual)
 	require.EqualValues(t, desiredInstances, state.Desired)
-	require.EqualValues(t, desiredInstances, actions.Create)
+	require.EqualValues(t, desiredInstances, actions[0].Create)
 
 	// When: the desired number of new prebuild are provisioned, but one fails again.
 	for i := 0; i < desiredInstances; i++ {
@@ -1018,11 +1414,13 @@ func TestFailedBuildBackoff(t *testing.T) {
 	state = presetState.CalculateState()
 	actions, err = reconciler.CalculateActions(ctx, *presetState)
 	require.NoError(t, err)
+	require.Equal(t, 1, len(actions))
+
 	require.EqualValues(t, 1, state.Actual)
 	require.EqualValues(t, desiredInstances, state.Desired)
-	require.EqualValues(t, 0, actions.Create)
+	require.EqualValues(t, 0, actions[0].Create)
 	require.EqualValues(t, 3, presetState.Backoff.NumFailed)
-	require.EqualValues(t, backoffInterval*time.Duration(presetState.Backoff.NumFailed), clock.Until(actions.BackoffUntil).Truncate(backoffInterval))
+	require.EqualValues(t, backoffInterval*time.Duration(presetState.Backoff.NumFailed), clock.Until(actions[0].BackoffUntil).Truncate(backoffInterval))
 }
 
 func TestReconciliationLock(t *testing.T) {
@@ -1042,14 +1440,17 @@ func TestReconciliationLock(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 			reconciler := prebuilds.NewStoreReconciler(
 				db,
 				ps,
+				cache,
 				codersdk.PrebuildsConfig{},
 				slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug),
 				quartz.NewMock(t),
 				prometheus.NewRegistry(),
-				newNoopEnqueuer())
+				newNoopEnqueuer(),
+				newNoopUsageCheckerPtr())
 			reconciler.WithReconciliationLock(ctx, logger, func(_ context.Context, _ database.Store) error {
 				lockObtained := mutex.TryLock()
 				// As long as the postgres lock is held, this mutex should always be unlocked when we get here.
@@ -1082,7 +1483,8 @@ func TestTrackResourceReplacement(t *testing.T) {
 
 	fakeEnqueuer := newFakeEnqueuer()
 	registry := prometheus.NewRegistry()
-	reconciler := prebuilds.NewStoreReconciler(db, ps, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer)
+	cache := files.New(registry, &coderdtest.FakeAuthorizer{})
+	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr())
 
 	// Given: a template admin to receive a notification.
 	templateAdmin := dbgen.User(t, db, database.User{
@@ -1154,12 +1556,258 @@ func TestTrackResourceReplacement(t *testing.T) {
 	require.EqualValues(t, 1, metric.GetCounter().GetValue())
 }
 
+func TestExpiredPrebuildsMultipleActions(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	testCases := []struct {
+		name       string
+		running    int
+		desired    int32
+		expired    int
+		extraneous int
+		created    int
+	}{
+		// With 2 running prebuilds, none of which are expired, and the desired count is met,
+		// no deletions or creations should occur.
+		{
+			name:       "no expired prebuilds - no actions taken",
+			running:    2,
+			desired:    2,
+			expired:    0,
+			extraneous: 0,
+			created:    0,
+		},
+		// With 2 running prebuilds, 1 of which is expired, the expired prebuild should be deleted,
+		// and one new prebuild should be created to maintain the desired count.
+		{
+			name:       "one expired prebuild – deleted and replaced",
+			running:    2,
+			desired:    2,
+			expired:    1,
+			extraneous: 0,
+			created:    1,
+		},
+		// With 2 running prebuilds, both expired, both should be deleted,
+		// and 2 new prebuilds created to match the desired count.
+		{
+			name:       "all prebuilds expired – all deleted and recreated",
+			running:    2,
+			desired:    2,
+			expired:    2,
+			extraneous: 0,
+			created:    2,
+		},
+		// With 4 running prebuilds, 2 of which are expired, and the desired count is 2,
+		// the expired prebuilds should be deleted. No new creations are needed
+		// since removing the expired ones brings actual = desired.
+		{
+			name:       "expired prebuilds deleted to reach desired count",
+			running:    4,
+			desired:    2,
+			expired:    2,
+			extraneous: 0,
+			created:    0,
+		},
+		// With 4 running prebuilds (1 expired), and the desired count is 2,
+		// the first action should delete the expired one,
+		// and the second action should delete one additional (non-expired) prebuild
+		// to eliminate the remaining excess.
+		{
+			name:       "expired prebuild deleted first, then extraneous",
+			running:    4,
+			desired:    2,
+			expired:    1,
+			extraneous: 1,
+			created:    0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			clock := quartz.NewMock(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			cfg := codersdk.PrebuildsConfig{}
+			logger := slogtest.Make(
+				t, &slogtest.Options{IgnoreErrors: true},
+			).Leveled(slog.LevelDebug)
+			db, pubSub := dbtestutil.NewDB(t)
+			fakeEnqueuer := newFakeEnqueuer()
+			registry := prometheus.NewRegistry()
+			cache := files.New(registry, &coderdtest.FakeAuthorizer{})
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr())
+
+			// Set up test environment with a template, version, and preset
+			ownerID := uuid.New()
+			dbgen.User(t, db, database.User{
+				ID: ownerID,
+			})
+			org, template := setupTestDBTemplate(t, db, ownerID, false)
+			templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
+
+			ttlDuration := muchEarlier - time.Hour
+			ttl := int32(-ttlDuration.Seconds())
+			preset := setupTestDBPreset(t, db, templateVersionID, tc.desired, "b0rked", withTTL(ttl))
+
+			// The implementation uses time.Since(prebuild.CreatedAt) > ttl to check a prebuild expiration.
+			// Since our mock clock defaults to a fixed time, we must align it with the current time
+			// to ensure time-based logic works correctly in tests.
+			clock.Set(time.Now())
+
+			runningWorkspaces := make(map[string]database.WorkspaceTable)
+			nonExpiredWorkspaces := make([]database.WorkspaceTable, 0, tc.running-tc.expired)
+			expiredWorkspaces := make([]database.WorkspaceTable, 0, tc.expired)
+			expiredCount := 0
+			for r := range tc.running {
+				// Space out createdAt timestamps by 1 second to ensure deterministic ordering.
+				// This lets the test verify that the correct (oldest) extraneous prebuilds are deleted.
+				createdAt := muchEarlier + time.Duration(r)*time.Second
+				isExpired := false
+				if tc.expired > expiredCount {
+					// Set createdAt far enough in the past so that time.Since(createdAt) > TTL,
+					// ensuring the prebuild is treated as expired in the test.
+					createdAt = ttlDuration - 1*time.Minute
+					isExpired = true
+					expiredCount++
+				}
+
+				workspace, _ := setupTestDBPrebuild(
+					t,
+					clock,
+					db,
+					pubSub,
+					database.WorkspaceTransitionStart,
+					database.ProvisionerJobStatusSucceeded,
+					org.ID,
+					preset,
+					template.ID,
+					templateVersionID,
+					withCreatedAt(clock.Now().Add(createdAt)),
+				)
+				if isExpired {
+					expiredWorkspaces = append(expiredWorkspaces, workspace)
+				} else {
+					nonExpiredWorkspaces = append(nonExpiredWorkspaces, workspace)
+				}
+				runningWorkspaces[workspace.ID.String()] = workspace
+			}
+
+			getJobStatusMap := func(workspaces []database.WorkspaceTable) map[database.ProvisionerJobStatus]int {
+				jobStatusMap := make(map[database.ProvisionerJobStatus]int)
+				for _, workspace := range workspaces {
+					workspaceBuilds, err := db.GetWorkspaceBuildsByWorkspaceID(ctx, database.GetWorkspaceBuildsByWorkspaceIDParams{
+						WorkspaceID: workspace.ID,
+					})
+					require.NoError(t, err)
+
+					for _, workspaceBuild := range workspaceBuilds {
+						job, err := db.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
+						require.NoError(t, err)
+						jobStatusMap[job.JobStatus]++
+					}
+				}
+				return jobStatusMap
+			}
+
+			// Assert that the build associated with the given workspace has a 'start' transition status.
+			isWorkspaceStarted := func(workspace database.WorkspaceTable) {
+				workspaceBuilds, err := db.GetWorkspaceBuildsByWorkspaceID(ctx, database.GetWorkspaceBuildsByWorkspaceIDParams{
+					WorkspaceID: workspace.ID,
+				})
+				require.NoError(t, err)
+				require.Equal(t, 1, len(workspaceBuilds))
+				require.Equal(t, database.WorkspaceTransitionStart, workspaceBuilds[0].Transition)
+			}
+
+			// Assert that the workspace build history includes a 'start' followed by a 'delete' transition status.
+			isWorkspaceDeleted := func(workspace database.WorkspaceTable) {
+				workspaceBuilds, err := db.GetWorkspaceBuildsByWorkspaceID(ctx, database.GetWorkspaceBuildsByWorkspaceIDParams{
+					WorkspaceID: workspace.ID,
+				})
+				require.NoError(t, err)
+				require.Equal(t, 2, len(workspaceBuilds))
+				require.Equal(t, database.WorkspaceTransitionDelete, workspaceBuilds[0].Transition)
+				require.Equal(t, database.WorkspaceTransitionStart, workspaceBuilds[1].Transition)
+			}
+
+			// Verify that all running workspaces, whether expired or not, have successfully started.
+			workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+			require.NoError(t, err)
+			require.Equal(t, tc.running, len(workspaces))
+			jobStatusMap := getJobStatusMap(workspaces)
+			require.Len(t, workspaces, tc.running)
+			require.Len(t, jobStatusMap, 1)
+			require.Equal(t, tc.running, jobStatusMap[database.ProvisionerJobStatusSucceeded])
+
+			// Assert that all running workspaces (expired and non-expired) have a 'start' transition state.
+			for _, workspace := range runningWorkspaces {
+				isWorkspaceStarted(workspace)
+			}
+
+			// Trigger reconciliation to process expired prebuilds and enforce desired state.
+			require.NoError(t, controller.ReconcileAll(ctx))
+
+			// Sort non-expired workspaces by CreatedAt in ascending order (oldest first)
+			sort.Slice(nonExpiredWorkspaces, func(i, j int) bool {
+				return nonExpiredWorkspaces[i].CreatedAt.Before(nonExpiredWorkspaces[j].CreatedAt)
+			})
+
+			// Verify the status of each non-expired workspace:
+			// - the oldest `tc.extraneous` should have been deleted (i.e., have a 'delete' transition),
+			// - while the remaining newer ones should still be running (i.e., have a 'start' transition).
+			extraneousCount := 0
+			for _, running := range nonExpiredWorkspaces {
+				if extraneousCount < tc.extraneous {
+					isWorkspaceDeleted(running)
+					extraneousCount++
+				} else {
+					isWorkspaceStarted(running)
+				}
+			}
+			require.Equal(t, tc.extraneous, extraneousCount)
+
+			// Verify that each expired workspace has a 'delete' transition recorded,
+			// confirming it was properly marked for cleanup after reconciliation.
+			for _, expired := range expiredWorkspaces {
+				isWorkspaceDeleted(expired)
+			}
+
+			// After handling expired prebuilds, if running < desired, new prebuilds should be created.
+			// Verify that the correct number of new prebuild workspaces were created and started.
+			allWorkspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+			require.NoError(t, err)
+
+			createdCount := 0
+			for _, workspace := range allWorkspaces {
+				if _, ok := runningWorkspaces[workspace.ID.String()]; !ok {
+					// Count and verify only the newly created workspaces (i.e., not part of the original running set)
+					isWorkspaceStarted(workspace)
+					createdCount++
+				}
+			}
+			require.Equal(t, tc.created, createdCount)
+		})
+	}
+}
+
 func newNoopEnqueuer() *notifications.NoopEnqueuer {
 	return notifications.NewNoopEnqueuer()
 }
 
 func newFakeEnqueuer() *notificationstest.FakeEnqueuer {
 	return notificationstest.NewFakeEnqueuer()
+}
+
+func newNoopUsageCheckerPtr() *atomic.Pointer[wsbuilder.UsageChecker] {
+	var noopUsageChecker wsbuilder.UsageChecker = wsbuilder.NoopUsageChecker{}
+	buildUsageChecker := atomic.Pointer[wsbuilder.UsageChecker]{}
+	buildUsageChecker.Store(&noopUsageChecker)
+	return &buildUsageChecker
 }
 
 // nolint:revive // It's a control flag, but this is a test.
@@ -1263,12 +1911,57 @@ func setupTestDBTemplateVersion(
 	return templateVersion.ID
 }
 
+// Preset optional parameters.
+// presetOptions defines a function type for modifying InsertPresetParams.
+type presetOptions func(*database.InsertPresetParams)
+
+// withTTL returns a presetOptions function that sets the invalidate_after_secs (TTL) field in InsertPresetParams.
+func withTTL(ttl int32) presetOptions {
+	return func(p *database.InsertPresetParams) {
+		p.InvalidateAfterSecs = sql.NullInt32{Valid: true, Int32: ttl}
+	}
+}
+
 func setupTestDBPreset(
 	t *testing.T,
 	db database.Store,
 	templateVersionID uuid.UUID,
 	desiredInstances int32,
 	presetName string,
+	opts ...presetOptions,
+) database.TemplateVersionPreset {
+	t.Helper()
+	insertPresetParams := database.InsertPresetParams{
+		TemplateVersionID: templateVersionID,
+		Name:              presetName,
+		DesiredInstances: sql.NullInt32{
+			Valid: true,
+			Int32: desiredInstances,
+		},
+	}
+
+	// Apply optional parameters to insertPresetParams (e.g., TTL).
+	for _, opt := range opts {
+		opt(&insertPresetParams)
+	}
+
+	preset := dbgen.Preset(t, db, insertPresetParams)
+
+	dbgen.PresetParameter(t, db, database.InsertPresetParametersParams{
+		TemplateVersionPresetID: preset.ID,
+		Names:                   []string{"test"},
+		Values:                  []string{"test"},
+	})
+	return preset
+}
+
+func setupTestDBPresetWithScheduling(
+	t *testing.T,
+	db database.Store,
+	templateVersionID uuid.UUID,
+	desiredInstances int32,
+	presetName string,
+	schedulingTimezone string,
 ) database.TemplateVersionPreset {
 	t.Helper()
 	preset := dbgen.Preset(t, db, database.InsertPresetParams{
@@ -1278,6 +1971,7 @@ func setupTestDBPreset(
 			Valid: true,
 			Int32: desiredInstances,
 		},
+		SchedulingTimezone: schedulingTimezone,
 	})
 	dbgen.PresetParameter(t, db, database.InsertPresetParametersParams{
 		TemplateVersionPresetID: preset.ID,
@@ -1285,6 +1979,21 @@ func setupTestDBPreset(
 		Values:                  []string{"test"},
 	})
 	return preset
+}
+
+// prebuildOptions holds optional parameters for creating a prebuild workspace.
+type prebuildOptions struct {
+	createdAt *time.Time
+}
+
+// prebuildOption defines a function type to apply optional settings to prebuildOptions.
+type prebuildOption func(*prebuildOptions)
+
+// withCreatedAt returns a prebuildOption that sets the CreatedAt timestamp.
+func withCreatedAt(createdAt time.Time) prebuildOption {
+	return func(opts *prebuildOptions) {
+		opts.createdAt = &createdAt
+	}
 }
 
 func setupTestDBPrebuild(
@@ -1298,9 +2007,10 @@ func setupTestDBPrebuild(
 	preset database.TemplateVersionPreset,
 	templateID uuid.UUID,
 	templateVersionID uuid.UUID,
+	opts ...prebuildOption,
 ) (database.WorkspaceTable, database.WorkspaceBuild) {
 	t.Helper()
-	return setupTestDBWorkspace(t, clock, db, ps, transition, prebuildStatus, orgID, preset, templateID, templateVersionID, agplprebuilds.SystemUserID, agplprebuilds.SystemUserID)
+	return setupTestDBWorkspace(t, clock, db, ps, transition, prebuildStatus, orgID, preset, templateID, templateVersionID, database.PrebuildsSystemUserID, database.PrebuildsSystemUserID, opts...)
 }
 
 func setupTestDBWorkspace(
@@ -1316,6 +2026,7 @@ func setupTestDBWorkspace(
 	templateVersionID uuid.UUID,
 	initiatorID uuid.UUID,
 	ownerID uuid.UUID,
+	opts ...prebuildOption,
 ) (database.WorkspaceTable, database.WorkspaceBuild) {
 	t.Helper()
 	cancelledAt := sql.NullTime{}
@@ -1343,15 +2054,30 @@ func setupTestDBWorkspace(
 	default:
 	}
 
+	// Apply all provided prebuild options.
+	prebuiltOptions := &prebuildOptions{}
+	for _, opt := range opts {
+		opt(prebuiltOptions)
+	}
+
+	// Set createdAt to default value if not overridden by options.
+	createdAt := clock.Now().Add(muchEarlier)
+	if prebuiltOptions.createdAt != nil {
+		createdAt = *prebuiltOptions.createdAt
+		// Ensure startedAt matches createdAt for consistency.
+		startedAt = sql.NullTime{Time: createdAt, Valid: true}
+	}
+
 	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 		TemplateID:     templateID,
 		OrganizationID: orgID,
 		OwnerID:        ownerID,
 		Deleted:        false,
+		CreatedAt:      createdAt,
 	})
 	job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 		InitiatorID:    initiatorID,
-		CreatedAt:      clock.Now().Add(muchEarlier),
+		CreatedAt:      createdAt,
 		StartedAt:      startedAt,
 		CompletedAt:    completedAt,
 		CanceledAt:     cancelledAt,
@@ -1402,6 +2128,115 @@ func setupTestDBWorkspaceAgent(t *testing.T, db database.Store, workspaceID uuid
 	return agent
 }
 
+// setupTestDBAntagonists creates test antagonists that should not influence running prebuild workspace tests.
+//  1. A stopped prebuilt workspace (STOP then START transitions, owned by
+//     prebuilds system user).
+//  2. A running regular workspace (not owned by the prebuilds system user).
+func setupTestDBPrebuildAntagonists(t *testing.T, db database.Store, ps pubsub.Pubsub, org database.Organization) {
+	t.Helper()
+
+	templateAdmin := dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         templateAdmin.ID,
+	})
+	member := dbgen.User(t, db, database.User{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         member.ID,
+	})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      templateAdmin.ID,
+	})
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      templateAdmin.ID,
+	})
+
+	// 1) Stopped prebuilt workspace (owned by prebuilds system user)
+	stoppedPrebuild := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:    database.PrebuildsSystemUserID,
+		TemplateID: tpl.ID,
+		Name:       "prebuild-antagonist-stopped",
+		Deleted:    false,
+	})
+
+	// STOP build (build number 2, most recent)
+	stoppedJob2 := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		InitiatorID:    database.PrebuildsSystemUserID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		StartedAt:      sql.NullTime{Time: dbtime.Now().Add(-30 * time.Second), Valid: true},
+		CompletedAt:    sql.NullTime{Time: dbtime.Now().Add(-20 * time.Second), Valid: true},
+		Error:          sql.NullString{},
+		ErrorCode:      sql.NullString{},
+	})
+	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       stoppedPrebuild.ID,
+		TemplateVersionID: tv.ID,
+		JobID:             stoppedJob2.ID,
+		BuildNumber:       2,
+		Transition:        database.WorkspaceTransitionStop,
+		InitiatorID:       database.PrebuildsSystemUserID,
+		Reason:            database.BuildReasonInitiator,
+		// Explicitly not using a preset here. This shouldn't normally be possible,
+		// but without this the reconciler will try to create a new prebuild for
+		// this preset, which will affect the tests.
+		TemplateVersionPresetID: uuid.NullUUID{},
+	})
+
+	// START build (build number 1, older)
+	stoppedJob1 := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		InitiatorID:    database.PrebuildsSystemUserID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		StartedAt:      sql.NullTime{Time: dbtime.Now().Add(-60 * time.Second), Valid: true},
+		CompletedAt:    sql.NullTime{Time: dbtime.Now().Add(-50 * time.Second), Valid: true},
+		Error:          sql.NullString{},
+		ErrorCode:      sql.NullString{},
+	})
+	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       stoppedPrebuild.ID,
+		TemplateVersionID: tv.ID,
+		JobID:             stoppedJob1.ID,
+		BuildNumber:       1,
+		Transition:        database.WorkspaceTransitionStart,
+		InitiatorID:       database.PrebuildsSystemUserID,
+		Reason:            database.BuildReasonInitiator,
+	})
+
+	// 2) Running regular workspace (not owned by prebuilds system user)
+	regularWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:    member.ID,
+		TemplateID: tpl.ID,
+		Name:       "antagonist-regular-workspace",
+		Deleted:    false,
+	})
+	regularJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		InitiatorID:    member.ID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		StartedAt:      sql.NullTime{Time: dbtime.Now().Add(-40 * time.Second), Valid: true},
+		CompletedAt:    sql.NullTime{Time: dbtime.Now().Add(-30 * time.Second), Valid: true},
+		Error:          sql.NullString{},
+		ErrorCode:      sql.NullString{},
+	})
+	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       regularWorkspace.ID,
+		TemplateVersionID: tv.ID,
+		JobID:             regularJob.ID,
+		BuildNumber:       1,
+		Transition:        database.WorkspaceTransitionStart,
+		InitiatorID:       member.ID,
+		Reason:            database.BuildReasonInitiator,
+	})
+}
+
 var allTransitions = []database.WorkspaceTransition{
 	database.WorkspaceTransitionStart,
 	database.WorkspaceTransitionStop,
@@ -1421,4 +2256,88 @@ func allJobStatusesExcept(except ...database.ProvisionerJobStatus) []database.Pr
 	return slice.Filter(except, func(status database.ProvisionerJobStatus) bool {
 		return !slice.Contains(allJobStatuses, status)
 	})
+}
+
+func mustParseTime(t *testing.T, layout, value string) time.Time {
+	t.Helper()
+	parsedTime, err := time.Parse(layout, value)
+	require.NoError(t, err)
+	return parsedTime
+}
+
+func TestReconciliationRespectsPauseSetting(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	clock := quartz.NewMock(t)
+	db, ps := dbtestutil.NewDB(t)
+	cfg := codersdk.PrebuildsConfig{
+		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
+	}
+	logger := testutil.Logger(t)
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
+
+	// Setup a template with a preset that should create prebuilds
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, ps, org.ID, user.ID, template.ID)
+	_ = setupTestDBPreset(t, db, templateVersionID, 2, "test")
+
+	// Initially, reconciliation should create prebuilds
+	err := reconciler.ReconcileAll(ctx)
+	require.NoError(t, err)
+
+	// Verify that prebuilds were created
+	workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 2, "should have created 2 prebuilds")
+
+	// Now pause prebuilds reconciliation
+	err = prebuilds.SetPrebuildsReconciliationPaused(ctx, db, true)
+	require.NoError(t, err)
+
+	// Delete the existing prebuilds to simulate a scenario where reconciliation would normally recreate them
+	for _, workspace := range workspaces {
+		err = db.UpdateWorkspaceDeletedByID(ctx, database.UpdateWorkspaceDeletedByIDParams{
+			ID:      workspace.ID,
+			Deleted: true,
+		})
+		require.NoError(t, err)
+	}
+
+	// Verify prebuilds are deleted
+	workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 0, "prebuilds should be deleted")
+
+	// Run reconciliation again - it should be paused and not recreate prebuilds
+	err = reconciler.ReconcileAll(ctx)
+	require.NoError(t, err)
+
+	// Verify that no new prebuilds were created because reconciliation is paused
+	workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 0, "should not create prebuilds when reconciliation is paused")
+
+	// Resume prebuilds reconciliation
+	err = prebuilds.SetPrebuildsReconciliationPaused(ctx, db, false)
+	require.NoError(t, err)
+
+	// Run reconciliation again - it should now recreate the prebuilds
+	err = reconciler.ReconcileAll(ctx)
+	require.NoError(t, err)
+
+	// Verify that prebuilds were recreated
+	workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 2, "should have recreated 2 prebuilds after resuming")
 }

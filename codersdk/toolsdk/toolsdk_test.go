@@ -10,11 +10,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/kylecarbs/aisdk-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
+	"github.com/coder/aisdk-go"
+
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -26,11 +28,32 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+// setupWorkspaceForAgent creates a workspace setup exactly like main SSH tests
+// nolint:gocritic // This is in a test package and does not end up in the build
+func setupWorkspaceForAgent(t *testing.T) (*codersdk.Client, database.WorkspaceTable, string) {
+	t.Helper()
+
+	client, store := coderdtest.NewWithDatabase(t, nil)
+	client.SetLogger(testutil.Logger(t).Named("client"))
+	first := coderdtest.CreateFirstUser(t, client)
+	userClient, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+		r.Username = "myuser"
+	})
+	// nolint:gocritic // This is in a test package and does not end up in the build
+	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+		Name:           "myworkspace",
+		OrganizationID: first.OrganizationID,
+		OwnerID:        user.ID,
+	}).WithAgent().Do()
+
+	return userClient, r.Workspace, r.AgentToken
+}
+
 // These tests are dependent on the state of the coder server.
 // Running them in parallel is prone to racy behavior.
 // nolint:tparallel,paralleltest
 func TestTools(t *testing.T) {
-	// Given: a running coderd instance
+	// Given: a running coderd instance using SSH test setup pattern
 	setupCtx := testutil.Context(t, testutil.WaitShort)
 	client, store := coderdtest.NewWithDatabase(t, nil)
 	owner := coderdtest.CreateFirstUser(t, client)
@@ -72,7 +95,14 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("ReportTask", func(t *testing.T) {
-		tb, err := toolsdk.NewDeps(memberClient, toolsdk.WithAgentClient(agentClient), toolsdk.WithAppStatusSlug("some-agent-app"))
+		tb, err := toolsdk.NewDeps(memberClient, toolsdk.WithTaskReporter(func(args toolsdk.ReportTaskArgs) error {
+			return agentClient.PatchAppStatus(setupCtx, agentsdk.PatchAppStatus{
+				AppSlug: "some-agent-app",
+				Message: args.Summary,
+				URI:     args.Link,
+				State:   codersdk.WorkspaceAppStatusState(args.State),
+			})
+		}))
 		require.NoError(t, err)
 		_, err = testTool(t, toolsdk.ReportTask, tb, toolsdk.ReportTaskArgs{
 			Summary: "test summary",
@@ -156,7 +186,7 @@ func TestTools(t *testing.T) {
 
 			// Important: cancel the build. We don't run any provisioners, so this
 			// will remain in the 'pending' state indefinitely.
-			require.NoError(t, client.CancelWorkspaceBuild(ctx, result.ID))
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, result.ID, codersdk.CancelWorkspaceBuildParams{}))
 		})
 
 		t.Run("Start", func(t *testing.T) {
@@ -176,7 +206,7 @@ func TestTools(t *testing.T) {
 
 			// Important: cancel the build. We don't run any provisioners, so this
 			// will remain in the 'pending' state indefinitely.
-			require.NoError(t, client.CancelWorkspaceBuild(ctx, result.ID))
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, result.ID, codersdk.CancelWorkspaceBuildParams{}))
 		})
 
 		t.Run("TemplateVersionChange", func(t *testing.T) {
@@ -208,7 +238,7 @@ func TestTools(t *testing.T) {
 			require.Equal(t, r.Workspace.ID.String(), updateBuild.WorkspaceID.String())
 			require.Equal(t, newVersion.TemplateVersion.ID.String(), updateBuild.TemplateVersionID.String())
 			// Cancel the build so it doesn't remain in the 'pending' state indefinitely.
-			require.NoError(t, client.CancelWorkspaceBuild(ctx, updateBuild.ID))
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, updateBuild.ID, codersdk.CancelWorkspaceBuildParams{}))
 
 			// Roll back to the original version
 			rollbackBuild, err := testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
@@ -221,7 +251,7 @@ func TestTools(t *testing.T) {
 			require.Equal(t, r.Workspace.ID.String(), rollbackBuild.WorkspaceID.String())
 			require.Equal(t, originalVersionID.String(), rollbackBuild.TemplateVersionID.String())
 			// Cancel the build so it doesn't remain in the 'pending' state indefinitely.
-			require.NoError(t, client.CancelWorkspaceBuild(ctx, rollbackBuild.ID))
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, rollbackBuild.ID, codersdk.CancelWorkspaceBuildParams{}))
 		})
 	})
 
@@ -365,6 +395,57 @@ func TestTools(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, res.ID, "expected a workspace ID")
 	})
+
+	t.Run("WorkspaceSSHExec", func(t *testing.T) {
+		// Setup workspace exactly like main SSH tests
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+
+		// Start agent and wait for it to be ready (following main SSH test pattern)
+		_ = agenttest.New(t, client.URL, agentToken)
+
+		// Wait for workspace agents to be ready like main SSH tests do
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+		// Create tool dependencies using client
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		// Test basic command execution
+		result, err := testTool(t, toolsdk.WorkspaceBash, tb, toolsdk.WorkspaceBashArgs{
+			Workspace: workspace.Name,
+			Command:   "echo 'hello world'",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 0, result.ExitCode)
+		require.Equal(t, "hello world", result.Output)
+
+		// Test output trimming
+		result, err = testTool(t, toolsdk.WorkspaceBash, tb, toolsdk.WorkspaceBashArgs{
+			Workspace: workspace.Name,
+			Command:   "echo -e '\\n  test with whitespace  \\n'",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 0, result.ExitCode)
+		require.Equal(t, "test with whitespace", result.Output) // Should be trimmed
+
+		// Test non-zero exit code
+		result, err = testTool(t, toolsdk.WorkspaceBash, tb, toolsdk.WorkspaceBashArgs{
+			Workspace: workspace.Name,
+			Command:   "exit 42",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 42, result.ExitCode)
+		require.Empty(t, result.Output)
+
+		// Test with workspace owner format - using the myuser from setup
+		result, err = testTool(t, toolsdk.WorkspaceBash, tb, toolsdk.WorkspaceBashArgs{
+			Workspace: "myuser/" + workspace.Name,
+			Command:   "echo 'owner format works'",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 0, result.ExitCode)
+		require.Equal(t, "owner format works", result.Output)
+	})
 }
 
 // TestedTools keeps track of which tools have been tested.
@@ -375,10 +456,10 @@ var testedTools sync.Map
 // This is to mimic how we expect external callers to use the tool.
 func testTool[Arg, Ret any](t *testing.T, tool toolsdk.Tool[Arg, Ret], tb toolsdk.Deps, args Arg) (Ret, error) {
 	t.Helper()
-	defer func() { testedTools.Store(tool.Tool.Name, true) }()
+	defer func() { testedTools.Store(tool.Name, true) }()
 	toolArgs, err := json.Marshal(args)
 	require.NoError(t, err, "failed to marshal args")
-	result, err := tool.Generic().Handler(context.Background(), tb, toolArgs)
+	result, err := tool.Generic().Handler(t.Context(), tb, toolArgs)
 	var ret Ret
 	require.NoError(t, json.Unmarshal(result, &ret), "failed to unmarshal result %q", string(result))
 	return ret, err
@@ -544,23 +625,23 @@ func TestToolSchemaFields(t *testing.T) {
 
 	// Test that all tools have the required Schema fields (Properties and Required)
 	for _, tool := range toolsdk.All {
-		t.Run(tool.Tool.Name, func(t *testing.T) {
+		t.Run(tool.Name, func(t *testing.T) {
 			t.Parallel()
 
 			// Check that Properties is not nil
-			require.NotNil(t, tool.Tool.Schema.Properties,
-				"Tool %q missing Schema.Properties", tool.Tool.Name)
+			require.NotNil(t, tool.Schema.Properties,
+				"Tool %q missing Schema.Properties", tool.Name)
 
 			// Check that Required is not nil
-			require.NotNil(t, tool.Tool.Schema.Required,
-				"Tool %q missing Schema.Required", tool.Tool.Name)
+			require.NotNil(t, tool.Schema.Required,
+				"Tool %q missing Schema.Required", tool.Name)
 
 			// Ensure Properties has entries for all required fields
-			for _, requiredField := range tool.Tool.Schema.Required {
-				_, exists := tool.Tool.Schema.Properties[requiredField]
+			for _, requiredField := range tool.Schema.Required {
+				_, exists := tool.Schema.Properties[requiredField]
 				require.True(t, exists,
 					"Tool %q requires field %q but it is not defined in Properties",
-					tool.Tool.Name, requiredField)
+					tool.Name, requiredField)
 			}
 		})
 	}
@@ -571,7 +652,7 @@ func TestToolSchemaFields(t *testing.T) {
 func TestMain(m *testing.M) {
 	// Initialize testedTools
 	for _, tool := range toolsdk.All {
-		testedTools.Store(tool.Tool.Name, false)
+		testedTools.Store(tool.Name, false)
 	}
 
 	code := m.Run()
@@ -579,8 +660,8 @@ func TestMain(m *testing.M) {
 	// Ensure all tools have been tested
 	var untested []string
 	for _, tool := range toolsdk.All {
-		if tested, ok := testedTools.Load(tool.Tool.Name); !ok || !tested.(bool) {
-			untested = append(untested, tool.Tool.Name)
+		if tested, ok := testedTools.Load(tool.Name); !ok || !tested.(bool) {
+			untested = append(untested, tool.Name)
 		}
 	}
 
@@ -604,4 +685,58 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(code)
+}
+
+func TestReportTaskNilPointerDeref(t *testing.T) {
+	t.Parallel()
+
+	// Create deps without a task reporter (simulating remote MCP server scenario)
+	client, _ := coderdtest.NewWithDatabase(t, nil)
+	deps, err := toolsdk.NewDeps(client)
+	require.NoError(t, err)
+
+	// Prepare test arguments
+	args := toolsdk.ReportTaskArgs{
+		Summary: "Test task",
+		Link:    "https://example.com",
+		State:   string(codersdk.WorkspaceAppStatusStateWorking),
+	}
+
+	_, err = toolsdk.ReportTask.Handler(t.Context(), deps, args)
+
+	// We expect an error, not a panic
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "task reporting not available")
+}
+
+func TestReportTaskWithReporter(t *testing.T) {
+	t.Parallel()
+
+	// Create deps with a task reporter
+	client, _ := coderdtest.NewWithDatabase(t, nil)
+
+	called := false
+	reporter := func(args toolsdk.ReportTaskArgs) error {
+		called = true
+		require.Equal(t, "Test task", args.Summary)
+		require.Equal(t, "https://example.com", args.Link)
+		require.Equal(t, string(codersdk.WorkspaceAppStatusStateWorking), args.State)
+		return nil
+	}
+
+	deps, err := toolsdk.NewDeps(client, toolsdk.WithTaskReporter(reporter))
+	require.NoError(t, err)
+
+	args := toolsdk.ReportTaskArgs{
+		Summary: "Test task",
+		Link:    "https://example.com",
+		State:   string(codersdk.WorkspaceAppStatusStateWorking),
+	}
+
+	result, err := toolsdk.ReportTask.Handler(t.Context(), deps, args)
+	require.NoError(t, err)
+	require.True(t, called)
+
+	// Verify response
+	require.Equal(t, "Thanks for reporting!", result.Message)
 }

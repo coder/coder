@@ -12,7 +12,7 @@ import {
 import { Check, Redo } from "lucide-react";
 import type { FC } from "react";
 
-export interface ExternalAuthButtonProps {
+interface ExternalAuthButtonProps {
 	auth: TemplateVersionExternalAuth;
 	displayRetry: boolean;
 	isLoading: boolean;
@@ -38,8 +38,12 @@ export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
 					/>
 				)}
 				<p className="font-semibold text-sm m-0">{auth.display_name}</p>
-				{!auth.optional && (
-					<Badge size="sm" variant={error ? "destructive" : "warning"}>
+				{!auth.authenticated && !auth.optional && (
+					<Badge
+						size="sm"
+						border="none"
+						variant={error ? "destructive" : "warning"}
+					>
 						Required
 					</Badge>
 				)}

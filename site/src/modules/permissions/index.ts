@@ -4,7 +4,7 @@ export type Permissions = {
 	[k in PermissionName]: boolean;
 };
 
-export type PermissionName = keyof typeof permissionChecks;
+type PermissionName = keyof typeof permissionChecks;
 
 /**
  * Site-wide permission checks
@@ -152,6 +152,13 @@ export const permissionChecks = {
 	viewAnyAuditLog: {
 		object: {
 			resource_type: "audit_log",
+			any_org: true,
+		},
+		action: "read",
+	},
+	viewAnyConnectionLog: {
+		object: {
+			resource_type: "connection_log",
 			any_org: true,
 		},
 		action: "read",
