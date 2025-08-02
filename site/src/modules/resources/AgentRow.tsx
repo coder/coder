@@ -6,6 +6,7 @@ import type {
 	Template,
 	Workspace,
 	WorkspaceAgent,
+	WorkspaceAgentLog,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
@@ -79,21 +80,21 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const agentLogs = useAgentLogs(agent.id, showLogs);
 	const logListRef = useRef<List>(null);
 	const logListDivRef = useRef<HTMLDivElement>(null);
-	const startupLogs = useMemo(() => {
-		const allLogs = agentLogs || [];
-
-		const logs = [...allLogs];
-		if (agent.logs_overflowed) {
-			logs.push({
+	const startupLogs = useMemo<readonly WorkspaceAgentLog[]>(() => {
+		if (!agent.logs_overflowed) {
+			return agentLogs;
+		}
+		return [
+			...agentLogs,
+			{
 				id: -1,
 				level: "error",
 				output:
 					"Startup logs exceeded the max size of 1MB, and will not continue to be written to the database! Logs will continue to be written to the /tmp/coder-startup-script.log file in the workspace.",
 				created_at: new Date().toISOString(),
 				source_id: "",
-			});
-		}
-		return logs;
+			},
+		];
 	}, [agentLogs, agent.logs_overflowed]);
 	const [bottomOfLogs, setBottomOfLogs] = useState(true);
 
