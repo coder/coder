@@ -1575,6 +1575,7 @@ export interface OAuth2AppEndpoints {
 	readonly authorization: string;
 	readonly token: string;
 	readonly device_authorization: string;
+	readonly revocation: string;
 }
 
 // From codersdk/oauth2.go
@@ -1582,6 +1583,7 @@ export interface OAuth2AuthorizationServerMetadata {
 	readonly issuer: string;
 	readonly authorization_endpoint: string;
 	readonly token_endpoint: string;
+	readonly device_authorization_endpoint?: string;
 	readonly registration_endpoint?: string;
 	readonly response_types_supported: readonly string[];
 	readonly grant_types_supported: readonly string[];
@@ -1665,8 +1667,30 @@ export interface OAuth2Config {
 }
 
 // From codersdk/oauth2.go
+export interface OAuth2DeviceAuthorizationRequest {
+	readonly client_id: string;
+	readonly scope?: string;
+	readonly resource?: string;
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2DeviceAuthorizationResponse {
+	readonly device_code: string;
+	readonly user_code: string;
+	readonly verification_uri: string;
+	readonly verification_uri_complete?: string;
+	readonly expires_in: number;
+	readonly interval?: number;
+}
+
+// From codersdk/oauth2.go
 export interface OAuth2DeviceFlowCallbackResponse {
 	readonly redirect_url: string;
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2DeviceVerificationRequest {
+	readonly user_code: string;
 }
 
 // From codersdk/deployment.go
@@ -1718,10 +1742,14 @@ export interface OAuth2ProviderAppSecretFull {
 }
 
 // From codersdk/oauth2.go
-export type OAuth2ProviderGrantType = "authorization_code" | "refresh_token";
+export type OAuth2ProviderGrantType =
+	| "authorization_code"
+	| "urn:ietf:params:oauth:grant-type:device_code"
+	| "refresh_token";
 
 export const OAuth2ProviderGrantTypes: OAuth2ProviderGrantType[] = [
 	"authorization_code",
+	"urn:ietf:params:oauth:grant-type:device_code",
 	"refresh_token",
 ];
 
@@ -2509,6 +2537,7 @@ export type ResourceType =
 	| "notifications_settings"
 	| "oauth2_provider_app"
 	| "oauth2_provider_app_secret"
+	| "oauth2_provider_device_code"
 	| "organization"
 	| "organization_member"
 	| "prebuilds_settings"
@@ -2536,6 +2565,7 @@ export const ResourceTypes: ResourceType[] = [
 	"notifications_settings",
 	"oauth2_provider_app",
 	"oauth2_provider_app_secret",
+	"oauth2_provider_device_code",
 	"organization",
 	"organization_member",
 	"prebuilds_settings",
@@ -4041,6 +4071,12 @@ export const annotationSecretKey = "secret";
 
 // From codersdk/insights.go
 export const insightsTimeLayout = "2006-01-02T15:04:05Z07:00";
+
+// From codersdk/oauth2.go
+export const oauth2DeviceActionAuthorize = "authorize";
+
+// From codersdk/oauth2.go
+export const oauth2DeviceActionDeny = "deny";
 
 // From healthsdk/interfaces.go
 export const safeMTU = 1378;

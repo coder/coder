@@ -417,6 +417,35 @@ var (
 					rbac.ResourceProvisionerJobs.Type:        {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
 					rbac.ResourceOauth2App.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceOauth2AppSecret.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceOauth2AppCodeToken.Type:     {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
+	subjectSystemOAuth2 = rbac.Subject{
+		Type:         rbac.SubjectTypeSystemRestricted,
+		FriendlyName: "System OAuth2",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "system-oauth2"},
+				DisplayName: "System OAuth2",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					// OAuth2 resources - full CRUD permissions
+					rbac.ResourceOauth2App.Type:          rbac.ResourceOauth2App.AvailableActions(),
+					rbac.ResourceOauth2AppSecret.Type:    rbac.ResourceOauth2AppSecret.AvailableActions(),
+					rbac.ResourceOauth2AppCodeToken.Type: rbac.ResourceOauth2AppCodeToken.AvailableActions(),
+
+					// API key permissions needed for OAuth2 token revocation
+					rbac.ResourceApiKey.Type: {policy.ActionRead, policy.ActionDelete},
+
+					// Minimal read permissions that might be needed for OAuth2 operations
+					rbac.ResourceUser.Type:         {policy.ActionRead},
+					rbac.ResourceOrganization.Type: {policy.ActionRead},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -565,6 +594,12 @@ func AsSubAgentAPI(ctx context.Context, orgID uuid.UUID, userID uuid.UUID) conte
 // required for various system operations (login, logout, metrics cache).
 func AsSystemRestricted(ctx context.Context) context.Context {
 	return As(ctx, subjectSystemRestricted)
+}
+
+// AsSystemOAuth2 returns a context with an actor that has permissions
+// required for OAuth2 provider operations (token revocation, device codes, registration).
+func AsSystemOAuth2(ctx context.Context) context.Context {
+	return As(ctx, subjectSystemOAuth2)
 }
 
 // AsSystemReadProvisionerDaemons returns a context with an actor that has permissions
@@ -1346,6 +1381,14 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 	return q.db.CleanTailnetTunnels(ctx)
 }
 
+func (q *querier) ConsumeOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (database.OAuth2ProviderAppCode, error) {
+	return updateWithReturn(q.log, q.auth, q.db.GetOAuth2ProviderAppCodeByPrefix, q.db.ConsumeOAuth2ProviderAppCodeByPrefix)(ctx, secretPrefix)
+}
+
+func (q *querier) ConsumeOAuth2ProviderDeviceCodeByPrefix(ctx context.Context, deviceCodePrefix string) (database.OAuth2ProviderDeviceCode, error) {
+	return updateWithReturn(q.log, q.auth, q.db.GetOAuth2ProviderDeviceCodeByPrefix, q.db.ConsumeOAuth2ProviderDeviceCodeByPrefix)(ctx, deviceCodePrefix)
+}
+
 func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
 	// Shortcut if the user is an owner. The SQL filter is noticeable,
 	// and this is an easy win for owners. Which is the common case.
@@ -1470,10 +1513,18 @@ func (q *querier) DeleteCustomRole(ctx context.Context, arg database.DeleteCusto
 	return q.db.DeleteCustomRole(ctx, arg)
 }
 
+func (q *querier) DeleteExpiredOAuth2ProviderDeviceCodes(ctx context.Context) error {
+	// System operation - only system can clean up expired device codes
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteExpiredOAuth2ProviderDeviceCodes(ctx)
+}
+
 func (q *querier) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
 	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, func(ctx context.Context, arg database.DeleteExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 		//nolint:gosimple
-		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
+		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams(arg))
 	}, q.db.DeleteExternalAuthLink)(ctx, arg)
 }
 
@@ -1552,6 +1603,22 @@ func (q *querier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Contex
 	return q.db.DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, arg)
 }
 
+func (q *querier) DeleteOAuth2ProviderDeviceCodeByID(ctx context.Context, id uuid.UUID) error {
+	// Fetch the device code first to check authorization
+	deviceCode, err := q.db.GetOAuth2ProviderDeviceCodeByID(ctx, id)
+	if err != nil {
+		return xerrors.Errorf("get oauth2 provider device code: %w", err)
+	}
+	if err := q.authorizeContext(ctx, policy.ActionDelete, deviceCode); err != nil {
+		return xerrors.Errorf("authorize oauth2 provider device code deletion: %w", err)
+	}
+
+	if err := q.db.DeleteOAuth2ProviderDeviceCodeByID(ctx, id); err != nil {
+		return xerrors.Errorf("delete oauth2 provider device code: %w", err)
+	}
+	return nil
+}
+
 func (q *querier) DeleteOldAuditLogConnectionEvents(ctx context.Context, threshold database.DeleteOldAuditLogConnectionEventsParams) error {
 	// `ResourceSystem` is deprecated, but it doesn't make sense to add
 	// `policy.ActionDelete` to `ResourceAuditLog`, since this is the one and
@@ -1591,7 +1658,7 @@ func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 }
 
 func (q *querier) DeleteOrganizationMember(ctx context.Context, arg database.DeleteOrganizationMemberParams) error {
-	return deleteQ[database.OrganizationMember](q.log, q.auth, func(ctx context.Context, arg database.DeleteOrganizationMemberParams) (database.OrganizationMember, error) {
+	return deleteQ(q.log, q.auth, func(ctx context.Context, arg database.DeleteOrganizationMemberParams) (database.OrganizationMember, error) {
 		member, err := database.ExpectOne(q.OrganizationMembers(ctx, database.OrganizationMembersParams{
 			OrganizationID: arg.OrganizationID,
 			UserID:         arg.UserID,
@@ -2182,7 +2249,7 @@ func (q *querier) GetLicenseByID(ctx context.Context, id int32) (database.Licens
 }
 
 func (q *querier) GetLicenses(ctx context.Context) ([]database.License, error) {
-	fetch := func(ctx context.Context, _ interface{}) ([]database.License, error) {
+	fetch := func(ctx context.Context, _ any) ([]database.License, error) {
 		return q.db.GetLicenses(ctx)
 	}
 	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
@@ -2333,6 +2400,26 @@ func (q *querier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid
 	return q.db.GetOAuth2ProviderAppsByUserID(ctx, userID)
 }
 
+func (q *querier) GetOAuth2ProviderDeviceCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderDeviceCode, error) {
+	return fetch(q.log, q.auth, q.db.GetOAuth2ProviderDeviceCodeByID)(ctx, id)
+}
+
+func (q *querier) GetOAuth2ProviderDeviceCodeByPrefix(ctx context.Context, deviceCodePrefix string) (database.OAuth2ProviderDeviceCode, error) {
+	return fetch(q.log, q.auth, q.db.GetOAuth2ProviderDeviceCodeByPrefix)(ctx, deviceCodePrefix)
+}
+
+func (q *querier) GetOAuth2ProviderDeviceCodeByUserCode(ctx context.Context, userCode string) (database.OAuth2ProviderDeviceCode, error) {
+	return fetch(q.log, q.auth, q.db.GetOAuth2ProviderDeviceCodeByUserCode)(ctx, userCode)
+}
+
+func (q *querier) GetOAuth2ProviderDeviceCodesByClientID(ctx context.Context, clientID uuid.UUID) ([]database.OAuth2ProviderDeviceCode, error) {
+	// This requires access to read OAuth2 app code tokens
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2AppCodeToken); err != nil {
+		return []database.OAuth2ProviderDeviceCode{}, err
+	}
+	return q.db.GetOAuth2ProviderDeviceCodesByClientID(ctx, clientID)
+}
+
 func (q *querier) GetOAuthSigningKey(ctx context.Context) (string, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return "", err
@@ -2384,7 +2471,7 @@ func (q *querier) GetOrganizationResourceCountByID(ctx context.Context, organiza
 }
 
 func (q *querier) GetOrganizations(ctx context.Context, args database.GetOrganizationsParams) ([]database.Organization, error) {
-	fetch := func(ctx context.Context, _ interface{}) ([]database.Organization, error) {
+	fetch := func(ctx context.Context, _ any) ([]database.Organization, error) {
 		return q.db.GetOrganizations(ctx, args)
 	}
 	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
@@ -2512,7 +2599,7 @@ func (q *querier) GetPreviousTemplateVersion(ctx context.Context, arg database.G
 }
 
 func (q *querier) GetProvisionerDaemons(ctx context.Context) ([]database.ProvisionerDaemon, error) {
-	fetch := func(ctx context.Context, _ interface{}) ([]database.ProvisionerDaemon, error) {
+	fetch := func(ctx context.Context, _ any) ([]database.ProvisionerDaemon, error) {
 		return q.db.GetProvisionerDaemons(ctx)
 	}
 	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
@@ -3470,7 +3557,7 @@ func (q *querier) GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt
 }
 
 func (q *querier) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, func(ctx context.Context, _ interface{}) ([]database.WorkspaceProxy, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, func(ctx context.Context, _ any) ([]database.WorkspaceProxy, error) {
 		return q.db.GetWorkspaceProxies(ctx)
 	})(ctx, nil)
 }
@@ -3766,6 +3853,14 @@ func (q *querier) InsertOAuth2ProviderAppToken(ctx context.Context, arg database
 		return database.OAuth2ProviderAppToken{}, err
 	}
 	return q.db.InsertOAuth2ProviderAppToken(ctx, arg)
+}
+
+func (q *querier) InsertOAuth2ProviderDeviceCode(ctx context.Context, arg database.InsertOAuth2ProviderDeviceCodeParams) (database.OAuth2ProviderDeviceCode, error) {
+	// Creating device codes requires OAuth2 app code token creation access
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceOauth2AppCodeToken); err != nil {
+		return database.OAuth2ProviderDeviceCode{}, err
+	}
+	return q.db.InsertOAuth2ProviderDeviceCode(ctx, arg)
 }
 
 func (q *querier) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
@@ -4069,10 +4164,11 @@ func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertW
 		return xerrors.Errorf("get workspace by id: %w", err)
 	}
 
-	var action policy.Action = policy.ActionWorkspaceStart
-	if arg.Transition == database.WorkspaceTransitionDelete {
+	action := policy.ActionWorkspaceStart
+	switch arg.Transition {
+	case database.WorkspaceTransitionDelete:
 		action = policy.ActionDelete
-	} else if arg.Transition == database.WorkspaceTransitionStop {
+	case database.WorkspaceTransitionStop:
 		action = policy.ActionWorkspaceStop
 	}
 
@@ -4438,6 +4534,13 @@ func (q *querier) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg dat
 		return database.OAuth2ProviderAppSecret{}, err
 	}
 	return q.db.UpdateOAuth2ProviderAppSecretByID(ctx, arg)
+}
+
+func (q *querier) UpdateOAuth2ProviderDeviceCodeAuthorization(ctx context.Context, arg database.UpdateOAuth2ProviderDeviceCodeAuthorizationParams) (database.OAuth2ProviderDeviceCode, error) {
+	fetch := func(ctx context.Context, arg database.UpdateOAuth2ProviderDeviceCodeAuthorizationParams) (database.OAuth2ProviderDeviceCode, error) {
+		return q.db.GetOAuth2ProviderDeviceCodeByID(ctx, arg.ID)
+	}
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateOAuth2ProviderDeviceCodeAuthorization)(ctx, arg)
 }
 
 func (q *querier) UpdateOrganization(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
