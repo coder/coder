@@ -79,20 +79,40 @@ function mountHook(): MountHookResult {
 }
 
 describe("useAgentLogs", () => {
-	it("clears logs when hook becomes disabled (protection to avoid duplicate logs when hook goes back to being re-enabled)", async () => {
+	it("Automatically sorts logs that are received out of order", async () => {
+		const { hookResult, publisherResult } = mountHook();
+		const logs = generateMockLogs(10, new Date("september 9, 1999"));
+		const reversed = logs.toReversed();
+
+		for (const log of reversed) {
+			publisherResult.current.publishMessage(
+				new MessageEvent<string>("message", {
+					data: JSON.stringify(log),
+				}),
+			)
+		}
+		await waitFor(() => expect(hookResult.current).toEqual(logs));
+	});
+
+	it("Automatically closes the socket connection when the hook is disabled", async () => {
+		const { publisherResult, rerender } = mountHook();
+		expect(publisherResult.current.isConnectionOpen()).toBe(true);
+		rerender({ enabled: false });
+		await waitFor(() => {
+			expect(publisherResult.current.isConnectionOpen()).toBe(false);
+		})
+	});
+
+	it("Clears logs when hook becomes disabled (protection to avoid duplicate logs when hook goes back to being re-enabled)", async () => {
 		const { hookResult, publisherResult, rerender } = mountHook();
 
-		// Verify that logs can be received after mount
+		// Send initial logs so that we have something to clear out later
 		const initialLogs = generateMockLogs(3, new Date("april 5, 1997"));
 		const initialEvent = new MessageEvent<string>("message", {
 			data: JSON.stringify(initialLogs),
 		});
 		publisherResult.current.publishMessage(initialEvent);
-		await waitFor(() => {
-			// Using expect.arrayContaining to account for the fact that we're
-			// not guaranteed to receive WebSocket events in order
-			expect(hookResult.current).toEqual(expect.arrayContaining(initialLogs));
-		});
+		await waitFor(() => expect(hookResult.current).toEqual(initialLogs));
 
 		// Disable the hook (and have the hook close the connection behind the
 		// scenes)
@@ -107,8 +127,6 @@ describe("useAgentLogs", () => {
 			data: JSON.stringify(newLogs),
 		});
 		publisherResult.current.publishMessage(newEvent);
-		await waitFor(() => {
-			expect(hookResult.current).toEqual(expect.arrayContaining(newLogs));
-		});
+		await waitFor(() => expect(hookResult.current).toEqual(newLogs));
 	});
 });

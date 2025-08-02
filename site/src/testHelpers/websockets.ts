@@ -5,6 +5,7 @@ export type MockWebSocketPublisher = Readonly<{
 	publishError: (event: ErrorEvent) => void;
 	publishClose: (event: CloseEvent) => void;
 	publishOpen: (event: Event) => void;
+	isConnectionOpen: () => boolean;
 }>;
 
 export function createMockWebSocket(
@@ -30,7 +31,7 @@ export function createMockWebSocket(
 		activeProtocol = "";
 	}
 
-	let closed = false;
+	let isOpen = true;
 	const store: CallbackStore = {
 		message: [],
 		error: [],
@@ -61,7 +62,7 @@ export function createMockWebSocket(
 			eventType: E,
 			callback: WebSocketEventMap[E],
 		) => {
-			if (closed) {
+			if (!isOpen) {
 				return;
 			}
 
@@ -76,7 +77,7 @@ export function createMockWebSocket(
 			eventType: E,
 			callback: WebSocketEventMap[E],
 		) => {
-			if (closed) {
+			if (!isOpen) {
 				return;
 			}
 
@@ -89,13 +90,14 @@ export function createMockWebSocket(
 		},
 
 		close: () => {
-			closed = true;
+			isOpen = false;
 		},
 	};
 
 	const publisher: MockWebSocketPublisher = {
+		isConnectionOpen: () => isOpen,
 		publishOpen: (event) => {
-			if (closed) {
+			if (!isOpen) {
 				return;
 			}
 			for (const sub of store.open) {
@@ -104,7 +106,7 @@ export function createMockWebSocket(
 		},
 
 		publishError: (event) => {
-			if (closed) {
+			if (!isOpen) {
 				return;
 			}
 			for (const sub of store.error) {
@@ -113,7 +115,7 @@ export function createMockWebSocket(
 		},
 
 		publishMessage: (event) => {
-			if (closed) {
+			if (!isOpen) {
 				return;
 			}
 			for (const sub of store.message) {
@@ -122,7 +124,7 @@ export function createMockWebSocket(
 		},
 
 		publishClose: (event) => {
-			if (closed) {
+			if (!isOpen) {
 				return;
 			}
 			for (const sub of store.close) {
