@@ -1215,6 +1215,155 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 	})
 }
 
+func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
+	t.Parallel()
+
+	// Setup Coder server with authentication
+	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
+	defer closer.Close()
+
+	user := coderdtest.CreateFirstUser(t, coderClient)
+
+	// Create template and workspace for testing search functionality
+	version := coderdtest.CreateTemplateVersion(t, coderClient, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, coderClient, version.ID)
+	template := coderdtest.CreateTemplate(t, coderClient, user.OrganizationID, version.ID)
+
+	// Create MCP client pointing to the ChatGPT endpoint
+	mcpURL := api.AccessURL.String() + "/api/experimental/mcp/http?toolset=chatgpt"
+
+	// Configure client with authentication headers using RFC 6750 Bearer token
+	mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
+		transport.WithHTTPHeaders(map[string]string{
+			"Authorization": "Bearer " + coderClient.SessionToken(),
+		}))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if closeErr := mcpClient.Close(); closeErr != nil {
+			t.Logf("Failed to close MCP client: %v", closeErr)
+		}
+	})
+
+	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+	defer cancel()
+
+	// Start client
+	err = mcpClient.Start(ctx)
+	require.NoError(t, err)
+
+	// Initialize connection
+	initReq := mcp.InitializeRequest{
+		Params: mcp.InitializeParams{
+			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
+			ClientInfo: mcp.Implementation{
+				Name:    "test-chatgpt-client",
+				Version: "1.0.0",
+			},
+		},
+	}
+
+	result, err := mcpClient.Initialize(ctx, initReq)
+	require.NoError(t, err)
+	require.Equal(t, mcpserver.MCPServerName, result.ServerInfo.Name)
+	require.Equal(t, mcp.LATEST_PROTOCOL_VERSION, result.ProtocolVersion)
+	require.NotNil(t, result.Capabilities)
+
+	// Test tool listing - should only have search and fetch tools for ChatGPT
+	tools, err := mcpClient.ListTools(ctx, mcp.ListToolsRequest{})
+	require.NoError(t, err)
+	require.NotEmpty(t, tools.Tools)
+
+	// Verify we have exactly the ChatGPT tools and no others
+	var foundTools []string
+	for _, tool := range tools.Tools {
+		foundTools = append(foundTools, tool.Name)
+	}
+
+	// ChatGPT endpoint should only expose search and fetch tools
+	assert.Contains(t, foundTools, toolsdk.ToolNameChatGPTSearch, "Should have ChatGPT search tool")
+	assert.Contains(t, foundTools, toolsdk.ToolNameChatGPTFetch, "Should have ChatGPT fetch tool")
+	assert.Len(t, foundTools, 2, "ChatGPT endpoint should only expose search and fetch tools")
+
+	// Should NOT have other tools that are available in the standard endpoint
+	assert.NotContains(t, foundTools, toolsdk.ToolNameGetAuthenticatedUser, "Should not have authenticated user tool")
+	assert.NotContains(t, foundTools, toolsdk.ToolNameListWorkspaces, "Should not have list workspaces tool")
+
+	t.Logf("ChatGPT endpoint tools: %v", foundTools)
+
+	// Test search tool - search for templates
+	var searchTool *mcp.Tool
+	for _, tool := range tools.Tools {
+		if tool.Name == toolsdk.ToolNameChatGPTSearch {
+			searchTool = &tool
+			break
+		}
+	}
+	require.NotNil(t, searchTool, "Expected to find search tool")
+
+	// Execute search for templates
+	searchReq := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: searchTool.Name,
+			Arguments: map[string]any{
+				"query": "templates",
+			},
+		},
+	}
+
+	searchResult, err := mcpClient.CallTool(ctx, searchReq)
+	require.NoError(t, err)
+	require.NotEmpty(t, searchResult.Content)
+
+	// Verify the search result contains our template
+	assert.Len(t, searchResult.Content, 1)
+	if textContent, ok := searchResult.Content[0].(mcp.TextContent); ok {
+		assert.Equal(t, "text", textContent.Type)
+		assert.Contains(t, textContent.Text, template.ID.String(), "Search result should contain our test template")
+		t.Logf("Search result: %s", textContent.Text)
+	} else {
+		t.Errorf("Expected TextContent type, got %T", searchResult.Content[0])
+	}
+
+	// Test fetch tool
+	var fetchTool *mcp.Tool
+	for _, tool := range tools.Tools {
+		if tool.Name == toolsdk.ToolNameChatGPTFetch {
+			fetchTool = &tool
+			break
+		}
+	}
+	require.NotNil(t, fetchTool, "Expected to find fetch tool")
+
+	// Execute fetch for the template
+	fetchReq := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: fetchTool.Name,
+			Arguments: map[string]any{
+				"id": fmt.Sprintf("template:%s", template.ID.String()),
+			},
+		},
+	}
+
+	fetchResult, err := mcpClient.CallTool(ctx, fetchReq)
+	require.NoError(t, err)
+	require.NotEmpty(t, fetchResult.Content)
+
+	// Verify the fetch result contains template details
+	assert.Len(t, fetchResult.Content, 1)
+	if textContent, ok := fetchResult.Content[0].(mcp.TextContent); ok {
+		assert.Equal(t, "text", textContent.Type)
+		assert.Contains(t, textContent.Text, template.Name, "Fetch result should contain template name")
+		assert.Contains(t, textContent.Text, template.ID.String(), "Fetch result should contain template ID")
+		t.Logf("Fetch result contains template data")
+	} else {
+		t.Errorf("Expected TextContent type, got %T", fetchResult.Content[0])
+	}
+
+	t.Logf("ChatGPT endpoint E2E test successful: search and fetch tools working correctly")
+}
+
 // Helper function to parse URL safely in tests
 func mustParseURL(t *testing.T, rawURL string) *url.URL {
 	u, err := url.Parse(rawURL)
