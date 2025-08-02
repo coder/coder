@@ -42,7 +42,6 @@ export function createUseAgentLogs(
 			// Always fetch the logs from the beginning. We may want to optimize
 			// this in the future, but it would add some complexity in the code
 			// that might not be worth it.
-			const createdAtMap = new Map<string, number>();
 			const socket = createSocket(agentId, { after: 0 });
 			socket.addEventListener("message", (e) => {
 				if (e.parseError) {
@@ -57,19 +56,10 @@ export function createUseAgentLogs(
 				setLogs((logs) => {
 					const newLogs = [...logs, ...e.parsedMessage];
 					newLogs.sort((l1, l2) => {
-						let d1 = createdAtMap.get(l1.created_at);
-						if (d1 === undefined) {
-							d1 = new Date(l1.created_at).getTime();
-							createdAtMap.set(l1.created_at, d1);
-						}
-						let d2 = createdAtMap.get(l2.created_at);
-						if (d2 === undefined) {
-							d2 = new Date(l2.created_at).getTime();
-							createdAtMap.set(l2.created_at, d2);
-						}
+						const d1 = new Date(l1.created_at).getTime();
+						const d2 = new Date(l2.created_at).getTime();
 						return d1 - d2;
 					});
-
 					return newLogs;
 				});
 			});
