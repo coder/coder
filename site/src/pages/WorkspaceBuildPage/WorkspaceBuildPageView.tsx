@@ -308,12 +308,7 @@ type AgentLogsContentProps = {
 };
 
 const AgentLogsContent: FC<AgentLogsContentProps> = ({ agent }) => {
-	const logs = useAgentLogs(agent, true);
-
-	if (!logs) {
-		return <Loader />;
-	}
-
+	const logs = useAgentLogs(agent.id, true);
 	return (
 		<AgentLogs
 			sources={agent.log_sources}

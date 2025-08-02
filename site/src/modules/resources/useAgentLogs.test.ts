@@ -1,5 +1,6 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import type { WorkspaceAgentLog } from "api/typesGenerated";
+import { act } from "react";
 import { MockWorkspaceAgent } from "testHelpers/entities";
 import {
 	type MockWebSocketPublisher,
@@ -7,7 +8,6 @@ import {
 } from "testHelpers/websockets";
 import { OneWayWebSocket } from "utils/OneWayWebSocket";
 import { createUseAgentLogs } from "./useAgentLogs";
-import { act } from "react";
 
 const millisecondsInOneMinute = 60_000;
 
@@ -32,15 +32,15 @@ function generateMockLogs(
 
 // A mutable object holding the most recent mock WebSocket publisher. The inner
 // value will change as the hook opens/closes new connections
-type PublisherResult = { current: MockWebSocketPublisher; };
+type PublisherResult = { current: MockWebSocketPublisher };
 
 type MountHookResult = Readonly<{
-	rerender: (props: { agentId: string, enabled: boolean }) => void;
+	rerender: (props: { agentId: string; enabled: boolean }) => void;
 	publisherResult: PublisherResult;
 
 	// Note: the `current` property is only "halfway" readonly; the value is
 	// readonly, but the key is still mutable
-	hookResult: { current: readonly WorkspaceAgentLog[]; };
+	hookResult: { current: readonly WorkspaceAgentLog[] };
 }>;
 
 function mountHook(initialAgentId: string): MountHookResult {
@@ -66,7 +66,7 @@ function mountHook(initialAgentId: string): MountHookResult {
 
 	const { result, rerender } = renderHook(
 		({ agentId, enabled }) => useAgentLogs(agentId, enabled),
-		{ initialProps: { agentId: initialAgentId, enabled: true }, },
+		{ initialProps: { agentId: initialAgentId, enabled: true } },
 	);
 
 	return {
@@ -88,8 +88,8 @@ describe("useAgentLogs", () => {
 					new MessageEvent<string>("message", {
 						data: JSON.stringify([log]),
 					}),
-				)
-			})
+				);
+			});
 		}
 		await waitFor(() => expect(hookResult.current).toEqual(logs));
 	});
@@ -100,7 +100,7 @@ describe("useAgentLogs", () => {
 		rerender({ agentId: MockWorkspaceAgent.id, enabled: false });
 		await waitFor(() => {
 			expect(publisherResult.current.isConnectionOpen()).toBe(false);
-		})
+		});
 	});
 
 	it("Automatically closes the old connection when the agent ID changes", () => {
@@ -117,8 +117,9 @@ describe("useAgentLogs", () => {
 	});
 
 	it("Clears logs when hook becomes disabled (protection to avoid duplicate logs when hook goes back to being re-enabled)", async () => {
-		const { hookResult, publisherResult, rerender }
-			= mountHook(MockWorkspaceAgent.id);
+		const { hookResult, publisherResult, rerender } = mountHook(
+			MockWorkspaceAgent.id,
+		);
 
 		// Send initial logs so that we have something to clear out later
 		const initialLogs = generateMockLogs(3, new Date("april 5, 1997"));

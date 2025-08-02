@@ -1,10 +1,13 @@
-import { watchWorkspaceAgentLogs, type WatchWorkspaceAgentLogsParams } from "api/api";
+import {
+	type WatchWorkspaceAgentLogsParams,
+	watchWorkspaceAgentLogs,
+} from "api/api";
 import type { WorkspaceAgentLog } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useEffect, useState } from "react";
 import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 
-export type CreateSocket = (
+type CreateSocket = (
 	agentId: string,
 	params?: WatchWorkspaceAgentLogsParams,
 ) => OneWayWebSocket<WorkspaceAgentLog[]>;
@@ -51,12 +54,12 @@ export function createUseAgentLogs(createSocket: CreateSocket) {
 					newLogs.sort((l1, l2) => {
 						let d1 = createdAtMap.get(l1.created_at);
 						if (d1 === undefined) {
-							d1 = (new Date(l1.created_at)).getTime();
+							d1 = new Date(l1.created_at).getTime();
 							createdAtMap.set(l1.created_at, d1);
 						}
 						let d2 = createdAtMap.get(l2.created_at);
 						if (d2 === undefined) {
-							d2 = (new Date(l2.created_at)).getTime();
+							d2 = new Date(l2.created_at).getTime();
 							createdAtMap.set(l2.created_at, d2);
 						}
 						return d1 - d2;
