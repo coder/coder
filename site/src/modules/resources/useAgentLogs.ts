@@ -1,5 +1,5 @@
 import { watchWorkspaceAgentLogs, type WatchWorkspaceAgentLogsParams } from "api/api";
-import type { WorkspaceAgent, WorkspaceAgentLog } from "api/typesGenerated";
+import type { WorkspaceAgentLog } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useEffect, useState } from "react";
 import type { OneWayWebSocket } from "utils/OneWayWebSocket";
@@ -11,7 +11,7 @@ export type CreateSocket = (
 
 export function createUseAgentLogs(createSocket: CreateSocket) {
 	return function useAgentLogs(
-		agent: WorkspaceAgent,
+		agentId: string,
 		enabled: boolean,
 	): readonly WorkspaceAgentLog[] {
 		const [logs, setLogs] = useState<readonly WorkspaceAgentLog[]>([]);
@@ -35,7 +35,7 @@ export function createUseAgentLogs(createSocket: CreateSocket) {
 			// this in the future, but it would add some complexity in the code
 			// that might not be worth it.
 			const createdAtMap = new Map<string, number>();
-			const socket = createSocket(agent.id, { after: 0 });
+			const socket = createSocket(agentId, { after: 0 });
 			socket.addEventListener("message", (e) => {
 				if (e.parseError) {
 					console.warn("Error parsing agent log: ", e.parseError);
@@ -76,7 +76,7 @@ export function createUseAgentLogs(createSocket: CreateSocket) {
 			});
 
 			return () => socket.close();
-		}, [createSocket, agent.id, enabled]);
+		}, [createSocket, agentId, enabled]);
 
 		return logs;
 	};
