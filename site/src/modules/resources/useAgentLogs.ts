@@ -34,19 +34,42 @@ export function createUseAgentLogs(createSocket: CreateSocket) {
 			// Always fetch the logs from the beginning. We may want to optimize
 			// this in the future, but it would add some complexity in the code
 			// that might not be worth it.
+			const createdAtMap = new Map<string, number>();
 			const socket = createSocket(agent.id, { after: 0 });
 			socket.addEventListener("message", (e) => {
 				if (e.parseError) {
 					console.warn("Error parsing agent log: ", e.parseError);
 					return;
 				}
-				setLogs((logs) => [...logs, ...e.parsedMessage]);
+
+				if (e.parsedMessage.length === 0) {
+					return;
+				}
+
+				setLogs((logs) => {
+					const newLogs = [...logs, ...e.parsedMessage];
+					newLogs.sort((l1, l2) => {
+						let d1 = createdAtMap.get(l1.created_at);
+						if (d1 === undefined) {
+							d1 = (new Date(l1.created_at)).getTime();
+							createdAtMap.set(l1.created_at, d1);
+						}
+						let d2 = createdAtMap.get(l2.created_at);
+						if (d2 === undefined) {
+							d2 = (new Date(l2.created_at)).getTime();
+							createdAtMap.set(l2.created_at, d2);
+						}
+						return d1 - d2;
+					});
+
+					return newLogs;
+				});
 			});
 
 			socket.addEventListener("error", (e) => {
 				console.error("Error in agent log socket: ", e);
 				displayError(
-					"Unable to watch the agent logs",
+					"Unable to watch agent logs",
 					"Please try refreshing the browser",
 				);
 				socket.close();

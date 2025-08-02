@@ -7,6 +7,7 @@ import {
 } from "testHelpers/websockets";
 import { OneWayWebSocket } from "utils/OneWayWebSocket";
 import { createUseAgentLogs } from "./useAgentLogs";
+import { act } from "react";
 
 const millisecondsInOneMinute = 60_000;
 
@@ -82,14 +83,15 @@ describe("useAgentLogs", () => {
 	it("Automatically sorts logs that are received out of order", async () => {
 		const { hookResult, publisherResult } = mountHook();
 		const logs = generateMockLogs(10, new Date("september 9, 1999"));
-		const reversed = logs.toReversed();
 
-		for (const log of reversed) {
-			publisherResult.current.publishMessage(
-				new MessageEvent<string>("message", {
-					data: JSON.stringify(log),
-				}),
-			)
+		for (const log of logs.toReversed()) {
+			act(() => {
+				publisherResult.current.publishMessage(
+					new MessageEvent<string>("message", {
+						data: JSON.stringify([log]),
+					}),
+				)
+			})
 		}
 		await waitFor(() => expect(hookResult.current).toEqual(logs));
 	});
@@ -111,7 +113,7 @@ describe("useAgentLogs", () => {
 		const initialEvent = new MessageEvent<string>("message", {
 			data: JSON.stringify(initialLogs),
 		});
-		publisherResult.current.publishMessage(initialEvent);
+		act(() => publisherResult.current.publishMessage(initialEvent));
 		await waitFor(() => expect(hookResult.current).toEqual(initialLogs));
 
 		// Disable the hook (and have the hook close the connection behind the
@@ -126,7 +128,7 @@ describe("useAgentLogs", () => {
 		const newEvent = new MessageEvent<string>("message", {
 			data: JSON.stringify(newLogs),
 		});
-		publisherResult.current.publishMessage(newEvent);
+		act(() => publisherResult.current.publishMessage(newEvent));
 		await waitFor(() => expect(hookResult.current).toEqual(newLogs));
 	});
 });
