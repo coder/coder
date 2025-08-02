@@ -535,7 +535,10 @@ func TestAcquireJob(t *testing.T) {
 			ctx := context.Background()
 
 			user := dbgen.User(t, db, database.User{})
-			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{})
+			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				CreatedBy:      user.ID,
+				OrganizationID: pd.OrganizationID,
+			})
 			file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
 			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 				InitiatorID:   user.ID,
@@ -613,7 +616,10 @@ func TestAcquireJob(t *testing.T) {
 			srv, db, ps, pd := setup(t, false, nil)
 
 			user := dbgen.User(t, db, database.User{})
-			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{})
+			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				CreatedBy:      user.ID,
+				OrganizationID: pd.OrganizationID,
+			})
 			file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
 			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 				FileID:        file.ID,
@@ -676,12 +682,13 @@ func TestUpdateJob(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, nil)
 		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:            uuid.New(),
-			Provisioner:   database.ProvisionerTypeEcho,
-			StorageMethod: database.ProvisionerStorageMethodFile,
-			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
-			Input:         json.RawMessage("{}"),
-			Tags:          pd.Tags,
+			ID:             uuid.New(),
+			Provisioner:    database.ProvisionerTypeEcho,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
+			Input:          json.RawMessage("{}"),
+			OrganizationID: pd.OrganizationID,
+			Tags:           pd.Tags,
 		})
 		require.NoError(t, err)
 		_, err = srv.UpdateJob(ctx, &proto.UpdateJobRequest{
@@ -694,12 +701,13 @@ func TestUpdateJob(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, nil)
 		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:            uuid.New(),
-			Provisioner:   database.ProvisionerTypeEcho,
-			StorageMethod: database.ProvisionerStorageMethodFile,
-			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
-			Input:         json.RawMessage("{}"),
-			Tags:          pd.Tags,
+			ID:             uuid.New(),
+			Provisioner:    database.ProvisionerTypeEcho,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
+			Input:          json.RawMessage("{}"),
+			OrganizationID: pd.OrganizationID,
+			Tags:           pd.Tags,
 		})
 		require.NoError(t, err)
 		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -712,6 +720,7 @@ func TestUpdateJob(t *testing.T) {
 				Time:  dbtime.Now(),
 				Valid: true,
 			},
+			OrganizationID:  pd.OrganizationID,
 			ProvisionerTags: must(json.Marshal(job.Tags)),
 		})
 		require.NoError(t, err)
@@ -721,14 +730,15 @@ func TestUpdateJob(t *testing.T) {
 		require.ErrorContains(t, err, "you don't own this job")
 	})
 
-	setupJob := func(t *testing.T, db database.Store, srvID uuid.UUID, tags database.StringMap) uuid.UUID {
+	setupJob := func(t *testing.T, db database.Store, srvID, orgID uuid.UUID, tags database.StringMap) uuid.UUID {
 		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:            uuid.New(),
-			Provisioner:   database.ProvisionerTypeEcho,
-			Type:          database.ProvisionerJobTypeTemplateVersionImport,
-			StorageMethod: database.ProvisionerStorageMethodFile,
-			Input:         json.RawMessage("{}"),
-			Tags:          tags,
+			ID:             uuid.New(),
+			OrganizationID: orgID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			Input:          json.RawMessage("{}"),
+			Tags:           tags,
 		})
 		require.NoError(t, err)
 		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -741,6 +751,7 @@ func TestUpdateJob(t *testing.T) {
 				Time:  dbtime.Now(),
 				Valid: true,
 			},
+			OrganizationID:  orgID,
 			ProvisionerTags: must(json.Marshal(job.Tags)),
 		})
 		require.NoError(t, err)
@@ -750,7 +761,7 @@ func TestUpdateJob(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, &overrides{})
-		job := setupJob(t, db, pd.ID, pd.Tags)
+		job := setupJob(t, db, pd.ID, pd.OrganizationID, pd.Tags)
 		_, err := srv.UpdateJob(ctx, &proto.UpdateJobRequest{
 			JobId: job.String(),
 		})
@@ -760,7 +771,7 @@ func TestUpdateJob(t *testing.T) {
 	t.Run("Logs", func(t *testing.T) {
 		t.Parallel()
 		srv, db, ps, pd := setup(t, false, &overrides{})
-		job := setupJob(t, db, pd.ID, pd.Tags)
+		job := setupJob(t, db, pd.ID, pd.OrganizationID, pd.Tags)
 
 		published := make(chan struct{})
 
@@ -785,11 +796,14 @@ func TestUpdateJob(t *testing.T) {
 	t.Run("Readme", func(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, &overrides{})
-		job := setupJob(t, db, pd.ID, pd.Tags)
+		job := setupJob(t, db, pd.ID, pd.OrganizationID, pd.Tags)
 		versionID := uuid.New()
+		user := dbgen.User(t, db, database.User{})
 		err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-			ID:    versionID,
-			JobID: job,
+			ID:             versionID,
+			CreatedBy:      user.ID,
+			OrganizationID: pd.OrganizationID,
+			JobID:          job,
 		})
 		require.NoError(t, err)
 		_, err = srv.UpdateJob(ctx, &proto.UpdateJobRequest{
@@ -811,11 +825,14 @@ func TestUpdateJob(t *testing.T) {
 			defer cancel()
 
 			srv, db, _, pd := setup(t, false, &overrides{})
-			job := setupJob(t, db, pd.ID, pd.Tags)
+			job := setupJob(t, db, pd.ID, pd.OrganizationID, pd.Tags)
 			versionID := uuid.New()
+			user := dbgen.User(t, db, database.User{})
 			err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-				ID:    versionID,
-				JobID: job,
+				ID:             versionID,
+				CreatedBy:      user.ID,
+				JobID:          job,
+				OrganizationID: pd.OrganizationID,
 			})
 			require.NoError(t, err)
 			firstTemplateVariable := &sdkproto.TemplateVariable{
@@ -858,11 +875,14 @@ func TestUpdateJob(t *testing.T) {
 			defer cancel()
 
 			srv, db, _, pd := setup(t, false, &overrides{})
-			job := setupJob(t, db, pd.ID, pd.Tags)
+			user := dbgen.User(t, db, database.User{})
+			job := setupJob(t, db, pd.ID, pd.OrganizationID, pd.Tags)
 			versionID := uuid.New()
 			err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-				ID:    versionID,
-				JobID: job,
+				CreatedBy:      user.ID,
+				ID:             versionID,
+				JobID:          job,
+				OrganizationID: pd.OrganizationID,
 			})
 			require.NoError(t, err)
 			firstTemplateVariable := &sdkproto.TemplateVariable{
@@ -904,11 +924,14 @@ func TestUpdateJob(t *testing.T) {
 		defer cancel()
 
 		srv, db, _, pd := setup(t, false, &overrides{})
-		job := setupJob(t, db, pd.ID, pd.Tags)
+		job := setupJob(t, db, pd.ID, pd.OrganizationID, pd.Tags)
 		versionID := uuid.New()
+		user := dbgen.User(t, db, database.User{})
 		err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-			ID:    versionID,
-			JobID: job,
+			ID:             versionID,
+			CreatedBy:      user.ID,
+			JobID:          job,
+			OrganizationID: pd.OrganizationID,
 		})
 		require.NoError(t, err)
 		_, err = srv.UpdateJob(ctx, &proto.UpdateJobRequest{
@@ -932,7 +955,7 @@ func TestUpdateJob(t *testing.T) {
 	t.Run("LogSizeLimit", func(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, &overrides{})
-		job := setupJob(t, db, pd.ID, pd.Tags)
+		job := setupJob(t, db, pd.ID, pd.OrganizationID, pd.Tags)
 
 		// Create a log message that exceeds the 1MB limit
 		largeOutput := strings.Repeat("a", 1048577) // 1MB + 1 byte
@@ -956,7 +979,7 @@ func TestUpdateJob(t *testing.T) {
 	t.Run("IncrementalLogSizeOverflow", func(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, &overrides{})
-		job := setupJob(t, db, pd.ID, pd.Tags)
+		job := setupJob(t, db, pd.ID, pd.OrganizationID, pd.Tags)
 
 		// Send logs that together exceed the limit
 		mediumOutput := strings.Repeat("b", 524289) // Half a MB + 1 byte
@@ -997,7 +1020,7 @@ func TestUpdateJob(t *testing.T) {
 	t.Run("LogSizeTracking", func(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, &overrides{})
-		job := setupJob(t, db, pd.ID, pd.Tags)
+		job := setupJob(t, db, pd.ID, pd.OrganizationID, pd.Tags)
 
 		logOutput := "test log message"
 		expectedSize := int32(len(logOutput)) // #nosec G115 - Log length is 16.
@@ -1022,7 +1045,7 @@ func TestUpdateJob(t *testing.T) {
 	t.Run("LogOverflowStopsProcessing", func(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, &overrides{})
-		job := setupJob(t, db, pd.ID, pd.Tags)
+		job := setupJob(t, db, pd.ID, pd.OrganizationID, pd.Tags)
 
 		// First: trigger overflow
 		largeOutput := strings.Repeat("a", 1048577) // 1MB + 1 byte
@@ -1086,12 +1109,13 @@ func TestFailJob(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, nil)
 		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:            uuid.New(),
-			Provisioner:   database.ProvisionerTypeEcho,
-			StorageMethod: database.ProvisionerStorageMethodFile,
-			Type:          database.ProvisionerJobTypeTemplateVersionImport,
-			Input:         json.RawMessage("{}"),
-			Tags:          pd.Tags,
+			ID:             uuid.New(),
+			Provisioner:    database.ProvisionerTypeEcho,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			Input:          json.RawMessage("{}"),
+			OrganizationID: pd.OrganizationID,
+			Tags:           pd.Tags,
 		})
 		require.NoError(t, err)
 		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -1104,6 +1128,7 @@ func TestFailJob(t *testing.T) {
 				Time:  dbtime.Now(),
 				Valid: true,
 			},
+			OrganizationID:  pd.OrganizationID,
 			ProvisionerTags: must(json.Marshal(job.Tags)),
 		})
 		require.NoError(t, err)
@@ -1116,12 +1141,13 @@ func TestFailJob(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, &overrides{})
 		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:            uuid.New(),
-			Provisioner:   database.ProvisionerTypeEcho,
-			Type:          database.ProvisionerJobTypeTemplateVersionImport,
-			StorageMethod: database.ProvisionerStorageMethodFile,
-			Input:         json.RawMessage("{}"),
-			Tags:          pd.Tags,
+			ID:             uuid.New(),
+			Provisioner:    database.ProvisionerTypeEcho,
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			Input:          json.RawMessage("{}"),
+			OrganizationID: pd.OrganizationID,
+			Tags:           pd.Tags,
 		})
 		require.NoError(t, err)
 		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -1134,6 +1160,7 @@ func TestFailJob(t *testing.T) {
 				Time:  dbtime.Now(),
 				Valid: true,
 			},
+			OrganizationID:  pd.OrganizationID,
 			ProvisionerTags: must(json.Marshal(job.Tags)),
 		})
 		require.NoError(t, err)
@@ -1152,19 +1179,20 @@ func TestFailJob(t *testing.T) {
 	})
 	t.Run("WorkspaceBuild", func(t *testing.T) {
 		t.Parallel()
-		// Ignore log errors because we get:
-		//
-		//	(*Server).FailJob       audit log - get build {"error": "sql: no rows in result set"}
-		ignoreLogErrors := true
 		auditor := audit.NewMock()
-		srv, db, ps, pd := setup(t, ignoreLogErrors, &overrides{
+		srv, db, ps, pd := setup(t, false, &overrides{
 			auditor: auditor,
 		})
 		org := dbgen.Organization(t, db, database.Organization{})
 		u := dbgen.User(t, db, database.User{})
-		tpl := dbgen.Template(t, db, database.Template{
-			OrganizationID: org.ID,
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 			CreatedBy:      u.ID,
+			OrganizationID: org.ID,
+		})
+		tpl := dbgen.Template(t, db, database.Template{
+			OrganizationID:  org.ID,
+			CreatedBy:       u.ID,
+			ActiveVersionID: tv.ID,
 		})
 		workspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
 			ID:               uuid.New(),
@@ -1181,22 +1209,24 @@ func TestFailJob(t *testing.T) {
 		require.NoError(t, err)
 
 		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:            uuid.New(),
-			Input:         input,
-			InitiatorID:   workspace.OwnerID,
-			Provisioner:   database.ProvisionerTypeEcho,
-			Type:          database.ProvisionerJobTypeWorkspaceBuild,
-			StorageMethod: database.ProvisionerStorageMethodFile,
-			Tags:          pd.Tags,
+			ID:             uuid.New(),
+			Input:          input,
+			InitiatorID:    workspace.OwnerID,
+			OrganizationID: pd.OrganizationID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			Tags:           pd.Tags,
 		})
 		require.NoError(t, err)
 		err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
-			ID:          buildID,
-			WorkspaceID: workspace.ID,
-			InitiatorID: workspace.OwnerID,
-			Transition:  database.WorkspaceTransitionStart,
-			Reason:      database.BuildReasonInitiator,
-			JobID:       job.ID,
+			ID:                buildID,
+			WorkspaceID:       workspace.ID,
+			InitiatorID:       workspace.OwnerID,
+			TemplateVersionID: tpl.ActiveVersionID,
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonInitiator,
+			JobID:             job.ID,
 		})
 		require.NoError(t, err)
 
@@ -1210,6 +1240,7 @@ func TestFailJob(t *testing.T) {
 				Time:  dbtime.Now(),
 				Valid: true,
 			},
+			OrganizationID:  pd.OrganizationID,
 			ProvisionerTags: must(json.Marshal(job.Tags)),
 		})
 		require.NoError(t, err)
@@ -1318,7 +1349,9 @@ func TestCompleteJob(t *testing.T) {
 			srv, db, _, pd := setup(t, false, &overrides{})
 			jobID := uuid.New()
 			versionID := uuid.New()
+			user := dbgen.User(t, db, database.User{})
 			err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+				CreatedBy:      user.ID,
 				ID:             versionID,
 				JobID:          jobID,
 				OrganizationID: pd.OrganizationID,
@@ -1376,13 +1409,15 @@ func TestCompleteJob(t *testing.T) {
 		t.Run("TemplateDryRunTransaction", func(t *testing.T) {
 			t.Parallel()
 			srv, db, _, pd := setup(t, false, &overrides{})
+			org := dbgen.Organization(t, db, database.Organization{})
 			job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-				ID:            uuid.New(),
-				Provisioner:   database.ProvisionerTypeEcho,
-				Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
-				StorageMethod: database.ProvisionerStorageMethodFile,
-				Input:         json.RawMessage("{}"),
-				Tags:          pd.Tags,
+				ID:             uuid.New(),
+				OrganizationID: org.ID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				Input:          json.RawMessage("{}"),
+				Tags:           pd.Tags,
 			})
 			require.NoError(t, err)
 			_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -1390,6 +1425,7 @@ func TestCompleteJob(t *testing.T) {
 					UUID:  pd.ID,
 					Valid: true,
 				},
+				OrganizationID:  org.ID,
 				Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
 				ProvisionerTags: must(json.Marshal(job.Tags)),
 				StartedAt:       sql.NullTime{Time: job.CreatedAt, Valid: true},
@@ -1430,6 +1466,7 @@ func TestCompleteJob(t *testing.T) {
 			user := dbgen.User(t, db, database.User{})
 			template := dbgen.Template(t, db, database.Template{
 				Name:           "template",
+				CreatedBy:      user.ID,
 				Provisioner:    database.ProvisionerTypeEcho,
 				OrganizationID: pd.OrganizationID,
 			})
@@ -1441,26 +1478,31 @@ func TestCompleteJob(t *testing.T) {
 			})
 			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 				OrganizationID: pd.OrganizationID,
+				CreatedBy:      user.ID,
 				TemplateID: uuid.NullUUID{
 					UUID:  template.ID,
 					Valid: true,
 				},
 				JobID: uuid.New(),
 			})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-				WorkspaceID:       workspaceTable.ID,
-				TemplateVersionID: version.ID,
-				Transition:        database.WorkspaceTransitionStart,
-				Reason:            database.BuildReasonInitiator,
-			})
+			wsBuildID := uuid.New()
 			job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+				ID:          uuid.New(),
 				FileID:      file.ID,
 				InitiatorID: user.ID,
 				Type:        database.ProvisionerJobTypeWorkspaceBuild,
 				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-					WorkspaceBuildID: build.ID,
+					WorkspaceBuildID: wsBuildID,
 				})),
 				OrganizationID: pd.OrganizationID,
+			})
+			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				ID:                wsBuildID,
+				JobID:             job.ID,
+				WorkspaceID:       workspaceTable.ID,
+				TemplateVersionID: version.ID,
+				Transition:        database.WorkspaceTransitionStart,
+				Reason:            database.BuildReasonInitiator,
 			})
 			_, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 				OrganizationID: pd.OrganizationID,
@@ -1587,7 +1629,9 @@ func TestCompleteJob(t *testing.T) {
 		srv, db, _, pd := setup(t, false, &overrides{})
 		jobID := uuid.New()
 		versionID := uuid.New()
+		user := dbgen.User(t, db, database.User{})
 		err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+			CreatedBy:      user.ID,
 			ID:             versionID,
 			JobID:          jobID,
 			OrganizationID: pd.OrganizationID,
@@ -1644,7 +1688,9 @@ func TestCompleteJob(t *testing.T) {
 		srv, db, _, pd := setup(t, false, &overrides{})
 		jobID := uuid.New()
 		versionID := uuid.New()
+		user := dbgen.User(t, db, database.User{})
 		err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+			CreatedBy:      user.ID,
 			ID:             versionID,
 			JobID:          jobID,
 			OrganizationID: pd.OrganizationID,
@@ -1708,8 +1754,10 @@ func TestCompleteJob(t *testing.T) {
 		})
 		jobID := uuid.New()
 		versionID := uuid.New()
+		user := dbgen.User(t, db, database.User{})
 		err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
 			ID:             versionID,
+			CreatedBy:      user.ID,
 			JobID:          jobID,
 			OrganizationID: pd.OrganizationID,
 		})
@@ -1896,6 +1944,7 @@ func TestCompleteJob(t *testing.T) {
 					QuietHoursSchedule: c.userQuietHoursSchedule,
 				})
 				template := dbgen.Template(t, db, database.Template{
+					CreatedBy:      user.ID,
 					Name:           "template",
 					Provisioner:    database.ProvisionerTypeEcho,
 					OrganizationID: pd.OrganizationID,
@@ -1927,6 +1976,7 @@ func TestCompleteJob(t *testing.T) {
 					OrganizationID: pd.OrganizationID,
 				})
 				version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					CreatedBy:      user.ID,
 					OrganizationID: pd.OrganizationID,
 					TemplateID: uuid.NullUUID{
 						UUID:  template.ID,
@@ -1934,21 +1984,24 @@ func TestCompleteJob(t *testing.T) {
 					},
 					JobID: uuid.New(),
 				})
-				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-					WorkspaceID:       workspaceTable.ID,
-					InitiatorID:       user.ID,
-					TemplateVersionID: version.ID,
-					Transition:        c.transition,
-					Reason:            database.BuildReasonInitiator,
-				})
+				buildID := uuid.New()
 				job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 					FileID:      file.ID,
 					InitiatorID: user.ID,
 					Type:        database.ProvisionerJobTypeWorkspaceBuild,
 					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-						WorkspaceBuildID: build.ID,
+						WorkspaceBuildID: buildID,
 					})),
 					OrganizationID: pd.OrganizationID,
+				})
+				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+					ID:                buildID,
+					JobID:             job.ID,
+					WorkspaceID:       workspaceTable.ID,
+					InitiatorID:       user.ID,
+					TemplateVersionID: version.ID,
+					Transition:        c.transition,
+					Reason:            database.BuildReasonInitiator,
 				})
 				_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 					OrganizationID: pd.OrganizationID,
@@ -2039,12 +2092,13 @@ func TestCompleteJob(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, &overrides{})
 		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:            uuid.New(),
-			Provisioner:   database.ProvisionerTypeEcho,
-			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
-			StorageMethod: database.ProvisionerStorageMethodFile,
-			Input:         json.RawMessage("{}"),
-			Tags:          pd.Tags,
+			ID:             uuid.New(),
+			Provisioner:    database.ProvisionerTypeEcho,
+			Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			Input:          json.RawMessage("{}"),
+			OrganizationID: pd.OrganizationID,
+			Tags:           pd.Tags,
 		})
 		require.NoError(t, err)
 		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -2057,6 +2111,7 @@ func TestCompleteJob(t *testing.T) {
 				Time:  dbtime.Now(),
 				Valid: true,
 			},
+			OrganizationID:  pd.OrganizationID,
 			ProvisionerTags: must(json.Marshal(job.Tags)),
 		})
 		require.NoError(t, err)
@@ -2282,15 +2337,22 @@ func TestCompleteJob(t *testing.T) {
 				if jobParams.Tags == nil {
 					jobParams.Tags = pd.Tags
 				}
+				if jobParams.OrganizationID == uuid.Nil {
+					jobParams.OrganizationID = pd.OrganizationID
+				}
 				user := dbgen.User(t, db, database.User{})
 				job, err := db.InsertProvisionerJob(ctx, jobParams)
+				require.NoError(t, err)
 
 				tpl := dbgen.Template(t, db, database.Template{
+					CreatedBy:      user.ID,
 					OrganizationID: pd.OrganizationID,
 				})
 				tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-					TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
-					JobID:      job.ID,
+					CreatedBy:      user.ID,
+					OrganizationID: pd.OrganizationID,
+					TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+					JobID:          job.ID,
 				})
 				workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 					TemplateID:     tpl.ID,
@@ -2310,6 +2372,7 @@ func TestCompleteJob(t *testing.T) {
 						UUID:  pd.ID,
 						Valid: true,
 					},
+					OrganizationID:  pd.OrganizationID,
 					Types:           []database.ProvisionerType{jobParams.Provisioner},
 					ProvisionerTags: must(json.Marshal(job.Tags)),
 					StartedAt:       sql.NullTime{Time: job.CreatedAt, Valid: true},
@@ -2499,6 +2562,7 @@ func TestCompleteJob(t *testing.T) {
 		// Given: a workspace build which simulates claiming a prebuild.
 		user := dbgen.User(t, db, database.User{})
 		template := dbgen.Template(t, db, database.Template{
+			CreatedBy:      user.ID,
 			Name:           "template",
 			Provisioner:    database.ProvisionerTypeEcho,
 			OrganizationID: pd.OrganizationID,
@@ -2510,6 +2574,7 @@ func TestCompleteJob(t *testing.T) {
 			OrganizationID: pd.OrganizationID,
 		})
 		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			CreatedBy:      user.ID,
 			OrganizationID: pd.OrganizationID,
 			TemplateID: uuid.NullUUID{
 				UUID:  template.ID,
@@ -2517,22 +2582,25 @@ func TestCompleteJob(t *testing.T) {
 			},
 			JobID: uuid.New(),
 		})
-		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       workspaceTable.ID,
-			InitiatorID:       user.ID,
-			TemplateVersionID: version.ID,
-			Transition:        database.WorkspaceTransitionStart,
-			Reason:            database.BuildReasonInitiator,
-		})
+		buildID := uuid.New()
 		job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 			FileID:      file.ID,
 			InitiatorID: user.ID,
 			Type:        database.ProvisionerJobTypeWorkspaceBuild,
 			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-				WorkspaceBuildID:            build.ID,
+				WorkspaceBuildID:            buildID,
 				PrebuiltWorkspaceBuildStage: sdkproto.PrebuiltWorkspaceBuildStage_CLAIM,
 			})),
 			OrganizationID: pd.OrganizationID,
+		})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			ID:                buildID,
+			JobID:             job.ID,
+			WorkspaceID:       workspaceTable.ID,
+			InitiatorID:       user.ID,
+			TemplateVersionID: version.ID,
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonInitiator,
 		})
 		_, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 			OrganizationID: pd.OrganizationID,
@@ -2608,13 +2676,16 @@ func TestCompleteJob(t *testing.T) {
 
 					importJobID := uuid.New()
 					tvID := uuid.New()
+					templateAdminUser := dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
 					template := dbgen.Template(t, db, database.Template{
 						Name:           "template",
+						CreatedBy:      templateAdminUser.ID,
 						Provisioner:    database.ProvisionerTypeEcho,
 						OrganizationID: pd.OrganizationID,
 					})
 					version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 						ID:             tvID,
+						CreatedBy:      templateAdminUser.ID,
 						OrganizationID: pd.OrganizationID,
 						TemplateID: uuid.NullUUID{
 							UUID:  template.ID,
@@ -2704,6 +2775,22 @@ func TestCompleteJob(t *testing.T) {
 								},
 							},
 						},
+						Resources: []*sdkproto.Resource{
+							{
+								Agents: []*sdkproto.Agent{
+									{
+										Id:   uuid.NewString(),
+										Name: "a",
+										Apps: []*sdkproto.App{
+											{
+												Id:   sidebarAppID,
+												Slug: "test-app",
+											},
+										},
+									},
+								},
+							},
+						},
 					},
 					expected: true,
 				},
@@ -2715,13 +2802,16 @@ func TestCompleteJob(t *testing.T) {
 
 					importJobID := uuid.New()
 					tvID := uuid.New()
+					templateUser := dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
 					template := dbgen.Template(t, db, database.Template{
 						Name:           "template",
+						CreatedBy:      templateUser.ID,
 						Provisioner:    database.ProvisionerTypeEcho,
 						OrganizationID: pd.OrganizationID,
 					})
 					version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 						ID:             tvID,
+						CreatedBy:      templateUser.ID,
 						OrganizationID: pd.OrganizationID,
 						TemplateID: uuid.NullUUID{
 							UUID:  template.ID,
@@ -2735,22 +2825,19 @@ func TestCompleteJob(t *testing.T) {
 						OwnerID:        user.ID,
 						OrganizationID: pd.OrganizationID,
 					})
-					build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-						WorkspaceID:       workspaceTable.ID,
-						TemplateVersionID: version.ID,
-						InitiatorID:       user.ID,
-						Transition:        database.WorkspaceTransitionStart,
-					})
 
 					ctx := testutil.Context(t, testutil.WaitShort)
+
+					buildJobID := uuid.New()
+					wsBuildID := uuid.New()
 					job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-						ID:             importJobID,
+						ID:             buildJobID,
 						CreatedAt:      dbtime.Now(),
 						UpdatedAt:      dbtime.Now(),
 						OrganizationID: pd.OrganizationID,
-						InitiatorID:    uuid.New(),
+						InitiatorID:    user.ID,
 						Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-							WorkspaceBuildID: build.ID,
+							WorkspaceBuildID: wsBuildID,
 							LogLevel:         "DEBUG",
 						})),
 						Provisioner:   database.ProvisionerTypeEcho,
@@ -2759,6 +2846,14 @@ func TestCompleteJob(t *testing.T) {
 						Tags:          pd.Tags,
 					})
 					require.NoError(t, err)
+					build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+						ID:                wsBuildID,
+						JobID:             buildJobID,
+						WorkspaceID:       workspaceTable.ID,
+						TemplateVersionID: version.ID,
+						InitiatorID:       user.ID,
+						Transition:        database.WorkspaceTransitionStart,
+					})
 
 					_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 						OrganizationID: pd.OrganizationID,
@@ -3016,22 +3111,21 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	t.Run("NoAgents", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		dbtestutil.DisableForeignKeysAndTriggers(t, db)
-		job := uuid.New()
-		err := insert(db, job, &sdkproto.Resource{
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		err := insert(db, job.ID, &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 		})
 		require.NoError(t, err)
-		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job)
+		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
 		require.NoError(t, err)
 		require.Len(t, resources, 1)
 	})
 	t.Run("InvalidAgentToken", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		dbtestutil.DisableForeignKeysAndTriggers(t, db)
-		err := insert(db, uuid.New(), &sdkproto.Resource{
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		err := insert(db, job.ID, &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -3046,8 +3140,8 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	t.Run("DuplicateApps", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		dbtestutil.DisableForeignKeysAndTriggers(t, db)
-		err := insert(db, uuid.New(), &sdkproto.Resource{
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		err := insert(db, job.ID, &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -3062,8 +3156,8 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		require.ErrorContains(t, err, `duplicate app slug, must be unique per template: "a"`)
 
 		db, _ = dbtestutil.NewDB(t)
-		dbtestutil.DisableForeignKeysAndTriggers(t, db)
-		err = insert(db, uuid.New(), &sdkproto.Resource{
+		job = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		err = insert(db, job.ID, &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -3083,9 +3177,8 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	t.Run("AppSlugInvalid", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		dbtestutil.DisableForeignKeysAndTriggers(t, db)
-		job := uuid.New()
-		err := insert(db, job, &sdkproto.Resource{
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		err := insert(db, job.ID, &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -3096,7 +3189,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			}},
 		})
 		require.ErrorContains(t, err, `app slug "dev_1" does not match regex`)
-		err = insert(db, job, &sdkproto.Resource{
+		err = insert(db, job.ID, &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -3107,7 +3200,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			}},
 		})
 		require.ErrorContains(t, err, `app slug "dev--1" does not match regex`)
-		err = insert(db, job, &sdkproto.Resource{
+		err = insert(db, job.ID, &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -3122,10 +3215,9 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	t.Run("DuplicateAgentNames", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		dbtestutil.DisableForeignKeysAndTriggers(t, db)
-		job := uuid.New()
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
 		// case-insensitive-unique
-		err := insert(db, job, &sdkproto.Resource{
+		err := insert(db, job.ID, &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -3135,7 +3227,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			}},
 		})
 		require.ErrorContains(t, err, "duplicate agent name")
-		err = insert(db, job, &sdkproto.Resource{
+		err = insert(db, job.ID, &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -3149,9 +3241,8 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	t.Run("AgentNameInvalid", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		dbtestutil.DisableForeignKeysAndTriggers(t, db)
-		job := uuid.New()
-		err := insert(db, job, &sdkproto.Resource{
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		err := insert(db, job.ID, &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -3159,7 +3250,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			}},
 		})
 		require.NoError(t, err) // uppercase is still allowed
-		err = insert(db, job, &sdkproto.Resource{
+		err = insert(db, job.ID, &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -3167,7 +3258,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			}},
 		})
 		require.ErrorContains(t, err, `agent name "dev_1" contains underscores`) // custom error for underscores
-		err = insert(db, job, &sdkproto.Resource{
+		err = insert(db, job.ID, &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -3179,9 +3270,8 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		dbtestutil.DisableForeignKeysAndTriggers(t, db)
-		job := uuid.New()
-		err := insert(db, job, &sdkproto.Resource{
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		err := insert(db, job.ID, &sdkproto.Resource{
 			Name:      "something",
 			Type:      "aws_instance",
 			DailyCost: 10,
@@ -3220,7 +3310,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			}},
 		})
 		require.NoError(t, err)
-		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job)
+		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
 		require.NoError(t, err)
 		require.Len(t, resources, 1)
 		require.EqualValues(t, 10, resources[0].DailyCost)
@@ -3249,9 +3339,8 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	t.Run("AllDisplayApps", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		dbtestutil.DisableForeignKeysAndTriggers(t, db)
-		job := uuid.New()
-		err := insert(db, job, &sdkproto.Resource{
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		err := insert(db, job.ID, &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -3266,7 +3355,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			}},
 		})
 		require.NoError(t, err)
-		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job)
+		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
 		require.NoError(t, err)
 		require.Len(t, resources, 1)
 		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
@@ -3279,9 +3368,8 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	t.Run("DisableDefaultApps", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		dbtestutil.DisableForeignKeysAndTriggers(t, db)
-		job := uuid.New()
-		err := insert(db, job, &sdkproto.Resource{
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		err := insert(db, job.ID, &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -3290,7 +3378,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			}},
 		})
 		require.NoError(t, err)
-		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job)
+		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
 		require.NoError(t, err)
 		require.Len(t, resources, 1)
 		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
@@ -3305,9 +3393,8 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	t.Run("ResourcesMonitoring", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		dbtestutil.DisableForeignKeysAndTriggers(t, db)
-		job := uuid.New()
-		err := insert(db, job, &sdkproto.Resource{
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		err := insert(db, job.ID, &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -3334,7 +3421,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			}},
 		})
 		require.NoError(t, err)
-		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job)
+		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
 		require.NoError(t, err)
 		require.Len(t, resources, 1)
 		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
@@ -3358,9 +3445,8 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	t.Run("Devcontainers", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		dbtestutil.DisableForeignKeysAndTriggers(t, db)
-		job := uuid.New()
-		err := insert(db, job, &sdkproto.Resource{
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		err := insert(db, job.ID, &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -3372,7 +3458,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			}},
 		})
 		require.NoError(t, err)
-		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job)
+		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
 		require.NoError(t, err)
 		require.Len(t, resources, 1)
 		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
@@ -3443,6 +3529,7 @@ func TestNotifications(t *testing.T) {
 				}
 
 				template := dbgen.Template(t, db, database.Template{
+					CreatedBy:      user.ID,
 					Name:           "template",
 					Provisioner:    database.ProvisionerTypeEcho,
 					OrganizationID: pd.OrganizationID,
@@ -3456,6 +3543,7 @@ func TestNotifications(t *testing.T) {
 					OrganizationID: pd.OrganizationID,
 				})
 				version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					CreatedBy:      user.ID,
 					OrganizationID: pd.OrganizationID,
 					TemplateID: uuid.NullUUID{
 						UUID:  template.ID,
@@ -3463,23 +3551,26 @@ func TestNotifications(t *testing.T) {
 					},
 					JobID: uuid.New(),
 				})
-				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-					WorkspaceID:       workspaceTable.ID,
-					TemplateVersionID: version.ID,
-					InitiatorID:       initiator.ID,
-					Transition:        database.WorkspaceTransitionDelete,
-					Reason:            tc.deletionReason,
-				})
+				wsBuildID := uuid.New()
 				job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 					FileID:      file.ID,
 					InitiatorID: initiator.ID,
 					Type:        database.ProvisionerJobTypeWorkspaceBuild,
 					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-						WorkspaceBuildID: build.ID,
+						WorkspaceBuildID: wsBuildID,
 					})),
 					OrganizationID: pd.OrganizationID,
 					CreatedAt:      time.Now(),
 					UpdatedAt:      time.Now(),
+				})
+				_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+					ID:                wsBuildID,
+					JobID:             job.ID,
+					WorkspaceID:       workspaceTable.ID,
+					TemplateVersionID: version.ID,
+					InitiatorID:       initiator.ID,
+					Transition:        database.WorkspaceTransitionDelete,
+					Reason:            tc.deletionReason,
 				})
 				_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 					OrganizationID: pd.OrganizationID,
@@ -3569,6 +3660,7 @@ func TestNotifications(t *testing.T) {
 				initiator := user
 
 				template := dbgen.Template(t, db, database.Template{
+					CreatedBy:      user.ID,
 					Name:           "template",
 					Provisioner:    database.ProvisionerTypeEcho,
 					OrganizationID: pd.OrganizationID,
@@ -3580,6 +3672,7 @@ func TestNotifications(t *testing.T) {
 					OrganizationID: pd.OrganizationID,
 				})
 				version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					CreatedBy:      user.ID,
 					OrganizationID: pd.OrganizationID,
 					TemplateID: uuid.NullUUID{
 						UUID:  template.ID,
@@ -3587,23 +3680,27 @@ func TestNotifications(t *testing.T) {
 					},
 					JobID: uuid.New(),
 				})
-				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				wsBuildID := uuid.New()
+				job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+					ID:          uuid.New(),
+					FileID:      file.ID,
+					InitiatorID: initiator.ID,
+					Type:        database.ProvisionerJobTypeWorkspaceBuild,
+					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+						WorkspaceBuildID: wsBuildID,
+					})),
+					OrganizationID: pd.OrganizationID,
+					CreatedAt:      time.Now(),
+					UpdatedAt:      time.Now(),
+				})
+				_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+					ID:                wsBuildID,
+					JobID:             job.ID,
 					WorkspaceID:       workspace.ID,
 					TemplateVersionID: version.ID,
 					InitiatorID:       initiator.ID,
 					Transition:        database.WorkspaceTransitionDelete,
 					Reason:            tc.buildReason,
-				})
-				job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-					FileID:      file.ID,
-					InitiatorID: initiator.ID,
-					Type:        database.ProvisionerJobTypeWorkspaceBuild,
-					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-						WorkspaceBuildID: build.ID,
-					})),
-					OrganizationID: pd.OrganizationID,
-					CreatedAt:      time.Now(),
-					UpdatedAt:      time.Now(),
 				})
 				_, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 					OrganizationID: pd.OrganizationID,
@@ -3660,23 +3757,28 @@ func TestNotifications(t *testing.T) {
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: pd.OrganizationID})
 
 		template := dbgen.Template(t, db, database.Template{
-			Name: "template", DisplayName: "William's Template", Provisioner: database.ProvisionerTypeEcho, OrganizationID: pd.OrganizationID,
+			CreatedBy: user.ID,
+			Name:      "template", DisplayName: "William's Template", Provisioner: database.ProvisionerTypeEcho, OrganizationID: pd.OrganizationID,
 		})
 		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 			TemplateID: template.ID, OwnerID: user.ID, OrganizationID: pd.OrganizationID,
 		})
 		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			CreatedBy:      user.ID,
 			OrganizationID: pd.OrganizationID, TemplateID: uuid.NullUUID{UUID: template.ID, Valid: true}, JobID: uuid.New(),
 		})
-		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID: workspace.ID, TemplateVersionID: version.ID, InitiatorID: user.ID, Transition: database.WorkspaceTransitionDelete, Reason: database.BuildReasonInitiator,
-		})
+		wsBuildID := uuid.New()
 		job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 			FileID:         dbgen.File(t, db, database.File{CreatedBy: user.ID}).ID,
 			InitiatorID:    user.ID,
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			Input:          must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{WorkspaceBuildID: build.ID})),
+			Input:          must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{WorkspaceBuildID: wsBuildID})),
 			OrganizationID: pd.OrganizationID,
+		})
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			ID:          wsBuildID,
+			JobID:       job.ID,
+			WorkspaceID: workspace.ID, TemplateVersionID: version.ID, InitiatorID: user.ID, Transition: database.WorkspaceTransitionDelete, Reason: database.BuildReasonInitiator,
 		})
 		_, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 			OrganizationID:  pd.OrganizationID,
@@ -3730,7 +3832,6 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	t.Helper()
 	logger := testutil.Logger(t)
 	db, ps := dbtestutil.NewDB(t)
-	dbtestutil.DisableForeignKeysAndTriggers(t, db)
 	defOrg, err := db.GetDefaultOrganization(context.Background())
 	require.NoError(t, err, "default org not found")
 
