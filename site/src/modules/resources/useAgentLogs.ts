@@ -1,11 +1,15 @@
-import { watchWorkspaceAgentLogs } from "api/api";
+import { watchWorkspaceAgentLogs, type WatchWorkspaceAgentLogsParams } from "api/api";
 import type { WorkspaceAgent, WorkspaceAgentLog } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useEffect, useState } from "react";
+import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 
-export function createUseAgentLogs(
-	createSocket: typeof watchWorkspaceAgentLogs,
-) {
+export type CreateSocket = (
+	agentId: string,
+	params?: WatchWorkspaceAgentLogsParams,
+) => OneWayWebSocket<WorkspaceAgentLog[]>;
+
+export function createUseAgentLogs(createSocket: CreateSocket) {
 	return function useAgentLogs(
 		agent: WorkspaceAgent,
 		enabled: boolean,
@@ -49,12 +53,6 @@ export function createUseAgentLogs(
 			});
 
 			return () => socket.close();
-
-			// createSocket shouldn't ever change for the lifecycle of the hook,
-			// but Biome isn't smart enough to detect constant dependencies for
-			// higher-order hooks. Adding it to the array (even though it
-			// shouldn't ever be needed) seemed like the least fragile way to
-			// resolve the warning.
 		}, [createSocket, agent.id, enabled]);
 
 		return logs;
