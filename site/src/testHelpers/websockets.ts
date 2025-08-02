@@ -2,7 +2,7 @@ import type { WebSocketEventType } from "utils/OneWayWebSocket";
 
 export type MockWebSocketPublisher = Readonly<{
 	publishMessage: (event: MessageEvent<string>) => void;
-	publishError: (event: ErrorEvent) => void;
+	publishError: (event: Event) => void;
 	publishClose: (event: CloseEvent) => void;
 	publishOpen: (event: Event) => void;
 	isConnectionOpen: () => boolean;
@@ -14,7 +14,7 @@ export function createMockWebSocket(
 ): readonly [WebSocket, MockWebSocketPublisher] {
 	type EventMap = {
 		message: MessageEvent<string>;
-		error: ErrorEvent;
+		error: Event;
 		close: CloseEvent;
 		open: Event;
 	};

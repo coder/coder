@@ -12,7 +12,12 @@ type CreateSocket = (
 	params?: WatchWorkspaceAgentLogsParams,
 ) => OneWayWebSocket<WorkspaceAgentLog[]>;
 
-export function createUseAgentLogs(createSocket: CreateSocket) {
+export type OnError = (errorEvent: Event) => void;
+
+export function createUseAgentLogs(
+	createSocket: CreateSocket,
+	onError: OnError,
+) {
 	return function useAgentLogs(
 		agentId: string,
 		enabled: boolean,
@@ -70,20 +75,25 @@ export function createUseAgentLogs(createSocket: CreateSocket) {
 			});
 
 			socket.addEventListener("error", (e) => {
-				console.error("Error in agent log socket: ", e);
-				displayError(
-					"Unable to watch agent logs",
-					"Please try refreshing the browser",
-				);
+				onError(e);
 				socket.close();
 			});
 
 			return () => socket.close();
-		}, [createSocket, agentId, enabled]);
+		}, [createSocket, onError, agentId, enabled]);
 
 		return logs;
 	};
 }
 
 // The baseline implementation to use for production
-export const useAgentLogs = createUseAgentLogs(watchWorkspaceAgentLogs);
+export const useAgentLogs = createUseAgentLogs(
+	watchWorkspaceAgentLogs,
+	(errorEvent) => {
+		console.error("Error in agent log socket: ", errorEvent);
+		displayError(
+			"Unable to watch agent logs",
+			"Please try refreshing the browser",
+		);
+	},
+);

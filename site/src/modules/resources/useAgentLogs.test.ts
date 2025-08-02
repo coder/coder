@@ -7,7 +7,7 @@ import {
 	createMockWebSocket,
 } from "testHelpers/websockets";
 import { OneWayWebSocket } from "utils/OneWayWebSocket";
-import { createUseAgentLogs } from "./useAgentLogs";
+import { type OnError, createUseAgentLogs } from "./useAgentLogs";
 
 const millisecondsInOneMinute = 60_000;
 
@@ -30,9 +30,16 @@ function generateMockLogs(
 	});
 }
 
-// A mutable object holding the most recent mock WebSocket publisher. The inner
-// value will change as the hook opens/closes new connections
-type PublisherResult = { current: MockWebSocketPublisher };
+// A mutable object holding the most recent mock WebSocket publisher. Inner
+// value will be undefined if the hook is disabled on mount, but will otherwise
+// have some kind of value
+type PublisherResult = { current: MockWebSocketPublisher | undefined };
+
+type MountHookOptions = Readonly<{
+	initialAgentId: string;
+	enabled?: boolean;
+	onError?: OnError;
+}>;
 
 type MountHookResult = Readonly<{
 	rerender: (props: { agentId: string; enabled: boolean }) => void;
@@ -43,12 +50,10 @@ type MountHookResult = Readonly<{
 	hookResult: { current: readonly WorkspaceAgentLog[] };
 }>;
 
-function mountHook(initialAgentId: string): MountHookResult {
-	// Have to cheat the types a little bit to avoid a chicken-and-the-egg
-	// scenario. publisherResult will be initialized with an undefined current
-	// value, but it'll be guaranteed not to be undefined by the time mountHook
-	// returns its value.
-	const publisherResult: Partial<PublisherResult> = { current: undefined };
+function mountHook(options: MountHookOptions): MountHookResult {
+	const { initialAgentId, enabled = true, onError = jest.fn() } = options;
+
+	const publisherResult: PublisherResult = { current: undefined };
 	const useAgentLogs = createUseAgentLogs((agentId, params) => {
 		return new OneWayWebSocket({
 			apiRoute: `/api/v2/workspaceagents/${agentId}/logs`,
@@ -62,29 +67,32 @@ function mountHook(initialAgentId: string): MountHookResult {
 				return mockSocket;
 			},
 		});
-	});
+	}, onError);
 
 	const { result, rerender } = renderHook(
 		({ agentId, enabled }) => useAgentLogs(agentId, enabled),
-		{ initialProps: { agentId: initialAgentId, enabled: true } },
+		{ initialProps: { agentId: initialAgentId, enabled: enabled } },
 	);
 
 	return {
 		rerender,
 		hookResult: result,
-		publisherResult: publisherResult as PublisherResult,
+		publisherResult,
 	};
 }
 
 describe("useAgentLogs", () => {
 	it("Automatically sorts logs that are received out of order", async () => {
-		const { hookResult, publisherResult } = mountHook(MockWorkspaceAgent.id);
+		const { hookResult, publisherResult } = mountHook({
+			initialAgentId: MockWorkspaceAgent.id,
+		});
+
 		const logs = generateMockLogs(10, new Date("september 9, 1999"));
 		const reversed = logs.toReversed();
 
 		for (const log of reversed) {
 			act(() => {
-				publisherResult.current.publishMessage(
+				publisherResult.current?.publishMessage(
 					new MessageEvent<string>("message", {
 						data: JSON.stringify([log]),
 					}),
@@ -94,54 +102,86 @@ describe("useAgentLogs", () => {
 		await waitFor(() => expect(hookResult.current).toEqual(logs));
 	});
 
+	it("Never creates a connection if hook is disabled on mount", () => {
+		const { publisherResult } = mountHook({
+			initialAgentId: MockWorkspaceAgent.id,
+			enabled: false,
+		});
+
+		expect(publisherResult.current).toBe(undefined);
+	});
+
 	it("Automatically closes the socket connection when the hook is disabled", async () => {
-		const { publisherResult, rerender } = mountHook(MockWorkspaceAgent.id);
-		expect(publisherResult.current.isConnectionOpen()).toBe(true);
+		const { publisherResult, rerender } = mountHook({
+			initialAgentId: MockWorkspaceAgent.id,
+		});
+
+		expect(publisherResult.current?.isConnectionOpen()).toBe(true);
 		rerender({ agentId: MockWorkspaceAgent.id, enabled: false });
 		await waitFor(() => {
-			expect(publisherResult.current.isConnectionOpen()).toBe(false);
+			expect(publisherResult.current?.isConnectionOpen()).toBe(false);
 		});
 	});
 
 	it("Automatically closes the old connection when the agent ID changes", () => {
-		const { publisherResult, rerender } = mountHook(MockWorkspaceAgent.id);
+		const { publisherResult, rerender } = mountHook({
+			initialAgentId: MockWorkspaceAgent.id,
+		});
+
 		const publisher1 = publisherResult.current;
-		expect(publisher1.isConnectionOpen()).toBe(true);
+		expect(publisher1?.isConnectionOpen()).toBe(true);
 
 		const newAgentId = `${MockWorkspaceAgent.id}-2`;
 		rerender({ agentId: newAgentId, enabled: true });
 
 		const publisher2 = publisherResult.current;
-		expect(publisher1.isConnectionOpen()).toBe(false);
-		expect(publisher2.isConnectionOpen()).toBe(true);
+		expect(publisher1?.isConnectionOpen()).toBe(false);
+		expect(publisher2?.isConnectionOpen()).toBe(true);
+	});
+
+	it("Calls error callback when error is received (but only while hook is enabled)", async () => {
+		const onError = jest.fn();
+		const { publisherResult, rerender } = mountHook({
+			initialAgentId: MockWorkspaceAgent.id,
+			// Start off disabled so that we can check that the callback is
+			// never called when there is no connection
+			enabled: false,
+			onError,
+		});
+
+		const errorEvent = new Event("error");
+		act(() => publisherResult.current?.publishError(errorEvent));
+		expect(onError).not.toHaveBeenCalled();
+
+		rerender({ agentId: MockWorkspaceAgent.id, enabled: true });
+		act(() => publisherResult.current?.publishError(errorEvent));
+		expect(onError).toHaveBeenCalledTimes(1);
 	});
 
 	it("Clears logs when hook becomes disabled (protection to avoid duplicate logs when hook goes back to being re-enabled)", async () => {
-		const { hookResult, publisherResult, rerender } = mountHook(
-			MockWorkspaceAgent.id,
-		);
+		const { hookResult, publisherResult, rerender } = mountHook({
+			initialAgentId: MockWorkspaceAgent.id,
+		});
 
 		// Send initial logs so that we have something to clear out later
 		const initialLogs = generateMockLogs(3, new Date("april 5, 1997"));
 		const initialEvent = new MessageEvent<string>("message", {
 			data: JSON.stringify(initialLogs),
 		});
-		act(() => publisherResult.current.publishMessage(initialEvent));
+		act(() => publisherResult.current?.publishMessage(initialEvent));
 		await waitFor(() => expect(hookResult.current).toEqual(initialLogs));
 
-		// Disable the hook (and have the hook close the connection behind the
-		// scenes)
+		// Disable the hook
 		rerender({ agentId: MockWorkspaceAgent.id, enabled: false });
 		await waitFor(() => expect(hookResult.current).toHaveLength(0));
 
-		// Re-enable the hook (creating an entirely new connection), and send
-		// new logs
+		// Re-enable the hook and send new logs
 		rerender({ agentId: MockWorkspaceAgent.id, enabled: true });
 		const newLogs = generateMockLogs(3, new Date("october 3, 2005"));
 		const newEvent = new MessageEvent<string>("message", {
 			data: JSON.stringify(newLogs),
 		});
-		act(() => publisherResult.current.publishMessage(newEvent));
+		act(() => publisherResult.current?.publishMessage(newEvent));
 		await waitFor(() => expect(hookResult.current).toEqual(newLogs));
 	});
 });
