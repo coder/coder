@@ -58,7 +58,7 @@ type Deps struct {
 	report      func(ReportTaskArgs) error
 }
 
-func (d Deps) getServerURL() string {
+func (d Deps) ServerURL() string {
 	serverURLCopy := *d.coderClient.URL
 	serverURLCopy.Path = ""
 	serverURLCopy.RawQuery = ""

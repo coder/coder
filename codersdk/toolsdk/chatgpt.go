@@ -49,7 +49,7 @@ func createObjectID(objectType ObjectType, id string) ObjectID {
 }
 
 func searchTemplates(ctx context.Context, deps Deps, query string) ([]SearchResultItem, error) {
-	serverURL := deps.getServerURL()
+	serverURL := deps.ServerURL()
 	templates, err := deps.coderClient.Templates(ctx, codersdk.TemplateFilter{
 		SearchQuery: query,
 	})
@@ -69,7 +69,7 @@ func searchTemplates(ctx context.Context, deps Deps, query string) ([]SearchResu
 }
 
 func searchWorkspaces(ctx context.Context, deps Deps, query string) ([]SearchResultItem, error) {
-	serverURL := deps.getServerURL()
+	serverURL := deps.ServerURL()
 	workspaces, err := deps.coderClient.Workspaces(ctx, codersdk.WorkspaceFilter{
 		FilterQuery: query,
 	})
@@ -344,7 +344,7 @@ func fetchWorkspace(ctx context.Context, deps Deps, workspaceID string) (FetchRe
 		ID:    workspace.ID.String(),
 		Title: workspace.Name,
 		Text:  string(workspaceJSON),
-		URL:   fmt.Sprintf("%s/%s/%s", deps.getServerURL(), workspace.OwnerName, workspace.Name),
+		URL:   fmt.Sprintf("%s/%s/%s", deps.ServerURL(), workspace.OwnerName, workspace.Name),
 	}, nil
 }
 
@@ -365,7 +365,7 @@ func fetchTemplate(ctx context.Context, deps Deps, templateID string) (FetchResu
 		ID:    template.ID.String(),
 		Title: template.DisplayName,
 		Text:  string(templateJSON),
-		URL:   fmt.Sprintf("%s/templates/%s/%s", deps.getServerURL(), template.OrganizationName, template.Name),
+		URL:   fmt.Sprintf("%s/templates/%s/%s", deps.ServerURL(), template.OrganizationName, template.Name),
 	}, nil
 }
 
