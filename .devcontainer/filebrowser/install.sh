@@ -8,7 +8,7 @@ printf "%sInstalling filebrowser\n\n" "${BOLD}"
 
 # Check if filebrowser is installed.
 if ! command -v filebrowser &>/dev/null; then
-	VERSION="v2.24.1"
+	VERSION="v2.42.1"
 	EXPECTED_HASH="7d83c0f077df10a8ec9bfd9bf6e745da5d172c3c768a322b0e50583a6bc1d3cc"
 
 	curl -fsSL "https://github.com/filebrowser/filebrowser/releases/download/${VERSION}/linux-amd64-filebrowser.tar.gz" -o /tmp/filebrowser.tar.gz
