@@ -327,7 +327,7 @@ module "jetbrains" {
 module "filebrowser" {
   count      = data.coder_workspace.me.start_count
   source     = "dev.registry.coder.com/coder/filebrowser/coder"
-  version    = "1.1.1"
+  version    = "1.1.2"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
 }
