@@ -563,6 +563,72 @@ func (b JobCompleteBuilder) Do() JobCompleteResponse {
 	return r
 }
 
+type PresetBuilder struct {
+	t                 *testing.T
+	db                database.Store
+	presetName        string
+	templateVersionID uuid.UUID
+	desiredInstances  int32
+	// Optional parameters
+	ttl *int32
+}
+
+func NewPreset(t *testing.T, db database.Store, templateVersionID uuid.UUID) PresetBuilder {
+	return PresetBuilder{
+		t:                 t,
+		db:                db,
+		presetName:        uuid.New().String(),
+		templateVersionID: templateVersionID,
+		desiredInstances:  0, // Default to 0 prebuild instances
+	}
+}
+
+func (b PresetBuilder) WithPresetName(name string) PresetBuilder {
+	b.presetName = name
+	return b
+}
+
+func (b PresetBuilder) WithDesiredInstances(instances int32) PresetBuilder {
+	b.desiredInstances = instances
+	return b
+}
+
+func (b PresetBuilder) WithTTL(ttl int32) PresetBuilder {
+	b.ttl = &ttl
+	return b
+}
+
+func (b PresetBuilder) Do() database.TemplateVersionPreset {
+	// Using only required fields for testing; other fields will use DB defaults.
+	//nolint:exhaustruct
+	insertPresetParams := database.InsertPresetParams{
+		TemplateVersionID: b.templateVersionID,
+		Name:              b.presetName,
+		DesiredInstances: sql.NullInt32{
+			Valid: true,
+			Int32: b.desiredInstances,
+		},
+	}
+
+	// Handle optional TTL
+	if b.ttl != nil {
+		insertPresetParams.InvalidateAfterSecs = sql.NullInt32{
+			Valid: true,
+			Int32: *b.ttl,
+		}
+	}
+
+	preset := dbgen.Preset(b.t, b.db, insertPresetParams)
+
+	dbgen.PresetParameter(b.t, b.db, database.InsertPresetParametersParams{
+		TemplateVersionPresetID: preset.ID,
+		Names:                   []string{"test-name"},
+		Values:                  []string{"test-value"},
+	})
+
+	return preset
+}
+
 func must[V any](v V, err error) V {
 	if err != nil {
 		panic(err)

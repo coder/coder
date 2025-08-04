@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/xerrors"
@@ -352,13 +354,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 									ownerID,
 									template.ID,
 								)
-								preset := setupTestDBPreset(
-									t,
-									db,
-									templateVersionID,
-									1,
-									uuid.New().String(),
-								)
+								preset := dbfake.NewPreset(t, db, templateVersionID).WithDesiredInstances(1).Do()
 								prebuild, _ := setupTestDBPrebuild(
 									t,
 									clock,
@@ -479,20 +475,8 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		ownerID,
 		template.ID,
 	)
-	preset := setupTestDBPreset(
-		t,
-		db,
-		templateVersionID,
-		4,
-		uuid.New().String(),
-	)
-	preset2 := setupTestDBPreset(
-		t,
-		db,
-		templateVersionID,
-		10,
-		uuid.New().String(),
-	)
+	preset := dbfake.NewPreset(t, db, templateVersionID).WithDesiredInstances(4).Do()
+	preset2 := dbfake.NewPreset(t, db, templateVersionID).WithDesiredInstances(10).Do()
 	prebuildIDs := make([]uuid.UUID, 0)
 	for i := 0; i < int(preset.DesiredInstances.Int32); i++ {
 		prebuild, _ := setupTestDBPrebuild(
@@ -719,13 +703,7 @@ func TestInvalidPreset(t *testing.T) {
 		DefaultValue:      "",
 		Required:          true,
 	})
-	setupTestDBPreset(
-		t,
-		db,
-		templateVersionID,
-		1,
-		uuid.New().String(),
-	)
+	dbfake.NewPreset(t, db, templateVersionID).WithDesiredInstances(1).Do()
 
 	// Run the reconciliation multiple times to ensure idempotency
 	// 8 was arbitrary, but large enough to reasonably trust the result
@@ -766,7 +744,7 @@ func TestDeletionOfPrebuiltWorkspaceWithInvalidPreset(t *testing.T) {
 	})
 	org, template := setupTestDBTemplate(t, db, ownerID, templateDeleted)
 	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
-	preset := setupTestDBPreset(t, db, templateVersionID, 1, uuid.New().String())
+	preset := dbfake.NewPreset(t, db, templateVersionID).WithDesiredInstances(1).Do()
 	prebuiltWorkspace, _ := setupTestDBPrebuild(
 		t,
 		clock,
@@ -864,7 +842,7 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			})
 			org, template := setupTestDBTemplate(t, db, ownerID, templateDeleted)
 			templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
-			preset := setupTestDBPreset(t, db, templateVersionID, 1, uuid.New().String())
+			preset := dbfake.NewPreset(t, db, templateVersionID).WithDesiredInstances(1).Do()
 
 			// Create a failed prebuild workspace that counts toward the hard failure limit.
 			setupTestDBPrebuild(
@@ -1008,7 +986,7 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			})
 			org, template := setupTestDBTemplate(t, db, ownerID, false)
 			templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
-			preset := setupTestDBPreset(t, db, templateVersionID, 2, uuid.New().String())
+			preset := dbfake.NewPreset(t, db, templateVersionID).WithDesiredInstances(2).Do()
 
 			// Create a successful prebuilt workspace.
 			successfulWorkspace, _ := setupTestDBPrebuild(
@@ -1210,20 +1188,8 @@ func TestRunLoop(t *testing.T) {
 		ownerID,
 		template.ID,
 	)
-	preset := setupTestDBPreset(
-		t,
-		db,
-		templateVersionID,
-		4,
-		uuid.New().String(),
-	)
-	preset2 := setupTestDBPreset(
-		t,
-		db,
-		templateVersionID,
-		10,
-		uuid.New().String(),
-	)
+	preset := dbfake.NewPreset(t, db, templateVersionID).WithDesiredInstances(4).Do()
+	preset2 := dbfake.NewPreset(t, db, templateVersionID).WithDesiredInstances(10).Do()
 	prebuildIDs := make([]uuid.UUID, 0)
 	for i := 0; i < int(preset.DesiredInstances.Int32); i++ {
 		prebuild, _ := setupTestDBPrebuild(
@@ -1275,13 +1241,7 @@ func TestRunLoop(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// setup one more preset with 5 prebuilds
-	preset3 := setupTestDBPreset(
-		t,
-		db,
-		templateVersionID,
-		5,
-		uuid.New().String(),
-	)
+	preset3 := dbfake.NewPreset(t, db, templateVersionID).WithDesiredInstances(5).Do()
 	newPrebuildCount := getNewPrebuildCount()
 	// nothing changed, because we didn't trigger a new iteration of a loop
 	require.Equal(t, preset2.DesiredInstances.Int32, newPrebuildCount)
@@ -1335,7 +1295,7 @@ func TestFailedBuildBackoff(t *testing.T) {
 	org, template := setupTestDBTemplate(t, db, userID, false)
 	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, ps, org.ID, userID, template.ID)
 
-	preset := setupTestDBPreset(t, db, templateVersionID, desiredInstances, "test")
+	preset := dbfake.NewPreset(t, db, templateVersionID).WithDesiredInstances(desiredInstances).Do()
 	for range desiredInstances {
 		_, _ = setupTestDBPrebuild(t, clock, db, ps, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed, org.ID, preset, template.ID, templateVersionID)
 	}
@@ -1496,7 +1456,7 @@ func TestTrackResourceReplacement(t *testing.T) {
 	dbgen.User(t, db, database.User{ID: userID})
 	org, template := setupTestDBTemplate(t, db, userID, false)
 	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, ps, org.ID, userID, template.ID)
-	preset := setupTestDBPreset(t, db, templateVersionID, 1, "b0rked")
+	preset := dbfake.NewPreset(t, db, templateVersionID).WithDesiredInstances(1).Do()
 	prebuiltWorkspace, prebuild := setupTestDBPrebuild(t, clock, db, ps, database.WorkspaceTransitionStart, database.ProvisionerJobStatusSucceeded, org.ID, preset, template.ID, templateVersionID)
 
 	// Given: no replacement has been tracked yet, we should not see a metric for it yet.
@@ -1652,7 +1612,7 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 
 			ttlDuration := muchEarlier - time.Hour
 			ttl := int32(-ttlDuration.Seconds())
-			preset := setupTestDBPreset(t, db, templateVersionID, tc.desired, "b0rked", withTTL(ttl))
+			preset := dbfake.NewPreset(t, db, templateVersionID).WithDesiredInstances(tc.desired).WithTTL(ttl).Do()
 
 			// The implementation uses time.Since(prebuild.CreatedAt) > ttl to check a prebuild expiration.
 			// Since our mock clock defaults to a fixed time, we must align it with the current time
@@ -1909,50 +1869,6 @@ func setupTestDBTemplateVersion(
 		Mutable:           false,
 	})
 	return templateVersion.ID
-}
-
-// Preset optional parameters.
-// presetOptions defines a function type for modifying InsertPresetParams.
-type presetOptions func(*database.InsertPresetParams)
-
-// withTTL returns a presetOptions function that sets the invalidate_after_secs (TTL) field in InsertPresetParams.
-func withTTL(ttl int32) presetOptions {
-	return func(p *database.InsertPresetParams) {
-		p.InvalidateAfterSecs = sql.NullInt32{Valid: true, Int32: ttl}
-	}
-}
-
-func setupTestDBPreset(
-	t *testing.T,
-	db database.Store,
-	templateVersionID uuid.UUID,
-	desiredInstances int32,
-	presetName string,
-	opts ...presetOptions,
-) database.TemplateVersionPreset {
-	t.Helper()
-	insertPresetParams := database.InsertPresetParams{
-		TemplateVersionID: templateVersionID,
-		Name:              presetName,
-		DesiredInstances: sql.NullInt32{
-			Valid: true,
-			Int32: desiredInstances,
-		},
-	}
-
-	// Apply optional parameters to insertPresetParams (e.g., TTL).
-	for _, opt := range opts {
-		opt(&insertPresetParams)
-	}
-
-	preset := dbgen.Preset(t, db, insertPresetParams)
-
-	dbgen.PresetParameter(t, db, database.InsertPresetParametersParams{
-		TemplateVersionPresetID: preset.ID,
-		Names:                   []string{"test"},
-		Values:                  []string{"test"},
-	})
-	return preset
 }
 
 func setupTestDBPresetWithScheduling(
@@ -2290,7 +2206,7 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 		OrganizationID: org.ID,
 	})
 	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, ps, org.ID, user.ID, template.ID)
-	_ = setupTestDBPreset(t, db, templateVersionID, 2, "test")
+	dbfake.NewPreset(t, db, templateVersionID).WithDesiredInstances(2).Do()
 
 	// Initially, reconciliation should create prebuilds
 	err := reconciler.ReconcileAll(ctx)

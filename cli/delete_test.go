@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -246,7 +248,7 @@ func TestDelete(t *testing.T) {
 		// Given a template version with a preset and a template
 		version := coderdtest.CreateTemplateVersion(t, client, orgID, nil)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		preset := setupTestDBPreset(t, db, version.ID)
+		preset := dbfake.NewPreset(t, db, version.ID).WithDesiredInstances(1).Do()
 		template := coderdtest.CreateTemplate(t, client, orgID, version.ID)
 
 		cases := []struct {
@@ -376,30 +378,6 @@ func TestDelete(t *testing.T) {
 			})
 		}
 	})
-}
-
-func setupTestDBPreset(
-	t *testing.T,
-	db database.Store,
-	templateVersionID uuid.UUID,
-) database.TemplateVersionPreset {
-	t.Helper()
-
-	preset := dbgen.Preset(t, db, database.InsertPresetParams{
-		TemplateVersionID: templateVersionID,
-		Name:              "preset-test",
-		DesiredInstances: sql.NullInt32{
-			Valid: true,
-			Int32: 1,
-		},
-	})
-	dbgen.PresetParameter(t, db, database.InsertPresetParametersParams{
-		TemplateVersionPresetID: preset.ID,
-		Names:                   []string{"test"},
-		Values:                  []string{"test"},
-	})
-
-	return preset
 }
 
 func setupTestDBWorkspace(

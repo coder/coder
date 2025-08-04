@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -1231,7 +1233,7 @@ func TestExecutorPrebuilds(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 		// Database setup of a preset with a prebuild instance
-		preset := setupTestDBPreset(t, db, version.ID, int32(1))
+		preset := dbfake.NewPreset(t, db, version.ID).WithDesiredInstances(1).Do()
 
 		// Given: a running prebuilt workspace with a deadline and ready to be claimed
 		dbPrebuild := setupTestDBPrebuiltWorkspace(
@@ -1307,7 +1309,7 @@ func TestExecutorPrebuilds(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 		// Database setup of a preset with a prebuild instance
-		preset := setupTestDBPreset(t, db, version.ID, int32(1))
+		preset := dbfake.NewPreset(t, db, version.ID).WithDesiredInstances(1).Do()
 
 		// Given: prebuilt workspace is stopped and set to autostart daily at midnight
 		sched := mustSchedule(t, "CRON_TZ=UTC 0 0 * * *")
@@ -1382,31 +1384,6 @@ func TestExecutorPrebuilds(t *testing.T) {
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
 		require.Equal(t, codersdk.BuildReasonAutostart, workspace.LatestBuild.Reason)
 	})
-}
-
-func setupTestDBPreset(
-	t *testing.T,
-	db database.Store,
-	templateVersionID uuid.UUID,
-	desiredInstances int32,
-) database.TemplateVersionPreset {
-	t.Helper()
-
-	preset := dbgen.Preset(t, db, database.InsertPresetParams{
-		TemplateVersionID: templateVersionID,
-		Name:              "preset-test",
-		DesiredInstances: sql.NullInt32{
-			Valid: true,
-			Int32: desiredInstances,
-		},
-	})
-	dbgen.PresetParameter(t, db, database.InsertPresetParametersParams{
-		TemplateVersionPresetID: preset.ID,
-		Names:                   []string{"test-name"},
-		Values:                  []string{"test-value"},
-	})
-
-	return preset
 }
 
 type SetupPrebuiltOptions struct {
