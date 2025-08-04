@@ -1,7 +1,6 @@
 {
 	"dependencies": {
-		"@redocly/cli": "^1.25.11",
-		"turndown": "^7.2.0"
+		"@openapitools/openapi-generator-cli": "^2.15.0"
 	},
 	"resolutions": {
 		"semver": "7.5.3",
