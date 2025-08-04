@@ -5,6 +5,9 @@ import "go.uber.org/goleak"
 // GoleakOptions is a common list of options to pass to goleak. This is useful if there is a known
 // leaky function we want to exclude from goleak.
 var GoleakOptions []goleak.Option = []goleak.Option{
+	// Go spawns a goroutine to lookup the protocol when run on
+	// windows. See https://go.dev/src/net/lookup_windows.go#L56
+	goleak.IgnoreAnyFunction("net.lookupProtocol.func1"),
 	// seelog (indirect dependency of dd-trace-go) has a known goroutine leak (https://github.com/cihub/seelog/issues/182)
 	// When https://github.com/DataDog/dd-trace-go/issues/2987 is resolved, this can be removed.
 	goleak.IgnoreAnyFunction("github.com/cihub/seelog.(*asyncLoopLogger).processQueue"),
