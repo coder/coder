@@ -1861,6 +1861,18 @@ COMMENT ON COLUMN user_links.oauth_refresh_token_key_id IS 'The ID of the key us
 
 COMMENT ON COLUMN user_links.claims IS 'Claims from the IDP for the linked user. Includes both id_token and userinfo claims. ';
 
+CREATE TABLE user_secrets (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    name text NOT NULL,
+    description text NOT NULL,
+    value text NOT NULL,
+    env_name text DEFAULT ''::text NOT NULL,
+    file_path text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE user_status_changes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
@@ -2674,6 +2686,9 @@ ALTER TABLE ONLY user_deleted
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_pkey PRIMARY KEY (user_id, login_type);
 
+ALTER TABLE ONLY user_secrets
+    ADD CONSTRAINT user_secrets_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY user_status_changes
     ADD CONSTRAINT user_status_changes_pkey PRIMARY KEY (id);
 
@@ -2861,6 +2876,12 @@ COMMENT ON INDEX template_usage_stats_start_time_template_id_user_id_idx IS 'Ind
 CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, lower((name)::text)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX user_links_linked_id_login_type_idx ON user_links USING btree (linked_id, login_type) WHERE (linked_id <> ''::text);
+
+CREATE UNIQUE INDEX user_secrets_user_env_name_idx ON user_secrets USING btree (user_id, env_name) WHERE (env_name <> ''::text);
+
+CREATE UNIQUE INDEX user_secrets_user_file_path_idx ON user_secrets USING btree (user_id, file_path) WHERE (file_path <> ''::text);
+
+CREATE UNIQUE INDEX user_secrets_user_name_idx ON user_secrets USING btree (user_id, name);
 
 CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE (deleted = false);
 
@@ -3166,6 +3187,9 @@ ALTER TABLE ONLY user_links
 
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY user_secrets
+    ADD CONSTRAINT user_secrets_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY user_status_changes
     ADD CONSTRAINT user_status_changes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
