@@ -17,20 +17,14 @@ trap cleanup EXIT
 
 log "Use temporary file: ${API_MD_TMP_FILE}"
 
-# Check if swagger.json already exists to avoid regeneration issues
-if [ ! -f "${PROJECT_ROOT}/coderd/apidoc/swagger.json" ]; then
-	log "Generating swagger documentation..."
-	pushd "${PROJECT_ROOT}/coderd"
-	go run github.com/swaggo/swag/cmd/swag@v1.8.9 init \\
-		--generalInfo="coderd.go" \\
-		--dir=".,../codersdk,../enterprise/coderd,../enterprise/wsproxy/wsproxysdk" \\
-		--output="./apidoc" \\
-		--outputTypes="go,json" \\
-		--parseDependency=true
-	popd
-else
-	log "swagger.json already exists, skipping generation"
-fi
+pushd "${PROJECT_ROOT}/coderd"
+go run github.com/swaggo/swag/cmd/swag@v1.8.9 init \\
+	--generalInfo="coderd.go" \\
+	--dir=".,../codersdk,../enterprise/coderd,../enterprise/wsproxy/wsproxysdk" \\
+	--output="./apidoc" \\
+	--outputTypes="go,json" \\
+	--parseDependency=true
+popd
 
 pushd "${APIDOCGEN_DIR}"
 
