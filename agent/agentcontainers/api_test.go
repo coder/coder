@@ -3792,6 +3792,7 @@ func TestDevcontainerDiscovery(t *testing.T) {
 					agentcontainers.WithContainerCLI(&fakeContainerCLI{}),
 					agentcontainers.WithDevcontainerCLI(mDCCLI),
 					agentcontainers.WithProjectDiscovery(true),
+					agentcontainers.WithDiscoveryAutostart(true),
 				)
 				api.Start()
 				defer api.Close()
@@ -3813,6 +3814,75 @@ func TestDevcontainerDiscovery(t *testing.T) {
 				// Then: We expect the mock infra to not fail.
 			})
 		}
+
+		t.Run("Disabled", func(t *testing.T) {
+			t.Parallel()
+			var (
+				ctx    = testutil.Context(t, testutil.WaitShort)
+				logger = testutil.Logger(t)
+				mClock = quartz.NewMock(t)
+				mDCCLI = acmock.NewMockDevcontainerCLI(gomock.NewController(t))
+
+				fs = map[string]string{
+					"/home/coder/.git/HEAD":                       "",
+					"/home/coder/.devcontainer/devcontainer.json": "",
+				}
+
+				r = chi.NewRouter()
+			)
+
+			// We expect that neither `ReadConfig`, nor `Up` are called as we
+			// have explicitly disabled the agentcontainers API from attempting
+			// to autostart devcontainers that it discovers.
+			mDCCLI.EXPECT().ReadConfig(gomock.Any(),
+				"/home/coder",
+				"/home/coder/.devcontainer/devcontainer.json",
+				[]string{},
+			).Return(agentcontainers.DevcontainerConfig{
+				Configuration: agentcontainers.DevcontainerConfiguration{
+					Customizations: agentcontainers.DevcontainerCustomizations{
+						Coder: agentcontainers.CoderCustomization{
+							AutoStart: true,
+						},
+					},
+				},
+			}, nil).Times(0)
+
+			mDCCLI.EXPECT().Up(gomock.Any(),
+				"/home/coder",
+				"/home/coder/.devcontainer/devcontainer.json",
+				gomock.Any(),
+			).Return("", nil).Times(0)
+
+			api := agentcontainers.NewAPI(logger,
+				agentcontainers.WithClock(mClock),
+				agentcontainers.WithWatcher(watcher.NewNoop()),
+				agentcontainers.WithFileSystem(initFS(t, fs)),
+				agentcontainers.WithManifestInfo("owner", "workspace", "parent-agent", "/home/coder"),
+				agentcontainers.WithContainerCLI(&fakeContainerCLI{}),
+				agentcontainers.WithDevcontainerCLI(mDCCLI),
+				agentcontainers.WithProjectDiscovery(true),
+				agentcontainers.WithDiscoveryAutostart(false),
+			)
+			api.Start()
+			defer api.Close()
+			r.Mount("/", api.Routes())
+
+			// When: All expected dev containers have been found.
+			require.Eventuallyf(t, func() bool {
+				req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+				rec := httptest.NewRecorder()
+				r.ServeHTTP(rec, req)
+
+				got := codersdk.WorkspaceAgentListContainersResponse{}
+				err := json.NewDecoder(rec.Body).Decode(&got)
+				require.NoError(t, err)
+
+				return len(got.Devcontainers) >= 1
+			}, testutil.WaitShort, testutil.IntervalFast, "dev containers never found")
+
+			// Then: We expect the mock infra to not fail.
+		})
 	})
 }
 
