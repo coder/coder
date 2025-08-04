@@ -12,14 +12,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"golang.org/x/tools/txtar"
 	"storj.io/drpc"
 
+	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/sjson"
+
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 
 	"github.com/coder/coder/v2/aibridged"
 	"github.com/coder/coder/v2/aibridged/proto"
@@ -33,6 +39,8 @@ import (
 var (
 	//go:embed fixtures/anthropic/single_builtin_tool.txtar
 	antSingleBuiltinTool []byte
+	//go:embed fixtures/anthropic/single_injected_tool.txtar
+	antSingleInjectedTool []byte
 
 	//go:embed fixtures/openai/single_builtin_tool.txtar
 	oaiSingleBuiltinTool []byte
@@ -45,15 +53,18 @@ var (
 )
 
 const (
-	fixtureRequest              = "request"
-	fixtureStreamingResponse    = "streaming"
-	fixtureNonStreamingResponse = "non-streaming"
+	fixtureRequest                  = "request"
+	fixtureStreamingResponse        = "streaming"
+	fixtureNonStreamingResponse     = "non-streaming"
+	fixtureStreamingToolResponse    = "streaming/tool-call"
+	fixtureNonStreamingToolResponse = "non-streaming/tool-call"
 )
 
 func TestAnthropicMessages(t *testing.T) {
 	t.Parallel()
 
-	sessionToken := getSessionToken(t)
+	client := coderdtest.New(t, nil)
+	sessionToken := getSessionToken(t, client)
 
 	t.Run("single builtin tool", func(t *testing.T) {
 		t.Parallel()
@@ -95,7 +106,7 @@ func TestAnthropicMessages(t *testing.T) {
 				reqBody = newBody
 
 				ctx := testutil.Context(t, testutil.WaitLong)
-				srv := newMockServer(ctx, t, files)
+				srv := newMockServer(ctx, t, files, nil)
 				t.Cleanup(srv.Close)
 
 				coderdClient := &fakeBridgeDaemonClient{}
@@ -150,12 +161,138 @@ func TestAnthropicMessages(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("single injected tool", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			streaming bool
+		}{
+			{
+				streaming: true,
+			},
+			{
+				streaming: false,
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(fmt.Sprintf("%s/streaming=%v", t.Name(), tc.streaming), func(t *testing.T) {
+				t.Parallel()
+
+				arc := txtar.Parse(antSingleInjectedTool)
+				t.Logf("%s: %s", t.Name(), arc.Comment)
+
+				files := filesMap(arc)
+				require.Len(t, files, 5)
+				require.Contains(t, files, fixtureRequest)
+				require.Contains(t, files, fixtureStreamingResponse)
+				require.Contains(t, files, fixtureNonStreamingResponse)
+				require.Contains(t, files, fixtureStreamingToolResponse)
+				require.Contains(t, files, fixtureNonStreamingToolResponse)
+
+				reqBody := files[fixtureRequest]
+
+				// Add the stream param to the request.
+				newBody, err := sjson.SetBytes(reqBody, "stream", tc.streaming)
+				require.NoError(t, err)
+				reqBody = newBody
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				// Conditionally return fixtures based on request count.
+				// 	First request: halts with tool call instruction.
+				// 	Second request: tool call invocation.
+				mockSrv := newMockServer(ctx, t, files, func(reqCount uint32, resp []byte) []byte {
+					if reqCount == 1 {
+						return resp
+					}
+
+					if reqCount > 2 {
+						t.Fatalf("did not expect more than 2 calls; received %d", reqCount)
+					}
+
+					if !tc.streaming {
+						return files[fixtureNonStreamingToolResponse]
+					}
+					return files[fixtureStreamingToolResponse]
+				})
+				t.Cleanup(mockSrv.Close)
+
+				coderdClient := &fakeBridgeDaemonClient{}
+				logger := testutil.Logger(t) // slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+				// Setup Coder MCP integration.
+				mcpSrv := httptest.NewServer(createMockMCPSrv(t))
+				mcpBridge, err := aibridged.NewMCPToolBridge("coder", mcpSrv.URL, map[string]string{}, logger)
+				require.NoError(t, err)
+
+				// Initialize MCP client, fetch tools, and inject into bridge.
+				require.NoError(t, mcpBridge.Init(testutil.Context(t, testutil.WaitShort)))
+				tools := mcpBridge.ListTools()
+				require.NotEmpty(t, tools)
+
+				b, err := aibridged.NewBridge(codersdk.AIBridgeConfig{
+					Daemons: 1,
+					Anthropic: codersdk.AIBridgeAnthropicConfig{
+						BaseURL: serpent.String(mockSrv.URL),
+						Key:     serpent.String(sessionToken),
+					},
+				}, logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
+					return coderdClient, true
+				}, tools)
+				require.NoError(t, err)
+
+				// Invoke request to mocked API via aibridge.
+				bridgeSrv := httptest.NewServer(b.Handler())
+				req := createAnthropicMessagesReq(t, bridgeSrv.URL, reqBody)
+				client := &http.Client{}
+				resp, err := client.Do(req)
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				defer resp.Body.Close()
+
+				// We must ALWAYS have 2 calls to the bridge.
+				require.Eventually(t, func() bool { return mockSrv.callCount.Load() == 2 }, testutil.WaitLong, testutil.IntervalFast)
+
+				// TODO: this is a bit flimsy since this API won't be in beta forever.
+				var content *anthropic.BetaContentBlockUnion
+				if tc.streaming {
+					// Parse the response stream.
+					decoder := ssestream.NewDecoder(resp)
+					stream := ssestream.NewStream[anthropic.BetaRawMessageStreamEventUnion](decoder, nil)
+					var message anthropic.BetaMessage
+					for stream.Next() {
+						event := stream.Current()
+						require.NoError(t, message.Accumulate(event))
+					}
+					require.NoError(t, stream.Err())
+					require.Len(t, message.Content, 2)
+					content = &message.Content[1]
+				} else {
+					// Parse & unmarshal the response.
+					out, err := io.ReadAll(resp.Body)
+					require.NoError(t, err)
+
+					// TODO: this is a bit flimsy since this API won't be in beta forever.
+					var message anthropic.BetaMessage
+					require.NoError(t, json.Unmarshal(out, &message))
+					require.NotNil(t, message)
+					require.Len(t, message.Content, 1)
+					content = &message.Content[0]
+				}
+
+				require.NotNil(t, content)
+				require.Equal(t, "admin", content.Text)
+			})
+		}
+	})
 }
 
 func TestOpenAIChatCompletions(t *testing.T) {
 	t.Parallel()
 
-	sessionToken := getSessionToken(t)
+	client := coderdtest.New(t, nil)
+	sessionToken := getSessionToken(t, client)
 
 	t.Run("single builtin tool", func(t *testing.T) {
 		t.Parallel()
@@ -197,7 +334,7 @@ func TestOpenAIChatCompletions(t *testing.T) {
 				reqBody = newBody
 
 				ctx := testutil.Context(t, testutil.WaitLong)
-				srv := newMockServer(ctx, t, files)
+				srv := newMockServer(ctx, t, files, nil)
 				t.Cleanup(srv.Close)
 
 				coderdClient := &fakeBridgeDaemonClient{}
@@ -260,7 +397,8 @@ func TestOpenAIChatCompletions(t *testing.T) {
 func TestSimple(t *testing.T) {
 	t.Parallel()
 
-	sessionToken := getSessionToken(t)
+	client := coderdtest.New(t, nil)
+	sessionToken := getSessionToken(t, client)
 
 	testCases := []struct {
 		name          string
@@ -337,7 +475,7 @@ func TestSimple(t *testing.T) {
 
 					// Given: a mock API server and a Bridge through which the requests will flow.
 					ctx := testutil.Context(t, testutil.WaitLong)
-					srv := newMockServer(ctx, t, files)
+					srv := newMockServer(ctx, t, files, nil)
 					t.Cleanup(srv.Close)
 
 					coderdClient := &fakeBridgeDaemonClient{}
@@ -418,10 +556,9 @@ func createOpenAIChatCompletionsReq(t *testing.T, baseURL string, input []byte) 
 	return req
 }
 
-func getSessionToken(t *testing.T) string {
+func getSessionToken(t *testing.T, client *codersdk.Client) string {
 	t.Helper()
 
-	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
 	resp, err := client.LoginWithPassword(t.Context(), codersdk.LoginWithPasswordRequest{
 		Email:    coderdtest.FirstUserParams.Email,
@@ -434,11 +571,18 @@ func getSessionToken(t *testing.T) string {
 
 type mockServer struct {
 	*httptest.Server
+
+	callCount atomic.Uint32
 }
 
-func newMockServer(ctx context.Context, t *testing.T, files archiveFileMap) *mockServer {
+func newMockServer(ctx context.Context, t *testing.T, files archiveFileMap, responseMutatorFn func(reqCount uint32, resp []byte) []byte) *mockServer {
 	t.Helper()
+
+	ms := &mockServer{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount := ms.callCount.Add(1)
+		t.Logf("\n\nCALL COUNT: %d\n\n", callCount)
+
 		body, err := io.ReadAll(r.Body)
 		defer r.Body.Close()
 		require.NoError(t, err)
@@ -450,9 +594,14 @@ func newMockServer(ctx context.Context, t *testing.T, files archiveFileMap) *moc
 		require.NoError(t, json.Unmarshal(body, &reqMsg))
 
 		if !reqMsg.Stream {
+			resp := files[fixtureNonStreamingResponse]
+			if responseMutatorFn != nil {
+				resp = responseMutatorFn(ms.callCount.Load(), resp)
+			}
+
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write(files[fixtureNonStreamingResponse])
+			w.Write(resp)
 			return
 		}
 
@@ -461,7 +610,12 @@ func newMockServer(ctx context.Context, t *testing.T, files archiveFileMap) *moc
 		w.Header().Set("Connection", "keep-alive")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 
-		scanner := bufio.NewScanner(bytes.NewReader(files[fixtureStreamingResponse]))
+		resp := files[fixtureStreamingResponse]
+		if responseMutatorFn != nil {
+			resp = responseMutatorFn(ms.callCount.Load(), resp)
+		}
+
+		scanner := bufio.NewScanner(bytes.NewReader(resp))
 		flusher, ok := w.(http.Flusher)
 		if !ok {
 			http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
@@ -480,14 +634,12 @@ func newMockServer(ctx context.Context, t *testing.T, files archiveFileMap) *moc
 			return
 		}
 	}))
-
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
 		return ctx
 	}
 
-	return &mockServer{
-		Server: srv,
-	}
+	ms.Server = srv
+	return ms
 }
 
 type fakeBridgeDaemonClient struct {
@@ -525,4 +677,26 @@ func (f *fakeBridgeDaemonClient) TrackToolUsage(ctx context.Context, in *proto.T
 	f.toolUsages = append(f.toolUsages, in)
 
 	return &proto.TrackToolUsageResponse{}, nil
+}
+
+func createMockMCPSrv(t *testing.T) http.Handler {
+	t.Helper()
+
+	s := server.NewMCPServer(
+		"Mock coder MCP server",
+		"1.0.0",
+		server.WithToolCapabilities(true),
+	)
+
+	// Add tool
+	tool := mcp.NewTool("coder_get_authenticated_user",
+		mcp.WithDescription("Mock of the coder_get_authenticated_user tool"),
+	)
+
+	// Add tool handler
+	s.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return mcp.NewToolResultText("mock"), nil
+	})
+
+	return server.NewStreamableHTTPServer(s)
 }

@@ -954,7 +954,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 			if err := message.Accumulate(event); err != nil {
 				b.logger.Error(ctx, "failed to accumulate streaming events", slog.Error(err), slog.F("event", event), slog.F("msg", message.RawJSON()))
 				http.Error(w, "failed to proxy request", http.StatusInternalServerError)
-				return
+				return // TODO: don't return, skip to close.
 			}
 
 			// Tool-related handling.
