@@ -31,14 +31,22 @@ pushd "${APIDOCGEN_DIR}"
 # Make sure that redocly is installed correctly.
 pnpm exec -- redocly --version
 # Generate basic markdown structure (redocly doesn't have direct markdown output like widdershins)
-# Generate comprehensive markdown documentation from OpenAPI spec
-# Validate the OpenAPI spec with redocly first
+# Generate markdown documentation using Redocly
+# First validate the OpenAPI spec
 log "Validating OpenAPI spec with Redocly..."
 pnpm exec -- redocly lint "../../coderd/apidoc/swagger.json" > /dev/null 2>&1 || true
 
-# Generate markdown using our custom converter that produces output similar to Widdershins
-log "Generating comprehensive markdown documentation..."
-node openapi-to-markdown.js "../../coderd/apidoc/swagger.json" "${API_MD_TMP_FILE}"
+# Generate HTML documentation with Redocly
+log "Generating HTML documentation with Redocly..."
+HTML_TMP_FILE=$(mktemp /tmp/coder-apidoc-html.XXXXXX)
+pnpm exec -- redocly build-docs "../../coderd/apidoc/swagger.json" --output "${HTML_TMP_FILE}"
+
+# Convert HTML to markdown
+log "Converting HTML to markdown..."
+node html-to-markdown.js "${HTML_TMP_FILE}" "${API_MD_TMP_FILE}"
+
+# Clean up HTML file
+rm -f "${HTML_TMP_FILE}"
 # Perform the postprocessing
 go run postprocess/main.go -in-md-file-single "${API_MD_TMP_FILE}"
 popd
