@@ -1,6 +1,6 @@
 # MCP Server
 
-Power users can configure Claude, Claude Desktop, Cursor, or other external agents to interact with Coder in order to:
+Power users can configure [claude.ai](https://claude.ai), Claude Desktop, Cursor, or other external agents to interact with Coder in order to:
 
 - List workspaces
 - Create/start/stop workspaces
