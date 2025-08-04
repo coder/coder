@@ -1,7 +1,6 @@
 # OAuth2 Provider (Experimental)
 
-> ⚠️ **Experimental Feature**
->
+> [!WARNING]
 > The OAuth2 provider functionality is currently **experimental and unstable**. This feature:
 >
 > - Is subject to breaking changes without notice
@@ -232,8 +231,6 @@ This implementation follows established OAuth2 standards including [RFC 6749](ht
 - Check [External Authentication](../external-auth/index.md) for configuring Coder as an OAuth2 client
 - See [Security Best Practices](../security/index.md) for deployment security guidance
 
----
+## Feedback
 
-> 📝 **Feedback**
->
-> This is an experimental feature under active development. Please report issues and feedback through [GitHub Issues](https://github.com/coder/coder/issues) with the `oauth2` label.
+This is an experimental feature under active development. Please report issues and feedback through [GitHub Issues](https://github.com/coder/coder/issues) with the `oauth2` label.
