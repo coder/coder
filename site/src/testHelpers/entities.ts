@@ -689,6 +689,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
 		template_version_name: "test-version",
 		workspace_name: "test-workspace",
 	},
+	logs_overflowed: false,
 };
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
@@ -826,7 +827,8 @@ export const MockTemplate: TypesGen.Template = {
 	deprecated: false,
 	deprecation_message: "",
 	max_port_share_level: "public",
-	use_classic_parameter_flow: true,
+	use_classic_parameter_flow: false,
+	cors_behavior: "simple",
 };
 
 const MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -4402,6 +4404,32 @@ export const MockNotificationTemplates: TypesGen.NotificationTemplate[] = [
 		kind: "system",
 		enabled_by_default: true,
 	},
+	{
+		id: "template-event-1",
+		name: "Template Version Created",
+		title_template: 'Template version "{{.Labels.version_name}}" created',
+		body_template:
+			'Hi {{.UserName}}\nA new version of template "{{.Labels.template_name}}" has been created.',
+		actions:
+			'[{"url": "{{ base_url }}/templates/{{.Labels.template_name}}", "label": "View template"}]',
+		group: "Template Events",
+		method: "smtp",
+		kind: "system",
+		enabled_by_default: true,
+	},
+	{
+		id: "template-event-2",
+		name: "Template Updated",
+		title_template: 'Template "{{.Labels.template_name}}" updated',
+		body_template:
+			'Hi {{.UserName}}\nTemplate "{{.Labels.template_name}}" has been updated.',
+		actions:
+			'[{"url": "{{ base_url }}/templates/{{.Labels.template_name}}", "label": "View template"}]',
+		group: "Template Events",
+		method: "webhook",
+		kind: "system",
+		enabled_by_default: true,
+	},
 ];
 
 export const MockNotificationMethodsResponse: TypesGen.NotificationMethodsResponse =
@@ -4577,6 +4605,8 @@ export const MockPresets: TypesGen.Preset[] = [
 	{
 		ID: "preset-1",
 		Name: "Development",
+		Description: "",
+		Icon: "",
 		Parameters: [
 			{ Name: "cpu", Value: "4" },
 			{ Name: "memory", Value: "8GB" },
@@ -4587,6 +4617,8 @@ export const MockPresets: TypesGen.Preset[] = [
 	{
 		ID: "preset-2",
 		Name: "Testing",
+		Description: "",
+		Icon: "",
 		Parameters: [
 			{ Name: "cpu", Value: "2" },
 			{ Name: "memory", Value: "4GB" },
@@ -4597,6 +4629,8 @@ export const MockPresets: TypesGen.Preset[] = [
 	{
 		ID: "preset-3",
 		Name: "Production",
+		Description: "",
+		Icon: "",
 		Parameters: [
 			{ Name: "cpu", Value: "8" },
 			{ Name: "memory", Value: "16GB" },
@@ -4610,6 +4644,8 @@ export const MockAIPromptPresets: TypesGen.Preset[] = [
 	{
 		ID: "ai-preset-1",
 		Name: "Code Review",
+		Description: "",
+		Icon: "",
 		Parameters: [
 			{ Name: "AI Prompt", Value: "Review the code for best practices" },
 			{ Name: "cpu", Value: "4" },
@@ -4621,6 +4657,8 @@ export const MockAIPromptPresets: TypesGen.Preset[] = [
 	{
 		ID: "ai-preset-2",
 		Name: "Custom Prompt",
+		Description: "",
+		Icon: "",
 		Parameters: [
 			{ Name: "cpu", Value: "4" },
 			{ Name: "memory", Value: "8GB" },

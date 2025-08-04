@@ -72,6 +72,20 @@ const CreateWorkspacePage: FC = () => {
 		}),
 		enabled: !!templateQuery.data,
 	});
+	const templatePermissionsQuery = useQuery({
+		...checkAuthorization({
+			checks: {
+				canUpdateTemplate: {
+					object: {
+						resource_type: "template",
+						resource_id: templateQuery.data?.id ?? "",
+					},
+					action: "update",
+				},
+			},
+		}),
+		enabled: !!templateQuery.data,
+	});
 	const realizedVersionId =
 		customVersionId ?? templateQuery.data?.active_version_id;
 	const organizationId = templateQuery.data?.organization_id;
@@ -93,9 +107,13 @@ const CreateWorkspacePage: FC = () => {
 	const isLoadingFormData =
 		templateQuery.isLoading ||
 		permissionsQuery.isLoading ||
+		templatePermissionsQuery.isLoading ||
 		richParametersQuery.isLoading;
 	const loadFormDataError =
-		templateQuery.error ?? permissionsQuery.error ?? richParametersQuery.error;
+		templateQuery.error ??
+		permissionsQuery.error ??
+		templatePermissionsQuery.error ??
+		richParametersQuery.error;
 
 	const title = autoCreateWorkspaceMutation.isPending
 		? "Creating workspace..."
@@ -211,7 +229,9 @@ const CreateWorkspacePage: FC = () => {
 					startPollingExternalAuth={startPollingExternalAuth}
 					hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
 					permissions={permissionsQuery.data as CreateWorkspacePermissions}
-					canUpdateTemplate={permissionsQuery.data?.canUpdateTemplate}
+					templatePermissions={
+						templatePermissionsQuery.data as { canUpdateTemplate: boolean }
+					}
 					parameters={realizedParameters as TemplateVersionParameter[]}
 					presets={templateVersionPresetsQuery.data ?? []}
 					creatingWorkspace={createWorkspaceMutation.isPending}

@@ -29,6 +29,7 @@ RUN apt-get update && \
 	mkdir --parents /usr/local/go && \
 	tar --extract --gzip --directory=/usr/local/go --file=/usr/local/go.tar.gz --strip-components=1 && \
 	mkdir --parents "$GOPATH" && \
+	go env -w GOSUMDB=sum.golang.org && \
 	# moq for Go tests.
 	go install github.com/matryer/moq@v0.2.3 && \
 	# swag for Swagger doc generation
@@ -252,9 +253,9 @@ RUN source $NVM_DIR/nvm.sh && \
 	nvm install $NODE_VERSION && \
 	nvm use $NODE_VERSION
 ENV PATH=$NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
-# Allow patch updates for npm and pnpm
-RUN npm install -g npm@10.8.1 --integrity=sha512-Dp1C6SvSMYQI7YHq/y2l94uvI+59Eqbu1EpuKQHQ8p16txXRuRit5gH3Lnaagk2aXDIjg/Iru9pd05bnneKgdw==
-RUN npm install -g pnpm@9.15.1 --integrity=sha512-GstWXmGT7769p3JwKVBGkVDPErzHZCYudYfnHRncmKQj3/lTblfqRMSb33kP9pToPCe+X6oj1n4MAztYO+S/zw==
+RUN corepack enable && \
+    corepack prepare npm@10.8.1 --activate && \
+    corepack prepare pnpm@9.15.1 --activate
 
 RUN pnpx playwright@1.47.0 install --with-deps chromium
 

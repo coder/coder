@@ -10,7 +10,7 @@ OPTIONS:
   -O, --org string, $CODER_ORGANIZATION
           Select which organization (uuid or name) to use.
 
-  -c, --column [name|parameters|default|desired prebuild instances] (default: name,parameters,default,desired prebuild instances)
+  -c, --column [name|description|parameters|default|desired prebuild instances] (default: name,description,parameters,default,desired prebuild instances)
           Columns to display in table output.
 
   -o, --output table|json (default: table)

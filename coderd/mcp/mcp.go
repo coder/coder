@@ -79,11 +79,15 @@ func (s *Server) RegisterTools(client *codersdk.Client) error {
 		return xerrors.Errorf("failed to initialize tool dependencies: %w", err)
 	}
 
-	// Register all available tools
+	// Register all available tools, but exclude tools that require dependencies not available in the
+	// remote MCP context
 	for _, tool := range toolsdk.All {
+		if tool.Name == toolsdk.ToolNameReportTask {
+			continue
+		}
+
 		s.mcpServer.AddTools(mcpFromSDK(tool, toolDeps))
 	}
-
 	return nil
 }
 

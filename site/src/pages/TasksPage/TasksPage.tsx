@@ -386,55 +386,53 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 							</Select>
 						</div>
 
-						<div className="flex flex-col gap-1">
-							<label
-								htmlFor="presetID"
-								className="text-xs font-medium text-content-primary"
-							>
-								Preset
-							</label>
-							{isLoadingPresets ? (
-								<Skeleton variant="rounded" width={320} height={32} />
-							) : (
-								<Select
-									key={`preset-select-${selectedTemplate.active_version_id}`}
-									name="presetID"
-									value={selectedPresetId || undefined}
-									onValueChange={(value) => setSelectedPresetId(value || null)}
-									disabled={!presetsData || presetsData.length === 0}
+						{isLoadingPresets ? (
+							<div className="flex flex-col gap-1">
+								<label
+									htmlFor="presetID"
+									className="text-xs font-medium text-content-primary"
 								>
-									<SelectTrigger
-										id="presetID"
-										className="w-80 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3"
+									Preset
+								</label>
+								<Skeleton variant="rounded" width={320} height={32} />
+							</div>
+						) : (
+							presetsData &&
+							presetsData.length > 0 && (
+								<div className="flex flex-col gap-1">
+									<label
+										htmlFor="presetID"
+										className="text-xs font-medium text-content-primary"
 									>
-										<SelectValue
-											placeholder={
-												!presetsData || presetsData.length === 0
-													? "None"
-													: "Select a preset"
-											}
-										/>
-									</SelectTrigger>
-									<SelectContent>
-										{presetsData && presetsData.length > 0 ? (
-											sortedPresets(presetsData).map((preset) => (
+										Preset
+									</label>
+									<Select
+										key={`preset-select-${selectedTemplate.active_version_id}`}
+										name="presetID"
+										value={selectedPresetId || undefined}
+										onValueChange={(value) =>
+											setSelectedPresetId(value || null)
+										}
+									>
+										<SelectTrigger
+											id="presetID"
+											className="w-80 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3"
+										>
+											<SelectValue placeholder="Select a preset" />
+										</SelectTrigger>
+										<SelectContent>
+											{sortedPresets(presetsData).map((preset) => (
 												<SelectItem value={preset.ID} key={preset.ID}>
 													<span className="overflow-hidden text-ellipsis block">
 														{preset.Name} {preset.Default && "(Default)"}
 													</span>
 												</SelectItem>
-											))
-										) : (
-											<SelectItem value="none" disabled>
-												<span className="overflow-hidden text-ellipsis block">
-													No presets available
-												</span>
-											</SelectItem>
-										)}
-									</SelectContent>
-								</Select>
-							)}
-						</div>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+							)
+						)}
 					</div>
 
 					<div className="flex items-center gap-2">

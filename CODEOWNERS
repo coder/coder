@@ -17,3 +17,15 @@ coderd/rbac/ @Emyrk
 
 # Mainly dependent on coder/guts, which is maintained by @Emyrk
 scripts/apitypings/ @Emyrk
+scripts/gensite/ @aslilac
+
+site/ @aslilac
+site/src/hooks/ @Parkreiner
+# These rules intentionally do not specify any owners. More specific rules
+# override less specific rules, so these files are "ignored" by the site/ rule.
+site/e2e/google/protobuf/timestampGenerated.ts
+site/e2e/provisionerGenerated.ts
+site/src/api/countriesGenerated.ts
+site/src/api/rbacresourcesGenerated.ts
+site/src/api/typesGenerated.ts
+site/CLAUDE.md

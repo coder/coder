@@ -41,12 +41,13 @@ func (r *RootCmd) templatePresets() *serpent.Command {
 func (r *RootCmd) templatePresetsList() *serpent.Command {
 	defaultColumns := []string{
 		"name",
+		"description",
 		"parameters",
 		"default",
 		"desired prebuild instances",
 	}
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]templatePresetRow{}, defaultColumns),
+		cliui.TableFormat([]TemplatePresetRow{}, defaultColumns),
 		cliui.JSONFormat(),
 	)
 	client := new(codersdk.Client)
@@ -108,10 +109,13 @@ func (r *RootCmd) templatePresetsList() *serpent.Command {
 				return nil
 			}
 
-			cliui.Infof(
-				inv.Stdout,
-				"Showing presets for template %q and template version %q.\n", template.Name, version.Name,
-			)
+			// Only display info message for table output
+			if formatter.FormatID() == "table" {
+				cliui.Infof(
+					inv.Stdout,
+					"Showing presets for template %q and template version %q.\n", template.Name, version.Name,
+				)
+			}
 			rows := templatePresetsToRows(presets...)
 			out, err := formatter.Format(inv.Context(), rows)
 			if err != nil {
@@ -128,12 +132,13 @@ func (r *RootCmd) templatePresetsList() *serpent.Command {
 	return cmd
 }
 
-type templatePresetRow struct {
-	// For json format:
+type TemplatePresetRow struct {
+	// For json format
 	TemplatePreset codersdk.Preset `table:"-"`
 
 	// For table format:
 	Name                     string `json:"-" table:"name,default_sort"`
+	Description              string `json:"-" table:"description"`
 	Parameters               string `json:"-" table:"parameters"`
 	Default                  bool   `json:"-" table:"default"`
 	DesiredPrebuildInstances string `json:"-" table:"desired prebuild instances"`
@@ -149,15 +154,19 @@ func formatPresetParameters(params []codersdk.PresetParameter) string {
 
 // templatePresetsToRows converts a list of presets to a list of rows
 // for outputting.
-func templatePresetsToRows(presets ...codersdk.Preset) []templatePresetRow {
-	rows := make([]templatePresetRow, len(presets))
+func templatePresetsToRows(presets ...codersdk.Preset) []TemplatePresetRow {
+	rows := make([]TemplatePresetRow, len(presets))
 	for i, preset := range presets {
 		prebuildInstances := "-"
 		if preset.DesiredPrebuildInstances != nil {
 			prebuildInstances = strconv.Itoa(*preset.DesiredPrebuildInstances)
 		}
-		rows[i] = templatePresetRow{
+		rows[i] = TemplatePresetRow{
+			// For json format
+			TemplatePreset: preset,
+			// For table format
 			Name:                     preset.Name,
+			Description:              preset.Description,
 			Parameters:               formatPresetParameters(preset.Parameters),
 			Default:                  preset.Default,
 			DesiredPrebuildInstances: prebuildInstances,

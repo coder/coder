@@ -360,7 +360,8 @@ func assertProduce(t *testing.T, comment SwaggerComment) {
 			(comment.router == "/workspaceagents/me/startup/logs" && comment.method == "patch") ||
 			(comment.router == "/licenses/{id}" && comment.method == "delete") ||
 			(comment.router == "/debug/coordinator" && comment.method == "get") ||
-			(comment.router == "/debug/tailnet" && comment.method == "get") {
+			(comment.router == "/debug/tailnet" && comment.method == "get") ||
+			(comment.router == "/workspaces/{workspace}/acl" && comment.method == "patch") {
 			return // Exception: HTTP 200 is returned without response entity
 		}
 

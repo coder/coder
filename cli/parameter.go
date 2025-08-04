@@ -100,6 +100,14 @@ func (wpf *workspaceParameterFlags) alwaysPrompt() serpent.Option {
 	}
 }
 
+func presetParameterAsWorkspaceBuildParameters(presetParameters []codersdk.PresetParameter) []codersdk.WorkspaceBuildParameter {
+	var params []codersdk.WorkspaceBuildParameter
+	for _, parameter := range presetParameters {
+		params = append(params, codersdk.WorkspaceBuildParameter(parameter))
+	}
+	return params
+}
+
 func asWorkspaceBuildParameters(nameValuePairs []string) ([]codersdk.WorkspaceBuildParameter, error) {
 	var params []codersdk.WorkspaceBuildParameter
 	for _, nameValue := range nameValuePairs {

@@ -12,6 +12,9 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -43,6 +46,7 @@ type WorkspaceResponse struct {
 // resources.
 type WorkspaceBuildBuilder struct {
 	t          testing.TB
+	logger     slog.Logger
 	db         database.Store
 	ps         pubsub.Pubsub
 	ws         database.WorkspaceTable
@@ -62,7 +66,10 @@ type workspaceBuildDisposition struct {
 // Omitting the template ID on a workspace will also generate a new template
 // with a template version.
 func WorkspaceBuild(t testing.TB, db database.Store, ws database.WorkspaceTable) WorkspaceBuildBuilder {
-	return WorkspaceBuildBuilder{t: t, db: db, ws: ws}
+	return WorkspaceBuildBuilder{
+		t: t, db: db, ws: ws,
+		logger: slogtest.Make(t, &slogtest.Options{}).Named("dbfake").Leveled(slog.LevelDebug),
+	}
 }
 
 func (b WorkspaceBuildBuilder) Pubsub(ps pubsub.Pubsub) WorkspaceBuildBuilder {
@@ -131,6 +138,7 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 		AgentToken: b.agentToken,
 	}
 	if b.ws.TemplateID == uuid.Nil {
+		b.logger.Debug(context.Background(), "creating template and version")
 		resp.TemplateVersionResponse = TemplateVersion(b.t, b.db).
 			Resources(b.resources...).
 			Pubsub(b.ps).
@@ -145,6 +153,7 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 
 	// If no template version is set assume the active version.
 	if b.seed.TemplateVersionID == uuid.Nil {
+		b.logger.Debug(context.Background(), "assuming active template version")
 		template, err := b.db.GetTemplateByID(ownerCtx, b.ws.TemplateID)
 		require.NoError(b.t, err)
 		require.NotNil(b.t, template.ActiveVersionID, "active version ID unexpectedly nil")
@@ -156,6 +165,9 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 		// nolint: revive
 		b.ws = dbgen.Workspace(b.t, b.db, b.ws)
 		resp.Workspace = b.ws
+		b.logger.Debug(context.Background(), "created workspace",
+			slog.F("name", resp.Workspace.Name),
+			slog.F("workspace_id", resp.Workspace.ID))
 	}
 	b.seed.WorkspaceID = b.ws.ID
 	b.seed.InitiatorID = takeFirst(b.seed.InitiatorID, b.ws.OwnerID)
@@ -179,12 +191,15 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 		Input:          payload,
 		Tags:           map[string]string{},
 		TraceMetadata:  pqtype.NullRawMessage{},
+		LogsOverflowed: false,
 	})
 	require.NoError(b.t, err, "insert job")
+	b.logger.Debug(context.Background(), "inserted provisioner job", slog.F("job_id", job.ID))
 
 	if b.dispo.starting {
 		// might need to do this multiple times if we got a template version
 		// import job as well
+		b.logger.Debug(context.Background(), "looping to acquire provisioner job")
 		for {
 			j, err := b.db.AcquireProvisionerJob(ownerCtx, database.AcquireProvisionerJobParams{
 				OrganizationID: job.OrganizationID,
@@ -201,10 +216,12 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 			})
 			require.NoError(b.t, err, "acquire starting job")
 			if j.ID == job.ID {
+				b.logger.Debug(context.Background(), "acquired provisioner job", slog.F("job_id", job.ID))
 				break
 			}
 		}
 	} else {
+		b.logger.Debug(context.Background(), "completing the provisioner job")
 		err = b.db.UpdateProvisionerJobWithCompleteByID(ownerCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        job.ID,
 			UpdatedAt: dbtime.Now(),
@@ -220,11 +237,16 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 	}
 
 	resp.Build = dbgen.WorkspaceBuild(b.t, b.db, b.seed)
+	b.logger.Debug(context.Background(), "created workspace build",
+		slog.F("build_id", resp.Build.ID),
+		slog.F("workspace_id", resp.Workspace.ID),
+		slog.F("build_number", resp.Build.BuildNumber))
 
 	for i := range b.params {
 		b.params[i].WorkspaceBuildID = resp.Build.ID
 	}
-	_ = dbgen.WorkspaceBuildParameters(b.t, b.db, b.params)
+	params := dbgen.WorkspaceBuildParameters(b.t, b.db, b.params)
+	b.logger.Debug(context.Background(), "created workspace build parameters", slog.F("count", len(params)))
 
 	if b.ws.Deleted {
 		err = b.db.UpdateWorkspaceDeletedByID(ownerCtx, database.UpdateWorkspaceDeletedByIDParams{
@@ -232,6 +254,7 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 			Deleted: true,
 		})
 		require.NoError(b.t, err)
+		b.logger.Debug(context.Background(), "deleted workspace", slog.F("workspace_id", resp.Workspace.ID))
 	}
 
 	if b.ps != nil {
@@ -242,6 +265,9 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 		require.NoError(b.t, err)
 		err = b.ps.Publish(wspubsub.WorkspaceEventChannel(resp.Workspace.OwnerID), msg)
 		require.NoError(b.t, err)
+		b.logger.Debug(context.Background(), "published workspace event",
+			slog.F("owner_id", resp.Workspace.ID),
+			slog.F("owner_id", resp.Workspace.OwnerID))
 	}
 
 	agents, err := b.db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ownerCtx, database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
@@ -259,7 +285,12 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 			err = b.db.DeleteWorkspaceSubAgentByID(ownerCtx, subAgent.ID)
 			require.NoError(b.t, err, "delete workspace agent subagent antagonist")
 
-			b.t.Logf("inserted deleted subagent antagonist %s (%v) for workspace agent %s (%v)", subAgent.Name, subAgent.ID, agent.Name, agent.ID)
+			b.logger.Debug(context.Background(), "inserted deleted subagent antagonist",
+				slog.F("subagent_name", subAgent.Name),
+				slog.F("subagent_id", subAgent.ID),
+				slog.F("agent_name", agent.Name),
+				slog.F("agent_id", agent.ID),
+			)
 		}
 	}
 
@@ -268,6 +299,7 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 
 type ProvisionerJobResourcesBuilder struct {
 	t          testing.TB
+	logger     slog.Logger
 	db         database.Store
 	jobID      uuid.UUID
 	transition database.WorkspaceTransition
@@ -280,6 +312,7 @@ func ProvisionerJobResources(
 ) ProvisionerJobResourcesBuilder {
 	return ProvisionerJobResourcesBuilder{
 		t:          t,
+		logger:     slogtest.Make(t, &slogtest.Options{}).Named("dbfake").Leveled(slog.LevelDebug).With(slog.F("job_id", jobID)),
 		db:         db,
 		jobID:      jobID,
 		transition: transition,
@@ -291,13 +324,17 @@ func (b ProvisionerJobResourcesBuilder) Do() {
 	b.t.Helper()
 	transition := b.transition
 	if transition == "" {
-		// Default to start!
+		b.logger.Debug(context.Background(), "setting default transition to start")
 		transition = database.WorkspaceTransitionStart
 	}
 	for _, resource := range b.resources {
 		//nolint:gocritic // This is only used by tests.
 		err := provisionerdserver.InsertWorkspaceResource(ownerCtx, b.db, b.jobID, transition, resource, &telemetry.Snapshot{})
 		require.NoError(b.t, err)
+		b.logger.Debug(context.Background(), "created workspace resource",
+			slog.F("resource_name", resource.Name),
+			slog.F("agent_count", len(resource.Agents)),
+		)
 	}
 }
 
@@ -308,6 +345,7 @@ type TemplateVersionResponse struct {
 
 type TemplateVersionBuilder struct {
 	t                  testing.TB
+	logger             slog.Logger
 	db                 database.Store
 	seed               database.TemplateVersion
 	fileID             uuid.UUID
@@ -325,6 +363,7 @@ type TemplateVersionBuilder struct {
 func TemplateVersion(t testing.TB, db database.Store) TemplateVersionBuilder {
 	return TemplateVersionBuilder{
 		t:                  t,
+		logger:             slogtest.Make(t, &slogtest.Options{}).Named("dbfake").Leveled(slog.LevelDebug),
 		db:                 db,
 		promote:            true,
 		autoCreateTemplate: true,
@@ -395,9 +434,16 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 			Valid: true,
 			UUID:  resp.Template.ID,
 		}
+		t.logger.Debug(context.Background(), "created template",
+			slog.F("organization_id", resp.Template.OrganizationID),
+			slog.F("template_id", resp.Template.CreatedBy),
+		)
 	}
 
 	version := dbgen.TemplateVersion(t.t, t.db, t.seed)
+	t.logger.Debug(context.Background(), "created template version",
+		slog.F("template_version_id", version.ID),
+	)
 	if t.promote {
 		err := t.db.UpdateTemplateActiveVersionByID(ownerCtx, database.UpdateTemplateActiveVersionByIDParams{
 			ID:              t.seed.TemplateID.UUID,
@@ -405,10 +451,13 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 			UpdatedAt:       dbtime.Now(),
 		})
 		require.NoError(t.t, err)
+		t.logger.Debug(context.Background(), "promoted template version",
+			slog.F("template_version_id", t.seed.ID),
+		)
 	}
 
 	for _, preset := range t.presets {
-		dbgen.Preset(t.t, t.db, database.InsertPresetParams{
+		prst := dbgen.Preset(t.t, t.db, database.InsertPresetParams{
 			ID:                  preset.ID,
 			TemplateVersionID:   version.ID,
 			Name:                preset.Name,
@@ -417,15 +466,22 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 			InvalidateAfterSecs: preset.InvalidateAfterSecs,
 			SchedulingTimezone:  preset.SchedulingTimezone,
 			IsDefault:           false,
+			Description:         preset.Description,
+			Icon:                preset.Icon,
 		})
+		t.logger.Debug(context.Background(), "added preset",
+			slog.F("preset_id", prst.ID),
+			slog.F("preset_name", prst.Name),
+		)
 	}
 
 	for _, presetParam := range t.presetParams {
-		dbgen.PresetParameter(t.t, t.db, database.InsertPresetParametersParams{
+		prm := dbgen.PresetParameter(t.t, t.db, database.InsertPresetParametersParams{
 			TemplateVersionPresetID: presetParam.TemplateVersionPresetID,
 			Names:                   []string{presetParam.Name},
 			Values:                  []string{presetParam.Value},
 		})
+		t.logger.Debug(context.Background(), "added preset parameter", slog.F("param_name", prm[0].Name))
 	}
 
 	payload, err := json.Marshal(provisionerdserver.TemplateVersionImportJob{
@@ -445,6 +501,7 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 		},
 		FileID: t.fileID,
 	})
+	t.logger.Debug(context.Background(), "added template version import job", slog.F("job_id", job.ID))
 
 	t.seed.JobID = job.ID
 

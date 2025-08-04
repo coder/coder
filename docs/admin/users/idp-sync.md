@@ -203,7 +203,7 @@ Visit the Coder UI to confirm these changes:
 ### Group allowlist
 
 You can limit which groups from your identity provider can log in to Coder with
-[CODER_OIDC_ALLOWED_GROUPS](https://coder.com/docs/cli/server#--oidc-allowed-groups).
+[CODER_OIDC_ALLOWED_GROUPS](../../reference/cli/server.md#--oidc-allowed-groups).
 Users who are not in a matching group will see the following error:
 
 <Image height="412px" src="../../images/admin/group-allowlist.png" alt="Unauthorized group error" align="center" />
@@ -419,7 +419,6 @@ If you are running into issues with a sync:
 1. To reduce noise, you can filter for only logs related to group/role sync:
 
    ```sh
-   CODER_VERBOSE=true
    CODER_LOG_FILTER=".*userauth.*|.*groups returned.*"
    ```
 

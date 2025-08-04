@@ -1896,6 +1896,13 @@ class ApiMethods {
 		return response.data;
 	};
 
+	updateWorkspaceACL = async (
+		workspaceId: string,
+		data: TypesGen.UpdateWorkspaceACL,
+	): Promise<void> => {
+		await this.axios.patch(`/api/v2/workspaces/${workspaceId}/acl`, data);
+	};
+
 	getApplicationsHost = async (): Promise<TypesGen.AppHostResponse> => {
 		const response = await this.axios.get("/api/v2/applications/host");
 		return response.data;
