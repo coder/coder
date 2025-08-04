@@ -55,4 +55,4 @@ https://coder.example.com/api/experimental/mcp/http
 > [!NOTE]
 > At this time, the remote MCP server is not compatible with web-based ChatGPT.
 
-Users can authenticate applications to use the remote MCP server with OAuth2. An authenticated application can perform any action on the user's behalf. Fine-grained permissions are in development.
+Users can authenticate applications to use the remote MCP server with [OAuth2](../admin/integrations/oauth2-provider.md). An authenticated application can perform any action on the user's behalf. Fine-grained permissions are in development.
