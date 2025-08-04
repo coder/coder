@@ -1,6 +1,6 @@
 {
 	"dependencies": {
-		"widdershins": "^4.0.1"
+		"@redocly/cli": "^1.25.11"
 	},
 	"resolutions": {
 		"semver": "7.5.3",
