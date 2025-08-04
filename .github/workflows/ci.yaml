@@ -490,6 +490,12 @@ jobs:
           gotestsum --format standard-quiet --packages "$PACKAGES" \
             -- -timeout=20m -v -p $NUM_PARALLEL_PACKAGES -parallel=$NUM_PARALLEL_TESTS $TESTCOUNT
 
+      - name: Upload failed test db dumps
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: failed-test-db-dump-${{matrix.os}}
+          path: "**/*.test.sql"
+
       - name: Upload Go Build Cache
         uses: ./.github/actions/test-cache/upload
         with:
