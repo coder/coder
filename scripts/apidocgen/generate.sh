@@ -31,17 +31,14 @@ pushd "${APIDOCGEN_DIR}"
 # Make sure that redocly is installed correctly.
 pnpm exec -- redocly --version
 # Generate basic markdown structure (redocly doesn't have direct markdown output like widdershins)
-# Create basic markdown structure that the postprocessor can work with
-# The postprocessor expects sections separated by <!-- APIDOCGEN: BEGIN SECTION -->
-echo "<!-- APIDOCGEN: BEGIN SECTION -->" > "${API_MD_TMP_FILE}"
-echo "# General" >> "${API_MD_TMP_FILE}"
-echo "" >> "${API_MD_TMP_FILE}"
-echo "This documentation is generated from the OpenAPI specification using Redocly CLI." >> "${API_MD_TMP_FILE}"
-echo "" >> "${API_MD_TMP_FILE}"
-echo "The Coder API is organized around REST. Our API has predictable resource-oriented URLs, accepts form-encoded request bodies, returns JSON-encoded responses, and uses standard HTTP response codes, authentication, and verbs." >> "${API_MD_TMP_FILE}"
-echo "" >> "${API_MD_TMP_FILE}"
-# Validate the OpenAPI spec with redocly (suppress output to avoid cluttering)
+# Generate comprehensive markdown documentation from OpenAPI spec
+# Validate the OpenAPI spec with redocly first
+log "Validating OpenAPI spec with Redocly..."
 pnpm exec -- redocly lint "../../coderd/apidoc/swagger.json" > /dev/null 2>&1 || true
+
+# Generate markdown using our custom converter that produces output similar to Widdershins
+log "Generating comprehensive markdown documentation..."
+node openapi-to-markdown.js "../../coderd/apidoc/swagger.json" "${API_MD_TMP_FILE}"
 # Perform the postprocessing
 go run postprocess/main.go -in-md-file-single "${API_MD_TMP_FILE}"
 popd
