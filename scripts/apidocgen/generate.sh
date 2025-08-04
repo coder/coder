@@ -17,13 +17,13 @@ trap cleanup EXIT
 
 log "Use temporary file: ${API_MD_TMP_FILE}"
 
-pushd "${PROJECT_ROOT}/coderd"
-go run github.com/swaggo/swag/cmd/swag@v1.8.9 init \\
-	--generalInfo="coderd.go" \\
-	--dir=".,../codersdk,../enterprise/coderd,../enterprise/wsproxy/wsproxysdk" \\
-	--output="./apidoc" \\
-	--outputTypes="go,json" \\
-	--parseDependency=true
+pushd "${PROJECT_ROOT}"
+go run github.com/swaggo/swag/cmd/swag@v1.8.9 init \
+        --generalInfo="coderd.go" \
+        --dir="./coderd,./codersdk,./enterprise/coderd,./enterprise/wsproxy/wsproxysdk" \
+        --output="./coderd/apidoc" \
+        --outputTypes="go,json" \
+        --parseDependency=true
 popd
 
 pushd "${APIDOCGEN_DIR}"
