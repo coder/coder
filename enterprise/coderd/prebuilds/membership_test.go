@@ -111,8 +111,8 @@ func TestReconcileAll(t *testing.T) {
 							var prebuildsGroup database.Group
 							if preExistingGroup {
 								prebuildsGroup = dbgen.Group(t, db, database.Group{
-									Name:           "prebuilds",
-									DisplayName:    "Prebuilds",
+									Name:           prebuilds.PrebuiltWorkspacesGroupName,
+									DisplayName:    prebuilds.PrebuiltWorkspacesGroupDisplayName,
 									OrganizationID: targetOrg.ID,
 									QuotaAllowance: 0,
 								})
@@ -160,12 +160,12 @@ func TestReconcileAll(t *testing.T) {
 							// Verify prebuilds group behavior based on expected outcomes
 							prebuildsGroup, err = db.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
 								OrganizationID: targetOrg.ID,
-								Name:           "prebuilds",
+								Name:           prebuilds.PrebuiltWorkspacesGroupName,
 							})
 							if tc.expectGroupExists != nil && *tc.expectGroupExists {
 								require.NoError(t, err)
-								require.Equal(t, "prebuilds", prebuildsGroup.Name)
-								require.Equal(t, "Prebuilds", prebuildsGroup.DisplayName)
+								require.Equal(t, prebuilds.PrebuiltWorkspacesGroupName, prebuildsGroup.Name)
+								require.Equal(t, prebuilds.PrebuiltWorkspacesGroupDisplayName, prebuildsGroup.DisplayName)
 								require.Equal(t, int32(0), prebuildsGroup.QuotaAllowance) // Default quota should be 0
 
 								if tc.expectUserInGroup != nil && *tc.expectUserInGroup {

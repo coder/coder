@@ -2248,7 +2248,11 @@ func (q *sqlQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteG
 
 const getGroupMembers = `-- name: GetGroupMembers :many
 SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_name, user_github_com_user_id, user_is_system, organization_id, group_name, group_id FROM group_members_expanded
-WHERE ($1::bool OR NOT user_is_system)
+WHERE CASE
+      WHEN $1::bool THEN TRUE
+      ELSE
+        user_is_system = false
+        END
 `
 
 func (q *sqlQuerier) GetGroupMembers(ctx context.Context, includeSystem bool) ([]GroupMember, error) {
@@ -2299,7 +2303,11 @@ SELECT user_id, user_email, user_username, user_hashed_password, user_created_at
 FROM group_members_expanded
 WHERE group_id = $1
   -- Filter by system type
-  AND ($2::bool OR NOT user_is_system)
+  AND CASE
+      WHEN $2::bool THEN TRUE
+      ELSE
+        user_is_system = false
+      END
 `
 
 type GetGroupMembersByGroupIDParams struct {
@@ -2355,7 +2363,11 @@ SELECT COUNT(*)
 FROM group_members_expanded
 WHERE group_id = $1
   -- Filter by system type
-  AND ($2::bool OR NOT user_is_system)
+  AND CASE
+      WHEN $2::bool THEN TRUE
+      ELSE
+        user_is_system = false
+        END
 `
 
 type GetGroupMembersCountByGroupIDParams struct {
@@ -6473,7 +6485,11 @@ WHERE
 		ELSE true
 	END
   -- Filter by system type
-  	AND ($3::bool OR NOT is_system)
+  	AND CASE
+		  WHEN $3::bool THEN TRUE
+		  ELSE
+			  is_system = false
+	END
 `
 
 type OrganizationMembersParams struct {
@@ -6546,7 +6562,7 @@ WHERE
 		ELSE true
 	END
   -- Filter by system type
-	AND ($2::bool OR NOT is_system)
+	AND CASE WHEN $2::bool THEN TRUE ELSE is_system = false END
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
 	LOWER(username) ASC OFFSET $3
@@ -13696,7 +13712,7 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 
 const allUserIDs = `-- name: AllUserIDs :many
 SELECT DISTINCT id FROM USERS
-	WHERE ($1::bool OR NOT is_system)
+	WHERE CASE WHEN $1::bool THEN TRUE ELSE is_system = false END
 `
 
 // AllUserIDs returns all UserIDs regardless of user status or deletion.
@@ -13730,7 +13746,7 @@ FROM
 	users
 WHERE
 	status = 'active'::user_status AND deleted = false
-	AND ($1::bool OR NOT is_system)
+	AND CASE WHEN $1::bool THEN TRUE ELSE is_system = false END
 `
 
 func (q *sqlQuerier) GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error) {
@@ -13894,7 +13910,7 @@ FROM
 	users
 WHERE
 	deleted = false
-  	AND ($1::bool OR NOT is_system)
+  	AND CASE WHEN $1::bool THEN TRUE ELSE is_system = false END
 `
 
 func (q *sqlQuerier) GetUserCount(ctx context.Context, includeSystem bool) (int64, error) {
@@ -14011,7 +14027,11 @@ WHERE
 			created_at >= $8
 		ELSE true
 	END
-  	AND ($9::bool OR NOT is_system)
+  	AND CASE
+  	    WHEN $9::bool THEN TRUE
+  	    ELSE
+			is_system = false
+	END
 	AND CASE
 		WHEN $10 :: bigint != 0 THEN
 			github_com_user_id = $10
