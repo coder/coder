@@ -206,7 +206,7 @@ func DumpOnFailure(t testing.TB, connectionURL string) {
 	outPath := filepath.Join(cwd, snakeCaseName+"."+timeSuffix+".test.sql")
 	dump, err := PGDump(connectionURL)
 	if err != nil {
-		t.Errorf("dump on failure: failed to run pg_dump")
+		t.Errorf("dump on failure: failed to run pg_dump: %s", err.Error())
 		return
 	}
 	if err := os.WriteFile(outPath, normalizeDump(dump), 0o600); err != nil {
