@@ -60,32 +60,30 @@ export function createMockWebSocket(
 
 		addEventListener: <E extends WebSocketEventType>(
 			eventType: E,
-			callback: WebSocketEventMap[E],
+			callback: (event: WebSocketEventMap[E]) => void,
 		) => {
 			if (!isOpen) {
 				return;
 			}
 
 			const subscribers = store[eventType];
-			const cb = callback as unknown as CallbackStore[E][0];
-			if (!subscribers.includes(cb)) {
-				subscribers.push(cb);
+			if (!subscribers.includes(callback)) {
+				subscribers.push(callback);
 			}
 		},
 
 		removeEventListener: <E extends WebSocketEventType>(
 			eventType: E,
-			callback: WebSocketEventMap[E],
+			callback: (event: WebSocketEventMap[E]) => void,
 		) => {
 			if (!isOpen) {
 				return;
 			}
 
 			const subscribers = store[eventType];
-			const cb = callback as unknown as CallbackStore[E][0];
-			if (subscribers.includes(cb)) {
-				const updated = store[eventType].filter((c) => c !== cb);
-				store[eventType] = updated as unknown as CallbackStore[E];
+			if (subscribers.includes(callback)) {
+				const updated = store[eventType].filter((c) => c !== callback);
+				store[eventType] = updated as CallbackStore[E];
 			}
 		},
 
