@@ -481,11 +481,10 @@ func TestWorkspaceQuota(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, versionZeroCost.ID)
 		templateZeroCost := coderdtest.CreateTemplate(t, client, user.OrganizationID, versionZeroCost.ID)
 
-		// Even with zero cost, should pass
+		// Workspace with zero cost should pass
 		workspaceZeroCost := coderdtest.CreateWorkspace(t, client, templateZeroCost.ID)
 		buildZeroCost := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceZeroCost.LatestBuild.ID)
 
-		// Verify the build failed due to quota
 		require.Equal(t, codersdk.WorkspaceStatusRunning, buildZeroCost.Status)
 		require.Empty(t, buildZeroCost.Job.Error)
 

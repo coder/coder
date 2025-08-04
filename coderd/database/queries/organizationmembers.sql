@@ -24,7 +24,11 @@ WHERE
 		ELSE true
 	END
   -- Filter by system type
-  	AND (@include_system::bool OR NOT is_system);
+  	AND CASE
+		  WHEN @include_system::bool THEN TRUE
+		  ELSE
+			  is_system = false
+	END;
 
 -- name: InsertOrganizationMember :one
 INSERT INTO
@@ -86,7 +90,7 @@ WHERE
 		ELSE true
 	END
   -- Filter by system type
-	AND (@include_system::bool OR NOT is_system)
+	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
 	LOWER(username) ASC OFFSET @offset_opt

@@ -49,7 +49,7 @@ FROM
 	users
 WHERE
 	deleted = false
-  	AND (@include_system::bool OR NOT is_system);
+  	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: GetActiveUserCount :one
 SELECT
@@ -58,7 +58,7 @@ FROM
 	users
 WHERE
 	status = 'active'::user_status AND deleted = false
-	AND (@include_system::bool OR NOT is_system);
+	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: InsertUser :one
 INSERT INTO
@@ -250,7 +250,11 @@ WHERE
 			created_at >= @created_after
 		ELSE true
 	END
-  	AND (@include_system::bool OR NOT is_system)
+  	AND CASE
+  	    WHEN @include_system::bool THEN TRUE
+  	    ELSE
+			is_system = false
+	END
 	AND CASE
 		WHEN @github_com_user_id :: bigint != 0 THEN
 			github_com_user_id = @github_com_user_id
@@ -360,7 +364,7 @@ RETURNING id, email, username, last_seen_at;
 -- AllUserIDs returns all UserIDs regardless of user status or deletion.
 -- name: AllUserIDs :many
 SELECT DISTINCT id FROM USERS
-	WHERE (@include_system::bool OR NOT is_system);
+	WHERE CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: UpdateUserHashedOneTimePasscode :exec
 UPDATE

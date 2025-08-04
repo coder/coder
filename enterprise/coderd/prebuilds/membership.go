@@ -44,23 +44,23 @@ func (s StoreMembershipReconciler) ReconcileAll(ctx context.Context, userID uuid
 		return xerrors.Errorf("determine prebuild organization membership: %w", err)
 	}
 
-	orgMemberShips := make(map[uuid.UUID]struct{}, 0)
+	orgMemberships := make(map[uuid.UUID]struct{}, 0)
 	defaultOrg, err := s.store.GetDefaultOrganization(ctx)
 	if err != nil {
 		return xerrors.Errorf("get default organization: %w", err)
 	}
-	orgMemberShips[defaultOrg.ID] = struct{}{}
+	orgMemberships[defaultOrg.ID] = struct{}{}
 	for _, o := range organizationMemberships {
-		orgMemberShips[o.ID] = struct{}{}
+		orgMemberships[o.ID] = struct{}{}
 	}
 
 	var membershipInsertionErrors error
 	for _, preset := range presets {
-		_, alreadyOrgMember := orgMemberShips[preset.OrganizationID]
+		_, alreadyOrgMember := orgMemberships[preset.OrganizationID]
 		if !alreadyOrgMember {
 			// Add the organization to our list of memberships regardless of potential failure below
 			// to avoid a retry that will probably be doomed anyway.
-			orgMemberShips[preset.OrganizationID] = struct{}{}
+			orgMemberships[preset.OrganizationID] = struct{}{}
 
 			// Insert the missing membership
 			_, err = s.store.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
