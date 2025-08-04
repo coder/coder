@@ -7,7 +7,10 @@ import {
 	createMockWebSocket,
 } from "testHelpers/websockets";
 import { OneWayWebSocket } from "utils/OneWayWebSocket";
-import { type OnError, createUseAgentLogs } from "./useAgentLogs";
+import {
+	type CreateUseAgentLogsOptions,
+	createUseAgentLogs,
+} from "./useAgentLogs";
 
 const millisecondsInOneMinute = 60_000;
 
@@ -30,15 +33,15 @@ function generateMockLogs(
 	});
 }
 
-// A mutable object holding the most recent mock WebSocket publisher. Inner
-// value will be undefined if the hook is disabled on mount, but will otherwise
-// have some kind of value
+// A mutable object holding the most recent mock WebSocket publisher that was
+// created when initializing a mock WebSocket. Inner value will be undefined if
+// the hook is disabled on mount, but will always be defined otherwise
 type PublisherResult = { current: MockWebSocketPublisher | undefined };
 
 type MountHookOptions = Readonly<{
 	initialAgentId: string;
 	enabled?: boolean;
-	onError?: OnError;
+	onError?: CreateUseAgentLogsOptions["onError"];
 }>;
 
 type MountHookResult = Readonly<{
@@ -54,20 +57,23 @@ function mountHook(options: MountHookOptions): MountHookResult {
 	const { initialAgentId, enabled = true, onError = jest.fn() } = options;
 
 	const publisherResult: PublisherResult = { current: undefined };
-	const useAgentLogs = createUseAgentLogs((agentId, params) => {
-		return new OneWayWebSocket({
-			apiRoute: `/api/v2/workspaceagents/${agentId}/logs`,
-			searchParams: new URLSearchParams({
-				follow: "true",
-				after: params?.after?.toString() || "0",
-			}),
-			websocketInit: (url) => {
-				const [mockSocket, mockPublisher] = createMockWebSocket(url);
-				publisherResult.current = mockPublisher;
-				return mockSocket;
-			},
-		});
-	}, onError);
+	const useAgentLogs = createUseAgentLogs({
+		onError,
+		createSocket: (agentId, params) => {
+			return new OneWayWebSocket({
+				apiRoute: `/api/v2/workspaceagents/${agentId}/logs`,
+				searchParams: new URLSearchParams({
+					follow: "true",
+					after: params?.after?.toString() || "0",
+				}),
+				websocketInit: (url) => {
+					const [mockSocket, mockPublisher] = createMockWebSocket(url);
+					publisherResult.current = mockPublisher;
+					return mockSocket;
+				},
+			});
+		},
+	});
 
 	const { result, rerender } = renderHook(
 		({ agentId, enabled }) => useAgentLogs(agentId, enabled),
@@ -116,10 +122,10 @@ describe("useAgentLogs", () => {
 			initialAgentId: MockWorkspaceAgent.id,
 		});
 
-		expect(publisherResult.current?.isConnectionOpen()).toBe(true);
+		expect(publisherResult.current?.isConnectionOpen).toBe(true);
 		rerender({ agentId: MockWorkspaceAgent.id, enabled: false });
 		await waitFor(() => {
-			expect(publisherResult.current?.isConnectionOpen()).toBe(false);
+			expect(publisherResult.current?.isConnectionOpen).toBe(false);
 		});
 	});
 
@@ -129,14 +135,17 @@ describe("useAgentLogs", () => {
 		});
 
 		const publisher1 = publisherResult.current;
-		expect(publisher1?.isConnectionOpen()).toBe(true);
+		expect(publisher1?.isConnectionOpen).toBe(true);
 
-		const newAgentId = `${MockWorkspaceAgent.id}-2`;
-		rerender({ agentId: newAgentId, enabled: true });
+		rerender({
+			enabled: true,
+			agentId: `${MockWorkspaceAgent.id}-new-value`,
+		});
 
 		const publisher2 = publisherResult.current;
-		expect(publisher1?.isConnectionOpen()).toBe(false);
-		expect(publisher2?.isConnectionOpen()).toBe(true);
+		expect(publisher1).not.toBe(publisher2);
+		expect(publisher1?.isConnectionOpen).toBe(false);
+		expect(publisher2?.isConnectionOpen).toBe(true);
 	});
 
 	it("Calls error callback when error is received (but only while hook is enabled)", async () => {

@@ -5,7 +5,7 @@ export type MockWebSocketPublisher = Readonly<{
 	publishError: (event: Event) => void;
 	publishClose: (event: CloseEvent) => void;
 	publishOpen: (event: Event) => void;
-	isConnectionOpen: () => boolean;
+	readonly isConnectionOpen: boolean;
 }>;
 
 export function createMockWebSocket(
@@ -95,7 +95,10 @@ export function createMockWebSocket(
 	};
 
 	const publisher: MockWebSocketPublisher = {
-		isConnectionOpen: () => isOpen,
+		get isConnectionOpen() {
+			return isOpen;
+		},
+
 		publishOpen: (event) => {
 			if (!isOpen) {
 				return;

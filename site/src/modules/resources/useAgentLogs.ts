@@ -7,17 +7,16 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { useEffect, useState } from "react";
 import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 
-type CreateSocket = (
-	agentId: string,
-	params?: WatchWorkspaceAgentLogsParams,
-) => OneWayWebSocket<WorkspaceAgentLog[]>;
+export type CreateUseAgentLogsOptions = Readonly<{
+	onError: (errorEvent: Event) => void;
+	createSocket: (
+		agentId: string,
+		params?: WatchWorkspaceAgentLogsParams,
+	) => OneWayWebSocket<WorkspaceAgentLog[]>;
+}>;
 
-export type OnError = (errorEvent: Event) => void;
-
-export function createUseAgentLogs(
-	createSocket: CreateSocket,
-	onError: OnError,
-) {
+export function createUseAgentLogs(options: CreateUseAgentLogsOptions) {
+	const { createSocket, onError } = options;
 	return function useAgentLogs(
 		agentId: string,
 		enabled: boolean,
@@ -70,20 +69,20 @@ export function createUseAgentLogs(
 			});
 
 			return () => socket.close();
-		}, [createSocket, onError, agentId, enabled]);
+		}, [agentId, enabled]);
 
 		return logs;
 	};
 }
 
 // The baseline implementation to use for production
-export const useAgentLogs = createUseAgentLogs(
-	watchWorkspaceAgentLogs,
-	(errorEvent) => {
+export const useAgentLogs = createUseAgentLogs({
+	createSocket: watchWorkspaceAgentLogs,
+	onError: (errorEvent) => {
 		console.error("Error in agent log socket: ", errorEvent);
 		displayError(
 			"Unable to watch agent logs",
 			"Please try refreshing the browser",
 		);
 	},
-);
+});
