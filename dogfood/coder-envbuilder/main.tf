@@ -123,7 +123,7 @@ module "dotfiles" {
 
 module "personalize" {
   source   = "dev.registry.coder.com/coder/personalize/coder"
-  version  = "1.0.30"
+  version  = "1.0.31"
   agent_id = coder_agent.dev.id
 }
 
