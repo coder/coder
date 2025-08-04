@@ -180,17 +180,22 @@ describe("useAgentLogs", () => {
 		act(() => publisherResult.current?.publishMessage(initialEvent));
 		await waitFor(() => expect(hookResult.current).toEqual(initialLogs));
 
-		// Disable the hook
-		rerender({ agentId: MockWorkspaceAgent.id, enabled: false });
-		await waitFor(() => expect(hookResult.current).toHaveLength(0));
+		// Need to do the following steps multiple times to make sure that we
+		// don't break anything after the first disable
+		const mockDates: readonly string[] = ["october 3, 2005", "august 1, 2025"];
+		for (const md of mockDates) {
+			// Disable the hook to clear current logs
+			rerender({ agentId: MockWorkspaceAgent.id, enabled: false });
+			await waitFor(() => expect(hookResult.current).toHaveLength(0));
 
-		// Re-enable the hook and send new logs
-		rerender({ agentId: MockWorkspaceAgent.id, enabled: true });
-		const newLogs = generateMockLogs(3, new Date("october 3, 2005"));
-		const newEvent = new MessageEvent<string>("message", {
-			data: JSON.stringify(newLogs),
-		});
-		act(() => publisherResult.current?.publishMessage(newEvent));
-		await waitFor(() => expect(hookResult.current).toEqual(newLogs));
+			// Re-enable the hook and send new logs
+			rerender({ agentId: MockWorkspaceAgent.id, enabled: true });
+			const newLogs = generateMockLogs(3, new Date(md));
+			const newEvent = new MessageEvent<string>("message", {
+				data: JSON.stringify(newLogs),
+			});
+			act(() => publisherResult.current?.publishMessage(newEvent));
+			await waitFor(() => expect(hookResult.current).toEqual(newLogs));
+		}
 	});
 });

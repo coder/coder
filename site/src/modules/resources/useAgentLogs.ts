@@ -32,6 +32,9 @@ export function createUseAgentLogs(options: CreateUseAgentLogsOptions) {
 			setLogs([]);
 			setPrevEnabled(false);
 		}
+		if (enabled && !prevEnabled) {
+			setPrevEnabled(true);
+		}
 
 		useEffect(() => {
 			if (!enabled) {
