@@ -9,7 +9,7 @@ export type MockWebSocketServer = Readonly<{
 	publishOpen: (event: Event) => void;
 
 	readonly isConnectionOpen: boolean;
-	readonly socketSendArguments: readonly SocketSendData[];
+	readonly clientSentData: readonly SocketSendData[];
 }>;
 
 export function createMockWebSocket(
@@ -47,7 +47,7 @@ export function createMockWebSocket(
 		open: [],
 	};
 
-	const sendData: SocketSendData[] = [];
+	const sentData: SocketSendData[] = [];
 
 	const mockSocket: WebSocket = {
 		CONNECTING: 0,
@@ -71,7 +71,7 @@ export function createMockWebSocket(
 			if (!isOpen) {
 				return;
 			}
-			sendData.push(data);
+			sentData.push(data);
 		},
 
 		addEventListener: <E extends WebSocketEventType>(
@@ -113,8 +113,8 @@ export function createMockWebSocket(
 			return isOpen;
 		},
 
-		get socketSendArguments() {
-			return [...sendData];
+		get clientSentData() {
+			return [...sentData];
 		},
 
 		publishOpen: (event) => {

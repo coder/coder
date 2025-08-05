@@ -179,12 +179,12 @@ describe(createMockWebSocket.name, () => {
 		});
 
 		socket.send(data);
-		expect(server.socketSendArguments).toHaveLength(1);
-		expect(server.socketSendArguments).toEqual([data]);
+		expect(server.clientSentData).toHaveLength(1);
+		expect(server.clientSentData).toEqual([data]);
 
 		socket.close();
 		socket.send(data);
-		expect(server.socketSendArguments).toHaveLength(1);
-		expect(server.socketSendArguments).toEqual([data]);
+		expect(server.clientSentData).toHaveLength(1);
+		expect(server.clientSentData).toEqual([data]);
 	});
 });
