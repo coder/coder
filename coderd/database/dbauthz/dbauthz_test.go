@@ -5877,3 +5877,64 @@ func (s *MethodTestSuite) TestAuthorizePrebuiltWorkspace() {
 			}).Asserts(w, policy.ActionUpdate, w.AsPrebuild(), policy.ActionUpdate)
 	}))
 }
+
+func (s *MethodTestSuite) TestUserSecrets() {
+	s.Run("GetUserSecretByUserIDAndName", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		userSecret := dbgen.UserSecret(s.T(), db, database.CreateUserSecretParams{
+			UserID: user.ID,
+		})
+		arg := database.GetUserSecretByUserIDAndNameParams{
+			UserID: user.ID,
+			Name:   userSecret.Name,
+		}
+		check.Args(arg).
+			Asserts(rbac.ResourceUserSecret.WithOwner(arg.UserID.String()), policy.ActionRead).
+			Returns(userSecret)
+	}))
+	s.Run("GetUserSecret", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		userSecret := dbgen.UserSecret(s.T(), db, database.CreateUserSecretParams{
+			UserID: user.ID,
+		})
+		check.Args(userSecret.ID).
+			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionRead).
+			Returns(userSecret)
+	}))
+	s.Run("ListUserSecrets", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		userSecret := dbgen.UserSecret(s.T(), db, database.CreateUserSecretParams{
+			UserID: user.ID,
+		})
+		check.Args(user.ID).
+			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionRead).
+			Returns([]database.UserSecret{userSecret})
+	}))
+	s.Run("CreateUserSecret", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		arg := database.CreateUserSecretParams{
+			UserID: user.ID,
+		}
+		check.Args(arg).
+			Asserts(rbac.ResourceUserSecret.WithOwner(arg.UserID.String()), policy.ActionCreate)
+	}))
+	s.Run("UpdateUserSecret", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		userSecret := dbgen.UserSecret(s.T(), db, database.CreateUserSecretParams{
+			UserID: user.ID,
+		})
+		arg := database.UpdateUserSecretParams{
+			ID: userSecret.ID,
+		}
+		check.Args(arg).
+			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionUpdate)
+	}))
+	s.Run("DeleteUserSecret", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		userSecret := dbgen.UserSecret(s.T(), db, database.CreateUserSecretParams{
+			UserID: user.ID,
+		})
+		check.Args(userSecret.ID).
+			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionDelete)
+	}))
+}

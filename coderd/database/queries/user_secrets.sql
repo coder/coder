@@ -13,6 +13,7 @@ ORDER BY name ASC;
 
 -- name: CreateUserSecret :one
 INSERT INTO user_secrets (
+	id,
     user_id,
     name,
     description,
@@ -20,7 +21,7 @@ INSERT INTO user_secrets (
     env_name,
     file_path
 ) VALUES (
-    $1, $2, $3, $4, $5, $6
+    $1, $2, $3, $4, $5, $6, $7
 ) RETURNING *;
 
 -- name: UpdateUserSecret :one

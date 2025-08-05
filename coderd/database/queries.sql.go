@@ -13773,6 +13773,7 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 
 const createUserSecret = `-- name: CreateUserSecret :one
 INSERT INTO user_secrets (
+	id,
     user_id,
     name,
     description,
@@ -13780,11 +13781,12 @@ INSERT INTO user_secrets (
     env_name,
     file_path
 ) VALUES (
-    $1, $2, $3, $4, $5, $6
+    $1, $2, $3, $4, $5, $6, $7
 ) RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at
 `
 
 type CreateUserSecretParams struct {
+	ID          uuid.UUID `db:"id" json:"id"`
 	UserID      uuid.UUID `db:"user_id" json:"user_id"`
 	Name        string    `db:"name" json:"name"`
 	Description string    `db:"description" json:"description"`
@@ -13795,6 +13797,7 @@ type CreateUserSecretParams struct {
 
 func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error) {
 	row := q.db.QueryRowContext(ctx, createUserSecret,
+		arg.ID,
 		arg.UserID,
 		arg.Name,
 		arg.Description,
