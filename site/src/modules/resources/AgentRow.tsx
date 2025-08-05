@@ -66,7 +66,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const isExternalAgent = workspace.latest_build.has_external_agent;
 	const shouldDisplayAgentApps =
 		(agent.status === "connected" && hasAppsToDisplay) ||
-		agent.status === "connecting";
+		(agent.status === "connecting" && !isExternalAgent);
 	const hasVSCodeApp =
 		agent.display_apps.includes("vscode") ||
 		agent.display_apps.includes("vscode_insiders");
