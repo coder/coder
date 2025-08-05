@@ -612,9 +612,9 @@ func As(ctx context.Context, actor rbac.Subject) context.Context {
 // running the insertFunc. The insertFunc is expected to return the object that
 // was inserted.
 func insert[
-	ObjectType any,
-	ArgumentType any,
-	Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+ObjectType any,
+ArgumentType any,
+Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -625,9 +625,9 @@ func insert[
 }
 
 func insertWithAction[
-	ObjectType any,
-	ArgumentType any,
-	Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+ObjectType any,
+ArgumentType any,
+Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -654,10 +654,10 @@ func insertWithAction[
 }
 
 func deleteQ[
-	ObjectType rbac.Objecter,
-	ArgumentType any,
-	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-	Delete func(ctx context.Context, arg ArgumentType) error,
+ObjectType rbac.Objecter,
+ArgumentType any,
+Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+Delete func(ctx context.Context, arg ArgumentType) error,
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -669,10 +669,10 @@ func deleteQ[
 }
 
 func updateWithReturn[
-	ObjectType rbac.Objecter,
-	ArgumentType any,
-	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-	UpdateQuery func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+ObjectType rbac.Objecter,
+ArgumentType any,
+Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+UpdateQuery func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -683,10 +683,10 @@ func updateWithReturn[
 }
 
 func update[
-	ObjectType rbac.Objecter,
-	ArgumentType any,
-	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-	Exec func(ctx context.Context, arg ArgumentType) error,
+ObjectType rbac.Objecter,
+ArgumentType any,
+Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+Exec func(ctx context.Context, arg ArgumentType) error,
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -704,9 +704,9 @@ func update[
 // user cannot read the resource. This is because the resource details are
 // required to run a proper authorization check.
 func fetchWithAction[
-	ArgumentType any,
-	ObjectType rbac.Objecter,
-	DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+ArgumentType any,
+ObjectType rbac.Objecter,
+DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -737,9 +737,9 @@ func fetchWithAction[
 }
 
 func fetch[
-	ArgumentType any,
-	ObjectType rbac.Objecter,
-	DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+ArgumentType any,
+ObjectType rbac.Objecter,
+DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -752,10 +752,10 @@ func fetch[
 // from SQL 'exec' functions which only return an error.
 // See fetchAndQuery for more information.
 func fetchAndExec[
-	ObjectType rbac.Objecter,
-	ArgumentType any,
-	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-	Exec func(ctx context.Context, arg ArgumentType) error,
+ObjectType rbac.Objecter,
+ArgumentType any,
+Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+Exec func(ctx context.Context, arg ArgumentType) error,
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -778,10 +778,10 @@ func fetchAndExec[
 // **before** the query runs. The returns from the fetch are only used to
 // assert rbac. The final return of this function comes from the Query function.
 func fetchAndQuery[
-	ObjectType rbac.Objecter,
-	ArgumentType any,
-	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-	Query func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+ObjectType rbac.Objecter,
+ArgumentType any,
+Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+Query func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -815,9 +815,9 @@ func fetchAndQuery[
 // fetchWithPostFilter is like fetch, but works with lists of objects.
 // SQL filters are much more optimal.
 func fetchWithPostFilter[
-	ArgumentType any,
-	ObjectType rbac.Objecter,
-	DatabaseFunc func(ctx context.Context, arg ArgumentType) ([]ObjectType, error),
+ArgumentType any,
+ObjectType rbac.Objecter,
+DatabaseFunc func(ctx context.Context, arg ArgumentType) ([]ObjectType, error),
 ](
 	authorizer rbac.Authorizer,
 	action policy.Action,
@@ -1388,7 +1388,11 @@ func (q *querier) CountUnreadInboxNotificationsByUserID(ctx context.Context, use
 }
 
 func (q *querier) CreateUserSecret(ctx context.Context, arg database.CreateUserSecretParams) (database.UserSecret, error) {
-	panic("not implemented")
+	obj := rbac.ResourceUserSecret.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionCreate, obj); err != nil {
+		return database.UserSecret{}, err
+	}
+	return q.db.CreateUserSecret(ctx, arg)
 }
 
 // TODO: Handle org scoped lookups
@@ -1662,7 +1666,17 @@ func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTa
 }
 
 func (q *querier) DeleteUserSecret(ctx context.Context, id uuid.UUID) error {
-	panic("not implemented")
+	// First get the secret to check ownership
+	secret, err := q.db.GetUserSecret(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	obj := rbac.ResourceUserSecret.WithOwner(secret.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionDelete, obj); err != nil {
+		return err
+	}
+	return q.db.DeleteUserSecret(ctx, id)
 }
 
 func (q *querier) DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg database.DeleteWebpushSubscriptionByUserIDAndEndpointParams) error {
@@ -3084,11 +3098,26 @@ func (q *querier) GetUserNotificationPreferences(ctx context.Context, userID uui
 }
 
 func (q *querier) GetUserSecret(ctx context.Context, id uuid.UUID) (database.UserSecret, error) {
-	panic("not implemented")
+	// First get the secret to check ownership
+	secret, err := q.db.GetUserSecret(ctx, id)
+	if err != nil {
+		return database.UserSecret{}, err
+	}
+
+	obj := rbac.ResourceUserSecret.WithOwner(secret.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+		return database.UserSecret{}, err
+	}
+	return secret, nil
 }
 
 func (q *querier) GetUserSecretByUserIDAndName(ctx context.Context, arg database.GetUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
-	panic("not implemented")
+	obj := rbac.ResourceUserSecret.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+		return database.UserSecret{}, err
+	}
+
+	return q.db.GetUserSecretByUserIDAndName(ctx, arg)
 }
 
 func (q *querier) GetUserStatusCounts(ctx context.Context, arg database.GetUserStatusCountsParams) ([]database.GetUserStatusCountsRow, error) {
@@ -4175,7 +4204,11 @@ func (q *querier) ListProvisionerKeysByOrganizationExcludeReserved(ctx context.C
 }
 
 func (q *querier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]database.UserSecret, error) {
-	panic("not implemented")
+	obj := rbac.ResourceUserSecret.WithOwner(userID.String())
+	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+		return nil, err
+	}
+	return q.db.ListUserSecrets(ctx, userID)
 }
 
 func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
@@ -4892,7 +4925,17 @@ func (q *querier) UpdateUserRoles(ctx context.Context, arg database.UpdateUserRo
 }
 
 func (q *querier) UpdateUserSecret(ctx context.Context, arg database.UpdateUserSecretParams) (database.UserSecret, error) {
-	panic("not implemented")
+	// First get the secret to check ownership
+	secret, err := q.db.GetUserSecret(ctx, arg.ID)
+	if err != nil {
+		return database.UserSecret{}, err
+	}
+
+	obj := rbac.ResourceUserSecret.WithOwner(secret.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
+		return database.UserSecret{}, err
+	}
+	return q.db.UpdateUserSecret(ctx, arg)
 }
 
 func (q *querier) UpdateUserStatus(ctx context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
