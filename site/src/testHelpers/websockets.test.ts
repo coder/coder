@@ -1,3 +1,4 @@
+import { subscribe } from "node:diagnostics_channel";
 import { createMockWebSocket } from "./websockets";
 
 describe(createMockWebSocket.name, () => {
