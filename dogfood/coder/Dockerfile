@@ -4,7 +4,7 @@ FROM rust:slim@sha256:3f391b0678a6e0c88fd26f13e399c9c515ac47354e3cadfee7daee3b21
 ENV CARGO_INSTALL_ROOT=/tmp/
 # Use more reliable mirrors for Debian packages
 RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.edge.kernel.org/debian|g' /etc/apt/sources.list && \
-    apt-get update || true
+	apt-get update || true
 RUN apt-get update && apt-get install -y libssl-dev openssl pkg-config build-essential
 RUN cargo install jj-cli typos-cli watchexec-cli
 
@@ -123,8 +123,8 @@ RUN mkdir -p /etc/sudoers.d && \
 
 # Use more reliable mirrors for Ubuntu packages
 RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list && \
-    sed -i 's|http://security.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list && \
-    apt-get update --quiet && apt-get install --yes \
+	sed -i 's|http://security.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list && \
+	apt-get update --quiet && apt-get install --yes \
 	ansible \
 	apt-transport-https \
 	apt-utils \
@@ -242,7 +242,7 @@ RUN DOCTL_VERSION=$(curl -s "https://api.github.com/repos/digitalocean/doctl/rel
 ARG NVM_INSTALL_SHA=bdea8c52186c4dd12657e77e7515509cda5bf9fa5a2f0046bce749e62645076d
 # Install frontend utilities
 ENV NVM_DIR=/usr/local/nvm
-ENV NODE_VERSION=20.19.3
+ENV NODE_VERSION=20.19.4
 RUN mkdir -p $NVM_DIR
 RUN curl -o nvm_install.sh https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh && \
 	echo "${NVM_INSTALL_SHA}  nvm_install.sh" | sha256sum -c && \
@@ -253,7 +253,7 @@ RUN source $NVM_DIR/nvm.sh && \
 	nvm use $NODE_VERSION
 ENV PATH=$NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
 # Allow patch updates for npm and pnpm
-RUN npm install -g npm@10.8.1 --integrity=sha512-Dp1C6SvSMYQI7YHq/y2l94uvI+59Eqbu1EpuKQHQ8p16txXRuRit5gH3Lnaagk2aXDIjg/Iru9pd05bnneKgdw==
+RUN npm install -g npm@10.9.3 --integrity=sha512-Dp1C6SvSMYQI7YHq/y2l94uvI+59Eqbu1EpuKQHQ8p16txXRuRit5gH3Lnaagk2aXDIjg/Iru9pd05bnneKgdw==
 RUN npm install -g pnpm@9.15.1 --integrity=sha512-GstWXmGT7769p3JwKVBGkVDPErzHZCYudYfnHRncmKQj3/lTblfqRMSb33kP9pToPCe+X6oj1n4MAztYO+S/zw==
 
 RUN pnpx playwright@1.47.0 install --with-deps chromium
