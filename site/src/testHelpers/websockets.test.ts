@@ -1,18 +1,17 @@
-import { subscribe } from "node:diagnostics_channel";
 import { createMockWebSocket } from "./websockets";
 
 describe(createMockWebSocket.name, () => {
 	it("Throws if URL does not have ws:// or wss:// protocols", () => {
 		const urls: readonly string[] = [
 			"http://www.dog.ceo/roll-over",
-			"https://www.dog.ceo/roll-over"
+			"https://www.dog.ceo/roll-over",
 		];
 		for (const url of urls) {
 			expect(() => {
 				void createMockWebSocket(url);
 			}).toThrow("URL must start with ws:// or wss://");
 		}
-	})
+	});
 
 	it("Sends events from server to socket", () => {
 		const [socket, server] = createMockWebSocket("wss://www.dog.ceo/shake");
@@ -29,7 +28,7 @@ describe(createMockWebSocket.name, () => {
 
 		const openEvent = new Event("open");
 		const errorEvent = new Event("error");
-		const messageEvent = new MessageEvent<string>("message")
+		const messageEvent = new MessageEvent<string>("message");
 		const closeEvent = new CloseEvent("close");
 
 		server.publishOpen(openEvent);
@@ -56,7 +55,7 @@ describe(createMockWebSocket.name, () => {
 
 		// Could type this as a special JSON type, but unknown is good enough,
 		// since any invalid values will throw in the test case
-		const jsonData: readonly unknown[] =[
+		const jsonData: readonly unknown[] = [
 			"blah",
 			42,
 			true,
@@ -71,23 +70,27 @@ describe(createMockWebSocket.name, () => {
 				profession: "Puzzle Solver",
 				sadBackstory: true,
 				greatVideoGames: true,
-			}
+			},
 		];
 		for (const jd of jsonData) {
 			socket.addEventListener("message", onMessage);
-			server.publishMessage(new MessageEvent<string>("message", {
-				"data": JSON.stringify(jd)
-			}));
+			server.publishMessage(
+				new MessageEvent<string>("message", {
+					data: JSON.stringify(jd),
+				}),
+			);
 
 			expect(onMessage).toHaveBeenCalledTimes(1);
-			expect(onMessage).toHaveBeenCalledWith(new MessageEvent<string>("message", {
-				data: JSON.stringify(jd)
-			}));
+			expect(onMessage).toHaveBeenCalledWith(
+				new MessageEvent<string>("message", {
+					data: JSON.stringify(jd),
+				}),
+			);
 
 			socket.removeEventListener("message", onMessage);
 			onMessage.mockClear();
 		}
-	})
+	});
 
 	it("Only registers each socket event handler once", () => {
 		const [socket, server] = createMockWebSocket("wss://www.dog.ceo/borf");

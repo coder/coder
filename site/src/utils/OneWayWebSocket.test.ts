@@ -7,7 +7,10 @@
  * WebSocket class doesn't have any bugs, and can safely be mocked out.
  */
 
-import { createMockWebSocket, MockWebSocketServer } from "testHelpers/websockets";
+import {
+	type MockWebSocketServer,
+	createMockWebSocket,
+} from "testHelpers/websockets";
 import { type OneWayMessageEvent, OneWayWebSocket } from "./OneWayWebSocket";
 
 describe(OneWayWebSocket.name, () => {

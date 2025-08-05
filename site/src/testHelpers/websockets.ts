@@ -47,7 +47,7 @@ export function createMockWebSocket(
 		open: [],
 	};
 
-	let sendData: SocketSendData[] = [];
+	const sendData: SocketSendData[] = [];
 
 	const mockSocket: WebSocket = {
 		CONNECTING: 0,
