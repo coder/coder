@@ -61,9 +61,9 @@ import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import TextareaAutosize from "react-textarea-autosize";
+import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { relativeTime } from "utils/time";
-import { docs } from "utils/docs";
 import { type UserOption, UsersCombobox } from "./UsersCombobox";
 
 type TasksFilter = {
