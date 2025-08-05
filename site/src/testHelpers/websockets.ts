@@ -1,5 +1,7 @@
 import type { WebSocketEventType } from "utils/OneWayWebSocket";
 
+type SocketSendData = string | ArrayBufferLike | Blob | ArrayBufferView;
+
 export type MockWebSocketServer = Readonly<{
 	publishMessage: (event: MessageEvent<string>) => void;
 	publishError: (event: Event) => void;
@@ -7,6 +9,7 @@ export type MockWebSocketServer = Readonly<{
 	publishOpen: (event: Event) => void;
 
 	readonly isConnectionOpen: boolean;
+	readonly socketSendArguments: readonly SocketSendData[];
 }>;
 
 export function createMockWebSocket(
@@ -44,6 +47,8 @@ export function createMockWebSocket(
 		open: [],
 	};
 
+	let sendData: SocketSendData[] = [];
+
 	const mockSocket: WebSocket = {
 		CONNECTING: 0,
 		OPEN: 1,
@@ -60,8 +65,14 @@ export function createMockWebSocket(
 		onerror: null,
 		onmessage: null,
 		onopen: null,
-		send: jest.fn(),
 		dispatchEvent: jest.fn(),
+
+		send: (data) => {
+			if (!isOpen) {
+				return;
+			}
+			sendData.push(data);
+		},
 
 		addEventListener: <E extends WebSocketEventType>(
 			eventType: E,
@@ -100,6 +111,10 @@ export function createMockWebSocket(
 	const publisher: MockWebSocketServer = {
 		get isConnectionOpen() {
 			return isOpen;
+		},
+
+		get socketSendArguments() {
+			return [...sendData];
 		},
 
 		publishOpen: (event) => {

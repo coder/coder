@@ -1,3 +1,4 @@
+import { subscribe } from "node:diagnostics_channel";
 import { createMockWebSocket } from "./websockets";
 
 describe(createMockWebSocket.name, () => {
@@ -13,8 +14,8 @@ describe(createMockWebSocket.name, () => {
 		}
 	})
 
-	it("Sends events from publisher to socket", () => {
-		const [socket, publisher] = createMockWebSocket("wss://www.dog.ceo/shake");
+	it("Sends events from server to socket", () => {
+		const [socket, server] = createMockWebSocket("wss://www.dog.ceo/shake");
 
 		const onOpen = jest.fn();
 		const onError = jest.fn();
@@ -31,10 +32,10 @@ describe(createMockWebSocket.name, () => {
 		const messageEvent = new MessageEvent<string>("message")
 		const closeEvent = new CloseEvent("close");
 
-		publisher.publishOpen(openEvent);
-		publisher.publishError(errorEvent);
-		publisher.publishMessage(messageEvent);
-		publisher.publishClose(closeEvent);
+		server.publishOpen(openEvent);
+		server.publishError(errorEvent);
+		server.publishMessage(messageEvent);
+		server.publishClose(closeEvent);
 
 		expect(onOpen).toHaveBeenCalledTimes(1);
 		expect(onOpen).toHaveBeenCalledWith(openEvent);
@@ -50,7 +51,7 @@ describe(createMockWebSocket.name, () => {
 	});
 
 	it("Sends JSON data to the socket for message events", () => {
-		const [socket, publisher] = createMockWebSocket("wss://www.dog.ceo/wag");
+		const [socket, server] = createMockWebSocket("wss://www.dog.ceo/wag");
 		const onMessage = jest.fn();
 
 		// Could type this as a special JSON type, but unknown is good enough,
@@ -74,7 +75,7 @@ describe(createMockWebSocket.name, () => {
 		];
 		for (const jd of jsonData) {
 			socket.addEventListener("message", onMessage);
-			publisher.publishMessage(new MessageEvent<string>("message", {
+			server.publishMessage(new MessageEvent<string>("message", {
 				"data": JSON.stringify(jd)
 			}));
 
@@ -89,7 +90,7 @@ describe(createMockWebSocket.name, () => {
 	})
 
 	it("Only registers each socket event handler once", () => {
-		const [socket, publisher] = createMockWebSocket("wss://www.dog.ceo/borf");
+		const [socket, server] = createMockWebSocket("wss://www.dog.ceo/borf");
 
 		const onOpen = jest.fn();
 		const onError = jest.fn();
@@ -108,10 +109,10 @@ describe(createMockWebSocket.name, () => {
 		socket.addEventListener("message", onMessage);
 		socket.addEventListener("close", onClose);
 
-		publisher.publishOpen(new Event("open"));
-		publisher.publishError(new Event("error"));
-		publisher.publishMessage(new MessageEvent<string>("message"));
-		publisher.publishClose(new CloseEvent("close"));
+		server.publishOpen(new Event("open"));
+		server.publishError(new Event("error"));
+		server.publishMessage(new MessageEvent<string>("message"));
+		server.publishClose(new CloseEvent("close"));
 
 		expect(onOpen).toHaveBeenCalledTimes(1);
 		expect(onError).toHaveBeenCalledTimes(1);
@@ -120,7 +121,7 @@ describe(createMockWebSocket.name, () => {
 	});
 
 	it("Lets a socket unsubscribe to event types", () => {
-		const [socket, publisher] = createMockWebSocket("wss://www.dog.ceo/zoomies");
+		const [socket, server] = createMockWebSocket("wss://www.dog.ceo/zoomies");
 
 		const onOpen = jest.fn();
 		const onError = jest.fn();
@@ -137,10 +138,10 @@ describe(createMockWebSocket.name, () => {
 		socket.removeEventListener("message", onMessage);
 		socket.removeEventListener("close", onClose);
 
-		publisher.publishOpen(new Event("open"));
-		publisher.publishError(new Event("error"));
-		publisher.publishMessage(new MessageEvent<string>("message"));
-		publisher.publishClose(new CloseEvent("close"));
+		server.publishOpen(new Event("open"));
+		server.publishError(new Event("error"));
+		server.publishMessage(new MessageEvent<string>("message"));
+		server.publishClose(new CloseEvent("close"));
 
 		expect(onOpen).not.toHaveBeenCalled();
 		expect(onError).not.toHaveBeenCalled();
@@ -149,20 +150,38 @@ describe(createMockWebSocket.name, () => {
 	});
 
 	it("Renders socket inert after being closed", () => {
-		const [socket, publisher] = createMockWebSocket("wss://www.dog.ceo/woof");
-		expect(publisher.isConnectionOpen).toBe(true);
+		const [socket, server] = createMockWebSocket("wss://www.dog.ceo/woof");
+		expect(server.isConnectionOpen).toBe(true);
 
 		const onMessage = jest.fn();
 		socket.addEventListener("message", onMessage);
 
 		socket.close();
-		expect(publisher.isConnectionOpen).toBe(false);
+		expect(server.isConnectionOpen).toBe(false);
 
-		publisher.publishMessage(new MessageEvent<string>("message"));
+		server.publishMessage(new MessageEvent<string>("message"));
 		expect(onMessage).not.toHaveBeenCalled();
 	});
 
-	it("Lets a socket send data to the mock server", () => {
-		expect.hasAssertions();
+	it("Tracks arguments sent by the mock socket", () => {
+		const [socket, server] = createMockWebSocket("wss://www.dog.ceo/wan-wan");
+		const data = JSON.stringify({
+			famousDogs: [
+				"snoopy",
+				"clifford",
+				"lassie",
+				"beethoven",
+				"courage the cowardly dog",
+			],
+		});
+
+		socket.send(data);
+		expect(server.socketSendArguments).toHaveLength(1);
+		expect(server.socketSendArguments).toEqual([data]);
+
+		socket.close();
+		socket.send(data);
+		expect(server.socketSendArguments).toHaveLength(1);
+		expect(server.socketSendArguments).toEqual([data]);
 	});
 });
