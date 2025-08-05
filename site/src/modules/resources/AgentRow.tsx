@@ -27,6 +27,7 @@ import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
+import { AgentExternal } from "./AgentExternal";
 import { AgentLatency } from "./AgentLatency";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
 import { AgentLogs } from "./AgentLogs/AgentLogs";
@@ -40,7 +41,6 @@ import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { useAgentContainers } from "./useAgentContainers";
 import { useAgentLogs } from "./useAgentLogs";
-import { AgentExternal } from "./AgentExternal";
 
 interface AgentRowProps {
 	agent: WorkspaceAgent;
@@ -76,7 +76,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const { proxy } = useProxy();
 	const [showLogs, setShowLogs] = useState(
 		["starting", "start_timeout"].includes(agent.lifecycle_state) &&
-		hasStartupFeatures,
+			hasStartupFeatures,
 	);
 	const agentLogs = useAgentLogs(agent, showLogs);
 	const logListRef = useRef<List>(null);
@@ -296,10 +296,14 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</section>
 				)}
 
-
-				{isExternalAgent && (agent.status === "timeout" || agent.status === "connecting") && (
-					<AgentExternal isExternalAgent={isExternalAgent} agent={agent} workspace={workspace} />
-				)}
+				{isExternalAgent &&
+					(agent.status === "timeout" || agent.status === "connecting") && (
+						<AgentExternal
+							isExternalAgent={isExternalAgent}
+							agent={agent}
+							workspace={workspace}
+						/>
+					)}
 
 				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />
 			</div>

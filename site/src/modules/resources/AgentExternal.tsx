@@ -3,7 +3,7 @@ import { API } from "api/api";
 import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
 import isChromatic from "chromatic/isChromatic";
 import { CodeExample } from "components/CodeExample/CodeExample";
-import { useEffect, useState, type FC } from "react";
+import { type FC, useEffect, useState } from "react";
 
 interface AgentExternalProps {
 	isExternalAgent: boolean;
@@ -16,7 +16,9 @@ export const AgentExternal: FC<AgentExternalProps> = ({
 	agent,
 	workspace,
 }) => {
-	const [externalAgentToken, setExternalAgentToken] = useState<string | null>(null);
+	const [externalAgentToken, setExternalAgentToken] = useState<string | null>(
+		null,
+	);
 
 	const origin = isChromatic() ? "https://example.com" : window.location.origin;
 	let initScriptURL = `${origin}/api/v2/init-script`;
@@ -25,25 +27,31 @@ export const AgentExternal: FC<AgentExternalProps> = ({
 	}
 
 	useEffect(() => {
-		if (isExternalAgent && (agent.status === "timeout" || agent.status === "connecting")) {
+		if (
+			isExternalAgent &&
+			(agent.status === "timeout" || agent.status === "connecting")
+		) {
 			API.getWorkspaceAgentCredentials(workspace.id, agent.name).then((res) => {
 				setExternalAgentToken(res.agent_token);
 			});
 		}
 	}, [isExternalAgent, agent.status, workspace.id, agent.name]);
 
-	return <section css={styles.externalAgentSection}>
-		<p>
-			Please run the following command to attach an agent to the {workspace.name} workspace:
-		</p>
-		<CodeExample
-			code={`CODER_AGENT_TOKEN="${externalAgentToken}" curl -fsSL "${initScriptURL}" | sh`}
-			secret={false}
-			redactPattern={/CODER_AGENT_TOKEN="([^"]+)"/g}
-			redactReplacement={`CODER_AGENT_TOKEN="********"`}
-			redactShowButton={true}
-		/>
-	</section>;
+	return (
+		<section css={styles.externalAgentSection}>
+			<p>
+				Please run the following command to attach an agent to the{" "}
+				{workspace.name} workspace:
+			</p>
+			<CodeExample
+				code={`CODER_AGENT_TOKEN="${externalAgentToken}" curl -fsSL "${initScriptURL}" | sh`}
+				secret={false}
+				redactPattern={/CODER_AGENT_TOKEN="([^"]+)"/g}
+				redactReplacement={`CODER_AGENT_TOKEN="********"`}
+				redactShowButton={true}
+			/>
+		</section>
+	);
 };
 
 const styles = {

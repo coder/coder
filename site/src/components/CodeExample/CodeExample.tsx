@@ -1,10 +1,15 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { useState, type FC } from "react";
+import { Button } from "components/Button/Button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { type FC, useState } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { CopyButton } from "../CopyButton/CopyButton";
-import { TooltipContent, TooltipTrigger, TooltipProvider, Tooltip } from "components/Tooltip/Tooltip";
-import { Button } from "components/Button/Button";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
 
 interface CodeExampleProps {
 	code: string;
@@ -41,8 +46,14 @@ export const CodeExample: FC<CodeExampleProps> = ({
 			? code.replace(redactPattern, redactReplacement)
 			: code;
 
-	const showButtonLabel = showFullValue ? "Hide sensitive data" : "Show sensitive data";
-	const icon = showFullValue ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />;
+	const showButtonLabel = showFullValue
+		? "Hide sensitive data"
+		: "Show sensitive data";
+	const icon = showFullValue ? (
+		<EyeOffIcon className="h-4 w-4" />
+	) : (
+		<EyeIcon className="h-4 w-4" />
+	);
 
 	return (
 		<div css={styles.container} className={className}>
