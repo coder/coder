@@ -3320,6 +3320,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `web-push`             |
 | `oauth2`               |
 | `mcp-server-http`      |
+| `workspace-sharing`    |
 
 ## codersdk.ExternalAgentCredentials
 
@@ -8162,6 +8163,30 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 The schedule must be daily with a single time, and should have a timezone specified via a CRON_TZ prefix (otherwise UTC will be used).
 If the schedule is empty, the user will be updated to use the default schedule.|
 
+## codersdk.UpdateWorkspaceACL
+
+```json
+{
+  "group_roles": {
+    "property1": "admin",
+    "property2": "admin"
+  },
+  "user_roles": {
+    "property1": "admin",
+    "property2": "admin"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                             | Required | Restrictions | Description                                                                                                                                           |
+|--------------------|--------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `group_roles`      | object                                           | false    |              |                                                                                                                                                       |
+| » `[any property]` | [codersdk.WorkspaceRole](#codersdkworkspacerole) | false    |              |                                                                                                                                                       |
+| `user_roles`       | object                                           | false    |              | Keys must be valid UUIDs. To remove a user/group from the ACL use "" as the role name (available as a constant named `codersdk.WorkspaceRoleDeleted`) |
+| » `[any property]` | [codersdk.WorkspaceRole](#codersdkworkspacerole) | false    |              |                                                                                                                                                       |
+
 ## codersdk.UpdateWorkspaceAutomaticUpdatesRequest
 
 ```json
@@ -10563,6 +10588,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `key`       | string  | false    |              |             |
 | `sensitive` | boolean | false    |              |             |
 | `value`     | string  | false    |              |             |
+
+## codersdk.WorkspaceRole
+
+```json
+"admin"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value   |
+|---------|
+| `admin` |
+| `use`   |
+| ``      |
 
 ## codersdk.WorkspaceStatus
 

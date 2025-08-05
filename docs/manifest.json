@@ -688,11 +688,6 @@
 							"path": "./admin/integrations/jfrog-artifactory.md"
 						},
 						{
-							"title": "JFrog Xray",
-							"description": "Integrate Coder with JFrog Xray",
-							"path": "./admin/integrations/jfrog-xray.md"
-						},
-						{
 							"title": "Island Secure Browser",
 							"description": "Integrate Coder with Island's Secure Browser",
 							"path": "./admin/integrations/island.md"
@@ -711,6 +706,11 @@
 							"title": "Hashicorp Vault",
 							"description": "Integrate Coder with Hashicorp Vault",
 							"path": "./admin/integrations/vault.md"
+						},
+						{
+							"title": "OAuth2 Provider",
+							"description": "Use Coder as an OAuth2 provider",
+							"path": "./admin/integrations/oauth2-provider.md"
 						}
 					]
 				},
@@ -941,11 +941,6 @@
 					"title": "Deploy Coder on Azure with an Application Gateway",
 					"description": "Deploy Coder on Azure with an Application Gateway",
 					"path": "./install/kubernetes/kubernetes-azure-app-gateway.md"
-				},
-				{
-					"title": "Scanning Workspaces with JFrog Xray",
-					"description": "Integrate Coder with JFrog Xray",
-					"path": "./admin/integrations/jfrog-xray.md"
 				},
 				{
 					"title": "Cloning Git Repositories",

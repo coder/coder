@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"fmt"
 	"net/http"
 
 	"cdr.dev/slog"
@@ -11,7 +12,15 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+type MCPToolset string
+
+const (
+	MCPToolsetStandard MCPToolset = "standard"
+	MCPToolsetChatGPT  MCPToolset = "chatgpt"
+)
+
 // mcpHTTPHandler creates the MCP HTTP transport handler
+// It supports a "toolset" query parameter to select the set of tools to register.
 func (api *API) mcpHTTPHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Create MCP server instance for each request
@@ -23,14 +32,30 @@ func (api *API) mcpHTTPHandler() http.Handler {
 			})
 			return
 		}
-
 		authenticatedClient := codersdk.New(api.AccessURL)
 		// Extract the original session token from the request
 		authenticatedClient.SetSessionToken(httpmw.APITokenFromRequest(r))
 
-		// Register tools with authenticated client
-		if err := mcpServer.RegisterTools(authenticatedClient); err != nil {
-			api.Logger.Warn(r.Context(), "failed to register MCP tools", slog.Error(err))
+		toolset := MCPToolset(r.URL.Query().Get("toolset"))
+		// Default to standard toolset if no toolset is specified.
+		if toolset == "" {
+			toolset = MCPToolsetStandard
+		}
+
+		switch toolset {
+		case MCPToolsetStandard:
+			if err := mcpServer.RegisterTools(authenticatedClient); err != nil {
+				api.Logger.Warn(r.Context(), "failed to register MCP tools", slog.Error(err))
+			}
+		case MCPToolsetChatGPT:
+			if err := mcpServer.RegisterChatGPTTools(authenticatedClient); err != nil {
+				api.Logger.Warn(r.Context(), "failed to register MCP tools", slog.Error(err))
+			}
+		default:
+			httpapi.Write(r.Context(), w, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Invalid toolset: %s", toolset),
+			})
+			return
 		}
 
 		// Handle the MCP request

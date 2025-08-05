@@ -15,14 +15,18 @@ var (
 	_ sqltypes.Node            = ACLMappingVar{}
 )
 
-// ACLMappingVar is a variable matcher that handles group_acl and user_acl.
-// The sql type is a jsonb object with the following structure:
+// ACLMappingVar is a variable matcher that matches ACL map variables to their
+// SQL storage. Usually the actual backing implementation is a pair of `jsonb`
+// columns named `group_acl` and `user_acl`. Each column contains an object that
+// looks like...
 //
-//	"group_acl": {
-//	 "<group_name>": ["<actions>"]
+// ```json
+//
+//	{
+//	  "<actor_id>": ["<action>", "<action>"]
 //	}
 //
-// This is a custom variable matcher as json objects have arbitrary complexity.
+// ```
 type ACLMappingVar struct {
 	// SelectSQL is used to `SELECT` the ACL mapping from the table for the
 	// given resource. ie. if the full query might look like `SELECT group_acl
@@ -59,9 +63,10 @@ func (g ACLMappingVar) UsingSubfield(subfield string) ACLMappingVar {
 func (ACLMappingVar) UseAs() sqltypes.Node { return ACLMappingVar{} }
 
 func (g ACLMappingVar) ConvertVariable(rego ast.Ref) (sqltypes.Node, bool) {
-	// "left" will be a map of group names to actions in rego.
+	// left is the rego variable that maps the actor's id to the actions they
+	// are allowed to take.
 	// {
-	//   "all_users": ["read"]
+	//   "<actor_id>": ["<action>", "<action>"]
 	// }
 	left, err := sqltypes.RegoVarPath(g.StructPath, rego)
 	if err != nil {

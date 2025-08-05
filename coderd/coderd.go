@@ -1416,6 +1416,12 @@ func New(options *Options) *API {
 					r.Get("/{agent}/credentials", api.workspaceExternalAgentCredentials)
 				})
 				r.Get("/timings", api.workspaceTimings)
+				r.Route("/acl", func(r chi.Router) {
+					r.Use(
+						httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentWorkspaceSharing))
+
+					r.Patch("/", api.patchWorkspaceACL)
+				})
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {

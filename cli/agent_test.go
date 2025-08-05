@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -67,7 +68,12 @@ func TestWorkspaceAgent(t *testing.T) {
 		t.Parallel()
 		instanceID := "instanceidentifier"
 		certificates, metadataClient := coderdtest.NewAzureInstanceIdentity(t, instanceID)
-		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		db, ps := dbtestutil.NewDB(t,
+			dbtestutil.WithDumpOnFailure(),
+		)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database:          db,
+			Pubsub:            ps,
 			AzureCertificates: certificates,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -106,7 +112,12 @@ func TestWorkspaceAgent(t *testing.T) {
 		t.Parallel()
 		instanceID := "instanceidentifier"
 		certificates, metadataClient := coderdtest.NewAWSInstanceIdentity(t, instanceID)
-		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		db, ps := dbtestutil.NewDB(t,
+			dbtestutil.WithDumpOnFailure(),
+		)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database:        db,
+			Pubsub:          ps,
 			AWSCertificates: certificates,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -146,7 +157,12 @@ func TestWorkspaceAgent(t *testing.T) {
 		t.Parallel()
 		instanceID := "instanceidentifier"
 		validator, metadataClient := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false)
-		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		db, ps := dbtestutil.NewDB(t,
+			dbtestutil.WithDumpOnFailure(),
+		)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database:             db,
+			Pubsub:               ps,
 			GoogleTokenValidator: validator,
 		})
 		owner := coderdtest.CreateFirstUser(t, client)

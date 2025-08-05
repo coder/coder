@@ -917,6 +917,7 @@ export type Experiment =
 	| "notifications"
 	| "oauth2"
 	| "web-push"
+	| "workspace-sharing"
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
@@ -926,6 +927,7 @@ export const Experiments: Experiment[] = [
 	"notifications",
 	"oauth2",
 	"web-push",
+	"workspace-sharing",
 	"workspace-usage",
 ];
 
@@ -3234,6 +3236,12 @@ export interface UpdateUserQuietHoursScheduleRequest {
 }
 
 // From codersdk/workspaces.go
+export interface UpdateWorkspaceACL {
+	readonly user_roles?: Record<string, WorkspaceRole>;
+	readonly group_roles?: Record<string, WorkspaceRole>;
+}
+
+// From codersdk/workspaces.go
 export interface UpdateWorkspaceAutomaticUpdatesRequest {
 	readonly automatic_updates: AutomaticUpdates;
 }
@@ -3973,6 +3981,11 @@ export interface WorkspaceResourceMetadata {
 	readonly value: string;
 	readonly sensitive: boolean;
 }
+
+// From codersdk/workspaces.go
+export type WorkspaceRole = "admin" | "" | "use";
+
+export const WorkspaceRoles: WorkspaceRole[] = ["admin", "", "use"];
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceStatus =
