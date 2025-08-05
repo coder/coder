@@ -714,8 +714,14 @@ ai_bridge:
   # (default: 3, type: int)
   daemons: 3
   # TODO.
-  # (default: https://api.openai.com, type: string)
-  daemons: https://api.openai.com
+  # (default: https://api.openai.com/v1/, type: string)
+  openai_base_url: https://api.openai.com/v1/
   # TODO.
-  # (default: https://api.anthropic.com, type: string)
-  daemons: https://api.anthropic.com
+  # (default: <unset>, type: string)
+  openai_key: ""
+  # TODO.
+  # (default: https://api.anthropic.com/, type: string)
+  base_url: https://api.anthropic.com/
+  # TODO.
+  # (default: <unset>, type: string)
+  key: ""

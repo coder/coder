@@ -24,6 +24,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/sjson"
 
+	"github.com/openai/openai-go"
+	oai_ssestream "github.com/openai/openai-go/packages/ssestream"
+
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
@@ -44,6 +47,8 @@ var (
 
 	//go:embed fixtures/openai/single_builtin_tool.txtar
 	oaiSingleBuiltinTool []byte
+	//go:embed fixtures/openai/single_injected_tool.txtar
+	oaiSingleInjectedTool []byte
 
 	//go:embed fixtures/anthropic/simple.txtar
 	antSimple []byte
@@ -162,6 +167,7 @@ func TestAnthropicMessages(t *testing.T) {
 		}
 	})
 
+	// TODO: fixture contains hardcoded tool name; this is flimsy since our naming convention may change for injected tools.
 	t.Run("single injected tool", func(t *testing.T) {
 		t.Parallel()
 
@@ -392,6 +398,133 @@ func TestOpenAIChatCompletions(t *testing.T) {
 			})
 		}
 	})
+
+	// TODO: fixture contains hardcoded tool name; this is flimsy since our naming convention may change for injected tools.
+	t.Run("single injected tool", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			streaming bool
+		}{
+			{
+				streaming: true,
+			},
+			// {
+			// 	streaming: false,
+			// },
+		}
+
+		for _, tc := range cases {
+			t.Run(fmt.Sprintf("%s/streaming=%v", t.Name(), tc.streaming), func(t *testing.T) {
+				t.Parallel()
+
+				arc := txtar.Parse(oaiSingleInjectedTool)
+				t.Logf("%s: %s", t.Name(), arc.Comment)
+
+				files := filesMap(arc)
+				require.Len(t, files, 5)
+				require.Contains(t, files, fixtureRequest)
+				require.Contains(t, files, fixtureStreamingResponse)
+				require.Contains(t, files, fixtureNonStreamingResponse)
+				require.Contains(t, files, fixtureStreamingToolResponse)
+				require.Contains(t, files, fixtureNonStreamingToolResponse)
+
+				reqBody := files[fixtureRequest]
+
+				// Add the stream param to the request.
+				newBody, err := sjson.SetBytes(reqBody, "stream", tc.streaming)
+				require.NoError(t, err)
+				reqBody = newBody
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				// Conditionally return fixtures based on request count.
+				// 	First request: halts with tool call instruction.
+				// 	Second request: tool call invocation.
+				mockSrv := newMockServer(ctx, t, files, func(reqCount uint32, resp []byte) []byte {
+					if reqCount == 1 {
+						return resp
+					}
+
+					if reqCount > 2 {
+						t.Fatalf("did not expect more than 2 calls; received %d", reqCount)
+					}
+
+					if !tc.streaming {
+						return files[fixtureNonStreamingToolResponse]
+					}
+					return files[fixtureStreamingToolResponse]
+				})
+				t.Cleanup(mockSrv.Close)
+
+				coderdClient := &fakeBridgeDaemonClient{}
+				logger := testutil.Logger(t) // slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+				// Setup Coder MCP integration.
+				mcpSrv := httptest.NewServer(createMockMCPSrv(t))
+				mcpBridge, err := aibridged.NewMCPToolBridge("coder", mcpSrv.URL, map[string]string{}, logger)
+				require.NoError(t, err)
+
+				// Initialize MCP client, fetch tools, and inject into bridge.
+				require.NoError(t, mcpBridge.Init(testutil.Context(t, testutil.WaitShort)))
+				tools := mcpBridge.ListTools()
+				require.NotEmpty(t, tools)
+
+				b, err := aibridged.NewBridge(codersdk.AIBridgeConfig{
+					Daemons: 1,
+					OpenAI: codersdk.AIBridgeOpenAIConfig{
+						BaseURL: serpent.String(mockSrv.URL),
+						Key:     serpent.String(sessionToken),
+					},
+				}, logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
+					return coderdClient, true
+				}, tools)
+				require.NoError(t, err)
+
+				// Invoke request to mocked API via aibridge.
+				bridgeSrv := httptest.NewServer(b.Handler())
+				req := createOpenAIChatCompletionsReq(t, bridgeSrv.URL, reqBody)
+				client := &http.Client{}
+				resp, err := client.Do(req)
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				defer resp.Body.Close()
+
+				// We must ALWAYS have 2 calls to the bridge.
+				require.Eventually(t, func() bool { return mockSrv.callCount.Load() == 2 }, testutil.WaitLong, testutil.IntervalFast)
+
+				// TODO: this is a bit flimsy since this API won't be in beta forever.
+				var content *openai.ChatCompletionChoice
+				if tc.streaming {
+					// Parse the response stream.
+					decoder := oai_ssestream.NewDecoder(resp)
+					stream := oai_ssestream.NewStream[openai.ChatCompletionChunk](decoder, nil)
+					var message openai.ChatCompletionAccumulator
+					for stream.Next() {
+						chunk := stream.Current()
+						message.AddChunk(chunk)
+					}
+
+					require.NoError(t, stream.Err())
+					require.Len(t, message.Choices, 1)
+					content = &message.Choices[0]
+				} else {
+					// Parse & unmarshal the response.
+					out, err := io.ReadAll(resp.Body)
+					require.NoError(t, err)
+
+					// TODO: this is a bit flimsy since this API won't be in beta forever.
+					var message openai.ChatCompletion
+					require.NoError(t, json.Unmarshal(out, &message))
+					require.NotNil(t, message)
+					require.Len(t, message.Choices, 1)
+					content = &message.Choices[0]
+				}
+
+				require.NotNil(t, content)
+				require.Contains(t, content.Message.Content, "admin")
+			})
+		}
+	})
 }
 
 func TestSimple(t *testing.T) {
@@ -580,8 +713,7 @@ func newMockServer(ctx context.Context, t *testing.T, files archiveFileMap, resp
 
 	ms := &mockServer{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		callCount := ms.callCount.Add(1)
-		t.Logf("\n\nCALL COUNT: %d\n\n", callCount)
+		ms.callCount.Add(1)
 
 		body, err := io.ReadAll(r.Body)
 		defer r.Body.Close()

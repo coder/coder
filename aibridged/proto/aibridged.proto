@@ -4,25 +4,30 @@ option go_package = "github.com/coder/coder/v2/aibridged/proto";
 package aibridged;
 
 message TrackTokenUsageRequest {
-	string msg_id = 1;
-	int64 input_tokens = 2;
-	int64 output_tokens = 3;
-  string model = 4;
-  map<string, int64> other = 5;
+	string session_id = 1;
+	string msg_id = 2;
+	int64 input_tokens = 3;
+	int64 output_tokens = 4;
+	string model = 5;
+	map<string, int64> other = 6;
 }
 message TrackTokenUsageResponse {}
 
 message TrackUserPromptRequest {
-	string prompt = 1;
-  string model = 2;
+	string session_id = 1;
+	string msg_id = 2;
+	string prompt = 3;
+	string model = 4;
 }
 message TrackUserPromptResponse {}
 
 message TrackToolUsageRequest {
-	string tool = 1;
-  string model = 2;
-  string input = 3;
-  bool injected = 4;
+	string session_id = 1;
+	string msg_id = 2;
+	string tool = 3;
+	string model = 4;
+	string input = 5;
+	bool injected = 6;
 }
 message TrackToolUsageResponse {}
 

@@ -12,7 +12,6 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -40,7 +39,7 @@ func isConnectionError(err error) bool {
 
 // BasicSSESender was implemented to overcome httpapi.ServerSentEventSender's odd design choices. For example, it doesn't
 // write "event: data" for every data event (it's unnecessary, and breaks some AI tools' parsing of the SSE stream).
-func BasicSSESender(outerCtx context.Context, sessionID uuid.UUID, model string, stream EventStreamer, logger slog.Logger) http.HandlerFunc {
+func BasicSSESender(outerCtx context.Context, stream EventStreamer, logger slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -57,7 +56,7 @@ func BasicSSESender(outerCtx context.Context, sessionID uuid.UUID, model string,
 			case <-outerCtx.Done():
 				return
 			case <-ctx.Done():
-				fmt.Printf("request done for model %s, reason: %q\n", model, ctx.Err())
+				fmt.Printf("request done, reason: %q\n", ctx.Err())
 				return
 			case <-stream.Closed():
 				return
