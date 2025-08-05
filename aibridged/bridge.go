@@ -274,7 +274,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 						_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
 							SessionId: sessionID,
 							MsgId:     chunk.ID,
-							Model:     string(in.Model),
+							Model:     in.Model,
 							Input:     toolCall.Arguments,
 							Tool:      toolCall.Name,
 						})
@@ -364,7 +364,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 				_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
 					SessionId: sessionID,
 					MsgId:     acc.ID,
-					Model:     string(in.Model),
+					Model:     in.Model,
 					Input:     tc.Arguments,
 					Tool:      tc.Name, // TODO: sanitize tool name.
 					Injected:  true,
@@ -460,7 +460,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 			if _, err = coderdClient.TrackTokenUsage(ctx, &proto.TrackTokenUsageRequest{
 				SessionId:    sessionID,
 				MsgId:        completion.ID,
-				Model:        string(completion.Model),
+				Model:        completion.Model,
 				InputTokens:  cumulativeUsage.PromptTokens,
 				OutputTokens: cumulativeUsage.CompletionTokens,
 				Other: map[string]int64{
@@ -485,7 +485,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 						_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
 							SessionId: sessionID,
 							MsgId:     completion.ID,
-							Model:     string(in.Model),
+							Model:     in.Model,
 							Input:     toolCall.Function.Arguments,
 							Tool:      toolCall.Function.Name,
 						})
@@ -519,7 +519,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 				_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
 					SessionId: sessionID,
 					MsgId:     completion.ID,
-					Model:     string(in.Model),
+					Model:     in.Model,
 					Input:     tc.Function.Arguments,
 					Tool:      fn, // TODO: sanitize tool name.
 					Injected:  true,

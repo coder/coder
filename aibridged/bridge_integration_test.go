@@ -16,10 +16,12 @@ import (
 	"testing"
 
 	"golang.org/x/tools/txtar"
+	"golang.org/x/xerrors"
 	"storj.io/drpc"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/sjson"
@@ -409,9 +411,9 @@ func TestOpenAIChatCompletions(t *testing.T) {
 			{
 				streaming: true,
 			},
-			// {
-			// 	streaming: false,
-			// },
+			{
+				streaming: false,
+			},
 		}
 
 		for _, tc := range cases {
@@ -492,7 +494,6 @@ func TestOpenAIChatCompletions(t *testing.T) {
 				// We must ALWAYS have 2 calls to the bridge.
 				require.Eventually(t, func() bool { return mockSrv.callCount.Load() == 2 }, testutil.WaitLong, testutil.IntervalFast)
 
-				// TODO: this is a bit flimsy since this API won't be in beta forever.
 				var content *openai.ChatCompletionChoice
 				if tc.streaming {
 					// Parse the response stream.
@@ -512,7 +513,6 @@ func TestOpenAIChatCompletions(t *testing.T) {
 					out, err := io.ReadAll(resp.Body)
 					require.NoError(t, err)
 
-					// TODO: this is a bit flimsy since this API won't be in beta forever.
 					var message openai.ChatCompletion
 					require.NoError(t, json.Unmarshal(out, &message))
 					require.NotNil(t, message)
@@ -534,10 +534,11 @@ func TestSimple(t *testing.T) {
 	sessionToken := getSessionToken(t, client)
 
 	testCases := []struct {
-		name          string
-		fixture       []byte
-		configureFunc func(string, proto.DRPCAIBridgeDaemonClient) (*aibridged.Bridge, error)
-		createRequest func(*testing.T, string, []byte) *http.Request
+		name              string
+		fixture           []byte
+		configureFunc     func(string, proto.DRPCAIBridgeDaemonClient) (*aibridged.Bridge, error)
+		getResponseIDFunc func(bool, *http.Response) (string, error)
+		createRequest     func(*testing.T, string, []byte) *http.Request
 	}{
 		{
 			name:    "anthropic",
@@ -553,6 +554,36 @@ func TestSimple(t *testing.T) {
 				}, logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
 					return client, true
 				}, nil)
+			},
+			getResponseIDFunc: func(streaming bool, resp *http.Response) (string, error) {
+				if streaming {
+					decoder := ssestream.NewDecoder(resp)
+					// TODO: this is a bit flimsy since this API won't be in beta forever.
+					stream := ssestream.NewStream[anthropic.BetaRawMessageStreamEventUnion](decoder, nil)
+					var message anthropic.BetaMessage
+					for stream.Next() {
+						event := stream.Current()
+						if err := message.Accumulate(event); err != nil {
+							return "", xerrors.Errorf("accumulate event: %w", err)
+						}
+					}
+					if stream.Err() != nil {
+						return "", xerrors.Errorf("stream error: %w", stream.Err())
+					}
+					return message.ID, nil
+				}
+
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return "", xerrors.Errorf("read body: %w", err)
+				}
+
+				// TODO: this is a bit flimsy since this API won't be in beta forever.
+				var message anthropic.BetaMessage
+				if err := json.Unmarshal(body, &message); err != nil {
+					return "", xerrors.Errorf("unmarshal response: %w", err)
+				}
+				return message.ID, nil
 			},
 			createRequest: createAnthropicMessagesReq,
 		},
@@ -570,6 +601,34 @@ func TestSimple(t *testing.T) {
 				}, logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
 					return client, true
 				}, nil)
+			},
+			getResponseIDFunc: func(streaming bool, resp *http.Response) (string, error) {
+				if streaming {
+					// Parse the response stream.
+					decoder := oai_ssestream.NewDecoder(resp)
+					stream := oai_ssestream.NewStream[openai.ChatCompletionChunk](decoder, nil)
+					var message openai.ChatCompletionAccumulator
+					for stream.Next() {
+						chunk := stream.Current()
+						message.AddChunk(chunk)
+					}
+					if stream.Err() != nil {
+						return "", xerrors.Errorf("stream error: %w", stream.Err())
+					}
+					return message.ID, nil
+				}
+
+				// Parse & unmarshal the response.
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return "", xerrors.Errorf("read body: %w", err)
+				}
+
+				var message openai.ChatCompletion
+				if err := json.Unmarshal(body, &message); err != nil {
+					return "", xerrors.Errorf("unmarshal response: %w", err)
+				}
+				return message.ID, nil
 			},
 			createRequest: createOpenAIChatCompletionsReq,
 		},
@@ -630,9 +689,20 @@ func TestSimple(t *testing.T) {
 					require.NoError(t, err)
 					assert.NotEmpty(t, bodyBytes, "should have received response body")
 
+					// Reset the body after being read.
+					resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
 					// Then: I expect the prompt to have been tracked.
 					require.NotEmpty(t, coderdClient.userPrompts, "no prompts tracked")
 					assert.Equal(t, "how many angels can dance on the head of a pin", coderdClient.userPrompts[0].Prompt)
+
+					// Validate that responses have their IDs overridden with a session ID rather than the original ID from the upstream provider.
+					// The reason for this is that Bridge may make multiple upstream requests (i.e. to invoke injected tools), and clients will not be expecting
+					// multiple messages in response to a single request.
+					// TODO: validate that expected upstream message ID is captured alongside returned ID in token usage.
+					id, err := tc.getResponseIDFunc(sc.streaming, resp)
+					require.NoError(t, err, "failed to retrieve response ID")
+					require.Nil(t, uuid.Validate(id), "id is not a UUID")
 				})
 			}
 		})
