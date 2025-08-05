@@ -309,8 +309,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				ResourceOrganizationMember.Type: {policy.ActionRead},
 				// Users can create provisioner daemons scoped to themselves.
 				ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
-				// Users should be able to access their own secrets.
-				ResourceUserSecret.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 			})...,
 		),
 	}.withCachedRegoValue()
@@ -423,7 +421,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				}),
 				Org: map[string][]Permission{
 					// Org admins should not have workspace exec perms.
-					organizationID.String(): append(allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole), Permissions(map[string][]policy.Action{
+					organizationID.String(): append(allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret), Permissions(map[string][]policy.Action{
 						ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
 						ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
 						// PrebuiltWorkspaces are a subset of Workspaces.
