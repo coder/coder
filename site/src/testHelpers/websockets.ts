@@ -1,17 +1,18 @@
 import type { WebSocketEventType } from "utils/OneWayWebSocket";
 
-export type MockWebSocketPublisher = Readonly<{
+export type MockWebSocketServer = Readonly<{
 	publishMessage: (event: MessageEvent<string>) => void;
 	publishError: (event: Event) => void;
 	publishClose: (event: CloseEvent) => void;
 	publishOpen: (event: Event) => void;
+
 	readonly isConnectionOpen: boolean;
 }>;
 
 export function createMockWebSocket(
 	url: string,
 	protocols?: string | string[],
-): readonly [WebSocket, MockWebSocketPublisher] {
+): readonly [WebSocket, MockWebSocketServer] {
 	type EventMap = {
 		message: MessageEvent<string>;
 		error: Event;
@@ -21,6 +22,10 @@ export function createMockWebSocket(
 	type CallbackStore = {
 		[K in keyof EventMap]: ((event: EventMap[K]) => void)[];
 	};
+
+	if (!url.startsWith("ws://") && !url.startsWith("wss://")) {
+		throw new Error("URL must start with ws:// or wss://");
+	}
 
 	let activeProtocol: string;
 	if (Array.isArray(protocols)) {
@@ -92,7 +97,7 @@ export function createMockWebSocket(
 		},
 	};
 
-	const publisher: MockWebSocketPublisher = {
+	const publisher: MockWebSocketServer = {
 		get isConnectionOpen() {
 			return isOpen;
 		},
