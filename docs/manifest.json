@@ -718,6 +718,11 @@
 							"title": "Hashicorp Vault",
 							"description": "Integrate Coder with Hashicorp Vault",
 							"path": "./admin/integrations/vault.md"
+						},
+						{
+							"title": "OAuth2 Provider",
+							"description": "Use Coder as an OAuth2 provider",
+							"path": "./admin/integrations/oauth2-provider.md"
 						}
 					]
 				},
