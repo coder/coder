@@ -264,7 +264,7 @@ data "coder_workspace_tags" "tags" {
 module "slackme" {
   count            = data.coder_workspace.me.start_count
   source           = "dev.registry.coder.com/coder/slackme/coder"
-  version          = "1.0.30"
+  version          = "1.0.31"
   agent_id         = coder_agent.dev.id
   auth_provider_id = "slack"
 }
@@ -272,7 +272,7 @@ module "slackme" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.2.0"
+  version  = "1.2.1"
   agent_id = coder_agent.dev.id
 }
 
@@ -288,7 +288,7 @@ module "git-clone" {
 module "personalize" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/personalize/coder"
-  version  = "1.0.30"
+  version  = "1.0.31"
   agent_id = coder_agent.dev.id
 }
 
@@ -327,7 +327,7 @@ module "jetbrains" {
 module "filebrowser" {
   count      = data.coder_workspace.me.start_count
   source     = "dev.registry.coder.com/coder/filebrowser/coder"
-  version    = "1.1.1"
+  version    = "1.1.2"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
 }
@@ -335,7 +335,7 @@ module "filebrowser" {
 module "coder-login" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/coder-login/coder"
-  version  = "1.0.30"
+  version  = "1.0.31"
   agent_id = coder_agent.dev.id
 }
 
@@ -358,7 +358,7 @@ module "windsurf" {
 module "zed" {
   count      = data.coder_workspace.me.start_count
   source     = "dev.registry.coder.com/coder/zed/coder"
-  version    = "1.0.0"
+  version    = "1.0.1"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
   folder     = local.repo_dir

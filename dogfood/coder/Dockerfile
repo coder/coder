@@ -12,6 +12,7 @@ FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631
 
 # Install Go manually, so that we can control the version
 ARG GO_VERSION=1.24.4
+ARG GO_CHECKSUM="77e5da33bb72aeaef1ba4418b6fe511bc4d041873cbf82e5aa6318740df98717"
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -19,6 +20,7 @@ RUN apt-get update && \
 	curl --silent --show-error --location \
 	"https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
 	-o /usr/local/go.tar.gz && \
+	echo "$GO_CHECKSUM /usr/local/go.tar.gz" | sha256sum -c && \
 	rm -rf /var/lib/apt/lists/*
 
 ENV PATH=$PATH:/usr/local/go/bin
@@ -29,6 +31,7 @@ RUN apt-get update && \
 	mkdir --parents /usr/local/go && \
 	tar --extract --gzip --directory=/usr/local/go --file=/usr/local/go.tar.gz --strip-components=1 && \
 	mkdir --parents "$GOPATH" && \
+	go env -w GOSUMDB=sum.golang.org && \
 	# moq for Go tests.
 	go install github.com/matryer/moq@v0.2.3 && \
 	# swag for Swagger doc generation
@@ -252,9 +255,9 @@ RUN source $NVM_DIR/nvm.sh && \
 	nvm install $NODE_VERSION && \
 	nvm use $NODE_VERSION
 ENV PATH=$NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
-# Allow patch updates for npm and pnpm
-RUN npm install -g npm@10.9.3 --integrity=sha512-Dp1C6SvSMYQI7YHq/y2l94uvI+59Eqbu1EpuKQHQ8p16txXRuRit5gH3Lnaagk2aXDIjg/Iru9pd05bnneKgdw==
-RUN npm install -g pnpm@9.15.1 --integrity=sha512-GstWXmGT7769p3JwKVBGkVDPErzHZCYudYfnHRncmKQj3/lTblfqRMSb33kP9pToPCe+X6oj1n4MAztYO+S/zw==
+RUN corepack enable && \
+	corepack prepare npm@10.8.1 --activate && \
+	corepack prepare pnpm@9.15.1 --activate
 
 RUN pnpx playwright@1.47.0 install --with-deps chromium
 

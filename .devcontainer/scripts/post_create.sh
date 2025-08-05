@@ -1,7 +1,7 @@
 #!/bin/sh
 
 install_devcontainer_cli() {
-	npm install -g @devcontainers/cli
+	npm install -g @devcontainers/cli@0.80.0 --integrity=sha512-w2EaxgjyeVGyzfA/KUEZBhyXqu/5PyWNXcnrXsZOBrt3aN2zyGiHrXoG54TF6K0b5DSCF01Rt5fnIyrCeFzFKw==
 }
 
 install_ssh_config() {

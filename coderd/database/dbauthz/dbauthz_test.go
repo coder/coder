@@ -4826,9 +4826,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		})
 		check.Args(j.ID).Asserts(v.RBACObject(tpl), policy.ActionRead).Returns(j)
 	}))
-	s.Run("HasTemplateVersionsWithAITask", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts()
-	}))
 }
 
 func (s *MethodTestSuite) TestNotifications() {
