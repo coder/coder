@@ -1,25 +1,27 @@
 ---
-display_name: Docker (Devcontainer)
-description: Provision envbuilder containers as Coder workspaces
+display_name: Docker-in-Docker Dev Containers
+description: Provision Docker containers as Coder workspaces running Dev Containers via Docker-in-Docker.
 icon: ../../../site/static/icon/docker.png
 maintainer_github: coder
 verified: true
-tags: [container, docker, devcontainer]
+tags: [docker, container, devcontainer]
 ---
 
-# Remote Development on Docker Containers (with Devcontainers)
+# Remote Development on Dev Containers
 
-Provision Devcontainers as [Coder workspaces](https://coder.com/docs/workspaces) in Docker with this example template.
+Provision Docker containers as [Coder workspaces](https://coder.com/docs/workspaces) running [Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers) via Docker-in-Docker.
+
+<!-- TODO: Add screenshot -->
 
 ## Prerequisites
 
 ### Infrastructure
 
-Coder must have access to a running Docker socket, and the `coder` user must be a member of the `docker` group:
+The VM you run Coder on must have a running Docker socket and the `coder` user must be added to the Docker group:
 
-```shell
+```sh
 # Add coder user to Docker group
-sudo usermod -aG docker coder
+sudo adduser coder docker
 
 # Restart Coder server
 sudo systemctl restart coder
@@ -30,48 +32,18 @@ sudo -u coder docker ps
 
 ## Architecture
 
-Coder supports Devcontainers via [envbuilder](https://github.com/coder/envbuilder), an open source project. Read more about this in [Coder's documentation](https://coder.com/docs/templates/dev-containers).
+This example uses the `codercom/enterprise-node:ubuntu` Docker image as a base image for the workspace. It includes necessary tools like Docker and Node.js, which are required for running Dev Containers via the `@devcontainers/cli` tool.
 
 This template provisions the following resources:
 
-- Envbuilder cached image (conditional, persistent) using [`terraform-provider-envbuilder`](https://github.com/coder/terraform-provider-envbuilder)
-- Docker image (persistent) using [`envbuilder`](https://github.com/coder/envbuilder)
+- Docker image (built by Docker socket and kept locally)
 - Docker container (ephemeral)
-- Docker volume (persistent on `/workspaces`)
+- Docker volume (persistent on `/home/coder`)
+- Docker volume (persistent on `/var/lib/docker`)
 
-The Git repository is cloned inside the `/workspaces` volume if not present.
-Any local changes to the Devcontainer files inside the volume will be applied when you restart the workspace.
-Keep in mind that any tools or files outside of `/workspaces` or not added as part of the Devcontainer specification are not persisted.
-Edit the `devcontainer.json` instead!
+This means, when the workspace restarts, any tools or files outside of the home directory or docker library are not persisted.
+
+For devcontainers running inside the workspace, data persistence is dependent on each projects `devcontainer.json` configuration.
 
 > **Note**
 > This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.
-
-## Docker-in-Docker
-
-See the [Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/docker.md) for information on running Docker containers inside a devcontainer built by Envbuilder.
-
-## Caching
-
-To speed up your builds, you can use a container registry as a cache.
-When creating the template, set the parameter `cache_repo` to a valid Docker repository.
-
-For example, you can run a local registry:
-
-```shell
-docker run --detach \
-  --volume registry-cache:/var/lib/registry \
-  --publish 5000:5000 \
-  --name registry-cache \
-  --net=host \
-  registry:2
-```
-
-Then, when creating the template, enter `localhost:5000/devcontainer-cache` for the parameter `cache_repo`.
-
-See the [Envbuilder Terraform Provider Examples](https://github.com/coder/terraform-provider-envbuilder/blob/main/examples/resources/envbuilder_cached_image/envbuilder_cached_image_resource.tf/) for a more complete example of how the provider works.
-
-> [!NOTE]
-> We recommend using a registry cache with authentication enabled.
-> To allow Envbuilder to authenticate with the registry cache, specify the variable `cache_repo_docker_config_path`
-> with the path to a Docker config `.json` on disk containing valid credentials for the registry.

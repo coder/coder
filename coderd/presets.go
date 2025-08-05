@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"database/sql"
 	"net/http"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -38,12 +39,23 @@ func (api *API) templateVersionPresets(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	convertPrebuildInstances := func(desiredInstances sql.NullInt32) *int {
+		if desiredInstances.Valid {
+			value := int(desiredInstances.Int32)
+			return &value
+		}
+		return nil
+	}
+
 	var res []codersdk.Preset
 	for _, preset := range presets {
 		sdkPreset := codersdk.Preset{
-			ID:      preset.ID,
-			Name:    preset.Name,
-			Default: preset.IsDefault,
+			ID:                       preset.ID,
+			Name:                     preset.Name,
+			Default:                  preset.IsDefault,
+			DesiredPrebuildInstances: convertPrebuildInstances(preset.DesiredInstances),
+			Description:              preset.Description,
+			Icon:                     preset.Icon,
 		}
 		for _, presetParam := range presetParams {
 			if presetParam.TemplateVersionPresetID != preset.ID {

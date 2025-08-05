@@ -79,3 +79,11 @@ func IsWorkspaceAgentLogsLimitError(err error) bool {
 
 	return false
 }
+
+func IsProvisionerJobLogsLimitError(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return pqErr.Constraint == "max_provisioner_logs_length" && pqErr.Table == "provisioner_jobs"
+	}
+	return false
+}

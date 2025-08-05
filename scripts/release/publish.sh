@@ -129,26 +129,9 @@ if [[ "$dry_run" == 0 ]] && [[ "${CODER_GPG_RELEASE_KEY_BASE64:-}" != "" ]]; the
 	log "--- Signing checksums file"
 	log
 
-	# Import the GPG key.
-	old_gnupg_home="${GNUPGHOME:-}"
-	gnupg_home_temp="$(mktemp -d)"
-	export GNUPGHOME="$gnupg_home_temp"
-	echo "$CODER_GPG_RELEASE_KEY_BASE64" | base64 -d | gpg --import 1>&2
-
-	# Sign the checksums file. This generates a file in the same directory and
-	# with the same name as the checksums file but ending in ".asc".
-	#
-	# We pipe `true` into `gpg` so that it never tries to be interactive (i.e.
-	# ask for a passphrase). The key we import above is not password protected.
-	true | gpg --detach-sign --armor "${temp_dir}/${checksum_file}" 1>&2
-
-	rm -rf "$gnupg_home_temp"
-	unset GNUPGHOME
-	if [[ "$old_gnupg_home" != "" ]]; then
-		export GNUPGHOME="$old_gnupg_home"
-	fi
-
+	execrelative ../sign_with_gpg.sh "${temp_dir}/${checksum_file}"
 	signed_checksum_path="${temp_dir}/${checksum_file}.asc"
+
 	if [[ ! -e "$signed_checksum_path" ]]; then
 		log "Signed checksum file not found: ${signed_checksum_path}"
 		log

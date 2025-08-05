@@ -36,6 +36,9 @@ OPTIONS:
       --devcontainers-enable bool, $CODER_AGENT_DEVCONTAINERS_ENABLE (default: true)
           Allow the agent to automatically detect running devcontainers.
 
+      --devcontainers-project-discovery-enable bool, $CODER_AGENT_DEVCONTAINERS_PROJECT_DISCOVERY_ENABLE (default: true)
+          Allow the agent to search the filesystem for devcontainer projects.
+
       --log-dir string, $CODER_AGENT_LOG_DIR (default: /tmp)
           Specify the location for the agent log files.
 

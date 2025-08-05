@@ -8,7 +8,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/testutil"
@@ -17,7 +17,7 @@ import (
 func TestExpandCustomRoleRoles(t *testing.T) {
 	t.Parallel()
 
-	db := dbmem.New()
+	db, _ := dbtestutil.NewDB(t)
 
 	org := dbgen.Organization(t, db, database.Organization{})
 

@@ -13,11 +13,13 @@ import type { FC } from "react";
 import { type Location, useLocation } from "react-router-dom";
 import {
 	MockAppearanceConfig,
+	MockBuildInfo,
 	MockDeploymentConfig,
 	MockEntitlements,
 	MockFailedWorkspace,
 	MockOrganization,
 	MockOutdatedWorkspace,
+	MockPendingWorkspace,
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
 	MockTemplate,
@@ -223,11 +225,59 @@ describe("WorkspacePage", () => {
 			}),
 		);
 
+		const user = userEvent.setup({ delay: 0 });
 		const cancelWorkspaceMock = jest
 			.spyOn(API, "cancelWorkspaceBuild")
 			.mockImplementation(() => Promise.resolve({ message: "job canceled" }));
+		await renderWorkspacePage(MockStartingWorkspace);
 
-		await testButton(MockStartingWorkspace, "Cancel", cancelWorkspaceMock);
+		// Click on Cancel
+		const cancelButton = await screen.findByRole("button", { name: "Cancel" });
+		await user.click(cancelButton);
+
+		// Get dialog and confirm
+		const dialog = await screen.findByTestId("dialog");
+		const confirmButton = within(dialog).getByRole("button", {
+			name: "Confirm",
+			hidden: false,
+		});
+		await user.click(confirmButton);
+
+		expect(cancelWorkspaceMock).toHaveBeenCalledWith(
+			MockStartingWorkspace.latest_build.id,
+			undefined,
+		);
+	});
+
+	it("requests cancellation when the user presses Cancel and the workspace is pending", async () => {
+		server.use(
+			http.get("/api/v2/users/:userId/workspace/:workspaceName", () => {
+				return HttpResponse.json(MockPendingWorkspace);
+			}),
+		);
+
+		const user = userEvent.setup({ delay: 0 });
+		const cancelWorkspaceMock = jest
+			.spyOn(API, "cancelWorkspaceBuild")
+			.mockImplementation(() => Promise.resolve({ message: "job canceled" }));
+		await renderWorkspacePage(MockPendingWorkspace);
+
+		// Click on Cancel
+		const cancelButton = await screen.findByRole("button", { name: "Cancel" });
+		await user.click(cancelButton);
+
+		// Get dialog and confirm
+		const dialog = await screen.findByTestId("dialog");
+		const confirmButton = within(dialog).getByRole("button", {
+			name: "Confirm",
+			hidden: false,
+		});
+		await user.click(confirmButton);
+
+		expect(cancelWorkspaceMock).toHaveBeenCalledWith(
+			MockPendingWorkspace.latest_build.id,
+			{ expect_status: "pending" },
+		);
 	});
 
 	it("requests an update when the user presses Update", async () => {
@@ -554,6 +604,10 @@ describe("WorkspacePage", () => {
 						appearance: MockAppearanceConfig,
 						entitlements: MockEntitlements,
 						experiments: [],
+						buildInfo: {
+							...MockBuildInfo,
+							version: "v0.0.0-test",
+						},
 						organizations: [MockOrganization],
 						showOrganizations: true,
 						canViewOrganizationSettings: true,

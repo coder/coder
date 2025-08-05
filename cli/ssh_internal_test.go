@@ -376,7 +376,7 @@ func Test_getWorkspaceAgent(t *testing.T) {
 		agent := createAgent("main")
 		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent})
 
-		result, err := getWorkspaceAgent(workspace, "")
+		result, _, err := getWorkspaceAgent(workspace, "")
 		require.NoError(t, err)
 		assert.Equal(t, agent.ID, result.ID)
 		assert.Equal(t, "main", result.Name)
@@ -388,7 +388,7 @@ func Test_getWorkspaceAgent(t *testing.T) {
 		agent2 := createAgent("main2")
 		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent1, agent2})
 
-		_, err := getWorkspaceAgent(workspace, "")
+		_, _, err := getWorkspaceAgent(workspace, "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "multiple agents found")
 		assert.Contains(t, err.Error(), "available agents: [main1 main2]")
@@ -400,10 +400,13 @@ func Test_getWorkspaceAgent(t *testing.T) {
 		agent2 := createAgent("main2")
 		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent1, agent2})
 
-		result, err := getWorkspaceAgent(workspace, "main1")
+		result, other, err := getWorkspaceAgent(workspace, "main1")
 		require.NoError(t, err)
 		assert.Equal(t, agent1.ID, result.ID)
 		assert.Equal(t, "main1", result.Name)
+		assert.Len(t, other, 1)
+		assert.Equal(t, agent2.ID, other[0].ID)
+		assert.Equal(t, "main2", other[0].Name)
 	})
 
 	t.Run("AgentNameSpecified_NotFound", func(t *testing.T) {
@@ -412,7 +415,7 @@ func Test_getWorkspaceAgent(t *testing.T) {
 		agent2 := createAgent("main2")
 		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent1, agent2})
 
-		_, err := getWorkspaceAgent(workspace, "nonexistent")
+		_, _, err := getWorkspaceAgent(workspace, "nonexistent")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `agent not found by name "nonexistent"`)
 		assert.Contains(t, err.Error(), "available agents: [main1 main2]")
@@ -422,7 +425,7 @@ func Test_getWorkspaceAgent(t *testing.T) {
 		t.Parallel()
 		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{})
 
-		_, err := getWorkspaceAgent(workspace, "")
+		_, _, err := getWorkspaceAgent(workspace, "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `workspace "test-workspace" has no agents`)
 	})
@@ -435,7 +438,7 @@ func Test_getWorkspaceAgent(t *testing.T) {
 		agent3 := createAgent("krypton")
 		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent2, agent1, agent3})
 
-		_, err := getWorkspaceAgent(workspace, "nonexistent")
+		_, _, err := getWorkspaceAgent(workspace, "nonexistent")
 		require.Error(t, err)
 		// Available agents should be sorted alphabetically.
 		assert.Contains(t, err.Error(), "available agents: [clark krypton zod]")

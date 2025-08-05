@@ -18,6 +18,11 @@ import (
 const (
 	delay          = 10 * time.Minute
 	maxAgentLogAge = 7 * 24 * time.Hour
+	// Connection events are now inserted into the `connection_logs` table.
+	// We'll slowly remove old connection events from the `audit_logs` table,
+	// but we won't touch the `connection_logs` table.
+	maxAuditLogConnectionEventAge    = 90 * 24 * time.Hour // 90 days
+	auditLogConnectionEventBatchSize = 1000
 )
 
 // New creates a new periodically purging database instance.
@@ -61,6 +66,14 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 			}
 			if err := tx.DeleteOldNotificationMessages(ctx); err != nil {
 				return xerrors.Errorf("failed to delete old notification messages: %w", err)
+			}
+
+			deleteOldAuditLogConnectionEventsBefore := start.Add(-maxAuditLogConnectionEventAge)
+			if err := tx.DeleteOldAuditLogConnectionEvents(ctx, database.DeleteOldAuditLogConnectionEventsParams{
+				BeforeTime: deleteOldAuditLogConnectionEventsBefore,
+				LimitCount: auditLogConnectionEventBatchSize,
+			}); err != nil {
+				return xerrors.Errorf("failed to delete old audit log connection events: %w", err)
 			}
 
 			logger.Debug(ctx, "purged old database entries", slog.F("duration", clk.Since(start)))

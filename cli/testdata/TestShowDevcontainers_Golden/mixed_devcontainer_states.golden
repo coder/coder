@@ -1,0 +1,13 @@
+┌───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ RESOURCE                                                               STATUS       HEALTH     VERSION  ACCESS                            │
+├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ compute.main                                                                                                                              │
+│ └─ main (linux, amd64)                                                 ⦿ connected  ✔ healthy  v2.15.0  coder ssh test-workspace.main     │
+│    └─ Devcontainers                                                                                                                       │
+│       ├─ frontend (linux, amd64) [vibrant_tesla]                       ⦿ connected  ✔ healthy  v2.15.0  coder ssh test-workspace.frontend │
+│          ├─ Open Ports                                                                                                                    │
+│             └─  5173/tcp [vite]                                                                                                           │
+│       ├─ backend [peaceful_curie]                                      ⏹ stopped                                                          │
+│       └─ error-container                                               ✘ error                                                            │
+│          × Container build failed: dockerfile syntax error on line 15                                                                     │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

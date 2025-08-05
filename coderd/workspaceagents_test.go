@@ -46,7 +46,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -1387,6 +1386,192 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 	})
 }
 
+func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx               = testutil.Context(t, testutil.WaitLong)
+		logger            = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		mClock            = quartz.NewMock(t)
+		updaterTickerTrap = mClock.Trap().TickerFunc("updaterLoop")
+		mCtrl             = gomock.NewController(t)
+		mCCLI             = acmock.NewMockContainerCLI(mCtrl)
+
+		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{Logger: &logger})
+		user       = coderdtest.CreateFirstUser(t, client)
+		r          = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			return agents
+		}).Do()
+
+		fakeContainer1 = codersdk.WorkspaceAgentContainer{
+			ID:           "container1",
+			CreatedAt:    dbtime.Now(),
+			FriendlyName: "container1",
+			Image:        "busybox:latest",
+			Labels: map[string]string{
+				agentcontainers.DevcontainerLocalFolderLabel: "/home/coder/project1",
+				agentcontainers.DevcontainerConfigFileLabel:  "/home/coder/project1/.devcontainer/devcontainer.json",
+			},
+			Running: true,
+			Status:  "running",
+		}
+
+		fakeContainer2 = codersdk.WorkspaceAgentContainer{
+			ID:           "container1",
+			CreatedAt:    dbtime.Now(),
+			FriendlyName: "container2",
+			Image:        "busybox:latest",
+			Labels: map[string]string{
+				agentcontainers.DevcontainerLocalFolderLabel: "/home/coder/project2",
+				agentcontainers.DevcontainerConfigFileLabel:  "/home/coder/project2/.devcontainer/devcontainer.json",
+			},
+			Running: true,
+			Status:  "running",
+		}
+	)
+
+	stages := []struct {
+		containers []codersdk.WorkspaceAgentContainer
+		expected   codersdk.WorkspaceAgentListContainersResponse
+	}{
+		{
+			containers: []codersdk.WorkspaceAgentContainer{fakeContainer1},
+			expected: codersdk.WorkspaceAgentListContainersResponse{
+				Containers: []codersdk.WorkspaceAgentContainer{fakeContainer1},
+				Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+					{
+						Name:            "project1",
+						WorkspaceFolder: fakeContainer1.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+						ConfigPath:      fakeContainer1.Labels[agentcontainers.DevcontainerConfigFileLabel],
+						Status:          "running",
+						Container:       &fakeContainer1,
+					},
+				},
+			},
+		},
+		{
+			containers: []codersdk.WorkspaceAgentContainer{fakeContainer1, fakeContainer2},
+			expected: codersdk.WorkspaceAgentListContainersResponse{
+				Containers: []codersdk.WorkspaceAgentContainer{fakeContainer1, fakeContainer2},
+				Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+					{
+						Name:            "project1",
+						WorkspaceFolder: fakeContainer1.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+						ConfigPath:      fakeContainer1.Labels[agentcontainers.DevcontainerConfigFileLabel],
+						Status:          "running",
+						Container:       &fakeContainer1,
+					},
+					{
+						Name:            "project2",
+						WorkspaceFolder: fakeContainer2.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+						ConfigPath:      fakeContainer2.Labels[agentcontainers.DevcontainerConfigFileLabel],
+						Status:          "running",
+						Container:       &fakeContainer2,
+					},
+				},
+			},
+		},
+		{
+			containers: []codersdk.WorkspaceAgentContainer{fakeContainer2},
+			expected: codersdk.WorkspaceAgentListContainersResponse{
+				Containers: []codersdk.WorkspaceAgentContainer{fakeContainer2},
+				Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+					{
+						Name:            "",
+						WorkspaceFolder: fakeContainer1.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+						ConfigPath:      fakeContainer1.Labels[agentcontainers.DevcontainerConfigFileLabel],
+						Status:          "stopped",
+						Container:       nil,
+					},
+					{
+						Name:            "project2",
+						WorkspaceFolder: fakeContainer2.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+						ConfigPath:      fakeContainer2.Labels[agentcontainers.DevcontainerConfigFileLabel],
+						Status:          "running",
+						Container:       &fakeContainer2,
+					},
+				},
+			},
+		},
+	}
+
+	// Set up initial state for immediate send on connection
+	mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{Containers: stages[0].containers}, nil)
+	mCCLI.EXPECT().DetectArchitecture(gomock.Any(), gomock.Any()).Return("<none>", nil).AnyTimes()
+
+	_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
+		o.Logger = logger.Named("agent")
+		o.Devcontainers = true
+		o.DevcontainerAPIOptions = []agentcontainers.Option{
+			agentcontainers.WithClock(mClock),
+			agentcontainers.WithContainerCLI(mCCLI),
+			agentcontainers.WithWatcher(watcher.NewNoop()),
+		}
+	})
+
+	resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+	require.Len(t, resources, 1, "expected one resource")
+	require.Len(t, resources[0].Agents, 1, "expected one agent")
+	agentID := resources[0].Agents[0].ID
+
+	updaterTickerTrap.MustWait(ctx).MustRelease(ctx)
+	defer updaterTickerTrap.Close()
+
+	containers, closer, err := client.WatchWorkspaceAgentContainers(ctx, agentID)
+	require.NoError(t, err)
+	defer func() {
+		closer.Close()
+	}()
+
+	// Read initial state sent immediately on connection
+	var got codersdk.WorkspaceAgentListContainersResponse
+	select {
+	case <-ctx.Done():
+	case got = <-containers:
+	}
+	require.NoError(t, ctx.Err())
+
+	require.Equal(t, stages[0].expected.Containers, got.Containers)
+	require.Len(t, got.Devcontainers, len(stages[0].expected.Devcontainers))
+	for j, expectedDev := range stages[0].expected.Devcontainers {
+		gotDev := got.Devcontainers[j]
+		require.Equal(t, expectedDev.Name, gotDev.Name)
+		require.Equal(t, expectedDev.WorkspaceFolder, gotDev.WorkspaceFolder)
+		require.Equal(t, expectedDev.ConfigPath, gotDev.ConfigPath)
+		require.Equal(t, expectedDev.Status, gotDev.Status)
+		require.Equal(t, expectedDev.Container, gotDev.Container)
+	}
+
+	// Process remaining stages through updater loop
+	for i, stage := range stages[1:] {
+		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{Containers: stage.containers}, nil)
+
+		_, aw := mClock.AdvanceNext()
+		aw.MustWait(ctx)
+
+		var got codersdk.WorkspaceAgentListContainersResponse
+		select {
+		case <-ctx.Done():
+		case got = <-containers:
+		}
+		require.NoError(t, ctx.Err())
+
+		require.Equal(t, stages[i+1].expected.Containers, got.Containers)
+		require.Len(t, got.Devcontainers, len(stages[i+1].expected.Devcontainers))
+		for j, expectedDev := range stages[i+1].expected.Devcontainers {
+			gotDev := got.Devcontainers[j]
+			require.Equal(t, expectedDev.Name, gotDev.Name)
+			require.Equal(t, expectedDev.WorkspaceFolder, gotDev.WorkspaceFolder)
+			require.Equal(t, expectedDev.ConfigPath, gotDev.ConfigPath)
+			require.Equal(t, expectedDev.Status, gotDev.Status)
+			require.Equal(t, expectedDev.Container, gotDev.Container)
+		}
+	}
+}
+
 func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 	t.Parallel()
 
@@ -1989,8 +2174,8 @@ func (s *testWAMErrorStore) GetWorkspaceAgentMetadata(ctx context.Context, arg d
 func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
 	t.Parallel()
 
-	db := &testWAMErrorStore{Store: dbmem.New()}
-	psub := pubsub.NewInMemory()
+	store, psub := dbtestutil.NewDB(t)
+	db := &testWAMErrorStore{Store: store}
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("coderd").Leveled(slog.LevelDebug)
 	client := coderdtest.New(t, &coderdtest.Options{
 		Database:                 db,

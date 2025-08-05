@@ -1,0 +1,11 @@
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ RESOURCE                                           STATUS       HEALTH     VERSION  ACCESS                           │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ compute.main                                                                                                         │
+│ └─ main (linux, amd64)                             ⦿ connected  ✔ healthy  v2.15.0  coder ssh test-workspace.main    │
+│    └─ Devcontainers                                                                                                  │
+│       └─ web-dev (linux, amd64) [quirky_lovelace]  ⦿ connected  ✔ healthy  v2.15.0  coder ssh test-workspace.web-dev │
+│          └─ Open Ports                                                                                               │
+│             ├─  3000/tcp [node]                                                                                      │
+│             └─  8080/tcp [webpack-dev-server]                                                                        │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

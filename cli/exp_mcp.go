@@ -127,6 +127,7 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 		appStatusSlug    string
 		testBinaryName   string
 		aiAgentAPIURL    url.URL
+		claudeUseBedrock string
 
 		deprecatedCoderMCPClaudeAPIKey string
 	)
@@ -154,14 +155,15 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				configureClaudeEnv[envAgentURL] = agentClient.SDK.URL.String()
 				configureClaudeEnv[envAgentToken] = agentClient.SDK.SessionToken()
 			}
-			if claudeAPIKey == "" {
-				if deprecatedCoderMCPClaudeAPIKey == "" {
-					cliui.Warnf(inv.Stderr, "CLAUDE_API_KEY is not set.")
-				} else {
-					cliui.Warnf(inv.Stderr, "CODER_MCP_CLAUDE_API_KEY is deprecated, use CLAUDE_API_KEY instead")
-					claudeAPIKey = deprecatedCoderMCPClaudeAPIKey
-				}
+
+			if deprecatedCoderMCPClaudeAPIKey != "" {
+				cliui.Warnf(inv.Stderr, "CODER_MCP_CLAUDE_API_KEY is deprecated, use CLAUDE_API_KEY instead")
+				claudeAPIKey = deprecatedCoderMCPClaudeAPIKey
 			}
+			if claudeAPIKey == "" && claudeUseBedrock != "1" {
+				cliui.Warnf(inv.Stderr, "CLAUDE_API_KEY is not set.")
+			}
+
 			if appStatusSlug != "" {
 				configureClaudeEnv[envAppStatusSlug] = appStatusSlug
 			}
@@ -280,6 +282,14 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				Value:       serpent.StringOf(&testBinaryName),
 				Hidden:      true,
 			},
+			{
+				Name:        "claude-code-use-bedrock",
+				Description: "Use Amazon Bedrock.",
+				Env:         "CLAUDE_CODE_USE_BEDROCK",
+				Flag:        "claude-code-use-bedrock",
+				Value:       serpent.StringOf(&claudeUseBedrock),
+				Hidden:      true,
+			},
 		},
 	}
 	return cmd
@@ -362,11 +372,19 @@ func (*RootCmd) mcpConfigureCursor() *serpent.Command {
 }
 
 type taskReport struct {
-	link         string
-	messageID    int64
+	// link is optional.
+	link string
+	// messageID must be set if this update is from a *user* message. A user
+	// message only happens when interacting via the AI AgentAPI (as opposed to
+	// interacting with the terminal directly).
+	messageID *int64
+	// selfReported must be set if the update is directly from the AI agent
+	// (as opposed to the screen watcher).
 	selfReported bool
-	state        codersdk.WorkspaceAppStatusState
-	summary      string
+	// state must always be set.
+	state codersdk.WorkspaceAppStatusState
+	// summary is optional.
+	summary string
 }
 
 type mcpServer struct {
@@ -388,30 +406,47 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 	return &serpent.Command{
 		Use: "server",
 		Handler: func(inv *serpent.Invocation) error {
-			// lastUserMessageID is the ID of the last *user* message that we saw.  A
-			// user message only happens when interacting via the AI AgentAPI (as
-			// opposed to interacting with the terminal directly).
-			var lastUserMessageID int64
 			var lastReport taskReport
 			// Create a queue that skips duplicates and preserves summaries.
 			queue := cliutil.NewQueue[taskReport](512).WithPredicate(func(report taskReport) (taskReport, bool) {
-				// Use "working" status if this is a new user message.  If this is not a
-				// new user message, and the status is "working" and not self-reported
-				// (meaning it came from the screen watcher), then it means one of two
-				// things:
-				// 1. The AI agent is still working, so there is nothing to update.
-				// 2. The AI agent stopped working, then the user has interacted with
-				//    the terminal directly.  For now, we are ignoring these updates.
-				//    This risks missing cases where the user manually submits a new
-				//    prompt and the AI agent becomes active and does not update itself,
-				//    but it avoids spamming useless status updates as the user is
-				//    typing, so the tradeoff is worth it.  In the future, if we can
-				//    reliably distinguish between user and AI agent activity, we can
-				//    change this.
-				if report.messageID > lastUserMessageID {
-					report.state = codersdk.WorkspaceAppStatusStateWorking
-				} else if report.state == codersdk.WorkspaceAppStatusStateWorking && !report.selfReported {
+				// Avoid queuing empty statuses (this would probably indicate a
+				// developer error)
+				if report.state == "" {
 					return report, false
+				}
+				// If this is a user message, discard if it is not new.
+				if report.messageID != nil && lastReport.messageID != nil &&
+					*lastReport.messageID >= *report.messageID {
+					return report, false
+				}
+				// If this is not a user message, and the status is "working" and not
+				// self-reported (meaning it came from the screen watcher), then it
+				// means one of two things:
+				//
+				// 1. The AI agent is not working; the user is interacting with the
+				//    terminal directly.
+				// 2. The AI agent is working.
+				//
+				// At the moment, we have no way to tell the difference between these
+				// two states. In the future, if we can reliably distinguish between
+				// user and AI agent activity, we can change this.
+				//
+				// If this is our first update, we assume it is the AI agent working and
+				// accept the update.
+				//
+				// Otherwise we discard the update.  This risks missing cases where the
+				// user manually submits a new prompt and the AI agent becomes active
+				// (and does not update itself), but it avoids spamming useless status
+				// updates as the user is typing, so the tradeoff is worth it.
+				if report.messageID == nil &&
+					report.state == codersdk.WorkspaceAppStatusStateWorking &&
+					!report.selfReported && lastReport.state != "" {
+					return report, false
+				}
+				// Keep track of the last message ID so we can tell when a message is
+				// new or if it has been re-emitted.
+				if report.messageID == nil {
+					report.messageID = lastReport.messageID
 				}
 				// Preserve previous message and URI if there was no message.
 				if report.summary == "" {
@@ -600,7 +635,8 @@ func (s *mcpServer) startWatcher(ctx context.Context, inv *serpent.Invocation) {
 				case agentapi.EventMessageUpdate:
 					if ev.Role == agentapi.RoleUser {
 						err := s.queue.Push(taskReport{
-							messageID: ev.Id,
+							messageID: &ev.Id,
+							state:     codersdk.WorkspaceAppStatusStateWorking,
 						})
 						if err != nil {
 							cliui.Warnf(inv.Stderr, "Failed to queue update: %s", err)
@@ -650,10 +686,18 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 	// Add tool dependencies.
 	toolOpts := []func(*toolsdk.Deps){
 		toolsdk.WithTaskReporter(func(args toolsdk.ReportTaskArgs) error {
+			// The agent does not reliably report its status correctly.  If AgentAPI
+			// is enabled, we will always set the status to "working" when we get an
+			// MCP message, and rely on the screen watcher to eventually catch the
+			// idle state.
+			state := codersdk.WorkspaceAppStatusStateWorking
+			if s.aiAgentAPIClient == nil {
+				state = codersdk.WorkspaceAppStatusState(args.State)
+			}
 			return s.queue.Push(taskReport{
 				link:         args.Link,
 				selfReported: true,
-				state:        codersdk.WorkspaceAppStatusState(args.State),
+				state:        state,
 				summary:      args.Summary,
 			})
 		}),

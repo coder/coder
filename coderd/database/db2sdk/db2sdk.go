@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -781,26 +782,54 @@ func TemplateRoleActions(role codersdk.TemplateRole) []policy.Action {
 	return []policy.Action{}
 }
 
-func AuditActionFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.AuditAction, error) {
-	switch action {
-	case agentproto.Connection_CONNECT:
-		return database.AuditActionConnect, nil
-	case agentproto.Connection_DISCONNECT:
-		return database.AuditActionDisconnect, nil
+func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
+	switch role {
+	case codersdk.WorkspaceRoleAdmin:
+		return slice.Omit(
+			// Small note: This intentionally includes "create" because it's sort of
+			// double purposed as "can edit ACL". That's maybe a bit "incorrect", but
+			// it's what templates do already and we're copying that implementation.
+			rbac.ResourceWorkspace.AvailableActions(),
+			// Don't let anyone delete something they can't recreate.
+			policy.ActionDelete,
+		)
+	case codersdk.WorkspaceRoleUse:
+		return []policy.Action{
+			policy.ActionApplicationConnect,
+			policy.ActionRead,
+			policy.ActionSSH,
+			policy.ActionWorkspaceStart,
+			policy.ActionWorkspaceStop,
+		}
+	}
+	return []policy.Action{}
+}
+
+func ConnectionLogConnectionTypeFromAgentProtoConnectionType(typ agentproto.Connection_Type) (database.ConnectionType, error) {
+	switch typ {
+	case agentproto.Connection_SSH:
+		return database.ConnectionTypeSsh, nil
+	case agentproto.Connection_JETBRAINS:
+		return database.ConnectionTypeJetbrains, nil
+	case agentproto.Connection_VSCODE:
+		return database.ConnectionTypeVscode, nil
+	case agentproto.Connection_RECONNECTING_PTY:
+		return database.ConnectionTypeReconnectingPty, nil
 	default:
-		// Also Connection_ACTION_UNSPECIFIED, no mapping.
-		return "", xerrors.Errorf("unknown agent connection action %q", action)
+		// Also Connection_TYPE_UNSPECIFIED, no mapping.
+		return "", xerrors.Errorf("unknown agent connection type %q", typ)
 	}
 }
 
-func AgentProtoConnectionActionToAuditAction(action database.AuditAction) (agentproto.Connection_Action, error) {
+func ConnectionLogStatusFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.ConnectionStatus, error) {
 	switch action {
-	case database.AuditActionConnect:
-		return agentproto.Connection_CONNECT, nil
-	case database.AuditActionDisconnect:
-		return agentproto.Connection_DISCONNECT, nil
+	case agentproto.Connection_CONNECT:
+		return database.ConnectionStatusConnected, nil
+	case agentproto.Connection_DISCONNECT:
+		return database.ConnectionStatusDisconnected, nil
 	default:
-		return agentproto.Connection_ACTION_UNSPECIFIED, xerrors.Errorf("unknown agent connection action %q", action)
+		// Also Connection_ACTION_UNSPECIFIED, no mapping.
+		return "", xerrors.Errorf("unknown agent connection action %q", action)
 	}
 }
 
@@ -816,6 +845,7 @@ func PreviewParameter(param previewtypes.Parameter) codersdk.PreviewParameter {
 				Placeholder: param.Styling.Placeholder,
 				Disabled:    param.Styling.Disabled,
 				Label:       param.Styling.Label,
+				MaskInput:   param.Styling.MaskInput,
 			},
 			Mutable:      param.Mutable,
 			DefaultValue: PreviewHCLString(param.DefaultValue),

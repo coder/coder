@@ -113,7 +113,7 @@ export const TerminatedBuildWithStatus: Story = {
 	},
 };
 
-export const SidebarAppDisabled: Story = {
+export const SidebarAppHealthDisabled: Story = {
 	beforeEach: () => {
 		spyOn(data, "fetchTask").mockResolvedValue({
 			prompt: "Create competitors page",
@@ -175,6 +175,33 @@ export const SidebarAppHealthy: Story = {
 		});
 	},
 };
+
+const mainAppHealthStory = (health: WorkspaceApp["health"]) => ({
+	beforeEach: () => {
+		spyOn(data, "fetchTask").mockResolvedValue({
+			prompt: "Create competitors page",
+			workspace: {
+				...MockWorkspace,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					resources: mockResources({
+						claudeCodeAppOverrides: {
+							health,
+						},
+					}),
+				},
+			},
+		});
+	},
+});
+
+export const MainAppHealthy: Story = mainAppHealthStory("healthy");
+export const MainAppInitializing: Story = mainAppHealthStory("initializing");
+export const MainAppUnhealthy: Story = mainAppHealthStory("unhealthy");
+export const MainAppHealthDisabled: Story = mainAppHealthStory("disabled");
+export const MainAppHealthUnknown: Story = mainAppHealthStory(
+	"unknown" as unknown as WorkspaceApp["health"],
+);
 
 export const BuildNoAITask: Story = {
 	beforeEach: () => {

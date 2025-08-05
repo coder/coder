@@ -66,6 +66,9 @@ All UI-related code is in the `site` folder. Key directories include:
   - **util** - Helper functions that can be used across the application
 - **static** - Static assets like images, fonts, icons, etc
 
+Do not use barrel files. Imports should be directly from the file that defines
+the value.
+
 ## Routing
 
 We use [react-router](https://reactrouter.com/en/main) as our routing engine.

@@ -9,19 +9,15 @@
 			"default": "13339",
 			"description": "The port to run filebrowser on"
 		},
-		// "folder": {
-		// 	"type": "string",
-		// 	"default": "${containerWorkspaceFolder}",
-		// 	"description": "The root directory for filebrowser to serve"
-		// },
-		"auth": {
+		"folder": {
 			"type": "string",
-			"enum": [
-				"none",
-				"password"
-			],
-			"default": "none",
-			"description": "Authentication method (none or password)"
+			"default": "",
+			"description": "The root directory for filebrowser to serve"
+		},
+		"baseUrl": {
+			"type": "string",
+			"default": "",
+			"description": "The base URL for filebrowser (e.g., /filebrowser)"
 		}
 	},
 	"entrypoint": "/usr/local/bin/filebrowser-entrypoint",
@@ -41,7 +37,7 @@
 					"healthcheck": {
 						"url": "http://localhost:${localEnv:FEATURE_FILEBROWSER_OPTION_PORT:13339}/health",
 						"interval": 5,
-						"threshold": 6
+						"threshold": 2
 					}
 				}
 			]

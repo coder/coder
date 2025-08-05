@@ -11,38 +11,29 @@ if ! command -v filebrowser &>/dev/null; then
 	curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
 fi
 
-printf "🥳 Installation complete!\n\n"
-
-# Create run script.
+# Create entrypoint.
 cat >/usr/local/bin/filebrowser-entrypoint <<EOF
-#!/bin/bash
+#!/usr/bin/env bash
+
+PORT="${PORT}"
+FOLDER="${FOLDER:-}"
+FOLDER="\${FOLDER:-\$(pwd)}"
+BASEURL="${BASEURL:-}"
+LOG_PATH=/tmp/filebrowser.log
+export FB_DATABASE="\${HOME}/.filebrowser.db"
 
 printf "🛠️ Configuring filebrowser\n\n"
 
-AUTH="${AUTH}"
-PORT="${PORT}"
-FOLDER="$(pwd)"
-LOG_PATH=/tmp/filebrowser.log
-export FB_DATABASE="/tmp/filebrowser.db"
-
 # Check if filebrowser db exists.
 if [[ ! -f "\${FB_DATABASE}" ]]; then
-	filebrowser config init
-	if [[ "\$AUTH" == "password" ]]; then
-		filebrowser users add admin admin --perm.admin=true --viewMode=mosaic
-	fi
+	filebrowser config init >>\${LOG_PATH} 2>&1
+	filebrowser users add admin "" --perm.admin=true --viewMode=mosaic >>\${LOG_PATH} 2>&1
 fi
 
-# Configure filebrowser.
-if [[ "\$AUTH" == "none" ]]; then
-	filebrowser config set --port="\${PORT}" --auth.method=noauth --root="\${FOLDER}"
-else
-	filebrowser config set --port="\${PORT}" --auth.method=json --root="\${FOLDER}"
-fi
-
-set -euo pipefail
+filebrowser config set --baseurl=\${BASEURL} --port=\${PORT} --auth.method=noauth --root=\${FOLDER} >>\${LOG_PATH} 2>&1
 
 printf "👷 Starting filebrowser...\n\n"
+
 printf "📂 Serving \${FOLDER} at http://localhost:\${PORT}\n\n"
 
 filebrowser >>\${LOG_PATH} 2>&1 &
@@ -52,5 +43,4 @@ EOF
 
 chmod +x /usr/local/bin/filebrowser-entrypoint
 
-printf "✅ File Browser installed!\n\n"
-printf "🚀 Run 'filebrowser-entrypoint' to start the service\n\n"
+printf "🥳 Installation complete!\n\n"

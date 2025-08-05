@@ -116,7 +116,7 @@ is installed.
    ![Create template](../images/screenshots/create-template.png)_Create
    template_
 
-1. Select **Create template**.
+1. Select **Save**.
 
 1. After the template is ready, select **Create Workspace**.
 

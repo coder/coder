@@ -4,7 +4,7 @@ package agentssh
 
 import (
 	"context"
-	"os/exec"
+	"os"
 	"syscall"
 
 	"cdr.dev/slog"
@@ -16,9 +16,7 @@ func cmdSysProcAttr() *syscall.SysProcAttr {
 	}
 }
 
-func cmdCancel(ctx context.Context, logger slog.Logger, cmd *exec.Cmd) func() error {
-	return func() error {
-		logger.Debug(ctx, "cmdCancel: sending SIGHUP to process and children", slog.F("pid", cmd.Process.Pid))
-		return syscall.Kill(-cmd.Process.Pid, syscall.SIGHUP)
-	}
+func cmdCancel(logger slog.Logger, p *os.Process) error {
+	logger.Debug(context.Background(), "cmdCancel: sending SIGHUP to process and children", slog.F("pid", p.Pid))
+	return syscall.Kill(-p.Pid, syscall.SIGHUP)
 }

@@ -6,6 +6,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
+import { Spinner } from "components/Spinner/Spinner";
 import { EllipsisVertical, ExternalLinkIcon, HouseIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import type { Task } from "modules/tasks/tasks";
@@ -97,14 +98,31 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 				</div>
 			)}
 
-			<iframe
-				ref={frameRef}
-				src={frameSrc}
-				title={link.label}
-				loading="eager"
-				className={"w-full h-full border-0"}
-				allow="clipboard-read; clipboard-write"
-			/>
+			{app.health === "healthy" ||
+			app.health === "disabled" ||
+			app.health === "unhealthy" ? (
+				<iframe
+					ref={frameRef}
+					src={frameSrc}
+					title={link.label}
+					loading="eager"
+					className={"w-full h-full border-0"}
+					allow="clipboard-read; clipboard-write"
+				/>
+			) : app.health === "initializing" ? (
+				<div className="w-full h-full flex items-center justify-center">
+					<Spinner loading />
+				</div>
+			) : (
+				<div className="w-full h-full flex flex-col items-center justify-center">
+					<h3 className="m-0 font-medium text-content-primary text-base">
+						Error
+					</h3>
+					<span className="text-content-secondary text-sm">
+						The app is in an unknown health state.
+					</span>
+				</div>
+			)}
 		</div>
 	);
 };

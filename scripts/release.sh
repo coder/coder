@@ -308,6 +308,21 @@ if [[ ${preview} =~ ^[Yy]$ ]]; then
 fi
 log
 
+# Prompt user to manually update the release calendar documentation
+log "IMPORTANT: Please manually update the release calendar documentation before proceeding."
+log "The release calendar is located at: https://coder.com/docs/install/releases#release-schedule"
+log "You can also run the update script: ./scripts/update-release-calendar.sh"
+log
+while [[ ! ${calendar_updated:-} =~ ^[YyNn]$ ]]; do
+	read -p "Have you updated the release calendar documentation? (y/n) " -n 1 -r calendar_updated
+	log
+done
+if ! [[ ${calendar_updated} =~ ^[Yy]$ ]]; then
+	log "Please update the release calendar documentation before proceeding with the release."
+	exit 0
+fi
+log
+
 while [[ ! ${create:-} =~ ^[YyNn]$ ]]; do
 	read -p "Create, build and publish release? (y/n) " -n 1 -r create
 	log

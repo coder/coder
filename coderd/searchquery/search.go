@@ -33,7 +33,9 @@ import (
 //   - resource_type: string (enum)
 //   - action: string (enum)
 //   - build_reason: string (enum)
-func AuditLogs(ctx context.Context, db database.Store, query string) (database.GetAuditLogsOffsetParams, []codersdk.ValidationError) {
+func AuditLogs(ctx context.Context, db database.Store, query string) (database.GetAuditLogsOffsetParams,
+	database.CountAuditLogsParams, []codersdk.ValidationError,
+) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
@@ -41,7 +43,8 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 		return nil
 	})
 	if len(errors) > 0 {
-		return database.GetAuditLogsOffsetParams{}, errors
+		// nolint:exhaustruct // We don't need to initialize these structs because we return an error.
+		return database.GetAuditLogsOffsetParams{}, database.CountAuditLogsParams{}, errors
 	}
 
 	const dateLayout = "2006-01-02"
@@ -63,8 +66,81 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 		filter.DateTo = filter.DateTo.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
 	}
 
+	// Prepare the count filter, which uses the same parameters as the GetAuditLogsOffsetParams.
+	// nolint:exhaustruct // UserID is not obtained from the query parameters.
+	countFilter := database.CountAuditLogsParams{
+		RequestID:      filter.RequestID,
+		ResourceID:     filter.ResourceID,
+		ResourceTarget: filter.ResourceTarget,
+		Username:       filter.Username,
+		Email:          filter.Email,
+		DateFrom:       filter.DateFrom,
+		DateTo:         filter.DateTo,
+		OrganizationID: filter.OrganizationID,
+		ResourceType:   filter.ResourceType,
+		Action:         filter.Action,
+		BuildReason:    filter.BuildReason,
+	}
+
 	parser.ErrorExcessParams(values)
-	return filter, parser.Errors
+	return filter, countFilter, parser.Errors
+}
+
+func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey database.APIKey) (database.GetConnectionLogsOffsetParams, database.CountConnectionLogsParams, []codersdk.ValidationError) {
+	// Always lowercase for all searches.
+	query = strings.ToLower(query)
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		values.Add("search", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		// nolint:exhaustruct // We don't need to initialize these structs because we return an error.
+		return database.GetConnectionLogsOffsetParams{}, database.CountConnectionLogsParams{}, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter := database.GetConnectionLogsOffsetParams{
+		OrganizationID:      parseOrganization(ctx, db, parser, values, "organization"),
+		WorkspaceOwner:      parser.String(values, "", "workspace_owner"),
+		WorkspaceOwnerEmail: parser.String(values, "", "workspace_owner_email"),
+		Type:                string(httpapi.ParseCustom(parser, values, "", "type", httpapi.ParseEnum[database.ConnectionType])),
+		Username:            parser.String(values, "", "username"),
+		UserEmail:           parser.String(values, "", "user_email"),
+		ConnectedAfter:      parser.Time3339Nano(values, time.Time{}, "connected_after"),
+		ConnectedBefore:     parser.Time3339Nano(values, time.Time{}, "connected_before"),
+		WorkspaceID:         parser.UUID(values, uuid.Nil, "workspace_id"),
+		ConnectionID:        parser.UUID(values, uuid.Nil, "connection_id"),
+		Status:              string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[codersdk.ConnectionLogStatus])),
+	}
+
+	if filter.Username == "me" {
+		filter.UserID = apiKey.UserID
+		filter.Username = ""
+	}
+
+	if filter.WorkspaceOwner == "me" {
+		filter.WorkspaceOwnerID = apiKey.UserID
+		filter.WorkspaceOwner = ""
+	}
+
+	// This MUST be kept in sync with the above
+	countFilter := database.CountConnectionLogsParams{
+		OrganizationID:      filter.OrganizationID,
+		WorkspaceOwner:      filter.WorkspaceOwner,
+		WorkspaceOwnerID:    filter.WorkspaceOwnerID,
+		WorkspaceOwnerEmail: filter.WorkspaceOwnerEmail,
+		Type:                filter.Type,
+		UserID:              filter.UserID,
+		Username:            filter.Username,
+		UserEmail:           filter.UserEmail,
+		ConnectedAfter:      filter.ConnectedAfter,
+		ConnectedBefore:     filter.ConnectedBefore,
+		WorkspaceID:         filter.WorkspaceID,
+		ConnectionID:        filter.ConnectionID,
+		Status:              filter.Status,
+	}
+	parser.ErrorExcessParams(values)
+	return filter, countFilter, parser.Errors
 }
 
 func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {

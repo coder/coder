@@ -11,14 +11,54 @@ INSERT INTO oauth2_provider_apps (
     updated_at,
     name,
     icon,
-    callback_url
+    callback_url,
+    redirect_uris,
+    client_type,
+    dynamically_registered,
+    client_id_issued_at,
+    client_secret_expires_at,
+    grant_types,
+    response_types,
+    token_endpoint_auth_method,
+    scope,
+    contacts,
+    client_uri,
+    logo_uri,
+    tos_uri,
+    policy_uri,
+    jwks_uri,
+    jwks,
+    software_id,
+    software_version,
+    registration_access_token,
+    registration_client_uri
 ) VALUES(
     $1,
     $2,
     $3,
     $4,
     $5,
-    $6
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11,
+    $12,
+    $13,
+    $14,
+    $15,
+    $16,
+    $17,
+    $18,
+    $19,
+    $20,
+    $21,
+    $22,
+    $23,
+    $24,
+    $25,
+    $26
 ) RETURNING *;
 
 -- name: UpdateOAuth2ProviderAppByID :one
@@ -26,7 +66,24 @@ UPDATE oauth2_provider_apps SET
     updated_at = $2,
     name = $3,
     icon = $4,
-    callback_url = $5
+    callback_url = $5,
+    redirect_uris = $6,
+    client_type = $7,
+    dynamically_registered = $8,
+    client_secret_expires_at = $9,
+    grant_types = $10,
+    response_types = $11,
+    token_endpoint_auth_method = $12,
+    scope = $13,
+    contacts = $14,
+    client_uri = $15,
+    logo_uri = $16,
+    tos_uri = $17,
+    policy_uri = $18,
+    jwks_uri = $19,
+    jwks = $20,
+    software_id = $21,
+    software_version = $22
 WHERE id = $1 RETURNING *;
 
 -- name: DeleteOAuth2ProviderAppByID :exec
@@ -80,7 +137,10 @@ INSERT INTO oauth2_provider_app_codes (
     secret_prefix,
     hashed_secret,
     app_id,
-    user_id
+    user_id,
+    resource_uri,
+    code_challenge,
+    code_challenge_method
 ) VALUES(
     $1,
     $2,
@@ -88,7 +148,10 @@ INSERT INTO oauth2_provider_app_codes (
     $4,
     $5,
     $6,
-    $7
+    $7,
+    $8,
+    $9,
+    $10
 ) RETURNING *;
 
 -- name: DeleteOAuth2ProviderAppCodeByID :exec
@@ -105,7 +168,9 @@ INSERT INTO oauth2_provider_app_tokens (
     hash_prefix,
     refresh_hash,
     app_secret_id,
-    api_key_id
+    api_key_id,
+    user_id,
+    audience
 ) VALUES(
     $1,
     $2,
@@ -113,11 +178,16 @@ INSERT INTO oauth2_provider_app_tokens (
     $4,
     $5,
     $6,
-    $7
+    $7,
+    $8,
+    $9
 ) RETURNING *;
 
 -- name: GetOAuth2ProviderAppTokenByPrefix :one
 SELECT * FROM oauth2_provider_app_tokens WHERE hash_prefix = $1;
+
+-- name: GetOAuth2ProviderAppTokenByAPIKeyID :one
+SELECT * FROM oauth2_provider_app_tokens WHERE api_key_id = $1;
 
 -- name: GetOAuth2ProviderAppsByUserID :many
 SELECT
@@ -128,10 +198,8 @@ FROM oauth2_provider_app_tokens
     ON oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
   INNER JOIN oauth2_provider_apps
     ON oauth2_provider_apps.id = oauth2_provider_app_secrets.app_id
-  INNER JOIN api_keys
-    ON api_keys.id = oauth2_provider_app_tokens.api_key_id
 WHERE
-  api_keys.user_id = $1
+  oauth2_provider_app_tokens.user_id = $1
 GROUP BY
   oauth2_provider_apps.id;
 
@@ -139,9 +207,43 @@ GROUP BY
 DELETE FROM
   oauth2_provider_app_tokens
 USING
-  oauth2_provider_app_secrets, api_keys
+  oauth2_provider_app_secrets
 WHERE
   oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
-  AND api_keys.id = oauth2_provider_app_tokens.api_key_id
   AND oauth2_provider_app_secrets.app_id = $1
-	AND api_keys.user_id = $2;
+  AND oauth2_provider_app_tokens.user_id = $2;
+
+-- RFC 7591/7592 Dynamic Client Registration queries
+
+-- name: GetOAuth2ProviderAppByClientID :one
+SELECT * FROM oauth2_provider_apps WHERE id = $1;
+
+-- name: UpdateOAuth2ProviderAppByClientID :one
+UPDATE oauth2_provider_apps SET
+    updated_at = $2,
+    name = $3,
+    icon = $4,
+    callback_url = $5,
+    redirect_uris = $6,
+    client_type = $7,
+    client_secret_expires_at = $8,
+    grant_types = $9,
+    response_types = $10,
+    token_endpoint_auth_method = $11,
+    scope = $12,
+    contacts = $13,
+    client_uri = $14,
+    logo_uri = $15,
+    tos_uri = $16,
+    policy_uri = $17,
+    jwks_uri = $18,
+    jwks = $19,
+    software_id = $20,
+    software_version = $21
+WHERE id = $1 RETURNING *;
+
+-- name: DeleteOAuth2ProviderAppByClientID :exec
+DELETE FROM oauth2_provider_apps WHERE id = $1;
+
+-- name: GetOAuth2ProviderAppByRegistrationToken :one
+SELECT * FROM oauth2_provider_apps WHERE registration_access_token = $1;

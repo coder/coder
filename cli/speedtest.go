@@ -83,7 +83,7 @@ func (r *RootCmd) speedtest() *serpent.Command {
 				return xerrors.Errorf("--direct (-d) is incompatible with --%s", varDisableDirect)
 			}
 
-			_, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, false, inv.Args[0])
+			_, workspaceAgent, _, err := getWorkspaceAndAgent(ctx, inv, client, false, inv.Args[0])
 			if err != nil {
 				return err
 			}

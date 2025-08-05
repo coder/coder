@@ -96,6 +96,7 @@ Use the following `make` commands and scripts in development:
 
    This should return an empty list of workspaces. If you encounter an error, review the output from the [develop.sh](https://github.com/coder/coder/blob/main/scripts/develop.sh) script for issues.
 
+   > [!NOTE]
    > `coder-dev.sh` is a helper script that behaves like the regular coder CLI, but uses the binary built from your local source and shares the same configuration directory set up by `develop.sh`. This ensures your local changes are reflected when testing.
    >
    > The default user is `admin@coder.com` and the default password is `SomeSecurePassword!`

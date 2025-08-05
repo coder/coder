@@ -33,6 +33,8 @@ func NextAutostart(at time.Time, wsSchedule string, templateSchedule TemplateSch
 	return zonedTransition, allowed
 }
 
+// NextAllowedAutostart returns the next valid autostart time after 'at', based on the workspace's
+// cron schedule and the template's allowed days. It searches up to 7 days ahead to find a match.
 func NextAllowedAutostart(at time.Time, wsSchedule string, templateSchedule TemplateScheduleOptions) (time.Time, error) {
 	next := at
 

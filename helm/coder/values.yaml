@@ -142,6 +142,38 @@ coder:
     # root. It is recommended to leave this setting disabled in production.
     allowPrivilegeEscalation: false
 
+  # coder.podSecurityContext -- Pod-level security context settings that apply
+  # to all containers in the pod. This is useful for setting volume ownership
+  # (fsGroup) when mounting secrets like TLS certificates. These settings are
+  # applied at the pod level, while coder.securityContext applies at the
+  # container level. Container-level settings take precedence over pod-level
+  # settings for overlapping fields. This is opt-in and not set by default.
+  # Common use case: Set fsGroup to ensure mounted secret volumes have correct
+  # group ownership for the coder user to read certificate files.
+  podSecurityContext: {}
+  # Example configuration for certificate mounting:
+  # podSecurityContext:
+  #   # Sets group ownership of mounted volumes (e.g., for certificate secrets)
+  #   fsGroup: 1000
+  #   # Additional pod-level security settings (optional)
+  #   runAsUser: 1000
+  #   runAsGroup: 1000
+  #   runAsNonRoot: true
+  #   supplementalGroups: [4000]
+  #   seccompProfile:
+  #     type: RuntimeDefault
+  #   # Note: Avoid conflicts with container-level securityContext settings
+  #   # Container-level settings take precedence over pod-level settings
+  #
+  # IMPORTANT: OpenShift Compatibility
+  # On OpenShift, Security Context Constraints (SCCs) may restrict or override
+  # these values. If you encounter pod creation failures:
+  # 1. Check your namespace's assigned SCC with: oc describe scc
+  # 2. Ensure runAsUser/fsGroup values are within allowed UID/GID ranges
+  # 3. Consider using 'anyuid' SCC for more flexibility, or
+  # 4. Omit runAsUser/runAsGroup and only set fsGroup for volume ownership
+  # 5. OpenShift may automatically assign compatible values if left unset
+
   # coder.volumes -- A list of extra volumes to add to the Coder pod.
   volumes: []
   # - name: "my-volume"
@@ -159,6 +191,10 @@ coder:
     # Helm deployment and should be of type "kubernetes.io/tls". The secrets
     # will be automatically mounted into the pod if specified, and the correct
     # "CODER_TLS_*" environment variables will be set for you.
+
+    # Note: If you encounter permission issues reading mounted certificates,
+    # consider setting coder.podSecurityContext.fsGroup to match your container
+    # user (typically 1000) to ensure proper file ownership.
     secretNames: []
 
   # coder.replicaCount -- The number of Kubernetes deployment replicas. This
@@ -205,6 +241,18 @@ coder:
     # requests:
     #  cpu: 2000m
     #  memory: 4096Mi
+
+  # coder.readinessProbe -- Readiness probe configuration for the Coder container.
+  readinessProbe:
+    # coder.readinessProbe.initialDelaySeconds -- Number of seconds after the container
+    # has started before readiness probes are initiated.
+    initialDelaySeconds: 0
+
+  # coder.livenessProbe -- Liveness probe configuration for the Coder container.
+  livenessProbe:
+    # coder.livenessProbe.initialDelaySeconds -- Number of seconds after the container
+    # has started before liveness probes are initiated.
+    initialDelaySeconds: 0
 
   # coder.certs -- CA bundles to mount inside the Coder pod.
   certs:

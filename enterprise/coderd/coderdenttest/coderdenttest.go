@@ -22,7 +22,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -60,6 +59,7 @@ func init() {
 
 type Options struct {
 	*coderdtest.Options
+	ConnectionLogging          bool
 	AuditLogging               bool
 	BrowserOnly                bool
 	EntitlementsUpdateInterval time.Duration
@@ -101,6 +101,7 @@ func NewWithAPI(t *testing.T, options *Options) (
 	setHandler, cancelFunc, serverURL, oop := coderdtest.NewOptions(t, options.Options)
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
 		RBAC:                       true,
+		ConnectionLogging:          options.ConnectionLogging,
 		AuditLogging:               options.AuditLogging,
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,
@@ -149,8 +150,6 @@ func NewWithAPI(t *testing.T, options *Options) (
 					// we check for the in-memory test types so that the real types don't have to exported
 					_, ok := coderAPI.Pubsub.(*pubsub.MemoryPubsub)
 					require.False(t, ok, "FeatureHighAvailability is incompatible with MemoryPubsub")
-					_, ok = coderAPI.Database.(*dbmem.FakeQuerier)
-					require.False(t, ok, "FeatureHighAvailability is incompatible with dbmem")
 				}
 			}
 			_ = AddLicense(t, client, lo)
@@ -177,16 +176,27 @@ type LicenseOptions struct {
 	// zero value, the `nbf` claim on the license is set to 1 minute in the
 	// past.
 	NotBefore time.Time
-	Features  license.Features
+	// IssuedAt is the time at which the license was issued. If set to the
+	// zero value, the `iat` claim on the license is set to 1 minute in the
+	// past.
+	IssuedAt time.Time
+	Features license.Features
+}
+
+func (opts *LicenseOptions) WithIssuedAt(now time.Time) *LicenseOptions {
+	opts.IssuedAt = now
+	return opts
 }
 
 func (opts *LicenseOptions) Expired(now time.Time) *LicenseOptions {
+	opts.NotBefore = now.Add(time.Hour * 24 * -4) // needs to be before the grace period
 	opts.ExpiresAt = now.Add(time.Hour * 24 * -2)
 	opts.GraceAt = now.Add(time.Hour * 24 * -3)
 	return opts
 }
 
 func (opts *LicenseOptions) GracePeriod(now time.Time) *LicenseOptions {
+	opts.NotBefore = now.Add(time.Hour * 24 * -2) // needs to be before the grace period
 	opts.ExpiresAt = now.Add(time.Hour * 24)
 	opts.GraceAt = now.Add(time.Hour * 24 * -1)
 	return opts
@@ -207,6 +217,14 @@ func (opts *LicenseOptions) FutureTerm(now time.Time) *LicenseOptions {
 
 func (opts *LicenseOptions) UserLimit(limit int64) *LicenseOptions {
 	return opts.Feature(codersdk.FeatureUserLimit, limit)
+}
+
+func (opts *LicenseOptions) ManagedAgentLimit(soft int64, hard int64) *LicenseOptions {
+	// These don't use named or exported feature names, see
+	// enterprise/coderd/license/license.go.
+	opts = opts.Feature(codersdk.FeatureName("managed_agent_limit_soft"), soft)
+	opts = opts.Feature(codersdk.FeatureName("managed_agent_limit_hard"), hard)
+	return opts
 }
 
 func (opts *LicenseOptions) Feature(name codersdk.FeatureName, value int64) *LicenseOptions {
@@ -237,6 +255,7 @@ func AddLicense(t *testing.T, client *codersdk.Client, options LicenseOptions) c
 
 // GenerateLicense returns a signed JWT using the test key.
 func GenerateLicense(t *testing.T, options LicenseOptions) string {
+	t.Helper()
 	if options.ExpiresAt.IsZero() {
 		options.ExpiresAt = time.Now().Add(time.Hour)
 	}
@@ -247,13 +266,18 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		options.NotBefore = time.Now().Add(-time.Minute)
 	}
 
+	issuedAt := options.IssuedAt
+	if issuedAt.IsZero() {
+		issuedAt = time.Now().Add(-time.Minute)
+	}
+
 	c := &license.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        uuid.NewString(),
 			Issuer:    "test@testing.test",
 			ExpiresAt: jwt.NewNumericDate(options.ExpiresAt),
 			NotBefore: jwt.NewNumericDate(options.NotBefore),
-			IssuedAt:  jwt.NewNumericDate(time.Now().Add(-time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(issuedAt),
 		},
 		LicenseExpires: jwt.NewNumericDate(options.GraceAt),
 		AccountType:    options.AccountType,
@@ -265,7 +289,12 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		FeatureSet:     options.FeatureSet,
 		Features:       options.Features,
 	}
-	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)
+	return GenerateLicenseRaw(t, c)
+}
+
+func GenerateLicenseRaw(t *testing.T, claims jwt.Claims) string {
+	t.Helper()
+	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, claims)
 	tok.Header[license.HeaderKeyID] = testKeyID
 	signedTok, err := tok.SignedString(testPrivateKey)
 	require.NoError(t, err)

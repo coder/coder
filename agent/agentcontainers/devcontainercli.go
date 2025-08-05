@@ -91,6 +91,7 @@ type CoderCustomization struct {
 	Apps        []SubAgentApp                `json:"apps,omitempty"`
 	Name        string                       `json:"name,omitempty"`
 	Ignore      bool                         `json:"ignore,omitempty"`
+	AutoStart   bool                         `json:"autoStart,omitempty"`
 }
 
 type DevcontainerWorkspace struct {
@@ -106,63 +107,63 @@ type DevcontainerCLI interface {
 
 // DevcontainerCLIUpOptions are options for the devcontainer CLI Up
 // command.
-type DevcontainerCLIUpOptions func(*devcontainerCLIUpConfig)
+type DevcontainerCLIUpOptions func(*DevcontainerCLIUpConfig)
 
-type devcontainerCLIUpConfig struct {
-	args   []string // Additional arguments for the Up command.
-	stdout io.Writer
-	stderr io.Writer
+type DevcontainerCLIUpConfig struct {
+	Args   []string // Additional arguments for the Up command.
+	Stdout io.Writer
+	Stderr io.Writer
 }
 
 // WithRemoveExistingContainer is an option to remove the existing
 // container.
 func WithRemoveExistingContainer() DevcontainerCLIUpOptions {
-	return func(o *devcontainerCLIUpConfig) {
-		o.args = append(o.args, "--remove-existing-container")
+	return func(o *DevcontainerCLIUpConfig) {
+		o.Args = append(o.Args, "--remove-existing-container")
 	}
 }
 
 // WithUpOutput sets additional stdout and stderr writers for logs
 // during Up operations.
 func WithUpOutput(stdout, stderr io.Writer) DevcontainerCLIUpOptions {
-	return func(o *devcontainerCLIUpConfig) {
-		o.stdout = stdout
-		o.stderr = stderr
+	return func(o *DevcontainerCLIUpConfig) {
+		o.Stdout = stdout
+		o.Stderr = stderr
 	}
 }
 
 // DevcontainerCLIExecOptions are options for the devcontainer CLI Exec
 // command.
-type DevcontainerCLIExecOptions func(*devcontainerCLIExecConfig)
+type DevcontainerCLIExecOptions func(*DevcontainerCLIExecConfig)
 
-type devcontainerCLIExecConfig struct {
-	args   []string // Additional arguments for the Exec command.
-	stdout io.Writer
-	stderr io.Writer
+type DevcontainerCLIExecConfig struct {
+	Args   []string // Additional arguments for the Exec command.
+	Stdout io.Writer
+	Stderr io.Writer
 }
 
 // WithExecOutput sets additional stdout and stderr writers for logs
 // during Exec operations.
 func WithExecOutput(stdout, stderr io.Writer) DevcontainerCLIExecOptions {
-	return func(o *devcontainerCLIExecConfig) {
-		o.stdout = stdout
-		o.stderr = stderr
+	return func(o *DevcontainerCLIExecConfig) {
+		o.Stdout = stdout
+		o.Stderr = stderr
 	}
 }
 
 // WithExecContainerID sets the container ID to target a specific
 // container.
 func WithExecContainerID(id string) DevcontainerCLIExecOptions {
-	return func(o *devcontainerCLIExecConfig) {
-		o.args = append(o.args, "--container-id", id)
+	return func(o *DevcontainerCLIExecConfig) {
+		o.Args = append(o.Args, "--container-id", id)
 	}
 }
 
 // WithRemoteEnv sets environment variables for the Exec command.
 func WithRemoteEnv(env ...string) DevcontainerCLIExecOptions {
-	return func(o *devcontainerCLIExecConfig) {
+	return func(o *DevcontainerCLIExecConfig) {
 		for _, e := range env {
-			o.args = append(o.args, "--remote-env", e)
+			o.Args = append(o.Args, "--remote-env", e)
 		}
 	}
 }
@@ -185,8 +186,8 @@ func WithReadConfigOutput(stdout, stderr io.Writer) DevcontainerCLIReadConfigOpt
 	}
 }
 
-func applyDevcontainerCLIUpOptions(opts []DevcontainerCLIUpOptions) devcontainerCLIUpConfig {
-	conf := devcontainerCLIUpConfig{stdout: io.Discard, stderr: io.Discard}
+func applyDevcontainerCLIUpOptions(opts []DevcontainerCLIUpOptions) DevcontainerCLIUpConfig {
+	conf := DevcontainerCLIUpConfig{Stdout: io.Discard, Stderr: io.Discard}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&conf)
@@ -195,8 +196,8 @@ func applyDevcontainerCLIUpOptions(opts []DevcontainerCLIUpOptions) devcontainer
 	return conf
 }
 
-func applyDevcontainerCLIExecOptions(opts []DevcontainerCLIExecOptions) devcontainerCLIExecConfig {
-	conf := devcontainerCLIExecConfig{stdout: io.Discard, stderr: io.Discard}
+func applyDevcontainerCLIExecOptions(opts []DevcontainerCLIExecOptions) DevcontainerCLIExecConfig {
+	conf := DevcontainerCLIExecConfig{Stdout: io.Discard, Stderr: io.Discard}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&conf)
@@ -241,7 +242,7 @@ func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath st
 	if configPath != "" {
 		args = append(args, "--config", configPath)
 	}
-	args = append(args, conf.args...)
+	args = append(args, conf.Args...)
 	cmd := d.execer.CommandContext(ctx, "devcontainer", args...)
 
 	// Capture stdout for parsing and stream logs for both default and provided writers.
@@ -251,14 +252,14 @@ func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath st
 		&devcontainerCLILogWriter{
 			ctx:    ctx,
 			logger: logger.With(slog.F("stdout", true)),
-			writer: conf.stdout,
+			writer: conf.Stdout,
 		},
 	)
 	// Stream stderr logs and provided writer if any.
 	cmd.Stderr = &devcontainerCLILogWriter{
 		ctx:    ctx,
 		logger: logger.With(slog.F("stderr", true)),
-		writer: conf.stderr,
+		writer: conf.Stderr,
 	}
 
 	if err := cmd.Run(); err != nil {
@@ -293,17 +294,17 @@ func (d *devcontainerCLI) Exec(ctx context.Context, workspaceFolder, configPath 
 	if configPath != "" {
 		args = append(args, "--config", configPath)
 	}
-	args = append(args, conf.args...)
+	args = append(args, conf.Args...)
 	args = append(args, cmd)
 	args = append(args, cmdArgs...)
 	c := d.execer.CommandContext(ctx, "devcontainer", args...)
 
-	c.Stdout = io.MultiWriter(conf.stdout, &devcontainerCLILogWriter{
+	c.Stdout = io.MultiWriter(conf.Stdout, &devcontainerCLILogWriter{
 		ctx:    ctx,
 		logger: logger.With(slog.F("stdout", true)),
 		writer: io.Discard,
 	})
-	c.Stderr = io.MultiWriter(conf.stderr, &devcontainerCLILogWriter{
+	c.Stderr = io.MultiWriter(conf.Stderr, &devcontainerCLILogWriter{
 		ctx:    ctx,
 		logger: logger.With(slog.F("stderr", true)),
 		writer: io.Discard,

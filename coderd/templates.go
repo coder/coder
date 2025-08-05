@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -29,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
@@ -197,16 +199,20 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Default is false as dynamic parameters are now the preferred approach.
+	useClassicParameterFlow := ptr.NilToDefault(createTemplate.UseClassicParameterFlow, false)
+
 	// Make a temporary struct to represent the template. This is used for
 	// auditing if any of the following checks fail. It will be overwritten when
 	// the template is inserted into the db.
 	templateAudit.New = database.Template{
-		OrganizationID: organization.ID,
-		Name:           createTemplate.Name,
-		Description:    createTemplate.Description,
-		CreatedBy:      apiKey.UserID,
-		Icon:           createTemplate.Icon,
-		DisplayName:    createTemplate.DisplayName,
+		OrganizationID:          organization.ID,
+		Name:                    createTemplate.Name,
+		Description:             createTemplate.Description,
+		CreatedBy:               apiKey.UserID,
+		Icon:                    createTemplate.Icon,
+		DisplayName:             createTemplate.DisplayName,
+		UseClassicParameterFlow: useClassicParameterFlow,
 	}
 
 	_, err := api.Database.GetTemplateByOrganizationAndName(ctx, database.GetTemplateByOrganizationAndNameParams{
@@ -318,6 +324,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		autostopRequirementDaysOfWeekParsed  uint8
 		autostartRequirementDaysOfWeekParsed uint8
 		maxPortShareLevel                    = database.AppSharingLevelOwner // default
+		corsBehavior                         = database.CorsBehaviorSimple   // default
 	)
 	if defaultTTL < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
@@ -345,6 +352,20 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		} else {
 			maxPortShareLevel = database.AppSharingLevel(*createTemplate.MaxPortShareLevel)
 		}
+	}
+
+	// Default the CORS behavior here to Simple so we don't break all existing templates.
+	val := database.CorsBehaviorSimple
+	if createTemplate.CORSBehavior != nil {
+		val = database.CorsBehavior(*createTemplate.CORSBehavior)
+	}
+	if !val.Valid() {
+		validErrs = append(validErrs, codersdk.ValidationError{
+			Field:  "cors_behavior",
+			Detail: fmt.Sprintf("Invalid CORS behavior %q. Must be one of [%s]", *createTemplate.CORSBehavior, strings.Join(slice.ToStrings(database.AllCorsBehaviorValues()), ", ")),
+		})
+	} else {
+		corsBehavior = val
 	}
 
 	if autostopRequirementWeeks < 0 {
@@ -404,6 +425,8 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			Icon:                         createTemplate.Icon,
 			AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
 			MaxPortSharingLevel:          maxPortShareLevel,
+			UseClassicParameterFlow:      useClassicParameterFlow,
+			CorsBehavior:                 corsBehavior,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
@@ -720,6 +743,19 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	corsBehavior := template.CorsBehavior
+	if req.CORSBehavior != nil && *req.CORSBehavior != "" {
+		val := database.CorsBehavior(*req.CORSBehavior)
+		if !val.Valid() {
+			validErrs = append(validErrs, codersdk.ValidationError{
+				Field:  "cors_behavior",
+				Detail: fmt.Sprintf("Invalid CORS behavior %q. Must be one of [%s]", *req.CORSBehavior, strings.Join(slice.ToStrings(database.AllCorsBehaviorValues()), ", ")),
+			})
+		} else {
+			corsBehavior = val
+		}
+	}
+
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid request to update template metadata!",
@@ -754,7 +790,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.RequireActiveVersion == template.RequireActiveVersion &&
 			(deprecationMessage == template.Deprecated) &&
 			(classicTemplateFlow == template.UseClassicParameterFlow) &&
-			maxPortShareLevel == template.MaxPortSharingLevel {
+			maxPortShareLevel == template.MaxPortSharingLevel &&
+			corsBehavior == template.CorsBehavior {
 			return nil
 		}
 
@@ -796,6 +833,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			GroupACL:                     groupACL,
 			MaxPortSharingLevel:          maxPortShareLevel,
 			UseClassicParameterFlow:      classicTemplateFlow,
+			CorsBehavior:                 corsBehavior,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
@@ -1079,6 +1117,7 @@ func (api *API) convertTemplate(
 		DeprecationMessage:      templateAccessControl.Deprecated,
 		MaxPortShareLevel:       maxPortShareLevel,
 		UseClassicParameterFlow: template.UseClassicParameterFlow,
+		CORSBehavior:            codersdk.CORSBehavior(template.CorsBehavior),
 	}
 }
 

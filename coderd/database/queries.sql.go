@@ -441,140 +441,268 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 	return err
 }
 
-const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many
-SELECT
-    audit_logs.id, audit_logs.time, audit_logs.user_id, audit_logs.organization_id, audit_logs.ip, audit_logs.user_agent, audit_logs.resource_type, audit_logs.resource_id, audit_logs.resource_target, audit_logs.action, audit_logs.diff, audit_logs.status_code, audit_logs.additional_fields, audit_logs.request_id, audit_logs.resource_icon,
-    -- sqlc.embed(users) would be nice but it does not seem to play well with
-    -- left joins.
-    users.username AS user_username,
-    users.name AS user_name,
-    users.email AS user_email,
-    users.created_at AS user_created_at,
-    users.updated_at AS user_updated_at,
-    users.last_seen_at AS user_last_seen_at,
-    users.status AS user_status,
-    users.login_type AS user_login_type,
-    users.rbac_roles AS user_roles,
-    users.avatar_url AS user_avatar_url,
-    users.deleted AS user_deleted,
-    users.quiet_hours_schedule AS user_quiet_hours_schedule,
-    COALESCE(organizations.name, '') AS organization_name,
-    COALESCE(organizations.display_name, '') AS organization_display_name,
-    COALESCE(organizations.icon, '') AS organization_icon,
-    COUNT(audit_logs.*) OVER () AS count
-FROM
-    audit_logs
-    LEFT JOIN users ON audit_logs.user_id = users.id
-    LEFT JOIN
-        -- First join on workspaces to get the initial workspace create
-        -- to workspace build 1 id. This is because the first create is
-        -- is a different audit log than subsequent starts.
-        workspaces ON
-		    audit_logs.resource_type = 'workspace' AND
-			audit_logs.resource_id = workspaces.id
-    LEFT JOIN
-	    workspace_builds ON
-            -- Get the reason from the build if the resource type
-            -- is a workspace_build
-            (
-			    audit_logs.resource_type = 'workspace_build'
-                AND audit_logs.resource_id = workspace_builds.id
-			)
-            OR
-            -- Get the reason from the build #1 if this is the first
-            -- workspace create.
-            (
-				audit_logs.resource_type = 'workspace' AND
-				audit_logs.action = 'create' AND
-				workspaces.id = workspace_builds.workspace_id AND
-				workspace_builds.build_number = 1
-			)
-		LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
+const countAuditLogs = `-- name: CountAuditLogs :one
+SELECT COUNT(*)
+FROM audit_logs
+	LEFT JOIN users ON audit_logs.user_id = users.id
+	LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
+	-- First join on workspaces to get the initial workspace create
+	-- to workspace build 1 id. This is because the first create is
+	-- is a different audit log than subsequent starts.
+	LEFT JOIN workspaces ON audit_logs.resource_type = 'workspace'
+	AND audit_logs.resource_id = workspaces.id
+	-- Get the reason from the build if the resource type
+	-- is a workspace_build
+	LEFT JOIN workspace_builds wb_build ON audit_logs.resource_type = 'workspace_build'
+	AND audit_logs.resource_id = wb_build.id
+	-- Get the reason from the build #1 if this is the first
+	-- workspace create.
+	LEFT JOIN workspace_builds wb_workspace ON audit_logs.resource_type = 'workspace'
+	AND audit_logs.action = 'create'
+	AND workspaces.id = wb_workspace.workspace_id
+	AND wb_workspace.build_number = 1
 WHERE
-    -- Filter resource_type
+	-- Filter resource_type
 	CASE
-		WHEN $1 :: text != '' THEN
-			resource_type = $1 :: resource_type
+		WHEN $1::text != '' THEN resource_type = $1::resource_type
 		ELSE true
 	END
 	-- Filter resource_id
 	AND CASE
-		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			resource_id = $2
+		WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN resource_id = $2
 		ELSE true
 	END
-  	-- Filter organization_id
-  	AND CASE
-		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			audit_logs.organization_id = $3
+	-- Filter organization_id
+	AND CASE
+		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.organization_id = $3
 		ELSE true
 	END
 	-- Filter by resource_target
 	AND CASE
-		WHEN $4 :: text != '' THEN
-			resource_target = $4
+		WHEN $4::text != '' THEN resource_target = $4
 		ELSE true
 	END
 	-- Filter action
 	AND CASE
-		WHEN $5 :: text != '' THEN
-			action = $5 :: audit_action
+		WHEN $5::text != '' THEN action = $5::audit_action
 		ELSE true
 	END
 	-- Filter by user_id
 	AND CASE
-		WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			user_id = $6
+		WHEN $6::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN user_id = $6
 		ELSE true
 	END
 	-- Filter by username
 	AND CASE
-		WHEN $7 :: text != '' THEN
-			user_id = (SELECT id FROM users WHERE lower(username) = lower($7) AND deleted = false)
+		WHEN $7::text != '' THEN user_id = (
+			SELECT id
+			FROM users
+			WHERE lower(username) = lower($7)
+				AND deleted = false
+		)
 		ELSE true
 	END
 	-- Filter by user_email
 	AND CASE
-		WHEN $8 :: text != '' THEN
-			users.email = $8
+		WHEN $8::text != '' THEN users.email = $8
 		ELSE true
 	END
 	-- Filter by date_from
 	AND CASE
-		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			"time" >= $9
+		WHEN $9::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" >= $9
 		ELSE true
 	END
 	-- Filter by date_to
 	AND CASE
-		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			"time" <= $10
+		WHEN $10::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" <= $10
 		ELSE true
 	END
-    -- Filter by build_reason
-    AND CASE
-	    WHEN $11::text != '' THEN
-            workspace_builds.reason::text = $11
-        ELSE true
-    END
+	-- Filter by build_reason
+	AND CASE
+		WHEN $11::text != '' THEN COALESCE(wb_build.reason::text, wb_workspace.reason::text) = $11
+		ELSE true
+	END
 	-- Filter request_id
 	AND CASE
-		WHEN $12 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			audit_logs.request_id = $12
+		WHEN $12::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.request_id = $12
 		ELSE true
 	END
+	-- Authorize Filter clause will be injected below in CountAuthorizedAuditLogs
+	-- @authorize_filter
+`
 
+type CountAuditLogsParams struct {
+	ResourceType   string    `db:"resource_type" json:"resource_type"`
+	ResourceID     uuid.UUID `db:"resource_id" json:"resource_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ResourceTarget string    `db:"resource_target" json:"resource_target"`
+	Action         string    `db:"action" json:"action"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	Username       string    `db:"username" json:"username"`
+	Email          string    `db:"email" json:"email"`
+	DateFrom       time.Time `db:"date_from" json:"date_from"`
+	DateTo         time.Time `db:"date_to" json:"date_to"`
+	BuildReason    string    `db:"build_reason" json:"build_reason"`
+	RequestID      uuid.UUID `db:"request_id" json:"request_id"`
+}
+
+func (q *sqlQuerier) CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAuditLogs,
+		arg.ResourceType,
+		arg.ResourceID,
+		arg.OrganizationID,
+		arg.ResourceTarget,
+		arg.Action,
+		arg.UserID,
+		arg.Username,
+		arg.Email,
+		arg.DateFrom,
+		arg.DateTo,
+		arg.BuildReason,
+		arg.RequestID,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const deleteOldAuditLogConnectionEvents = `-- name: DeleteOldAuditLogConnectionEvents :exec
+DELETE FROM audit_logs
+WHERE id IN (
+    SELECT id FROM audit_logs
+    WHERE
+        (
+            action = 'connect'
+            OR action = 'disconnect'
+            OR action = 'open'
+            OR action = 'close'
+        )
+        AND "time" < $1::timestamp with time zone
+    ORDER BY "time" ASC
+    LIMIT $2
+)
+`
+
+type DeleteOldAuditLogConnectionEventsParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+func (q *sqlQuerier) DeleteOldAuditLogConnectionEvents(ctx context.Context, arg DeleteOldAuditLogConnectionEventsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteOldAuditLogConnectionEvents, arg.BeforeTime, arg.LimitCount)
+	return err
+}
+
+const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many
+SELECT audit_logs.id, audit_logs.time, audit_logs.user_id, audit_logs.organization_id, audit_logs.ip, audit_logs.user_agent, audit_logs.resource_type, audit_logs.resource_id, audit_logs.resource_target, audit_logs.action, audit_logs.diff, audit_logs.status_code, audit_logs.additional_fields, audit_logs.request_id, audit_logs.resource_icon,
+	-- sqlc.embed(users) would be nice but it does not seem to play well with
+	-- left joins.
+	users.username AS user_username,
+	users.name AS user_name,
+	users.email AS user_email,
+	users.created_at AS user_created_at,
+	users.updated_at AS user_updated_at,
+	users.last_seen_at AS user_last_seen_at,
+	users.status AS user_status,
+	users.login_type AS user_login_type,
+	users.rbac_roles AS user_roles,
+	users.avatar_url AS user_avatar_url,
+	users.deleted AS user_deleted,
+	users.quiet_hours_schedule AS user_quiet_hours_schedule,
+	COALESCE(organizations.name, '') AS organization_name,
+	COALESCE(organizations.display_name, '') AS organization_display_name,
+	COALESCE(organizations.icon, '') AS organization_icon
+FROM audit_logs
+	LEFT JOIN users ON audit_logs.user_id = users.id
+	LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
+	-- First join on workspaces to get the initial workspace create
+	-- to workspace build 1 id. This is because the first create is
+	-- is a different audit log than subsequent starts.
+	LEFT JOIN workspaces ON audit_logs.resource_type = 'workspace'
+	AND audit_logs.resource_id = workspaces.id
+	-- Get the reason from the build if the resource type
+	-- is a workspace_build
+	LEFT JOIN workspace_builds wb_build ON audit_logs.resource_type = 'workspace_build'
+	AND audit_logs.resource_id = wb_build.id
+	-- Get the reason from the build #1 if this is the first
+	-- workspace create.
+	LEFT JOIN workspace_builds wb_workspace ON audit_logs.resource_type = 'workspace'
+	AND audit_logs.action = 'create'
+	AND workspaces.id = wb_workspace.workspace_id
+	AND wb_workspace.build_number = 1
+WHERE
+	-- Filter resource_type
+	CASE
+		WHEN $1::text != '' THEN resource_type = $1::resource_type
+		ELSE true
+	END
+	-- Filter resource_id
+	AND CASE
+		WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN resource_id = $2
+		ELSE true
+	END
+	-- Filter organization_id
+	AND CASE
+		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.organization_id = $3
+		ELSE true
+	END
+	-- Filter by resource_target
+	AND CASE
+		WHEN $4::text != '' THEN resource_target = $4
+		ELSE true
+	END
+	-- Filter action
+	AND CASE
+		WHEN $5::text != '' THEN action = $5::audit_action
+		ELSE true
+	END
+	-- Filter by user_id
+	AND CASE
+		WHEN $6::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN user_id = $6
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN $7::text != '' THEN user_id = (
+			SELECT id
+			FROM users
+			WHERE lower(username) = lower($7)
+				AND deleted = false
+		)
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN $8::text != '' THEN users.email = $8
+		ELSE true
+	END
+	-- Filter by date_from
+	AND CASE
+		WHEN $9::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" >= $9
+		ELSE true
+	END
+	-- Filter by date_to
+	AND CASE
+		WHEN $10::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" <= $10
+		ELSE true
+	END
+	-- Filter by build_reason
+	AND CASE
+		WHEN $11::text != '' THEN COALESCE(wb_build.reason::text, wb_workspace.reason::text) = $11
+		ELSE true
+	END
+	-- Filter request_id
+	AND CASE
+		WHEN $12::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.request_id = $12
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedAuditLogsOffset
 	-- @authorize_filter
-ORDER BY
-    "time" DESC
-LIMIT
-	-- a limit of 0 means "no limit". The audit log table is unbounded
+ORDER BY "time" DESC
+LIMIT -- a limit of 0 means "no limit". The audit log table is unbounded
 	-- in size, and is expected to be quite large. Implement a default
 	-- limit of 100 to prevent accidental excessively large queries.
-	COALESCE(NULLIF($14 :: int, 0), 100)
-OFFSET
-    $13
+	COALESCE(NULLIF($14::int, 0), 100) OFFSET $13
 `
 
 type GetAuditLogsOffsetParams struct {
@@ -611,7 +739,6 @@ type GetAuditLogsOffsetRow struct {
 	OrganizationName        string         `db:"organization_name" json:"organization_name"`
 	OrganizationDisplayName string         `db:"organization_display_name" json:"organization_display_name"`
 	OrganizationIcon        string         `db:"organization_icon" json:"organization_icon"`
-	Count                   int64          `db:"count" json:"count"`
 }
 
 // GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
@@ -671,7 +798,6 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 			&i.OrganizationName,
 			&i.OrganizationDisplayName,
 			&i.OrganizationIcon,
-			&i.Count,
 		); err != nil {
 			return nil, err
 		}
@@ -687,26 +813,41 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 }
 
 const insertAuditLog = `-- name: InsertAuditLog :one
-INSERT INTO
-	audit_logs (
-        id,
-        "time",
-        user_id,
-        organization_id,
-        ip,
-        user_agent,
-        resource_type,
-        resource_id,
-        resource_target,
-        action,
-        diff,
-        status_code,
-        additional_fields,
-        request_id,
-        resource_icon
-    )
-VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, time, user_id, organization_id, ip, user_agent, resource_type, resource_id, resource_target, action, diff, status_code, additional_fields, request_id, resource_icon
+INSERT INTO audit_logs (
+		id,
+		"time",
+		user_id,
+		organization_id,
+		ip,
+		user_agent,
+		resource_type,
+		resource_id,
+		resource_target,
+		action,
+		diff,
+		status_code,
+		additional_fields,
+		request_id,
+		resource_icon
+	)
+VALUES (
+		$1,
+		$2,
+		$3,
+		$4,
+		$5,
+		$6,
+		$7,
+		$8,
+		$9,
+		$10,
+		$11,
+		$12,
+		$13,
+		$14,
+		$15
+	)
+RETURNING id, time, user_id, organization_id, ip, user_agent, resource_type, resource_id, resource_target, action, diff, status_code, additional_fields, request_id, resource_icon
 `
 
 type InsertAuditLogParams struct {
@@ -762,6 +903,509 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 		&i.AdditionalFields,
 		&i.RequestID,
 		&i.ResourceIcon,
+	)
+	return i, err
+}
+
+const countConnectionLogs = `-- name: CountConnectionLogs :one
+SELECT
+	COUNT(*) AS count
+FROM
+	connection_logs
+JOIN users AS workspace_owner ON
+	connection_logs.workspace_owner_id = workspace_owner.id
+LEFT JOIN users ON
+	connection_logs.user_id = users.id
+JOIN organizations ON
+	connection_logs.organization_id = organizations.id
+WHERE
+	-- Filter organization_id
+	CASE
+		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.organization_id = $1
+		ELSE true
+	END
+	-- Filter by workspace owner username
+	AND CASE
+		WHEN $2 :: text != '' THEN
+			workspace_owner_id = (
+				SELECT id FROM users
+				WHERE lower(username) = lower($2) AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by workspace_owner_id
+	AND CASE
+		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspace_owner_id = $3
+		ELSE true
+	END
+	-- Filter by workspace_owner_email
+	AND CASE
+		WHEN $4 :: text != '' THEN
+			workspace_owner_id = (
+				SELECT id FROM users
+				WHERE email = $4 AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by type
+	AND CASE
+		WHEN $5 :: text != '' THEN
+			type = $5 :: connection_type
+		ELSE true
+	END
+	-- Filter by user_id
+	AND CASE
+		WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = $6
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN $7 :: text != '' THEN
+			user_id = (
+				SELECT id FROM users
+				WHERE lower(username) = lower($7) AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN $8 :: text != '' THEN
+			users.email = $8
+		ELSE true
+	END
+	-- Filter by connected_after
+	AND CASE
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			connect_time >= $9
+		ELSE true
+	END
+	-- Filter by connected_before
+	AND CASE
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			connect_time <= $10
+		ELSE true
+	END
+	-- Filter by workspace_id
+	AND CASE
+		WHEN $11 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.workspace_id = $11
+		ELSE true
+	END
+	-- Filter by connection_id
+	AND CASE
+		WHEN $12 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.connection_id = $12
+		ELSE true
+	END
+	-- Filter by whether the session has a disconnect_time
+	AND CASE
+		WHEN $13 :: text != '' THEN
+			(($13 = 'ongoing' AND disconnect_time IS NULL) OR
+			($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
+			-- Exclude web events, since we don't know their close time.
+			"type" NOT IN ('workspace_app', 'port_forwarding')
+		ELSE true
+	END
+	-- Authorize Filter clause will be injected below in
+	-- CountAuthorizedConnectionLogs
+	-- @authorize_filter
+`
+
+type CountConnectionLogsParams struct {
+	OrganizationID      uuid.UUID `db:"organization_id" json:"organization_id"`
+	WorkspaceOwner      string    `db:"workspace_owner" json:"workspace_owner"`
+	WorkspaceOwnerID    uuid.UUID `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceOwnerEmail string    `db:"workspace_owner_email" json:"workspace_owner_email"`
+	Type                string    `db:"type" json:"type"`
+	UserID              uuid.UUID `db:"user_id" json:"user_id"`
+	Username            string    `db:"username" json:"username"`
+	UserEmail           string    `db:"user_email" json:"user_email"`
+	ConnectedAfter      time.Time `db:"connected_after" json:"connected_after"`
+	ConnectedBefore     time.Time `db:"connected_before" json:"connected_before"`
+	WorkspaceID         uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	ConnectionID        uuid.UUID `db:"connection_id" json:"connection_id"`
+	Status              string    `db:"status" json:"status"`
+}
+
+func (q *sqlQuerier) CountConnectionLogs(ctx context.Context, arg CountConnectionLogsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countConnectionLogs,
+		arg.OrganizationID,
+		arg.WorkspaceOwner,
+		arg.WorkspaceOwnerID,
+		arg.WorkspaceOwnerEmail,
+		arg.Type,
+		arg.UserID,
+		arg.Username,
+		arg.UserEmail,
+		arg.ConnectedAfter,
+		arg.ConnectedBefore,
+		arg.WorkspaceID,
+		arg.ConnectionID,
+		arg.Status,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
+SELECT
+	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason,
+	-- sqlc.embed(users) would be nice but it does not seem to play well with
+	-- left joins. This user metadata is necessary for parity with the audit logs
+	-- API.
+	users.username AS user_username,
+	users.name AS user_name,
+	users.email AS user_email,
+	users.created_at AS user_created_at,
+	users.updated_at AS user_updated_at,
+	users.last_seen_at AS user_last_seen_at,
+	users.status AS user_status,
+	users.login_type AS user_login_type,
+	users.rbac_roles AS user_roles,
+	users.avatar_url AS user_avatar_url,
+	users.deleted AS user_deleted,
+	users.quiet_hours_schedule AS user_quiet_hours_schedule,
+	workspace_owner.username AS workspace_owner_username,
+	organizations.name AS organization_name,
+	organizations.display_name AS organization_display_name,
+	organizations.icon AS organization_icon
+FROM
+	connection_logs
+JOIN users AS workspace_owner ON
+	connection_logs.workspace_owner_id = workspace_owner.id
+LEFT JOIN users ON
+	connection_logs.user_id = users.id
+JOIN organizations ON
+	connection_logs.organization_id = organizations.id
+WHERE
+	-- Filter organization_id
+	CASE
+		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.organization_id = $1
+		ELSE true
+	END
+	-- Filter by workspace owner username
+	AND CASE
+		WHEN $2 :: text != '' THEN
+			workspace_owner_id = (
+				SELECT id FROM users
+				WHERE lower(username) = lower($2) AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by workspace_owner_id
+	AND CASE
+		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspace_owner_id = $3
+		ELSE true
+	END
+	-- Filter by workspace_owner_email
+	AND CASE
+		WHEN $4 :: text != '' THEN
+			workspace_owner_id = (
+				SELECT id FROM users
+				WHERE email = $4 AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by type
+	AND CASE
+		WHEN $5 :: text != '' THEN
+			type = $5 :: connection_type
+		ELSE true
+	END
+	-- Filter by user_id
+	AND CASE
+		WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = $6
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN $7 :: text != '' THEN
+			user_id = (
+				SELECT id FROM users
+				WHERE lower(username) = lower($7) AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN $8 :: text != '' THEN
+			users.email = $8
+		ELSE true
+	END
+	-- Filter by connected_after
+	AND CASE
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			connect_time >= $9
+		ELSE true
+	END
+	-- Filter by connected_before
+	AND CASE
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			connect_time <= $10
+		ELSE true
+	END
+	-- Filter by workspace_id
+	AND CASE
+		WHEN $11 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.workspace_id = $11
+		ELSE true
+	END
+	-- Filter by connection_id
+	AND CASE
+		WHEN $12 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.connection_id = $12
+		ELSE true
+	END
+	-- Filter by whether the session has a disconnect_time
+	AND CASE
+		WHEN $13 :: text != '' THEN
+			(($13 = 'ongoing' AND disconnect_time IS NULL) OR
+			($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
+			-- Exclude web events, since we don't know their close time.
+			"type" NOT IN ('workspace_app', 'port_forwarding')
+		ELSE true
+	END
+	-- Authorize Filter clause will be injected below in
+	-- GetAuthorizedConnectionLogsOffset
+	-- @authorize_filter
+ORDER BY
+	connect_time DESC
+LIMIT
+	-- a limit of 0 means "no limit". The connection log table is unbounded
+	-- in size, and is expected to be quite large. Implement a default
+	-- limit of 100 to prevent accidental excessively large queries.
+	COALESCE(NULLIF($15 :: int, 0), 100)
+OFFSET
+	$14
+`
+
+type GetConnectionLogsOffsetParams struct {
+	OrganizationID      uuid.UUID `db:"organization_id" json:"organization_id"`
+	WorkspaceOwner      string    `db:"workspace_owner" json:"workspace_owner"`
+	WorkspaceOwnerID    uuid.UUID `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceOwnerEmail string    `db:"workspace_owner_email" json:"workspace_owner_email"`
+	Type                string    `db:"type" json:"type"`
+	UserID              uuid.UUID `db:"user_id" json:"user_id"`
+	Username            string    `db:"username" json:"username"`
+	UserEmail           string    `db:"user_email" json:"user_email"`
+	ConnectedAfter      time.Time `db:"connected_after" json:"connected_after"`
+	ConnectedBefore     time.Time `db:"connected_before" json:"connected_before"`
+	WorkspaceID         uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	ConnectionID        uuid.UUID `db:"connection_id" json:"connection_id"`
+	Status              string    `db:"status" json:"status"`
+	OffsetOpt           int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt            int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+type GetConnectionLogsOffsetRow struct {
+	ConnectionLog           ConnectionLog  `db:"connection_log" json:"connection_log"`
+	UserUsername            sql.NullString `db:"user_username" json:"user_username"`
+	UserName                sql.NullString `db:"user_name" json:"user_name"`
+	UserEmail               sql.NullString `db:"user_email" json:"user_email"`
+	UserCreatedAt           sql.NullTime   `db:"user_created_at" json:"user_created_at"`
+	UserUpdatedAt           sql.NullTime   `db:"user_updated_at" json:"user_updated_at"`
+	UserLastSeenAt          sql.NullTime   `db:"user_last_seen_at" json:"user_last_seen_at"`
+	UserStatus              NullUserStatus `db:"user_status" json:"user_status"`
+	UserLoginType           NullLoginType  `db:"user_login_type" json:"user_login_type"`
+	UserRoles               pq.StringArray `db:"user_roles" json:"user_roles"`
+	UserAvatarUrl           sql.NullString `db:"user_avatar_url" json:"user_avatar_url"`
+	UserDeleted             sql.NullBool   `db:"user_deleted" json:"user_deleted"`
+	UserQuietHoursSchedule  sql.NullString `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
+	WorkspaceOwnerUsername  string         `db:"workspace_owner_username" json:"workspace_owner_username"`
+	OrganizationName        string         `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName string         `db:"organization_display_name" json:"organization_display_name"`
+	OrganizationIcon        string         `db:"organization_icon" json:"organization_icon"`
+}
+
+func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error) {
+	rows, err := q.db.QueryContext(ctx, getConnectionLogsOffset,
+		arg.OrganizationID,
+		arg.WorkspaceOwner,
+		arg.WorkspaceOwnerID,
+		arg.WorkspaceOwnerEmail,
+		arg.Type,
+		arg.UserID,
+		arg.Username,
+		arg.UserEmail,
+		arg.ConnectedAfter,
+		arg.ConnectedBefore,
+		arg.WorkspaceID,
+		arg.ConnectionID,
+		arg.Status,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetConnectionLogsOffsetRow
+	for rows.Next() {
+		var i GetConnectionLogsOffsetRow
+		if err := rows.Scan(
+			&i.ConnectionLog.ID,
+			&i.ConnectionLog.ConnectTime,
+			&i.ConnectionLog.OrganizationID,
+			&i.ConnectionLog.WorkspaceOwnerID,
+			&i.ConnectionLog.WorkspaceID,
+			&i.ConnectionLog.WorkspaceName,
+			&i.ConnectionLog.AgentName,
+			&i.ConnectionLog.Type,
+			&i.ConnectionLog.Ip,
+			&i.ConnectionLog.Code,
+			&i.ConnectionLog.UserAgent,
+			&i.ConnectionLog.UserID,
+			&i.ConnectionLog.SlugOrPort,
+			&i.ConnectionLog.ConnectionID,
+			&i.ConnectionLog.DisconnectTime,
+			&i.ConnectionLog.DisconnectReason,
+			&i.UserUsername,
+			&i.UserName,
+			&i.UserEmail,
+			&i.UserCreatedAt,
+			&i.UserUpdatedAt,
+			&i.UserLastSeenAt,
+			&i.UserStatus,
+			&i.UserLoginType,
+			&i.UserRoles,
+			&i.UserAvatarUrl,
+			&i.UserDeleted,
+			&i.UserQuietHoursSchedule,
+			&i.WorkspaceOwnerUsername,
+			&i.OrganizationName,
+			&i.OrganizationDisplayName,
+			&i.OrganizationIcon,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertConnectionLog = `-- name: UpsertConnectionLog :one
+INSERT INTO connection_logs (
+	id,
+	connect_time,
+	organization_id,
+	workspace_owner_id,
+	workspace_id,
+	workspace_name,
+	agent_name,
+	type,
+	code,
+	ip,
+	user_agent,
+	user_id,
+	slug_or_port,
+	connection_id,
+	disconnect_reason,
+	disconnect_time
+) VALUES
+	($1, $15, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+	-- If we've only received a disconnect event, mark the event as immediately
+	-- closed.
+	 CASE
+		 WHEN $16::connection_status = 'disconnected'
+		 THEN $15 :: timestamp with time zone
+		 ELSE NULL
+	 END)
+ON CONFLICT (connection_id, workspace_id, agent_name)
+DO UPDATE SET
+	-- No-op if the connection is still open.
+	disconnect_time = CASE
+		WHEN $16::connection_status = 'disconnected'
+		-- Can only be set once
+		AND connection_logs.disconnect_time IS NULL
+		THEN EXCLUDED.connect_time
+		ELSE connection_logs.disconnect_time
+	END,
+	disconnect_reason = CASE
+		WHEN $16::connection_status = 'disconnected'
+		-- Can only be set once
+		AND connection_logs.disconnect_reason IS NULL
+		THEN EXCLUDED.disconnect_reason
+		ELSE connection_logs.disconnect_reason
+	END,
+	code = CASE
+		WHEN $16::connection_status = 'disconnected'
+		-- Can only be set once
+		AND connection_logs.code IS NULL
+		THEN EXCLUDED.code
+		ELSE connection_logs.code
+	END
+RETURNING id, connect_time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, ip, code, user_agent, user_id, slug_or_port, connection_id, disconnect_time, disconnect_reason
+`
+
+type UpsertConnectionLogParams struct {
+	ID               uuid.UUID        `db:"id" json:"id"`
+	OrganizationID   uuid.UUID        `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID uuid.UUID        `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      uuid.UUID        `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    string           `db:"workspace_name" json:"workspace_name"`
+	AgentName        string           `db:"agent_name" json:"agent_name"`
+	Type             ConnectionType   `db:"type" json:"type"`
+	Code             sql.NullInt32    `db:"code" json:"code"`
+	Ip               pqtype.Inet      `db:"ip" json:"ip"`
+	UserAgent        sql.NullString   `db:"user_agent" json:"user_agent"`
+	UserID           uuid.NullUUID    `db:"user_id" json:"user_id"`
+	SlugOrPort       sql.NullString   `db:"slug_or_port" json:"slug_or_port"`
+	ConnectionID     uuid.NullUUID    `db:"connection_id" json:"connection_id"`
+	DisconnectReason sql.NullString   `db:"disconnect_reason" json:"disconnect_reason"`
+	Time             time.Time        `db:"time" json:"time"`
+	ConnectionStatus ConnectionStatus `db:"connection_status" json:"connection_status"`
+}
+
+func (q *sqlQuerier) UpsertConnectionLog(ctx context.Context, arg UpsertConnectionLogParams) (ConnectionLog, error) {
+	row := q.db.QueryRowContext(ctx, upsertConnectionLog,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceOwnerID,
+		arg.WorkspaceID,
+		arg.WorkspaceName,
+		arg.AgentName,
+		arg.Type,
+		arg.Code,
+		arg.Ip,
+		arg.UserAgent,
+		arg.UserID,
+		arg.SlugOrPort,
+		arg.ConnectionID,
+		arg.DisconnectReason,
+		arg.Time,
+		arg.ConnectionStatus,
+	)
+	var i ConnectionLog
+	err := row.Scan(
+		&i.ID,
+		&i.ConnectTime,
+		&i.OrganizationID,
+		&i.WorkspaceOwnerID,
+		&i.WorkspaceID,
+		&i.WorkspaceName,
+		&i.AgentName,
+		&i.Type,
+		&i.Ip,
+		&i.Code,
+		&i.UserAgent,
+		&i.UserID,
+		&i.SlugOrPort,
+		&i.ConnectionID,
+		&i.DisconnectTime,
+		&i.DisconnectReason,
 	)
 	return i, err
 }
@@ -3642,6 +4286,44 @@ func (q *sqlQuerier) GetLicenses(ctx context.Context) ([]License, error) {
 	return items, nil
 }
 
+const getManagedAgentCount = `-- name: GetManagedAgentCount :one
+SELECT
+	COUNT(DISTINCT wb.id) AS count
+FROM
+	workspace_builds AS wb
+JOIN
+	provisioner_jobs AS pj
+ON
+	wb.job_id = pj.id
+WHERE
+	wb.transition = 'start'::workspace_transition
+	AND wb.has_ai_task = true
+	-- Only count jobs that are pending, running or succeeded. Other statuses
+	-- like cancel(ed|ing), failed or unknown are not considered as managed
+	-- agent usage. These workspace builds are typically unusable anyway.
+	AND pj.job_status IN (
+		'pending'::provisioner_job_status,
+		'running'::provisioner_job_status,
+		'succeeded'::provisioner_job_status
+	)
+	-- Jobs are counted at the time they are created, not when they are
+	-- completed, as pending jobs haven't completed yet.
+	AND wb.created_at BETWEEN $1::timestamptz AND $2::timestamptz
+`
+
+type GetManagedAgentCountParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+// This isn't strictly a license query, but it's related to license enforcement.
+func (q *sqlQuerier) GetManagedAgentCount(ctx context.Context, arg GetManagedAgentCountParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getManagedAgentCount, arg.StartTime, arg.EndTime)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getUnexpiredLicenses = `-- name: GetUnexpiredLicenses :many
 SELECT id, uploaded_at, jwt, exp, uuid
 FROM licenses
@@ -4645,6 +5327,15 @@ func (q *sqlQuerier) UpdateInboxNotificationReadStatus(ctx context.Context, arg 
 	return err
 }
 
+const deleteOAuth2ProviderAppByClientID = `-- name: DeleteOAuth2ProviderAppByClientID :exec
+DELETE FROM oauth2_provider_apps WHERE id = $1
+`
+
+func (q *sqlQuerier) DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteOAuth2ProviderAppByClientID, id)
+	return err
+}
+
 const deleteOAuth2ProviderAppByID = `-- name: DeleteOAuth2ProviderAppByID :exec
 DELETE FROM oauth2_provider_apps WHERE id = $1
 `
@@ -4690,12 +5381,11 @@ const deleteOAuth2ProviderAppTokensByAppAndUserID = `-- name: DeleteOAuth2Provid
 DELETE FROM
   oauth2_provider_app_tokens
 USING
-  oauth2_provider_app_secrets, api_keys
+  oauth2_provider_app_secrets
 WHERE
   oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
-  AND api_keys.id = oauth2_provider_app_tokens.api_key_id
   AND oauth2_provider_app_secrets.app_id = $1
-	AND api_keys.user_id = $2
+  AND oauth2_provider_app_tokens.user_id = $2
 `
 
 type DeleteOAuth2ProviderAppTokensByAppAndUserIDParams struct {
@@ -4708,8 +5398,48 @@ func (q *sqlQuerier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Con
 	return err
 }
 
+const getOAuth2ProviderAppByClientID = `-- name: GetOAuth2ProviderAppByClientID :one
+
+SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps WHERE id = $1
+`
+
+// RFC 7591/7592 Dynamic Client Registration queries
+func (q *sqlQuerier) GetOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppByClientID, id)
+	var i OAuth2ProviderApp
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Icon,
+		&i.CallbackURL,
+		pq.Array(&i.RedirectUris),
+		&i.ClientType,
+		&i.DynamicallyRegistered,
+		&i.ClientIDIssuedAt,
+		&i.ClientSecretExpiresAt,
+		pq.Array(&i.GrantTypes),
+		pq.Array(&i.ResponseTypes),
+		&i.TokenEndpointAuthMethod,
+		&i.Scope,
+		pq.Array(&i.Contacts),
+		&i.ClientUri,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.JwksUri,
+		&i.Jwks,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.RegistrationAccessToken,
+		&i.RegistrationClientUri,
+	)
+	return i, err
+}
+
 const getOAuth2ProviderAppByID = `-- name: GetOAuth2ProviderAppByID :one
-SELECT id, created_at, updated_at, name, icon, callback_url FROM oauth2_provider_apps WHERE id = $1
+SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps WHERE id = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error) {
@@ -4722,12 +5452,70 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID)
 		&i.Name,
 		&i.Icon,
 		&i.CallbackURL,
+		pq.Array(&i.RedirectUris),
+		&i.ClientType,
+		&i.DynamicallyRegistered,
+		&i.ClientIDIssuedAt,
+		&i.ClientSecretExpiresAt,
+		pq.Array(&i.GrantTypes),
+		pq.Array(&i.ResponseTypes),
+		&i.TokenEndpointAuthMethod,
+		&i.Scope,
+		pq.Array(&i.Contacts),
+		&i.ClientUri,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.JwksUri,
+		&i.Jwks,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.RegistrationAccessToken,
+		&i.RegistrationClientUri,
+	)
+	return i, err
+}
+
+const getOAuth2ProviderAppByRegistrationToken = `-- name: GetOAuth2ProviderAppByRegistrationToken :one
+SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps WHERE registration_access_token = $1
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken sql.NullString) (OAuth2ProviderApp, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppByRegistrationToken, registrationAccessToken)
+	var i OAuth2ProviderApp
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Icon,
+		&i.CallbackURL,
+		pq.Array(&i.RedirectUris),
+		&i.ClientType,
+		&i.DynamicallyRegistered,
+		&i.ClientIDIssuedAt,
+		&i.ClientSecretExpiresAt,
+		pq.Array(&i.GrantTypes),
+		pq.Array(&i.ResponseTypes),
+		&i.TokenEndpointAuthMethod,
+		&i.Scope,
+		pq.Array(&i.Contacts),
+		&i.ClientUri,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.JwksUri,
+		&i.Jwks,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.RegistrationAccessToken,
+		&i.RegistrationClientUri,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppCodeByID = `-- name: GetOAuth2ProviderAppCodeByID :one
-SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id FROM oauth2_provider_app_codes WHERE id = $1
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method FROM oauth2_provider_app_codes WHERE id = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error) {
@@ -4741,12 +5529,15 @@ func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.U
 		&i.HashedSecret,
 		&i.UserID,
 		&i.AppID,
+		&i.ResourceUri,
+		&i.CodeChallenge,
+		&i.CodeChallengeMethod,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppCodeByPrefix = `-- name: GetOAuth2ProviderAppCodeByPrefix :one
-SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id FROM oauth2_provider_app_codes WHERE secret_prefix = $1
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method FROM oauth2_provider_app_codes WHERE secret_prefix = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppCode, error) {
@@ -4760,6 +5551,9 @@ func (q *sqlQuerier) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secre
 		&i.HashedSecret,
 		&i.UserID,
 		&i.AppID,
+		&i.ResourceUri,
+		&i.CodeChallenge,
+		&i.CodeChallengeMethod,
 	)
 	return i, err
 }
@@ -4837,8 +5631,29 @@ func (q *sqlQuerier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, app
 	return items, nil
 }
 
+const getOAuth2ProviderAppTokenByAPIKeyID = `-- name: GetOAuth2ProviderAppTokenByAPIKeyID :one
+SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id FROM oauth2_provider_app_tokens WHERE api_key_id = $1
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, apiKeyID string) (OAuth2ProviderAppToken, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppTokenByAPIKeyID, apiKeyID)
+	var i OAuth2ProviderAppToken
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.HashPrefix,
+		&i.RefreshHash,
+		&i.AppSecretID,
+		&i.APIKeyID,
+		&i.Audience,
+		&i.UserID,
+	)
+	return i, err
+}
+
 const getOAuth2ProviderAppTokenByPrefix = `-- name: GetOAuth2ProviderAppTokenByPrefix :one
-SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
+SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (OAuth2ProviderAppToken, error) {
@@ -4852,12 +5667,14 @@ func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hash
 		&i.RefreshHash,
 		&i.AppSecretID,
 		&i.APIKeyID,
+		&i.Audience,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderApps = `-- name: GetOAuth2ProviderApps :many
-SELECT id, created_at, updated_at, name, icon, callback_url FROM oauth2_provider_apps ORDER BY (name, id) ASC
+SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps ORDER BY (name, id) ASC
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2ProviderApp, error) {
@@ -4876,6 +5693,26 @@ func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2Provide
 			&i.Name,
 			&i.Icon,
 			&i.CallbackURL,
+			pq.Array(&i.RedirectUris),
+			&i.ClientType,
+			&i.DynamicallyRegistered,
+			&i.ClientIDIssuedAt,
+			&i.ClientSecretExpiresAt,
+			pq.Array(&i.GrantTypes),
+			pq.Array(&i.ResponseTypes),
+			&i.TokenEndpointAuthMethod,
+			&i.Scope,
+			pq.Array(&i.Contacts),
+			&i.ClientUri,
+			&i.LogoUri,
+			&i.TosUri,
+			&i.PolicyUri,
+			&i.JwksUri,
+			&i.Jwks,
+			&i.SoftwareID,
+			&i.SoftwareVersion,
+			&i.RegistrationAccessToken,
+			&i.RegistrationClientUri,
 		); err != nil {
 			return nil, err
 		}
@@ -4893,16 +5730,14 @@ func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2Provide
 const getOAuth2ProviderAppsByUserID = `-- name: GetOAuth2ProviderAppsByUserID :many
 SELECT
   COUNT(DISTINCT oauth2_provider_app_tokens.id) as token_count,
-  oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.callback_url
+  oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.callback_url, oauth2_provider_apps.redirect_uris, oauth2_provider_apps.client_type, oauth2_provider_apps.dynamically_registered, oauth2_provider_apps.client_id_issued_at, oauth2_provider_apps.client_secret_expires_at, oauth2_provider_apps.grant_types, oauth2_provider_apps.response_types, oauth2_provider_apps.token_endpoint_auth_method, oauth2_provider_apps.scope, oauth2_provider_apps.contacts, oauth2_provider_apps.client_uri, oauth2_provider_apps.logo_uri, oauth2_provider_apps.tos_uri, oauth2_provider_apps.policy_uri, oauth2_provider_apps.jwks_uri, oauth2_provider_apps.jwks, oauth2_provider_apps.software_id, oauth2_provider_apps.software_version, oauth2_provider_apps.registration_access_token, oauth2_provider_apps.registration_client_uri
 FROM oauth2_provider_app_tokens
   INNER JOIN oauth2_provider_app_secrets
     ON oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
   INNER JOIN oauth2_provider_apps
     ON oauth2_provider_apps.id = oauth2_provider_app_secrets.app_id
-  INNER JOIN api_keys
-    ON api_keys.id = oauth2_provider_app_tokens.api_key_id
 WHERE
-  api_keys.user_id = $1
+  oauth2_provider_app_tokens.user_id = $1
 GROUP BY
   oauth2_provider_apps.id
 `
@@ -4929,6 +5764,26 @@ func (q *sqlQuerier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID u
 			&i.OAuth2ProviderApp.Name,
 			&i.OAuth2ProviderApp.Icon,
 			&i.OAuth2ProviderApp.CallbackURL,
+			pq.Array(&i.OAuth2ProviderApp.RedirectUris),
+			&i.OAuth2ProviderApp.ClientType,
+			&i.OAuth2ProviderApp.DynamicallyRegistered,
+			&i.OAuth2ProviderApp.ClientIDIssuedAt,
+			&i.OAuth2ProviderApp.ClientSecretExpiresAt,
+			pq.Array(&i.OAuth2ProviderApp.GrantTypes),
+			pq.Array(&i.OAuth2ProviderApp.ResponseTypes),
+			&i.OAuth2ProviderApp.TokenEndpointAuthMethod,
+			&i.OAuth2ProviderApp.Scope,
+			pq.Array(&i.OAuth2ProviderApp.Contacts),
+			&i.OAuth2ProviderApp.ClientUri,
+			&i.OAuth2ProviderApp.LogoUri,
+			&i.OAuth2ProviderApp.TosUri,
+			&i.OAuth2ProviderApp.PolicyUri,
+			&i.OAuth2ProviderApp.JwksUri,
+			&i.OAuth2ProviderApp.Jwks,
+			&i.OAuth2ProviderApp.SoftwareID,
+			&i.OAuth2ProviderApp.SoftwareVersion,
+			&i.OAuth2ProviderApp.RegistrationAccessToken,
+			&i.OAuth2ProviderApp.RegistrationClientUri,
 		); err != nil {
 			return nil, err
 		}
@@ -4950,24 +5805,84 @@ INSERT INTO oauth2_provider_apps (
     updated_at,
     name,
     icon,
-    callback_url
+    callback_url,
+    redirect_uris,
+    client_type,
+    dynamically_registered,
+    client_id_issued_at,
+    client_secret_expires_at,
+    grant_types,
+    response_types,
+    token_endpoint_auth_method,
+    scope,
+    contacts,
+    client_uri,
+    logo_uri,
+    tos_uri,
+    policy_uri,
+    jwks_uri,
+    jwks,
+    software_id,
+    software_version,
+    registration_access_token,
+    registration_client_uri
 ) VALUES(
     $1,
     $2,
     $3,
     $4,
     $5,
-    $6
-) RETURNING id, created_at, updated_at, name, icon, callback_url
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11,
+    $12,
+    $13,
+    $14,
+    $15,
+    $16,
+    $17,
+    $18,
+    $19,
+    $20,
+    $21,
+    $22,
+    $23,
+    $24,
+    $25,
+    $26
+) RETURNING id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri
 `
 
 type InsertOAuth2ProviderAppParams struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	Name        string    `db:"name" json:"name"`
-	Icon        string    `db:"icon" json:"icon"`
-	CallbackURL string    `db:"callback_url" json:"callback_url"`
+	ID                      uuid.UUID             `db:"id" json:"id"`
+	CreatedAt               time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time             `db:"updated_at" json:"updated_at"`
+	Name                    string                `db:"name" json:"name"`
+	Icon                    string                `db:"icon" json:"icon"`
+	CallbackURL             string                `db:"callback_url" json:"callback_url"`
+	RedirectUris            []string              `db:"redirect_uris" json:"redirect_uris"`
+	ClientType              sql.NullString        `db:"client_type" json:"client_type"`
+	DynamicallyRegistered   sql.NullBool          `db:"dynamically_registered" json:"dynamically_registered"`
+	ClientIDIssuedAt        sql.NullTime          `db:"client_id_issued_at" json:"client_id_issued_at"`
+	ClientSecretExpiresAt   sql.NullTime          `db:"client_secret_expires_at" json:"client_secret_expires_at"`
+	GrantTypes              []string              `db:"grant_types" json:"grant_types"`
+	ResponseTypes           []string              `db:"response_types" json:"response_types"`
+	TokenEndpointAuthMethod sql.NullString        `db:"token_endpoint_auth_method" json:"token_endpoint_auth_method"`
+	Scope                   sql.NullString        `db:"scope" json:"scope"`
+	Contacts                []string              `db:"contacts" json:"contacts"`
+	ClientUri               sql.NullString        `db:"client_uri" json:"client_uri"`
+	LogoUri                 sql.NullString        `db:"logo_uri" json:"logo_uri"`
+	TosUri                  sql.NullString        `db:"tos_uri" json:"tos_uri"`
+	PolicyUri               sql.NullString        `db:"policy_uri" json:"policy_uri"`
+	JwksUri                 sql.NullString        `db:"jwks_uri" json:"jwks_uri"`
+	Jwks                    pqtype.NullRawMessage `db:"jwks" json:"jwks"`
+	SoftwareID              sql.NullString        `db:"software_id" json:"software_id"`
+	SoftwareVersion         sql.NullString        `db:"software_version" json:"software_version"`
+	RegistrationAccessToken sql.NullString        `db:"registration_access_token" json:"registration_access_token"`
+	RegistrationClientUri   sql.NullString        `db:"registration_client_uri" json:"registration_client_uri"`
 }
 
 func (q *sqlQuerier) InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAuth2ProviderAppParams) (OAuth2ProviderApp, error) {
@@ -4978,6 +5893,26 @@ func (q *sqlQuerier) InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAut
 		arg.Name,
 		arg.Icon,
 		arg.CallbackURL,
+		pq.Array(arg.RedirectUris),
+		arg.ClientType,
+		arg.DynamicallyRegistered,
+		arg.ClientIDIssuedAt,
+		arg.ClientSecretExpiresAt,
+		pq.Array(arg.GrantTypes),
+		pq.Array(arg.ResponseTypes),
+		arg.TokenEndpointAuthMethod,
+		arg.Scope,
+		pq.Array(arg.Contacts),
+		arg.ClientUri,
+		arg.LogoUri,
+		arg.TosUri,
+		arg.PolicyUri,
+		arg.JwksUri,
+		arg.Jwks,
+		arg.SoftwareID,
+		arg.SoftwareVersion,
+		arg.RegistrationAccessToken,
+		arg.RegistrationClientUri,
 	)
 	var i OAuth2ProviderApp
 	err := row.Scan(
@@ -4987,6 +5922,26 @@ func (q *sqlQuerier) InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAut
 		&i.Name,
 		&i.Icon,
 		&i.CallbackURL,
+		pq.Array(&i.RedirectUris),
+		&i.ClientType,
+		&i.DynamicallyRegistered,
+		&i.ClientIDIssuedAt,
+		&i.ClientSecretExpiresAt,
+		pq.Array(&i.GrantTypes),
+		pq.Array(&i.ResponseTypes),
+		&i.TokenEndpointAuthMethod,
+		&i.Scope,
+		pq.Array(&i.Contacts),
+		&i.ClientUri,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.JwksUri,
+		&i.Jwks,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.RegistrationAccessToken,
+		&i.RegistrationClientUri,
 	)
 	return i, err
 }
@@ -4999,7 +5954,10 @@ INSERT INTO oauth2_provider_app_codes (
     secret_prefix,
     hashed_secret,
     app_id,
-    user_id
+    user_id,
+    resource_uri,
+    code_challenge,
+    code_challenge_method
 ) VALUES(
     $1,
     $2,
@@ -5007,18 +5965,24 @@ INSERT INTO oauth2_provider_app_codes (
     $4,
     $5,
     $6,
-    $7
-) RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id
+    $7,
+    $8,
+    $9,
+    $10
+) RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method
 `
 
 type InsertOAuth2ProviderAppCodeParams struct {
-	ID           uuid.UUID `db:"id" json:"id"`
-	CreatedAt    time.Time `db:"created_at" json:"created_at"`
-	ExpiresAt    time.Time `db:"expires_at" json:"expires_at"`
-	SecretPrefix []byte    `db:"secret_prefix" json:"secret_prefix"`
-	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
-	AppID        uuid.UUID `db:"app_id" json:"app_id"`
-	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+	ID                  uuid.UUID      `db:"id" json:"id"`
+	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
+	ExpiresAt           time.Time      `db:"expires_at" json:"expires_at"`
+	SecretPrefix        []byte         `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret        []byte         `db:"hashed_secret" json:"hashed_secret"`
+	AppID               uuid.UUID      `db:"app_id" json:"app_id"`
+	UserID              uuid.UUID      `db:"user_id" json:"user_id"`
+	ResourceUri         sql.NullString `db:"resource_uri" json:"resource_uri"`
+	CodeChallenge       sql.NullString `db:"code_challenge" json:"code_challenge"`
+	CodeChallengeMethod sql.NullString `db:"code_challenge_method" json:"code_challenge_method"`
 }
 
 func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg InsertOAuth2ProviderAppCodeParams) (OAuth2ProviderAppCode, error) {
@@ -5030,6 +5994,9 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg Insert
 		arg.HashedSecret,
 		arg.AppID,
 		arg.UserID,
+		arg.ResourceUri,
+		arg.CodeChallenge,
+		arg.CodeChallengeMethod,
 	)
 	var i OAuth2ProviderAppCode
 	err := row.Scan(
@@ -5040,6 +6007,9 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg Insert
 		&i.HashedSecret,
 		&i.UserID,
 		&i.AppID,
+		&i.ResourceUri,
+		&i.CodeChallenge,
+		&i.CodeChallengeMethod,
 	)
 	return i, err
 }
@@ -5101,7 +6071,9 @@ INSERT INTO oauth2_provider_app_tokens (
     hash_prefix,
     refresh_hash,
     app_secret_id,
-    api_key_id
+    api_key_id,
+    user_id,
+    audience
 ) VALUES(
     $1,
     $2,
@@ -5109,18 +6081,22 @@ INSERT INTO oauth2_provider_app_tokens (
     $4,
     $5,
     $6,
-    $7
-) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id
+    $7,
+    $8,
+    $9
+) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id
 `
 
 type InsertOAuth2ProviderAppTokenParams struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	ExpiresAt   time.Time `db:"expires_at" json:"expires_at"`
-	HashPrefix  []byte    `db:"hash_prefix" json:"hash_prefix"`
-	RefreshHash []byte    `db:"refresh_hash" json:"refresh_hash"`
-	AppSecretID uuid.UUID `db:"app_secret_id" json:"app_secret_id"`
-	APIKeyID    string    `db:"api_key_id" json:"api_key_id"`
+	ID          uuid.UUID      `db:"id" json:"id"`
+	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
+	ExpiresAt   time.Time      `db:"expires_at" json:"expires_at"`
+	HashPrefix  []byte         `db:"hash_prefix" json:"hash_prefix"`
+	RefreshHash []byte         `db:"refresh_hash" json:"refresh_hash"`
+	AppSecretID uuid.UUID      `db:"app_secret_id" json:"app_secret_id"`
+	APIKeyID    string         `db:"api_key_id" json:"api_key_id"`
+	UserID      uuid.UUID      `db:"user_id" json:"user_id"`
+	Audience    sql.NullString `db:"audience" json:"audience"`
 }
 
 func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg InsertOAuth2ProviderAppTokenParams) (OAuth2ProviderAppToken, error) {
@@ -5132,6 +6108,8 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		arg.RefreshHash,
 		arg.AppSecretID,
 		arg.APIKeyID,
+		arg.UserID,
+		arg.Audience,
 	)
 	var i OAuth2ProviderAppToken
 	err := row.Scan(
@@ -5142,34 +6120,84 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		&i.RefreshHash,
 		&i.AppSecretID,
 		&i.APIKeyID,
+		&i.Audience,
+		&i.UserID,
 	)
 	return i, err
 }
 
-const updateOAuth2ProviderAppByID = `-- name: UpdateOAuth2ProviderAppByID :one
+const updateOAuth2ProviderAppByClientID = `-- name: UpdateOAuth2ProviderAppByClientID :one
 UPDATE oauth2_provider_apps SET
     updated_at = $2,
     name = $3,
     icon = $4,
-    callback_url = $5
-WHERE id = $1 RETURNING id, created_at, updated_at, name, icon, callback_url
+    callback_url = $5,
+    redirect_uris = $6,
+    client_type = $7,
+    client_secret_expires_at = $8,
+    grant_types = $9,
+    response_types = $10,
+    token_endpoint_auth_method = $11,
+    scope = $12,
+    contacts = $13,
+    client_uri = $14,
+    logo_uri = $15,
+    tos_uri = $16,
+    policy_uri = $17,
+    jwks_uri = $18,
+    jwks = $19,
+    software_id = $20,
+    software_version = $21
+WHERE id = $1 RETURNING id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri
 `
 
-type UpdateOAuth2ProviderAppByIDParams struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	Name        string    `db:"name" json:"name"`
-	Icon        string    `db:"icon" json:"icon"`
-	CallbackURL string    `db:"callback_url" json:"callback_url"`
+type UpdateOAuth2ProviderAppByClientIDParams struct {
+	ID                      uuid.UUID             `db:"id" json:"id"`
+	UpdatedAt               time.Time             `db:"updated_at" json:"updated_at"`
+	Name                    string                `db:"name" json:"name"`
+	Icon                    string                `db:"icon" json:"icon"`
+	CallbackURL             string                `db:"callback_url" json:"callback_url"`
+	RedirectUris            []string              `db:"redirect_uris" json:"redirect_uris"`
+	ClientType              sql.NullString        `db:"client_type" json:"client_type"`
+	ClientSecretExpiresAt   sql.NullTime          `db:"client_secret_expires_at" json:"client_secret_expires_at"`
+	GrantTypes              []string              `db:"grant_types" json:"grant_types"`
+	ResponseTypes           []string              `db:"response_types" json:"response_types"`
+	TokenEndpointAuthMethod sql.NullString        `db:"token_endpoint_auth_method" json:"token_endpoint_auth_method"`
+	Scope                   sql.NullString        `db:"scope" json:"scope"`
+	Contacts                []string              `db:"contacts" json:"contacts"`
+	ClientUri               sql.NullString        `db:"client_uri" json:"client_uri"`
+	LogoUri                 sql.NullString        `db:"logo_uri" json:"logo_uri"`
+	TosUri                  sql.NullString        `db:"tos_uri" json:"tos_uri"`
+	PolicyUri               sql.NullString        `db:"policy_uri" json:"policy_uri"`
+	JwksUri                 sql.NullString        `db:"jwks_uri" json:"jwks_uri"`
+	Jwks                    pqtype.NullRawMessage `db:"jwks" json:"jwks"`
+	SoftwareID              sql.NullString        `db:"software_id" json:"software_id"`
+	SoftwareVersion         sql.NullString        `db:"software_version" json:"software_version"`
 }
 
-func (q *sqlQuerier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg UpdateOAuth2ProviderAppByIDParams) (OAuth2ProviderApp, error) {
-	row := q.db.QueryRowContext(ctx, updateOAuth2ProviderAppByID,
+func (q *sqlQuerier) UpdateOAuth2ProviderAppByClientID(ctx context.Context, arg UpdateOAuth2ProviderAppByClientIDParams) (OAuth2ProviderApp, error) {
+	row := q.db.QueryRowContext(ctx, updateOAuth2ProviderAppByClientID,
 		arg.ID,
 		arg.UpdatedAt,
 		arg.Name,
 		arg.Icon,
 		arg.CallbackURL,
+		pq.Array(arg.RedirectUris),
+		arg.ClientType,
+		arg.ClientSecretExpiresAt,
+		pq.Array(arg.GrantTypes),
+		pq.Array(arg.ResponseTypes),
+		arg.TokenEndpointAuthMethod,
+		arg.Scope,
+		pq.Array(arg.Contacts),
+		arg.ClientUri,
+		arg.LogoUri,
+		arg.TosUri,
+		arg.PolicyUri,
+		arg.JwksUri,
+		arg.Jwks,
+		arg.SoftwareID,
+		arg.SoftwareVersion,
 	)
 	var i OAuth2ProviderApp
 	err := row.Scan(
@@ -5179,6 +6207,134 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg Update
 		&i.Name,
 		&i.Icon,
 		&i.CallbackURL,
+		pq.Array(&i.RedirectUris),
+		&i.ClientType,
+		&i.DynamicallyRegistered,
+		&i.ClientIDIssuedAt,
+		&i.ClientSecretExpiresAt,
+		pq.Array(&i.GrantTypes),
+		pq.Array(&i.ResponseTypes),
+		&i.TokenEndpointAuthMethod,
+		&i.Scope,
+		pq.Array(&i.Contacts),
+		&i.ClientUri,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.JwksUri,
+		&i.Jwks,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.RegistrationAccessToken,
+		&i.RegistrationClientUri,
+	)
+	return i, err
+}
+
+const updateOAuth2ProviderAppByID = `-- name: UpdateOAuth2ProviderAppByID :one
+UPDATE oauth2_provider_apps SET
+    updated_at = $2,
+    name = $3,
+    icon = $4,
+    callback_url = $5,
+    redirect_uris = $6,
+    client_type = $7,
+    dynamically_registered = $8,
+    client_secret_expires_at = $9,
+    grant_types = $10,
+    response_types = $11,
+    token_endpoint_auth_method = $12,
+    scope = $13,
+    contacts = $14,
+    client_uri = $15,
+    logo_uri = $16,
+    tos_uri = $17,
+    policy_uri = $18,
+    jwks_uri = $19,
+    jwks = $20,
+    software_id = $21,
+    software_version = $22
+WHERE id = $1 RETURNING id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri
+`
+
+type UpdateOAuth2ProviderAppByIDParams struct {
+	ID                      uuid.UUID             `db:"id" json:"id"`
+	UpdatedAt               time.Time             `db:"updated_at" json:"updated_at"`
+	Name                    string                `db:"name" json:"name"`
+	Icon                    string                `db:"icon" json:"icon"`
+	CallbackURL             string                `db:"callback_url" json:"callback_url"`
+	RedirectUris            []string              `db:"redirect_uris" json:"redirect_uris"`
+	ClientType              sql.NullString        `db:"client_type" json:"client_type"`
+	DynamicallyRegistered   sql.NullBool          `db:"dynamically_registered" json:"dynamically_registered"`
+	ClientSecretExpiresAt   sql.NullTime          `db:"client_secret_expires_at" json:"client_secret_expires_at"`
+	GrantTypes              []string              `db:"grant_types" json:"grant_types"`
+	ResponseTypes           []string              `db:"response_types" json:"response_types"`
+	TokenEndpointAuthMethod sql.NullString        `db:"token_endpoint_auth_method" json:"token_endpoint_auth_method"`
+	Scope                   sql.NullString        `db:"scope" json:"scope"`
+	Contacts                []string              `db:"contacts" json:"contacts"`
+	ClientUri               sql.NullString        `db:"client_uri" json:"client_uri"`
+	LogoUri                 sql.NullString        `db:"logo_uri" json:"logo_uri"`
+	TosUri                  sql.NullString        `db:"tos_uri" json:"tos_uri"`
+	PolicyUri               sql.NullString        `db:"policy_uri" json:"policy_uri"`
+	JwksUri                 sql.NullString        `db:"jwks_uri" json:"jwks_uri"`
+	Jwks                    pqtype.NullRawMessage `db:"jwks" json:"jwks"`
+	SoftwareID              sql.NullString        `db:"software_id" json:"software_id"`
+	SoftwareVersion         sql.NullString        `db:"software_version" json:"software_version"`
+}
+
+func (q *sqlQuerier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg UpdateOAuth2ProviderAppByIDParams) (OAuth2ProviderApp, error) {
+	row := q.db.QueryRowContext(ctx, updateOAuth2ProviderAppByID,
+		arg.ID,
+		arg.UpdatedAt,
+		arg.Name,
+		arg.Icon,
+		arg.CallbackURL,
+		pq.Array(arg.RedirectUris),
+		arg.ClientType,
+		arg.DynamicallyRegistered,
+		arg.ClientSecretExpiresAt,
+		pq.Array(arg.GrantTypes),
+		pq.Array(arg.ResponseTypes),
+		arg.TokenEndpointAuthMethod,
+		arg.Scope,
+		pq.Array(arg.Contacts),
+		arg.ClientUri,
+		arg.LogoUri,
+		arg.TosUri,
+		arg.PolicyUri,
+		arg.JwksUri,
+		arg.Jwks,
+		arg.SoftwareID,
+		arg.SoftwareVersion,
+	)
+	var i OAuth2ProviderApp
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Icon,
+		&i.CallbackURL,
+		pq.Array(&i.RedirectUris),
+		&i.ClientType,
+		&i.DynamicallyRegistered,
+		&i.ClientIDIssuedAt,
+		&i.ClientSecretExpiresAt,
+		pq.Array(&i.GrantTypes),
+		pq.Array(&i.ResponseTypes),
+		&i.TokenEndpointAuthMethod,
+		&i.Scope,
+		pq.Array(&i.Contacts),
+		&i.ClientUri,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.JwksUri,
+		&i.Jwks,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.RegistrationAccessToken,
+		&i.RegistrationClientUri,
 	)
 	return i, err
 }
@@ -6243,18 +7399,62 @@ func (q *sqlQuerier) GetPresetsBackoff(ctx context.Context, lookback time.Time) 
 }
 
 const getRunningPrebuiltWorkspaces = `-- name: GetRunningPrebuiltWorkspaces :many
+WITH latest_prebuilds AS (
+	-- All workspaces that match the following criteria:
+	-- 1. Owned by prebuilds user
+	-- 2. Not deleted
+	-- 3. Latest build is a 'start' transition
+	-- 4. Latest build was successful
+	SELECT
+		workspaces.id,
+		workspaces.name,
+		workspaces.template_id,
+		workspace_latest_builds.template_version_id,
+		workspace_latest_builds.job_id,
+		workspaces.created_at
+	FROM workspace_latest_builds
+	JOIN workspaces ON workspaces.id = workspace_latest_builds.workspace_id
+	WHERE workspace_latest_builds.transition = 'start'::workspace_transition
+	AND workspace_latest_builds.job_status = 'succeeded'::provisioner_job_status
+	AND workspaces.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
+	AND NOT workspaces.deleted
+),
+workspace_latest_presets AS (
+	-- For each of the above workspaces, the preset_id of the most recent
+	-- successful start transition.
+	SELECT DISTINCT ON (latest_prebuilds.id)
+		latest_prebuilds.id AS workspace_id,
+		workspace_builds.template_version_preset_id AS current_preset_id
+	FROM latest_prebuilds
+	JOIN workspace_builds ON workspace_builds.workspace_id = latest_prebuilds.id
+	WHERE workspace_builds.transition = 'start'::workspace_transition
+	AND   workspace_builds.template_version_preset_id IS NOT NULL
+	ORDER BY latest_prebuilds.id, workspace_builds.build_number DESC
+),
+ready_agents AS (
+	-- For each of the above workspaces, check if all agents are ready.
+	SELECT
+		latest_prebuilds.job_id,
+		BOOL_AND(workspace_agents.lifecycle_state = 'ready'::workspace_agent_lifecycle_state)::boolean AS ready
+	FROM latest_prebuilds
+	JOIN workspace_resources ON workspace_resources.job_id = latest_prebuilds.job_id
+	JOIN workspace_agents ON workspace_agents.resource_id = workspace_resources.id
+	WHERE workspace_agents.deleted = false
+	AND workspace_agents.parent_id IS NULL
+	GROUP BY latest_prebuilds.job_id
+)
 SELECT
-		p.id,
-		p.name,
-		p.template_id,
-		b.template_version_id,
-		p.current_preset_id AS current_preset_id,
-		p.ready,
-		p.created_at
-FROM workspace_prebuilds p
-		INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
-WHERE (b.transition = 'start'::workspace_transition
-	AND b.job_status = 'succeeded'::provisioner_job_status)
+	latest_prebuilds.id,
+	latest_prebuilds.name,
+	latest_prebuilds.template_id,
+	latest_prebuilds.template_version_id,
+	workspace_latest_presets.current_preset_id,
+	COALESCE(ready_agents.ready, false)::boolean AS ready,
+	latest_prebuilds.created_at
+FROM latest_prebuilds
+LEFT JOIN ready_agents ON ready_agents.job_id = latest_prebuilds.job_id
+LEFT JOIN workspace_latest_presets ON workspace_latest_presets.workspace_id = latest_prebuilds.id
+ORDER BY latest_prebuilds.id
 `
 
 type GetRunningPrebuiltWorkspacesRow struct {
@@ -6428,7 +7628,7 @@ func (q *sqlQuerier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]Te
 }
 
 const getPresetByID = `-- name: GetPresetByID :one
-SELECT tvp.id, tvp.template_version_id, tvp.name, tvp.created_at, tvp.desired_instances, tvp.invalidate_after_secs, tvp.prebuild_status, tvp.scheduling_timezone, tvp.is_default, tv.template_id, tv.organization_id FROM
+SELECT tvp.id, tvp.template_version_id, tvp.name, tvp.created_at, tvp.desired_instances, tvp.invalidate_after_secs, tvp.prebuild_status, tvp.scheduling_timezone, tvp.is_default, tvp.description, tvp.icon, tv.template_id, tv.organization_id FROM
 	template_version_presets tvp
 	INNER JOIN template_versions tv ON tvp.template_version_id = tv.id
 WHERE tvp.id = $1
@@ -6444,6 +7644,8 @@ type GetPresetByIDRow struct {
 	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
 	SchedulingTimezone  string         `db:"scheduling_timezone" json:"scheduling_timezone"`
 	IsDefault           bool           `db:"is_default" json:"is_default"`
+	Description         string         `db:"description" json:"description"`
+	Icon                string         `db:"icon" json:"icon"`
 	TemplateID          uuid.NullUUID  `db:"template_id" json:"template_id"`
 	OrganizationID      uuid.UUID      `db:"organization_id" json:"organization_id"`
 }
@@ -6461,6 +7663,8 @@ func (q *sqlQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (Get
 		&i.PrebuildStatus,
 		&i.SchedulingTimezone,
 		&i.IsDefault,
+		&i.Description,
+		&i.Icon,
 		&i.TemplateID,
 		&i.OrganizationID,
 	)
@@ -6469,7 +7673,7 @@ func (q *sqlQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (Get
 
 const getPresetByWorkspaceBuildID = `-- name: GetPresetByWorkspaceBuildID :one
 SELECT
-	template_version_presets.id, template_version_presets.template_version_id, template_version_presets.name, template_version_presets.created_at, template_version_presets.desired_instances, template_version_presets.invalidate_after_secs, template_version_presets.prebuild_status, template_version_presets.scheduling_timezone, template_version_presets.is_default
+	template_version_presets.id, template_version_presets.template_version_id, template_version_presets.name, template_version_presets.created_at, template_version_presets.desired_instances, template_version_presets.invalidate_after_secs, template_version_presets.prebuild_status, template_version_presets.scheduling_timezone, template_version_presets.is_default, template_version_presets.description, template_version_presets.icon
 FROM
 	template_version_presets
 	INNER JOIN workspace_builds ON workspace_builds.template_version_preset_id = template_version_presets.id
@@ -6490,6 +7694,8 @@ func (q *sqlQuerier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceB
 		&i.PrebuildStatus,
 		&i.SchedulingTimezone,
 		&i.IsDefault,
+		&i.Description,
+		&i.Icon,
 	)
 	return i, err
 }
@@ -6571,7 +7777,7 @@ func (q *sqlQuerier) GetPresetParametersByTemplateVersionID(ctx context.Context,
 
 const getPresetsByTemplateVersionID = `-- name: GetPresetsByTemplateVersionID :many
 SELECT
-	id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status, scheduling_timezone, is_default
+	id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status, scheduling_timezone, is_default, description, icon
 FROM
 	template_version_presets
 WHERE
@@ -6597,6 +7803,8 @@ func (q *sqlQuerier) GetPresetsByTemplateVersionID(ctx context.Context, template
 			&i.PrebuildStatus,
 			&i.SchedulingTimezone,
 			&i.IsDefault,
+			&i.Description,
+			&i.Icon,
 		); err != nil {
 			return nil, err
 		}
@@ -6620,7 +7828,9 @@ INSERT INTO template_version_presets (
 	desired_instances,
 	invalidate_after_secs,
 	scheduling_timezone,
-	is_default
+	is_default,
+	description,
+	icon
 )
 VALUES (
 	$1,
@@ -6630,8 +7840,10 @@ VALUES (
 	$5,
 	$6,
 	$7,
-	$8
-) RETURNING id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status, scheduling_timezone, is_default
+	$8,
+	$9,
+	$10
+) RETURNING id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status, scheduling_timezone, is_default, description, icon
 `
 
 type InsertPresetParams struct {
@@ -6643,6 +7855,8 @@ type InsertPresetParams struct {
 	InvalidateAfterSecs sql.NullInt32 `db:"invalidate_after_secs" json:"invalidate_after_secs"`
 	SchedulingTimezone  string        `db:"scheduling_timezone" json:"scheduling_timezone"`
 	IsDefault           bool          `db:"is_default" json:"is_default"`
+	Description         string        `db:"description" json:"description"`
+	Icon                string        `db:"icon" json:"icon"`
 }
 
 func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error) {
@@ -6655,6 +7869,8 @@ func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (
 		arg.InvalidateAfterSecs,
 		arg.SchedulingTimezone,
 		arg.IsDefault,
+		arg.Description,
+		arg.Icon,
 	)
 	var i TemplateVersionPreset
 	err := row.Scan(
@@ -6667,6 +7883,8 @@ func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (
 		&i.PrebuildStatus,
 		&i.SchedulingTimezone,
 		&i.IsDefault,
+		&i.Description,
+		&i.Icon,
 	)
 	return i, err
 }
@@ -7296,6 +8514,44 @@ func (q *sqlQuerier) InsertProvisionerJobLogs(ctx context.Context, arg InsertPro
 	return items, nil
 }
 
+const updateProvisionerJobLogsLength = `-- name: UpdateProvisionerJobLogsLength :exec
+UPDATE 
+	provisioner_jobs
+SET 
+	logs_length = logs_length + $2
+WHERE 
+	id = $1
+`
+
+type UpdateProvisionerJobLogsLengthParams struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	LogsLength int32     `db:"logs_length" json:"logs_length"`
+}
+
+func (q *sqlQuerier) UpdateProvisionerJobLogsLength(ctx context.Context, arg UpdateProvisionerJobLogsLengthParams) error {
+	_, err := q.db.ExecContext(ctx, updateProvisionerJobLogsLength, arg.ID, arg.LogsLength)
+	return err
+}
+
+const updateProvisionerJobLogsOverflowed = `-- name: UpdateProvisionerJobLogsOverflowed :exec
+UPDATE 
+	provisioner_jobs
+SET 
+	logs_overflowed = $2
+WHERE 
+	id = $1
+`
+
+type UpdateProvisionerJobLogsOverflowedParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	LogsOverflowed bool      `db:"logs_overflowed" json:"logs_overflowed"`
+}
+
+func (q *sqlQuerier) UpdateProvisionerJobLogsOverflowed(ctx context.Context, arg UpdateProvisionerJobLogsOverflowedParams) error {
+	_, err := q.db.ExecContext(ctx, updateProvisionerJobLogsOverflowed, arg.ID, arg.LogsOverflowed)
+	return err
+}
+
 const acquireProvisionerJob = `-- name: AcquireProvisionerJob :one
 UPDATE
 	provisioner_jobs
@@ -7318,12 +8574,14 @@ WHERE
 			-- they are aliases and the code that calls this query already relies on a different type
 			AND provisioner_tagset_contains($5 :: jsonb, potential_job.tags :: jsonb)
 		ORDER BY
-			potential_job.created_at
+			-- Ensure that human-initiated jobs are prioritized over prebuilds.
+			potential_job.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid ASC,
+			potential_job.created_at ASC
 		FOR UPDATE
 		SKIP LOCKED
 		LIMIT
 			1
-	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
 `
 
 type AcquireProvisionerJobParams struct {
@@ -7369,13 +8627,15 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 		&i.ErrorCode,
 		&i.TraceMetadata,
 		&i.JobStatus,
+		&i.LogsLength,
+		&i.LogsOverflowed,
 	)
 	return i, err
 }
 
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
 FROM
 	provisioner_jobs
 WHERE
@@ -7405,13 +8665,15 @@ func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (P
 		&i.ErrorCode,
 		&i.TraceMetadata,
 		&i.JobStatus,
+		&i.LogsLength,
+		&i.LogsOverflowed,
 	)
 	return i, err
 }
 
 const getProvisionerJobByIDForUpdate = `-- name: GetProvisionerJobByIDForUpdate :one
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
 FROM
 	provisioner_jobs
 WHERE
@@ -7445,6 +8707,8 @@ func (q *sqlQuerier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid
 		&i.ErrorCode,
 		&i.TraceMetadata,
 		&i.JobStatus,
+		&i.LogsLength,
+		&i.LogsOverflowed,
 	)
 	return i, err
 }
@@ -7488,7 +8752,7 @@ func (q *sqlQuerier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID 
 
 const getProvisionerJobsByIDs = `-- name: GetProvisionerJobsByIDs :many
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
 FROM
 	provisioner_jobs
 WHERE
@@ -7524,6 +8788,8 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 			&i.ErrorCode,
 			&i.TraceMetadata,
 			&i.JobStatus,
+			&i.LogsLength,
+			&i.LogsOverflowed,
 		); err != nil {
 			return nil, err
 		}
@@ -7551,7 +8817,7 @@ WITH filtered_provisioner_jobs AS (
 pending_jobs AS (
 	-- Step 2: Extract only pending jobs
 	SELECT
-		id, created_at, tags
+		id, initiator_id, created_at, tags
 	FROM
 		provisioner_jobs
 	WHERE
@@ -7566,7 +8832,7 @@ ranked_jobs AS (
 	SELECT
 		pj.id,
 		pj.created_at,
-		ROW_NUMBER() OVER (PARTITION BY opd.id ORDER BY pj.created_at ASC) AS queue_position,
+		ROW_NUMBER() OVER (PARTITION BY opd.id ORDER BY pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid ASC, pj.created_at ASC) AS queue_position,
 		COUNT(*) OVER (PARTITION BY opd.id) AS queue_size
 	FROM
 		pending_jobs pj
@@ -7591,7 +8857,7 @@ SELECT
 	-- Step 5: Final SELECT with INNER JOIN provisioner_jobs
 	fj.id,
 	fj.created_at,
-	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status,
+	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status, pj.logs_length, pj.logs_overflowed,
 	fj.queue_position,
 	fj.queue_size
 FROM
@@ -7647,6 +8913,8 @@ func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Contex
 			&i.ProvisionerJob.ErrorCode,
 			&i.ProvisionerJob.TraceMetadata,
 			&i.ProvisionerJob.JobStatus,
+			&i.ProvisionerJob.LogsLength,
+			&i.ProvisionerJob.LogsOverflowed,
 			&i.QueuePosition,
 			&i.QueueSize,
 		); err != nil {
@@ -7666,7 +8934,7 @@ func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Contex
 const getProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner = `-- name: GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner :many
 WITH pending_jobs AS (
     SELECT
-        id, created_at
+        id, initiator_id, created_at
     FROM
         provisioner_jobs
     WHERE
@@ -7681,7 +8949,7 @@ WITH pending_jobs AS (
 queue_position AS (
     SELECT
         id,
-        ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
+        ROW_NUMBER() OVER (ORDER BY initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid ASC, created_at ASC) AS queue_position
     FROM
         pending_jobs
 ),
@@ -7689,7 +8957,7 @@ queue_size AS (
 	SELECT COUNT(*) AS count FROM pending_jobs
 )
 SELECT
-	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status,
+	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status, pj.logs_length, pj.logs_overflowed,
     COALESCE(qp.queue_position, 0) AS queue_position,
     COALESCE(qs.count, 0) AS queue_size,
 	-- Use subquery to utilize ORDER BY in array_agg since it cannot be
@@ -7825,6 +9093,8 @@ func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionA
 			&i.ProvisionerJob.ErrorCode,
 			&i.ProvisionerJob.TraceMetadata,
 			&i.ProvisionerJob.JobStatus,
+			&i.ProvisionerJob.LogsLength,
+			&i.ProvisionerJob.LogsOverflowed,
 			&i.QueuePosition,
 			&i.QueueSize,
 			pq.Array(&i.AvailableWorkers),
@@ -7851,7 +9121,7 @@ func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionA
 }
 
 const getProvisionerJobsCreatedAfter = `-- name: GetProvisionerJobsCreatedAfter :many
-SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status FROM provisioner_jobs WHERE created_at > $1
+SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed FROM provisioner_jobs WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]ProvisionerJob, error) {
@@ -7883,6 +9153,8 @@ func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, created
 			&i.ErrorCode,
 			&i.TraceMetadata,
 			&i.JobStatus,
+			&i.LogsLength,
+			&i.LogsOverflowed,
 		); err != nil {
 			return nil, err
 		}
@@ -7899,7 +9171,7 @@ func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, created
 
 const getProvisionerJobsToBeReaped = `-- name: GetProvisionerJobsToBeReaped :many
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
 FROM
 	provisioner_jobs
 WHERE
@@ -7956,6 +9228,8 @@ func (q *sqlQuerier) GetProvisionerJobsToBeReaped(ctx context.Context, arg GetPr
 			&i.ErrorCode,
 			&i.TraceMetadata,
 			&i.JobStatus,
+			&i.LogsLength,
+			&i.LogsOverflowed,
 		); err != nil {
 			return nil, err
 		}
@@ -7984,10 +9258,11 @@ INSERT INTO
 		"type",
 		"input",
 		tags,
-		trace_metadata
+		trace_metadata,
+		logs_overflowed
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
 `
 
 type InsertProvisionerJobParams struct {
@@ -8003,6 +9278,7 @@ type InsertProvisionerJobParams struct {
 	Input          json.RawMessage          `db:"input" json:"input"`
 	Tags           StringMap                `db:"tags" json:"tags"`
 	TraceMetadata  pqtype.NullRawMessage    `db:"trace_metadata" json:"trace_metadata"`
+	LogsOverflowed bool                     `db:"logs_overflowed" json:"logs_overflowed"`
 }
 
 func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error) {
@@ -8019,6 +9295,7 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		arg.Input,
 		arg.Tags,
 		arg.TraceMetadata,
+		arg.LogsOverflowed,
 	)
 	var i ProvisionerJob
 	err := row.Scan(
@@ -8041,6 +9318,8 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		&i.ErrorCode,
 		&i.TraceMetadata,
 		&i.JobStatus,
+		&i.LogsLength,
+		&i.LogsOverflowed,
 	)
 	return i, err
 }
@@ -9427,6 +10706,18 @@ func (q *sqlQuerier) GetOAuthSigningKey(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getPrebuildsSettings = `-- name: GetPrebuildsSettings :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'prebuilds_settings'), '{}') :: text AS prebuilds_settings
+`
+
+func (q *sqlQuerier) GetPrebuildsSettings(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getPrebuildsSettings)
+	var prebuilds_settings string
+	err := row.Scan(&prebuilds_settings)
+	return prebuilds_settings, err
+}
+
 const getRuntimeConfig = `-- name: GetRuntimeConfig :one
 SELECT value FROM site_configs WHERE site_configs.key = $1
 `
@@ -9606,6 +10897,16 @@ ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'oauth_signi
 
 func (q *sqlQuerier) UpsertOAuthSigningKey(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertOAuthSigningKey, value)
+	return err
+}
+
+const upsertPrebuildsSettings = `-- name: UpsertPrebuildsSettings :exec
+INSERT INTO site_configs (key, value) VALUES ('prebuilds_settings', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'prebuilds_settings'
+`
+
+func (q *sqlQuerier) UpsertPrebuildsSettings(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertPrebuildsSettings, value)
 	return err
 }
 
@@ -10526,7 +11827,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTem
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
 FROM
 	template_with_names
 WHERE
@@ -10568,6 +11869,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.ActivityBump,
 		&i.MaxPortSharingLevel,
 		&i.UseClassicParameterFlow,
+		&i.CorsBehavior,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -10580,7 +11882,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
 FROM
 	template_with_names AS templates
 WHERE
@@ -10630,6 +11932,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.ActivityBump,
 		&i.MaxPortSharingLevel,
 		&i.UseClassicParameterFlow,
+		&i.CorsBehavior,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -10641,7 +11944,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
 ORDER BY (name, id) ASC
 `
 
@@ -10684,6 +11987,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.ActivityBump,
 			&i.MaxPortSharingLevel,
 			&i.UseClassicParameterFlow,
+			&i.CorsBehavior,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -10706,7 +12010,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	t.id, t.created_at, t.updated_at, t.organization_id, t.deleted, t.name, t.provisioner, t.active_version_id, t.description, t.default_ttl, t.created_by, t.icon, t.user_acl, t.group_acl, t.display_name, t.allow_user_cancel_workspace_jobs, t.allow_user_autostart, t.allow_user_autostop, t.failure_ttl, t.time_til_dormant, t.time_til_dormant_autodelete, t.autostop_requirement_days_of_week, t.autostop_requirement_weeks, t.autostart_block_days_of_week, t.require_active_version, t.deprecated, t.activity_bump, t.max_port_sharing_level, t.use_classic_parameter_flow, t.created_by_avatar_url, t.created_by_username, t.created_by_name, t.organization_name, t.organization_display_name, t.organization_icon
+	t.id, t.created_at, t.updated_at, t.organization_id, t.deleted, t.name, t.provisioner, t.active_version_id, t.description, t.default_ttl, t.created_by, t.icon, t.user_acl, t.group_acl, t.display_name, t.allow_user_cancel_workspace_jobs, t.allow_user_autostart, t.allow_user_autostop, t.failure_ttl, t.time_til_dormant, t.time_til_dormant_autodelete, t.autostop_requirement_days_of_week, t.autostop_requirement_weeks, t.autostart_block_days_of_week, t.require_active_version, t.deprecated, t.activity_bump, t.max_port_sharing_level, t.use_classic_parameter_flow, t.cors_behavior, t.created_by_avatar_url, t.created_by_username, t.created_by_name, t.organization_name, t.organization_display_name, t.organization_icon
 FROM
 	template_with_names AS t
 LEFT JOIN
@@ -10817,6 +12121,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.ActivityBump,
 			&i.MaxPortSharingLevel,
 			&i.UseClassicParameterFlow,
+			&i.CorsBehavior,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -10854,10 +12159,12 @@ INSERT INTO
 		group_acl,
 		display_name,
 		allow_user_cancel_workspace_jobs,
-		max_port_sharing_level
+		max_port_sharing_level,
+		use_classic_parameter_flow,
+		cors_behavior
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 `
 
 type InsertTemplateParams struct {
@@ -10876,6 +12183,8 @@ type InsertTemplateParams struct {
 	DisplayName                  string          `db:"display_name" json:"display_name"`
 	AllowUserCancelWorkspaceJobs bool            `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
 	MaxPortSharingLevel          AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
+	UseClassicParameterFlow      bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
+	CorsBehavior                 CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) error {
@@ -10895,6 +12204,8 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.DisplayName,
 		arg.AllowUserCancelWorkspaceJobs,
 		arg.MaxPortSharingLevel,
+		arg.UseClassicParameterFlow,
+		arg.CorsBehavior,
 	)
 	return err
 }
@@ -10995,7 +12306,8 @@ SET
 	allow_user_cancel_workspace_jobs = $7,
 	group_acl = $8,
 	max_port_sharing_level = $9,
-	use_classic_parameter_flow = $10
+	use_classic_parameter_flow = $10,
+	cors_behavior = $11
 WHERE
 	id = $1
 `
@@ -11011,6 +12323,7 @@ type UpdateTemplateMetaByIDParams struct {
 	GroupACL                     TemplateACL     `db:"group_acl" json:"group_acl"`
 	MaxPortSharingLevel          AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	UseClassicParameterFlow      bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
+	CorsBehavior                 CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
 }
 
 func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) error {
@@ -11025,6 +12338,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.GroupACL,
 		arg.MaxPortSharingLevel,
 		arg.UseClassicParameterFlow,
+		arg.CorsBehavior,
 	)
 	return err
 }
@@ -14127,7 +15441,7 @@ func (q *sqlQuerier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UU
 
 const getWorkspaceAgentAndLatestBuildByAuthToken = `-- name: GetWorkspaceAgentAndLatestBuildByAuthToken :one
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at,
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl,
 	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted,
 	workspace_build_with_user.id, workspace_build_with_user.created_at, workspace_build_with_user.updated_at, workspace_build_with_user.workspace_id, workspace_build_with_user.template_version_id, workspace_build_with_user.build_number, workspace_build_with_user.transition, workspace_build_with_user.initiator_id, workspace_build_with_user.provisioner_state, workspace_build_with_user.job_id, workspace_build_with_user.deadline, workspace_build_with_user.reason, workspace_build_with_user.daily_cost, workspace_build_with_user.max_deadline, workspace_build_with_user.template_version_preset_id, workspace_build_with_user.has_ai_task, workspace_build_with_user.ai_task_sidebar_app_id, workspace_build_with_user.initiator_by_avatar_url, workspace_build_with_user.initiator_by_username, workspace_build_with_user.initiator_by_name
 FROM
@@ -14189,6 +15503,8 @@ func (q *sqlQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Cont
 		&i.WorkspaceTable.AutomaticUpdates,
 		&i.WorkspaceTable.Favorite,
 		&i.WorkspaceTable.NextStartAt,
+		&i.WorkspaceTable.GroupACL,
+		&i.WorkspaceTable.UserACL,
 		&i.WorkspaceAgent.ID,
 		&i.WorkspaceAgent.CreatedAt,
 		&i.WorkspaceAgent.UpdatedAt,
@@ -18279,7 +19595,7 @@ func (q *sqlQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploy
 
 const getWorkspaceByAgentID = `-- name: GetWorkspaceByAgentID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
 FROM
 	workspaces_expanded as workspaces
 WHERE
@@ -18327,6 +19643,8 @@ func (q *sqlQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUI
 		&i.AutomaticUpdates,
 		&i.Favorite,
 		&i.NextStartAt,
+		&i.GroupACL,
+		&i.UserACL,
 		&i.OwnerAvatarUrl,
 		&i.OwnerUsername,
 		&i.OwnerName,
@@ -18344,7 +19662,7 @@ func (q *sqlQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUI
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
 FROM
 	workspaces_expanded
 WHERE
@@ -18373,6 +19691,8 @@ func (q *sqlQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Worksp
 		&i.AutomaticUpdates,
 		&i.Favorite,
 		&i.NextStartAt,
+		&i.GroupACL,
+		&i.UserACL,
 		&i.OwnerAvatarUrl,
 		&i.OwnerUsername,
 		&i.OwnerName,
@@ -18390,7 +19710,7 @@ func (q *sqlQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Worksp
 
 const getWorkspaceByOwnerIDAndName = `-- name: GetWorkspaceByOwnerIDAndName :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
 FROM
 	workspaces_expanded as workspaces
 WHERE
@@ -18426,6 +19746,8 @@ func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWo
 		&i.AutomaticUpdates,
 		&i.Favorite,
 		&i.NextStartAt,
+		&i.GroupACL,
+		&i.UserACL,
 		&i.OwnerAvatarUrl,
 		&i.OwnerUsername,
 		&i.OwnerName,
@@ -18443,7 +19765,7 @@ func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWo
 
 const getWorkspaceByResourceID = `-- name: GetWorkspaceByResourceID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
 FROM
 	workspaces_expanded as workspaces
 WHERE
@@ -18486,6 +19808,8 @@ func (q *sqlQuerier) GetWorkspaceByResourceID(ctx context.Context, resourceID uu
 		&i.AutomaticUpdates,
 		&i.Favorite,
 		&i.NextStartAt,
+		&i.GroupACL,
+		&i.UserACL,
 		&i.OwnerAvatarUrl,
 		&i.OwnerUsername,
 		&i.OwnerName,
@@ -18503,7 +19827,7 @@ func (q *sqlQuerier) GetWorkspaceByResourceID(ctx context.Context, resourceID uu
 
 const getWorkspaceByWorkspaceAppID = `-- name: GetWorkspaceByWorkspaceAppID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
 FROM
 	workspaces_expanded as workspaces
 WHERE
@@ -18558,6 +19882,8 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 		&i.AutomaticUpdates,
 		&i.Favorite,
 		&i.NextStartAt,
+		&i.GroupACL,
+		&i.UserACL,
 		&i.OwnerAvatarUrl,
 		&i.OwnerUsername,
 		&i.OwnerName,
@@ -18618,7 +19944,7 @@ SELECT
 ),
 filtered_workspaces AS (
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.owner_avatar_url, workspaces.owner_username, workspaces.owner_name, workspaces.organization_name, workspaces.organization_display_name, workspaces.organization_icon, workspaces.organization_description, workspaces.template_name, workspaces.template_display_name, workspaces.template_icon, workspaces.template_description,
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl, workspaces.owner_avatar_url, workspaces.owner_username, workspaces.owner_name, workspaces.organization_name, workspaces.organization_display_name, workspaces.organization_icon, workspaces.organization_description, workspaces.template_name, workspaces.template_display_name, workspaces.template_icon, workspaces.template_description,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
 	latest_build.completed_at as latest_build_completed_at,
@@ -18666,7 +19992,7 @@ LEFT JOIN LATERAL (
 ) latest_build ON TRUE
 LEFT JOIN LATERAL (
 	SELECT
-		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow
+		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior
 	FROM
 		templates
 	WHERE
@@ -18883,7 +20209,7 @@ WHERE
 	-- @authorize_filter
 ), filtered_workspaces_order AS (
 	SELECT
-		fw.id, fw.created_at, fw.updated_at, fw.owner_id, fw.organization_id, fw.template_id, fw.deleted, fw.name, fw.autostart_schedule, fw.ttl, fw.last_used_at, fw.dormant_at, fw.deleting_at, fw.automatic_updates, fw.favorite, fw.next_start_at, fw.owner_avatar_url, fw.owner_username, fw.owner_name, fw.organization_name, fw.organization_display_name, fw.organization_icon, fw.organization_description, fw.template_name, fw.template_display_name, fw.template_icon, fw.template_description, fw.template_version_id, fw.template_version_name, fw.latest_build_completed_at, fw.latest_build_canceled_at, fw.latest_build_error, fw.latest_build_transition, fw.latest_build_status, fw.latest_build_has_ai_task
+		fw.id, fw.created_at, fw.updated_at, fw.owner_id, fw.organization_id, fw.template_id, fw.deleted, fw.name, fw.autostart_schedule, fw.ttl, fw.last_used_at, fw.dormant_at, fw.deleting_at, fw.automatic_updates, fw.favorite, fw.next_start_at, fw.group_acl, fw.user_acl, fw.owner_avatar_url, fw.owner_username, fw.owner_name, fw.organization_name, fw.organization_display_name, fw.organization_icon, fw.organization_description, fw.template_name, fw.template_display_name, fw.template_icon, fw.template_description, fw.template_version_id, fw.template_version_name, fw.latest_build_completed_at, fw.latest_build_canceled_at, fw.latest_build_error, fw.latest_build_transition, fw.latest_build_status, fw.latest_build_has_ai_task
 	FROM
 		filtered_workspaces fw
 	ORDER BY
@@ -18904,7 +20230,7 @@ WHERE
 		$21
 ), filtered_workspaces_order_with_summary AS (
 	SELECT
-		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.next_start_at, fwo.owner_avatar_url, fwo.owner_username, fwo.owner_name, fwo.organization_name, fwo.organization_display_name, fwo.organization_icon, fwo.organization_description, fwo.template_name, fwo.template_display_name, fwo.template_icon, fwo.template_description, fwo.template_version_id, fwo.template_version_name, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status, fwo.latest_build_has_ai_task
+		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.next_start_at, fwo.group_acl, fwo.user_acl, fwo.owner_avatar_url, fwo.owner_username, fwo.owner_name, fwo.organization_name, fwo.organization_display_name, fwo.organization_icon, fwo.organization_description, fwo.template_name, fwo.template_display_name, fwo.template_icon, fwo.template_description, fwo.template_version_id, fwo.template_version_name, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status, fwo.latest_build_has_ai_task
 	FROM
 		filtered_workspaces_order fwo
 	-- Return a technical summary row with total count of workspaces.
@@ -18927,6 +20253,8 @@ WHERE
 		'never'::automatic_updates, -- automatic_updates
 		false, -- favorite
 		'0001-01-01 00:00:00+00'::timestamptz, -- next_start_at
+		'{}'::jsonb, -- group_acl
+		'{}'::jsonb, -- user_acl
 		'', -- owner_avatar_url
 		'', -- owner_username
 		'', -- owner_name
@@ -18956,7 +20284,7 @@ WHERE
 		filtered_workspaces
 )
 SELECT
-	fwos.id, fwos.created_at, fwos.updated_at, fwos.owner_id, fwos.organization_id, fwos.template_id, fwos.deleted, fwos.name, fwos.autostart_schedule, fwos.ttl, fwos.last_used_at, fwos.dormant_at, fwos.deleting_at, fwos.automatic_updates, fwos.favorite, fwos.next_start_at, fwos.owner_avatar_url, fwos.owner_username, fwos.owner_name, fwos.organization_name, fwos.organization_display_name, fwos.organization_icon, fwos.organization_description, fwos.template_name, fwos.template_display_name, fwos.template_icon, fwos.template_description, fwos.template_version_id, fwos.template_version_name, fwos.latest_build_completed_at, fwos.latest_build_canceled_at, fwos.latest_build_error, fwos.latest_build_transition, fwos.latest_build_status, fwos.latest_build_has_ai_task,
+	fwos.id, fwos.created_at, fwos.updated_at, fwos.owner_id, fwos.organization_id, fwos.template_id, fwos.deleted, fwos.name, fwos.autostart_schedule, fwos.ttl, fwos.last_used_at, fwos.dormant_at, fwos.deleting_at, fwos.automatic_updates, fwos.favorite, fwos.next_start_at, fwos.group_acl, fwos.user_acl, fwos.owner_avatar_url, fwos.owner_username, fwos.owner_name, fwos.organization_name, fwos.organization_display_name, fwos.organization_icon, fwos.organization_description, fwos.template_name, fwos.template_display_name, fwos.template_icon, fwos.template_description, fwos.template_version_id, fwos.template_version_name, fwos.latest_build_completed_at, fwos.latest_build_canceled_at, fwos.latest_build_error, fwos.latest_build_transition, fwos.latest_build_status, fwos.latest_build_has_ai_task,
 	tc.count
 FROM
 	filtered_workspaces_order_with_summary fwos
@@ -19007,6 +20335,8 @@ type GetWorkspacesRow struct {
 	AutomaticUpdates        AutomaticUpdates     `db:"automatic_updates" json:"automatic_updates"`
 	Favorite                bool                 `db:"favorite" json:"favorite"`
 	NextStartAt             sql.NullTime         `db:"next_start_at" json:"next_start_at"`
+	GroupACL                json.RawMessage      `db:"group_acl" json:"group_acl"`
+	UserACL                 json.RawMessage      `db:"user_acl" json:"user_acl"`
 	OwnerAvatarUrl          string               `db:"owner_avatar_url" json:"owner_avatar_url"`
 	OwnerUsername           string               `db:"owner_username" json:"owner_username"`
 	OwnerName               string               `db:"owner_name" json:"owner_name"`
@@ -19082,6 +20412,8 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.AutomaticUpdates,
 			&i.Favorite,
 			&i.NextStartAt,
+			&i.GroupACL,
+			&i.UserACL,
 			&i.OwnerAvatarUrl,
 			&i.OwnerUsername,
 			&i.OwnerName,
@@ -19196,7 +20528,7 @@ func (q *sqlQuerier) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerI
 }
 
 const getWorkspacesByTemplateID = `-- name: GetWorkspacesByTemplateID :many
-SELECT id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at FROM workspaces WHERE template_id = $1 AND deleted = false
+SELECT id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl FROM workspaces WHERE template_id = $1 AND deleted = false
 `
 
 func (q *sqlQuerier) GetWorkspacesByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceTable, error) {
@@ -19225,6 +20557,8 @@ func (q *sqlQuerier) GetWorkspacesByTemplateID(ctx context.Context, templateID u
 			&i.AutomaticUpdates,
 			&i.Favorite,
 			&i.NextStartAt,
+			&i.GroupACL,
+			&i.UserACL,
 		); err != nil {
 			return nil, err
 		}
@@ -19358,7 +20692,12 @@ WHERE
 			provisioner_jobs.completed_at IS NOT NULL AND
 			($1 :: timestamptz) - provisioner_jobs.completed_at > (INTERVAL '1 millisecond' * (templates.failure_ttl / 1000000))
 		)
-	) AND workspaces.deleted = 'false'
+	)
+  	AND workspaces.deleted = 'false'
+  	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- should not be considered by the lifecycle executor, as they are handled by the
+	-- prebuilds reconciliation loop.
+  	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 `
 
 type GetWorkspacesEligibleForTransitionRow struct {
@@ -19407,7 +20746,7 @@ INSERT INTO
 		next_start_at
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl
 `
 
 type InsertWorkspaceParams struct {
@@ -19458,6 +20797,8 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 		&i.AutomaticUpdates,
 		&i.Favorite,
 		&i.NextStartAt,
+		&i.GroupACL,
+		&i.UserACL,
 	)
 	return i, err
 }
@@ -19497,7 +20838,7 @@ SET
 WHERE
 	id = $1
 	AND deleted = false
-RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at
+RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl
 `
 
 type UpdateWorkspaceParams struct {
@@ -19525,8 +20866,31 @@ func (q *sqlQuerier) UpdateWorkspace(ctx context.Context, arg UpdateWorkspacePar
 		&i.AutomaticUpdates,
 		&i.Favorite,
 		&i.NextStartAt,
+		&i.GroupACL,
+		&i.UserACL,
 	)
 	return i, err
+}
+
+const updateWorkspaceACLByID = `-- name: UpdateWorkspaceACLByID :exec
+UPDATE
+	workspaces
+SET
+	group_acl = $1,
+	user_acl = $2
+WHERE
+	id = $3
+`
+
+type UpdateWorkspaceACLByIDParams struct {
+	GroupACL WorkspaceACL `db:"group_acl" json:"group_acl"`
+	UserACL  WorkspaceACL `db:"user_acl" json:"user_acl"`
+	ID       uuid.UUID    `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceACLByID(ctx context.Context, arg UpdateWorkspaceACLByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceACLByID, arg.GroupACL, arg.UserACL, arg.ID)
+	return err
 }
 
 const updateWorkspaceAutomaticUpdates = `-- name: UpdateWorkspaceAutomaticUpdates :exec
@@ -19613,7 +20977,7 @@ WHERE
     workspaces.id = $1
     AND templates.id = workspaces.template_id
 RETURNING
-    workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at
+    workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl
 `
 
 type UpdateWorkspaceDormantDeletingAtParams struct {
@@ -19641,6 +21005,8 @@ func (q *sqlQuerier) UpdateWorkspaceDormantDeletingAt(ctx context.Context, arg U
 		&i.AutomaticUpdates,
 		&i.Favorite,
 		&i.NextStartAt,
+		&i.GroupACL,
+		&i.UserACL,
 	)
 	return i, err
 }
@@ -19715,7 +21081,7 @@ WHERE
     template_id = $3
 AND
     dormant_at IS NOT NULL
-RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at
+RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl
 `
 
 type UpdateWorkspacesDormantDeletingAtByTemplateIDParams struct {
@@ -19750,6 +21116,8 @@ func (q *sqlQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.C
 			&i.AutomaticUpdates,
 			&i.Favorite,
 			&i.NextStartAt,
+			&i.GroupACL,
+			&i.UserACL,
 		); err != nil {
 			return nil, err
 		}

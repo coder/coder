@@ -12,6 +12,7 @@ import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
 import AuditPage from "./pages/AuditPage/AuditPage";
+import ConnectionLogPage from "./pages/ConnectionLogPage/ConnectionLogPage";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
 import LoginOAuthDevicePage from "./pages/LoginOAuthDevicePage/LoginOAuthDevicePage";
 import LoginPage from "./pages/LoginPage/LoginPage";
@@ -83,6 +84,12 @@ const WorkspaceParametersExperimentRouter = lazy(
 	() =>
 		import(
 			"./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersExperimentRouter"
+		),
+);
+const WorkspaceSharingPage = lazy(
+	() =>
+		import(
+			"./pages/WorkspaceSettingsPage/WorkspaceSharingPage/WorkspaceSharingPage"
 		),
 );
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"));
@@ -433,6 +440,8 @@ export const router = createBrowserRouter(
 
 					<Route path="/audit" element={<AuditPage />} />
 
+					<Route path="/connectionlog" element={<ConnectionLogPage />} />
+
 					<Route path="/tasks" element={<TasksPage />} />
 
 					<Route path="/organizations" element={<OrganizationSettingsLayout />}>
@@ -544,6 +553,7 @@ export const router = createBrowserRouter(
 								element={<WorkspaceParametersExperimentRouter />}
 							/>
 							<Route path="schedule" element={<WorkspaceSchedulePage />} />
+							<Route path="sharing" element={<WorkspaceSharingPage />} />
 						</Route>
 					</Route>
 

@@ -40,6 +40,12 @@ jest.mock("contexts/useProxyLatency", () => ({
 global.scrollTo = jest.fn();
 
 window.HTMLElement.prototype.scrollIntoView = jest.fn();
+// Polyfill pointer capture methods for JSDOM compatibility with Radix UI
+window.HTMLElement.prototype.hasPointerCapture = jest
+	.fn()
+	.mockReturnValue(false);
+window.HTMLElement.prototype.setPointerCapture = jest.fn();
+window.HTMLElement.prototype.releasePointerCapture = jest.fn();
 window.open = jest.fn();
 navigator.sendBeacon = jest.fn();
 

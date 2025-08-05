@@ -26,6 +26,7 @@
       "template_display_name": "",
       "template_icon": ""
     },
+    "logs_overflowed": false,
     "organization_name": "Coder"
   },
   {
@@ -57,6 +58,7 @@
       "workspace_id": "===========[workspace ID]===========",
       "workspace_name": "test-workspace"
     },
+    "logs_overflowed": false,
     "organization_name": "Coder"
   }
 ]

@@ -34,7 +34,7 @@ func TestCSP(t *testing.T) {
 
 	expected := []string{
 		"frame-src 'self' *.test.com *.coder.com *.coder2.com",
-		"media-src 'self' media.com media2.com",
+		"media-src 'self' " + strings.Join(expectedMedia, " "),
 		strings.Join([]string{
 			"connect-src", "'self'",
 			// Added from host header.

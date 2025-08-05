@@ -3,6 +3,7 @@ package prebuilds
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -14,7 +15,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -38,15 +39,16 @@ import (
 )
 
 type StoreReconciler struct {
-	store      database.Store
-	cfg        codersdk.PrebuildsConfig
-	pubsub     pubsub.Pubsub
-	fileCache  *files.Cache
-	logger     slog.Logger
-	clock      quartz.Clock
-	registerer prometheus.Registerer
-	metrics    *MetricsCollector
-	notifEnq   notifications.Enqueuer
+	store             database.Store
+	cfg               codersdk.PrebuildsConfig
+	pubsub            pubsub.Pubsub
+	fileCache         *files.Cache
+	logger            slog.Logger
+	clock             quartz.Clock
+	registerer        prometheus.Registerer
+	metrics           *MetricsCollector
+	notifEnq          notifications.Enqueuer
+	buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker]
 
 	cancelFn          context.CancelCauseFunc
 	running           atomic.Bool
@@ -65,6 +67,7 @@ func NewStoreReconciler(store database.Store,
 	clock quartz.Clock,
 	registerer prometheus.Registerer,
 	notifEnq notifications.Enqueuer,
+	buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker],
 ) *StoreReconciler {
 	reconciler := &StoreReconciler{
 		store:             store,
@@ -75,6 +78,7 @@ func NewStoreReconciler(store database.Store,
 		clock:             clock,
 		registerer:        registerer,
 		notifEnq:          notifEnq,
+		buildUsageChecker: buildUsageChecker,
 		done:              make(chan struct{}, 1),
 		provisionNotifyCh: make(chan database.ProvisionerJob, 10),
 	}
@@ -256,6 +260,28 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 	logger.Debug(ctx, "starting reconciliation")
 
 	err := c.WithReconciliationLock(ctx, logger, func(ctx context.Context, _ database.Store) error {
+		// Check if prebuilds reconciliation is paused
+		settingsJSON, err := c.store.GetPrebuildsSettings(ctx)
+		if err != nil {
+			return xerrors.Errorf("get prebuilds settings: %w", err)
+		}
+
+		var settings codersdk.PrebuildsSettings
+		if len(settingsJSON) > 0 {
+			if err := json.Unmarshal([]byte(settingsJSON), &settings); err != nil {
+				return xerrors.Errorf("unmarshal prebuilds settings: %w", err)
+			}
+		}
+
+		if c.metrics != nil {
+			c.metrics.setReconciliationPaused(settings.ReconciliationPaused)
+		}
+
+		if settings.ReconciliationPaused {
+			logger.Info(ctx, "prebuilds reconciliation is paused, skipping reconciliation")
+			return nil
+		}
+
 		snapshot, err := c.SnapshotState(ctx, c.store)
 		if err != nil {
 			return xerrors.Errorf("determine current snapshot: %w", err)
@@ -375,6 +401,7 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			return xerrors.Errorf("failed to get preset prebuild schedules: %w", err)
 		}
 
+		// Get results from both original and optimized queries for comparison
 		allRunningPrebuilds, err := db.GetRunningPrebuiltWorkspaces(ctx)
 		if err != nil {
 			return xerrors.Errorf("failed to get running prebuilds: %w", err)
@@ -714,7 +741,7 @@ func (c *StoreReconciler) provision(
 		})
 	}
 
-	builder := wsbuilder.New(workspace, transition).
+	builder := wsbuilder.New(workspace, transition, *c.buildUsageChecker.Load()).
 		Reason(database.BuildReasonInitiator).
 		Initiator(database.PrebuildsSystemUserID).
 		MarkPrebuild()
@@ -883,4 +910,19 @@ func (c *StoreReconciler) trackResourceReplacement(ctx context.Context, workspac
 	}
 
 	return notifErr
+}
+
+type Settings struct {
+	ReconciliationPaused bool `json:"reconciliation_paused"`
+}
+
+func SetPrebuildsReconciliationPaused(ctx context.Context, db database.Store, paused bool) error {
+	settings := Settings{
+		ReconciliationPaused: paused,
+	}
+	settingsJSON, err := json.Marshal(settings)
+	if err != nil {
+		return xerrors.Errorf("marshal settings: %w", err)
+	}
+	return db.UpsertPrebuildsSettings(ctx, string(settingsJSON))
 }

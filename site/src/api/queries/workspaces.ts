@@ -3,6 +3,7 @@ import { DetailedError, isApiValidationError } from "api/errors";
 import type {
 	CreateWorkspaceRequest,
 	ProvisionerLogLevel,
+	UpdateWorkspaceACL,
 	UsageAppName,
 	Workspace,
 	WorkspaceAgentLog,
@@ -266,7 +267,12 @@ export const startWorkspace = (
 export const cancelBuild = (workspace: Workspace, queryClient: QueryClient) => {
 	return {
 		mutationFn: () => {
-			return API.cancelWorkspaceBuild(workspace.latest_build.id);
+			const { status } = workspace.latest_build;
+			const params =
+				status === "pending" || status === "running"
+					? { expect_status: status }
+					: undefined;
+			return API.cancelWorkspaceBuild(workspace.latest_build.id, params);
 		},
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({
@@ -414,5 +420,13 @@ export const workspacePermissions = (workspace?: Workspace) => {
 		queryKey: ["workspaces", workspace?.id, "permissions"],
 		enabled: !!workspace,
 		staleTime: Number.POSITIVE_INFINITY,
+	};
+};
+
+export const updateWorkspaceACL = (workspaceId: string) => {
+	return {
+		mutationFn: async (patch: UpdateWorkspaceACL) => {
+			await API.updateWorkspaceACL(workspaceId, patch);
+		},
 	};
 };

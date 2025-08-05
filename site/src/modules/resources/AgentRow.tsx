@@ -2,14 +2,12 @@ import type { Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
-import { API } from "api/api";
 import type {
 	Template,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
-import { isAxiosError } from "axios";
 import { Button } from "components/Button/Button";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
@@ -25,7 +23,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useQuery } from "react-query";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
@@ -41,6 +38,7 @@ import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
+import { useAgentContainers } from "./useAgentContainers";
 import { useAgentLogs } from "./useAgentLogs";
 
 interface AgentRowProps {
@@ -89,7 +87,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 			logs.push({
 				id: -1,
 				level: "error",
-				output: "Startup logs exceeded the max size of 1MB!",
+				output:
+					"Startup logs exceeded the max size of 1MB, and will not continue to be written to the database! Logs will continue to be written to the /tmp/coder-startup-script.log file in the workspace.",
 				created_at: new Date().toISOString(),
 				source_id: "",
 			});
@@ -133,28 +132,27 @@ export const AgentRow: FC<AgentRowProps> = ({
 		setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
 	}, []);
 
-	const { data: devcontainers } = useQuery({
-		queryKey: ["agents", agent.id, "containers"],
-		queryFn: () => API.getAgentContainers(agent.id),
-		enabled: agent.status === "connected",
-		select: (res) => res.devcontainers,
-		// TODO: Implement a websocket connection to get updates on containers
-		// without having to poll.
-		refetchInterval: ({ state }) => {
-			const { error } = state;
-			return isAxiosError(error) && error.response?.status === 403
-				? false
-				: 10_000;
-		},
-	});
+	const devcontainers = useAgentContainers(agent);
 
 	// This is used to show the parent apps of the devcontainer.
 	const [showParentApps, setShowParentApps] = useState(false);
 
 	let shouldDisplayAppsSection = shouldDisplayAgentApps;
-	if (devcontainers && devcontainers.length > 0 && !showParentApps) {
+	if (
+		devcontainers &&
+		devcontainers.find(
+			// We only want to hide the parent apps by default when there are dev
+			// containers that are either starting or running. If they are all in
+			// the stopped state, it doesn't make sense to hide the parent apps.
+			(dc) => dc.status === "running" || dc.status === "starting",
+		) !== undefined &&
+		!showParentApps
+	) {
 		shouldDisplayAppsSection = false;
 	}
+
+	// Check if any devcontainers have errors to gray out agent border
+	const hasDevcontainerErrors = devcontainers?.some((dc) => dc.error);
 
 	return (
 		<Stack
@@ -165,6 +163,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 				styles.agentRow,
 				styles[`agentRow-${agent.status}`],
 				styles[`agentRow-lifecycle-${agent.lifecycle_state}`],
+				hasDevcontainerErrors && styles.agentRowWithErrors,
 			]}
 		>
 			<header css={styles.header}>
@@ -536,5 +535,9 @@ const styles = {
 		"& > div": {
 			position: "relative",
 		},
+	}),
+
+	agentRowWithErrors: (theme) => ({
+		borderColor: theme.palette.divider,
 	}),
 } satisfies Record<string, Interpolation<Theme>>;

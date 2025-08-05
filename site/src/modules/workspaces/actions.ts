@@ -145,7 +145,7 @@ export const abilitiesByWorkspaceStatus = (
 		case "pending": {
 			return {
 				actions: ["pending"],
-				canCancel: false,
+				canCancel: true,
 				canAcceptJobs: false,
 			};
 		}

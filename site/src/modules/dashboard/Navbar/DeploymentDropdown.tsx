@@ -16,6 +16,7 @@ interface DeploymentDropdownProps {
 	canViewDeployment: boolean;
 	canViewOrganizations: boolean;
 	canViewAuditLog: boolean;
+	canViewConnectionLog: boolean;
 	canViewHealth: boolean;
 }
 
@@ -23,12 +24,14 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 	canViewDeployment,
 	canViewOrganizations,
 	canViewAuditLog,
+	canViewConnectionLog,
 	canViewHealth,
 }) => {
 	const theme = useTheme();
 
 	if (
 		!canViewAuditLog &&
+		!canViewConnectionLog &&
 		!canViewOrganizations &&
 		!canViewDeployment &&
 		!canViewHealth
@@ -59,6 +62,7 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 					canViewDeployment={canViewDeployment}
 					canViewOrganizations={canViewOrganizations}
 					canViewAuditLog={canViewAuditLog}
+					canViewConnectionLog={canViewConnectionLog}
 					canViewHealth={canViewHealth}
 				/>
 			</PopoverContent>
@@ -71,6 +75,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 	canViewOrganizations,
 	canViewAuditLog,
 	canViewHealth,
+	canViewConnectionLog,
 }) => {
 	const popover = usePopover();
 
@@ -106,6 +111,16 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 					onClick={onPopoverClose}
 				>
 					Audit Logs
+				</MenuItem>
+			)}
+			{canViewConnectionLog && (
+				<MenuItem
+					component={NavLink}
+					to="/connectionlog"
+					css={styles.menuItem}
+					onClick={onPopoverClose}
+				>
+					Connection Logs
 				</MenuItem>
 			)}
 			{canViewHealth && (
