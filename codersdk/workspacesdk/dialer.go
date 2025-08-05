@@ -24,8 +24,10 @@ var permanentErrorStatuses = []int{
 	http.StatusBadRequest,          // returned if API mismatch
 	http.StatusNotFound,            // returned if user doesn't have permission or agent doesn't exist
 	http.StatusInternalServerError, // returned if database is not reachable,
-	http.StatusUnauthorized,        // returned if user is not authenticated
 	http.StatusForbidden,           // returned if user is not authorized
+	// StatusUnauthorized is only a permanent error if the error is not due to
+	// an invalid resume token. See `checkResumeTokenFailure`.
+	http.StatusUnauthorized,
 }
 
 type WebsocketDialer struct {
