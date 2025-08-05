@@ -41,6 +41,8 @@ env:
   value: "0.0.0.0:8080"
 - name: CODER_PROMETHEUS_ADDRESS
   value: "0.0.0.0:2112"
+- name: CODER_PPROF_ADDRESS
+  value: "0.0.0.0:6060"
 {{- if .Values.provisionerDaemon.pskSecretName }}
 - name: CODER_PROVISIONER_DAEMON_PSK
   valueFrom:
