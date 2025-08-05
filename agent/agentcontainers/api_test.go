@@ -3601,7 +3601,7 @@ func TestDevcontainerDiscovery(t *testing.T) {
 					"/home/coder/.devcontainer/devcontainer.json": "",
 				},
 				configMap: map[string]agentcontainers.DevcontainerConfig{
-					"/home/coder/.devcontainer/devcontainer.json": agentcontainers.DevcontainerConfig{
+					"/home/coder/.devcontainer/devcontainer.json": {
 						Configuration: agentcontainers.DevcontainerConfiguration{
 							Customizations: agentcontainers.DevcontainerCustomizations{
 								Coder: agentcontainers.CoderCustomization{
@@ -3622,7 +3622,7 @@ func TestDevcontainerDiscovery(t *testing.T) {
 					"/home/coder/.devcontainer/devcontainer.json": "",
 				},
 				configMap: map[string]agentcontainers.DevcontainerConfig{
-					"/home/coder/.devcontainer/devcontainer.json": agentcontainers.DevcontainerConfig{
+					"/home/coder/.devcontainer/devcontainer.json": {
 						Configuration: agentcontainers.DevcontainerConfiguration{
 							Customizations: agentcontainers.DevcontainerCustomizations{
 								Coder: agentcontainers.CoderCustomization{
@@ -3644,7 +3644,7 @@ func TestDevcontainerDiscovery(t *testing.T) {
 					"/home/coder/project/.devcontainer.json":      "",
 				},
 				configMap: map[string]agentcontainers.DevcontainerConfig{
-					"/home/coder/.devcontainer/devcontainer.json": agentcontainers.DevcontainerConfig{
+					"/home/coder/.devcontainer/devcontainer.json": {
 						Configuration: agentcontainers.DevcontainerConfiguration{
 							Customizations: agentcontainers.DevcontainerCustomizations{
 								Coder: agentcontainers.CoderCustomization{
@@ -3653,7 +3653,7 @@ func TestDevcontainerDiscovery(t *testing.T) {
 							},
 						},
 					},
-					"/home/coder/project/.devcontainer.json": agentcontainers.DevcontainerConfig{
+					"/home/coder/project/.devcontainer.json": {
 						Configuration: agentcontainers.DevcontainerConfiguration{
 							Customizations: agentcontainers.DevcontainerCustomizations{
 								Coder: agentcontainers.CoderCustomization{
@@ -3675,7 +3675,7 @@ func TestDevcontainerDiscovery(t *testing.T) {
 					"/home/coder/project/.devcontainer.json":      "",
 				},
 				configMap: map[string]agentcontainers.DevcontainerConfig{
-					"/home/coder/.devcontainer/devcontainer.json": agentcontainers.DevcontainerConfig{
+					"/home/coder/.devcontainer/devcontainer.json": {
 						Configuration: agentcontainers.DevcontainerConfiguration{
 							Customizations: agentcontainers.DevcontainerCustomizations{
 								Coder: agentcontainers.CoderCustomization{
@@ -3684,7 +3684,7 @@ func TestDevcontainerDiscovery(t *testing.T) {
 							},
 						},
 					},
-					"/home/coder/project/.devcontainer.json": agentcontainers.DevcontainerConfig{
+					"/home/coder/project/.devcontainer.json": {
 						Configuration: agentcontainers.DevcontainerConfiguration{
 							Customizations: agentcontainers.DevcontainerCustomizations{
 								Coder: agentcontainers.CoderCustomization{
