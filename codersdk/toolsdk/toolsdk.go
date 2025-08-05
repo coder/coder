@@ -36,6 +36,8 @@ const (
 	ToolNameCreateTemplate              = "coder_create_template"
 	ToolNameDeleteTemplate              = "coder_delete_template"
 	ToolNameWorkspaceBash               = "coder_workspace_bash"
+	ToolNameChatGPTSearch               = "search"
+	ToolNameChatGPTFetch                = "fetch"
 )
 
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
@@ -54,6 +56,13 @@ func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
 type Deps struct {
 	coderClient *codersdk.Client
 	report      func(ReportTaskArgs) error
+}
+
+func (d Deps) ServerURL() string {
+	serverURLCopy := *d.coderClient.URL
+	serverURLCopy.Path = ""
+	serverURLCopy.RawQuery = ""
+	return serverURLCopy.String()
 }
 
 func WithTaskReporter(fn func(ReportTaskArgs) error) func(*Deps) {
@@ -194,6 +203,8 @@ var All = []GenericTool{
 	UploadTarFile.Generic(),
 	UpdateTemplateActiveVersion.Generic(),
 	WorkspaceBash.Generic(),
+	ChatGPTSearch.Generic(),
+	ChatGPTFetch.Generic(),
 }
 
 type ReportTaskArgs struct {
