@@ -269,8 +269,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		DisplayName: "Owner",
 		Site: append(
 			// Workspace dormancy and workspace are omitted.
-			// Workspace is specifically handled based on the opts.NoOwnerWorkspaceExec
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace),
+			// Workspace is specifically handled based on the opts.NoOwnerWorkspaceExec.
+			// Owners cannot access other users' secrets.
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUserSecret),
 			// This adds back in the Workspace permissions.
 			Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type:        ownerWorkspaceActions,
@@ -281,7 +282,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
 			})...),
 		Org:  map[string][]Permission{},
-		User: []Permission{},
+		User: Permissions(map[string][]policy.Action{
+			// Users should be able to access their own secrets.
+			ResourceUserSecret.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+		}),
 	}.withCachedRegoValue()
 
 	memberRole := Role{
@@ -305,6 +309,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				ResourceOrganizationMember.Type: {policy.ActionRead},
 				// Users can create provisioner daemons scoped to themselves.
 				ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+				// Users should be able to access their own secrets.
+				ResourceUserSecret.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 			})...,
 		),
 	}.withCachedRegoValue()
