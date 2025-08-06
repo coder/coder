@@ -21,8 +21,8 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { createMockWebSocket } from "testHelpers/websockets";
-import CreateWorkspacePageExperimental from "./CreateWorkspacePageExperimental";
 import type { MockWebSocketServer } from "testHelpers/websockets";
+import CreateWorkspacePageExperimental from "./CreateWorkspacePageExperimental";
 
 const mockDynamicParametersResponse: DynamicParametersResponse = {
 	id: 1,
