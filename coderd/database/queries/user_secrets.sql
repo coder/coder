@@ -13,7 +13,7 @@ ORDER BY name ASC;
 
 -- name: CreateUserSecret :one
 INSERT INTO user_secrets (
-	id,
+    id,
     user_id,
     name,
     description,
