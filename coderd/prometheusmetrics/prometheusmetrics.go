@@ -168,59 +168,37 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
 
-	updateWorkspaceTotals := func() {
-		builds, err := db.GetLatestWorkspaceBuilds(ctx)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				// clear all series if there are no database entries
-				workspaceLatestBuildTotals.Reset()
-			} else {
-				logger.Warn(ctx, "failed to load latest workspace builds", slog.Error(err))
-			}
-			return
-		}
-		jobIDs := make([]uuid.UUID, 0, len(builds))
-		for _, build := range builds {
-			jobIDs = append(jobIDs, build.JobID)
-		}
-		jobs, err := db.GetProvisionerJobsByIDs(ctx, jobIDs)
-		if err != nil {
-			ids := make([]string, 0, len(jobIDs))
-			for _, id := range jobIDs {
-				ids = append(ids, id.String())
-			}
-
-			logger.Warn(ctx, "failed to load provisioner jobs", slog.F("ids", ids), slog.Error(err))
-			return
-		}
-
-		workspaceLatestBuildTotals.Reset()
-		for _, job := range jobs {
-			status := codersdk.ProvisionerJobStatus(job.JobStatus)
-			workspaceLatestBuildTotals.WithLabelValues(string(status)).Add(1)
-			// TODO: deprecated: remove in the future
-			workspaceLatestBuildTotalsDeprecated.WithLabelValues(string(status)).Add(1)
-		}
-	}
-
-	updateWorkspaceStatuses := func() {
+	updateWorkspaceMetrics := func() {
 		ws, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
 			Deleted:     false,
 			WithSummary: false,
 		})
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				// clear all series if there are no database entries
+				workspaceLatestBuildTotals.Reset()
 				workspaceLatestBuildStatuses.Reset()
+			} else {
+				logger.Warn(ctx, "failed to load active workspaces for metrics", slog.Error(err))
 			}
-
-			logger.Warn(ctx, "failed to load active workspaces", slog.Error(err))
 			return
 		}
 
+		workspaceLatestBuildTotals.Reset()
 		workspaceLatestBuildStatuses.Reset()
+
 		for _, w := range ws {
-			workspaceLatestBuildStatuses.WithLabelValues(string(w.LatestBuildStatus), w.TemplateName, w.TemplateVersionName.String, w.OwnerUsername, string(w.LatestBuildTransition)).Add(1)
+			status := string(w.LatestBuildStatus)
+			workspaceLatestBuildTotals.WithLabelValues(status).Add(1)
+			// TODO: deprecated: remove in the future
+			workspaceLatestBuildTotalsDeprecated.WithLabelValues(status).Add(1)
+
+			workspaceLatestBuildStatuses.WithLabelValues(
+				status,
+				w.TemplateName,
+				w.TemplateVersionName.String,
+				w.OwnerUsername,
+				string(w.LatestBuildTransition),
+			).Add(1)
 		}
 	}
 
@@ -230,8 +208,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	doTick := func() {
 		defer ticker.Reset(duration)
 
-		updateWorkspaceTotals()
-		updateWorkspaceStatuses()
+		updateWorkspaceMetrics()
 	}
 
 	go func() {
