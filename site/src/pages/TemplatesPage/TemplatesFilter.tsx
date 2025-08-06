@@ -41,6 +41,7 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 		<Filter
 			presets={[
 				{ query: "", name: "All templates" },
+				{ query: "author:me", name: "Templates you authored" },
 				{ query: "deprecated:true", name: "Deprecated templates" },
 			]}
 			// TODO: Add docs for this
