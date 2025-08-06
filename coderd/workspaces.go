@@ -45,8 +45,8 @@ import (
 )
 
 var (
-	ttlMin = time.Minute //nolint:revive // min here means 'minimum' not 'minutes'
-	ttlMax = 30 * 24 * time.Hour
+	ttlMinimum = time.Minute
+	ttlMaximum = 30 * 24 * time.Hour
 
 	errTTLMin              = xerrors.New("time until shutdown must be at least one minute")
 	errTTLMax              = xerrors.New("time until shutdown must be less than 30 days")
@@ -1189,9 +1189,16 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 			}
 
 			if build.Transition == database.WorkspaceTransitionStart {
+				newDeadline := time.Time{}
+				// If the build has a max_deadline set, we still need to abide
+				// by it.
+				if !build.MaxDeadline.IsZero() {
+					newDeadline = build.MaxDeadline
+				}
+
 				if err = s.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 					ID:          build.ID,
-					Deadline:    time.Time{},
+					Deadline:    newDeadline,
 					MaxDeadline: build.MaxDeadline,
 					UpdatedAt:   dbtime.Time(api.Clock.Now()),
 				}); err != nil {
@@ -2391,11 +2398,11 @@ func validWorkspaceTTLMillis(millis *int64, templateDefault time.Duration) (sql.
 
 	dur := time.Duration(*millis) * time.Millisecond
 	truncated := dur.Truncate(time.Minute)
-	if truncated < ttlMin {
+	if truncated < ttlMinimum {
 		return sql.NullInt64{}, errTTLMin
 	}
 
-	if truncated > ttlMax {
+	if truncated > ttlMaximum {
 		return sql.NullInt64{}, errTTLMax
 	}
 
