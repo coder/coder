@@ -22,18 +22,9 @@ func (api *API) initScript(rw http.ResponseWriter, r *http.Request) {
 	os := strings.ToLower(chi.URLParam(r, "os"))
 	arch := strings.ToLower(chi.URLParam(r, "arch"))
 
-	if os != "linux" && os != "darwin" && os != "windows" {
-		rw.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	if arch != "amd64" && arch != "arm64" && arch != "armv7" {
-		rw.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
 	script, exists := provisionersdk.AgentScriptEnv()[fmt.Sprintf("CODER_AGENT_SCRIPT_%s_%s", os, arch)]
 	if !exists {
-		rw.WriteHeader(http.StatusNotFound)
+		rw.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	script = strings.ReplaceAll(script, "${ACCESS_URL}", api.AccessURL.String()+"/")

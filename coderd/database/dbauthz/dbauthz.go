@@ -4707,7 +4707,7 @@ func (q *querier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context, a
 }
 
 func (q *querier) UpdateTemplateVersionExternalAgentByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAgentByJobIDParams) error {
-	// An actor is allowed to update the template version AI task flag if they are authorized to update the template.
+	// An actor is allowed to update the template version external agent flag if they are authorized to update the template.
 	tv, err := q.db.GetTemplateVersionByJobID(ctx, arg.JobID)
 	if err != nil {
 		return err

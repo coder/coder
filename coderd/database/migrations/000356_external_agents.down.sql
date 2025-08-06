@@ -36,7 +36,6 @@ ALTER TABLE workspace_builds DROP COLUMN has_external_agent;
 
 DROP VIEW workspace_build_with_user;
 
--- We're adding the has_external_agent column.
 CREATE VIEW workspace_build_with_user AS
 SELECT
     workspace_builds.id,
