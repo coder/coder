@@ -13,10 +13,14 @@ import { CopyButton } from "../CopyButton/CopyButton";
 
 interface CodeExampleProps {
 	code: string;
+	/** Defaulting to true to be on the safe side; you should have to opt out of the secure option, not remember to opt in */
 	secret?: boolean;
+	/** Redact parts of the code if the user doesn't want to obfuscate the whole code */
 	redactPattern?: RegExp;
+	/** Replacement text for redacted content */
 	redactReplacement?: string;
-	redactShowButton?: boolean;
+	/** Show a button to reveal the redacted parts of the code */
+	showRevealButton?: boolean;
 	className?: string;
 }
 
@@ -26,17 +30,10 @@ interface CodeExampleProps {
 export const CodeExample: FC<CodeExampleProps> = ({
 	code,
 	className,
-
-	// Defaulting to true to be on the safe side; you should have to opt out of
-	// the secure option, not remember to opt in
 	secret = true,
-
-	// Redact parts of the code if the user doesn't want to obfuscate the whole code
 	redactPattern,
 	redactReplacement = "********",
-
-	// Show a button to show the redacted parts of the code
-	redactShowButton = false,
+	showRevealButton,
 }) => {
 	const [showFullValue, setShowFullValue] = useState(false);
 
@@ -78,8 +75,8 @@ export const CodeExample: FC<CodeExampleProps> = ({
 				)}
 			</code>
 
-			<div css={styles.actions}>
-				{redactShowButton && redactPattern && !secret && (
+			<div className="flex items-center gap-1">
+				{showRevealButton && redactPattern && !secret && (
 					<TooltipProvider>
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -133,11 +130,5 @@ const styles = {
 
 	secret: {
 		"-webkit-text-security": "disc", // also supported by firefox
-	},
-
-	actions: {
-		display: "flex",
-		alignItems: "center",
-		gap: 4,
 	},
 } satisfies Record<string, Interpolation<Theme>>;

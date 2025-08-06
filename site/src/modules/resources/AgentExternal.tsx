@@ -34,7 +34,7 @@ export const AgentExternal: FC<AgentExternalProps> = ({
 	}, [isExternalAgent, agent.status, workspace.id, agent.name]);
 
 	return (
-		<section css={styles.externalAgentSection}>
+		<section className="text-base text-muted-foreground pb-2 leading-relaxed">
 			<p>
 				Please run the following command to attach an agent to the{" "}
 				{workspace.name} workspace:
@@ -44,17 +44,8 @@ export const AgentExternal: FC<AgentExternalProps> = ({
 				secret={false}
 				redactPattern={/CODER_AGENT_TOKEN="([^"]+)"/g}
 				redactReplacement={`CODER_AGENT_TOKEN="********"`}
-				redactShowButton={true}
+				showRevealButton={true}
 			/>
 		</section>
 	);
 };
-
-const styles = {
-	externalAgentSection: (theme) => ({
-		fontSize: 16,
-		color: theme.palette.text.secondary,
-		paddingBottom: 8,
-		lineHeight: 1.4,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

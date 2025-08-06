@@ -37,6 +37,6 @@ export const Redact: Story = {
 		secret: false,
 		redactPattern: /CODER_AGENT_TOKEN="([^"]+)"/g,
 		redactReplacement: `CODER_AGENT_TOKEN="********"`,
-		redactShowButton: true,
+		showRevealButton: true,
 	},
 };
