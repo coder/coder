@@ -3056,3 +3056,48 @@ func (p *pubsubReinitSpy) Subscribe(event string, listener pubsub.Listener) (can
 	p.Unlock()
 	return cancel, err
 }
+
+func TestWorkspaceExternalAgentCredentials(t *testing.T) {
+	t.Parallel()
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+			a[0].Name = "test-agent"
+			return a
+		}).Do()
+
+		credentials, err := client.WorkspaceExternalAgentCredentials(
+			ctx, r.Workspace.ID, "test-agent")
+		require.NoError(t, err)
+
+		require.Equal(t, r.AgentToken, credentials.AgentToken)
+	})
+
+	t.Run("WithInstanceID - should return 404", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+			a[0].Name = "test-agent"
+			a[0].Auth = &proto.Agent_InstanceId{
+				InstanceId: uuid.New().String(),
+			}
+			return a
+		}).Do()
+
+		_, err := client.WorkspaceExternalAgentCredentials(ctx, r.Workspace.ID, "test-agent")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "External agent is authenticated with an instance ID.")
+	})
+}

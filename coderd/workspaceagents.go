@@ -2223,6 +2223,13 @@ func (api *API) workspaceExternalAgentCredentials(rw http.ResponseWriter, r *htt
 
 	for _, agent := range agents {
 		if agent.Name == agentName {
+			if agent.AuthInstanceID.Valid {
+				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+					Message: "External agent is authenticated with an instance ID.",
+				})
+				return
+			}
+
 			httpapi.Write(ctx, rw, http.StatusOK, codersdk.ExternalAgentCredentials{
 				AgentToken: agent.AuthToken.String(),
 			})

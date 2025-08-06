@@ -128,7 +128,7 @@ func (r *RootCmd) externalWorkspaceAgentInstructions() *serpent.Command {
 				return xerrors.Errorf("find workspace and agent: %w", err)
 			}
 
-			credential, err := client.WorkspaceExternalAgentCredential(inv.Context(), workspace.ID, workspaceAgent.Name)
+			credential, err := client.WorkspaceExternalAgentCredentials(inv.Context(), workspace.ID, workspaceAgent.Name)
 			if err != nil {
 				return xerrors.Errorf("get external agent token for agent %q: %w", workspaceAgent.Name, err)
 			}
@@ -235,7 +235,7 @@ func fetchExternalAgents(inv *serpent.Invocation, client *codersdk.Client, works
 		}
 
 		agent := resource.Agents[0]
-		credential, err := client.WorkspaceExternalAgentCredential(inv.Context(), workspace.ID, agent.Name)
+		credential, err := client.WorkspaceExternalAgentCredentials(inv.Context(), workspace.ID, agent.Name)
 		if err != nil {
 			return nil, xerrors.Errorf("get external agent token for agent %q: %w", agent.Name, err)
 		}

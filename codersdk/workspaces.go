@@ -695,7 +695,7 @@ type ExternalAgentCredentials struct {
 	AgentToken string `json:"agent_token"`
 }
 
-func (c *Client) WorkspaceExternalAgentCredential(ctx context.Context, workspaceID uuid.UUID, agentName string) (ExternalAgentCredentials, error) {
+func (c *Client) WorkspaceExternalAgentCredentials(ctx context.Context, workspaceID uuid.UUID, agentName string) (ExternalAgentCredentials, error) {
 	path := fmt.Sprintf("/api/v2/workspaces/%s/external-agent/%s/credentials", workspaceID.String(), agentName)
 	res, err := c.Request(ctx, http.MethodGet, path, nil)
 	if err != nil {
