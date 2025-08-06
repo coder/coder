@@ -12,8 +12,16 @@ import (
 )
 
 type UpdateValidator[Role codersdk.WorkspaceRole | codersdk.TemplateRole] interface {
+	// Users should return a map from user UUIDs (as strings) to the role they
+	// are being assigned. Additionally, it should return a string that will be
+	// used as the field name for the ValidationErrors returned from Validate.
 	Users() (map[string]Role, string)
+	// Groups should return a map from group UUIDs (as strings) to the role they
+	// are being assigned. Additionally, it should return a string that will be
+	// used as the field name for the ValidationErrors returned from Validate.
 	Groups() (map[string]Role, string)
+	// ValidateRole should return an error that will be used in the
+	// ValidationError if the role is invalid for the corresponding resource type.
 	ValidateRole(role Role) error
 }
 
