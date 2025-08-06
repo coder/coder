@@ -38,15 +38,16 @@ func RichParameter(inv *serpent.Invocation, templateVersionParameter codersdk.Te
 		// Move the cursor up a single line for nicer display!
 		_, _ = fmt.Fprint(inv.Stdout, "\033[1A")
 
-		var options []string
-		err = json.Unmarshal([]byte(templateVersionParameter.DefaultValue), &options)
+		var defaults []string
+		err = json.Unmarshal([]byte(templateVersionParameter.DefaultValue), &defaults)
 		if err != nil {
 			return "", err
 		}
 
-		values, err := MultiSelect(inv, MultiSelectOptions{
-			Options:  options,
-			Defaults: options,
+		values, err := RichMultiSelect(inv, RichMultiSelectOptions{
+			Options:           templateVersionParameter.Options,
+			Defaults:          defaults,
+			EnableCustomInput: templateVersionParameter.FormType == "tag-select",
 		})
 		if err == nil {
 			v, err := json.Marshal(&values)
