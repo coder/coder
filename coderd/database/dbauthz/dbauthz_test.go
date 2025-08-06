@@ -624,7 +624,8 @@ func (s *MethodTestSuite) TestGroup() {
 		}).Asserts(g, policy.ActionUpdate)
 	}))
 	s.Run("ValidateGroupIDs", s.Subtest(func(db database.Store, check *expects) {
-		g := dbgen.Group(s.T(), db, database.Group{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		g := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
 		check.Args([]uuid.UUID{g.ID}).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 }
