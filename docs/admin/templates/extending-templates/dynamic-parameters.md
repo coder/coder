@@ -44,9 +44,6 @@ In Coder v2.25.0, Dynamic Parameters are automatically enabled for new templates
 
    ![Enable dynamic parameters for workspace creation](../../../images/admin/templates/extend-templates/dyn-params/dynamic-parameters-ga-settings.png)
 
-
-
-
 1. Update your template to use version >=2.4.0 of the Coder provider with the following Terraform block.
 
    ```terraform
