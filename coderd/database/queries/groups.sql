@@ -19,7 +19,7 @@ SELECT
 FROM
 	-- Preserve rows where there is not a matching left (groups) row for each
 	-- right (input) row...
-	users
+	groups
 	RIGHT JOIN input ON groups.id = input.id
 WHERE
 	-- ...so that we can retain exactly those rows where an input ID does not
