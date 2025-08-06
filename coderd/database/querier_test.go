@@ -6003,3 +6003,225 @@ func TestGetRunningPrebuiltWorkspaces(t *testing.T) {
 	require.Len(t, runningPrebuilds, 1, "expected only one running prebuilt workspace")
 	require.Equal(t, runningPrebuild.ID, runningPrebuilds[0].ID, "expected the running prebuilt workspace to be returned")
 }
+
+func TestUserSecretsCRUDOperations(t *testing.T) {
+	t.Parallel()
+
+	// Use raw database without dbauthz wrapper for this test
+	db, _ := dbtestutil.NewDB(t)
+
+	t.Run("FullCRUDWorkflow", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a new user for this test
+		testUser := dbgen.User(t, db, database.User{})
+
+		// 1. CREATE
+		secretID := uuid.New()
+		createParams := database.CreateUserSecretParams{
+			ID:          secretID,
+			UserID:      testUser.ID,
+			Name:        "workflow-secret",
+			Description: "Secret for full CRUD workflow",
+			Value:       "workflow-value",
+			EnvName:     "WORKFLOW_ENV",
+			FilePath:    "/workflow/path",
+		}
+
+		createdSecret, err := db.CreateUserSecret(context.Background(), createParams)
+		require.NoError(t, err)
+		assert.Equal(t, secretID, createdSecret.ID)
+
+		// 2. READ by ID
+		readSecret, err := db.GetUserSecret(context.Background(), createdSecret.ID)
+		require.NoError(t, err)
+		assert.Equal(t, createdSecret.ID, readSecret.ID)
+		assert.Equal(t, "workflow-secret", readSecret.Name)
+
+		// 3. READ by UserID and Name
+		readByNameParams := database.GetUserSecretByUserIDAndNameParams{
+			UserID: testUser.ID,
+			Name:   "workflow-secret",
+		}
+		readByNameSecret, err := db.GetUserSecretByUserIDAndName(context.Background(), readByNameParams)
+		require.NoError(t, err)
+		assert.Equal(t, createdSecret.ID, readByNameSecret.ID)
+
+		// 4. LIST
+		secrets, err := db.ListUserSecrets(context.Background(), testUser.ID)
+		require.NoError(t, err)
+		require.Len(t, secrets, 1)
+		assert.Equal(t, createdSecret.ID, secrets[0].ID)
+
+		// 5. UPDATE
+		updateParams := database.UpdateUserSecretParams{
+			ID:          createdSecret.ID,
+			Description: "Updated workflow description",
+			Value:       "updated-workflow-value",
+			EnvName:     "UPDATED_WORKFLOW_ENV",
+			FilePath:    "/updated/workflow/path",
+		}
+
+		updatedSecret, err := db.UpdateUserSecret(context.Background(), updateParams)
+		require.NoError(t, err)
+		assert.Equal(t, "Updated workflow description", updatedSecret.Description)
+		assert.Equal(t, "updated-workflow-value", updatedSecret.Value)
+
+		// 6. DELETE
+		err = db.DeleteUserSecret(context.Background(), createdSecret.ID)
+		require.NoError(t, err)
+
+		// Verify deletion
+		_, err = db.GetUserSecret(context.Background(), createdSecret.ID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no rows in result set")
+
+		// Verify list is empty
+		secrets, err = db.ListUserSecrets(context.Background(), testUser.ID)
+		require.NoError(t, err)
+		assert.Len(t, secrets, 0)
+	})
+
+	t.Run("UniqueConstraints", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a new user for this test
+		testUser := dbgen.User(t, db, database.User{})
+
+		// Create first secret
+		secret1 := dbgen.UserSecret(t, db, database.CreateUserSecretParams{
+			UserID:      testUser.ID,
+			Name:        "unique-test",
+			Description: "First secret",
+			Value:       "value1",
+			EnvName:     "UNIQUE_ENV",
+			FilePath:    "/unique/path",
+		})
+
+		// Try to create another secret with the same name (should fail)
+		_, err := db.CreateUserSecret(context.Background(), database.CreateUserSecretParams{
+			UserID:      testUser.ID,
+			Name:        "unique-test", // Same name
+			Description: "Second secret",
+			Value:       "value2",
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "duplicate key value")
+
+		// Try to create another secret with the same env_name (should fail)
+		_, err = db.CreateUserSecret(context.Background(), database.CreateUserSecretParams{
+			UserID:      testUser.ID,
+			Name:        "unique-test-2",
+			Description: "Second secret",
+			Value:       "value2",
+			EnvName:     "UNIQUE_ENV", // Same env_name
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "duplicate key value")
+
+		// Try to create another secret with the same file_path (should fail)
+		_, err = db.CreateUserSecret(context.Background(), database.CreateUserSecretParams{
+			UserID:      testUser.ID,
+			Name:        "unique-test-3",
+			Description: "Second secret",
+			Value:       "value2",
+			FilePath:    "/unique/path", // Same file_path
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "duplicate key value")
+
+		// Create secret with empty env_name and file_path (should succeed)
+		secret2 := dbgen.UserSecret(t, db, database.CreateUserSecretParams{
+			UserID:      testUser.ID,
+			Name:        "unique-test-4",
+			Description: "Second secret",
+			Value:       "value2",
+			EnvName:     "", // Empty env_name
+			FilePath:    "", // Empty file_path
+		})
+
+		// Verify both secrets exist
+		_, err = db.GetUserSecret(context.Background(), secret1.ID)
+		require.NoError(t, err)
+		_, err = db.GetUserSecret(context.Background(), secret2.ID)
+		require.NoError(t, err)
+	})
+}
+
+func TestUserSecretsAuthorization(t *testing.T) {
+	t.Parallel()
+
+	// Use raw database and wrap with dbauthz for authorization testing
+	db, _ := dbtestutil.NewDB(t)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+	authDB := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+
+	// Create test users
+	user1 := dbgen.User(t, db, database.User{})
+	user2 := dbgen.User(t, db, database.User{})
+	owner := dbgen.User(t, db, database.User{})
+
+	// Create secrets for users
+	user1Secret := dbgen.UserSecret(t, db, database.CreateUserSecretParams{
+		UserID:      user1.ID,
+		Name:        "user1-secret",
+		Description: "User 1's secret",
+		Value:       "user1-value",
+	})
+
+	user2Secret := dbgen.UserSecret(t, db, database.CreateUserSecretParams{
+		UserID:      user2.ID,
+		Name:        "user2-secret",
+		Description: "User 2's secret",
+		Value:       "user2-value",
+	})
+
+	t.Run("UserCanAccessOwnSecrets", func(t *testing.T) {
+		t.Parallel()
+
+		user1Subject := rbac.Subject{
+			ID:    user1.ID.String(),
+			Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
+			Scope: rbac.ScopeAll,
+		}
+		ctx := dbauthz.As(context.Background(), user1Subject)
+
+		// Test GetUserSecret - should succeed
+		secret, err := authDB.GetUserSecret(ctx, user1Secret.ID)
+		require.NoError(t, err)
+		assert.Equal(t, user1Secret.ID, secret.ID)
+		assert.Equal(t, user1.ID, secret.UserID)
+	})
+
+	t.Run("UserCannotAccessOtherUserSecrets", func(t *testing.T) {
+		t.Parallel()
+
+		user1Subject := rbac.Subject{
+			ID:    user1.ID.String(),
+			Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
+			Scope: rbac.ScopeAll,
+		}
+		ctx := dbauthz.As(context.Background(), user1Subject)
+
+		// Test GetUserSecret - should fail
+		_, err := authDB.GetUserSecret(ctx, user2Secret.ID)
+		require.Error(t, err)
+		assert.True(t, dbauthz.IsNotAuthorizedError(err))
+	})
+
+	t.Run("OwnerCannotAccessUserSecrets", func(t *testing.T) {
+		t.Parallel()
+
+		ownerSubject := rbac.Subject{
+			ID:    owner.ID.String(),
+			Roles: rbac.RoleIdentifiers{rbac.RoleOwner()},
+			Scope: rbac.ScopeAll,
+		}
+		ctx := dbauthz.As(context.Background(), ownerSubject)
+
+		// Test GetUserSecret - should fail
+		_, err := authDB.GetUserSecret(ctx, user1Secret.ID)
+		require.Error(t, err)
+		assert.True(t, dbauthz.IsNotAuthorizedError(err))
+	})
+}
