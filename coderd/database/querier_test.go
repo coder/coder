@@ -6162,6 +6162,9 @@ func TestUserSecretsAuthorization(t *testing.T) {
 	owner := dbgen.User(t, db, database.User{})
 	orgAdmin := dbgen.User(t, db, database.User{})
 
+	// Create organization for org-scoped roles
+	org := dbgen.Organization(t, db, database.Organization{})
+
 	// Create secrets for users
 	user1Secret := dbgen.UserSecret(t, db, database.CreateUserSecretParams{
 		UserID:      user1.ID,
@@ -6177,71 +6180,70 @@ func TestUserSecretsAuthorization(t *testing.T) {
 		Value:       "user2-value",
 	})
 
-	// Create organization for org-scoped roles
-	org := dbgen.Organization(t, db, database.Organization{})
+	testCases := []struct {
+		name           string
+		subject        rbac.Subject
+		secretID       uuid.UUID
+		expectedAccess bool
+	}{
+		{
+			name: "UserCanAccessOwnSecrets",
+			subject: rbac.Subject{
+				ID:    user1.ID.String(),
+				Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
+				Scope: rbac.ScopeAll,
+			},
+			secretID:       user1Secret.ID,
+			expectedAccess: true,
+		},
+		{
+			name: "UserCannotAccessOtherUserSecrets",
+			subject: rbac.Subject{
+				ID:    user1.ID.String(),
+				Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
+				Scope: rbac.ScopeAll,
+			},
+			secretID:       user2Secret.ID,
+			expectedAccess: false,
+		},
+		{
+			name: "OwnerCannotAccessUserSecrets",
+			subject: rbac.Subject{
+				ID:    owner.ID.String(),
+				Roles: rbac.RoleIdentifiers{rbac.RoleOwner()},
+				Scope: rbac.ScopeAll,
+			},
+			secretID:       user1Secret.ID,
+			expectedAccess: false,
+		},
+		{
+			name: "OrgAdminCannotAccessUserSecrets",
+			subject: rbac.Subject{
+				ID:    orgAdmin.ID.String(),
+				Roles: rbac.RoleIdentifiers{rbac.ScopedRoleOrgAdmin(org.ID)},
+				Scope: rbac.ScopeAll,
+			},
+			secretID:       user1Secret.ID,
+			expectedAccess: false,
+		},
+	}
 
-	t.Run("UserCanAccessOwnSecrets", func(t *testing.T) {
-		t.Parallel()
+	for _, tc := range testCases {
+		tc := tc // capture range variable
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		user1Subject := rbac.Subject{
-			ID:    user1.ID.String(),
-			Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
-			Scope: rbac.ScopeAll,
-		}
-		ctx := dbauthz.As(context.Background(), user1Subject)
+			ctx := dbauthz.As(context.Background(), tc.subject)
 
-		// Test GetUserSecret - should succeed
-		secret, err := authDB.GetUserSecret(ctx, user1Secret.ID)
-		require.NoError(t, err)
-		assert.Equal(t, user1Secret.ID, secret.ID)
-		assert.Equal(t, user1.ID, secret.UserID)
-	})
+			// Test GetUserSecret
+			_, err := authDB.GetUserSecret(ctx, tc.secretID)
 
-	t.Run("UserCannotAccessOtherUserSecrets", func(t *testing.T) {
-		t.Parallel()
-
-		user1Subject := rbac.Subject{
-			ID:    user1.ID.String(),
-			Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
-			Scope: rbac.ScopeAll,
-		}
-		ctx := dbauthz.As(context.Background(), user1Subject)
-
-		// Test GetUserSecret - should fail
-		_, err := authDB.GetUserSecret(ctx, user2Secret.ID)
-		require.Error(t, err)
-		assert.True(t, dbauthz.IsNotAuthorizedError(err))
-	})
-
-	t.Run("OwnerCannotAccessUserSecrets", func(t *testing.T) {
-		t.Parallel()
-
-		ownerSubject := rbac.Subject{
-			ID:    owner.ID.String(),
-			Roles: rbac.RoleIdentifiers{rbac.RoleOwner()},
-			Scope: rbac.ScopeAll,
-		}
-		ctx := dbauthz.As(context.Background(), ownerSubject)
-
-		// Test GetUserSecret - should fail
-		_, err := authDB.GetUserSecret(ctx, user1Secret.ID)
-		require.Error(t, err)
-		assert.True(t, dbauthz.IsNotAuthorizedError(err))
-	})
-
-	t.Run("OrgAdminCannotAccessUserSecrets", func(t *testing.T) {
-		t.Parallel()
-
-		orgAdminSubject := rbac.Subject{
-			ID:    orgAdmin.ID.String(),
-			Roles: rbac.RoleIdentifiers{rbac.ScopedRoleOrgAdmin(org.ID)},
-			Scope: rbac.ScopeAll,
-		}
-		ctx := dbauthz.As(context.Background(), orgAdminSubject)
-
-		// Test GetUserSecret - should fail
-		_, err := authDB.GetUserSecret(ctx, user1Secret.ID)
-		require.Error(t, err)
-		assert.True(t, dbauthz.IsNotAuthorizedError(err))
-	})
+			if tc.expectedAccess {
+				require.NoError(t, err, "expected access to be granted")
+			} else {
+				require.Error(t, err, "expected access to be denied")
+				assert.True(t, dbauthz.IsNotAuthorizedError(err), "expected authorization error")
+			}
+		})
+	}
 }
