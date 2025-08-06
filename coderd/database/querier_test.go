@@ -6160,6 +6160,7 @@ func TestUserSecretsAuthorization(t *testing.T) {
 	user1 := dbgen.User(t, db, database.User{})
 	user2 := dbgen.User(t, db, database.User{})
 	owner := dbgen.User(t, db, database.User{})
+	orgAdmin := dbgen.User(t, db, database.User{})
 
 	// Create secrets for users
 	user1Secret := dbgen.UserSecret(t, db, database.CreateUserSecretParams{
@@ -6175,6 +6176,9 @@ func TestUserSecretsAuthorization(t *testing.T) {
 		Description: "User 2's secret",
 		Value:       "user2-value",
 	})
+
+	// Create organization for org-scoped roles
+	org := dbgen.Organization(t, db, database.Organization{})
 
 	t.Run("UserCanAccessOwnSecrets", func(t *testing.T) {
 		t.Parallel()
@@ -6218,6 +6222,22 @@ func TestUserSecretsAuthorization(t *testing.T) {
 			Scope: rbac.ScopeAll,
 		}
 		ctx := dbauthz.As(context.Background(), ownerSubject)
+
+		// Test GetUserSecret - should fail
+		_, err := authDB.GetUserSecret(ctx, user1Secret.ID)
+		require.Error(t, err)
+		assert.True(t, dbauthz.IsNotAuthorizedError(err))
+	})
+
+	t.Run("OrgAdminCannotAccessUserSecrets", func(t *testing.T) {
+		t.Parallel()
+
+		orgAdminSubject := rbac.Subject{
+			ID:    orgAdmin.ID.String(),
+			Roles: rbac.RoleIdentifiers{rbac.ScopedRoleOrgAdmin(org.ID)},
+			Scope: rbac.ScopeAll,
+		}
+		ctx := dbauthz.As(context.Background(), orgAdminSubject)
 
 		// Test GetUserSecret - should fail
 		_, err := authDB.GetUserSecret(ctx, user1Secret.ID)
