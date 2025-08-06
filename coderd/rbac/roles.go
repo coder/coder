@@ -281,7 +281,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
 				ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
 			})...),
-		Org:  map[string][]Permission{},
+		Org: map[string][]Permission{},
 		User: Permissions(map[string][]policy.Action{
 			// Users should be able to access their own secrets.
 			ResourceUserSecret.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},

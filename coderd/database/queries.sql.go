@@ -13773,7 +13773,7 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 
 const createUserSecret = `-- name: CreateUserSecret :one
 INSERT INTO user_secrets (
-	id,
+    id,
     user_id,
     name,
     description,
