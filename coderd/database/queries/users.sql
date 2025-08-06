@@ -41,7 +41,7 @@ FROM
 WHERE
 	-- ...so that we can retain exactly those rows where an input ID does not
 	-- match an existing user...
-	users.id IS NOT DISTINCT FROM NULL OR
+	users.id IS NULL OR
 	-- ...or that only matches a user that was deleted.
 	users.deleted = true;
 

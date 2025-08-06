@@ -24,7 +24,7 @@ FROM
 WHERE
 	-- ...so that we can retain exactly those rows where an input ID does not
 	-- match an existing group.
-	groups.id IS NOT DISTINCT FROM NULL;
+	groups.id IS NULL;
 
 -- name: GetGroupByOrgAndName :one
 SELECT

@@ -25,10 +25,10 @@ type UpdateValidator[Role codersdk.WorkspaceRole | codersdk.TemplateRole] interf
 	ValidateRole(role Role) error
 }
 
-func Validate[T codersdk.WorkspaceRole | codersdk.TemplateRole](
+func Validate[Role codersdk.WorkspaceRole | codersdk.TemplateRole](
 	ctx context.Context,
 	db database.Store,
-	v UpdateValidator[T],
+	v UpdateValidator[Role],
 ) []codersdk.ValidationError {
 	// nolint:gocritic // Validate requires full read access to users and groups
 	ctx = dbauthz.AsSystemRestricted(ctx)
