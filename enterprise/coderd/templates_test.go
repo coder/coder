@@ -1413,7 +1413,34 @@ func TestUpdateTemplateACL(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		req := codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
-				"hi": "admin",
+				"hi": codersdk.TemplateRoleAdmin,
+			},
+		}
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // we're testing invalid UUID so testing RBAC is not relevant here.
+		err := client.UpdateTemplateACL(ctx, template.ID, req)
+		require.Error(t, err)
+		cerr, _ := codersdk.AsError(err)
+		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+	})
+
+	// We should report invalid UUIDs as errors
+	t.Run("DeleteRoleForInvalidUUID", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		}})
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		req := codersdk.UpdateTemplateACL{
+			UserPerms: map[string]codersdk.TemplateRole{
+				"hi": codersdk.TemplateRoleDeleted,
 			},
 		}
 
@@ -1447,6 +1474,66 @@ func TestUpdateTemplateACL(t *testing.T) {
 
 		//nolint:gocritic // we're testing invalid user so testing RBAC is not relevant here.
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
+		require.Error(t, err)
+		cerr, _ := codersdk.AsError(err)
+		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+	})
+
+	// We should allow the special "Delete" role for valid UUIDs that don't
+	// correspond to a valid user, because the user might have been deleted.
+	t.Run("DeleteRoleForDeletedUser", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		}})
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, deletedUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		err := client.DeleteUser(ctx, deletedUser.ID)
+		require.NoError(t, err)
+
+		req := codersdk.UpdateTemplateACL{
+			UserPerms: map[string]codersdk.TemplateRole{
+				deletedUser.ID.String(): codersdk.TemplateRoleDeleted,
+			},
+		}
+		//nolint:gocritic // Testing ACL validation
+		err = client.UpdateTemplateACL(ctx, template.ID, req)
+		require.NoError(t, err)
+	})
+
+	t.Run("DeletedUser", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		}})
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, deletedUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		err := client.DeleteUser(ctx, deletedUser.ID)
+		require.NoError(t, err)
+
+		req := codersdk.UpdateTemplateACL{
+			UserPerms: map[string]codersdk.TemplateRole{
+				deletedUser.ID.String(): codersdk.TemplateRoleAdmin,
+			},
+		}
+		//nolint:gocritic // Testing ACL validation
+		err = client.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
 		cerr, _ := codersdk.AsError(err)
 		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())

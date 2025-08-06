@@ -40,9 +40,10 @@ FROM
 	RIGHT JOIN input ON users.id = input.id
 WHERE
 	-- ...so that we can retain exactly those rows where an input ID does not
-	-- match an existing user.
-	users.id IS NOT DISTINCT FROM NULL AND
-	users.deleted = false;
+	-- match an existing user...
+	users.id IS NOT DISTINCT FROM NULL OR
+	-- ...or that only matches a user that was deleted.
+	users.deleted = true;
 
 -- name: GetUsersByIDs :many
 -- This shouldn't check for deleted, because it's frequently used

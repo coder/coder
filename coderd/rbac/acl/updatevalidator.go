@@ -34,9 +34,9 @@ func Validate[T codersdk.WorkspaceRole | codersdk.TemplateRole](
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	var validErrs []codersdk.ValidationError
 
-	groupPerms, groupsField := v.Groups()
-	groupIDs := make([]uuid.UUID, 0, len(groupPerms))
-	for idStr, role := range groupPerms {
+	groupRoles, groupsField := v.Groups()
+	groupIDs := make([]uuid.UUID, 0, len(groupRoles))
+	for idStr, role := range groupRoles {
 		// Validate the provided role names
 		if err := v.ValidateRole(role); err != nil {
 			validErrs = append(validErrs, codersdk.ValidationError{
@@ -49,8 +49,15 @@ func Validate[T codersdk.WorkspaceRole | codersdk.TemplateRole](
 		if err != nil {
 			validErrs = append(validErrs, codersdk.ValidationError{
 				Field:  groupsField,
-				Detail: idStr + "is not a valid UUID.",
+				Detail: fmt.Sprintf("%v is not a valid UUID.", idStr),
 			})
+			continue
+		}
+		// Don't check if the ID exists when setting the role to
+		// WorkspaceRoleDeleted or TemplateRoleDeleted. They might've existing at
+		// some point and got deleted. If we report that as an error here then they
+		// can't be removed.
+		if string(role) == "" {
 			continue
 		}
 		groupIDs = append(groupIDs, id)
@@ -73,9 +80,9 @@ func Validate[T codersdk.WorkspaceRole | codersdk.TemplateRole](
 		}
 	}
 
-	userPerms, usersField := v.Users()
-	userIDs := make([]uuid.UUID, 0, len(userPerms))
-	for idStr, role := range userPerms {
+	userRoles, usersField := v.Users()
+	userIDs := make([]uuid.UUID, 0, len(userRoles))
+	for idStr, role := range userRoles {
 		// Validate the provided role names
 		if err := v.ValidateRole(role); err != nil {
 			validErrs = append(validErrs, codersdk.ValidationError{
@@ -88,8 +95,15 @@ func Validate[T codersdk.WorkspaceRole | codersdk.TemplateRole](
 		if err != nil {
 			validErrs = append(validErrs, codersdk.ValidationError{
 				Field:  usersField,
-				Detail: idStr + "is not a valid UUID.",
+				Detail: fmt.Sprintf("%v is not a valid UUID.", idStr),
 			})
+			continue
+		}
+		// Don't check if the ID exists when setting the role to
+		// WorkspaceRoleDeleted or TemplateRoleDeleted. They might've existing at
+		// some point and got deleted. If we report that as an error here then they
+		// can't be removed.
+		if string(role) == "" {
 			continue
 		}
 		userIDs = append(userIDs, id)
