@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 
@@ -297,6 +298,57 @@ func (m selectModel) filteredOptions() []string {
 		}
 	}
 	return options
+}
+
+type RichMultiSelectOptions struct {
+	Message           string
+	Options           []codersdk.TemplateVersionParameterOption
+	Defaults          []string
+	EnableCustomInput bool
+}
+
+func RichMultiSelect(inv *serpent.Invocation, richOptions RichMultiSelectOptions) ([]string, error) {
+	opts := make([]string, len(richOptions.Options))
+	var defaultOpts []string
+
+	for i, option := range richOptions.Options {
+		line := option.Name
+		if len(option.Description) > 0 {
+			line += ": " + option.Description
+		}
+		opts[i] = line
+
+		if slices.Contains(richOptions.Defaults, option.Value) {
+			defaultOpts = append(defaultOpts, line)
+		}
+	}
+
+	selected, err := MultiSelect(inv, MultiSelectOptions{
+		Message:           richOptions.Message,
+		Options:           opts,
+		Defaults:          defaultOpts,
+		EnableCustomInput: richOptions.EnableCustomInput,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var results []string
+	for _, sel := range selected {
+		custom := true
+		for i, option := range opts {
+			if option == sel {
+				results = append(results, richOptions.Options[i].Value)
+				custom = false
+				break
+			}
+		}
+
+		if custom {
+			results = append(results, sel)
+		}
+	}
+	return results, nil
 }
 
 type MultiSelectOptions struct {
