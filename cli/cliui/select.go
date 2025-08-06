@@ -311,15 +311,30 @@ func RichMultiSelect(inv *serpent.Invocation, richOptions RichMultiSelectOptions
 	opts := make([]string, len(richOptions.Options))
 	var defaultOpts []string
 
-	for i, option := range richOptions.Options {
+	asLine := func(option codersdk.TemplateVersionParameterOption) string {
 		line := option.Name
 		if len(option.Description) > 0 {
 			line += ": " + option.Description
 		}
-		opts[i] = line
+		return line
+	}
 
+	var predefinedOpts []string
+	for i, option := range richOptions.Options {
+		opts[i] = asLine(option) // Some options may have description defined.
+
+		// Check if option is selected by default
 		if slices.Contains(richOptions.Defaults, option.Value) {
-			defaultOpts = append(defaultOpts, line)
+			defaultOpts = append(defaultOpts, opts[i])
+			predefinedOpts = append(predefinedOpts, option.Value)
+		}
+	}
+
+	// Check if "defaults" contains extra/custom options, user could select them.
+	for _, def := range richOptions.Defaults {
+		if !slices.Contains(predefinedOpts, def) {
+			opts = append(opts, def)
+			defaultOpts = append(defaultOpts, def)
 		}
 	}
 
@@ -333,11 +348,12 @@ func RichMultiSelect(inv *serpent.Invocation, richOptions RichMultiSelectOptions
 		return nil, err
 	}
 
+	// Check selected option, convert descriptions (line) to values
 	var results []string
 	for _, sel := range selected {
 		custom := true
-		for i, option := range opts {
-			if option == sel {
+		for i, option := range richOptions.Options {
+			if asLine(option) == sel {
 				results = append(results, richOptions.Options[i].Value)
 				custom = false
 				break
