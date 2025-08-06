@@ -273,6 +273,7 @@ var (
 	templateACLUpdateGroupsFieldName = "group_perms"
 )
 
+// TemplateACLUpdateValidator implements acl.UpdateValidator[codersdk.TemplateRole]
 var _ acl.UpdateValidator[codersdk.TemplateRole] = TemplateACLUpdateValidator{}
 
 func (w TemplateACLUpdateValidator) Users() (map[string]codersdk.TemplateRole, string) {
