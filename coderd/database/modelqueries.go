@@ -82,6 +82,8 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 		pq.Array(arg.IDs),
 		arg.Deprecated,
 		arg.HasAITask,
+		arg.AuthorID,
+		arg.AuthorUsername,
 	)
 	if err != nil {
 		return nil, err
