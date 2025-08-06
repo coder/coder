@@ -5376,24 +5376,24 @@ func (q *querier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg databa
 	return q.db.UpsertWorkspaceAppAuditSession(ctx, arg)
 }
 
-func (q *querier) ValidateGroupIDs(ctx context.Context, groupIds []uuid.UUID) (database.ValidateGroupIDsRow, error) {
+func (q *querier) ValidateGroupIDs(ctx context.Context, groupIDs []uuid.UUID) (database.ValidateGroupIDsRow, error) {
 	// This check is probably overly restrictive, but the "correct" check isn't
 	// necessarily obvious. It's only used as a verification check for ACLs right
 	// now, which are performed as system.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.ValidateGroupIDsRow{}, err
 	}
-	return q.db.ValidateGroupIDs(ctx, groupIds)
+	return q.db.ValidateGroupIDs(ctx, groupIDs)
 }
 
-func (q *querier) ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (database.ValidateUserIDsRow, error) {
+func (q *querier) ValidateUserIDs(ctx context.Context, userIDs []uuid.UUID) (database.ValidateUserIDsRow, error) {
 	// This check is probably overly restrictive, but the "correct" check isn't
 	// necessarily obvious. It's only used as a verification check for ACLs right
 	// now, which are performed as system.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.ValidateUserIDsRow{}, err
 	}
-	return q.db.ValidateUserIDs(ctx, userIds)
+	return q.db.ValidateUserIDs(ctx, userIDs)
 }
 
 func (q *querier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {
