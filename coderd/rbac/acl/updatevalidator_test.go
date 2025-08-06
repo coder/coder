@@ -3,6 +3,9 @@ package acl_test
 import (
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -10,12 +13,12 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 func TestOK(t *testing.T) {
-	db, _ := dbtestutil.NewDB(t, dbtestutil.WithTimezone("UTC"))
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
 	o := dbgen.Organization(t, db, database.Organization{})
 	g := dbgen.Group(t, db, database.Group{OrganizationID: o.ID})
 	u := dbgen.User(t, db, database.User{})
@@ -40,7 +43,9 @@ func TestOK(t *testing.T) {
 }
 
 func TestDeniesUnknownIDs(t *testing.T) {
-	db, _ := dbtestutil.NewDB(t, dbtestutil.WithTimezone("UTC"))
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	update := codersdk.UpdateWorkspaceACL{
@@ -60,7 +65,9 @@ func TestDeniesUnknownIDs(t *testing.T) {
 }
 
 func TestDeniesUnknownRolesAndInvalidIDs(t *testing.T) {
-	db, _ := dbtestutil.NewDB(t, dbtestutil.WithTimezone("UTC"))
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	update := codersdk.UpdateWorkspaceACL{
