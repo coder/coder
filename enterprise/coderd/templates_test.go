@@ -1419,7 +1419,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		//nolint:gocritic // we're testing invalid UUID so testing RBAC is not relevant here.
+		//nolint:gocritic // Testing ACL validation
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
 		cerr, _ := codersdk.AsError(err)
@@ -1446,7 +1446,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		//nolint:gocritic // we're testing invalid UUID so testing RBAC is not relevant here.
+		//nolint:gocritic // Testing ACL validation
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
 		cerr, _ := codersdk.AsError(err)
@@ -1472,7 +1472,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		//nolint:gocritic // we're testing invalid user so testing RBAC is not relevant here.
+		//nolint:gocritic // Testing ACL validation
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
 		cerr, _ := codersdk.AsError(err)
@@ -1496,6 +1496,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, deletedUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		//nolint:gocritic // Can't delete yourself
 		err := client.DeleteUser(ctx, deletedUser.ID)
 		require.NoError(t, err)
 
@@ -1524,6 +1525,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, deletedUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		//nolint:gocritic // Can't delete yourself
 		err := client.DeleteUser(ctx, deletedUser.ID)
 		require.NoError(t, err)
 
@@ -1559,7 +1561,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		//nolint:gocritic // we're testing invalid role so testing RBAC is not relevant here.
+		//nolint:gocritic // Testing ACL validation
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
 		cerr, _ := codersdk.AsError(err)
