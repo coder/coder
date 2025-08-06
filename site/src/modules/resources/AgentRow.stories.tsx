@@ -293,3 +293,24 @@ export const Devcontainer: Story = {
 		});
 	},
 };
+
+export const FoundDevcontainer: Story = {
+	args: {
+		agent: {
+			...M.MockWorkspaceAgentReady,
+		},
+	},
+	beforeEach: () => {
+		spyOn(API, "getAgentContainers").mockResolvedValue({
+			devcontainers: [
+				{
+					...M.MockWorkspaceAgentDevcontainer,
+					status: "stopped",
+					container: undefined,
+					agent: undefined,
+				},
+			],
+			containers: [],
+		});
+	},
+};
