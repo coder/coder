@@ -137,17 +137,16 @@ export const AgentRow: FC<AgentRowProps> = ({
 	// This is used to show the parent apps of the devcontainer.
 	const [showParentApps, setShowParentApps] = useState(false);
 
-	let shouldDisplayAppsSection = shouldDisplayAgentApps;
-	if (
-		devcontainers &&
-		devcontainers.find(
-			// We only want to hide the parent apps by default when there are dev
-			// containers that are either starting or running. If they are all in
-			// the stopped state, it doesn't make sense to hide the parent apps.
+	const anyRunningOrStartingDevcontainers =
+		devcontainers?.find(
 			(dc) => dc.status === "running" || dc.status === "starting",
-		) !== undefined &&
-		!showParentApps
-	) {
+		) !== undefined;
+
+	// We only want to hide the parent apps by default when there are dev
+	// containers that are either starting or running. If they are all in
+	// the stopped state, it doesn't make sense to hide the parent apps.
+	let shouldDisplayAppsSection = shouldDisplayAgentApps;
+	if (devcontainers && anyRunningOrStartingDevcontainers && !showParentApps) {
 		shouldDisplayAppsSection = false;
 	}
 
@@ -187,7 +186,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 				</div>
 
 				<div className="flex items-center gap-2">
-					{devcontainers && devcontainers.length > 0 && (
+					{anyRunningOrStartingDevcontainers && (
 						<Button
 							variant="outline"
 							size="sm"
