@@ -21,11 +21,7 @@ export const AgentExternal: FC<AgentExternalProps> = ({
 	);
 
 	const origin = isChromatic() ? "https://example.com" : window.location.origin;
-	let initScriptURL = `${origin}/api/v2/init-script`;
-	if (agent.operating_system !== "linux" || agent.architecture !== "amd64") {
-		initScriptURL = `${initScriptURL}?os=${agent.operating_system}&arch=${agent.architecture}`;
-	}
-
+	const initScriptURL = `${origin}/api/v2/init-script/${agent.operating_system}/${agent.architecture}`;
 	useEffect(() => {
 		if (
 			isExternalAgent &&

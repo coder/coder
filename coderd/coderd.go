@@ -1551,7 +1551,7 @@ func New(options *Options) *API {
 			r.Get("/", api.tailnetRPCConn)
 		})
 		r.Route("/init-script", func(r chi.Router) {
-			r.Get("/", api.initScript)
+			r.Get("/{os}/{arch}", api.initScript)
 		})
 	})
 

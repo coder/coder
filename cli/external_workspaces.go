@@ -133,11 +133,7 @@ func (r *RootCmd) externalWorkspaceAgentInstructions() *serpent.Command {
 				return xerrors.Errorf("get external agent token for agent %q: %w", workspaceAgent.Name, err)
 			}
 
-			initScriptURL := fmt.Sprintf("%s/api/v2/init-script", client.URL)
-			if workspaceAgent.OperatingSystem != "linux" || workspaceAgent.Architecture != "amd64" {
-				initScriptURL = fmt.Sprintf("%s/api/v2/init-script?os=%s&arch=%s", client.URL, workspaceAgent.OperatingSystem, workspaceAgent.Architecture)
-			}
-
+			initScriptURL := fmt.Sprintf("%s/api/v2/init-script/%s/%s", client.URL, workspaceAgent.OperatingSystem, workspaceAgent.Architecture)
 			agentInfo := externalAgent{
 				WorkspaceName: workspace.Name,
 				AgentName:     workspaceAgent.Name,
@@ -244,11 +240,7 @@ func fetchExternalAgents(inv *serpent.Invocation, client *codersdk.Client, works
 			return nil, xerrors.Errorf("get external agent token for agent %q: %w", agent.Name, err)
 		}
 
-		initScriptURL := fmt.Sprintf("%s/api/v2/init-script", client.URL)
-		if agent.OperatingSystem != "linux" || agent.Architecture != "amd64" {
-			initScriptURL = fmt.Sprintf("%s/api/v2/init-script?os=%s&arch=%s", client.URL, agent.OperatingSystem, agent.Architecture)
-		}
-
+		initScriptURL := fmt.Sprintf("%s/api/v2/init-script/%s/%s", client.URL, agent.OperatingSystem, agent.Architecture)
 		externalAgents = append(externalAgents, externalAgent{
 			AgentName:  agent.Name,
 			AuthType:   "token",

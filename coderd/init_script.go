@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/coder/coder/v2/provisionersdk"
 )
 
@@ -12,26 +14,21 @@ import (
 // @ID get-agent-init-script
 // @Produce text/plain
 // @Tags InitScript
-// @Param os query string false "Operating system" default "linux"
-// @Param arch query string false "Architecture" default "amd64"
+// @Param os path string true "Operating system"
+// @Param arch path string true "Architecture"
 // @Success 200 "Success"
-// @Router /init-script [get]
+// @Router /init-script/{os}/{arch} [get]
 func (api *API) initScript(rw http.ResponseWriter, r *http.Request) {
-	os := "linux"
-	arch := "amd64"
-	if os := r.URL.Query().Get("os"); os != "" {
-		os = strings.ToLower(os)
-		if os != "linux" && os != "darwin" && os != "windows" {
-			rw.WriteHeader(http.StatusBadRequest)
-			return
-		}
+	os := strings.ToLower(chi.URLParam(r, "os"))
+	arch := strings.ToLower(chi.URLParam(r, "arch"))
+
+	if os != "linux" && os != "darwin" && os != "windows" {
+		rw.WriteHeader(http.StatusBadRequest)
+		return
 	}
-	if arch := r.URL.Query().Get("arch"); arch != "" {
-		arch = strings.ToLower(arch)
-		if arch != "amd64" && arch != "arm64" && arch != "armv7" {
-			rw.WriteHeader(http.StatusBadRequest)
-			return
-		}
+	if arch != "amd64" && arch != "arm64" && arch != "armv7" {
+		rw.WriteHeader(http.StatusBadRequest)
+		return
 	}
 
 	script, exists := provisionersdk.AgentScriptEnv()[fmt.Sprintf("CODER_AGENT_SCRIPT_%s_%s", os, arch)]
