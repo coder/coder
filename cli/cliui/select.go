@@ -308,7 +308,7 @@ type RichMultiSelectOptions struct {
 }
 
 func RichMultiSelect(inv *serpent.Invocation, richOptions RichMultiSelectOptions) ([]string, error) {
-	opts := make([]string, len(richOptions.Options))
+	var opts []string
 	var defaultOpts []string
 
 	asLine := func(option codersdk.TemplateVersionParameterOption) string {
@@ -321,7 +321,7 @@ func RichMultiSelect(inv *serpent.Invocation, richOptions RichMultiSelectOptions
 
 	var predefinedOpts []string
 	for i, option := range richOptions.Options {
-		opts[i] = asLine(option) // Some options may have description defined.
+		opts = append(opts, asLine(option)) // Some options may have description defined.
 
 		// Check if option is selected by default
 		if slices.Contains(richOptions.Defaults, option.Value) {
