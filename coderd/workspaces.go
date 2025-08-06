@@ -2479,7 +2479,7 @@ var (
 	workspaceACLUpdateGroupsFieldName = "group_roles"
 )
 
-var _ acl.ACLUpdateValidator[codersdk.WorkspaceRole] = WorkspaceACLUpdateValidator{}
+var _ acl.UpdateValidator[codersdk.WorkspaceRole] = WorkspaceACLUpdateValidator{}
 
 func (w WorkspaceACLUpdateValidator) Users() (map[string]codersdk.WorkspaceRole, string) {
 	return w.UserRoles, workspaceACLUpdateUsersFieldName

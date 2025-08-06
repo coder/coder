@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-type ACLUpdateValidator[Role codersdk.WorkspaceRole | codersdk.TemplateRole] interface {
+type UpdateValidator[Role codersdk.WorkspaceRole | codersdk.TemplateRole] interface {
 	Users() (map[string]Role, string)
 	Groups() (map[string]Role, string)
 	ValidateRole(role Role) error
@@ -20,7 +20,7 @@ type ACLUpdateValidator[Role codersdk.WorkspaceRole | codersdk.TemplateRole] int
 func Validate[T codersdk.WorkspaceRole | codersdk.TemplateRole](
 	ctx context.Context,
 	db database.Store,
-	v ACLUpdateValidator[T],
+	v UpdateValidator[T],
 ) []codersdk.ValidationError {
 	// nolint:gocritic // Validate requires full read access to users and groups
 	ctx = dbauthz.AsSystemRestricted(ctx)
