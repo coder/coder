@@ -112,12 +112,7 @@ func (s StoreMembershipReconciler) ReconcileAll(ctx context.Context, userID uuid
 			}
 		}
 
-		// // Add the system user to the prebuilds group
-		// // TODO: Sas Look into this:
-		// groupMembers, err := s.store.GetGroups(ctx, database.GetGroupsParams{
-		// 	OrganizationID: preset.OrganizationID,
-		// 	HasMemberID:    userID,
-		// })
+		// Add the system user to the prebuilds group
 		err = s.store.InsertGroupMember(ctx, database.InsertGroupMemberParams{
 			GroupID: prebuildsGroup.ID,
 			UserID:  userID,
