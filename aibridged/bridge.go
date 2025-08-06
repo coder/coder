@@ -143,13 +143,6 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
 
-	coderdClient, ok := b.clientFn()
-	if !ok {
-		// TODO: log issue.
-		http.Error(w, "could not acquire coderd client", http.StatusInternalServerError)
-		return
-	}
-
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		if isConnectionError(err) {
@@ -170,14 +163,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 
 	prompt, err := in.LastUserPrompt() // TODO: error handling.
 	if prompt != nil {
-		if _, err = coderdClient.TrackUserPrompt(ctx, &proto.TrackUserPromptRequest{
-			SessionId: sessionID,
-			MsgId:     "", // Not yet known. We could move this after the response, but probably better to track prospectively.
-			Model:     in.Model,
-			Prompt:    *prompt,
-		}); err != nil {
-			b.logger.Error(r.Context(), "failed to track user prompt", slog.Error(err))
-		}
+		b.trackUserPrompt(ctx, sessionID, "", in.Model, *prompt)
 	}
 
 	// Prepend assistant message.
@@ -218,6 +204,8 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 	if baseURL := b.cfg.OpenAI.BaseURL.String(); baseURL != "" {
 		opts = append(opts, oai_option.WithBaseURL(baseURL))
 	}
+
+	opts = append(opts, oai_option.WithMiddleware(LoggingMiddleware))
 
 	client := openai.NewClient(opts...)
 	req := in.ChatCompletionNewParams
@@ -261,7 +249,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 				chunk := stream.Current()
 				acc.AddChunk(chunk)
 
-				fmt.Printf("[in]: %s\n", chunk.RawJSON())
+				// fmt.Printf("[in]: %s\n", chunk.RawJSON())
 
 				shouldRelayChunk := true
 				if toolCall, ok := acc.JustFinishedToolCall(); ok {
@@ -271,16 +259,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 						// Don't relay this chunk back; we'll handle it transparently.
 						shouldRelayChunk = false
 					} else {
-						_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
-							SessionId: sessionID,
-							MsgId:     chunk.ID,
-							Model:     in.Model,
-							Input:     toolCall.Arguments,
-							Tool:      toolCall.Name,
-						})
-						if err != nil {
-							b.logger.Error(ctx, "failed to track tool usage", slog.Error(err))
-						}
+						b.trackToolUsage(ctx, sessionID, chunk.ID, in.Model, toolCall.Name, toolCall.Arguments, false)
 					}
 				}
 
@@ -307,23 +286,14 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 
 			// If the usage information is set, track it.
 			// The API will send usage information when the response terminates, which will happen if a tool call is invoked.
-			if _, err = coderdClient.TrackTokenUsage(ctx, &proto.TrackTokenUsageRequest{
-				SessionId:    sessionID,
-				MsgId:        acc.ID,
-				Model:        string(acc.Model),
-				InputTokens:  cumulativeUsage.PromptTokens,
-				OutputTokens: cumulativeUsage.CompletionTokens,
-				Other: map[string]int64{
-					"prompt_audio":                   cumulativeUsage.PromptTokensDetails.AudioTokens,
-					"prompt_cached":                  cumulativeUsage.PromptTokensDetails.CachedTokens,
-					"completion_accepted_prediction": cumulativeUsage.CompletionTokensDetails.AcceptedPredictionTokens,
-					"completion_rejected_prediction": cumulativeUsage.CompletionTokensDetails.RejectedPredictionTokens,
-					"completion_audio":               cumulativeUsage.CompletionTokensDetails.AudioTokens,
-					"completion_reasoning":           cumulativeUsage.CompletionTokensDetails.ReasoningTokens,
-				},
-			}); err != nil {
-				b.logger.Error(ctx, "failed to track token usage", slog.Error(err))
-			}
+			b.trackTokenUsage(ctx, sessionID, acc.ID, string(acc.Model), cumulativeUsage.PromptTokens, cumulativeUsage.CompletionTokens, map[string]int64{
+				"prompt_audio":                   cumulativeUsage.PromptTokensDetails.AudioTokens,
+				"prompt_cached":                  cumulativeUsage.PromptTokensDetails.CachedTokens,
+				"completion_accepted_prediction": cumulativeUsage.CompletionTokensDetails.AcceptedPredictionTokens,
+				"completion_rejected_prediction": cumulativeUsage.CompletionTokensDetails.RejectedPredictionTokens,
+				"completion_audio":               cumulativeUsage.CompletionTokensDetails.AudioTokens,
+				"completion_reasoning":           cumulativeUsage.CompletionTokensDetails.ReasoningTokens,
+			})
 
 			if err := stream.Err(); err != nil {
 				b.logger.Error(ctx, "server stream error", slog.Error(err))
@@ -361,17 +331,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 					appendedPrevMsg = true
 				}
 
-				_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
-					SessionId: sessionID,
-					MsgId:     acc.ID,
-					Model:     in.Model,
-					Input:     tc.Arguments,
-					Tool:      tc.Name, // TODO: sanitize tool name.
-					Injected:  true,
-				})
-				if err != nil {
-					b.logger.Error(ctx, "failed to track injected tool usage", slog.Error(err))
-				}
+				b.trackToolUsage(ctx, sessionID, acc.ID, in.Model, tc.Name, tc.Arguments, true)
 
 				var args map[string]any
 				if err := json.Unmarshal([]byte(tc.Arguments), &args); err != nil {
@@ -457,23 +417,14 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 			cumulativeUsage = sumUsage(cumulativeUsage, completion.Usage)
 
 			// Track token usage
-			if _, err = coderdClient.TrackTokenUsage(ctx, &proto.TrackTokenUsageRequest{
-				SessionId:    sessionID,
-				MsgId:        completion.ID,
-				Model:        completion.Model,
-				InputTokens:  cumulativeUsage.PromptTokens,
-				OutputTokens: cumulativeUsage.CompletionTokens,
-				Other: map[string]int64{
-					"prompt_audio":                   cumulativeUsage.PromptTokensDetails.AudioTokens,
-					"prompt_cached":                  cumulativeUsage.PromptTokensDetails.CachedTokens,
-					"completion_accepted_prediction": cumulativeUsage.CompletionTokensDetails.AcceptedPredictionTokens,
-					"completion_rejected_prediction": cumulativeUsage.CompletionTokensDetails.RejectedPredictionTokens,
-					"completion_audio":               cumulativeUsage.CompletionTokensDetails.AudioTokens,
-					"completion_reasoning":           cumulativeUsage.CompletionTokensDetails.ReasoningTokens,
-				},
-			}); err != nil {
-				b.logger.Error(ctx, "failed to track token usage", slog.Error(err))
-			}
+			b.trackTokenUsage(ctx, sessionID, completion.ID, completion.Model, cumulativeUsage.PromptTokens, cumulativeUsage.CompletionTokens, map[string]int64{
+				"prompt_audio":                   cumulativeUsage.PromptTokensDetails.AudioTokens,
+				"prompt_cached":                  cumulativeUsage.PromptTokensDetails.CachedTokens,
+				"completion_accepted_prediction": cumulativeUsage.CompletionTokensDetails.AcceptedPredictionTokens,
+				"completion_rejected_prediction": cumulativeUsage.CompletionTokensDetails.RejectedPredictionTokens,
+				"completion_audio":               cumulativeUsage.CompletionTokensDetails.AudioTokens,
+				"completion_reasoning":           cumulativeUsage.CompletionTokensDetails.ReasoningTokens,
+			})
 
 			// Check if we have tool calls to process
 			var pendingToolCalls []openai.ChatCompletionMessageToolCall
@@ -482,16 +433,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 					if b.isInjectedTool(toolCall.Function.Name) {
 						pendingToolCalls = append(pendingToolCalls, toolCall)
 					} else {
-						_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
-							SessionId: sessionID,
-							MsgId:     completion.ID,
-							Model:     in.Model,
-							Input:     toolCall.Function.Arguments,
-							Tool:      toolCall.Function.Name,
-						})
-						if err != nil {
-							b.logger.Error(ctx, "failed to track tool usage", slog.Error(err))
-						}
+						b.trackToolUsage(ctx, sessionID, completion.ID, in.Model, toolCall.Function.Name, toolCall.Function.Arguments, false)
 					}
 				}
 			}
@@ -516,17 +458,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 					appendedPrevMsg = true
 				}
 
-				_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
-					SessionId: sessionID,
-					MsgId:     completion.ID,
-					Model:     in.Model,
-					Input:     tc.Function.Arguments,
-					Tool:      fn, // TODO: sanitize tool name.
-					Injected:  true,
-				})
-				if err != nil {
-					b.logger.Error(ctx, "failed to track injected tool usage", slog.Error(err))
-				}
+				b.trackToolUsage(ctx, sessionID, completion.ID, in.Model, fn, tc.Function.Arguments, true)
 
 				var (
 					args map[string]string
@@ -636,13 +568,6 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
 
-	coderdClient, ok := b.clientFn()
-	if !ok {
-		// TODO: log issue.
-		http.Error(w, "could not acquire coderd client", http.StatusInternalServerError)
-		return
-	}
-
 	useBeta := r.URL.Query().Get("beta") == "true"
 	if !useBeta {
 		b.logger.Warn(r.Context(), "non-beta API requested, using beta instead", slog.F("url", r.URL.String()))
@@ -729,16 +654,9 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 
 	// Find the most recent user message and track the prompt.
 	if !isSmallFastModel {
-		prompt, err := in.LastUserPrompt() // TODO: error handling.
+		prompt, _ := in.LastUserPrompt() // TODO: error handling.
 		if prompt != nil {
-			if _, err = coderdClient.TrackUserPrompt(ctx, &proto.TrackUserPromptRequest{
-				SessionId: sessionID,
-				MsgId:     "", // Not yet known. We could move this after the response, but probably better to track prospectively.
-				Prompt:    *prompt,
-				Model:     string(in.Model),
-			}); err != nil {
-				b.logger.Error(r.Context(), "failed to track user prompt", slog.Error(err))
-			}
+			b.trackUserPrompt(ctx, sessionID, "", string(in.Model), *prompt)
 		}
 	}
 
@@ -789,22 +707,13 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if _, err = coderdClient.TrackTokenUsage(ctx, &proto.TrackTokenUsageRequest{
-				SessionId:    sessionID,
-				MsgId:        resp.ID,
-				Model:        string(resp.Model),
-				InputTokens:  resp.Usage.InputTokens,
-				OutputTokens: resp.Usage.OutputTokens,
-				Other: map[string]int64{
-					"web_search_requests":      resp.Usage.ServerToolUse.WebSearchRequests,
-					"cache_creation_input":     resp.Usage.CacheCreationInputTokens,
-					"cache_read_input":         resp.Usage.CacheReadInputTokens,
-					"cache_ephemeral_1h_input": resp.Usage.CacheCreation.Ephemeral1hInputTokens,
-					"cache_ephemeral_5m_input": resp.Usage.CacheCreation.Ephemeral5mInputTokens,
-				},
-			}); err != nil {
-				b.logger.Error(ctx, "failed to track token usage", slog.Error(err))
-			}
+			b.trackTokenUsage(ctx, sessionID, resp.ID, string(resp.Model), resp.Usage.InputTokens, resp.Usage.OutputTokens, map[string]int64{
+				"web_search_requests":      resp.Usage.ServerToolUse.WebSearchRequests,
+				"cache_creation_input":     resp.Usage.CacheCreationInputTokens,
+				"cache_read_input":         resp.Usage.CacheReadInputTokens,
+				"cache_ephemeral_1h_input": resp.Usage.CacheCreation.Ephemeral1hInputTokens,
+				"cache_ephemeral_5m_input": resp.Usage.CacheCreation.Ephemeral5mInputTokens,
+			})
 
 			// Handle tool calls for non-streaming.
 			var pendingToolCalls []anthropic.BetaToolUseBlock
@@ -820,20 +729,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 				}
 
 				// If tool is not injected, track it since the client will be handling it.
-				if serialized, err := json.Marshal(toolUse.Input); err == nil {
-					_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
-						SessionId: sessionID,
-						MsgId:     resp.ID,
-						Model:     string(resp.Model),
-						Input:     string(serialized),
-						Tool:      toolUse.Name,
-					})
-					if err != nil {
-						b.logger.Error(ctx, "failed to track tool usage", slog.Error(err))
-					}
-				} else {
-					b.logger.Warn(ctx, "failed to marshal args for tool usage", slog.Error(err))
-				}
+				b.trackToolUsage(ctx, sessionID, resp.ID, string(resp.Model), toolUse.Name, toolUse.Input, false)
 			}
 
 			// If no injected tool calls, we're done.
@@ -879,17 +775,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 
-				_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
-					SessionId: sessionID,
-					MsgId:     resp.ID,
-					Model:     string(resp.Model),
-					Input:     string(serialized),
-					Tool:      tc.Name, // TODO: sanitize tool name.
-					Injected:  true,
-				})
-				if err != nil {
-					b.logger.Error(ctx, "failed to track injected tool usage", slog.Error(err))
-				}
+				b.trackToolUsage(ctx, sessionID, resp.ID, string(resp.Model), tc.Name, args, true)
 
 				res, err := tool.Call(ctx, args)
 				if err != nil {
@@ -1049,22 +935,13 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 				// Anthropic's docs only mention usage in message_delta events, but it's also present in message_start.
 				// See https://docs.anthropic.com/en/docs/build-with-claude/streaming#event-types.
 				start := event.AsMessageStart()
-				if _, err = coderdClient.TrackTokenUsage(streamCtx, &proto.TrackTokenUsageRequest{
-					SessionId:    sessionID,
-					MsgId:        message.ID,
-					Model:        string(message.Model),
-					InputTokens:  start.Message.Usage.InputTokens,
-					OutputTokens: start.Message.Usage.OutputTokens,
-					Other: map[string]int64{
-						"web_search_requests":      start.Message.Usage.ServerToolUse.WebSearchRequests,
-						"cache_creation_input":     start.Message.Usage.CacheCreationInputTokens,
-						"cache_read_input":         start.Message.Usage.CacheReadInputTokens,
-						"cache_ephemeral_1h_input": message.Usage.CacheCreation.Ephemeral1hInputTokens,
-						"cache_ephemeral_5m_input": message.Usage.CacheCreation.Ephemeral5mInputTokens,
-					},
-				}); err != nil {
-					b.logger.Error(ctx, "failed to track token usage", slog.Error(err))
-				}
+				b.trackTokenUsage(streamCtx, sessionID, message.ID, string(message.Model), start.Message.Usage.InputTokens, start.Message.Usage.OutputTokens, map[string]int64{
+					"web_search_requests":      start.Message.Usage.ServerToolUse.WebSearchRequests,
+					"cache_creation_input":     start.Message.Usage.CacheCreationInputTokens,
+					"cache_read_input":         start.Message.Usage.CacheReadInputTokens,
+					"cache_ephemeral_1h_input": message.Usage.CacheCreation.Ephemeral1hInputTokens,
+					"cache_ephemeral_5m_input": message.Usage.CacheCreation.Ephemeral5mInputTokens,
+				})
 
 				if !isFirst {
 					// Don't send message_start unless first message!
@@ -1074,22 +951,13 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 				}
 			case string(ant_constant.ValueOf[ant_constant.MessageDelta]()):
 				delta := event.AsMessageDelta()
-				if _, err = coderdClient.TrackTokenUsage(streamCtx, &proto.TrackTokenUsageRequest{
-					SessionId:    sessionID,
-					MsgId:        message.ID,
-					Model:        string(message.Model),
-					InputTokens:  delta.Usage.InputTokens,
-					OutputTokens: delta.Usage.OutputTokens,
-					Other: map[string]int64{
-						"web_search_requests":      delta.Usage.ServerToolUse.WebSearchRequests,
-						"cache_creation_input":     delta.Usage.CacheCreationInputTokens,
-						"cache_read_input":         delta.Usage.CacheReadInputTokens,
-						"cache_ephemeral_1h_input": message.Usage.CacheCreation.Ephemeral1hInputTokens,
-						"cache_ephemeral_5m_input": message.Usage.CacheCreation.Ephemeral5mInputTokens,
-					},
-				}); err != nil {
-					b.logger.Error(ctx, "failed to track token usage", slog.Error(err))
-				}
+				b.trackTokenUsage(streamCtx, sessionID, message.ID, string(message.Model), delta.Usage.InputTokens, delta.Usage.OutputTokens, map[string]int64{
+					"web_search_requests":      delta.Usage.ServerToolUse.WebSearchRequests,
+					"cache_creation_input":     delta.Usage.CacheCreationInputTokens,
+					"cache_read_input":         delta.Usage.CacheReadInputTokens,
+					"cache_ephemeral_1h_input": message.Usage.CacheCreation.Ephemeral1hInputTokens,
+					"cache_ephemeral_5m_input": message.Usage.CacheCreation.Ephemeral5mInputTokens,
+				})
 
 				// Don't relay message_delta events which indicate injected tool use.
 				if len(pendingToolCalls) > 0 && b.isInjectedTool(lastToolName) {
@@ -1140,23 +1008,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 							continue
 						}
 
-						fmt.Printf("[event] %s\n[tool(%q)] %s %+v\n\n", event.RawJSON(), id, name, input)
-
-						if serialized, err := json.Marshal(input); err == nil {
-							_, err = coderdClient.TrackToolUsage(streamCtx, &proto.TrackToolUsageRequest{
-								SessionId: sessionID,
-								MsgId:     message.ID,
-								Model:     string(message.Model),
-								Input:     string(serialized),
-								Tool:      tool.Name, // TODO: sanitize tool name.
-								Injected:  true,
-							})
-							if err != nil {
-								b.logger.Error(ctx, "failed to track injected tool usage", slog.Error(err))
-							}
-						} else {
-							b.logger.Warn(ctx, "failed to marshal args for tool usage", slog.Error(err))
-						}
+						b.trackToolUsage(streamCtx, sessionID, message.ID, string(message.Model), tool.Name, input, true)
 
 						res, err := b.tools[tool.ID].Call(streamCtx, input)
 						if err != nil {
@@ -1263,10 +1115,6 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 
 						// If no content was processed, still add a tool_result
 						if !hasValidResult {
-							// messages.Messages = append(messages.Messages,
-							//	anthropic.NewBetaUserMessage(anthropic.NewBetaToolResultBlock(id, "Error: no valid tool result content", true)),
-							//)
-
 							toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.BetaToolResultBlockParamContentUnion{
 								OfText: &anthropic.BetaTextBlockParam{
 									Text: "Error: no valid tool result content",
@@ -1292,20 +1140,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 								continue
 							}
 
-							if serialized, err := json.Marshal(variant.Input); err == nil {
-								_, err = coderdClient.TrackToolUsage(streamCtx, &proto.TrackToolUsageRequest{
-									SessionId: sessionID,
-									MsgId:     message.ID,
-									Model:     string(message.Model),
-									Input:     string(serialized),
-									Tool:      variant.Name,
-								})
-								if err != nil {
-									b.logger.Error(ctx, "failed to track non-injected tool usage", slog.Error(err))
-								}
-							} else {
-								b.logger.Warn(ctx, "failed to marshal args for tool usage", slog.Error(err))
-							}
+							b.trackToolUsage(streamCtx, sessionID, message.ID, string(message.Model), variant.Name, variant.Input, false)
 						}
 					}
 				}
@@ -1354,6 +1189,90 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 
 		<-streamCtx.Done()
 		break
+	}
+}
+
+func (b *Bridge) trackToolUsage(ctx context.Context, sessionID, msgID, model, toolName string, toolInput interface{}, injected bool) {
+	coderdClient, ok := b.clientFn()
+	if !ok {
+		b.logger.Error(ctx, "could not acquire coderd client for tool usage tracking")
+		return
+	}
+
+	var input string
+	// TODO: unmarshal instead of marshal? i.e. persist maps rather than strings?
+	switch val := toolInput.(type) {
+	case string:
+		input = val
+	case []byte:
+		input = string(val)
+	default:
+		encoded, err := json.Marshal(toolInput)
+		if err == nil {
+			input = string(encoded)
+		} else {
+			b.logger.Error(ctx, "failed to marshal tool input", slog.Error(err), slog.F("injected", injected), slog.F("tool_name", toolName))
+			input = fmt.Sprintf("%v", val)
+		}
+	}
+
+	// For injected tools: strip MCP tool namespacing, if possible.
+	if injected {
+		_, tool, err := DecodeToolID(toolName)
+		// No recourse here; no point in logging - we'll see it in the database anyway.
+		if err == nil {
+			toolName = tool
+		}
+	}
+
+	_, err := coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
+		SessionId: sessionID,
+		MsgId:     msgID,
+		Model:     model,
+		Input:     input,
+		Tool:      toolName,
+		Injected:  injected,
+	})
+	if err != nil {
+		b.logger.Error(ctx, "failed to track tool usage", slog.Error(err), slog.F("injected", injected))
+	}
+}
+
+func (b *Bridge) trackUserPrompt(ctx context.Context, sessionID, msgID, model, prompt string) {
+	coderdClient, ok := b.clientFn()
+	if !ok {
+		b.logger.Error(ctx, "could not acquire coderd client for user prompt tracking")
+		return
+	}
+
+	_, err := coderdClient.TrackUserPrompt(ctx, &proto.TrackUserPromptRequest{
+		SessionId: sessionID,
+		MsgId:     msgID,
+		Model:     model,
+		Prompt:    prompt,
+	})
+	if err != nil {
+		b.logger.Error(ctx, "failed to track user prompt", slog.Error(err))
+	}
+}
+
+func (b *Bridge) trackTokenUsage(ctx context.Context, sessionID, msgID, model string, inputTokens, outputTokens int64, other map[string]int64) {
+	coderdClient, ok := b.clientFn()
+	if !ok {
+		b.logger.Error(ctx, "could not acquire coderd client for token usage tracking")
+		return
+	}
+
+	_, err := coderdClient.TrackTokenUsage(ctx, &proto.TrackTokenUsageRequest{
+		SessionId:    sessionID,
+		MsgId:        msgID,
+		Model:        model,
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
+		Other:        other,
+	})
+	if err != nil {
+		b.logger.Error(ctx, "failed to track token usage", slog.Error(err))
 	}
 }
 

@@ -169,131 +169,6 @@ func TestAnthropicMessages(t *testing.T) {
 		}
 	})
 
-	// TODO: fixture contains hardcoded tool name; this is flimsy since our naming convention may change for injected tools.
-	t.Run("single injected tool", func(t *testing.T) {
-		t.Parallel()
-
-		cases := []struct {
-			streaming bool
-		}{
-			{
-				streaming: true,
-			},
-			{
-				streaming: false,
-			},
-		}
-
-		for _, tc := range cases {
-			t.Run(fmt.Sprintf("%s/streaming=%v", t.Name(), tc.streaming), func(t *testing.T) {
-				t.Parallel()
-
-				arc := txtar.Parse(antSingleInjectedTool)
-				t.Logf("%s: %s", t.Name(), arc.Comment)
-
-				files := filesMap(arc)
-				require.Len(t, files, 5)
-				require.Contains(t, files, fixtureRequest)
-				require.Contains(t, files, fixtureStreamingResponse)
-				require.Contains(t, files, fixtureNonStreamingResponse)
-				require.Contains(t, files, fixtureStreamingToolResponse)
-				require.Contains(t, files, fixtureNonStreamingToolResponse)
-
-				reqBody := files[fixtureRequest]
-
-				// Add the stream param to the request.
-				newBody, err := sjson.SetBytes(reqBody, "stream", tc.streaming)
-				require.NoError(t, err)
-				reqBody = newBody
-
-				ctx := testutil.Context(t, testutil.WaitLong)
-				// Conditionally return fixtures based on request count.
-				// 	First request: halts with tool call instruction.
-				// 	Second request: tool call invocation.
-				mockSrv := newMockServer(ctx, t, files, func(reqCount uint32, resp []byte) []byte {
-					if reqCount == 1 {
-						return resp
-					}
-
-					if reqCount > 2 {
-						t.Fatalf("did not expect more than 2 calls; received %d", reqCount)
-					}
-
-					if !tc.streaming {
-						return files[fixtureNonStreamingToolResponse]
-					}
-					return files[fixtureStreamingToolResponse]
-				})
-				t.Cleanup(mockSrv.Close)
-
-				coderdClient := &fakeBridgeDaemonClient{}
-				logger := testutil.Logger(t) // slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-
-				// Setup Coder MCP integration.
-				mcpSrv := httptest.NewServer(createMockMCPSrv(t))
-				mcpBridge, err := aibridged.NewMCPToolBridge("coder", mcpSrv.URL, map[string]string{}, logger)
-				require.NoError(t, err)
-
-				// Initialize MCP client, fetch tools, and inject into bridge.
-				require.NoError(t, mcpBridge.Init(testutil.Context(t, testutil.WaitShort)))
-				tools := mcpBridge.ListTools()
-				require.NotEmpty(t, tools)
-
-				b, err := aibridged.NewBridge(codersdk.AIBridgeConfig{
-					Daemons: 1,
-					Anthropic: codersdk.AIBridgeAnthropicConfig{
-						BaseURL: serpent.String(mockSrv.URL),
-						Key:     serpent.String(sessionToken),
-					},
-				}, logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
-					return coderdClient, true
-				}, tools)
-				require.NoError(t, err)
-
-				// Invoke request to mocked API via aibridge.
-				bridgeSrv := httptest.NewServer(b.Handler())
-				req := createAnthropicMessagesReq(t, bridgeSrv.URL, reqBody)
-				client := &http.Client{}
-				resp, err := client.Do(req)
-				require.NoError(t, err)
-				require.Equal(t, http.StatusOK, resp.StatusCode)
-				defer resp.Body.Close()
-
-				// We must ALWAYS have 2 calls to the bridge.
-				require.Eventually(t, func() bool { return mockSrv.callCount.Load() == 2 }, testutil.WaitLong, testutil.IntervalFast)
-
-				// TODO: this is a bit flimsy since this API won't be in beta forever.
-				var content *anthropic.BetaContentBlockUnion
-				if tc.streaming {
-					// Parse the response stream.
-					decoder := ssestream.NewDecoder(resp)
-					stream := ssestream.NewStream[anthropic.BetaRawMessageStreamEventUnion](decoder, nil)
-					var message anthropic.BetaMessage
-					for stream.Next() {
-						event := stream.Current()
-						require.NoError(t, message.Accumulate(event))
-					}
-					require.NoError(t, stream.Err())
-					require.Len(t, message.Content, 2)
-					content = &message.Content[1]
-				} else {
-					// Parse & unmarshal the response.
-					out, err := io.ReadAll(resp.Body)
-					require.NoError(t, err)
-
-					// TODO: this is a bit flimsy since this API won't be in beta forever.
-					var message anthropic.BetaMessage
-					require.NoError(t, json.Unmarshal(out, &message))
-					require.NotNil(t, message)
-					require.Len(t, message.Content, 1)
-					content = &message.Content[0]
-				}
-
-				require.NotNil(t, content)
-				require.Equal(t, "admin", content.Text)
-			})
-		}
-	})
 }
 
 func TestOpenAIChatCompletions(t *testing.T) {
@@ -401,130 +276,6 @@ func TestOpenAIChatCompletions(t *testing.T) {
 		}
 	})
 
-	// TODO: fixture contains hardcoded tool name; this is flimsy since our naming convention may change for injected tools.
-	t.Run("single injected tool", func(t *testing.T) {
-		t.Parallel()
-
-		cases := []struct {
-			streaming bool
-		}{
-			{
-				streaming: true,
-			},
-			{
-				streaming: false,
-			},
-		}
-
-		for _, tc := range cases {
-			t.Run(fmt.Sprintf("%s/streaming=%v", t.Name(), tc.streaming), func(t *testing.T) {
-				t.Parallel()
-
-				arc := txtar.Parse(oaiSingleInjectedTool)
-				t.Logf("%s: %s", t.Name(), arc.Comment)
-
-				files := filesMap(arc)
-				require.Len(t, files, 5)
-				require.Contains(t, files, fixtureRequest)
-				require.Contains(t, files, fixtureStreamingResponse)
-				require.Contains(t, files, fixtureNonStreamingResponse)
-				require.Contains(t, files, fixtureStreamingToolResponse)
-				require.Contains(t, files, fixtureNonStreamingToolResponse)
-
-				reqBody := files[fixtureRequest]
-
-				// Add the stream param to the request.
-				newBody, err := sjson.SetBytes(reqBody, "stream", tc.streaming)
-				require.NoError(t, err)
-				reqBody = newBody
-
-				ctx := testutil.Context(t, testutil.WaitLong)
-				// Conditionally return fixtures based on request count.
-				// 	First request: halts with tool call instruction.
-				// 	Second request: tool call invocation.
-				mockSrv := newMockServer(ctx, t, files, func(reqCount uint32, resp []byte) []byte {
-					if reqCount == 1 {
-						return resp
-					}
-
-					if reqCount > 2 {
-						t.Fatalf("did not expect more than 2 calls; received %d", reqCount)
-					}
-
-					if !tc.streaming {
-						return files[fixtureNonStreamingToolResponse]
-					}
-					return files[fixtureStreamingToolResponse]
-				})
-				t.Cleanup(mockSrv.Close)
-
-				coderdClient := &fakeBridgeDaemonClient{}
-				logger := testutil.Logger(t) // slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-
-				// Setup Coder MCP integration.
-				mcpSrv := httptest.NewServer(createMockMCPSrv(t))
-				mcpBridge, err := aibridged.NewMCPToolBridge("coder", mcpSrv.URL, map[string]string{}, logger)
-				require.NoError(t, err)
-
-				// Initialize MCP client, fetch tools, and inject into bridge.
-				require.NoError(t, mcpBridge.Init(testutil.Context(t, testutil.WaitShort)))
-				tools := mcpBridge.ListTools()
-				require.NotEmpty(t, tools)
-
-				b, err := aibridged.NewBridge(codersdk.AIBridgeConfig{
-					Daemons: 1,
-					OpenAI: codersdk.AIBridgeOpenAIConfig{
-						BaseURL: serpent.String(mockSrv.URL),
-						Key:     serpent.String(sessionToken),
-					},
-				}, logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
-					return coderdClient, true
-				}, tools)
-				require.NoError(t, err)
-
-				// Invoke request to mocked API via aibridge.
-				bridgeSrv := httptest.NewServer(b.Handler())
-				req := createOpenAIChatCompletionsReq(t, bridgeSrv.URL, reqBody)
-				client := &http.Client{}
-				resp, err := client.Do(req)
-				require.NoError(t, err)
-				require.Equal(t, http.StatusOK, resp.StatusCode)
-				defer resp.Body.Close()
-
-				// We must ALWAYS have 2 calls to the bridge.
-				require.Eventually(t, func() bool { return mockSrv.callCount.Load() == 2 }, testutil.WaitLong, testutil.IntervalFast)
-
-				var content *openai.ChatCompletionChoice
-				if tc.streaming {
-					// Parse the response stream.
-					decoder := oai_ssestream.NewDecoder(resp)
-					stream := oai_ssestream.NewStream[openai.ChatCompletionChunk](decoder, nil)
-					var message openai.ChatCompletionAccumulator
-					for stream.Next() {
-						chunk := stream.Current()
-						message.AddChunk(chunk)
-					}
-
-					require.NoError(t, stream.Err())
-					require.Len(t, message.Choices, 1)
-					content = &message.Choices[0]
-				} else {
-					// Parse & unmarshal the response.
-					out, err := io.ReadAll(resp.Body)
-					require.NoError(t, err)
-
-					var message openai.ChatCompletion
-					require.NoError(t, json.Unmarshal(out, &message))
-					require.NotNil(t, message)
-					require.Len(t, message.Choices, 1)
-					content = &message.Choices[0]
-				}
-
-				require.NotNil(t, content)
-				require.Contains(t, content.Message.Content, "admin")
-			})
-		}
-	})
 }
 
 func TestSimple(t *testing.T) {
@@ -709,6 +460,255 @@ func TestSimple(t *testing.T) {
 	}
 }
 
+// setupMCPToolsForTest creates a mock MCP server, initializes the MCP bridge, and returns the tools
+func setupMCPToolsForTest(t *testing.T) []*aibridged.MCPTool {
+	t.Helper()
+
+	// Setup Coder MCP integration
+	mcpSrv := httptest.NewServer(createMockMCPSrv(t))
+	t.Cleanup(mcpSrv.Close)
+
+	logger := testutil.Logger(t)
+	mcpBridge, err := aibridged.NewMCPToolBridge("coder", mcpSrv.URL, map[string]string{}, logger)
+	require.NoError(t, err)
+
+	// Initialize MCP client, fetch tools, and inject into bridge
+	require.NoError(t, mcpBridge.Init(testutil.Context(t, testutil.WaitShort)))
+	tools := mcpBridge.ListTools()
+	require.NotEmpty(t, tools)
+
+	return tools
+}
+
+// TestInjectedTool is an abstracted test function for "single injected tool" scenarios
+// that works with both Anthropic and OpenAI providers
+func TestInjectedTool(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	sessionToken := getSessionToken(t, client)
+
+	testCases := []struct {
+		name                   string
+		fixture                []byte
+		configureFunc          func(string, proto.DRPCAIBridgeDaemonClient, []*aibridged.MCPTool) (*aibridged.Bridge, error)
+		getResponseContentFunc func(bool, *http.Response) (string, error)
+		createRequest          func(*testing.T, string, []byte) *http.Request
+	}{
+		{
+			name:    "anthropic",
+			fixture: antSingleInjectedTool,
+			configureFunc: func(addr string, client proto.DRPCAIBridgeDaemonClient, tools []*aibridged.MCPTool) (*aibridged.Bridge, error) {
+				logger := testutil.Logger(t)
+				return aibridged.NewBridge(codersdk.AIBridgeConfig{
+					Daemons: 1,
+					Anthropic: codersdk.AIBridgeAnthropicConfig{
+						BaseURL: serpent.String(addr),
+						Key:     serpent.String(sessionToken),
+					},
+				}, logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
+					return client, true
+				}, tools)
+			},
+			getResponseContentFunc: func(streaming bool, resp *http.Response) (string, error) {
+				// TODO: this is a bit flimsy since this API won't be in beta forever.
+				var content *anthropic.BetaContentBlockUnion
+				if streaming {
+					// Parse the response stream.
+					decoder := ssestream.NewDecoder(resp)
+					stream := ssestream.NewStream[anthropic.BetaRawMessageStreamEventUnion](decoder, nil)
+					var message anthropic.BetaMessage
+					for stream.Next() {
+						event := stream.Current()
+						if err := message.Accumulate(event); err != nil {
+							return "", xerrors.Errorf("accumulate event: %w", err)
+						}
+					}
+					if stream.Err() != nil {
+						return "", xerrors.Errorf("stream error: %w", stream.Err())
+					}
+					if len(message.Content) < 2 {
+						return "", xerrors.Errorf("expected at least 2 content blocks, got %d", len(message.Content))
+					}
+					content = &message.Content[1]
+				} else {
+					// Parse & unmarshal the response.
+					body, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return "", xerrors.Errorf("read body: %w", err)
+					}
+
+					var message anthropic.BetaMessage
+					if err := json.Unmarshal(body, &message); err != nil {
+						return "", xerrors.Errorf("unmarshal response: %w", err)
+					}
+					if len(message.Content) == 0 {
+						return "", xerrors.Errorf("no content blocks in response")
+					}
+					content = &message.Content[0]
+				}
+
+				if content == nil {
+					return "", xerrors.Errorf("content is nil")
+				}
+				return content.Text, nil
+			},
+			createRequest: createAnthropicMessagesReq,
+		},
+		{
+			name:    "openai",
+			fixture: oaiSingleInjectedTool,
+			configureFunc: func(addr string, client proto.DRPCAIBridgeDaemonClient, tools []*aibridged.MCPTool) (*aibridged.Bridge, error) {
+				logger := testutil.Logger(t)
+				return aibridged.NewBridge(codersdk.AIBridgeConfig{
+					Daemons: 1,
+					OpenAI: codersdk.AIBridgeOpenAIConfig{
+						BaseURL: serpent.String(addr),
+						Key:     serpent.String(sessionToken),
+					},
+				}, logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
+					return client, true
+				}, tools)
+			},
+			getResponseContentFunc: func(streaming bool, resp *http.Response) (string, error) {
+				var content *openai.ChatCompletionChoice
+				if streaming {
+					// Parse the response stream.
+					decoder := oai_ssestream.NewDecoder(resp)
+					stream := oai_ssestream.NewStream[openai.ChatCompletionChunk](decoder, nil)
+					var message openai.ChatCompletionAccumulator
+					for stream.Next() {
+						chunk := stream.Current()
+						message.AddChunk(chunk)
+					}
+
+					if stream.Err() != nil {
+						return "", xerrors.Errorf("stream error: %w", stream.Err())
+					}
+					if len(message.Choices) == 0 {
+						return "", xerrors.Errorf("no choices in response")
+					}
+					content = &message.Choices[0]
+				} else {
+					// Parse & unmarshal the response.
+					body, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return "", xerrors.Errorf("read body: %w", err)
+					}
+
+					var message openai.ChatCompletion
+					if err := json.Unmarshal(body, &message); err != nil {
+						return "", xerrors.Errorf("unmarshal response: %w", err)
+					}
+					if len(message.Choices) == 0 {
+						return "", xerrors.Errorf("no choices in response")
+					}
+					content = &message.Choices[0]
+				}
+
+				if content == nil {
+					return "", xerrors.Errorf("content is nil")
+				}
+				return content.Message.Content, nil
+			},
+			createRequest: createOpenAIChatCompletionsReq,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			streamingCases := []struct {
+				streaming bool
+			}{
+				{streaming: true},
+				{streaming: false},
+			}
+
+			for _, sc := range streamingCases {
+				t.Run(fmt.Sprintf("streaming=%v", sc.streaming), func(t *testing.T) {
+					t.Parallel()
+
+					arc := txtar.Parse(tc.fixture)
+					t.Logf("%s: %s", t.Name(), arc.Comment)
+
+					files := filesMap(arc)
+					require.Len(t, files, 5)
+					require.Contains(t, files, fixtureRequest)
+					require.Contains(t, files, fixtureStreamingResponse)
+					require.Contains(t, files, fixtureNonStreamingResponse)
+					require.Contains(t, files, fixtureStreamingToolResponse)
+					require.Contains(t, files, fixtureNonStreamingToolResponse)
+
+					reqBody := files[fixtureRequest]
+
+					// Add the stream param to the request.
+					newBody, err := sjson.SetBytes(reqBody, "stream", sc.streaming)
+					require.NoError(t, err)
+					reqBody = newBody
+
+					ctx := testutil.Context(t, testutil.WaitLong)
+
+					// Setup mock server with response mutator for multi-turn interaction.
+					mockSrv := newMockServer(ctx, t, files, func(reqCount uint32, resp []byte) []byte {
+						if reqCount == 1 {
+							return resp // First request gets the normal response (with tool call)
+						}
+
+						if reqCount > 2 {
+							// This should not happen in single injected tool tests
+							return resp
+						}
+
+						// Second request gets the tool response
+						if sc.streaming {
+							return files[fixtureStreamingToolResponse]
+						}
+						return files[fixtureNonStreamingToolResponse]
+					})
+					t.Cleanup(mockSrv.Close)
+
+					coderdClient := &fakeBridgeDaemonClient{}
+
+					// Setup MCP tools.
+					tools := setupMCPToolsForTest(t)
+
+					// Configure the bridge with injected tools.
+					b, err := tc.configureFunc(mockSrv.URL, coderdClient, tools)
+					require.NoError(t, err)
+
+					// Invoke request to mocked API via aibridge.
+					bridgeSrv := httptest.NewServer(b.Handler())
+					t.Cleanup(bridgeSrv.Close)
+
+					req := tc.createRequest(t, bridgeSrv.URL, reqBody)
+					client := &http.Client{}
+					resp, err := client.Do(req)
+					require.NoError(t, err)
+					require.Equal(t, http.StatusOK, resp.StatusCode)
+					defer resp.Body.Close()
+
+					// We must ALWAYS have 2 calls to the bridge for injected tool tests
+					require.Eventually(t, func() bool {
+						return mockSrv.callCount.Load() == 2
+					}, testutil.WaitLong, testutil.IntervalFast)
+
+					// Ensure expected tool was invoked with expected input.
+					require.Len(t, coderdClient.toolUsages, 1)
+					require.Equal(t, mockToolName, coderdClient.toolUsages[0].Tool)
+					require.EqualValues(t, `{"owner":"admin"}`, coderdClient.toolUsages[0].Input)
+
+					// Ensure tool returned expected value.
+					answer, err := tc.getResponseContentFunc(sc.streaming, resp)
+					require.NoError(t, err)
+					require.Contains(t, answer, "dd711d5c-83c6-4c08-a0af-b73055906e8c") // The ID of the workspace to be returned.
+				})
+			}
+		})
+	}
+}
+
 func calculateTotalOutputTokens(in []*proto.TrackTokenUsageRequest) int64 {
 	var total int64
 	for _, el := range in {
@@ -881,6 +881,8 @@ func (f *fakeBridgeDaemonClient) TrackToolUsage(ctx context.Context, in *proto.T
 	return &proto.TrackToolUsageResponse{}, nil
 }
 
+const mockToolName = "coder_list_workspaces"
+
 func createMockMCPSrv(t *testing.T) http.Handler {
 	t.Helper()
 
@@ -890,12 +892,9 @@ func createMockMCPSrv(t *testing.T) http.Handler {
 		server.WithToolCapabilities(true),
 	)
 
-	// Add tool
-	tool := mcp.NewTool("coder_get_authenticated_user",
-		mcp.WithDescription("Mock of the coder_get_authenticated_user tool"),
+	tool := mcp.NewTool(mockToolName,
+		mcp.WithDescription(fmt.Sprintf("Mock of the %s tool", mockToolName)),
 	)
-
-	// Add tool handler
 	s.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return mcp.NewToolResultText("mock"), nil
 	})

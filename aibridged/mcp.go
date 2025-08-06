@@ -145,17 +145,19 @@ func (b *MCPToolBridge) fetchMCPTools(ctx context.Context) (map[string]*MCPTool,
 	return out, nil
 }
 
+// EncodeToolID namespaces the given tool name to disambiguate against other tools.
 func EncodeToolID(server, tool string) string {
 	return fmt.Sprintf("%s%s%s%s", MCPPrefix, server, MCPDelimiter, tool)
 }
 
-func DecodeToolID(id string) (string, string, error) {
+// DecodeToolID strips the namespacing from EncodeToolID.
+func DecodeToolID(id string) (server string, tool string, err error) {
 	_, name, ok := strings.Cut(id, MCPPrefix)
 	if !ok {
 		return "", "", xerrors.Errorf("unable to decode %q, prefix %q not found", id, MCPPrefix)
 	}
 
-	server, tool, ok := strings.Cut(name, MCPDelimiter)
+	server, tool, ok = strings.Cut(name, MCPDelimiter)
 	if !ok {
 		return "", "", xerrors.Errorf("unable to decode %q, delimiter %q not found", id, MCPDelimiter)
 	}
