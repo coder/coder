@@ -1189,16 +1189,12 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 			}
 
 			if build.Transition == database.WorkspaceTransitionStart {
-				newDeadline := time.Time{}
-				// If the build has a max_deadline set, we still need to abide
-				// by it.
-				if !build.MaxDeadline.IsZero() {
-					newDeadline = build.MaxDeadline
-				}
-
 				if err = s.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-					ID:          build.ID,
-					Deadline:    newDeadline,
+					ID: build.ID,
+					// If the build has a max_deadline set, we still need to
+					// abide by it. It will either be zero (our target), or a
+					// value.
+					Deadline:    build.MaxDeadline,
 					MaxDeadline: build.MaxDeadline,
 					UpdatedAt:   dbtime.Time(api.Clock.Now()),
 				}); err != nil {
