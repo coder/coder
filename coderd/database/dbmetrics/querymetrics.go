@@ -3372,6 +3372,20 @@ func (m queryMetricsStore) UpsertWorkspaceAppAuditSession(ctx context.Context, a
 	return r0, r1
 }
 
+func (m queryMetricsStore) ValidateGroupIDs(ctx context.Context, groupIds []uuid.UUID) (database.ValidateGroupIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ValidateGroupIDs(ctx, groupIds)
+	m.queryLatencies.WithLabelValues("ValidateGroupIDs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (database.ValidateUserIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ValidateUserIDs(ctx, userIds)
+	m.queryLatencies.WithLabelValues("ValidateUserIDs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
 	start := time.Now()
 	templates, err := m.s.GetAuthorizedTemplates(ctx, arg, prepared)
