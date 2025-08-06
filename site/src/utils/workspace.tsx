@@ -78,6 +78,11 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
 ): string | undefined => {
 	switch (build.reason) {
 		case "initiator":
+		case "dashboard":
+		case "cli":
+		case "ssh_connection":
+		case "vscode_connection":
+		case "jetbrains_connection":
 			return build.initiator_name;
 		case "autostart":
 		case "autostop":
@@ -85,6 +90,23 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
 			return "Coder";
 	}
 	return undefined;
+};
+
+export const systemBuildReasons = ["autostart", "autostop", "dormancy"];
+
+export const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
+	// User build reasons
+	initiator: "API",
+	dashboard: "Dashboard",
+	cli: "CLI",
+	ssh_connection: "SSH Connection",
+	vscode_connection: "VSCode Connection",
+	jetbrains_connection: "JetBrains Connection",
+
+	// System build reasons
+	autostart: "Autostart",
+	autostop: "Autostop",
+	dormancy: "Dormancy",
 };
 
 const getWorkspaceBuildDurationInSeconds = (

@@ -148,6 +148,25 @@ const TerminalPage: FC = () => {
 			}),
 		);
 
+		// Make shift+enter send ^[^M (escaped carriage return).  Applications
+		// typically take this to mean to insert a literal newline.  There is no way
+		// to remove this handler, so we must attach it once and rely on a ref to
+		// send it to the current socket.
+		const escapedCarriageReturn = "\x1b\r";
+		terminal.attachCustomKeyEventHandler((ev) => {
+			if (ev.shiftKey && ev.key === "Enter") {
+				if (ev.type === "keydown") {
+					websocketRef.current?.send(
+						new TextEncoder().encode(
+							JSON.stringify({ data: escapedCarriageReturn }),
+						),
+					);
+				}
+				return false;
+			}
+			return true;
+		});
+
 		terminal.open(terminalWrapperRef.current);
 
 		// We have to fit twice here. It's unknown why, but the first fit will
@@ -190,6 +209,7 @@ const TerminalPage: FC = () => {
 	}, [navigate, reconnectionToken, searchParams]);
 
 	// Hook up the terminal through a web socket.
+	const websocketRef = useRef<Websocket>();
 	useEffect(() => {
 		if (!terminal) {
 			return;
@@ -270,6 +290,7 @@ const TerminalPage: FC = () => {
 					.withBackoff(new ExponentialBackoff(1000, 6))
 					.build();
 				websocket.binaryType = "arraybuffer";
+				websocketRef.current = websocket;
 				websocket.addEventListener(WebsocketEvent.open, () => {
 					// Now that we are connected, allow user input.
 					terminal.options = {
@@ -333,6 +354,7 @@ const TerminalPage: FC = () => {
 				d.dispose();
 			}
 			websocket?.close(1000);
+			websocketRef.current = undefined;
 		};
 	}, [
 		command,

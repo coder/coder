@@ -35,6 +35,7 @@ const WorkspaceParametersPage: FC = () => {
 			API.postWorkspaceBuild(workspace.id, {
 				transition: "start",
 				rich_parameter_values: buildParameters,
+				reason: "dashboard",
 			}),
 		onSuccess: () => {
 			navigate(`/${workspace.owner_name}/${workspace.name}`);
@@ -50,6 +51,25 @@ const WorkspaceParametersPage: FC = () => {
 	const permissions = permissionsQuery.data as WorkspacePermissions | undefined;
 	const canChangeVersions = Boolean(permissions?.updateWorkspaceVersion);
 
+	const templatePermissionsQuery = useQuery({
+		...checkAuthorization({
+			checks: {
+				canUpdateTemplate: {
+					object: {
+						resource_type: "template",
+						resource_id: workspace.template_id,
+					},
+					action: "update",
+				},
+			},
+		}),
+		enabled: workspace !== undefined,
+	});
+
+	const templatePermissions = templatePermissionsQuery.data as
+		| { canUpdateTemplate: boolean }
+		| undefined;
+
 	return (
 		<>
 			<Helmet>
@@ -59,6 +79,7 @@ const WorkspaceParametersPage: FC = () => {
 			<WorkspaceParametersPageView
 				workspace={workspace}
 				canChangeVersions={canChangeVersions}
+				templatePermissions={templatePermissions}
 				data={parameters.data}
 				submitError={updateParameters.error}
 				isSubmitting={updateParameters.isPending}
@@ -93,6 +114,7 @@ const WorkspaceParametersPage: FC = () => {
 type WorkspaceParametersPageViewProps = {
 	workspace: Workspace;
 	canChangeVersions: boolean;
+	templatePermissions: { canUpdateTemplate: boolean } | undefined;
 	data: Awaited<ReturnType<typeof API.getWorkspaceParameters>> | undefined;
 	submitError: unknown;
 	isSubmitting: boolean;
@@ -105,6 +127,7 @@ export const WorkspaceParametersPageView: FC<
 > = ({
 	workspace,
 	canChangeVersions,
+	templatePermissions,
 	data,
 	submitError,
 	onSubmit,
@@ -128,6 +151,7 @@ export const WorkspaceParametersPageView: FC<
 					<WorkspaceParametersForm
 						workspace={workspace}
 						canChangeVersions={canChangeVersions}
+						templatePermissions={templatePermissions}
 						autofillParams={data.buildParameters.map((p) => ({
 							...p,
 							source: "active_build",

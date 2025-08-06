@@ -127,6 +127,7 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 		appStatusSlug    string
 		testBinaryName   string
 		aiAgentAPIURL    url.URL
+		claudeUseBedrock string
 
 		deprecatedCoderMCPClaudeAPIKey string
 	)
@@ -154,14 +155,15 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				configureClaudeEnv[envAgentURL] = agentClient.SDK.URL.String()
 				configureClaudeEnv[envAgentToken] = agentClient.SDK.SessionToken()
 			}
-			if claudeAPIKey == "" {
-				if deprecatedCoderMCPClaudeAPIKey == "" {
-					cliui.Warnf(inv.Stderr, "CLAUDE_API_KEY is not set.")
-				} else {
-					cliui.Warnf(inv.Stderr, "CODER_MCP_CLAUDE_API_KEY is deprecated, use CLAUDE_API_KEY instead")
-					claudeAPIKey = deprecatedCoderMCPClaudeAPIKey
-				}
+
+			if deprecatedCoderMCPClaudeAPIKey != "" {
+				cliui.Warnf(inv.Stderr, "CODER_MCP_CLAUDE_API_KEY is deprecated, use CLAUDE_API_KEY instead")
+				claudeAPIKey = deprecatedCoderMCPClaudeAPIKey
 			}
+			if claudeAPIKey == "" && claudeUseBedrock != "1" {
+				cliui.Warnf(inv.Stderr, "CLAUDE_API_KEY is not set.")
+			}
+
 			if appStatusSlug != "" {
 				configureClaudeEnv[envAppStatusSlug] = appStatusSlug
 			}
@@ -278,6 +280,14 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				Env:         "CODER_MCP_CLAUDE_TEST_BINARY_NAME",
 				Flag:        "claude-test-binary-name",
 				Value:       serpent.StringOf(&testBinaryName),
+				Hidden:      true,
+			},
+			{
+				Name:        "claude-code-use-bedrock",
+				Description: "Use Amazon Bedrock.",
+				Env:         "CLAUDE_CODE_USE_BEDROCK",
+				Flag:        "claude-code-use-bedrock",
+				Value:       serpent.StringOf(&claudeUseBedrock),
 				Hidden:      true,
 			},
 		},

@@ -108,6 +108,13 @@ const getMissingParameters = (
 };
 
 /**
+ * Originally from codersdk/client.go.
+ * The below declaration is required to stop Knip from complaining.
+ * @public
+ */
+export const SessionTokenCookie = "coder_session_token";
+
+/**
  * @param agentId
  * @returns {OneWayWebSocket} A OneWayWebSocket that emits Server-Sent Events.
  */
@@ -1272,6 +1279,7 @@ class ApiMethods {
 			template_version_id: templateVersionId,
 			log_level: logLevel,
 			rich_parameter_values: buildParameters,
+			reason: "dashboard",
 		});
 	};
 
@@ -1886,6 +1894,13 @@ class ApiMethods {
 		);
 
 		return response.data;
+	};
+
+	updateWorkspaceACL = async (
+		workspaceId: string,
+		data: TypesGen.UpdateWorkspaceACL,
+	): Promise<void> => {
+		await this.axios.patch(`/api/v2/workspaces/${workspaceId}/acl`, data);
 	};
 
 	getApplicationsHost = async (): Promise<TypesGen.AppHostResponse> => {

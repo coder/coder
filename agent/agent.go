@@ -1168,7 +1168,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// return existing devcontainers but actual container detection
 				// and creation will be deferred.
 				a.containerAPI.Init(
-					agentcontainers.WithManifestInfo(manifest.OwnerName, manifest.WorkspaceName, manifest.AgentName),
+					agentcontainers.WithManifestInfo(manifest.OwnerName, manifest.WorkspaceName, manifest.AgentName, manifest.Directory),
 					agentcontainers.WithDevcontainers(manifest.Devcontainers, manifest.Scripts),
 					agentcontainers.WithSubAgentClient(agentcontainers.NewSubAgentClientFromAPI(a.logger, aAPI)),
 				)

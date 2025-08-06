@@ -27,7 +27,7 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -37,6 +37,11 @@ jobs:
       - name: Disable Spotlight Indexing
         if: runner.os == 'macOS'
         run: |
+          enabled=$(sudo mdutil -a -s | grep "Indexing enabled" | wc -l)
+          if [ $enabled -eq 0 ]; then
+            echo "Spotlight indexing is already disabled"
+            exit 0
+          fi
           sudo mdutil -a -i off
           sudo mdutil -X /
           sudo launchctl bootout system /System/Library/LaunchDaemons/com.apple.metadata.mds.plist

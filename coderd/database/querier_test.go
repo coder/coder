@@ -1322,6 +1322,101 @@ func TestQueuePosition(t *testing.T) {
 	}
 }
 
+func TestAcquireProvisionerJob(t *testing.T) {
+	t.Parallel()
+
+	t.Run("HumanInitiatedJobsFirst", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _       = dbtestutil.NewDB(t)
+			ctx         = testutil.Context(t, testutil.WaitMedium)
+			org         = dbgen.Organization(t, db, database.Organization{})
+			_           = dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{}) // Required for queue position
+			now         = dbtime.Now()
+			numJobs     = 10
+			humanIDs    = make([]uuid.UUID, 0, numJobs/2)
+			prebuildIDs = make([]uuid.UUID, 0, numJobs/2)
+		)
+
+		// Given: a number of jobs in the queue, with prebuilds and non-prebuilds interleaved
+		for idx := range numJobs {
+			var initiator uuid.UUID
+			if idx%2 == 0 {
+				initiator = database.PrebuildsSystemUserID
+			} else {
+				initiator = uuid.MustParse("c0dec0de-c0de-c0de-c0de-c0dec0dec0de")
+			}
+			pj, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+				ID:             uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-00000000000%x", idx+1)),
+				CreatedAt:      time.Now().Add(-time.Second * time.Duration(idx)),
+				UpdatedAt:      time.Now().Add(-time.Second * time.Duration(idx)),
+				InitiatorID:    initiator,
+				OrganizationID: org.ID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				FileID:         uuid.New(),
+				Input:          json.RawMessage(`{}`),
+				Tags:           database.StringMap{},
+				TraceMetadata:  pqtype.NullRawMessage{},
+			})
+			require.NoError(t, err)
+			// We expected prebuilds to be acquired after human-initiated jobs.
+			if initiator == database.PrebuildsSystemUserID {
+				prebuildIDs = append([]uuid.UUID{pj.ID}, prebuildIDs...)
+			} else {
+				humanIDs = append([]uuid.UUID{pj.ID}, humanIDs...)
+			}
+			t.Logf("created job id=%q initiator=%q created_at=%q", pj.ID.String(), pj.InitiatorID.String(), pj.CreatedAt.String())
+		}
+
+		expectedIDs := append(humanIDs, prebuildIDs...) //nolint:gocritic // not the same slice
+
+		// When: we query the queue positions for the jobs
+		qjs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+			IDs:             expectedIDs,
+			StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+		})
+		require.NoError(t, err)
+		require.Len(t, qjs, numJobs)
+		// Ensure the jobs are sorted by queue position.
+		sort.Slice(qjs, func(i, j int) bool {
+			return qjs[i].QueuePosition < qjs[j].QueuePosition
+		})
+
+		// Then: the queue positions for the jobs should indicate the order in which
+		// they will be acquired, with human-initiated jobs first.
+		for idx, qj := range qjs {
+			t.Logf("queued job %d/%d id=%q initiator=%q created_at=%q queue_position=%d", idx+1, numJobs, qj.ProvisionerJob.ID.String(), qj.ProvisionerJob.InitiatorID.String(), qj.ProvisionerJob.CreatedAt.String(), qj.QueuePosition)
+			require.Equal(t, expectedIDs[idx].String(), qj.ProvisionerJob.ID.String(), "job %d/%d should match expected id", idx+1, numJobs)
+			require.Equal(t, int64(idx+1), qj.QueuePosition, "job %d/%d should have queue position %d", idx+1, numJobs, idx+1)
+		}
+
+		// When: the jobs are acquired
+		// Then: human-initiated jobs are prioritized first.
+		for idx := range numJobs {
+			acquired, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+				OrganizationID:  org.ID,
+				StartedAt:       sql.NullTime{Time: time.Now(), Valid: true},
+				WorkerID:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
+				Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+				ProvisionerTags: json.RawMessage(`{}`),
+			})
+			require.NoError(t, err)
+			require.Equal(t, expectedIDs[idx].String(), acquired.ID.String(), "acquired job %d/%d with initiator %q", idx+1, numJobs, acquired.InitiatorID.String())
+			t.Logf("acquired job id=%q initiator=%q created_at=%q", acquired.ID.String(), acquired.InitiatorID.String(), acquired.CreatedAt.String())
+			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+				ID:          acquired.ID,
+				UpdatedAt:   now,
+				CompletedAt: sql.NullTime{Time: now, Valid: true},
+				Error:       sql.NullString{},
+				ErrorCode:   sql.NullString{},
+			})
+			require.NoError(t, err, "mark job %d/%d as complete", idx+1, numJobs)
+		}
+	})
+}
+
 func TestUserLastSeenFilter(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -1942,7 +2037,6 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 	}
 
 	// Now fetch all the logs
-	ctx := testutil.Context(t, testutil.WaitLong)
 	auditorRole, err := rbac.RoleByName(rbac.RoleAuditor())
 	require.NoError(t, err)
 
@@ -1959,6 +2053,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 
 	t.Run("NoAccess", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A user who is a member of 0 organizations
 		memberCtx := dbauthz.As(ctx, rbac.Subject{
@@ -1981,6 +2076,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 
 	t.Run("SiteWideAuditor", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A site wide auditor
 		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
@@ -2003,6 +2099,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 
 	t.Run("SingleOrgAuditor", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := orgIDs[0]
 		// Given: An organization scoped auditor
@@ -2026,6 +2123,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 
 	t.Run("TwoOrgAuditors", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		first := orgIDs[0]
 		second := orgIDs[1]
@@ -2052,6 +2150,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 
 	t.Run("ErroneousOrg", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A user who is an auditor for an organization that has 0 logs
 		userCtx := dbauthz.As(ctx, rbac.Subject{
@@ -2137,7 +2236,6 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 	}
 
 	// Now fetch all the logs
-	ctx := testutil.Context(t, testutil.WaitLong)
 	auditorRole, err := rbac.RoleByName(rbac.RoleAuditor())
 	require.NoError(t, err)
 
@@ -2154,6 +2252,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 
 	t.Run("NoAccess", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A user who is a member of 0 organizations
 		memberCtx := dbauthz.As(ctx, rbac.Subject{
@@ -2176,6 +2275,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 
 	t.Run("SiteWideAuditor", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A site wide auditor
 		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
@@ -2198,6 +2298,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 
 	t.Run("SingleOrgAuditor", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := orgIDs[0]
 		// Given: An organization scoped auditor
@@ -2221,6 +2322,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 
 	t.Run("TwoOrgAuditors", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		first := orgIDs[0]
 		second := orgIDs[1]
@@ -2245,6 +2347,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 
 	t.Run("ErroneousOrg", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A user who is an auditor for an organization that has 0 logs
 		userCtx := dbauthz.As(ctx, rbac.Subject{
@@ -2326,7 +2429,6 @@ func TestCountConnectionLogs(t *testing.T) {
 
 func TestConnectionLogsOffsetFilters(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
 
 	db, _ := dbtestutil.NewDB(t)
 
@@ -2557,9 +2659,9 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
 			logs, err := db.GetConnectionLogsOffset(ctx, tc.params)
 			require.NoError(t, err)
 			count, err := db.CountConnectionLogs(ctx, database.CountConnectionLogsParams{

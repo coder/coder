@@ -49,6 +49,7 @@ boringcrypto=${CODER_BUILD_BORINGCRYPTO:-0}
 dylib=0
 windows_resources="${CODER_WINDOWS_RESOURCES:-0}"
 debug=0
+develop_in_coder="${DEVELOP_IN_CODER:-0}"
 
 bin_ident="com.coder.cli"
 
@@ -147,6 +148,13 @@ ldflags=(
 # Disable deubgger information if not building a binary for debuggers.
 if [[ "$debug" == 0 ]]; then
 	ldflags+=(-s -w)
+fi
+
+if [[ "$develop_in_coder" == 1 ]]; then
+	echo "INFO : Overriding codersdk.SessionTokenCookie as we are developing inside a Coder workspace."
+	ldflags+=(
+		-X "'github.com/coder/coder/v2/codersdk.SessionTokenCookie=dev_coder_session_token'"
+	)
 fi
 
 # We use ts_omit_aws here because on Linux it prevents Tailscale from importing

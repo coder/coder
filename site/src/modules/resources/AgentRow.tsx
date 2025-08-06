@@ -87,7 +87,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 			logs.push({
 				id: -1,
 				level: "error",
-				output: "Startup logs exceeded the max size of 1MB!",
+				output:
+					"Startup logs exceeded the max size of 1MB, and will not continue to be written to the database! Logs will continue to be written to the /tmp/coder-startup-script.log file in the workspace.",
 				created_at: new Date().toISOString(),
 				source_id: "",
 			});
@@ -137,7 +138,16 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const [showParentApps, setShowParentApps] = useState(false);
 
 	let shouldDisplayAppsSection = shouldDisplayAgentApps;
-	if (devcontainers && devcontainers.length > 0 && !showParentApps) {
+	if (
+		devcontainers &&
+		devcontainers.find(
+			// We only want to hide the parent apps by default when there are dev
+			// containers that are either starting or running. If they are all in
+			// the stopped state, it doesn't make sense to hide the parent apps.
+			(dc) => dc.status === "running" || dc.status === "starting",
+		) !== undefined &&
+		!showParentApps
+	) {
 		shouldDisplayAppsSection = false;
 	}
 
