@@ -20,142 +20,9 @@ import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
+import { createMockWebSocket } from "testHelpers/websockets";
 import CreateWorkspacePageExperimental from "./CreateWorkspacePageExperimental";
-
-type MockPublisher = Readonly<{
-	publishMessage: (event: MessageEvent<string>) => void;
-	publishError: (event: ErrorEvent) => void;
-	publishClose: (event: CloseEvent) => void;
-	publishOpen: (event: Event) => void;
-}>;
-
-type MockWebSocket = Omit<WebSocket, "readyState"> & {
-	readyState: number;
-};
-
-function createMockWebSocket(
-	url: string,
-	protocols?: string | string[],
-): readonly [WebSocket, MockPublisher] {
-	type CallbackStore = {
-		[K in keyof WebSocketEventMap]: ((event: WebSocketEventMap[K]) => void)[];
-	};
-
-	let activeProtocol: string;
-	if (Array.isArray(protocols)) {
-		activeProtocol = protocols[0] ?? "";
-	} else if (typeof protocols === "string") {
-		activeProtocol = protocols;
-	} else {
-		activeProtocol = "";
-	}
-
-	let closed = false;
-	const store: CallbackStore = {
-		message: [],
-		error: [],
-		close: [],
-		open: [],
-	};
-
-	const mockSocket: MockWebSocket = {
-		CONNECTING: 0,
-		OPEN: 1,
-		CLOSING: 2,
-		CLOSED: 3,
-
-		url,
-		protocol: activeProtocol,
-		readyState: 1,
-		binaryType: "blob",
-		bufferedAmount: 0,
-		extensions: "",
-		onclose: null,
-		onerror: null,
-		onmessage: null,
-		onopen: null,
-		send: jest.fn(),
-		dispatchEvent: jest.fn(),
-
-		addEventListener: <E extends keyof WebSocketEventMap>(
-			eventType: E,
-			cb: (event: WebSocketEventMap[E]) => void,
-		) => {
-			if (closed) {
-				return;
-			}
-
-			const subscribers = store[eventType];
-			if (!subscribers.includes(cb)) {
-				subscribers.push(cb);
-			}
-		},
-
-		removeEventListener: <E extends keyof WebSocketEventMap>(
-			eventType: E,
-			cb: (event: WebSocketEventMap[E]) => void,
-		) => {
-			if (closed) {
-				return;
-			}
-
-			const updated = store[eventType].filter((c) => c !== cb);
-			store[eventType] = updated as unknown as CallbackStore[E];
-		},
-
-		close: () => {
-			if (!closed) {
-				closed = true;
-				publisher.publishClose(new CloseEvent("close"));
-			}
-		},
-	};
-
-	const publisher: MockPublisher = {
-		publishOpen: (event) => {
-			if (closed) {
-				return;
-			}
-			for (const sub of store.open) {
-				sub(event);
-			}
-			mockSocket.onopen?.(event);
-		},
-
-		publishError: (event) => {
-			if (closed) {
-				return;
-			}
-			for (const sub of store.error) {
-				sub(event);
-			}
-			mockSocket.onerror?.(event);
-		},
-
-		publishMessage: (event) => {
-			if (closed) {
-				return;
-			}
-			for (const sub of store.message) {
-				sub(event);
-			}
-			mockSocket.onmessage?.(event);
-		},
-
-		publishClose: (event) => {
-			if (closed) {
-				return;
-			}
-			mockSocket.readyState = 3; // CLOSED
-			for (const sub of store.close) {
-				sub(event);
-			}
-			mockSocket.onclose?.(event);
-		},
-	};
-
-	return [mockSocket, publisher] as const;
-}
+import type { MockWebSocketServer } from "testHelpers/websockets";
 
 const mockDynamicParametersResponse: DynamicParametersResponse = {
 	id: 1,
@@ -185,9 +52,6 @@ const mockDynamicParametersResponseWithError: DynamicParametersResponse = {
 };
 
 describe("CreateWorkspacePageExperimental", () => {
-	let mockWebSocket: WebSocket;
-	let publisher: MockPublisher;
-
 	const renderCreateWorkspacePageExperimental = (
 		route = `/templates/${MockTemplate.name}/workspace`,
 	) => {
@@ -214,18 +78,16 @@ describe("CreateWorkspacePageExperimental", () => {
 
 		jest
 			.spyOn(API, "templateVersionDynamicParameters")
-			.mockImplementation((versionId, _ownerId, callbacks) => {
-				const [socket, pub] = createMockWebSocket(`ws://test/${versionId}`);
-				mockWebSocket = socket;
-				publisher = pub;
+			.mockImplementation((_versionId, _ownerId, callbacks) => {
+				const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
 
-				socket.addEventListener("message", (event) => {
+				mockWebSocket.addEventListener("message", (event) => {
 					callbacks.onMessage(JSON.parse(event.data));
 				});
-				socket.addEventListener("error", (event) => {
+				mockWebSocket.addEventListener("error", (event) => {
 					callbacks.onError((event as ErrorEvent).error);
 				});
-				socket.addEventListener("close", () => {
+				mockWebSocket.addEventListener("close", () => {
 					callbacks.onClose();
 				});
 
@@ -241,7 +103,6 @@ describe("CreateWorkspacePageExperimental", () => {
 	});
 
 	afterEach(() => {
-		mockWebSocket?.close();
 		jest.restoreAllMocks();
 	});
 
@@ -270,6 +131,31 @@ describe("CreateWorkspacePageExperimental", () => {
 		});
 
 		it("sends parameter updates via WebSocket when form values change", async () => {
+			const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
+
+			jest
+				.spyOn(API, "templateVersionDynamicParameters")
+				.mockImplementation((_versionId, _ownerId, callbacks) => {
+					mockWebSocket.addEventListener("message", (event) => {
+						callbacks.onMessage(JSON.parse(event.data));
+					});
+					mockWebSocket.addEventListener("error", (event) => {
+						callbacks.onError((event as ErrorEvent).error);
+					});
+					mockWebSocket.addEventListener("close", () => {
+						callbacks.onClose();
+					});
+
+					publisher.publishOpen(new Event("open"));
+					publisher.publishMessage(
+						new MessageEvent("message", {
+							data: JSON.stringify(mockDynamicParametersResponse),
+						}),
+					);
+
+					return mockWebSocket;
+				});
+
 			renderCreateWorkspacePageExperimental();
 			await waitForLoaderToBeRemoved();
 
@@ -304,16 +190,13 @@ describe("CreateWorkspacePageExperimental", () => {
 		it("handles WebSocket error gracefully", async () => {
 			jest
 				.spyOn(API, "templateVersionDynamicParameters")
-				.mockImplementation((versionId, _ownerId, callbacks) => {
-					const [socket, pub] = createMockWebSocket(`ws://test/${versionId}`);
-					mockWebSocket = socket;
-					publisher = pub;
+				.mockImplementation((_versionId, _ownerId, callbacks) => {
+					const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
 
-					socket.addEventListener("error", (event) => {
+					mockWebSocket.addEventListener("error", (event) => {
 						callbacks.onError((event as ErrorEvent).error);
 					});
 
-					// Simulate error
 					setTimeout(() => {
 						publisher.publishError(
 							new ErrorEvent("error", {
@@ -335,12 +218,10 @@ describe("CreateWorkspacePageExperimental", () => {
 		it("handles WebSocket close event", async () => {
 			jest
 				.spyOn(API, "templateVersionDynamicParameters")
-				.mockImplementation((versionId, _ownerId, callbacks) => {
-					const [socket, pub] = createMockWebSocket(`ws://test/${versionId}`);
-					mockWebSocket = socket;
-					publisher = pub;
+				.mockImplementation((_versionId, _ownerId, callbacks) => {
+					const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
 
-					socket.addEventListener("close", () => {
+					mockWebSocket.addEventListener("close", () => {
 						callbacks.onClose();
 					});
 
@@ -361,14 +242,16 @@ describe("CreateWorkspacePageExperimental", () => {
 		});
 
 		it("only parameters from latest response are displayed", async () => {
+			let publisher: MockWebSocketServer;
+
 			jest
 				.spyOn(API, "templateVersionDynamicParameters")
-				.mockImplementation((versionId, _ownerId, callbacks) => {
-					const [socket, pub] = createMockWebSocket(`ws://test/${versionId}`);
-					mockWebSocket = socket;
-					publisher = pub;
+				.mockImplementation((_versionId, _ownerId, callbacks) => {
+					const [mockWebSocket, mockPublisher] =
+						createMockWebSocket("ws://test");
+					publisher = mockPublisher;
 
-					socket.addEventListener("message", (event) => {
+					mockWebSocket.addEventListener("message", (event) => {
 						callbacks.onMessage(JSON.parse(event.data));
 					});
 
@@ -507,12 +390,10 @@ describe("CreateWorkspacePageExperimental", () => {
 		it("displays parameter validation errors", async () => {
 			jest
 				.spyOn(API, "templateVersionDynamicParameters")
-				.mockImplementation((versionId, _ownerId, callbacks) => {
-					const [socket, pub] = createMockWebSocket(`ws://test/${versionId}`);
-					mockWebSocket = socket;
-					publisher = pub;
+				.mockImplementation((_versionId, _ownerId, callbacks) => {
+					const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
 
-					socket.addEventListener("message", (event) => {
+					mockWebSocket.addEventListener("message", (event) => {
 						callbacks.onMessage(JSON.parse(event.data));
 					});
 
@@ -569,12 +450,10 @@ describe("CreateWorkspacePageExperimental", () => {
 
 			jest
 				.spyOn(API, "templateVersionDynamicParameters")
-				.mockImplementation((versionId, _ownerId, callbacks) => {
-					const [socket, pub] = createMockWebSocket(`ws://test/${versionId}`);
-					mockWebSocket = socket;
-					publisher = pub;
+				.mockImplementation((_versionId, _ownerId, callbacks) => {
+					const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
 
-					socket.addEventListener("message", (event) => {
+					mockWebSocket.addEventListener("message", (event) => {
 						callbacks.onMessage(JSON.parse(event.data));
 					});
 
@@ -586,9 +465,9 @@ describe("CreateWorkspacePageExperimental", () => {
 						}),
 					);
 
-					const originalSend = socket.send;
-					socket.send = jest.fn((data) => {
-						originalSend.call(socket, data);
+					const originalSend = mockWebSocket.send;
+					mockWebSocket.send = jest.fn((data) => {
+						originalSend.call(mockWebSocket, data);
 
 						if (typeof data === "string" && data.includes('"200"')) {
 							publisher.publishMessage(
