@@ -24,7 +24,7 @@ SUBCOMMANDS:
     dotfiles               Personalize your workspace by applying a canonical
                            dotfiles repository
     external-auth          Manage external authentication
-    external-workspaces    External workspace related commands
+    external-workspaces    Create or manage external workspaces
     favorite               Add a workspace to your favorites
     list                   List workspaces
     login                  Authenticate with Coder deployment

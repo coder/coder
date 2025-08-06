@@ -179,7 +179,7 @@ func TestExternalWorkspaces(t *testing.T) {
 
 		err := inv.Run()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "template name is required for external workspace creation")
+		assert.Contains(t, err.Error(), "Missing values for the required flags: template")
 	})
 
 	t.Run("CreateWithRegularTemplate", func(t *testing.T) {
@@ -320,7 +320,6 @@ func TestExternalWorkspaces(t *testing.T) {
 			"external-workspaces",
 			"agent-instructions",
 			ws.Name,
-			"external-agent",
 		}
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, member, root)
@@ -334,7 +333,7 @@ func TestExternalWorkspaces(t *testing.T) {
 			assert.NoError(t, errC)
 			close(done)
 		}()
-		pty.ExpectMatch("Please run the following commands to attach agent external-agent:")
+		pty.ExpectMatch("Please run the following commands to attach external agent to the workspace")
 		pty.ExpectMatch("export CODER_AGENT_TOKEN=")
 		pty.ExpectMatch("curl -fsSL")
 		cancelFunc()
@@ -358,7 +357,6 @@ func TestExternalWorkspaces(t *testing.T) {
 			"external-workspaces",
 			"agent-instructions",
 			ws.Name,
-			"external-agent",
 			"--output=json",
 		}
 		inv, root := clitest.New(t, args...)
@@ -389,7 +387,6 @@ func TestExternalWorkspaces(t *testing.T) {
 			"external-workspaces",
 			"agent-instructions",
 			"non-existent-workspace",
-			"external-agent",
 		}
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, member, root)
@@ -415,15 +412,14 @@ func TestExternalWorkspaces(t *testing.T) {
 		args := []string{
 			"external-workspaces",
 			"agent-instructions",
-			ws.Name,
-			"non-existent-agent",
+			ws.Name + ".non-existent-agent",
 		}
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, member, root)
 
 		err := inv.Run()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "get external agent token for agent")
+		assert.Contains(t, err.Error(), "agent not found by name")
 	})
 
 	t.Run("CreateWithTemplateVersion", func(t *testing.T) {

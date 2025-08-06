@@ -60,7 +60,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>unfavorite</code>](./unfavorite.md)                   | Remove a workspace from your favorites                                                                                       |
 | [<code>update</code>](./update.md)                           | Will update and start a given workspace if it is out of date. If the workspace is already running, it will be stopped first. |
 | [<code>whoami</code>](./whoami.md)                           | Fetch authenticated user info for Coder deployment                                                                           |
-| [<code>external-workspaces</code>](./external-workspaces.md) | External workspace related commands                                                                                          |
+| [<code>external-workspaces</code>](./external-workspaces.md) | Create or manage external workspaces                                                                                         |
 | [<code>support</code>](./support.md)                         | Commands for troubleshooting issues with a Coder deployment.                                                                 |
 | [<code>server</code>](./server.md)                           | Start a Coder server                                                                                                         |
 | [<code>features</code>](./features.md)                       | List Enterprise features                                                                                                     |

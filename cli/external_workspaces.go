@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -15,10 +16,11 @@ import (
 )
 
 type externalAgent struct {
-	AgentName  string `json:"-"`
-	AuthType   string `json:"auth_type"`
-	AuthToken  string `json:"auth_token"`
-	InitScript string `json:"init_script"`
+	WorkspaceName string `json:"-"`
+	AgentName     string `json:"-"`
+	AuthType      string `json:"auth_type"`
+	AuthToken     string `json:"auth_token"`
+	InitScript    string `json:"init_script"`
 }
 
 func (r *RootCmd) externalWorkspaces() *serpent.Command {
@@ -26,7 +28,7 @@ func (r *RootCmd) externalWorkspaces() *serpent.Command {
 
 	cmd := &serpent.Command{
 		Use:   "external-workspaces [subcommand]",
-		Short: "External workspace related commands",
+		Short: "Create or manage external workspaces",
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
@@ -43,88 +45,61 @@ func (r *RootCmd) externalWorkspaces() *serpent.Command {
 
 // externalWorkspaceCreate extends `coder create` to create an external workspace.
 func (r *RootCmd) externalWorkspaceCreate() *serpent.Command {
-	var (
-		orgContext = NewOrganizationContext()
-		client     = new(codersdk.Client)
-	)
+	opts := createOptions{
+		beforeCreate: func(ctx context.Context, client *codersdk.Client, _ codersdk.Template, templateVersionID uuid.UUID) error {
+			resources, err := client.TemplateVersionResources(ctx, templateVersionID)
+			if err != nil {
+				return xerrors.Errorf("get template version resources: %w", err)
+			}
+			if len(resources) == 0 {
+				return xerrors.Errorf("no resources found for template version %q", templateVersionID)
+			}
 
-	cmd := r.create()
+			var hasExternalAgent bool
+			for _, resource := range resources {
+				if resource.Type == "coder_external_agent" {
+					hasExternalAgent = true
+					break
+				}
+			}
+
+			if !hasExternalAgent {
+				return xerrors.Errorf("template version %q does not have an external agent. Only templates with external agents can be used for external workspace creation", templateVersionID)
+			}
+
+			return nil
+		},
+		afterCreate: func(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace) error {
+			workspace, err := client.WorkspaceByOwnerAndName(ctx, codersdk.Me, workspace.Name, codersdk.WorkspaceOptions{})
+			if err != nil {
+				return xerrors.Errorf("get workspace by name: %w", err)
+			}
+
+			externalAgents, err := fetchExternalAgents(inv, client, workspace, workspace.LatestBuild.Resources)
+			if err != nil {
+				return xerrors.Errorf("fetch external agents: %w", err)
+			}
+
+			formatted := formatExternalAgent(workspace.Name, externalAgents)
+			_, err = fmt.Fprintln(inv.Stdout, formatted)
+			return err
+		},
+	}
+
+	cmd := r.create(opts)
 	cmd.Use = "create [workspace]"
 	cmd.Short = "Create a new external workspace"
 	cmd.Middleware = serpent.Chain(
 		cmd.Middleware,
-		r.InitClient(client),
 		serpent.RequireNArgs(1),
 	)
 
-	createHandler := cmd.Handler
-	cmd.Handler = func(inv *serpent.Invocation) error {
-		workspaceName := inv.Args[0]
-		templateVersion := inv.ParsedFlags().Lookup("template-version")
-		templateName := inv.ParsedFlags().Lookup("template")
-		if templateName == nil || templateName.Value.String() == "" {
-			return xerrors.Errorf("template name is required for external workspace creation. Use --template=<template_name>")
+	for i := range cmd.Options {
+		if cmd.Options[i].Flag == "template" {
+			cmd.Options[i].Required = true
 		}
-
-		organization, err := orgContext.Selected(inv, client)
-		if err != nil {
-			return xerrors.Errorf("get current organization: %w", err)
-		}
-
-		template, err := client.TemplateByName(inv.Context(), organization.ID, templateName.Value.String())
-		if err != nil {
-			return xerrors.Errorf("get template by name: %w", err)
-		}
-
-		var resources []codersdk.WorkspaceResource
-		var templateVersionID uuid.UUID
-		if templateVersion == nil || templateVersion.Value.String() == "" {
-			templateVersionID = template.ActiveVersionID
-		} else {
-			version, err := client.TemplateVersionByName(inv.Context(), template.ID, templateVersion.Value.String())
-			if err != nil {
-				return xerrors.Errorf("get template version by name: %w", err)
-			}
-			templateVersionID = version.ID
-		}
-
-		resources, err = client.TemplateVersionResources(inv.Context(), templateVersionID)
-		if err != nil {
-			return xerrors.Errorf("get template version resources: %w", err)
-		}
-		if len(resources) == 0 {
-			return xerrors.Errorf("no resources found for template version %q", templateVersion.Value.String())
-		}
-
-		var hasExternalAgent bool
-		for _, resource := range resources {
-			if resource.Type == "coder_external_agent" {
-				hasExternalAgent = true
-				break
-			}
-		}
-
-		if !hasExternalAgent {
-			return xerrors.Errorf("template version %q does not have an external agent. Only templates with external agents can be used for external workspace creation", templateVersion.Value.String())
-		}
-
-		err = createHandler(inv)
-		if err != nil {
-			return err
-		}
-
-		workspace, err := client.WorkspaceByOwnerAndName(inv.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceOptions{})
-		if err != nil {
-			return xerrors.Errorf("get workspace by name: %w", err)
-		}
-
-		externalAgents, err := fetchExternalAgents(inv, client, workspace, workspace.LatestBuild.Resources)
-		if err != nil {
-			return xerrors.Errorf("fetch external agents: %w", err)
-		}
-
-		return printExternalAgents(inv, workspace.Name, externalAgents)
 	}
+
 	return cmd
 }
 
@@ -138,57 +113,37 @@ func (r *RootCmd) externalWorkspaceAgentInstructions() *serpent.Command {
 				return "", xerrors.Errorf("expected externalAgent, got %T", data)
 			}
 
-			var output strings.Builder
-			_, _ = output.WriteString(fmt.Sprintf("Please run the following commands to attach agent %s:\n", cliui.Keyword(agent.AgentName)))
-			_, _ = output.WriteString(fmt.Sprintf("%s\n", pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("export CODER_AGENT_TOKEN=%s", agent.AuthToken))))
-			_, _ = output.WriteString(pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("curl -fsSL %s | sh", agent.InitScript)))
-
-			return output.String(), nil
+			return formatExternalAgent(agent.WorkspaceName, []externalAgent{agent}), nil
 		}),
 		cliui.JSONFormat(),
 	)
 
 	cmd := &serpent.Command{
-		Use:        "agent-instructions [workspace name] [agent name]",
+		Use:        "agent-instructions [user/]workspace[.agent]",
 		Short:      "Get the instructions for an external agent",
-		Middleware: serpent.Chain(r.InitClient(client), serpent.RequireNArgs(2)),
+		Middleware: serpent.Chain(r.InitClient(client), serpent.RequireNArgs(1)),
 		Handler: func(inv *serpent.Invocation) error {
-			workspaceName := inv.Args[0]
-			agentName := inv.Args[1]
-
-			workspace, err := client.WorkspaceByOwnerAndName(inv.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceOptions{})
+			workspace, workspaceAgent, _, err := getWorkspaceAndAgent(inv.Context(), inv, client, false, inv.Args[0])
 			if err != nil {
-				return xerrors.Errorf("get workspace by name: %w", err)
+				return xerrors.Errorf("find workspace and agent: %w", err)
 			}
 
-			credential, err := client.WorkspaceExternalAgentCredential(inv.Context(), workspace.ID, agentName)
+			credential, err := client.WorkspaceExternalAgentCredential(inv.Context(), workspace.ID, workspaceAgent.Name)
 			if err != nil {
-				return xerrors.Errorf("get external agent token for agent %q: %w", agentName, err)
-			}
-
-			var agent codersdk.WorkspaceAgent
-			for _, resource := range workspace.LatestBuild.Resources {
-				for _, a := range resource.Agents {
-					if a.Name == agentName {
-						agent = a
-						break
-					}
-				}
-				if agent.ID != uuid.Nil {
-					break
-				}
+				return xerrors.Errorf("get external agent token for agent %q: %w", workspaceAgent.Name, err)
 			}
 
 			initScriptURL := fmt.Sprintf("%s/api/v2/init-script", client.URL)
-			if agent.OperatingSystem != "linux" || agent.Architecture != "amd64" {
-				initScriptURL = fmt.Sprintf("%s/api/v2/init-script?os=%s&arch=%s", client.URL, agent.OperatingSystem, agent.Architecture)
+			if workspaceAgent.OperatingSystem != "linux" || workspaceAgent.Architecture != "amd64" {
+				initScriptURL = fmt.Sprintf("%s/api/v2/init-script?os=%s&arch=%s", client.URL, workspaceAgent.OperatingSystem, workspaceAgent.Architecture)
 			}
 
 			agentInfo := externalAgent{
-				AgentName:  agentName,
-				AuthType:   "token",
-				AuthToken:  credential.AgentToken,
-				InitScript: initScriptURL,
+				WorkspaceName: workspace.Name,
+				AgentName:     workspaceAgent.Name,
+				AuthType:      "token",
+				AuthToken:     credential.AgentToken,
+				InitScript:    initScriptURL,
 			}
 
 			out, err := formatter.Format(inv.Context(), agentInfo)
@@ -305,22 +260,23 @@ func fetchExternalAgents(inv *serpent.Invocation, client *codersdk.Client, works
 	return externalAgents, nil
 }
 
-// printExternalAgents prints the instructions for an external agent.
-func printExternalAgents(inv *serpent.Invocation, workspaceName string, externalAgents []externalAgent) error {
-	_, _ = fmt.Fprintf(inv.Stdout, "\nPlease run the following commands to attach external agent to the workspace %s:\n\n", cliui.Keyword(workspaceName))
+// formatExternalAgent formats the instructions for an external agent.
+func formatExternalAgent(workspaceName string, externalAgents []externalAgent) string {
+	var output strings.Builder
+	_, _ = output.WriteString(fmt.Sprintf("\nPlease run the following commands to attach external agent to the workspace %s:\n\n", cliui.Keyword(workspaceName)))
 
 	for i, agent := range externalAgents {
 		if len(externalAgents) > 1 {
-			_, _ = fmt.Fprintf(inv.Stdout, "For agent %s:\n", cliui.Keyword(agent.AgentName))
+			_, _ = output.WriteString(fmt.Sprintf("For agent %s:\n", cliui.Keyword(agent.AgentName)))
 		}
 
-		_, _ = fmt.Fprintf(inv.Stdout, "%s\n", pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("export CODER_AGENT_TOKEN=%s", agent.AuthToken)))
-		_, _ = fmt.Fprintf(inv.Stdout, "%s\n", pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("curl -fsSL %s | sh", agent.InitScript)))
+		_, _ = output.WriteString(fmt.Sprintf("%s\n", pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("export CODER_AGENT_TOKEN=%s", agent.AuthToken))))
+		_, _ = output.WriteString(fmt.Sprintf("%s\n", pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("curl -fsSL %s | sh", agent.InitScript))))
 
 		if i < len(externalAgents)-1 {
-			_, _ = fmt.Fprintf(inv.Stdout, "\n")
+			_, _ = output.WriteString("\n")
 		}
 	}
 
-	return nil
+	return output.String()
 }

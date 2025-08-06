@@ -3,7 +3,7 @@ coder v0.0.0-devel
 USAGE:
   coder external-workspaces [flags] [subcommand]
 
-  External workspace related commands
+  Create or manage external workspaces
 
 SUBCOMMANDS:
     agent-instructions    Get the instructions for an external agent

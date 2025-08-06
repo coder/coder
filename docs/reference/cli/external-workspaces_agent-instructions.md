@@ -6,7 +6,7 @@ Get the instructions for an external agent
 ## Usage
 
 ```console
-coder external-workspaces agent-instructions [flags] [workspace name] [agent name]
+coder external-workspaces agent-instructions [flags] [user/]workspace[.agent]
 ```
 
 ## Options

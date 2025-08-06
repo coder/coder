@@ -1,7 +1,7 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # external-workspaces
 
-External workspace related commands
+Create or manage external workspaces
 
 ## Usage
 

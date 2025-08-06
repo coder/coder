@@ -1,8 +1,7 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder external-workspaces agent-instructions [flags] [workspace name] [agent
-  name]
+  coder external-workspaces agent-instructions [flags] [user/]workspace[.agent]
 
   Get the instructions for an external agent
 

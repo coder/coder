@@ -1157,7 +1157,7 @@
 						},
 						{
 							"title": "external-workspaces",
-							"description": "External workspace related commands",
+							"description": "Create or manage external workspaces",
 							"path": "reference/cli/external-workspaces.md"
 						},
 						{
