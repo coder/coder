@@ -18,6 +18,7 @@ export const newTemplate = (
 	const safeTemplateData = {
 		name: formData.name,
 		max_port_share_level: null,
+		cors_behavior: null,
 		display_name: formData.display_name,
 		description: formData.description,
 		icon: formData.icon,

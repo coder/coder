@@ -9,6 +9,7 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestWorkspaceBash(t *testing.T) {
@@ -174,8 +175,6 @@ func TestWorkspaceBashTimeout(t *testing.T) {
 
 		// Test that the TimeoutMs field can be set and read correctly
 		args := toolsdk.WorkspaceBashArgs{
-			Workspace: "test-workspace",
-			Command:   "echo test",
 			TimeoutMs: 0, // Should default to 60000 in handler
 		}
 
@@ -192,8 +191,6 @@ func TestWorkspaceBashTimeout(t *testing.T) {
 
 		// Test that negative values can be set and will be handled by the default logic
 		args := toolsdk.WorkspaceBashArgs{
-			Workspace: "test-workspace",
-			Command:   "echo test",
 			TimeoutMs: -100,
 		}
 
@@ -279,7 +276,7 @@ func TestWorkspaceBashTimeoutIntegration(t *testing.T) {
 			TimeoutMs: 2000,                                   // 2 seconds timeout - should timeout after first echo
 		}
 
-		result, err := toolsdk.WorkspaceBash.Handler(t.Context(), deps, args)
+		result, err := testTool(t, toolsdk.WorkspaceBash, deps, args)
 
 		// Should not error (timeout is handled gracefully)
 		require.NoError(t, err)
@@ -313,7 +310,6 @@ func TestWorkspaceBashTimeoutIntegration(t *testing.T) {
 
 		deps, err := toolsdk.NewDeps(client)
 		require.NoError(t, err)
-		ctx := context.Background()
 
 		args := toolsdk.WorkspaceBashArgs{
 			Workspace: workspace.Name,
@@ -321,7 +317,8 @@ func TestWorkspaceBashTimeoutIntegration(t *testing.T) {
 			TimeoutMs: 5000,                    // 5 second timeout - plenty of time
 		}
 
-		result, err := toolsdk.WorkspaceBash.Handler(ctx, deps, args)
+		// Use testTool to register the tool as tested and satisfy coverage validation
+		result, err := testTool(t, toolsdk.WorkspaceBash, deps, args)
 
 		// Should not error
 		require.NoError(t, err)
@@ -336,5 +333,144 @@ func TestWorkspaceBashTimeoutIntegration(t *testing.T) {
 
 		// Should NOT contain timeout message
 		require.NotContains(t, result.Output, "Command canceled due to timeout")
+	})
+}
+
+func TestWorkspaceBashBackgroundIntegration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("BackgroundCommandCapturesOutput", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+
+		// Start the agent and wait for it to be fully ready
+		_ = agenttest.New(t, client.URL, agentToken)
+
+		// Wait for workspace agents to be ready
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+		deps, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		args := toolsdk.WorkspaceBashArgs{
+			Workspace:  workspace.Name,
+			Command:    `echo "started" && sleep 60 && echo "completed"`, // Command that would take 60+ seconds
+			Background: true,                                             // Run in background
+			TimeoutMs:  2000,                                             // 2 second timeout
+		}
+
+		result, err := testTool(t, toolsdk.WorkspaceBash, deps, args)
+
+		// Should not error
+		require.NoError(t, err)
+
+		t.Logf("Background result: exitCode=%d, output=%q", result.ExitCode, result.Output)
+
+		// Should have exit code 124 (timeout) since command times out
+		require.Equal(t, 124, result.ExitCode)
+
+		// Should capture output up to timeout point
+		require.Contains(t, result.Output, "started", "Should contain output captured before timeout")
+
+		// Should NOT contain the second echo (it never executed due to timeout)
+		require.NotContains(t, result.Output, "completed", "Should not contain output after timeout")
+
+		// Should contain background continuation message
+		require.Contains(t, result.Output, "Command continues running in background")
+	})
+
+	t.Run("BackgroundVsNormalExecution", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+
+		// Start the agent and wait for it to be fully ready
+		_ = agenttest.New(t, client.URL, agentToken)
+
+		// Wait for workspace agents to be ready
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+		deps, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		// First run the same command in normal mode
+		normalArgs := toolsdk.WorkspaceBashArgs{
+			Workspace:  workspace.Name,
+			Command:    `echo "hello world"`,
+			Background: false,
+		}
+
+		normalResult, err := toolsdk.WorkspaceBash.Handler(t.Context(), deps, normalArgs)
+		require.NoError(t, err)
+
+		// Normal mode should return the actual output
+		require.Equal(t, 0, normalResult.ExitCode)
+		require.Equal(t, "hello world", normalResult.Output)
+
+		// Now run the same command in background mode
+		backgroundArgs := toolsdk.WorkspaceBashArgs{
+			Workspace:  workspace.Name,
+			Command:    `echo "hello world"`,
+			Background: true,
+		}
+
+		backgroundResult, err := testTool(t, toolsdk.WorkspaceBash, deps, backgroundArgs)
+		require.NoError(t, err)
+
+		t.Logf("Normal result: %q", normalResult.Output)
+		t.Logf("Background result: %q", backgroundResult.Output)
+
+		// Background mode should also return the actual output since command completes quickly
+		require.Equal(t, 0, backgroundResult.ExitCode)
+		require.Equal(t, "hello world", backgroundResult.Output)
+	})
+
+	t.Run("BackgroundCommandContinuesAfterTimeout", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+
+		// Start the agent and wait for it to be fully ready
+		_ = agenttest.New(t, client.URL, agentToken)
+
+		// Wait for workspace agents to be ready
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+		deps, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		args := toolsdk.WorkspaceBashArgs{
+			Workspace:  workspace.Name,
+			Command:    `echo "started" && sleep 4 && echo "done" > /tmp/bg-test-done`, // Command that will timeout but continue
+			TimeoutMs:  2000,                                                           // 2000ms timeout (shorter than command duration)
+			Background: true,                                                           // Run in background
+		}
+
+		result, err := testTool(t, toolsdk.WorkspaceBash, deps, args)
+
+		// Should not error but should timeout
+		require.NoError(t, err)
+
+		t.Logf("Background with timeout result: exitCode=%d, output=%q", result.ExitCode, result.Output)
+
+		// Should have timeout exit code
+		require.Equal(t, 124, result.ExitCode)
+
+		// Should capture output before timeout
+		require.Contains(t, result.Output, "started", "Should contain output captured before timeout")
+
+		// Should contain background continuation message
+		require.Contains(t, result.Output, "Command continues running in background")
+
+		// Wait for the background command to complete (even though SSH session timed out)
+		require.Eventually(t, func() bool {
+			checkArgs := toolsdk.WorkspaceBashArgs{
+				Workspace: workspace.Name,
+				Command:   `cat /tmp/bg-test-done 2>/dev/null || echo "not found"`,
+			}
+			checkResult, err := toolsdk.WorkspaceBash.Handler(t.Context(), deps, checkArgs)
+			return err == nil && checkResult.Output == "done"
+		}, testutil.WaitMedium, testutil.IntervalMedium, "Background command should continue running and complete after timeout")
 	})
 }

@@ -60,7 +60,7 @@ jobs:
       - name: Switch XCode Version
         uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
         with:
-          xcode-version: "16.0.0"
+          xcode-version: "16.1.0"
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -286,7 +286,7 @@ jobs:
       # Setup GCloud for signing Windows binaries.
       - name: Authenticate to Google Cloud
         id: gcloud_auth
-        uses: google-github-actions/auth@140bb5113ffb6b65a7e9b937a81fa96cf5064462 # v2.1.11
+        uses: google-github-actions/auth@b7593ed2efd1c1617e1b0254da33b86225adb2a5 # v2.1.12
         with:
           workload_identity_provider: ${{ secrets.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
           service_account: ${{ secrets.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
@@ -635,7 +635,7 @@ jobs:
         run: ls -lh build
 
       - name: Publish Coder CLI binaries and detached signatures to GCS
-        if: ${{ !inputs.dry_run && github.ref == 'refs/heads/main' && github.repository_owner == 'coder'}}
+        if: ${{ !inputs.dry_run }}
         run: |
           set -euxo pipefail
 
@@ -655,7 +655,7 @@ jobs:
             detached_signature="${binary}.asc"
             gcloud storage cp "./site/out/bin/${binary}" "gs://releases.coder.com/coder-cli/${version}/${binary}"
             gcloud storage cp "./site/out/bin/${detached_signature}" "gs://releases.coder.com/coder-cli/${version}/${detached_signature}"
-          done  
+          done
 
       - name: Publish release
         run: |
@@ -696,7 +696,7 @@ jobs:
           CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@140bb5113ffb6b65a7e9b937a81fa96cf5064462 # v2.1.11
+        uses: google-github-actions/auth@b7593ed2efd1c1617e1b0254da33b86225adb2a5 # v2.1.12
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_ID_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}

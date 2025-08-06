@@ -77,7 +77,8 @@ type API struct {
 	subAgentURL                 string
 	subAgentEnv                 []string
 
-	projectDiscovery bool // If we should perform project discovery or not.
+	projectDiscovery   bool // If we should perform project discovery or not.
+	discoveryAutostart bool // If we should autostart discovered projects.
 
 	ownerName      string
 	workspaceName  string
@@ -144,7 +145,8 @@ func WithCommandEnv(ce CommandEnv) Option {
 					strings.HasPrefix(s, "CODER_AGENT_TOKEN=") ||
 					strings.HasPrefix(s, "CODER_AGENT_AUTH=") ||
 					strings.HasPrefix(s, "CODER_AGENT_DEVCONTAINERS_ENABLE=") ||
-					strings.HasPrefix(s, "CODER_AGENT_DEVCONTAINERS_PROJECT_DISCOVERY_ENABLE=")
+					strings.HasPrefix(s, "CODER_AGENT_DEVCONTAINERS_PROJECT_DISCOVERY_ENABLE=") ||
+					strings.HasPrefix(s, "CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE=")
 			})
 			return shell, dir, env, nil
 		}
@@ -161,8 +163,8 @@ func WithContainerCLI(ccli ContainerCLI) Option {
 
 // WithContainerLabelIncludeFilter sets a label filter for containers.
 // This option can be given multiple times to filter by multiple labels.
-// The behavior is such that only containers matching one or more of the
-// provided labels will be included.
+// The behavior is such that only containers matching all of the provided
+// labels will be included.
 func WithContainerLabelIncludeFilter(label, value string) Option {
 	return func(api *API) {
 		api.containerLabelIncludeFilter[label] = value
@@ -284,6 +286,14 @@ func WithFileSystem(fileSystem afero.Fs) Option {
 func WithProjectDiscovery(projectDiscovery bool) Option {
 	return func(api *API) {
 		api.projectDiscovery = projectDiscovery
+	}
+}
+
+// WithDiscoveryAutostart sets if the API should attempt to autostart
+// projects that have been discovered
+func WithDiscoveryAutostart(discoveryAutostart bool) Option {
+	return func(api *API) {
+		api.discoveryAutostart = discoveryAutostart
 	}
 }
 
@@ -542,11 +552,13 @@ func (api *API) discoverDevcontainersInProject(projectPath string) error {
 					Container:       nil,
 				}
 
-				config, err := api.dccli.ReadConfig(api.ctx, workspaceFolder, path, []string{})
-				if err != nil {
-					logger.Error(api.ctx, "read project configuration", slog.Error(err))
-				} else if config.Configuration.Customizations.Coder.AutoStart {
-					dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
+				if api.discoveryAutostart {
+					config, err := api.dccli.ReadConfig(api.ctx, workspaceFolder, path, []string{})
+					if err != nil {
+						logger.Error(api.ctx, "read project configuration", slog.Error(err))
+					} else if config.Configuration.Customizations.Coder.AutoStart {
+						dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
+					}
 				}
 
 				api.knownDevcontainers[workspaceFolder] = dc
@@ -927,17 +939,22 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 			slog.F("config_file", configFile),
 		)
 
+		// If we haven't set any include filters, we should explicitly ignore test devcontainers.
+		if len(api.containerLabelIncludeFilter) == 0 && container.Labels[DevcontainerIsTestRunLabel] == "true" {
+			continue
+		}
+
 		// Filter out devcontainer tests, unless explicitly set in include filters.
-		if len(api.containerLabelIncludeFilter) > 0 || container.Labels[DevcontainerIsTestRunLabel] == "true" {
-			var ok bool
+		if len(api.containerLabelIncludeFilter) > 0 {
+			includeContainer := true
 			for label, value := range api.containerLabelIncludeFilter {
-				if v, found := container.Labels[label]; found && v == value {
-					ok = true
-				}
+				v, found := container.Labels[label]
+
+				includeContainer = includeContainer && (found && v == value)
 			}
 			// Verbose debug logging is fine here since typically filters
 			// are only used in development or testing environments.
-			if !ok {
+			if !includeContainer {
 				logger.Debug(ctx, "container does not match include filter, ignoring devcontainer", slog.F("container_labels", container.Labels), slog.F("include_filter", api.containerLabelIncludeFilter))
 				continue
 			}

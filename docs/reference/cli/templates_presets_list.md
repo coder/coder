@@ -30,10 +30,10 @@ Select which organization (uuid or name) to use.
 
 ### -c, --column
 
-|         |                                                                      |
-|---------|----------------------------------------------------------------------|
-| Type    | <code>[name\|parameters\|default\|desired prebuild instances]</code> |
-| Default | <code>name,parameters,default,desired prebuild instances</code>      |
+|         |                                                                                   |
+|---------|-----------------------------------------------------------------------------------|
+| Type    | <code>[name\|description\|parameters\|default\|desired prebuild instances]</code> |
+| Default | <code>name,description,parameters,default,desired prebuild instances</code>       |
 
 Columns to display in table output.
 

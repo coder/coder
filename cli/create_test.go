@@ -882,7 +882,8 @@ func TestCreateWithPreset(t *testing.T) {
 
 		// Given: a template and a template version with two presets
 		preset := proto.Preset{
-			Name: "preset-test",
+			Name:        "preset-test",
+			Description: "Preset Test.",
 			Parameters: []*proto.PresetParameter{
 				{Name: firstParameterName, Value: secondOptionalParameterValue},
 				{Name: thirdParameterName, Value: thirdParameterValue},
