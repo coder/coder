@@ -820,7 +820,7 @@ func TestTemplatesByOrganization(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
 		adminAlpha, adminAlphaData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
-		adminBravo, adminBravoData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		adminBravo, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 		adminCharlie, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 		versionA := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
@@ -847,8 +847,8 @@ func TestTemplatesByOrganization(t *testing.T) {
 		require.Equal(t, foo.ID, alpha[0].ID)
 
 		// List bravo
-		bravo, err := client.Templates(ctx, codersdk.TemplateFilter{
-			AuthorUsername: adminBravoData.Username,
+		bravo, err := adminBravo.Templates(ctx, codersdk.TemplateFilter{
+			AuthorUsername: codersdk.Me,
 		})
 		require.NoError(t, err)
 		require.Len(t, bravo, 1)
