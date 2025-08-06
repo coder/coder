@@ -584,6 +584,7 @@ type Claims struct {
 	Version          uint64   `json:"version"`
 	Features         Features `json:"features"`
 	RequireTelemetry bool     `json:"require_telemetry,omitempty"`
+	PublishUsageData bool     `json:"publish_usage_data,omitempty"`
 }
 
 var _ jwt.Claims = &Claims{}

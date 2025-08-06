@@ -5874,3 +5874,27 @@ func (s *MethodTestSuite) TestAuthorizePrebuiltWorkspace() {
 			}).Asserts(w, policy.ActionUpdate, w.AsPrebuild(), policy.ActionUpdate)
 	}))
 }
+
+func (s *MethodTestSuite) TestUsageEvents() {
+	s.Run("InsertUsageEvent", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertUsageEventParams{
+			ID:        "1",
+			EventType: database.UsageEventTypeDcManagedAgentsV1,
+			EventData: []byte("{}"),
+			CreatedAt: dbtime.Now(),
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+
+	s.Run("SelectUsageEventsForPublishing", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(dbtime.Now()).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+
+	s.Run("UpdateUsageEventsPostPublish", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpdateUsageEventsPostPublishParams{
+			Now:             dbtime.Now(),
+			IDs:             []string{"1", "2"},
+			FailureMessages: []string{"error", "error"},
+			SetPublishedAts: []bool{false, false},
+		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+}
