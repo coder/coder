@@ -13,6 +13,7 @@ import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { Button } from "components/Button/Button";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { Link } from "components/Link/Link";
 import { Margins } from "components/Margins/Margins";
 import {
 	PageHeader,
@@ -60,6 +61,7 @@ import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import TextareaAutosize from "react-textarea-autosize";
+import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { relativeTime } from "utils/time";
 import { type UserOption, UsersCombobox } from "./UsersCombobox";
@@ -139,7 +141,10 @@ const NoTemplatesPlaceholder: FC = () => {
 					No Task templates found
 				</h3>
 				<span className="text-content-secondary text-sm">
-					Create a Task template to get started
+					<Link href={docs("/ai-coder/tasks")} target="_blank" rel="noreferrer">
+						Learn about Tasks
+					</Link>{" "}
+					to get started.
 				</span>
 			</div>
 		</div>

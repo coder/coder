@@ -235,10 +235,6 @@ WHERE
 	template_versions.id IN (archived_versions.id)
 RETURNING template_versions.id;
 
--- name: HasTemplateVersionsWithAITask :one
--- Determines if the template versions table has any rows with has_ai_task = TRUE.
-SELECT EXISTS (SELECT 1 FROM template_versions WHERE has_ai_task = TRUE);
-
 -- name: UpdateTemplateVersionExternalAgentByJobID :exec
 UPDATE
 	template_versions
