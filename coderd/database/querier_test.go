@@ -6009,6 +6009,7 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 
 	// Use raw database without dbauthz wrapper for this test
 	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	t.Run("FullCRUDWorkflow", func(t *testing.T) {
 		t.Parallel()
@@ -6028,12 +6029,12 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 			FilePath:    "/workflow/path",
 		}
 
-		createdSecret, err := db.CreateUserSecret(context.Background(), createParams)
+		createdSecret, err := db.CreateUserSecret(ctx, createParams)
 		require.NoError(t, err)
 		assert.Equal(t, secretID, createdSecret.ID)
 
 		// 2. READ by ID
-		readSecret, err := db.GetUserSecret(context.Background(), createdSecret.ID)
+		readSecret, err := db.GetUserSecret(ctx, createdSecret.ID)
 		require.NoError(t, err)
 		assert.Equal(t, createdSecret.ID, readSecret.ID)
 		assert.Equal(t, "workflow-secret", readSecret.Name)
@@ -6043,12 +6044,12 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 			UserID: testUser.ID,
 			Name:   "workflow-secret",
 		}
-		readByNameSecret, err := db.GetUserSecretByUserIDAndName(context.Background(), readByNameParams)
+		readByNameSecret, err := db.GetUserSecretByUserIDAndName(ctx, readByNameParams)
 		require.NoError(t, err)
 		assert.Equal(t, createdSecret.ID, readByNameSecret.ID)
 
 		// 4. LIST
-		secrets, err := db.ListUserSecrets(context.Background(), testUser.ID)
+		secrets, err := db.ListUserSecrets(ctx, testUser.ID)
 		require.NoError(t, err)
 		require.Len(t, secrets, 1)
 		assert.Equal(t, createdSecret.ID, secrets[0].ID)
@@ -6062,22 +6063,22 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 			FilePath:    "/updated/workflow/path",
 		}
 
-		updatedSecret, err := db.UpdateUserSecret(context.Background(), updateParams)
+		updatedSecret, err := db.UpdateUserSecret(ctx, updateParams)
 		require.NoError(t, err)
 		assert.Equal(t, "Updated workflow description", updatedSecret.Description)
 		assert.Equal(t, "updated-workflow-value", updatedSecret.Value)
 
 		// 6. DELETE
-		err = db.DeleteUserSecret(context.Background(), createdSecret.ID)
+		err = db.DeleteUserSecret(ctx, createdSecret.ID)
 		require.NoError(t, err)
 
 		// Verify deletion
-		_, err = db.GetUserSecret(context.Background(), createdSecret.ID)
+		_, err = db.GetUserSecret(ctx, createdSecret.ID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no rows in result set")
 
 		// Verify list is empty
-		secrets, err = db.ListUserSecrets(context.Background(), testUser.ID)
+		secrets, err = db.ListUserSecrets(ctx, testUser.ID)
 		require.NoError(t, err)
 		assert.Len(t, secrets, 0)
 	})
@@ -6099,7 +6100,7 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 		})
 
 		// Try to create another secret with the same name (should fail)
-		_, err := db.CreateUserSecret(context.Background(), database.CreateUserSecretParams{
+		_, err := db.CreateUserSecret(ctx, database.CreateUserSecretParams{
 			UserID:      testUser.ID,
 			Name:        "unique-test", // Same name
 			Description: "Second secret",
@@ -6109,7 +6110,7 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 		assert.Contains(t, err.Error(), "duplicate key value")
 
 		// Try to create another secret with the same env_name (should fail)
-		_, err = db.CreateUserSecret(context.Background(), database.CreateUserSecretParams{
+		_, err = db.CreateUserSecret(ctx, database.CreateUserSecretParams{
 			UserID:      testUser.ID,
 			Name:        "unique-test-2",
 			Description: "Second secret",
@@ -6120,7 +6121,7 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 		assert.Contains(t, err.Error(), "duplicate key value")
 
 		// Try to create another secret with the same file_path (should fail)
-		_, err = db.CreateUserSecret(context.Background(), database.CreateUserSecretParams{
+		_, err = db.CreateUserSecret(ctx, database.CreateUserSecretParams{
 			UserID:      testUser.ID,
 			Name:        "unique-test-3",
 			Description: "Second secret",
@@ -6141,9 +6142,9 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 		})
 
 		// Verify both secrets exist
-		_, err = db.GetUserSecret(context.Background(), secret1.ID)
+		_, err = db.GetUserSecret(ctx, secret1.ID)
 		require.NoError(t, err)
-		_, err = db.GetUserSecret(context.Background(), secret2.ID)
+		_, err = db.GetUserSecret(ctx, secret2.ID)
 		require.NoError(t, err)
 	})
 }
@@ -6155,6 +6156,7 @@ func TestUserSecretsAuthorization(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 	authDB := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	// Create test users
 	user1 := dbgen.User(t, db, database.User{})
@@ -6233,10 +6235,10 @@ func TestUserSecretsAuthorization(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := dbauthz.As(context.Background(), tc.subject)
+			authCtx := dbauthz.As(ctx, tc.subject)
 
 			// Test GetUserSecret
-			_, err := authDB.GetUserSecret(ctx, tc.secretID)
+			_, err := authDB.GetUserSecret(authCtx, tc.secretID)
 
 			if tc.expectedAccess {
 				require.NoError(t, err, "expected access to be granted")
