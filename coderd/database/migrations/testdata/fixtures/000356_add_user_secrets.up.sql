@@ -13,6 +13,6 @@ VALUES (
 	'secret-name',
 	'secret description',
 	'secret value',
-    'SECRET_ENV_NAME',
+	'SECRET_ENV_NAME',
 	'~/secret/file/path'
 );
