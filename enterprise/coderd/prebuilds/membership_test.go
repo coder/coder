@@ -179,6 +179,7 @@ func TestReconcileAll(t *testing.T) {
 									require.Equal(t, database.PrebuildsSystemUserID, groupMembers[0].UserID)
 								}
 
+								// If no preset exists, then we do not enforce group membership:
 								if tc.expectUserInGroup != nil && !*tc.expectUserInGroup {
 									// Check that the system user is NOT a member of the prebuilds group
 									groupMembers, err := db.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
