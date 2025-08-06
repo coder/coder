@@ -146,7 +146,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	// containers that are either starting or running. If they are all in
 	// the stopped state, it doesn't make sense to hide the parent apps.
 	let shouldDisplayAppsSection = shouldDisplayAgentApps;
-	if (devcontainers && anyRunningOrStartingDevcontainers && !showParentApps) {
+	if (anyRunningOrStartingDevcontainers && !showParentApps) {
 		shouldDisplayAppsSection = false;
 	}
 
