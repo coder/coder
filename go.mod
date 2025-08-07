@@ -1,6 +1,6 @@
 module github.com/coder/coder/v2
 
-go 1.24.4
+go 1.24.6
 
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
@@ -58,7 +58,7 @@ replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0
 // Adds support for a new Listener from a driver.Connector
 // This lets us use rotating authentication tokens for passwords in connection strings
 // which we use in the awsiamrds package.
-replace github.com/lib/pq => github.com/coder/pq v1.10.5-0.20250630052411-a259f96b6102
+replace github.com/lib/pq => github.com/coder/pq v1.10.5-0.20250807075151-6ad9b0a25151
 
 // Removes an init() function that causes terminal sequences to be printed to the web terminal when
 // used in conjunction with agent-exec. See https://github.com/coder/coder/pull/15817
@@ -165,9 +165,9 @@ require (
 	github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e
 	github.com/pkg/sftp v1.13.7
 	github.com/prometheus-community/pro-bing v0.7.0
-	github.com/prometheus/client_golang v1.22.0
-	github.com/prometheus/client_model v0.6.1
-	github.com/prometheus/common v0.63.0
+	github.com/prometheus/client_golang v1.23.0
+	github.com/prometheus/client_model v0.6.2
+	github.com/prometheus/common v0.65.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/shirou/gopsutil/v4 v4.25.4
@@ -394,7 +394,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/prometheus/procfs v0.15.1 // indirect
+	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/riandyrn/otelchi v0.5.1 // indirect
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3 // indirect
@@ -479,7 +479,7 @@ require (
 require (
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
 	github.com/coder/aisdk-go v0.0.9
-	github.com/coder/preview v1.0.3-0.20250714153828-a737d4750448
+	github.com/coder/preview v1.0.3
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/mark3labs/mcp-go v0.36.0

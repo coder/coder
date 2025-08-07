@@ -541,6 +541,7 @@ type TemplateFilter struct {
 	OrganizationID uuid.UUID `typescript:"-"`
 	ExactName      string    `typescript:"-"`
 	FuzzyName      string    `typescript:"-"`
+	AuthorUsername string    `typescript:"-"`
 	SearchQuery    string    `json:"q,omitempty"`
 }
 
@@ -562,6 +563,11 @@ func (f TemplateFilter) asRequestOption() RequestOption {
 		if f.FuzzyName != "" {
 			params = append(params, fmt.Sprintf("name:%q", f.FuzzyName))
 		}
+
+		if f.AuthorUsername != "" {
+			params = append(params, fmt.Sprintf("author:%q", f.AuthorUsername))
+		}
+
 		if f.SearchQuery != "" {
 			params = append(params, f.SearchQuery)
 		}

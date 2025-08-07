@@ -477,8 +477,6 @@ type sqlcQuerier interface {
 	GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]GetWorkspacesAndAgentsByOwnerIDRow, error)
 	GetWorkspacesByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceTable, error)
 	GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]GetWorkspacesEligibleForTransitionRow, error)
-	// Determines if the template versions table has any rows with has_ai_task = TRUE.
-	HasTemplateVersionsWithAITask(ctx context.Context) (bool, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
 	// We use the organization_id as the id
 	// for simplicity since all users is
@@ -697,6 +695,8 @@ type sqlcQuerier interface {
 	// was started. This means that a new row was inserted (no previous session) or
 	// the updated_at is older than stale interval.
 	UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (bool, error)
+	ValidateGroupIDs(ctx context.Context, groupIds []uuid.UUID) (ValidateGroupIDsRow, error)
+	ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (ValidateUserIDsRow, error)
 }
 
 var _ sqlcQuerier = (*sqlQuerier)(nil)

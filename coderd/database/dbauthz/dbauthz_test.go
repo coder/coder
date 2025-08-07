@@ -623,6 +623,11 @@ func (s *MethodTestSuite) TestGroup() {
 			ID: g.ID,
 		}).Asserts(g, policy.ActionUpdate)
 	}))
+	s.Run("ValidateGroupIDs", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		g := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+		check.Args([]uuid.UUID{g.ID}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 }
 
 func (s *MethodTestSuite) TestProvisionerJob() {
@@ -2076,6 +2081,10 @@ func (s *MethodTestSuite) TestUser() {
 			EndTime:   time.Now(),
 			Interval:  int32((time.Hour * 24).Seconds()),
 		}).Asserts(rbac.ResourceUser, policy.ActionRead)
+	}))
+	s.Run("ValidateUserIDs", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		check.Args([]uuid.UUID{u.ID}).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 }
 
@@ -4825,9 +4834,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			}{TemplateVersionID: v.ID})),
 		})
 		check.Args(j.ID).Asserts(v.RBACObject(tpl), policy.ActionRead).Returns(j)
-	}))
-	s.Run("HasTemplateVersionsWithAITask", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts()
 	}))
 }
 

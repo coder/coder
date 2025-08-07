@@ -2126,13 +2126,6 @@ func (m queryMetricsStore) GetWorkspacesEligibleForTransition(ctx context.Contex
 	return workspaces, err
 }
 
-func (m queryMetricsStore) HasTemplateVersionsWithAITask(ctx context.Context) (bool, error) {
-	start := time.Now()
-	r0, r1 := m.s.HasTemplateVersionsWithAITask(ctx)
-	m.queryLatencies.WithLabelValues("HasTemplateVersionsWithAITask").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	start := time.Now()
 	key, err := m.s.InsertAPIKey(ctx, arg)
@@ -3418,6 +3411,20 @@ func (m queryMetricsStore) UpsertWorkspaceAppAuditSession(ctx context.Context, a
 	start := time.Now()
 	r0, r1 := m.s.UpsertWorkspaceAppAuditSession(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertWorkspaceAppAuditSession").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) ValidateGroupIDs(ctx context.Context, groupIds []uuid.UUID) (database.ValidateGroupIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ValidateGroupIDs(ctx, groupIds)
+	m.queryLatencies.WithLabelValues("ValidateGroupIDs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (database.ValidateUserIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ValidateUserIDs(ctx, userIds)
+	m.queryLatencies.WithLabelValues("ValidateUserIDs").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

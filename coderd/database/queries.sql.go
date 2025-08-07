@@ -2869,6 +2869,37 @@ func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDPar
 	return i, err
 }
 
+const validateGroupIDs = `-- name: ValidateGroupIDs :one
+WITH input AS (
+	SELECT
+		unnest($1::uuid[]) AS id
+)
+SELECT
+	array_agg(input.id)::uuid[] as invalid_group_ids,
+	COUNT(*) = 0 as ok
+FROM
+	-- Preserve rows where there is not a matching left (groups) row for each
+	-- right (input) row...
+	groups
+	RIGHT JOIN input ON groups.id = input.id
+WHERE
+	-- ...so that we can retain exactly those rows where an input ID does not
+	-- match an existing group.
+	groups.id IS NULL
+`
+
+type ValidateGroupIDsRow struct {
+	InvalidGroupIds []uuid.UUID `db:"invalid_group_ids" json:"invalid_group_ids"`
+	Ok              bool        `db:"ok" json:"ok"`
+}
+
+func (q *sqlQuerier) ValidateGroupIDs(ctx context.Context, groupIds []uuid.UUID) (ValidateGroupIDsRow, error) {
+	row := q.db.QueryRowContext(ctx, validateGroupIDs, pq.Array(groupIds))
+	var i ValidateGroupIDsRow
+	err := row.Scan(pq.Array(&i.InvalidGroupIds), &i.Ok)
+	return i, err
+}
+
 const getTemplateAppInsights = `-- name: GetTemplateAppInsights :many
 WITH
 	-- Create a list of all unique apps by template, this is used to
@@ -12059,6 +12090,19 @@ WHERE
 			tv.has_ai_task = $7 :: boolean
 		ELSE true
 	END
+	-- Filter by author_id
+	AND CASE
+		  WHEN $8 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			  t.created_by = $8
+		  ELSE true
+	END
+	-- Filter by author_username
+	AND CASE
+		  WHEN $9 :: text != '' THEN
+			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($9) AND deleted = false)
+		  ELSE true
+	END
+
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
   -- @authorize_filter
 ORDER BY (t.name, t.id) ASC
@@ -12072,6 +12116,8 @@ type GetTemplatesWithFilterParams struct {
 	IDs            []uuid.UUID  `db:"ids" json:"ids"`
 	Deprecated     sql.NullBool `db:"deprecated" json:"deprecated"`
 	HasAITask      sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
+	AuthorID       uuid.UUID    `db:"author_id" json:"author_id"`
+	AuthorUsername string       `db:"author_username" json:"author_username"`
 }
 
 func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error) {
@@ -12083,6 +12129,8 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		pq.Array(arg.IDs),
 		arg.Deprecated,
 		arg.HasAITask,
+		arg.AuthorID,
+		arg.AuthorUsername,
 	)
 	if err != nil {
 		return nil, err
@@ -13012,18 +13060,6 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 		return nil, err
 	}
 	return items, nil
-}
-
-const hasTemplateVersionsWithAITask = `-- name: HasTemplateVersionsWithAITask :one
-SELECT EXISTS (SELECT 1 FROM template_versions WHERE has_ai_task = TRUE)
-`
-
-// Determines if the template versions table has any rows with has_ai_task = TRUE.
-func (q *sqlQuerier) HasTemplateVersionsWithAITask(ctx context.Context) (bool, error) {
-	row := q.db.QueryRowContext(ctx, hasTemplateVersionsWithAITask)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
 }
 
 const insertTemplateVersion = `-- name: InsertTemplateVersion :exec
@@ -14974,6 +15010,39 @@ func (q *sqlQuerier) UpdateUserThemePreference(ctx context.Context, arg UpdateUs
 	row := q.db.QueryRowContext(ctx, updateUserThemePreference, arg.UserID, arg.ThemePreference)
 	var i UserConfig
 	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
+}
+
+const validateUserIDs = `-- name: ValidateUserIDs :one
+WITH input AS (
+	SELECT
+		unnest($1::uuid[]) AS id
+)
+SELECT
+	array_agg(input.id)::uuid[] as invalid_user_ids,
+	COUNT(*) = 0 as ok
+FROM
+	-- Preserve rows where there is not a matching left (users) row for each
+	-- right (input) row...
+	users
+	RIGHT JOIN input ON users.id = input.id
+WHERE
+	-- ...so that we can retain exactly those rows where an input ID does not
+	-- match an existing user...
+	users.id IS NULL OR
+	-- ...or that only matches a user that was deleted.
+	users.deleted = true
+`
+
+type ValidateUserIDsRow struct {
+	InvalidUserIds []uuid.UUID `db:"invalid_user_ids" json:"invalid_user_ids"`
+	Ok             bool        `db:"ok" json:"ok"`
+}
+
+func (q *sqlQuerier) ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (ValidateUserIDsRow, error) {
+	row := q.db.QueryRowContext(ctx, validateUserIDs, pq.Array(userIds))
+	var i ValidateUserIDsRow
+	err := row.Scan(pq.Array(&i.InvalidUserIds), &i.Ok)
 	return i, err
 }
 

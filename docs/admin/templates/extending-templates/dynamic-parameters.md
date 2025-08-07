@@ -38,11 +38,11 @@ They allow you to set resource guardrails by referencing Coder identity in the `
 
 ## How to enable Dynamic Parameters
 
-In Coder v2.24.0, you can opt-in to Dynamic Parameters on a per-template basis.
+In Coder v2.25.0, Dynamic Parameters are automatically enabled for new templates. You can opt-in to Dynamic Parameters for individual existing templates via template settings.
 
 1. Go to your template's settings and enable the **Enable dynamic parameters for workspace creation** option.
 
-   ![Enable dynamic parameters for workspace creation](../../../images/admin/templates/extend-templates/dyn-params/enable-dynamic-parameters.png)
+   ![Enable dynamic parameters for workspace creation](../../../images/admin/templates/extend-templates/dyn-params/dynamic-parameters-ga-settings.png)
 
 1. Update your template to use version >=2.4.0 of the Coder provider with the following Terraform block.
 
@@ -784,9 +784,9 @@ data "coder_parameter" "your_groups" {
 
 ## Troubleshooting
 
-Dynamic Parameters is still in Beta as we continue to polish and improve the workflow.
+Dynamic Parameters is now in general availability. We're tracking a list of known issues [here in Github](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc%20is%3Aissue%20is%3Aopen%20label%3Aparameters) as we continue to polish and improve the workflow.
 If you have any issues during upgrade, please file an issue in our
-[GitHub repository](https://github.com/coder/coder/issues/new?labels=parameters) and include a
+[GitHub repository](https://github.com/coder/coder/issues/new?labels=parameters) with the `parameters` label and include a
 [Playground link](https://playground.coder.app/parameters) where applicable.
 We appreciate the feedback and look forward to what the community creates with this system!
 
@@ -798,7 +798,7 @@ You can share anything you build with Dynamic Parameters in our [Discord](https:
 
 Ensure that the following version requirements are met:
 
-- `coder/coder`: >= [v2.24.0](https://github.com/coder/coder/releases/tag/v2.24.0)
+- `coder/coder`: >= [v2.25.0](https://github.com/coder/coder/releases/tag/v2.25.0)
 - `coder/terraform-provider-coder`: >= [v2.5.3](https://github.com/coder/terraform-provider-coder/releases/tag/v2.5.3)
 
 Enabling Dynamic Parameters on an existing template requires administrators to publish a new template version.
@@ -818,10 +818,9 @@ To revert Dynamic Parameters on a template:
 
 ### Template variables not showing up
 
-In beta, template variables are not supported in Dynamic Parameters.
+Dynamic Parameters is GA as of [v2.25.0](https://github.com/coder/coder/releases/tag/v2.25.0), and this issue has been resolved. In beta ([v2.24.0](https://github.com/coder/coder/releases/tag/v2.24.0)), template variables were not supported in Dynamic Parameters.
 
-This issue will be resolved by the next minor release of `coder/coder`.
-If this is issue is blocking your usage of Dynamic Parameters, please let us know in [this thread](https://github.com/coder/coder/issues/18671).
+If you are experiencing issues with template variables, try upgrading to the latest version with dynamic parameters in GA. Otherwise, please file an issue in our Github.
 
 ### Can I use registry modules with Dynamic Parameters?
 
