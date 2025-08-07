@@ -281,8 +281,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
 				ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
 			})...),
-		Org: map[string][]Permission{},
-		User: Permissions(map[string][]policy.Action{}),
+		Org:  map[string][]Permission{},
+		User: []Permission{},
 	}.withCachedRegoValue()
 
 	memberRole := Role{
