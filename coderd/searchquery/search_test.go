@@ -343,6 +343,7 @@ func TestSearchAudit(t *testing.T) {
 		Name                  string
 		Query                 string
 		Expected              database.GetAuditLogsOffsetParams
+		ExpectedCountParams   database.CountAuditLogsParams
 		ExpectedErrorContains string
 	}{
 		{
@@ -372,6 +373,9 @@ func TestSearchAudit(t *testing.T) {
 			Expected: database.GetAuditLogsOffsetParams{
 				ResourceTarget: "foo",
 			},
+			ExpectedCountParams: database.CountAuditLogsParams{
+				ResourceTarget: "foo",
+			},
 		},
 		{
 			Name:                  "RequestID",
@@ -386,7 +390,7 @@ func TestSearchAudit(t *testing.T) {
 			// Do not use a real database, this is only used for an
 			// organization lookup.
 			db := dbmem.New()
-			values, errs := searchquery.AuditLogs(context.Background(), db, c.Query)
+			values, countValues, errs := searchquery.AuditLogs(context.Background(), db, c.Query)
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
@@ -397,6 +401,7 @@ func TestSearchAudit(t *testing.T) {
 			} else {
 				require.Len(t, errs, 0, "expected no error")
 				require.Equal(t, c.Expected, values, "expected values")
+				require.Equal(t, c.ExpectedCountParams, countValues, "expected count values")
 			}
 		})
 	}

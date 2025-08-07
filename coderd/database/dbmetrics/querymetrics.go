@@ -186,6 +186,13 @@ func (m queryMetricsStore) CleanTailnetTunnels(ctx context.Context) error {
 	return r0
 }
 
+func (m queryMetricsStore) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountAuditLogs(ctx, arg)
+	m.queryLatencies.WithLabelValues("CountAuditLogs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountInProgressPrebuilds(ctx)
@@ -3319,5 +3326,12 @@ func (m queryMetricsStore) GetAuthorizedAuditLogsOffset(ctx context.Context, arg
 	start := time.Now()
 	r0, r1 := m.s.GetAuthorizedAuditLogsOffset(ctx, arg, prepared)
 	m.queryLatencies.WithLabelValues("GetAuthorizedAuditLogsOffset").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) CountAuthorizedAuditLogs(ctx context.Context, arg database.CountAuditLogsParams, prepared rbac.PreparedAuthorized) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountAuthorizedAuditLogs(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("CountAuthorizedAuditLogs").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
