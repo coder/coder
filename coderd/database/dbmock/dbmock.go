@@ -338,6 +338,21 @@ func (mr *MockStoreMockRecorder) CountUnreadInboxNotificationsByUserID(ctx, user
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUnreadInboxNotificationsByUserID", reflect.TypeOf((*MockStore)(nil).CountUnreadInboxNotificationsByUserID), ctx, userID)
 }
 
+// CreateUserSecret mocks base method.
+func (m *MockStore) CreateUserSecret(ctx context.Context, arg database.CreateUserSecretParams) (database.UserSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateUserSecret", ctx, arg)
+	ret0, _ := ret[0].(database.UserSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateUserSecret indicates an expected call of CreateUserSecret.
+func (mr *MockStoreMockRecorder) CreateUserSecret(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUserSecret", reflect.TypeOf((*MockStore)(nil).CreateUserSecret), ctx, arg)
+}
+
 // CustomRoles mocks base method.
 func (m *MockStore) CustomRoles(ctx context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error) {
 	m.ctrl.T.Helper()
@@ -833,6 +848,20 @@ func (m *MockStore) DeleteTailnetTunnel(ctx context.Context, arg database.Delete
 func (mr *MockStoreMockRecorder) DeleteTailnetTunnel(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTailnetTunnel", reflect.TypeOf((*MockStore)(nil).DeleteTailnetTunnel), ctx, arg)
+}
+
+// DeleteUserSecret mocks base method.
+func (m *MockStore) DeleteUserSecret(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUserSecret", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteUserSecret indicates an expected call of DeleteUserSecret.
+func (mr *MockStoreMockRecorder) DeleteUserSecret(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserSecret", reflect.TypeOf((*MockStore)(nil).DeleteUserSecret), ctx, id)
 }
 
 // DeleteWebpushSubscriptionByUserIDAndEndpoint mocks base method.
@@ -3527,6 +3556,36 @@ func (mr *MockStoreMockRecorder) GetUserNotificationPreferences(ctx, userID any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserNotificationPreferences", reflect.TypeOf((*MockStore)(nil).GetUserNotificationPreferences), ctx, userID)
 }
 
+// GetUserSecret mocks base method.
+func (m *MockStore) GetUserSecret(ctx context.Context, id uuid.UUID) (database.UserSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserSecret", ctx, id)
+	ret0, _ := ret[0].(database.UserSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserSecret indicates an expected call of GetUserSecret.
+func (mr *MockStoreMockRecorder) GetUserSecret(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserSecret", reflect.TypeOf((*MockStore)(nil).GetUserSecret), ctx, id)
+}
+
+// GetUserSecretByUserIDAndName mocks base method.
+func (m *MockStore) GetUserSecretByUserIDAndName(ctx context.Context, arg database.GetUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserSecretByUserIDAndName", ctx, arg)
+	ret0, _ := ret[0].(database.UserSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserSecretByUserIDAndName indicates an expected call of GetUserSecretByUserIDAndName.
+func (mr *MockStoreMockRecorder) GetUserSecretByUserIDAndName(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserSecretByUserIDAndName", reflect.TypeOf((*MockStore)(nil).GetUserSecretByUserIDAndName), ctx, arg)
+}
+
 // GetUserStatusCounts mocks base method.
 func (m *MockStore) GetUserStatusCounts(ctx context.Context, arg database.GetUserStatusCountsParams) ([]database.GetUserStatusCountsRow, error) {
 	m.ctrl.T.Helper()
@@ -5417,6 +5476,21 @@ func (mr *MockStoreMockRecorder) ListProvisionerKeysByOrganizationExcludeReserve
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListProvisionerKeysByOrganizationExcludeReserved", reflect.TypeOf((*MockStore)(nil).ListProvisionerKeysByOrganizationExcludeReserved), ctx, organizationID)
 }
 
+// ListUserSecrets mocks base method.
+func (m *MockStore) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]database.UserSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListUserSecrets", ctx, userID)
+	ret0, _ := ret[0].([]database.UserSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListUserSecrets indicates an expected call of ListUserSecrets.
+func (mr *MockStoreMockRecorder) ListUserSecrets(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserSecrets", reflect.TypeOf((*MockStore)(nil).ListUserSecrets), ctx, userID)
+}
+
 // ListWorkspaceAgentPortShares mocks base method.
 func (m *MockStore) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
 	m.ctrl.T.Helper()
@@ -6370,6 +6444,21 @@ func (m *MockStore) UpdateUserRoles(ctx context.Context, arg database.UpdateUser
 func (mr *MockStoreMockRecorder) UpdateUserRoles(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserRoles", reflect.TypeOf((*MockStore)(nil).UpdateUserRoles), ctx, arg)
+}
+
+// UpdateUserSecret mocks base method.
+func (m *MockStore) UpdateUserSecret(ctx context.Context, arg database.UpdateUserSecretParams) (database.UserSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserSecret", ctx, arg)
+	ret0, _ := ret[0].(database.UserSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserSecret indicates an expected call of UpdateUserSecret.
+func (mr *MockStoreMockRecorder) UpdateUserSecret(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserSecret", reflect.TypeOf((*MockStore)(nil).UpdateUserSecret), ctx, arg)
 }
 
 // UpdateUserStatus mocks base method.
