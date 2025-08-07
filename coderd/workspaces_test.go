@@ -2922,10 +2922,11 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		dbJob, err := db.GetProvisionerJobByID(dbauthz.AsSystemRestricted(ctx), dbBuild.JobID) //nolint:gocritic // test
 		require.NoError(t, err)
 		require.True(t, dbJob.CompletedAt.Valid)
+		initialDeadline := dbJob.CompletedAt.Time.Add(deadline)
 		expectedMaxDeadline := dbJob.CompletedAt.Time.Add(maxDeadline)
 		err = db.UpdateWorkspaceBuildDeadlineByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildDeadlineByIDParams{ //nolint:gocritic // test
 			ID:          build.ID,
-			Deadline:    dbBuild.Deadline,
+			Deadline:    initialDeadline,
 			MaxDeadline: expectedMaxDeadline,
 			UpdatedAt:   dbtime.Now(),
 		})
