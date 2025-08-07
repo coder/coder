@@ -19,13 +19,21 @@ type CallbackStore = {
 export type MockWebSocket = Omit<WebSocket, "send"> & {
 	/**
 	 * A version of the WebSocket `send` method that has been pre-wrapped inside
-	 * a Jest mock. Most of the time, you should not be using the Jest mock
-	 * features, and should instead be using the `clientSentData` property from
-	 * the `MockWebSocketServer` type.
+	 * a Jest mock.
 	 *
-	 * The Jest mock functionality only exists to help make sure that the
-	 * client-side socket method got called. It does nothing to make sure that
-	 * the mock server actually received anything.
+	 * The Jest mock functionality should be used at a minimum. Basically:
+	 * 1. If you want to check that the mock socket sent something to the mock
+	 *    server: call the `send` method as a function, and then check the
+	 *    `clientSentData` on `MockWebSocketServer` to see what data got
+	 *    received.
+	 * 2. If you need to make sure that the client-side `send` method got called
+	 *    at all: you can use the Jest mock functionality, but you should
+	 *    probably also be checking `clientSentData` still and making additional
+	 *    assertions with it.
+	 *
+	 * Generally, tests should center around whether socket-to-server
+	 * communication was successful, not whether the client-side method was
+	 * called.
 	 */
 	send: jest.Mock<void, [SocketSendData], unknown>;
 };
