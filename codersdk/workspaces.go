@@ -692,6 +692,7 @@ func (c *Client) UpdateWorkspaceACL(ctx context.Context, workspaceID uuid.UUID, 
 
 // ExternalAgentCredentials contains the credentials needed for an external agent to connect to Coder.
 type ExternalAgentCredentials struct {
+	Command    string `json:"command"`
 	AgentToken string `json:"agent_token"`
 }
 

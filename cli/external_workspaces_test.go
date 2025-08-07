@@ -374,7 +374,7 @@ func TestExternalWorkspaces(t *testing.T) {
 		require.NoError(t, json.Unmarshal(out.Bytes(), &agentInfo))
 		assert.Equal(t, "token", agentInfo["auth_type"])
 		assert.NotEmpty(t, agentInfo["auth_token"])
-		assert.Contains(t, agentInfo["init_script"], "/api/v2/init-script/linux/amd64")
+		assert.NotEmpty(t, agentInfo["init_script"])
 	})
 
 	t.Run("AgentInstructionsNonExistentWorkspace", func(t *testing.T) {

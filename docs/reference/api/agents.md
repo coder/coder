@@ -1265,7 +1265,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/external-agen
 
 ```json
 {
-  "agent_token": "string"
+  "agent_token": "string",
+  "command": "string"
 }
 ```
 

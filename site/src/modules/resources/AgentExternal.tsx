@@ -18,9 +18,9 @@ export const AgentExternal: FC<AgentExternalProps> = ({
 	const [externalAgentToken, setExternalAgentToken] = useState<string | null>(
 		null,
 	);
+	const [command, setCommand] = useState<string | null>(null);
 
 	const origin = isChromatic() ? "https://example.com" : window.location.origin;
-	const initScriptURL = `${origin}/api/v2/init-script/${agent.operating_system}/${agent.architecture}`;
 	useEffect(() => {
 		if (
 			isExternalAgent &&
@@ -28,6 +28,7 @@ export const AgentExternal: FC<AgentExternalProps> = ({
 		) {
 			API.getWorkspaceAgentCredentials(workspace.id, agent.name).then((res) => {
 				setExternalAgentToken(res.agent_token);
+				setCommand(res.command);
 			});
 		}
 	}, [isExternalAgent, agent.status, workspace.id, agent.name]);
@@ -39,7 +40,7 @@ export const AgentExternal: FC<AgentExternalProps> = ({
 				{workspace.name} workspace:
 			</p>
 			<CodeExample
-				code={`CODER_AGENT_TOKEN="${externalAgentToken}" curl -fsSL "${initScriptURL}" | sh`}
+				code={command ?? ""}
 				secret={false}
 				redactPattern={/CODER_AGENT_TOKEN="([^"]+)"/g}
 				redactReplacement={`CODER_AGENT_TOKEN="********"`}

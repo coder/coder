@@ -3326,7 +3326,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "agent_token": "string"
+  "agent_token": "string",
+  "command": "string"
 }
 ```
 
@@ -3335,6 +3336,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Name          | Type   | Required | Restrictions | Description |
 |---------------|--------|----------|--------------|-------------|
 | `agent_token` | string | false    |              |             |
+| `command`     | string | false    |              |             |
 
 ## codersdk.ExternalAuth
 

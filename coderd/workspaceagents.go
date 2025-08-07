@@ -2221,23 +2221,35 @@ func (api *API) workspaceExternalAgentCredentials(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	for _, agent := range agents {
-		if agent.Name == agentName {
-			if agent.AuthInstanceID.Valid {
-				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-					Message: "External agent is authenticated with an instance ID.",
-				})
-				return
-			}
-
-			httpapi.Write(ctx, rw, http.StatusOK, codersdk.ExternalAgentCredentials{
-				AgentToken: agent.AuthToken.String(),
-			})
-			return
+	var agent *database.WorkspaceAgent
+	for i := range agents {
+		if agents[i].Name == agentName {
+			agent = &agents[i]
+			break
 		}
 	}
+	if agent == nil {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: fmt.Sprintf("External agent '%s' not found in workspace.", agentName),
+		})
+		return
+	}
 
-	httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-		Message: fmt.Sprintf("External agent '%s' not found in workspace.", agentName),
+	if agent.AuthInstanceID.Valid {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "External agent is authenticated with an instance ID.",
+		})
+		return
+	}
+
+	initScriptURL := fmt.Sprintf("%s/api/v2/init-script/%s/%s", api.AccessURL.String(), agent.OperatingSystem, agent.Architecture)
+	command := fmt.Sprintf("CODER_AGENT_TOKEN=%q curl -fsSL %q | sh", agent.AuthToken.String(), initScriptURL)
+	if agent.OperatingSystem == "windows" {
+		command = fmt.Sprintf("$env:CODER_AGENT_TOKEN=%q; iwr -useb %q | iex", agent.AuthToken.String(), initScriptURL)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ExternalAgentCredentials{
+		AgentToken: agent.AuthToken.String(),
+		Command:    command,
 	})
 }

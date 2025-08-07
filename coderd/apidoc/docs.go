@@ -12981,6 +12981,9 @@ const docTemplate = `{
             "properties": {
                 "agent_token": {
                     "type": "string"
+                },
+                "command": {
+                    "type": "string"
                 }
             }
         },

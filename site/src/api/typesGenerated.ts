@@ -933,6 +933,7 @@ export const Experiments: Experiment[] = [
 
 // From codersdk/workspaces.go
 export interface ExternalAgentCredentials {
+	readonly command: string;
 	readonly agent_token: string;
 }
 

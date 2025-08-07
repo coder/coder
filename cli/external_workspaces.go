@@ -128,18 +128,17 @@ func (r *RootCmd) externalWorkspaceAgentInstructions() *serpent.Command {
 				return xerrors.Errorf("find workspace and agent: %w", err)
 			}
 
-			credential, err := client.WorkspaceExternalAgentCredentials(inv.Context(), workspace.ID, workspaceAgent.Name)
+			credentials, err := client.WorkspaceExternalAgentCredentials(inv.Context(), workspace.ID, workspaceAgent.Name)
 			if err != nil {
 				return xerrors.Errorf("get external agent token for agent %q: %w", workspaceAgent.Name, err)
 			}
 
-			initScriptURL := fmt.Sprintf("%s/api/v2/init-script/%s/%s", client.URL, workspaceAgent.OperatingSystem, workspaceAgent.Architecture)
 			agentInfo := externalAgent{
 				WorkspaceName: workspace.Name,
 				AgentName:     workspaceAgent.Name,
 				AuthType:      "token",
-				AuthToken:     credential.AgentToken,
-				InitScript:    initScriptURL,
+				AuthToken:     credentials.AgentToken,
+				InitScript:    credentials.Command,
 			}
 
 			out, err := formatter.Format(inv.Context(), agentInfo)
@@ -235,17 +234,16 @@ func fetchExternalAgents(inv *serpent.Invocation, client *codersdk.Client, works
 		}
 
 		agent := resource.Agents[0]
-		credential, err := client.WorkspaceExternalAgentCredentials(inv.Context(), workspace.ID, agent.Name)
+		credentials, err := client.WorkspaceExternalAgentCredentials(inv.Context(), workspace.ID, agent.Name)
 		if err != nil {
 			return nil, xerrors.Errorf("get external agent token for agent %q: %w", agent.Name, err)
 		}
 
-		initScriptURL := fmt.Sprintf("%s/api/v2/init-script/%s/%s", client.URL, agent.OperatingSystem, agent.Architecture)
 		externalAgents = append(externalAgents, externalAgent{
 			AgentName:  agent.Name,
 			AuthType:   "token",
-			AuthToken:  credential.AgentToken,
-			InitScript: initScriptURL,
+			AuthToken:  credentials.AgentToken,
+			InitScript: credentials.Command,
 		})
 	}
 
