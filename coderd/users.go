@@ -542,7 +542,10 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaces, err := api.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{
+	// This query is ONLY done to get the workspace count, so we use a system
+	// context to return ALL workspaces. Not just workspaces the user can view.
+	// nolint:gocritic
+	workspaces, err := api.Database.GetWorkspaces(dbauthz.AsSystemRestricted(ctx), database.GetWorkspacesParams{
 		OwnerID: user.ID,
 	})
 	if err != nil {
