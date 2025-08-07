@@ -70,8 +70,7 @@ func TestTemplates(t *testing.T) {
 
 		_ = coderdtest.CreateWorkspace(t, otherClient, secondTemplate.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			DeprecationMessage: ptr.Ref("Stop using this template"),
@@ -185,8 +184,7 @@ func TestTemplates(t *testing.T) {
 		ws, err := client.Workspace(context.Background(), ws.ID)
 		require.NoError(t, err)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// OK
 		var level codersdk.WorkspaceAgentPortShareLevel = codersdk.WorkspaceAgentPortShareLevelPublic
@@ -704,8 +702,7 @@ func TestTemplates(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		require.True(t, template.RequireActiveVersion)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Update the field and assert it persists.
 		updatedTemplate, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
@@ -760,9 +757,6 @@ func TestTemplates(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
 
 		_, err = owner.Template(ctx, template.ID)
 		require.NoError(t, err)
@@ -932,8 +926,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		acl, err := anotherClient.TemplateACL(ctx, template.ID)
 		require.NoError(t, err)
@@ -955,8 +948,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // non-template-admin cannot update template acl
 		acl, err := client.TemplateACL(ctx, template.ID)
@@ -1004,8 +996,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // non-template-admin cannot get template acl
 		acl, err := client.TemplateACL(ctx, template.ID)
@@ -1267,8 +1258,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := anotherClient.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
@@ -1359,8 +1349,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 			},
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := anotherClient.UpdateTemplateACL(ctx, template.ID, req)
 		require.NoError(t, err)
@@ -1679,8 +1668,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		acl, err := anotherClient.TemplateACL(ctx, template.ID)
 		require.NoError(t, err)
@@ -1769,8 +1757,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		acl, err := anotherClient.TemplateACL(ctx, template.ID)
 		require.NoError(t, err)
