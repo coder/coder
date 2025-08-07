@@ -6,11 +6,10 @@ type CheckConstraint string
 
 // CheckConstraint enums.
 const (
-	CheckOneTimePasscodeSet                        CheckConstraint = "one_time_passcode_set"                            // users
-	CheckMaxProvisionerLogsLength                  CheckConstraint = "max_provisioner_logs_length"                      // provisioner_jobs
-	CheckValidationMonotonicOrder                  CheckConstraint = "validation_monotonic_order"                       // template_version_parameters
-	CheckMaxLogsLength                             CheckConstraint = "max_logs_length"                                  // workspace_agents
-	CheckSubsystemsNotNone                         CheckConstraint = "subsystems_not_none"                              // workspace_agents
-	CheckWorkspaceBuildsAiTaskSidebarAppIDRequired CheckConstraint = "workspace_builds_ai_task_sidebar_app_id_required" // workspace_builds
-	CheckWorkspaceBuildsDeadlineBelowMaxDeadline   CheckConstraint = "workspace_builds_deadline_below_max_deadline"     // workspace_builds
+	CheckOneTimePasscodeSet                      CheckConstraint = "one_time_passcode_set"                        // users
+	CheckMaxProvisionerLogsLength                CheckConstraint = "max_provisioner_logs_length"                  // provisioner_jobs
+	CheckValidationMonotonicOrder                CheckConstraint = "validation_monotonic_order"                   // template_version_parameters
+	CheckMaxLogsLength                           CheckConstraint = "max_logs_length"                              // workspace_agents
+	CheckSubsystemsNotNone                       CheckConstraint = "subsystems_not_none"                          // workspace_agents
+	CheckWorkspaceBuildsDeadlineBelowMaxDeadline CheckConstraint = "workspace_builds_deadline_below_max_deadline" // workspace_builds
 )

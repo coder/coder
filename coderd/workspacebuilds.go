@@ -1152,10 +1152,6 @@ func (api *API) convertWorkspaceBuild(
 	if build.HasAITask.Valid {
 		hasAITask = &build.HasAITask.Bool
 	}
-	var aiTasksSidebarAppID *uuid.UUID
-	if build.AITaskSidebarAppID.Valid {
-		aiTasksSidebarAppID = &build.AITaskSidebarAppID.UUID
-	}
 
 	apiJob := convertProvisionerJob(job)
 	transition := codersdk.WorkspaceTransition(build.Transition)
@@ -1184,7 +1180,7 @@ func (api *API) convertWorkspaceBuild(
 		MatchedProvisioners:     &matchedProvisioners,
 		TemplateVersionPresetID: presetID,
 		HasAITask:               hasAITask,
-		AITaskSidebarAppID:      aiTasksSidebarAppID,
+		AITaskSidebarAppID:      nil,
 	}, nil
 }
 

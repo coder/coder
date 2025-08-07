@@ -156,7 +156,6 @@ UPDATE
 	workspace_builds
 SET
 	has_ai_task = @has_ai_task,
-	ai_task_sidebar_app_id = @sidebar_app_id,
 	updated_at = @updated_at::timestamptz
 WHERE id = @id::uuid;
 

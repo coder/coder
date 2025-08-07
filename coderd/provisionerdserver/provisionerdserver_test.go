@@ -2794,19 +2794,20 @@ func TestCompleteJob(t *testing.T) {
 					},
 					expected: true,
 				},
-				{
+				{ // Checks regression for https://github.com/coder/coder/issues/18776
 					name: "non-existing app",
 					input: &proto.CompletedJob_WorkspaceBuild{
 						AiTasks: []*sdkproto.AITask{
 							{
 								Id: uuid.NewString(),
 								SidebarApp: &sdkproto.AITaskSidebarApp{
-									Id: uuid.NewString(), // Non-existing app ID.
+									// Non-existing app ID would previously trigger a FK violation.
+									Id: uuid.NewString(),
 								},
 							},
 						},
 					},
-					expected: false,
+					expected: true,
 				},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
@@ -2898,10 +2899,6 @@ func TestCompleteJob(t *testing.T) {
 					require.NoError(t, err)
 					require.True(t, build.HasAITask.Valid) // We ALWAYS expect a value to be set, therefore not nil, i.e. valid = true.
 					require.Equal(t, tc.expected, build.HasAITask.Bool)
-
-					if tc.expected {
-						require.Equal(t, sidebarAppID, build.AITaskSidebarAppID.UUID.String())
-					}
 				})
 			}
 		})

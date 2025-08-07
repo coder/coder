@@ -436,7 +436,6 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 	buildID := takeFirst(orig.ID, uuid.New())
 	jobID := takeFirst(orig.JobID, uuid.New())
 	hasAITask := takeFirst(orig.HasAITask, sql.NullBool{})
-	sidebarAppID := takeFirst(orig.AITaskSidebarAppID, uuid.NullUUID{})
 	var build database.WorkspaceBuild
 	err := db.InTx(func(db database.Store) error {
 		err := db.InsertWorkspaceBuild(genCtx, database.InsertWorkspaceBuildParams{
@@ -472,10 +471,9 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 
 		if hasAITask.Valid {
 			require.NoError(t, db.UpdateWorkspaceBuildAITaskByID(genCtx, database.UpdateWorkspaceBuildAITaskByIDParams{
-				HasAITask:    hasAITask,
-				SidebarAppID: sidebarAppID,
-				UpdatedAt:    dbtime.Now(),
-				ID:           buildID,
+				HasAITask: hasAITask,
+				UpdatedAt: dbtime.Now(),
+				ID:        buildID,
 			}))
 		}
 

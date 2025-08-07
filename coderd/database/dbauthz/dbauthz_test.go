@@ -3252,13 +3252,9 @@ func (s *MethodTestSuite) TestWorkspace() {
 			WorkspaceID:       w.ID,
 			TemplateVersionID: tv.ID,
 		})
-		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: b.JobID})
-		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
-		app := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agt.ID})
 		check.Args(database.UpdateWorkspaceBuildAITaskByIDParams{
-			HasAITask:    sql.NullBool{Bool: true, Valid: true},
-			SidebarAppID: uuid.NullUUID{UUID: app.ID, Valid: true},
-			ID:           b.ID,
+			HasAITask: sql.NullBool{Bool: true, Valid: true},
+			ID:        b.ID,
 		}).Asserts(w, policy.ActionUpdate)
 	}))
 	s.Run("SoftDeleteWorkspaceByID", s.Subtest(func(db database.Store, check *expects) {
