@@ -1,4 +1,4 @@
--- New constraint: (deadline IS NOT zero OR deadline <= max_deadline) UNLESS max_deadline is zero.
+-- New constraint: (deadline IS NOT zero AND deadline <= max_deadline) UNLESS max_deadline is zero.
 -- Unfortunately, "zero" here means `time.Time{}`...
 
 -- Update previous builds that would fail this new constraint. This matches the

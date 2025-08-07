@@ -90,7 +90,7 @@ type AutostopTime struct {
 //
 // Note that the deadline is checked at the database level:
 //
-//	(deadline IS NOT zero OR deadline <= max_deadline) UNLESS max_deadline is zero.
+//	(deadline IS NOT zero AND deadline <= max_deadline) UNLESS max_deadline is zero.
 //
 // Deadline is intended as a cost saving measure, not as a hard policy. It is
 // derived from either the workspace's TTL or the template's TTL, depending on

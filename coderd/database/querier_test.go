@@ -6055,6 +6055,12 @@ func TestWorkspaceBuildDeadlineConstraint(t *testing.T) {
 			expectOK:    true,
 		},
 		{
+			name:        "deadline set when max_deadline is not set",
+			deadline:    time.Now().Add(time.Hour),
+			maxDeadline: time.Time{},
+			expectOK:    true,
+		},
+		{
 			name:        "deadline before max_deadline",
 			deadline:    time.Now().Add(-time.Hour),
 			maxDeadline: time.Now().Add(time.Hour),

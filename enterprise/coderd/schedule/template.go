@@ -355,8 +355,8 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 	// want to use the returned autostop.Deadline property as it will likely be
 	// in the distant past.
 	//
-	// The only exception is if the newly calculated workspace TTL is is now
-	// zero, which means the workspace can now stay on indefinitely.
+	// The only exception is if the newly calculated workspace TTL is now zero,
+	// which means the workspace can now stay on indefinitely.
 	//
 	// This also matches the behavior of updating a workspace's TTL, where we
 	// don't apply the changes until the workspace is rebuilt.
