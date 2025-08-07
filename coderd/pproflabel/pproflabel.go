@@ -11,13 +11,15 @@ func Go(ctx context.Context, labels pprof.LabelSet, f func(context.Context)) {
 }
 
 const (
+	ServiceTag = "service"
+
+	ServiceHTTPServer           = "http-api"
+	ServiceLifecycles           = "lifecycle-executor"
+	ServiceMetricCollector      = "metrics-collector"
+	ServicePrebuildReconciler   = "prebuilds-reconciler"
 	ServiceTerraformProvisioner = "terraform-provisioner"
-	ServiceMetricCollector      = "metric-collector"
-	ServiceLifecycles           = "lifecycles"
-	ServiceHTTPServer           = "http-server"
-	ServicePrebuildReconciler   = "prebuild-reconciler"
 )
 
-func Service(name string) pprof.LabelSet {
-	return pprof.Labels("service", name)
+func Service(name string, pairs ...string) pprof.LabelSet {
+	return pprof.Labels(append([]string{ServiceTag, name}, pairs...)...)
 }

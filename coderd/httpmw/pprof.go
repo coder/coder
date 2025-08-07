@@ -14,7 +14,15 @@ import (
 func WithProfilingLabels(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		pprof.Do(ctx, pproflabel.Service(pproflabel.ServiceHTTPServer), func(ctx context.Context) {
+
+		// Label to differentiate between http and websocket requests. Websocket requests
+		// are assumed to be long-lived and more resource consuming.
+		requestType := "http"
+		if r.Header.Get("Upgrade") == "websocket" {
+			requestType = "websocket"
+		}
+
+		pprof.Do(ctx, pproflabel.Service(pproflabel.ServiceHTTPServer, "request_type", requestType), func(ctx context.Context) {
 			r = r.WithContext(ctx)
 			next.ServeHTTP(rw, r)
 		})
