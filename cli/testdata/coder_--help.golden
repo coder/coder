@@ -42,6 +42,7 @@ SUBCOMMANDS:
                       password
     restart           Restart a workspace
     schedule          Schedule automated start and stop times for workspaces
+    secrets           Manage your user secrets
     server            Start a Coder server
     show              Display details of a workspace's resources and agents
     speedtest         Run upload and download tests from your machine to a

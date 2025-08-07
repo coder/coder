@@ -395,6 +395,14 @@ export interface Metadata {
   /** Indicates that a prebuilt workspace is being built. */
   prebuiltWorkspaceBuildStage: PrebuiltWorkspaceBuildStage;
   runningAgentAuthTokens: RunningAgentAuthToken[];
+  userSecrets: Secret[];
+}
+
+export interface Secret {
+  name: string;
+  envName: string;
+  filePath: string;
+  value: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -1274,6 +1282,27 @@ export const Metadata = {
     }
     for (const v of message.runningAgentAuthTokens) {
       RunningAgentAuthToken.encode(v!, writer.uint32(170).fork()).ldelim();
+    }
+    for (const v of message.userSecrets) {
+      Secret.encode(v!, writer.uint32(178).fork()).ldelim();
+    }
+    return writer;
+  },
+};
+
+export const Secret = {
+  encode(message: Secret, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    if (message.envName !== "") {
+      writer.uint32(18).string(message.envName);
+    }
+    if (message.filePath !== "") {
+      writer.uint32(26).string(message.filePath);
+    }
+    if (message.value !== "") {
+      writer.uint32(34).string(message.value);
     }
     return writer;
   },

@@ -299,6 +299,20 @@ func provisionEnv(
 		env = append(env, provider.ExternalAuthAccessTokenEnvironmentVariable(extAuth.Id)+"="+extAuth.AccessToken)
 	}
 
+	for _, userSecrets := range metadata.UserSecrets {
+		env = append(env, userSecrets.EnvName+"="+userSecrets.Value)
+	}
+
+	envInJSON, err := json.Marshal(env)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("envInJSON: %s\n", envInJSON)
+
+	for _, userSecrets := range metadata.UserSecrets {
+		fmt.Printf("%v=%v\n", userSecrets.EnvName, userSecrets.Value)
+	}
+
 	if config.ProvisionerLogLevel != "" {
 		// TF_LOG=JSON enables all kind of logging: trace-debug-info-warn-error.
 		// The idea behind using TF_LOG=JSON instead of TF_LOG=debug is ensuring the proper log format.
