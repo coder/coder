@@ -22,9 +22,22 @@ func WithProfilingLabels(next http.Handler) http.Handler {
 			requestType = "websocket"
 		}
 
-		pprof.Do(ctx, pproflabel.Service(pproflabel.ServiceHTTPServer, "request_type", requestType), func(ctx context.Context) {
+		pprof.Do(ctx, pproflabel.Service(pproflabel.ServiceHTTPServer, pproflabel.RequestTypeTag, requestType), func(ctx context.Context) {
 			r = r.WithContext(ctx)
 			next.ServeHTTP(rw, r)
 		})
 	})
+}
+
+func WithStaticProfilingLabels(labels pprof.LabelSet) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+
+			pprof.Do(ctx, labels, func(ctx context.Context) {
+				r = r.WithContext(ctx)
+				next.ServeHTTP(rw, r)
+			})
+		})
+	}
 }
