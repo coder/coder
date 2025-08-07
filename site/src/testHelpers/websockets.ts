@@ -1,6 +1,6 @@
 import type { WebSocketEventType } from "utils/OneWayWebSocket";
 
-type SocketSendData = string | ArrayBufferLike | Blob | ArrayBufferView;
+type SocketSendData = Parameters<WebSocket["send"]>[0];
 
 export type MockWebSocketServer = Readonly<{
 	publishMessage: (event: MessageEvent<string>) => void;
@@ -12,21 +12,28 @@ export type MockWebSocketServer = Readonly<{
 	readonly clientSentData: readonly SocketSendData[];
 }>;
 
-type EventMap = {
-	message: MessageEvent<string>;
-	error: Event;
-	close: CloseEvent;
-	open: Event;
+type CallbackStore = {
+	[K in keyof WebSocketEventMap]: Set<(event: WebSocketEventMap[K]) => void>;
 };
 
-type CallbackStore = {
-	[K in keyof EventMap]: Set<(event: EventMap[K]) => void>;
+export type MockWebSocket = Omit<WebSocket, "send"> & {
+	/**
+	 * A version of the WebSocket `send` method that has been pre-wrapped inside
+	 * a Jest mock. Most of the time, you should not be using the Jest mock
+	 * features, and should instead be using the `clientSentData` property from
+	 * the `MockWebSocketServer` type.
+	 *
+	 * The Jest mock functionality only exists to help make sure that the
+	 * client-side socket method got called. It does nothing to make sure that
+	 * the mock server actually received anything.
+	 */
+	send: jest.Mock<void, [SocketSendData], unknown>;
 };
 
 export function createMockWebSocket(
 	url: string,
 	protocol?: string,
-): readonly [WebSocket, MockWebSocketServer] {
+): readonly [MockWebSocket, MockWebSocketServer] {
 	if (!url.startsWith("ws://") && !url.startsWith("wss://")) {
 		throw new Error("URL must start with ws:// or wss://");
 	}
@@ -41,7 +48,7 @@ export function createMockWebSocket(
 
 	const sentData: SocketSendData[] = [];
 
-	const mockSocket: WebSocket = {
+	const mockSocket: MockWebSocket = {
 		CONNECTING: 0,
 		OPEN: 1,
 		CLOSING: 2,
@@ -59,12 +66,12 @@ export function createMockWebSocket(
 		onopen: null,
 		dispatchEvent: jest.fn(),
 
-		send: (data) => {
+		send: jest.fn((data) => {
 			if (!isOpen) {
 				return;
 			}
 			sentData.push(data);
-		},
+		}),
 
 		addEventListener: <E extends WebSocketEventType>(
 			eventType: E,

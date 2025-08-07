@@ -75,16 +75,12 @@ describe(createMockWebSocket.name, () => {
 		for (const jd of jsonData) {
 			socket.addEventListener("message", onMessage);
 			server.publishMessage(
-				new MessageEvent<string>("message", {
-					data: JSON.stringify(jd),
-				}),
+				new MessageEvent("message", { data: JSON.stringify(jd) }),
 			);
 
 			expect(onMessage).toHaveBeenCalledTimes(1);
 			expect(onMessage).toHaveBeenCalledWith(
-				new MessageEvent<string>("message", {
-					data: JSON.stringify(jd),
-				}),
+				new MessageEvent("message", { data: JSON.stringify(jd) }),
 			);
 
 			socket.removeEventListener("message", onMessage);
