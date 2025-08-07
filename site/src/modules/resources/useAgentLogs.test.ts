@@ -10,7 +10,7 @@ import { OneWayWebSocket } from "utils/OneWayWebSocket";
 import {
 	type CreateUseAgentLogsOptions,
 	createUseAgentLogs,
-} from "./useAgentLogs"
+} from "./useAgentLogs";
 
 const millisecondsInOneMinute = 60_000;
 
