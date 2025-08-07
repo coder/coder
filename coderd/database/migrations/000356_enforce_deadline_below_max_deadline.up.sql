@@ -8,8 +8,8 @@ UPDATE
 SET
     deadline = max_deadline
 WHERE
-    (deadline = '0001-01-01 00:00:00+00' OR deadline > max_deadline)
-    AND max_deadline != '0001-01-01 00:00:00+00';
+    (deadline = '0001-01-01 00:00:00+00'::timestamptz OR deadline > max_deadline)
+    AND max_deadline != '0001-01-01 00:00:00+00'::timestamptz;
 
 -- Add the new constraint.
 ALTER TABLE workspace_builds
