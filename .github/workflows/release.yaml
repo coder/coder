@@ -635,7 +635,7 @@ jobs:
         run: ls -lh build
 
       - name: Publish Coder CLI binaries and detached signatures to GCS
-        if: ${{ !inputs.dry_run }}
+        if: ${{ !inputs.dry_run && github.ref == 'refs/heads/main' && github.repository_owner == 'coder'}}
         run: |
           set -euxo pipefail
 
