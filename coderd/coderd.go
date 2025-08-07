@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"runtime/pprof"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1340,7 +1341,13 @@ func New(options *Options) *API {
 			).Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(workspaceAgentInfo)
-				r.Get("/rpc", api.workspaceAgentRPC)
+				r.Group(func(r chi.Router) {
+					r.Use(
+						// Override the request_type for agent rpc traffic.
+						httpmw.WithStaticProfilingLabels(pprof.Labels("request_type", "agent_rpc")),
+					)
+					r.Get("/rpc", api.workspaceAgentRPC)
+				})
 				r.Patch("/logs", api.patchWorkspaceAgentLogs)
 				r.Patch("/app-status", api.patchWorkspaceAgentAppStatus)
 				// Deprecated: Required to support legacy agents

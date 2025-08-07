@@ -1460,14 +1460,14 @@ func newProvisionerDaemon(
 			tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
 			terraformClient, terraformServer := drpcsdk.MemTransportPipe()
 			wg.Add(1)
-			pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceTerraformProvisioner), func(ctx context.Context) {
+			pproflabel.Go(ctx, pproflabel.Service(pproflabel.SystemTerraformProvisioner), func(ctx context.Context) {
 				defer wg.Done()
 				<-ctx.Done()
 				_ = terraformClient.Close()
 				_ = terraformServer.Close()
 			})
 			wg.Add(1)
-			pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceTerraformProvisioner), func(ctx context.Context) {
+			pproflabel.Go(ctx, pproflabel.Service(pproflabel.SystemTerraformProvisioner), func(ctx context.Context) {
 				defer wg.Done()
 				defer cancel()
 
