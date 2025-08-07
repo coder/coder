@@ -12,39 +12,31 @@ export type MockWebSocketServer = Readonly<{
 	readonly clientSentData: readonly SocketSendData[];
 }>;
 
+type EventMap = {
+	message: MessageEvent<string>;
+	error: Event;
+	close: CloseEvent;
+	open: Event;
+};
+
+type CallbackStore = {
+	[K in keyof EventMap]: Set<(event: EventMap[K]) => void>;
+};
+
 export function createMockWebSocket(
 	url: string,
-	protocols?: string | string[],
+	protocol?: string,
 ): readonly [WebSocket, MockWebSocketServer] {
-	type EventMap = {
-		message: MessageEvent<string>;
-		error: Event;
-		close: CloseEvent;
-		open: Event;
-	};
-	type CallbackStore = {
-		[K in keyof EventMap]: ((event: EventMap[K]) => void)[];
-	};
-
 	if (!url.startsWith("ws://") && !url.startsWith("wss://")) {
 		throw new Error("URL must start with ws:// or wss://");
 	}
 
-	let activeProtocol: string;
-	if (Array.isArray(protocols)) {
-		activeProtocol = protocols[0] ?? "";
-	} else if (typeof protocols === "string") {
-		activeProtocol = protocols;
-	} else {
-		activeProtocol = "";
-	}
-
 	let isOpen = true;
 	const store: CallbackStore = {
-		message: [],
-		error: [],
-		close: [],
-		open: [],
+		message: new Set(),
+		error: new Set(),
+		close: new Set(),
+		open: new Set(),
 	};
 
 	const sentData: SocketSendData[] = [];
@@ -56,7 +48,7 @@ export function createMockWebSocket(
 		CLOSED: 3,
 
 		url,
-		protocol: activeProtocol,
+		protocol: protocol ?? "",
 		readyState: 1,
 		binaryType: "blob",
 		bufferedAmount: 0,
@@ -81,11 +73,8 @@ export function createMockWebSocket(
 			if (!isOpen) {
 				return;
 			}
-
 			const subscribers = store[eventType];
-			if (!subscribers.includes(callback)) {
-				subscribers.push(callback);
-			}
+			subscribers.add(callback);
 		},
 
 		removeEventListener: <E extends WebSocketEventType>(
@@ -95,12 +84,8 @@ export function createMockWebSocket(
 			if (!isOpen) {
 				return;
 			}
-
 			const subscribers = store[eventType];
-			if (subscribers.includes(callback)) {
-				const updated = store[eventType].filter((c) => c !== callback);
-				store[eventType] = updated as CallbackStore[E];
-			}
+			subscribers.delete(callback);
 		},
 
 		close: () => {
