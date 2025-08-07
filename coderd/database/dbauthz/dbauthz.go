@@ -4930,8 +4930,7 @@ func (q *querier) UpdateUserSecret(ctx context.Context, arg database.UpdateUserS
 		return database.UserSecret{}, err
 	}
 
-	obj := rbac.ResourceUserSecret.WithOwner(secret.UserID.String())
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, secret); err != nil {
 		return database.UserSecret{}, err
 	}
 	return q.db.UpdateUserSecret(ctx, arg)
