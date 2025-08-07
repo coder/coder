@@ -1,4 +1,4 @@
-import type { WorkspaceApp } from "api/typesGenerated";
+import type { WorkspaceAgent, WorkspaceApp } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -8,6 +8,7 @@ import {
 } from "components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
+import { Link } from "components/Link/Link";
 import { ChevronDownIcon, LayoutGridIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import type { Task } from "modules/tasks/tasks";
@@ -15,6 +16,7 @@ import type React from "react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { cn } from "utils/cn";
+import { docs } from "utils/docs";
 import { TaskAppIFrame } from "./TaskAppIframe";
 
 type TaskAppsProps = {
@@ -37,25 +39,9 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	const embeddedApps = apps.filter((app) => !app.external);
 	const externalApps = apps.filter((app) => app.external);
 
-	const [activeAppId, setActiveAppId] = useState<string>(() => {
-		const appId = embeddedApps[0]?.id;
-		if (!appId) {
-			throw new Error("No apps found in task");
-		}
-		return appId;
-	});
-
-	const activeApp = apps.find((app) => app.id === activeAppId);
-	if (!activeApp) {
-		throw new Error(`Active app with ID ${activeAppId} not found in task`);
-	}
-
-	const agent = agents.find((a) =>
-		a.apps.some((app) => app.id === activeAppId),
+	const [activeAppId, setActiveAppId] = useState<string | undefined>(
+		embeddedApps[0]?.id,
 	);
-	if (!agent) {
-		throw new Error(`Agent for app ${activeAppId} not found in task workspace`);
-	}
 
 	return (
 		<main className="flex flex-col">
@@ -76,53 +62,101 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 				</div>
 
 				{externalApps.length > 0 && (
-					<div className="ml-auto">
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button size="sm" variant="subtle">
-									Open locally
-									<ChevronDownIcon />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent>
-								{externalApps.map((app) => {
-									const link = useAppLink(app, {
-										agent,
-										workspace: task.workspace,
-									});
-
-									return (
-										<DropdownMenuItem key={app.id} asChild>
-											<RouterLink to={link.href}>
-												{app.icon ? (
-													<ExternalImage src={app.icon} />
-												) : (
-													<LayoutGridIcon />
-												)}
-												{link.label}
-											</RouterLink>
-										</DropdownMenuItem>
-									);
-								})}
-							</DropdownMenuContent>
-						</DropdownMenu>
-					</div>
+					<TaskExternalAppsDropdown
+						task={task}
+						agents={agents}
+						externalApps={externalApps}
+					/>
 				)}
 			</div>
 
-			<div className="flex-1">
-				{embeddedApps.map((app) => {
-					return (
-						<TaskAppIFrame
-							key={app.id}
-							active={activeAppId === app.id}
-							app={app}
-							task={task}
-						/>
-					);
-				})}
-			</div>
+			{embeddedApps.length > 0 ? (
+				<div className="flex-1">
+					{embeddedApps.map((app) => {
+						return (
+							<TaskAppIFrame
+								key={app.id}
+								active={activeAppId === app.id}
+								app={app}
+								task={task}
+							/>
+						);
+					})}
+				</div>
+			) : (
+				<div className="mx-auto my-auto flex flex-col items-center">
+					<h3 className="font-medium text-content-primary text-base">
+						No embedded apps found.
+					</h3>
+
+					<span className="text-content-secondary text-sm">
+						<Link
+							href={docs("/ai-coder/tasks")}
+							target="_blank"
+							rel="noreferrer"
+						>
+							Learn how to configure apps
+						</Link>{" "}
+						for your tasks.
+					</span>
+				</div>
+			)}
 		</main>
+	);
+};
+
+type TaskExternalAppsDropdownProps = {
+	task: Task;
+	agents: WorkspaceAgent[];
+	externalApps: WorkspaceApp[];
+};
+
+const TaskExternalAppsDropdown: FC<TaskExternalAppsDropdownProps> = ({
+	task,
+	agents,
+	externalApps,
+}) => {
+	return (
+		<div className="ml-auto">
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button size="sm" variant="subtle">
+						Open locally
+						<ChevronDownIcon />
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent>
+					{externalApps.map((app) => {
+						const agent = agents.find((agent) =>
+							agent.apps.some((a) => a.id === app.id),
+						);
+						if (!agent) {
+							throw new Error(
+								`Agent for app ${app.id} not found in task workspace`,
+							);
+						}
+
+						const link = useAppLink(app, {
+							agent,
+							workspace: task.workspace,
+						});
+
+						return (
+							<DropdownMenuItem key={app.id} asChild>
+								<RouterLink to={link.href}>
+									{app.icon ? (
+										<ExternalImage src={app.icon} />
+									) : (
+										<LayoutGridIcon />
+									)}
+									{link.label}
+								</RouterLink>
+							</DropdownMenuItem>
+						);
+					})}
+				</DropdownMenuContent>
+			</DropdownMenu>
+		</div>
 	);
 };
 
