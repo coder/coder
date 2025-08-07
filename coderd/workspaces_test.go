@@ -2897,6 +2897,56 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		}
 	})
 
+	t.Run("RemoveAutostopWithRunningWorkspaceWithMaxDeadline", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx         = testutil.Context(t, testutil.WaitLong)
+			client, db  = coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user        = coderdtest.CreateFirstUser(t, client)
+			version     = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_           = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			template    = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			deadline    = 8 * time.Hour
+			maxDeadline = 10 * time.Hour
+			workspace   = coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+				cwr.TTLMillis = ptr.Ref(deadline.Milliseconds())
+			})
+			build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		)
+
+		// This is a hack, but the max_deadline isn't precisely configurable
+		// without a lot of unnecessary hassle.
+		dbBuild, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), build.ID) //nolint:gocritic // test
+		require.NoError(t, err)
+		dbJob, err := db.GetProvisionerJobByID(dbauthz.AsSystemRestricted(ctx), dbBuild.JobID) //nolint:gocritic // test
+		require.NoError(t, err)
+		require.True(t, dbJob.CompletedAt.Valid)
+		initialDeadline := dbJob.CompletedAt.Time.Add(deadline)
+		expectedMaxDeadline := dbJob.CompletedAt.Time.Add(maxDeadline)
+		err = db.UpdateWorkspaceBuildDeadlineByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildDeadlineByIDParams{ //nolint:gocritic // test
+			ID:          build.ID,
+			Deadline:    initialDeadline,
+			MaxDeadline: expectedMaxDeadline,
+			UpdatedAt:   dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		// Remove autostop.
+		err = client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
+			TTLMillis: nil,
+		})
+		require.NoError(t, err)
+
+		// Expect that the deadline is set to the max_deadline.
+		build, err = client.WorkspaceBuild(ctx, build.ID)
+		require.NoError(t, err)
+		require.True(t, build.Deadline.Valid)
+		require.WithinDuration(t, build.Deadline.Time, expectedMaxDeadline, time.Second)
+		require.True(t, build.MaxDeadline.Valid)
+		require.WithinDuration(t, build.MaxDeadline.Time, expectedMaxDeadline, time.Second)
+	})
+
 	t.Run("CustomAutostopDisabledByTemplate", func(t *testing.T) {
 		t.Parallel()
 		var (

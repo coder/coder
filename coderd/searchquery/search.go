@@ -263,7 +263,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	return filter, parser.Errors
 }
 
-func Templates(ctx context.Context, db database.Store, query string) (database.GetTemplatesWithFilterParams, []codersdk.ValidationError) {
+func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query string) (database.GetTemplatesWithFilterParams, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
@@ -278,12 +278,19 @@ func Templates(ctx context.Context, db database.Store, query string) (database.G
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetTemplatesWithFilterParams{
 		Deleted:        parser.Boolean(values, false, "deleted"),
+		OrganizationID: parseOrganization(ctx, db, parser, values, "organization"),
 		ExactName:      parser.String(values, "", "exact_name"),
 		FuzzyName:      parser.String(values, "", "name"),
 		IDs:            parser.UUIDs(values, []uuid.UUID{}, "ids"),
 		Deprecated:     parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
-		OrganizationID: parseOrganization(ctx, db, parser, values, "organization"),
 		HasAITask:      parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
+		AuthorID:       parser.UUID(values, uuid.Nil, "author_id"),
+		AuthorUsername: parser.String(values, "", "author"),
+	}
+
+	if filter.AuthorUsername == codersdk.Me {
+		filter.AuthorID = actorID
+		filter.AuthorUsername = ""
 	}
 
 	parser.ErrorExcessParams(values)
