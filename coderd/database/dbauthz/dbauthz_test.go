@@ -5898,7 +5898,7 @@ func (s *MethodTestSuite) TestUserSecrets() {
 			UserID: user.ID,
 		})
 		check.Args(userSecret.ID).
-			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionRead).
+			Asserts(userSecret, policy.ActionRead).
 			Returns(userSecret)
 	}))
 	s.Run("ListUserSecrets", s.Subtest(func(db database.Store, check *expects) {
@@ -5927,7 +5927,7 @@ func (s *MethodTestSuite) TestUserSecrets() {
 			ID: userSecret.ID,
 		}
 		check.Args(arg).
-			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionUpdate)
+			Asserts(userSecret, policy.ActionUpdate)
 	}))
 	s.Run("DeleteUserSecret", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
@@ -5935,6 +5935,6 @@ func (s *MethodTestSuite) TestUserSecrets() {
 			UserID: user.ID,
 		})
 		check.Args(userSecret.ID).
-			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionDelete)
+			Asserts(userSecret, policy.ActionRead, userSecret, policy.ActionDelete)
 	}))
 }

@@ -3103,8 +3103,7 @@ func (q *querier) GetUserSecret(ctx context.Context, id uuid.UUID) (database.Use
 		return database.UserSecret{}, err
 	}
 
-	obj := rbac.ResourceUserSecret.WithOwner(secret.UserID.String())
-	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, secret); err != nil {
 		return database.UserSecret{}, err
 	}
 	return secret, nil
