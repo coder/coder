@@ -40,11 +40,15 @@ export type MockWebSocket = Omit<WebSocket, "send"> & {
 
 export function createMockWebSocket(
 	url: string,
-	protocol?: string,
+	protocol?: string | string[] | undefined,
 ): readonly [MockWebSocket, MockWebSocketServer] {
 	if (!url.startsWith("ws://") && !url.startsWith("wss://")) {
 		throw new Error("URL must start with ws:// or wss://");
 	}
+
+	const activeProtocol = Array.isArray(protocol)
+		? protocol.join(" ")
+		: (protocol ?? "");
 
 	let isOpen = true;
 	const store: CallbackStore = {
@@ -63,7 +67,7 @@ export function createMockWebSocket(
 		CLOSED: 3,
 
 		url,
-		protocol: protocol ?? "",
+		protocol: activeProtocol,
 		readyState: 1,
 		binaryType: "blob",
 		bufferedAmount: 0,
