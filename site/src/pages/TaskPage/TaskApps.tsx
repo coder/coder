@@ -23,6 +23,11 @@ type TaskAppsProps = {
 	task: Task;
 };
 
+type AppWithAgent = {
+	app: WorkspaceApp;
+	agent: WorkspaceAgent;
+};
+
 export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	const agents = task.workspace.latest_build.resources
 		.flatMap((r) => r.agents)
@@ -31,27 +36,34 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	// The Chat UI app will be displayed in the sidebar, so we don't want to show
 	// it here
 	const apps = agents
-		.flatMap((a) => a?.apps)
+		.flatMap((agent) =>
+			agent.apps.map((app) => ({
+				app,
+				agent,
+			})),
+		)
 		.filter(
-			(a) => !!a && a.id !== task.workspace.latest_build.ai_task_sidebar_app_id,
+			({ app }) =>
+				!!app && app.id !== task.workspace.latest_build.ai_task_sidebar_app_id,
 		);
 
-	const embeddedApps = apps.filter((app) => !app.external);
-	const externalApps = apps.filter((app) => app.external);
+	const embeddedApps = apps.filter(({ app }) => !app.external);
+	const externalApps = apps.filter(({ app }) => app.external);
 
 	const [activeAppId, setActiveAppId] = useState<string | undefined>(
-		embeddedApps[0]?.id,
+		embeddedApps[0]?.app.id,
 	);
 
 	return (
 		<main className="flex flex-col">
 			<div className="w-full flex items-center border-0 border-b border-border border-solid">
 				<div className="p-2 pb-0 flex gap-2 items-center">
-					{embeddedApps.map((app) => (
+					{embeddedApps.map(({ app, agent }) => (
 						<TaskAppTab
 							key={app.id}
 							task={task}
 							app={app}
+							agent={agent}
 							active={app.id === activeAppId}
 							onClick={(e) => {
 								e.preventDefault();
@@ -72,7 +84,7 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 
 			{embeddedApps.length > 0 ? (
 				<div className="flex-1">
-					{embeddedApps.map((app) => {
+					{embeddedApps.map(({ app }) => {
 						return (
 							<TaskAppIFrame
 								key={app.id}
@@ -108,7 +120,7 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 type TaskExternalAppsDropdownProps = {
 	task: Task;
 	agents: WorkspaceAgent[];
-	externalApps: WorkspaceApp[];
+	externalApps: AppWithAgent[];
 };
 
 const TaskExternalAppsDropdown: FC<TaskExternalAppsDropdownProps> = ({
@@ -126,16 +138,7 @@ const TaskExternalAppsDropdown: FC<TaskExternalAppsDropdownProps> = ({
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent>
-					{externalApps.map((app) => {
-						const agent = agents.find((agent) =>
-							agent.apps.some((a) => a.id === app.id),
-						);
-						if (!agent) {
-							throw new Error(
-								`Agent for app ${app.id} not found in task workspace`,
-							);
-						}
-
+					{externalApps.map(({ app, agent }) => {
 						const link = useAppLink(app, {
 							agent,
 							workspace: task.workspace,
@@ -163,20 +166,18 @@ const TaskExternalAppsDropdown: FC<TaskExternalAppsDropdownProps> = ({
 type TaskAppTabProps = {
 	task: Task;
 	app: WorkspaceApp;
+	agent: WorkspaceAgent;
 	active: boolean;
 	onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void;
 };
 
-const TaskAppTab: FC<TaskAppTabProps> = ({ task, app, active, onClick }) => {
-	const agent = task.workspace.latest_build.resources
-		.flatMap((r) => r.agents)
-		.filter((a) => !!a)
-		.find((a) => a.apps.some((a) => a.id === app.id));
-
-	if (!agent) {
-		throw new Error(`Agent for app ${app.id} not found in task workspace`);
-	}
-
+const TaskAppTab: FC<TaskAppTabProps> = ({
+	task,
+	app,
+	agent,
+	active,
+	onClick,
+}) => {
 	const link = useAppLink(app, {
 		agent,
 		workspace: task.workspace,
