@@ -122,15 +122,6 @@ SET
 WHERE
 	job_id = $1;
 
--- name: UpdateTemplateVersionAITaskByJobID :exec
-UPDATE
-	template_versions
-SET
-	has_ai_task = $2,
-	updated_at = $3
-WHERE
-	job_id = $1;
-
 -- name: GetPreviousTemplateVersion :one
 SELECT
 	*
@@ -235,11 +226,12 @@ WHERE
 	template_versions.id IN (archived_versions.id)
 RETURNING template_versions.id;
 
--- name: UpdateTemplateVersionExternalAgentByJobID :exec
+-- name: UpdateTemplateVersionAITaskAndExternalAgentByJobID :exec
 UPDATE
 	template_versions
 SET
-	has_external_agent = $2,
-	updated_at = $3
+	has_ai_task = $2,
+	has_external_agent = $3,
+	updated_at = $4
 WHERE
 	job_id = $1;

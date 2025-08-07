@@ -6,18 +6,18 @@
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/init-script
+curl -X GET http://coder-server:8080/api/v2/init-script/{os}/{arch}
 
 ```
 
-`GET /init-script`
+`GET /init-script/{os}/{arch}`
 
 ### Parameters
 
-| Name   | In    | Type   | Required | Description      |
-|--------|-------|--------|----------|------------------|
-| `os`   | query | string | false    | Operating system |
-| `arch` | query | string | false    | Architecture     |
+| Name   | In   | Type   | Required | Description      |
+|--------|------|--------|----------|------------------|
+| `os`   | path | string | true     | Operating system |
+| `arch` | path | string | true     | Architecture     |
 
 ### Responses
 

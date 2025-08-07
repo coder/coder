@@ -1720,19 +1720,12 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		if err != nil {
 			return xerrors.Errorf("update template version external auth providers: %w", err)
 		}
-		err = db.UpdateTemplateVersionAITaskByJobID(ctx, database.UpdateTemplateVersionAITaskByJobIDParams{
+		err = db.UpdateTemplateVersionAITaskAndExternalAgentByJobID(ctx, database.UpdateTemplateVersionAITaskAndExternalAgentByJobIDParams{
 			JobID: jobID,
 			HasAITask: sql.NullBool{
 				Bool:  jobType.TemplateImport.HasAiTasks,
 				Valid: true,
 			},
-			UpdatedAt: now,
-		})
-		if err != nil {
-			return xerrors.Errorf("update template version external auth providers: %w", err)
-		}
-		err = db.UpdateTemplateVersionExternalAgentByJobID(ctx, database.UpdateTemplateVersionExternalAgentByJobIDParams{
-			JobID: jobID,
 			HasExternalAgent: sql.NullBool{
 				Bool:  jobType.TemplateImport.HasExternalAgents,
 				Valid: true,
@@ -1740,8 +1733,9 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 			UpdatedAt: now,
 		})
 		if err != nil {
-			return xerrors.Errorf("update template version external agents: %w", err)
+			return xerrors.Errorf("update template version ai task and external agent: %w", err)
 		}
+
 		// Process terraform values
 		plan := jobType.TemplateImport.Plan
 		moduleFiles := jobType.TemplateImport.ModuleFiles

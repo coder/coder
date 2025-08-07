@@ -89,13 +89,6 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	return r0
 }
 
-func (m queryMetricsStore) UpdateTemplateVersionExternalAgentsByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAgentByJobIDParams) error {
-	start := time.Now()
-	r0 := m.s.UpdateTemplateVersionExternalAgentByJobID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateTemplateVersionExternalAgentsByJobID").Observe(time.Since(start).Seconds())
-	return r0
-}
-
 func (m queryMetricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	err := m.s.AcquireLock(ctx, pgAdvisoryXactLock)
@@ -2875,10 +2868,10 @@ func (m queryMetricsStore) UpdateTemplateScheduleByID(ctx context.Context, arg d
 	return err
 }
 
-func (m queryMetricsStore) UpdateTemplateVersionAITaskByJobID(ctx context.Context, arg database.UpdateTemplateVersionAITaskByJobIDParams) error {
+func (m queryMetricsStore) UpdateTemplateVersionAITaskAndExternalAgentByJobID(ctx context.Context, arg database.UpdateTemplateVersionAITaskAndExternalAgentByJobIDParams) error {
 	start := time.Now()
-	r0 := m.s.UpdateTemplateVersionAITaskByJobID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateTemplateVersionAITaskByJobID").Observe(time.Since(start).Seconds())
+	r0 := m.s.UpdateTemplateVersionAITaskAndExternalAgentByJobID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateVersionAITaskAndExternalAgentByJobID").Observe(time.Since(start).Seconds())
 	return r0
 }
 
@@ -2894,13 +2887,6 @@ func (m queryMetricsStore) UpdateTemplateVersionDescriptionByJobID(ctx context.C
 	err := m.s.UpdateTemplateVersionDescriptionByJobID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateVersionDescriptionByJobID").Observe(time.Since(start).Seconds())
 	return err
-}
-
-func (m queryMetricsStore) UpdateTemplateVersionExternalAgentByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAgentByJobIDParams) error {
-	start := time.Now()
-	r0 := m.s.UpdateTemplateVersionExternalAgentByJobID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateTemplateVersionExternalAgentByJobID").Observe(time.Since(start).Seconds())
-	return r0
 }
 
 func (m queryMetricsStore) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {

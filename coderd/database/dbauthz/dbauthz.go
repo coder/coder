@@ -4640,8 +4640,8 @@ func (q *querier) UpdateTemplateScheduleByID(ctx context.Context, arg database.U
 	return update(q.log, q.auth, fetch, q.db.UpdateTemplateScheduleByID)(ctx, arg)
 }
 
-func (q *querier) UpdateTemplateVersionAITaskByJobID(ctx context.Context, arg database.UpdateTemplateVersionAITaskByJobIDParams) error {
-	// An actor is allowed to update the template version AI task flag if they are authorized to update the template.
+func (q *querier) UpdateTemplateVersionAITaskAndExternalAgentByJobID(ctx context.Context, arg database.UpdateTemplateVersionAITaskAndExternalAgentByJobIDParams) error {
+	// An actor is allowed to update the template version ai task and external agent flag if they are authorized to update the template.
 	tv, err := q.db.GetTemplateVersionByJobID(ctx, arg.JobID)
 	if err != nil {
 		return err
@@ -4659,7 +4659,7 @@ func (q *querier) UpdateTemplateVersionAITaskByJobID(ctx context.Context, arg da
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
 		return err
 	}
-	return q.db.UpdateTemplateVersionAITaskByJobID(ctx, arg)
+	return q.db.UpdateTemplateVersionAITaskAndExternalAgentByJobID(ctx, arg)
 }
 
 func (q *querier) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) error {
@@ -4704,28 +4704,6 @@ func (q *querier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context, a
 		return err
 	}
 	return q.db.UpdateTemplateVersionDescriptionByJobID(ctx, arg)
-}
-
-func (q *querier) UpdateTemplateVersionExternalAgentByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAgentByJobIDParams) error {
-	// An actor is allowed to update the template version external agent flag if they are authorized to update the template.
-	tv, err := q.db.GetTemplateVersionByJobID(ctx, arg.JobID)
-	if err != nil {
-		return err
-	}
-	var obj rbac.Objecter
-	if !tv.TemplateID.Valid {
-		obj = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
-	} else {
-		tpl, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
-		if err != nil {
-			return err
-		}
-		obj = tpl
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
-		return err
-	}
-	return q.db.UpdateTemplateVersionExternalAgentByJobID(ctx, arg)
 }
 
 func (q *querier) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {

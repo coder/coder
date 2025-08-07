@@ -13100,24 +13100,31 @@ func (q *sqlQuerier) UnarchiveTemplateVersion(ctx context.Context, arg Unarchive
 	return err
 }
 
-const updateTemplateVersionAITaskByJobID = `-- name: UpdateTemplateVersionAITaskByJobID :exec
+const updateTemplateVersionAITaskAndExternalAgentByJobID = `-- name: UpdateTemplateVersionAITaskAndExternalAgentByJobID :exec
 UPDATE
 	template_versions
 SET
 	has_ai_task = $2,
-	updated_at = $3
+	has_external_agent = $3,
+	updated_at = $4
 WHERE
 	job_id = $1
 `
 
-type UpdateTemplateVersionAITaskByJobIDParams struct {
-	JobID     uuid.UUID    `db:"job_id" json:"job_id"`
-	HasAITask sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
-	UpdatedAt time.Time    `db:"updated_at" json:"updated_at"`
+type UpdateTemplateVersionAITaskAndExternalAgentByJobIDParams struct {
+	JobID            uuid.UUID    `db:"job_id" json:"job_id"`
+	HasAITask        sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
+	HasExternalAgent sql.NullBool `db:"has_external_agent" json:"has_external_agent"`
+	UpdatedAt        time.Time    `db:"updated_at" json:"updated_at"`
 }
 
-func (q *sqlQuerier) UpdateTemplateVersionAITaskByJobID(ctx context.Context, arg UpdateTemplateVersionAITaskByJobIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateTemplateVersionAITaskByJobID, arg.JobID, arg.HasAITask, arg.UpdatedAt)
+func (q *sqlQuerier) UpdateTemplateVersionAITaskAndExternalAgentByJobID(ctx context.Context, arg UpdateTemplateVersionAITaskAndExternalAgentByJobIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateTemplateVersionAITaskAndExternalAgentByJobID,
+		arg.JobID,
+		arg.HasAITask,
+		arg.HasExternalAgent,
+		arg.UpdatedAt,
+	)
 	return err
 }
 
@@ -13170,27 +13177,6 @@ type UpdateTemplateVersionDescriptionByJobIDParams struct {
 
 func (q *sqlQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateTemplateVersionDescriptionByJobID, arg.JobID, arg.Readme, arg.UpdatedAt)
-	return err
-}
-
-const updateTemplateVersionExternalAgentByJobID = `-- name: UpdateTemplateVersionExternalAgentByJobID :exec
-UPDATE
-	template_versions
-SET
-	has_external_agent = $2,
-	updated_at = $3
-WHERE
-	job_id = $1
-`
-
-type UpdateTemplateVersionExternalAgentByJobIDParams struct {
-	JobID            uuid.UUID    `db:"job_id" json:"job_id"`
-	HasExternalAgent sql.NullBool `db:"has_external_agent" json:"has_external_agent"`
-	UpdatedAt        time.Time    `db:"updated_at" json:"updated_at"`
-}
-
-func (q *sqlQuerier) UpdateTemplateVersionExternalAgentByJobID(ctx context.Context, arg UpdateTemplateVersionExternalAgentByJobIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateTemplateVersionExternalAgentByJobID, arg.JobID, arg.HasExternalAgent, arg.UpdatedAt)
 	return err
 }
 

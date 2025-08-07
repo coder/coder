@@ -1058,17 +1058,10 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 			return err
 		}
 
-		if hasAITask.Valid {
-			require.NoError(t, db.UpdateTemplateVersionAITaskByJobID(genCtx, database.UpdateTemplateVersionAITaskByJobIDParams{
-				JobID:     jobID,
-				HasAITask: hasAITask,
-				UpdatedAt: dbtime.Now(),
-			}))
-		}
-
-		if hasExternalAgent.Valid {
-			require.NoError(t, db.UpdateTemplateVersionExternalAgentByJobID(genCtx, database.UpdateTemplateVersionExternalAgentByJobIDParams{
+		if hasAITask.Valid && hasExternalAgent.Valid {
+			require.NoError(t, db.UpdateTemplateVersionAITaskAndExternalAgentByJobID(genCtx, database.UpdateTemplateVersionAITaskAndExternalAgentByJobIDParams{
 				JobID:            jobID,
+				HasAITask:        hasAITask,
 				HasExternalAgent: hasExternalAgent,
 				UpdatedAt:        dbtime.Now(),
 			}))

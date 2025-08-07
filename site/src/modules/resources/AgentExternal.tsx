@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import { API } from "api/api";
 import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
 import isChromatic from "chromatic/isChromatic";

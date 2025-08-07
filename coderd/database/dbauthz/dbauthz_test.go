@@ -1516,7 +1516,7 @@ func (s *MethodTestSuite) TestTemplate() {
 			ID: t1.ID,
 		}).Asserts(t1, policy.ActionUpdate)
 	}))
-	s.Run("UpdateTemplateVersionAITaskByJobID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpdateTemplateVersionAITaskAndExternalAgentByJobID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		u := dbgen.User(s.T(), db, database.User{})
@@ -1529,9 +1529,10 @@ func (s *MethodTestSuite) TestTemplate() {
 			JobID:          job.ID,
 			TemplateID:     uuid.NullUUID{UUID: t.ID, Valid: true},
 		})
-		check.Args(database.UpdateTemplateVersionAITaskByJobIDParams{
-			JobID:     job.ID,
-			HasAITask: sql.NullBool{Bool: true, Valid: true},
+		check.Args(database.UpdateTemplateVersionAITaskAndExternalAgentByJobIDParams{
+			JobID:            job.ID,
+			HasAITask:        sql.NullBool{Bool: true, Valid: true},
+			HasExternalAgent: sql.NullBool{Bool: true, Valid: true},
 		}).Asserts(t, policy.ActionUpdate)
 	}))
 	s.Run("UpdateTemplateWorkspacesLastUsedAt", s.Subtest(func(db database.Store, check *expects) {

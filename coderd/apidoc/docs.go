@@ -1280,7 +1280,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/init-script": {
+        "/init-script/{os}/{arch}": {
             "get": {
                 "produces": [
                     "text/plain"
@@ -1295,13 +1295,15 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Operating system",
                         "name": "os",
-                        "in": "query"
+                        "in": "path",
+                        "required": true
                     },
                     {
                         "type": "string",
                         "description": "Architecture",
                         "name": "arch",
-                        "in": "query"
+                        "in": "path",
+                        "required": true
                     }
                 ],
                 "responses": {
