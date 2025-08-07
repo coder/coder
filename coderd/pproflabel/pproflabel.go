@@ -21,9 +21,17 @@ const (
 
 	ServiceHTTPServer           = "http-api"
 	ServiceLifecycles           = "lifecycle-executor"
-	ServiceMetricCollector      = "metrics-collector"
 	ServicePrebuildReconciler   = "prebuilds-reconciler"
 	ServiceTerraformProvisioner = "terraform-provisioner"
+	ServiceDBPurge              = "db-purge"
+	ServiceNotifications        = "notifications"
+	ServiceReplicaSync          = "replica-sync"
+	// ServiceMetricCollector collects metrics from insights in the database and
+	// exports them in a prometheus collector format.
+	ServiceMetricCollector = "metrics-collector"
+	// ServiceAgentMetricAggregator merges agent metrics and exports them in a
+	// prometheus collector format.
+	ServiceAgentMetricAggregator = "agent-metrics-aggregator"
 
 	RequestTypeTag = "coder_request_type"
 )
