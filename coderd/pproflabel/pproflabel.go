@@ -24,6 +24,8 @@ const (
 	ServiceMetricCollector      = "metrics-collector"
 	ServicePrebuildReconciler   = "prebuilds-reconciler"
 	ServiceTerraformProvisioner = "terraform-provisioner"
+
+	RequestTypeTag = "coder_request_type"
 )
 
 func Service(name string, pairs ...string) pprof.LabelSet {

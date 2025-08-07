@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/coderd/oauth2provider"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 
@@ -1344,7 +1345,7 @@ func New(options *Options) *API {
 				r.Group(func(r chi.Router) {
 					r.Use(
 						// Override the request_type for agent rpc traffic.
-						httpmw.WithStaticProfilingLabels(pprof.Labels("request_type", "agent_rpc")),
+						httpmw.WithStaticProfilingLabels(pprof.Labels(pproflabel.RequestTypeTag, "agent-rpc")),
 					)
 					r.Get("/rpc", api.workspaceAgentRPC)
 				})
