@@ -282,10 +282,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
 			})...),
 		Org: map[string][]Permission{},
-		User: Permissions(map[string][]policy.Action{
-			// Users should be able to access their own secrets.
-			ResourceUserSecret.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
-		}),
+		User: Permissions(map[string][]policy.Action{}),
 	}.withCachedRegoValue()
 
 	memberRole := Role{
