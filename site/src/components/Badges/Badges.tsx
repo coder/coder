@@ -1,4 +1,5 @@
 import Tooltip from "@mui/material/Tooltip";
+import { type VariantProps, cva } from "class-variance-authority";
 import { Stack } from "components/Stack/Stack";
 import {
 	type FC,
@@ -6,7 +7,6 @@ import {
 	type PropsWithChildren,
 	forwardRef,
 } from "react";
-import { type VariantProps, cva } from "class-variance-authority";
 import { cn } from "utils/cn";
 
 const badgeVariants = cva(
@@ -14,14 +14,20 @@ const badgeVariants = cva(
 	{
 		variants: {
 			variant: {
-				enabled: "border border-success-outline bg-success-background text-success-text",
-				error: "border border-error-outline bg-error-background text-error-text",
+				enabled:
+					"border border-success-outline bg-success-background text-success-text",
+				error:
+					"border border-error-outline bg-error-background text-error-text",
 				warn: "border border-warning-outline bg-warning-background text-warning-text",
 				neutral: "border border-l1-outline bg-l1-background text-l1-text",
-				enterprise: "border border-enterprise-border bg-enterprise-background text-enterprise-text",
-				premium: "border border-premium-border bg-premium-background text-premium-text",
-				preview: "border border-preview-outline bg-preview-background text-preview-text",
-				danger: "border border-danger-outline bg-danger-background text-danger-text",
+				enterprise:
+					"border border-enterprise-border bg-enterprise-background text-enterprise-text",
+				premium:
+					"border border-premium-border bg-premium-background text-premium-text",
+				preview:
+					"border border-preview-outline bg-preview-background text-preview-text",
+				danger:
+					"border border-danger-outline bg-danger-background text-danger-text",
 			},
 		},
 		defaultVariants: {
@@ -32,8 +38,7 @@ const badgeVariants = cva(
 
 interface BadgeProps
 	extends HTMLAttributes<HTMLSpanElement>,
-	VariantProps<typeof badgeVariants> {
-}
+		VariantProps<typeof badgeVariants> {}
 
 const Badge = forwardRef<HTMLSpanElement, BadgeProps>(
 	({ className, variant, ...props }, ref) => {
@@ -107,53 +112,28 @@ export const DisabledBadge: FC = forwardRef<
 });
 
 export const EnterpriseBadge: FC = () => {
-	return (
-		<Badge variant="enterprise">
-			Enterprise
-		</Badge>
-	);
+	return <Badge variant="enterprise">Enterprise</Badge>;
 };
 
 export const PremiumBadge: FC = () => {
-	return (
-		<Badge variant="premium">
-			Premium
-		</Badge>
-	);
+	return <Badge variant="premium">Premium</Badge>;
 };
 
 export const PreviewBadge: FC = () => {
-	return (
-		<Badge variant="preview">
-			Preview
-		</Badge>
-	);
+	return <Badge variant="preview">Preview</Badge>;
 };
 
 export const AlphaBadge: FC = () => {
-	return (
-		<Badge variant="preview">
-			Alpha
-		</Badge>
-	);
+	return <Badge variant="preview">Alpha</Badge>;
 };
 
 export const DeprecatedBadge: FC = () => {
-	return (
-		<Badge variant="danger">
-			Deprecated
-		</Badge>
-	);
+	return <Badge variant="danger">Deprecated</Badge>;
 };
 
 export const Badges: FC<PropsWithChildren> = ({ children }) => {
 	return (
-		<Stack
-			className="mb-4"
-			direction="row"
-			alignItems="center"
-			spacing={1}
-		>
+		<Stack className="mb-4" direction="row" alignItems="center" spacing={1}>
 			{children}
 		</Stack>
 	);
