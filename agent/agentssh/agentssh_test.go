@@ -413,8 +413,9 @@ func TestSSHServer_ClosesStdin(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	logger := testutil.Logger(t)
-	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
+	s, err := agentssh.NewServer(ctx, logger.Named("ssh-server"), prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 	require.NoError(t, err)
+	logger = logger.Named("test")
 	defer s.Close()
 	err = s.UpdateHostSigner(42)
 	assert.NoError(t, err)
@@ -469,15 +470,25 @@ func TestSSHServer_ClosesStdin(t *testing.T) {
 	err = testutil.RequireReceive(ctx, t, readCh)
 	require.NoError(t, err)
 
-	sess.Close()
+	err = sess.Close()
+	require.NoError(t, err)
 
 	var content []byte
+	expected := []byte("read exit code: 1\n")
 	testutil.Eventually(ctx, t, func(_ context.Context) bool {
 		content, err = os.ReadFile(filePath)
-		return err == nil
+		if err != nil {
+			logger.Debug(ctx, "failed to read file; will retry", slog.Error(err))
+			return false
+		}
+		if len(content) != len(expected) {
+			logger.Debug(ctx, "file is partially written", slog.F("content", content))
+			return false
+		}
+		return true
 	}, testutil.IntervalFast)
 	require.NoError(t, err)
-	require.Equal(t, "read exit code: 1\n", string(content))
+	require.Equal(t, string(expected), string(content))
 }
 
 func sshClient(t *testing.T, addr string) *ssh.Client {

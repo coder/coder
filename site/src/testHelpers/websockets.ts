@@ -1,45 +1,66 @@
 import type { WebSocketEventType } from "utils/OneWayWebSocket";
 
-export type MockWebSocketPublisher = Readonly<{
+type SocketSendData = Parameters<WebSocket["send"]>[0];
+
+export type MockWebSocketServer = Readonly<{
 	publishMessage: (event: MessageEvent<string>) => void;
 	publishError: (event: Event) => void;
 	publishClose: (event: CloseEvent) => void;
 	publishOpen: (event: Event) => void;
+
 	readonly isConnectionOpen: boolean;
+	readonly clientSentData: readonly SocketSendData[];
 }>;
+
+type CallbackStore = {
+	[K in keyof WebSocketEventMap]: Set<(event: WebSocketEventMap[K]) => void>;
+};
+
+type MockWebSocket = Omit<WebSocket, "send"> & {
+	/**
+	 * A version of the WebSocket `send` method that has been pre-wrapped inside
+	 * a Jest mock.
+	 *
+	 * The Jest mock functionality should be used at a minimum. Basically:
+	 * 1. If you want to check that the mock socket sent something to the mock
+	 *    server: call the `send` method as a function, and then check the
+	 *    `clientSentData` on `MockWebSocketServer` to see what data got
+	 *    received.
+	 * 2. If you need to make sure that the client-side `send` method got called
+	 *    at all: you can use the Jest mock functionality, but you should
+	 *    probably also be checking `clientSentData` still and making additional
+	 *    assertions with it.
+	 *
+	 * Generally, tests should center around whether socket-to-server
+	 * communication was successful, not whether the client-side method was
+	 * called.
+	 */
+	send: jest.Mock<void, [SocketSendData], unknown>;
+};
 
 export function createMockWebSocket(
 	url: string,
-	protocols?: string | string[],
-): readonly [WebSocket, MockWebSocketPublisher] {
-	type EventMap = {
-		message: MessageEvent<string>;
-		error: Event;
-		close: CloseEvent;
-		open: Event;
-	};
-	type CallbackStore = {
-		[K in keyof EventMap]: ((event: EventMap[K]) => void)[];
-	};
-
-	let activeProtocol: string;
-	if (Array.isArray(protocols)) {
-		activeProtocol = protocols[0] ?? "";
-	} else if (typeof protocols === "string") {
-		activeProtocol = protocols;
-	} else {
-		activeProtocol = "";
+	protocol?: string | string[] | undefined,
+): readonly [MockWebSocket, MockWebSocketServer] {
+	if (!url.startsWith("ws://") && !url.startsWith("wss://")) {
+		throw new Error("URL must start with ws:// or wss://");
 	}
+
+	const activeProtocol = Array.isArray(protocol)
+		? protocol.join(" ")
+		: (protocol ?? "");
 
 	let isOpen = true;
 	const store: CallbackStore = {
-		message: [],
-		error: [],
-		close: [],
-		open: [],
+		message: new Set(),
+		error: new Set(),
+		close: new Set(),
+		open: new Set(),
 	};
 
-	const mockSocket: WebSocket = {
+	const sentData: SocketSendData[] = [];
+
+	const mockSocket: MockWebSocket = {
 		CONNECTING: 0,
 		OPEN: 1,
 		CLOSING: 2,
@@ -55,8 +76,14 @@ export function createMockWebSocket(
 		onerror: null,
 		onmessage: null,
 		onopen: null,
-		send: jest.fn(),
 		dispatchEvent: jest.fn(),
+
+		send: jest.fn((data) => {
+			if (!isOpen) {
+				return;
+			}
+			sentData.push(data);
+		}),
 
 		addEventListener: <E extends WebSocketEventType>(
 			eventType: E,
@@ -65,11 +92,8 @@ export function createMockWebSocket(
 			if (!isOpen) {
 				return;
 			}
-
 			const subscribers = store[eventType];
-			if (!subscribers.includes(callback)) {
-				subscribers.push(callback);
-			}
+			subscribers.add(callback);
 		},
 
 		removeEventListener: <E extends WebSocketEventType>(
@@ -79,12 +103,8 @@ export function createMockWebSocket(
 			if (!isOpen) {
 				return;
 			}
-
 			const subscribers = store[eventType];
-			if (subscribers.includes(callback)) {
-				const updated = store[eventType].filter((c) => c !== callback);
-				store[eventType] = updated as CallbackStore[E];
-			}
+			subscribers.delete(callback);
 		},
 
 		close: () => {
@@ -92,9 +112,13 @@ export function createMockWebSocket(
 		},
 	};
 
-	const publisher: MockWebSocketPublisher = {
+	const publisher: MockWebSocketServer = {
 		get isConnectionOpen() {
 			return isOpen;
+		},
+
+		get clientSentData() {
+			return [...sentData];
 		},
 
 		publishOpen: (event) => {

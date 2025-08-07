@@ -159,10 +159,13 @@ const styles = {
 			position: "initial" as const,
 		},
 	}),
-	formSectionInfoHorizontal: {
+	formSectionInfoHorizontal: (theme) => ({
 		maxWidth: 312,
-		position: "sticky",
-	},
+
+		[theme.breakpoints.up("lg")]: {
+			position: "sticky",
+		},
+	}),
 	formSectionInfoTitle: (theme) => ({
 		fontSize: 20,
 		color: theme.palette.text.primary,
