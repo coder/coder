@@ -20,6 +20,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -107,7 +108,7 @@ func (e *Executor) WithStatsChannel(ch chan<- Stats) *Executor {
 // tick from its channel. It will stop when its context is Done, or when
 // its channel is closed.
 func (e *Executor) Run() {
-	go func() {
+	pproflabel.Go(e.ctx, pproflabel.Service(pproflabel.ServiceLifecycles), func(ctx context.Context) {
 		for {
 			select {
 			case <-e.ctx.Done():
@@ -128,7 +129,7 @@ func (e *Executor) Run() {
 				e.log.Debug(e.ctx, "run stats", slog.F("elapsed", stats.Elapsed), slog.F("transitions", stats.Transitions))
 			}
 		}
-	}()
+	})
 }
 
 func (e *Executor) runOnce(t time.Time) Stats {
