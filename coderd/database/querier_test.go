@@ -6003,3 +6003,102 @@ func TestGetRunningPrebuiltWorkspaces(t *testing.T) {
 	require.Len(t, runningPrebuilds, 1, "expected only one running prebuilt workspace")
 	require.Equal(t, runningPrebuild.ID, runningPrebuilds[0].ID, "expected the running prebuilt workspace to be returned")
 }
+
+func TestWorkspaceBuildDeadlineConstraint(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:    user.ID,
+		TemplateID: template.ID,
+		Name:       "test-workspace",
+		Deleted:    false,
+	})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		InitiatorID:    database.PrebuildsSystemUserID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		StartedAt:      sql.NullTime{Time: time.Now().Add(-time.Minute), Valid: true},
+		CompletedAt:    sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	workspaceBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: templateVersion.ID,
+		JobID:             job.ID,
+		BuildNumber:       1,
+	})
+
+	cases := []struct {
+		name        string
+		deadline    time.Time
+		maxDeadline time.Time
+		expectOK    bool
+	}{
+		{
+			name:        "no deadline or max_deadline",
+			deadline:    time.Time{},
+			maxDeadline: time.Time{},
+			expectOK:    true,
+		},
+		{
+			name:        "deadline set when max_deadline is not set",
+			deadline:    time.Now().Add(time.Hour),
+			maxDeadline: time.Time{},
+			expectOK:    true,
+		},
+		{
+			name:        "deadline before max_deadline",
+			deadline:    time.Now().Add(-time.Hour),
+			maxDeadline: time.Now().Add(time.Hour),
+			expectOK:    true,
+		},
+		{
+			name:        "deadline is max_deadline",
+			deadline:    time.Now().Add(time.Hour),
+			maxDeadline: time.Now().Add(time.Hour),
+			expectOK:    true,
+		},
+
+		{
+			name:        "deadline after max_deadline",
+			deadline:    time.Now().Add(time.Hour),
+			maxDeadline: time.Now().Add(-time.Hour),
+			expectOK:    false,
+		},
+		{
+			name:        "deadline is not set when max_deadline is set",
+			deadline:    time.Time{},
+			maxDeadline: time.Now().Add(time.Hour),
+			expectOK:    false,
+		},
+	}
+
+	for _, c := range cases {
+		err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+			ID:          workspaceBuild.ID,
+			Deadline:    c.deadline,
+			MaxDeadline: c.maxDeadline,
+			UpdatedAt:   time.Now(),
+		})
+		if c.expectOK {
+			require.NoError(t, err)
+		} else {
+			require.Error(t, err)
+			require.True(t, database.IsCheckViolation(err, database.CheckWorkspaceBuildsDeadlineBelowMaxDeadline))
+		}
+	}
+}

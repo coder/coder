@@ -12059,6 +12059,19 @@ WHERE
 			tv.has_ai_task = $7 :: boolean
 		ELSE true
 	END
+	-- Filter by author_id
+	AND CASE
+		  WHEN $8 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			  t.created_by = $8
+		  ELSE true
+	END
+	-- Filter by author_username
+	AND CASE
+		  WHEN $9 :: text != '' THEN
+			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($9) AND deleted = false)
+		  ELSE true
+	END
+
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
   -- @authorize_filter
 ORDER BY (t.name, t.id) ASC
@@ -12072,6 +12085,8 @@ type GetTemplatesWithFilterParams struct {
 	IDs            []uuid.UUID  `db:"ids" json:"ids"`
 	Deprecated     sql.NullBool `db:"deprecated" json:"deprecated"`
 	HasAITask      sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
+	AuthorID       uuid.UUID    `db:"author_id" json:"author_id"`
+	AuthorUsername string       `db:"author_username" json:"author_username"`
 }
 
 func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error) {
@@ -12083,6 +12098,8 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		pq.Array(arg.IDs),
 		arg.Deprecated,
 		arg.HasAITask,
+		arg.AuthorID,
+		arg.AuthorUsername,
 	)
 	if err != nil {
 		return nil, err
@@ -13012,18 +13029,6 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 		return nil, err
 	}
 	return items, nil
-}
-
-const hasTemplateVersionsWithAITask = `-- name: HasTemplateVersionsWithAITask :one
-SELECT EXISTS (SELECT 1 FROM template_versions WHERE has_ai_task = TRUE)
-`
-
-// Determines if the template versions table has any rows with has_ai_task = TRUE.
-func (q *sqlQuerier) HasTemplateVersionsWithAITask(ctx context.Context) (bool, error) {
-	row := q.db.QueryRowContext(ctx, hasTemplateVersionsWithAITask)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
 }
 
 const insertTemplateVersion = `-- name: InsertTemplateVersion :exec
