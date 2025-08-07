@@ -378,6 +378,43 @@ func TestDeleteUser(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr, "should be a coderd error")
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode(), "should be forbidden")
 	})
+	t.Run("CountCheckIncludesAllWorkspaces", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdtest.NewWithProvisionerCloser(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		// Create a target user who will own a workspace
+		targetUserClient, targetUser := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		// Create a User Admin who should not have permission to see the target user's workspace
+		userAdminClient, userAdmin := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		// Grant User Admin role to the userAdmin
+		userAdmin, err := client.UpdateUserRoles(context.Background(), userAdmin.ID.String(), codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleUserAdmin().String()},
+		})
+		require.NoError(t, err)
+
+		// Create a template and workspace owned by the target user
+		version := coderdtest.CreateTemplateVersion(t, client, firstUser.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
+		_ = coderdtest.CreateWorkspace(t, targetUserClient, template.ID)
+
+		workspaces, err := userAdminClient.Workspaces(context.Background(), codersdk.WorkspaceFilter{
+			Owner: targetUser.Username,
+		})
+		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 0)
+
+		// Attempt to delete the target user - this should fail because the
+		// user has a workspace not visible to the deleting user.
+		err = userAdminClient.DeleteUser(context.Background(), targetUser.ID)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusExpectationFailed, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "has workspaces")
+	})
 }
 
 func TestNotifyUserStatusChanged(t *testing.T) {
