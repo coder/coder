@@ -5881,7 +5881,7 @@ func (s *MethodTestSuite) TestAuthorizePrebuiltWorkspace() {
 func (s *MethodTestSuite) TestUserSecrets() {
 	s.Run("GetUserSecretByUserIDAndName", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
-		userSecret := dbgen.UserSecret(s.T(), db, database.CreateUserSecretParams{
+		userSecret := dbgen.UserSecret(s.T(), db, database.UserSecret{
 			UserID: user.ID,
 		})
 		arg := database.GetUserSecretByUserIDAndNameParams{
@@ -5894,7 +5894,7 @@ func (s *MethodTestSuite) TestUserSecrets() {
 	}))
 	s.Run("GetUserSecret", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
-		userSecret := dbgen.UserSecret(s.T(), db, database.CreateUserSecretParams{
+		userSecret := dbgen.UserSecret(s.T(), db, database.UserSecret{
 			UserID: user.ID,
 		})
 		check.Args(userSecret.ID).
@@ -5903,7 +5903,7 @@ func (s *MethodTestSuite) TestUserSecrets() {
 	}))
 	s.Run("ListUserSecrets", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
-		userSecret := dbgen.UserSecret(s.T(), db, database.CreateUserSecretParams{
+		userSecret := dbgen.UserSecret(s.T(), db, database.UserSecret{
 			UserID: user.ID,
 		})
 		check.Args(user.ID).
@@ -5920,7 +5920,7 @@ func (s *MethodTestSuite) TestUserSecrets() {
 	}))
 	s.Run("UpdateUserSecret", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
-		userSecret := dbgen.UserSecret(s.T(), db, database.CreateUserSecretParams{
+		userSecret := dbgen.UserSecret(s.T(), db, database.UserSecret{
 			UserID: user.ID,
 		})
 		arg := database.UpdateUserSecretParams{
@@ -5931,7 +5931,7 @@ func (s *MethodTestSuite) TestUserSecrets() {
 	}))
 	s.Run("DeleteUserSecret", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
-		userSecret := dbgen.UserSecret(s.T(), db, database.CreateUserSecretParams{
+		userSecret := dbgen.UserSecret(s.T(), db, database.UserSecret{
 			UserID: user.ID,
 		})
 		check.Args(userSecret.ID).

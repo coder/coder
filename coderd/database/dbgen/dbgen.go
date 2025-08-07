@@ -1422,7 +1422,7 @@ func PresetParameter(t testing.TB, db database.Store, seed database.InsertPreset
 	return parameters
 }
 
-func UserSecret(t testing.TB, db database.Store, seed database.CreateUserSecretParams) database.UserSecret {
+func UserSecret(t testing.TB, db database.Store, seed database.UserSecret) database.UserSecret {
 	userSecret, err := db.CreateUserSecret(genCtx, database.CreateUserSecretParams{
 		ID:          takeFirst(seed.ID, uuid.New()),
 		UserID:      takeFirst(seed.UserID, uuid.New()),

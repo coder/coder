@@ -6090,7 +6090,7 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 		testUser := dbgen.User(t, db, database.User{})
 
 		// Create first secret
-		secret1 := dbgen.UserSecret(t, db, database.CreateUserSecretParams{
+		secret1 := dbgen.UserSecret(t, db, database.UserSecret{
 			UserID:      testUser.ID,
 			Name:        "unique-test",
 			Description: "First secret",
@@ -6132,7 +6132,7 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 		assert.Contains(t, err.Error(), "duplicate key value")
 
 		// Create secret with empty env_name and file_path (should succeed)
-		secret2 := dbgen.UserSecret(t, db, database.CreateUserSecretParams{
+		secret2 := dbgen.UserSecret(t, db, database.UserSecret{
 			UserID:      testUser.ID,
 			Name:        "unique-test-4",
 			Description: "Second secret",
@@ -6168,14 +6168,14 @@ func TestUserSecretsAuthorization(t *testing.T) {
 	org := dbgen.Organization(t, db, database.Organization{})
 
 	// Create secrets for users
-	user1Secret := dbgen.UserSecret(t, db, database.CreateUserSecretParams{
+	user1Secret := dbgen.UserSecret(t, db, database.UserSecret{
 		UserID:      user1.ID,
 		Name:        "user1-secret",
 		Description: "User 1's secret",
 		Value:       "user1-value",
 	})
 
-	user2Secret := dbgen.UserSecret(t, db, database.CreateUserSecretParams{
+	user2Secret := dbgen.UserSecret(t, db, database.UserSecret{
 		UserID:      user2.ID,
 		Name:        "user2-secret",
 		Description: "User 2's secret",
