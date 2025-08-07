@@ -758,8 +758,6 @@ func TestTemplates(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
-
 		_, err = owner.Template(ctx, template.ID)
 		require.NoError(t, err)
 	})

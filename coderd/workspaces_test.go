@@ -4837,7 +4837,7 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		ws := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		err := client.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
 			UserRoles: map[string]codersdk.WorkspaceRole{
 				friend.ID.String(): codersdk.WorkspaceRoleAdmin,
@@ -4869,7 +4869,7 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		ws := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		err := client.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
 			UserRoles: map[string]codersdk.WorkspaceRole{
 				uuid.NewString(): codersdk.WorkspaceRoleAdmin,
@@ -4907,7 +4907,7 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		ws := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		err := adminClient.DeleteUser(ctx, mike.ID)
 		require.NoError(t, err)
 		err = client.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
