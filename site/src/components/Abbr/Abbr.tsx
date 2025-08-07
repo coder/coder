@@ -30,7 +30,12 @@ export const Abbr: FC<AbbrProps> = ({
 			// always have to supplement with aria-label
 			title={title}
 			aria-label={getAccessibleLabel(children, title, pronunciation)}
-			className={cn("decoration-inherit", children === children.toUpperCase() ? "tracking-wide" : "tracking-normal")}
+			className={cn(
+				"decoration-inherit",
+				children === children.toUpperCase()
+					? "tracking-wide"
+					: "tracking-normal",
+			)}
 			{...delegatedProps}
 		>
 			<span aria-hidden>{children}</span>
