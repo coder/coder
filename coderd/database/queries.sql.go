@@ -2869,6 +2869,37 @@ func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDPar
 	return i, err
 }
 
+const validateGroupIDs = `-- name: ValidateGroupIDs :one
+WITH input AS (
+	SELECT
+		unnest($1::uuid[]) AS id
+)
+SELECT
+	array_agg(input.id)::uuid[] as invalid_group_ids,
+	COUNT(*) = 0 as ok
+FROM
+	-- Preserve rows where there is not a matching left (groups) row for each
+	-- right (input) row...
+	groups
+	RIGHT JOIN input ON groups.id = input.id
+WHERE
+	-- ...so that we can retain exactly those rows where an input ID does not
+	-- match an existing group.
+	groups.id IS NULL
+`
+
+type ValidateGroupIDsRow struct {
+	InvalidGroupIds []uuid.UUID `db:"invalid_group_ids" json:"invalid_group_ids"`
+	Ok              bool        `db:"ok" json:"ok"`
+}
+
+func (q *sqlQuerier) ValidateGroupIDs(ctx context.Context, groupIds []uuid.UUID) (ValidateGroupIDsRow, error) {
+	row := q.db.QueryRowContext(ctx, validateGroupIDs, pq.Array(groupIds))
+	var i ValidateGroupIDsRow
+	err := row.Scan(pq.Array(&i.InvalidGroupIds), &i.Ok)
+	return i, err
+}
+
 const getTemplateAppInsights = `-- name: GetTemplateAppInsights :many
 WITH
 	-- Create a list of all unique apps by template, this is used to
@@ -14789,6 +14820,39 @@ func (q *sqlQuerier) UpdateUserThemePreference(ctx context.Context, arg UpdateUs
 	row := q.db.QueryRowContext(ctx, updateUserThemePreference, arg.UserID, arg.ThemePreference)
 	var i UserConfig
 	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
+}
+
+const validateUserIDs = `-- name: ValidateUserIDs :one
+WITH input AS (
+	SELECT
+		unnest($1::uuid[]) AS id
+)
+SELECT
+	array_agg(input.id)::uuid[] as invalid_user_ids,
+	COUNT(*) = 0 as ok
+FROM
+	-- Preserve rows where there is not a matching left (users) row for each
+	-- right (input) row...
+	users
+	RIGHT JOIN input ON users.id = input.id
+WHERE
+	-- ...so that we can retain exactly those rows where an input ID does not
+	-- match an existing user...
+	users.id IS NULL OR
+	-- ...or that only matches a user that was deleted.
+	users.deleted = true
+`
+
+type ValidateUserIDsRow struct {
+	InvalidUserIds []uuid.UUID `db:"invalid_user_ids" json:"invalid_user_ids"`
+	Ok             bool        `db:"ok" json:"ok"`
+}
+
+func (q *sqlQuerier) ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (ValidateUserIDsRow, error) {
+	row := q.db.QueryRowContext(ctx, validateUserIDs, pq.Array(userIds))
+	var i ValidateUserIDsRow
+	err := row.Scan(pq.Array(&i.InvalidUserIds), &i.Ok)
 	return i, err
 }
 
