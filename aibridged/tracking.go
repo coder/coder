@@ -5,44 +5,23 @@ import (
 	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/openai/openai-go"
 	"golang.org/x/xerrors"
 	"tailscale.com/types/ptr"
 )
 
+//
+//
+//
+//
+// TODO: decompose this file into more appropriate locations.
+//
+//
+//
+//
+
 type UsageExtractor interface {
 	LastUserPrompt() (*string, error)
 	LastToolCalls() ([]string, error)
-}
-
-func (c *ChatCompletionNewParamsWrapper) LastUserPrompt() (*string, error) {
-	if c == nil {
-		return nil, xerrors.New("nil struct")
-	}
-
-	if len(c.Messages) == 0 {
-		return nil, xerrors.New("no messages")
-	}
-
-	var msg *openai.ChatCompletionUserMessageParam
-	for i := len(c.Messages) - 1; i >= 0; i-- {
-		m := c.Messages[i]
-		if m.OfUser != nil {
-			msg = m.OfUser
-			break
-		}
-	}
-
-	if msg == nil {
-		return nil, nil
-	}
-
-	userMessage := msg.Content.OfString.String()
-	if isCursor, _ := regexp.MatchString("<user_query>", userMessage); isCursor {
-		userMessage = extractCursorUserQuery(userMessage)
-	}
-
-	return ptr.To(strings.TrimSpace(userMessage)), nil
 }
 
 func (b *BetaMessageNewParamsWrapper) LastUserPrompt() (*string, error) {

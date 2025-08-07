@@ -81,11 +81,54 @@ type Bridge struct {
 	tools map[string]*MCPTool
 }
 
-func NewBridge(cfg codersdk.AIBridgeConfig, logger slog.Logger, clientFn func() (proto.DRPCAIBridgeDaemonClient, bool), tools []*MCPTool) (*Bridge, error) {
+func NewBridge(cfg codersdk.AIBridgeConfig, logger slog.Logger, clientFn func() (proto.DRPCAIBridgeDaemonClient, bool), tools map[string][]*MCPTool) (*Bridge, error) {
 	var bridge Bridge
 
 	mux := &http.ServeMux{}
-	mux.HandleFunc("/v1/chat/completions", bridge.proxyOpenAIRequest)
+	mux.HandleFunc("/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
+		prov := NewOpenAIProvider(cfg.OpenAI.BaseURL.String(), cfg.OpenAI.Key.String())
+
+		// TODO: everything is generic beyond this point...
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			if isConnectionError(err) {
+				logger.Debug(r.Context(), "client disconnected during request body read", slog.Error(err))
+				return // Don't send error response if client already disconnected
+			}
+			logger.Error(r.Context(), "failed to read body", slog.Error(err))
+			http.Error(w, "failed to read body", http.StatusInternalServerError)
+			return
+		}
+
+		req, err := prov.ParseRequest(body)
+		if err != nil {
+			logger.Error(r.Context(), "failed to parse request", slog.Error(err))
+			http.Error(w, "failed to parse request", http.StatusBadRequest)
+		}
+
+		var sess Session[ChatCompletionNewParamsWrapper]
+		if req.Stream {
+			sess = prov.NewAsynchronousSession(req)
+		} else {
+			sess = prov.NewSynchronousSession(req)
+		}
+
+		coderdClient, ok := clientFn()
+		if !ok {
+			logger.Error(r.Context(), "could not acquire coderd client for tracking")
+			return
+		}
+
+		sessID := sess.Init(logger, prov.baseURL, prov.key, NewDRPCTracker(coderdClient), NewInjectedToolManager(tools))
+		defer func() {
+			if err := sess.Close(); err != nil {
+				logger.Warn(context.Background(), "failed to close session", slog.Error(err), slog.F("session_id", sessID), slog.F("kind", fmt.Sprintf("%T", sess)))
+			}
+		}()
+
+		sess.Execute(req, w, r) // TODO: handle error?
+	})
 	mux.HandleFunc("/v1/messages", bridge.proxyAnthropicRequest)
 
 	srv := &http.Server{
@@ -104,8 +147,10 @@ func NewBridge(cfg codersdk.AIBridgeConfig, logger slog.Logger, clientFn func() 
 	bridge.logger = logger
 
 	bridge.tools = make(map[string]*MCPTool, len(tools))
-	for _, tool := range tools {
-		bridge.tools[tool.ID] = tool
+	for _, serverTools := range tools {
+		for _, tool := range serverTools {
+			bridge.tools[tool.ID] = tool
+		}
 	}
 
 	return &bridge, nil
@@ -165,11 +210,6 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 	if prompt != nil {
 		b.trackUserPrompt(ctx, sessionID, "", in.Model, *prompt)
 	}
-
-	// Prepend assistant message.
-	in.Messages = append([]openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage("You are a helpful assistant that explicitly mentions when tool calls are about to be made."),
-	}, in.Messages...)
 
 	for _, tool := range b.tools {
 		fn := openai.ChatCompletionToolParam{

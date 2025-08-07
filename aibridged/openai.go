@@ -1,9 +1,14 @@
 package aibridged
 
 import (
+	"regexp"
+	"strings"
+
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 	"github.com/tidwall/gjson"
+	"golang.org/x/xerrors"
+	"tailscale.com/types/ptr"
 )
 
 // ChatCompletionNewParamsWrapper exists because the "stream" param is not included in openai.ChatCompletionNewParams.
@@ -40,6 +45,36 @@ func (c *ChatCompletionNewParamsWrapper) UnmarshalJSON(raw []byte) error {
 	}
 
 	return nil
+}
+
+func (c *ChatCompletionNewParamsWrapper) LastUserPrompt() (*string, error) {
+	if c == nil {
+		return nil, xerrors.New("nil struct")
+	}
+
+	if len(c.Messages) == 0 {
+		return nil, xerrors.New("no messages")
+	}
+
+	var msg *openai.ChatCompletionUserMessageParam
+	for i := len(c.Messages) - 1; i >= 0; i-- {
+		m := c.Messages[i]
+		if m.OfUser != nil {
+			msg = m.OfUser
+			break
+		}
+	}
+
+	if msg == nil {
+		return nil, nil
+	}
+
+	userMessage := msg.Content.OfString.String()
+	if isCursor, _ := regexp.MatchString("<user_query>", userMessage); isCursor {
+		userMessage = extractCursorUserQuery(userMessage)
+	}
+
+	return ptr.To(strings.TrimSpace(userMessage)), nil
 }
 
 func sumUsage(ref, in openai.CompletionUsage) openai.CompletionUsage {

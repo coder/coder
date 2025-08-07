@@ -99,7 +99,7 @@ func (api *API) createOrLoadBridgeForAPIKey(ctx context.Context, key string, cli
 	return val, nil
 }
 
-func (api *API) fetchTools(ctx context.Context, logger slog.Logger, key string) ([]*aibridged.MCPTool, error) {
+func (api *API) fetchTools(ctx context.Context, logger slog.Logger, key string) (map[string][]*aibridged.MCPTool, error) {
 	url := api.DeploymentValues.AccessURL.String() + "/api/experimental/mcp/http"
 	coderMCP, err := aibridged.NewMCPToolBridge("coder", url, map[string]string{
 		"Coder-Session-Token": key,
@@ -126,5 +126,7 @@ func (api *API) fetchTools(ctx context.Context, logger slog.Logger, key string) 
 		return nil, xerrors.Errorf("MCP proxy init: %w", err)
 	}
 
-	return coderMCP.ListTools(), nil
+	return map[string][]*aibridged.MCPTool{
+		"coder": coderMCP.ListTools(),
+	}, nil
 }
