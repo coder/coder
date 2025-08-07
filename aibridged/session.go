@@ -10,10 +10,11 @@ type Model struct {
 	Provider, ModelName string
 }
 
-type Session[Req any] interface {
+// Session describes a (potentially) stateful interaction with an AI provider.
+type Session interface {
 	Init(logger slog.Logger, baseURL, key string, tracker Tracker, toolMgr ToolManager) (id string)
-	LastUserPrompt(req Req) (*string, error)
-	Model(req *Req) Model
-	Execute(req *Req, w http.ResponseWriter, r *http.Request) error
+	LastUserPrompt() (*string, error)
+	Model() Model
+	ProcessRequest(w http.ResponseWriter, r *http.Request) error
 	Close() error
 }

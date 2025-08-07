@@ -125,8 +125,8 @@ func TestAnthropicMessages(t *testing.T) {
 						BaseURL: serpent.String(srv.URL),
 						Key:     serpent.String(sessionToken),
 					},
-				}, logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
-					return coderdClient, true
+				}, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
+					return coderdClient, nil
 				}, nil)
 				require.NoError(t, err)
 
@@ -229,8 +229,8 @@ func TestOpenAIChatCompletions(t *testing.T) {
 						BaseURL: serpent.String(srv.URL),
 						Key:     serpent.String(sessionToken),
 					},
-				}, logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
-					return coderdClient, true
+				}, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
+					return coderdClient, nil
 				}, nil)
 				require.NoError(t, err)
 
@@ -302,8 +302,8 @@ func TestSimple(t *testing.T) {
 						BaseURL: serpent.String(addr),
 						Key:     serpent.String(sessionToken),
 					},
-				}, logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
-					return client, true
+				}, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
+					return client, nil
 				}, nil)
 			},
 			getResponseIDFunc: func(streaming bool, resp *http.Response) (string, error) {
@@ -349,8 +349,8 @@ func TestSimple(t *testing.T) {
 						BaseURL: serpent.String(addr),
 						Key:     serpent.String(sessionToken),
 					},
-				}, logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
-					return client, true
+				}, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
+					return client, nil
 				}, nil)
 			},
 			getResponseIDFunc: func(streaming bool, resp *http.Response) (string, error) {
@@ -461,7 +461,7 @@ func TestSimple(t *testing.T) {
 }
 
 // setupMCPToolsForTest creates a mock MCP server, initializes the MCP bridge, and returns the tools
-func setupMCPToolsForTest(t *testing.T) []*aibridged.MCPTool {
+func setupMCPToolsForTest(t *testing.T) map[string][]*aibridged.MCPTool {
 	t.Helper()
 
 	// Setup Coder MCP integration
@@ -477,7 +477,9 @@ func setupMCPToolsForTest(t *testing.T) []*aibridged.MCPTool {
 	tools := mcpBridge.ListTools()
 	require.NotEmpty(t, tools)
 
-	return tools
+	return map[string][]*aibridged.MCPTool{
+		"coder": tools,
+	}
 }
 
 // TestInjectedTool is an abstracted test function for "single injected tool" scenarios
@@ -491,14 +493,14 @@ func TestInjectedTool(t *testing.T) {
 	testCases := []struct {
 		name                   string
 		fixture                []byte
-		configureFunc          func(string, proto.DRPCAIBridgeDaemonClient, []*aibridged.MCPTool) (*aibridged.Bridge, error)
+		configureFunc          func(string, proto.DRPCAIBridgeDaemonClient, map[string][]*aibridged.MCPTool) (*aibridged.Bridge, error)
 		getResponseContentFunc func(bool, *http.Response) (string, error)
 		createRequest          func(*testing.T, string, []byte) *http.Request
 	}{
 		{
 			name:    "anthropic",
 			fixture: antSingleInjectedTool,
-			configureFunc: func(addr string, client proto.DRPCAIBridgeDaemonClient, tools []*aibridged.MCPTool) (*aibridged.Bridge, error) {
+			configureFunc: func(addr string, client proto.DRPCAIBridgeDaemonClient, tools map[string][]*aibridged.MCPTool) (*aibridged.Bridge, error) {
 				logger := testutil.Logger(t)
 				return aibridged.NewBridge(codersdk.AIBridgeConfig{
 					Daemons: 1,
@@ -506,8 +508,8 @@ func TestInjectedTool(t *testing.T) {
 						BaseURL: serpent.String(addr),
 						Key:     serpent.String(sessionToken),
 					},
-				}, logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
-					return client, true
+				}, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
+					return client, nil
 				}, tools)
 			},
 			getResponseContentFunc: func(streaming bool, resp *http.Response) (string, error) {
@@ -558,7 +560,7 @@ func TestInjectedTool(t *testing.T) {
 		{
 			name:    "openai",
 			fixture: oaiSingleInjectedTool,
-			configureFunc: func(addr string, client proto.DRPCAIBridgeDaemonClient, tools []*aibridged.MCPTool) (*aibridged.Bridge, error) {
+			configureFunc: func(addr string, client proto.DRPCAIBridgeDaemonClient, tools map[string][]*aibridged.MCPTool) (*aibridged.Bridge, error) {
 				logger := testutil.Logger(t)
 				return aibridged.NewBridge(codersdk.AIBridgeConfig{
 					Daemons: 1,
@@ -566,8 +568,8 @@ func TestInjectedTool(t *testing.T) {
 						BaseURL: serpent.String(addr),
 						Key:     serpent.String(sessionToken),
 					},
-				}, logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
-					return client, true
+				}, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
+					return client, nil
 				}, tools)
 			},
 			getResponseContentFunc: func(streaming bool, resp *http.Response) (string, error) {

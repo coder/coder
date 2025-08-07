@@ -65,7 +65,7 @@ func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 	http.StripPrefix("/api/v2/aibridge", bridge.Handler()).ServeHTTP(rw, r)
 }
 
-func (api *API) createOrLoadBridgeForAPIKey(ctx context.Context, key string, clientFn func() (aibridgedproto.DRPCAIBridgeDaemonClient, bool)) (*aibridged.Bridge, error) {
+func (api *API) createOrLoadBridgeForAPIKey(ctx context.Context, key string, clientFn func() (aibridgedproto.DRPCAIBridgeDaemonClient, error)) (*aibridged.Bridge, error) {
 	if api.AIBridges == nil {
 		return nil, xerrors.New("bridge cache storage is not configured")
 	}

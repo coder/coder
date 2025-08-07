@@ -137,15 +137,15 @@ connectLoop:
 	}
 }
 
-func (s *Server) Client() (proto.DRPCAIBridgeDaemonClient, bool) {
+func (s *Server) Client() (proto.DRPCAIBridgeDaemonClient, error) {
 	select {
 	case <-s.closeContext.Done():
-		return nil, false
+		return nil, xerrors.New("context closed")
 	case <-s.shuttingDownCh:
 		// Shutting down should return a nil client and unblock
-		return nil, false
+		return nil, xerrors.New("shutting down")
 	case client := <-s.clientCh:
-		return client, true
+		return client, nil
 	}
 }
 
@@ -179,7 +179,7 @@ func (s *Server) TrackToolUsage(ctx context.Context, in *proto.TrackToolUsageReq
 	return out, nil
 }
 
-// TODO: direct copy/paste from provisionerd, abstract into common util.
+// NOTE: mostly copypasta from provisionerd; might be work abstracting.
 func retryable(err error) bool {
 	return xerrors.Is(err, yamux.ErrSessionShutdown) || xerrors.Is(err, io.EOF) || xerrors.Is(err, fasthttputil.ErrInmemoryListenerClosed) ||
 		// annoyingly, dRPC sometimes returns context.Canceled if the transport was closed, even if the context for
@@ -190,15 +190,19 @@ func retryable(err error) bool {
 // clientDoWithRetries runs the function f with a client, and retries with
 // backoff until either the error returned is not retryable() or the context
 // expires.
-// TODO: direct copy/paste from provisionerd, abstract into common util.
+// NOTE: mostly copypasta from provisionerd; might be work abstracting.
 func clientDoWithRetries[T any](ctx context.Context,
-	getClient func() (proto.DRPCAIBridgeDaemonClient, bool),
+	getClient func() (proto.DRPCAIBridgeDaemonClient, error),
 	f func(context.Context, proto.DRPCAIBridgeDaemonClient) (T, error),
 ) (ret T, _ error) {
 	for retrier := retry.New(25*time.Millisecond, 5*time.Second); retrier.Wait(ctx); {
-		client, ok := getClient()
-		if !ok {
-			continue
+		var empty T
+		client, err := getClient()
+		if err != nil {
+			if retryable(err) {
+				continue
+			}
+			return empty, err
 		}
 		resp, err := f(ctx, client)
 		if retryable(err) {
