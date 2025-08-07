@@ -22,7 +22,7 @@ func WithProfilingLabels(next http.Handler) http.Handler {
 			requestType = "websocket"
 		}
 
-		pprof.Do(ctx, pproflabel.Service(pproflabel.SystemHTTPServer, "request_type", requestType), func(ctx context.Context) {
+		pprof.Do(ctx, pproflabel.Service(pproflabel.ServiceHTTPServer, "request_type", requestType), func(ctx context.Context) {
 			r = r.WithContext(ctx)
 			next.ServeHTTP(rw, r)
 		})

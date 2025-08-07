@@ -905,7 +905,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			api.AGPL.PrebuildsReconciler.Store(&reconciler)
 			// TODO: Should this context be the api.ctx context? To cancel when
 			// 	the API (and entire app) is closed via shutdown?
-			pproflabel.Go(context.Background(), pproflabel.Service(pproflabel.SystemPrebuildReconciler), reconciler.Run)
+			pproflabel.Go(context.Background(), pproflabel.Service(pproflabel.ServicePrebuildReconciler), reconciler.Run)
 
 			api.AGPL.PrebuildsClaimer.Store(&claimer)
 		}

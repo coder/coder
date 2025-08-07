@@ -108,7 +108,7 @@ func (e *Executor) WithStatsChannel(ch chan<- Stats) *Executor {
 // tick from its channel. It will stop when its context is Done, or when
 // its channel is closed.
 func (e *Executor) Run() {
-	pproflabel.Go(e.ctx, pproflabel.Service(pproflabel.SystemLifecycles), func(ctx context.Context) {
+	pproflabel.Go(e.ctx, pproflabel.Service(pproflabel.ServiceLifecycles), func(ctx context.Context) {
 		for {
 			select {
 			case <-ctx.Done():

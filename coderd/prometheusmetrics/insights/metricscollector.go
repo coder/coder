@@ -159,7 +159,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 		})
 	}
 
-	pproflabel.Go(ctx, pproflabel.Service(pproflabel.SystemMetricCollector), func(ctx context.Context) {
+	pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceMetricCollector), func(ctx context.Context) {
 		defer close(done)
 		defer ticker.Stop()
 		for {

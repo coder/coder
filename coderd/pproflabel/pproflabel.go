@@ -15,15 +15,17 @@ func Do(ctx context.Context, labels pprof.LabelSet, f func(context.Context)) {
 }
 
 const (
-	SystemTag = "service"
+	// ServiceTag should not collide with the pyroscope built-in tag "service".
+	// Use `coder_` to avoid collisions.
+	ServiceTag = "coder_service"
 
-	SystemHTTPServer           = "http-api"
-	SystemLifecycles           = "lifecycle-executor"
-	SystemMetricCollector      = "metrics-collector"
-	SystemPrebuildReconciler   = "prebuilds-reconciler"
-	SystemTerraformProvisioner = "terraform-provisioner"
+	ServiceHTTPServer           = "http-api"
+	ServiceLifecycles           = "lifecycle-executor"
+	ServiceMetricCollector      = "metrics-collector"
+	ServicePrebuildReconciler   = "prebuilds-reconciler"
+	ServiceTerraformProvisioner = "terraform-provisioner"
 )
 
 func Service(name string, pairs ...string) pprof.LabelSet {
-	return pprof.Labels(append([]string{SystemTag, name}, pairs...)...)
+	return pprof.Labels(append([]string{ServiceTag, name}, pairs...)...)
 }
