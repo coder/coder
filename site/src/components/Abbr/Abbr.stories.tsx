@@ -25,7 +25,7 @@ export const InlinedShorthand: Story = {
 	},
 	decorators: [
 		(Story) => (
-			<p className="max-w-[40em]">
+			<p className="max-w-2xl">
 				The physical pain of getting bonked on the head with a cartoon mallet
 				lasts precisely 593{" "}
 				<span className="underline decoration-dotted">
