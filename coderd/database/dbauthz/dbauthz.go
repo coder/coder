@@ -1667,13 +1667,12 @@ func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTa
 
 func (q *querier) DeleteUserSecret(ctx context.Context, id uuid.UUID) error {
 	// First get the secret to check ownership
-	secret, err := q.db.GetUserSecret(ctx, id)
+	secret, err := q.GetUserSecret(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	obj := rbac.ResourceUserSecret.WithOwner(secret.UserID.String())
-	if err := q.authorizeContext(ctx, policy.ActionDelete, obj); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, secret); err != nil {
 		return err
 	}
 	return q.db.DeleteUserSecret(ctx, id)
