@@ -442,6 +442,57 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 
 	var workspaceBuild database.WorkspaceBuild
 	err = b.store.InTx(func(store database.Store) error {
+		names, values, err := b.getParameters()
+		if err != nil {
+			// getParameters already wraps errors in BuildError
+			return err
+		}
+
+		if b.templateVersionPresetID == uuid.Nil {
+			parameterMap := make(map[string]string)
+			for i, name := range names {
+				parameterMap[name] = values[i]
+			}
+
+			presetParameters, err := b.store.GetPresetParametersByTemplateVersionID(b.ctx, templateVersionID)
+			if err != nil {
+				return BuildError{http.StatusInternalServerError, "get preset parameters", err}
+			}
+
+			presetMap := make(map[uuid.UUID]map[string]string)
+			for _, presetParameter := range presetParameters {
+				if _, ok := presetMap[presetParameter.TemplateVersionPresetID]; !ok {
+					presetMap[presetParameter.TemplateVersionPresetID] = make(map[string]string)
+				}
+				presetMap[presetParameter.TemplateVersionPresetID][presetParameter.Name] = presetParameter.Value
+			}
+
+			// Compare each preset's parameters to the provided parameters to find any matches
+			for presetID, presetParams := range presetMap {
+				isMatch := true
+				// Check that all preset parameters match the provided parameters
+				for paramName, presetValue := range presetParams {
+					if providedValue, exists := parameterMap[paramName]; !exists || providedValue != presetValue {
+						isMatch = false
+						break
+					}
+				}
+				// Check that all provided parameters match the preset parameters
+				if isMatch {
+					for paramName, providedValue := range parameterMap {
+						if presetValue, exists := presetParams[paramName]; !exists || providedValue != presetValue {
+							isMatch = false
+							break
+						}
+					}
+				}
+				if isMatch {
+					b.templateVersionPresetID = presetID
+					break
+				}
+			}
+		}
+
 		err = store.InsertWorkspaceBuild(b.ctx, database.InsertWorkspaceBuildParams{
 			ID:                workspaceBuildID,
 			CreatedAt:         now,
@@ -471,12 +522,6 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 				code = http.StatusConflict
 			}
 			return BuildError{code, "insert workspace build", err}
-		}
-
-		names, values, err := b.getParameters()
-		if err != nil {
-			// getParameters already wraps errors in BuildError
-			return err
 		}
 
 		err = store.InsertWorkspaceBuildParameters(b.ctx, database.InsertWorkspaceBuildParametersParams{
