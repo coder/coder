@@ -244,16 +244,11 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, 
 		return nil, nil, err
 	}
 
-	// This context lets us abort the version command if the process dies.
-	versionCtx, versionCancel := context.WithCancel(ctx)
-	defer versionCancel()
-
 	// Pipe pty -> conn and close the connection when the process exits.
 	// We do not need to separately monitor for the process exiting.  When it
 	// exits, our ptty.OutputReader() will return EOF after reading all process
 	// output.
 	go func() {
-		defer versionCancel()
 		defer func() {
 			err := conn.Close()
 			if err != nil {
@@ -300,7 +295,7 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, 
 	// making the version pop up briefly) so use it to wait for the session to
 	// come up.  If we do not wait we could end up spawning multiple sessions with
 	// the same name.
-	err = rpty.sendCommand(versionCtx, "version", nil)
+	err = rpty.sendCommand(ctx, "version", nil)
 	if err != nil {
 		// Log only for debugging since the process might already have closed.
 		closeErr := ptty.Close()
