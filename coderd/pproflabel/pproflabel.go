@@ -15,6 +15,7 @@ const (
 	ServiceMetricCollector      = "metric-collector"
 	ServiceLifecycles           = "lifecycles"
 	ServiceHTTPServer           = "http-server"
+	ServicePrebuildReconciler   = "prebuild-reconciler"
 )
 
 func Service(name string) pprof.LabelSet {

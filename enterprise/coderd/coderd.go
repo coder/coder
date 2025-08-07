@@ -12,20 +12,20 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/quartz"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/enterprise/coderd/connectionlog"
 	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
 	"github.com/coder/coder/v2/enterprise/coderd/portsharing"
+	"github.com/coder/quartz"
 
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
@@ -903,7 +903,8 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			}
 
 			api.AGPL.PrebuildsReconciler.Store(&reconciler)
-			go reconciler.Run(context.Background())
+			// TODO: Should this context be the app context?
+			pproflabel.Go(context.Background(), pproflabel.Service(pproflabel.ServicePrebuildReconciler), reconciler.Run)
 
 			api.AGPL.PrebuildsClaimer.Store(&claimer)
 		}
