@@ -44,7 +44,6 @@ import (
 // @Produce json
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
-
 // @Success 200 {object} codersdk.Template
 // @Router /templates/{template} [get]
 func (api *API) template(rw http.ResponseWriter, r *http.Request) {
