@@ -1377,7 +1377,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 	})
 
-	t.Run("RemoveIcon", func(t *testing.T) {
+	t.Run("PreserveIconWhenEmpty", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, nil)
@@ -1386,15 +1386,18 @@ func TestPatchTemplateMeta(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.Icon = "/icon/code.png"
 		})
+		// Test that when only updating other fields, the icon is preserved
 		req := codersdk.UpdateTemplateMeta{
-			Icon: "",
+			DefaultTTLMillis: 12 * time.Hour.Milliseconds(),
 		}
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
-		assert.Equal(t, updated.Icon, "")
+		// Icon should be preserved when not explicitly provided
+		assert.Equal(t, "/icon/code.png", updated.Icon)
+		assert.Equal(t, req.DefaultTTLMillis, updated.DefaultTTLMillis)
 	})
 
 	t.Run("AutostopRequirement", func(t *testing.T) {
