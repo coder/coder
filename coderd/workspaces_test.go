@@ -4828,7 +4828,6 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		orgID := adminUser.OrganizationID
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, orgID)
 		_, friend := coderdtest.CreateAnotherUser(t, adminClient, orgID)
-		group := coderdtest.CreateGroup(t, adminClient, orgID, "bloob")
 
 		tv := coderdtest.CreateTemplateVersion(t, adminClient, orgID, nil)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, tv.ID)
@@ -4842,14 +4841,11 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 			UserRoles: map[string]codersdk.WorkspaceRole{
 				friend.ID.String(): codersdk.WorkspaceRoleAdmin,
 			},
-			GroupRoles: map[string]codersdk.WorkspaceRole{
-				group.ID.String(): codersdk.WorkspaceRoleAdmin,
-			},
 		})
 		require.NoError(t, err)
 	})
 
-	t.Run("UnknownIDs", func(t *testing.T) {
+	t.Run("UnknownUserID", func(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
@@ -4874,16 +4870,12 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 			UserRoles: map[string]codersdk.WorkspaceRole{
 				uuid.NewString(): codersdk.WorkspaceRoleAdmin,
 			},
-			GroupRoles: map[string]codersdk.WorkspaceRole{
-				uuid.NewString(): codersdk.WorkspaceRoleAdmin,
-			},
 		})
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)
 		require.True(t, ok)
-		require.Len(t, cerr.Validations, 2)
-		require.Equal(t, cerr.Validations[0].Field, "group_roles")
-		require.Equal(t, cerr.Validations[1].Field, "user_roles")
+		require.Len(t, cerr.Validations, 1)
+		require.Equal(t, cerr.Validations[0].Field, "user_roles")
 	})
 
 	t.Run("DeletedUser", func(t *testing.T) {
