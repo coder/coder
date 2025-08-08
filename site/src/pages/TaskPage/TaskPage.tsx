@@ -1,7 +1,11 @@
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { template as templateQueryOptions } from "api/queries/templates";
-import type { Workspace, WorkspaceStatus } from "api/typesGenerated";
+import type {
+	Workspace,
+	WorkspaceApp,
+	WorkspaceStatus,
+} from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
@@ -105,6 +109,8 @@ const TaskPage = () => {
 		"stopping",
 	];
 
+	const [sidebarApp, sidebarAppStatus] = getSidebarApp(task);
+
 	if (waitingStatuses.includes(task.workspace.latest_build.status)) {
 		// If no template yet, use an indeterminate progress bar.
 		const transition = (template &&
@@ -171,7 +177,7 @@ const TaskPage = () => {
 			</Margins>
 		);
 	} else {
-		content = <TaskApps task={task} />;
+		content = <TaskApps task={task} sidebarApp={sidebarApp} />;
 	}
 
 	return (
@@ -181,7 +187,11 @@ const TaskPage = () => {
 			</Helmet>
 			<PanelGroup autoSaveId="task" direction="horizontal">
 				<Panel defaultSize={25} minSize={20}>
-					<TaskSidebar task={task} />
+					<TaskSidebar
+						task={task}
+						sidebarApp={sidebarApp}
+						sidebarAppStatus={sidebarAppStatus}
+					/>
 				</Panel>
 				<PanelResizeHandle>
 					<div className="w-1 bg-border h-full hover:bg-border-hover transition-all relative" />
@@ -228,4 +238,67 @@ export const data = {
 			prompt,
 		} satisfies Task;
 	},
+};
+
+const getSidebarApp = (
+	task: Task,
+): [WorkspaceApp | null, "error" | "loading" | "healthy"] => {
+	if (!task.workspace.latest_build.job.completed_at) {
+		// while the workspace build is running, we don't have a sidebar app yet
+		return [null, "loading"];
+	}
+
+	// Ensure all the agents are healthy before continuing.
+	const healthyAgents = task.workspace.latest_build.resources
+		.flatMap((res) => res.agents)
+		.filter((agt) => !!agt && agt.health.healthy);
+	if (!healthyAgents) {
+		return [null, "loading"];
+	}
+
+	// TODO(Cian): Improve logic for determining sidebar app.
+	// For now, we take the first workspace_app with at least one app_status.
+	const sidebarApps = healthyAgents
+		.flatMap((a) => a?.apps)
+		.filter((a) => !!a && a.statuses && a.statuses.length > 0);
+
+	// At this point the workspace build is complete but no app has reported a status
+	// indicating that it is ready. Most well-behaved agentic AI applications will
+	// indicate their readiness status via MCP(coder_report_task).
+	// It's also possible that the application is just not ready yet.
+	// We return "loading" instead of "error" to avoid showing an error state if the app
+	// becomes available shortly after. The tradeoff is that users may see a loading state
+	// indefinitely if there's a genuine issue, but this is preferable to false error alerts.
+	if (!sidebarApps) {
+		return [null, "loading"];
+	}
+
+	const sidebarApp = sidebarApps[0];
+	if (!sidebarApp) {
+		return [null, "loading"];
+	}
+
+	// "disabled" means that the health check is disabled, so we assume
+	// that the app is healthy
+	if (sidebarApp.health === "disabled") {
+		return [sidebarApp, "healthy"];
+	}
+	if (sidebarApp.health === "healthy") {
+		return [sidebarApp, "healthy"];
+	}
+	if (sidebarApp.health === "initializing") {
+		return [sidebarApp, "loading"];
+	}
+	if (sidebarApp.health === "unhealthy") {
+		return [sidebarApp, "error"];
+	}
+
+	// exhaustiveness check
+	const _: never = sidebarApp.health;
+	// this should never happen
+	console.error(
+		"Task workspace has a finished build but the sidebar app is in an unknown health state",
+		task.workspace,
+	);
+	return [null, "error"];
 };

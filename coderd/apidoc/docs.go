@@ -18653,6 +18653,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "ai_task_sidebar_app_id": {
+                    "description": "Deprecated: This field is unused and will be removed in a future release.",
                     "type": "string",
                     "format": "uuid"
                 },

@@ -21,6 +21,7 @@ import { TaskAppIFrame } from "./TaskAppIframe";
 
 type TaskAppsProps = {
 	task: Task;
+	sidebarApp: WorkspaceApp | null;
 };
 
 type AppWithAgent = {
@@ -28,7 +29,7 @@ type AppWithAgent = {
 	agent: WorkspaceAgent;
 };
 
-export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
+export const TaskApps: FC<TaskAppsProps> = ({ task, sidebarApp }) => {
 	const agents = task.workspace.latest_build.resources
 		.flatMap((r) => r.agents)
 		.filter((a) => !!a);
@@ -42,10 +43,7 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 				agent,
 			})),
 		)
-		.filter(
-			({ app }) =>
-				!!app && app.id !== task.workspace.latest_build.ai_task_sidebar_app_id,
-		);
+		.filter(({ app }) => !!app && app.id !== sidebarApp?.id);
 
 	const embeddedApps = apps.filter(({ app }) => !app.external);
 	const externalApps = apps.filter(({ app }) => app.external);
