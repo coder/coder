@@ -21,7 +21,7 @@
   <br>
   <br>
 
-[Quickstart](#quickstart) | [Docs](https://coder.com/docs) | [Why Coder](https://coder.com/why) | [Premium](https://coder.com/pricing#compare-plans)
+[Quickstart](#quickstart) | [Docs](https://coder.com/docs) | [Why Coder](https://coder.com/cde) | [Premium](https://coder.com/pricing#compare-plans)
 
 [![discord](https://img.shields.io/discord/747933592273027093?label=discord)](https://discord.gg/coder)
 [![release](https://img.shields.io/github/v/release/coder/coder)](https://github.com/coder/coder/releases/latest)
@@ -90,9 +90,9 @@ Use `coder --help` to get a list of flags and environment variables. Use our [in
 
 Browse our docs [here](https://coder.com/docs) or visit a specific section below:
 
-- [**Templates**](https://coder.com/docs/templates): Templates are written in Terraform and describe the infrastructure for workspaces
-- [**Workspaces**](https://coder.com/docs/workspaces): Workspaces contain the IDEs, dependencies, and configuration information needed for software development
-- [**IDEs**](https://coder.com/docs/ides): Connect your existing editor to a workspace
+- [**Templates**](https://coder.com/docs/admin/templates): Templates are written in Terraform and describe the infrastructure for workspaces
+- [**Workspaces**](https://coder.com/docs/user-guides/workspace-management): Workspaces contain the IDEs, dependencies, and configuration information needed for software development
+- [**IDEs**](https://coder.com/docs/user-guides/workspace-access): Connect your existing editor to a workspace
 - [**Administration**](https://coder.com/docs/admin): Learn how to operate Coder
 - [**Premium**](https://coder.com/pricing#compare-plans): Learn about our paid features built for large teams
 
