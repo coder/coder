@@ -111,6 +111,17 @@ func TestRichMultiSelect(t *testing.T) {
 			allowCustom: true,
 			want:        []string{"aaa", "bbb"},
 		},
+		{
+			name: "NoOptionSelected",
+			options: []codersdk.TemplateVersionParameterOption{
+				{Name: "AAA", Description: "This is AAA", Value: "aaa"},
+				{Name: "BBB", Description: "This is BBB", Value: "bbb"},
+				{Name: "CCC", Description: "This is CCC", Value: "ccc"},
+			},
+			defaults:    []string{},
+			allowCustom: false,
+			want:        []string{},
+		},
 	}
 
 	for _, tt := range tests {
