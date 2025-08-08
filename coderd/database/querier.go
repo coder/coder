@@ -44,8 +44,6 @@ type sqlcQuerier interface {
 	//
 	// Max deadline is respected, and the deadline will never be bumped past it.
 	// The deadline will never decrease.
-	// NOTE: This query should only be called for regular user workspaces.
-	// Prebuilds are managed by the reconciliation loop and not subject to activity bumping.
 	// We only bump if the template has an activity bump duration set.
 	// We only bump if the raw interval is positive and non-zero.
 	// We only bump if workspace shutdown is manual.
