@@ -12,6 +12,11 @@ import (
 	"github.com/coder/quartz"
 )
 
+const (
+	PrebuiltWorkspacesGroupName        = "coder_prebuilt_workspaces"
+	PrebuiltWorkspacesGroupDisplayName = "Prebuilt Workspaces"
+)
+
 // StoreMembershipReconciler encapsulates the responsibility of ensuring that the prebuilds system user is a member of all
 // organizations for which prebuilt workspaces are requested. This is necessary because our data model requires that such
 // prebuilt workspaces belong to a member of the organization of their eventual claimant.
@@ -27,11 +32,16 @@ func NewStoreMembershipReconciler(store database.Store, clock quartz.Clock) Stor
 	}
 }
 
-// ReconcileAll compares the current membership of a user to the membership required in order to create prebuilt workspaces.
-// If the user in question is not yet a member of an organization that needs prebuilt workspaces, ReconcileAll will create
-// the membership required.
+// ReconcileAll compares the current organization and group memberships of a user to the memberships required
+// in order to create prebuilt workspaces. If the user in question is not yet a member of an organization that
+// needs prebuilt workspaces, ReconcileAll will create the membership required.
 //
-// This method does not have an opinion on transaction or lock management. These responsibilities are left to the caller.
+// To facilitate quota management, ReconcileAll will ensure:
+// * the existence of a group (defined by PrebuiltWorkspacesGroupName) in each organization that needs prebuilt workspaces
+// * that the prebuilds system user belongs to the group in each organization that needs prebuilt workspaces
+// * that the group has a quota of 0 by default, which users can adjust based on their needs.
+//
+// ReconcileAll does not have an opinion on transaction or lock management. These responsibilities are left to the caller.
 func (s StoreMembershipReconciler) ReconcileAll(ctx context.Context, userID uuid.UUID, presets []database.GetTemplatePresetsWithPrebuildsRow) error {
 	organizationMemberships, err := s.store.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
 		UserID: userID,
@@ -44,37 +54,74 @@ func (s StoreMembershipReconciler) ReconcileAll(ctx context.Context, userID uuid
 		return xerrors.Errorf("determine prebuild organization membership: %w", err)
 	}
 
-	systemUserMemberships := make(map[uuid.UUID]struct{}, 0)
+	orgMemberships := make(map[uuid.UUID]struct{}, 0)
 	defaultOrg, err := s.store.GetDefaultOrganization(ctx)
 	if err != nil {
 		return xerrors.Errorf("get default organization: %w", err)
 	}
-	systemUserMemberships[defaultOrg.ID] = struct{}{}
+	orgMemberships[defaultOrg.ID] = struct{}{}
 	for _, o := range organizationMemberships {
-		systemUserMemberships[o.ID] = struct{}{}
+		orgMemberships[o.ID] = struct{}{}
 	}
 
 	var membershipInsertionErrors error
 	for _, preset := range presets {
-		_, alreadyMember := systemUserMemberships[preset.OrganizationID]
-		if alreadyMember {
-			continue
-		}
-		// Add the organization to our list of memberships regardless of potential failure below
-		// to avoid a retry that will probably be doomed anyway.
-		systemUserMemberships[preset.OrganizationID] = struct{}{}
+		_, alreadyOrgMember := orgMemberships[preset.OrganizationID]
+		if !alreadyOrgMember {
+			// Add the organization to our list of memberships regardless of potential failure below
+			// to avoid a retry that will probably be doomed anyway.
+			orgMemberships[preset.OrganizationID] = struct{}{}
 
-		// Insert the missing membership
-		_, err = s.store.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
+			// Insert the missing membership
+			_, err = s.store.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
+				OrganizationID: preset.OrganizationID,
+				UserID:         userID,
+				CreatedAt:      s.clock.Now(),
+				UpdatedAt:      s.clock.Now(),
+				Roles:          []string{},
+			})
+			if err != nil {
+				membershipInsertionErrors = errors.Join(membershipInsertionErrors, xerrors.Errorf("insert membership for prebuilt workspaces: %w", err))
+				continue
+			}
+		}
+
+		// Create a "prebuilds" group in the organization and add the system user to it
+		// This group will have a quota of 0 by default, which users can adjust based on their needs
+		prebuildsGroup, err := s.store.InsertGroup(ctx, database.InsertGroupParams{
+			ID:             uuid.New(),
+			Name:           PrebuiltWorkspacesGroupName,
+			DisplayName:    PrebuiltWorkspacesGroupDisplayName,
 			OrganizationID: preset.OrganizationID,
-			UserID:         userID,
-			CreatedAt:      s.clock.Now(),
-			UpdatedAt:      s.clock.Now(),
-			Roles:          []string{},
+			AvatarURL:      "",
+			QuotaAllowance: 0, // Default quota of 0, users should set this based on their needs
 		})
 		if err != nil {
-			membershipInsertionErrors = errors.Join(membershipInsertionErrors, xerrors.Errorf("insert membership for prebuilt workspaces: %w", err))
-			continue
+			// If the group already exists, try to get it
+			if !database.IsUniqueViolation(err) {
+				membershipInsertionErrors = errors.Join(membershipInsertionErrors, xerrors.Errorf("create prebuilds group: %w", err))
+				continue
+			}
+			prebuildsGroup, err = s.store.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
+				OrganizationID: preset.OrganizationID,
+				Name:           PrebuiltWorkspacesGroupName,
+			})
+			if err != nil {
+				membershipInsertionErrors = errors.Join(membershipInsertionErrors, xerrors.Errorf("get existing prebuilds group: %w", err))
+				continue
+			}
+		}
+
+		// Add the system user to the prebuilds group
+		err = s.store.InsertGroupMember(ctx, database.InsertGroupMemberParams{
+			GroupID: prebuildsGroup.ID,
+			UserID:  userID,
+		})
+		if err != nil {
+			// Ignore unique violation errors as the user might already be in the group
+			if !database.IsUniqueViolation(err) {
+				membershipInsertionErrors = errors.Join(membershipInsertionErrors, xerrors.Errorf("add system user to prebuilds group: %w", err))
+			}
 		}
 	}
 	return membershipInsertionErrors
