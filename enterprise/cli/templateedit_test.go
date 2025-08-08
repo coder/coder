@@ -178,8 +178,8 @@ func TestTemplateEdit(t *testing.T) {
 		var (
 			expectedName                 = "template"
 			expectedDisplayName          = "template_display"
-			expectedDescription          = ptr.Ref("My description")
-			expectedIcon                 = ptr.Ref("icon.pjg")
+			expectedDescription          = "My description"
+			expectedIcon                 = "icon.pjg"
 			expectedDefaultTTLMillis     = time.Hour.Milliseconds()
 			expectedAllowAutostart       = false
 			expectedAllowAutostop        = false
@@ -220,8 +220,8 @@ func TestTemplateEdit(t *testing.T) {
 		template, err := ownerClient.UpdateTemplateMeta(ctx, dbtemplate.ID, codersdk.UpdateTemplateMeta{
 			Name:                           expectedName,
 			DisplayName:                    expectedDisplayName,
-			Description:                    expectedDescription,
-			Icon:                           expectedIcon,
+			Description:                    &expectedDescription,
+			Icon:                           &expectedIcon,
 			DefaultTTLMillis:               expectedDefaultTTLMillis,
 			AllowUserAutostop:              expectedAllowAutostop,
 			AllowUserAutostart:             expectedAllowAutostart,
@@ -268,8 +268,8 @@ func TestTemplateEdit(t *testing.T) {
 		template, err = ownerClient.UpdateTemplateMeta(ctx, dbtemplate.ID, codersdk.UpdateTemplateMeta{
 			Name:                           expectedName,
 			DisplayName:                    expectedDisplayName,
-			Description:                    expectedDescription,
-			Icon:                           expectedIcon,
+			Description:                    &expectedDescription,
+			Icon:                           &expectedIcon,
 			DefaultTTLMillis:               expectedDefaultTTLMillis,
 			AllowUserAutostop:              expectedAllowAutostop,
 			AllowUserAutostart:             expectedAllowAutostart,
