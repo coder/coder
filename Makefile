@@ -37,7 +37,7 @@ GOARCH       := $(shell go env GOARCH)
 GOOS_BIN_EXT := $(if $(filter windows, $(GOOS)),.exe,)
 VERSION      := $(shell ./scripts/version.sh)
 
-POSTGRES_VERSION ?= 17
+POSTGRES_VERSION ?= 13
 POSTGRES_IMAGE   ?= us-docker.pkg.dev/coder-v2-images-public/public/postgres:$(POSTGRES_VERSION)
 
 # Use the highest ZSTD compression level in CI.
