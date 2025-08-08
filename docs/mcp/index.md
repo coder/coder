@@ -112,7 +112,7 @@ Coder MCP inherits Coder's robust security model:
 
 ## Available Tools and Capabilities
 
-The Coder MCP server provides access to a comprehensive set of tools. See the [toolsdk documentation](https://pkg.go.dev/github.com/coder/coder/v2@latest/codersdk/toolsdk#pkg-variables) for the complete list of available tools.
+The Coder MCP server provides access to a comprehensive set of tools. See the [toolsdk documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk/toolsdk#pkg-variables) for the complete list of available tools.
 
 ## Next Steps
 

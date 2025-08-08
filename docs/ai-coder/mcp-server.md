@@ -12,7 +12,7 @@ Coder's MCP server enables AI assistants to interact with Coder workspaces and i
 - **Agent Activity**: Monitor AI agent operations and history
 
 > [!NOTE]
-> See our [toolsdk documentation](https://pkg.go.dev/github.com/coder/coder/v2@latest/codersdk/toolsdk#pkg-variables) for a complete list of tools included in the MCP server.
+> See our [toolsdk documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk/toolsdk#pkg-variables) for a complete list of tools included in the MCP server.
 
 ## Architecture
 
@@ -27,6 +27,7 @@ Coder provides two MCP server modes to support different AI assistant architectu
 The local MCP server runs on your machine and communicates with AI assistants through standard input/output. This mode is ideal for desktop applications and local development tools.
 
 **Automatic Configuration**:
+
 ```sh
 # First authenticate with Coder
 coder login https://coder.example.com
@@ -37,6 +38,7 @@ coder exp mcp configure cursor
 ```
 
 **Manual Server Start**:
+
 ```sh
 # Start MCP server for manual configuration
 coder exp mcp server
@@ -49,6 +51,7 @@ coder exp mcp server
 The HTTP MCP server runs on your Coder deployment and provides web-based access for browser-based AI assistants.
 
 **Enable HTTP MCP Server**:
+
 ```sh
 # Enable experimental features
 CODER_EXPERIMENTS="oauth2,mcp-server-http" coder server
@@ -66,6 +69,7 @@ CODER_EXPERIMENTS="oauth2,mcp-server-http" coder server
 The Coder MCP server exposes a comprehensive set of tools through the Model Context Protocol. These tools are automatically available to any connected AI assistant.
 
 ### Workspace Tools
+
 - `list_workspaces` - List all accessible workspaces
 - `create_workspace` - Create new workspaces from templates
 - `start_workspace` - Start stopped workspaces
@@ -74,21 +78,24 @@ The Coder MCP server exposes a comprehensive set of tools through the Model Cont
 - `get_workspace_status` - Check workspace status and resource usage
 
 ### Command Execution Tools
+
 - `execute_command` - Run commands in workspace terminals
 - `get_command_output` - Retrieve command execution results
 - `list_processes` - List running processes in workspaces
 
 ### File System Tools
+
 - `read_file` - Read file contents from workspaces
 - `write_file` - Write files to workspace file systems
 - `list_directory` - List directory contents
 
 ### Template and Resource Tools
+
 - `list_templates` - List available workspace templates
 - `get_template_info` - Get detailed template information
 - `list_template_versions` - List template version history
 
-For the complete and up-to-date list of available tools, see the [toolsdk documentation](https://pkg.go.dev/github.com/coder/coder/v2@latest/codersdk/toolsdk#pkg-variables).
+For the complete and up-to-date list of available tools, see the [toolsdk documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk/toolsdk#pkg-variables).
 
 ## Configuration Options
 
@@ -125,12 +132,14 @@ export CODER_MCP_LOG_LEVEL=debug
 ## Security Considerations
 
 ### Authentication and Authorization
+
 - **Local Mode**: Uses Coder CLI credentials and user permissions
 - **HTTP Mode**: Requires OAuth2 authentication with proper scopes
 - **Permission Inheritance**: MCP operations inherit the authenticated user's Coder permissions
 - **Audit Logging**: All MCP operations are logged through Coder's audit system
 
 ### Best Practices
+
 - Regularly rotate authentication credentials
 - Monitor MCP usage through Coder's audit logs
 - Use workspace templates with appropriate security configurations
@@ -142,16 +151,19 @@ export CODER_MCP_LOG_LEVEL=debug
 ### Common Issues
 
 **MCP Server Won't Start**:
+
 - Verify Coder CLI authentication: `coder whoami`
 - Check experimental features are enabled for HTTP mode
 - Review server logs for error messages
 
 **AI Assistant Can't Connect**:
+
 - Verify MCP server is running and accessible
 - Check authentication credentials and permissions
 - Ensure network connectivity to Coder deployment
 
 **Permission Denied Errors**:
+
 - Verify user has appropriate workspace permissions
 - Check Coder RBAC settings
 - Ensure OAuth2 scopes are correctly configured (HTTP mode)

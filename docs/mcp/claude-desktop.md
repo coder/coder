@@ -333,5 +333,5 @@ For Claude Desktop-specific MCP issues:
 
 - [Model Context Protocol Documentation](https://modelcontextprotocol.io/)
 - [Claude Desktop User Guide](https://docs.anthropic.com/claude/docs/claude-desktop)
-- [Coder CLI Reference](../../reference/cli.md)
-- [Workspace Templates Guide](../../tutorials/templates.md)
+- [Coder CLI Reference](../reference/cli/index.md)
+- [Workspace Templates Guide](../tutorials/template-from-scratch.md)

@@ -324,7 +324,7 @@ For enterprise deployments:
 - Learn about [AI coding best practices](../ai-coder/best-practices.md)
 - Set up [Coder Tasks](../ai-coder/tasks.md) for background operations
 - Review [security considerations](../ai-coder/security.md) for AI development
-- Check out [OAuth2 provider documentation](../../admin/integrations/oauth2-provider.md)
+- Check out [OAuth2 provider documentation](../admin/integrations/oauth2-provider.md)
 
 ## Support
 
@@ -339,6 +339,6 @@ For web agent MCP issues:
 ## Additional Resources
 
 - [Model Context Protocol Documentation](https://modelcontextprotocol.io/)
-- [Coder OAuth2 Provider Guide](../../admin/integrations/oauth2-provider.md)
-- [Coder API Documentation](../../reference/api.md)
-- [Web Security Best Practices](../../admin/security.md)
+- [Coder OAuth2 Provider Guide](../admin/integrations/oauth2-provider.md)
+- [Coder API Documentation](../reference/api/index.md)
+- [Web Security Best Practices](../admin/security/index.md)
