@@ -157,6 +157,13 @@ func (r *RootCmd) scheduleStart() *serpent.Command {
 				return err
 			}
 
+			// Autostart configuration is not supported for prebuilt workspaces.
+			// Prebuild lifecycle is managed by the reconciliation loop, with scheduling behavior
+			// defined per preset at the template level, not per workspace.
+			if workspace.IsPrebuild {
+				return xerrors.Errorf("autostart configuration is not supported for prebuilt workspaces")
+			}
+
 			var schedStr *string
 			if inv.Args[1] != "manual" {
 				sched, err := parseCLISchedule(inv.Args[1:]...)
@@ -203,6 +210,13 @@ func (r *RootCmd) scheduleStop() *serpent.Command {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
+			}
+
+			// Autostop configuration is not supported for prebuilt workspaces.
+			// Prebuild lifecycle is managed by the reconciliation loop, with scheduling behavior
+			// defined per preset at the template level, not per workspace.
+			if workspace.IsPrebuild {
+				return xerrors.Errorf("autostop configuration is not supported for prebuilt workspaces")
 			}
 
 			var durMillis *int64
