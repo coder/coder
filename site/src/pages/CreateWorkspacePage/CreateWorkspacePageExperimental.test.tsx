@@ -20,7 +20,6 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { createMockWebSocket } from "testHelpers/websockets";
-import type { MockWebSocketServer } from "testHelpers/websockets";
 import CreateWorkspacePageExperimental from "./CreateWorkspacePageExperimental";
 
 describe("CreateWorkspacePageExperimental", () => {
@@ -210,21 +209,16 @@ describe("CreateWorkspacePageExperimental", () => {
 		});
 
 		it("only parameters from latest response are displayed", async () => {
-			let publisher: MockWebSocketServer;
-
+			const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
 			jest
 				.spyOn(API, "templateVersionDynamicParameters")
 				.mockImplementation((_versionId, _ownerId, callbacks) => {
-					const [mockWebSocket, mockPublisher] =
-						createMockWebSocket("ws://test");
-					publisher = mockPublisher;
-
 					mockWebSocket.addEventListener("message", (event) => {
 						callbacks.onMessage(JSON.parse(event.data));
 					});
 
-					publisher.publishOpen(new Event("open"));
-					publisher.publishMessage(
+					mockPublisher.publishOpen(new Event("open"));
+					mockPublisher.publishMessage(
 						new MessageEvent("message", {
 							data: JSON.stringify({
 								id: 0,
@@ -252,11 +246,11 @@ describe("CreateWorkspacePageExperimental", () => {
 			};
 
 			await waitFor(() => {
-				publisher.publishMessage(
+				mockPublisher.publishMessage(
 					new MessageEvent("message", { data: JSON.stringify(response1) }),
 				);
 
-				publisher.publishMessage(
+				mockPublisher.publishMessage(
 					new MessageEvent("message", { data: JSON.stringify(response2) }),
 				);
 			});
