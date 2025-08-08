@@ -544,9 +544,10 @@ func (api *API) templatesByOrganization() http.HandlerFunc {
 func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTemplatesWithFilterParams)) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+		key := httpmw.APIKey(r)
 
 		queryStr := r.URL.Query().Get("q")
-		filter, errs := searchquery.Templates(ctx, api.Database, queryStr)
+		filter, errs := searchquery.Templates(ctx, api.Database, key.UserID, queryStr)
 		if len(errs) > 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message:     "Invalid template search query.",

@@ -301,6 +301,16 @@ var (
 		Type: "user",
 	}
 
+	// ResourceUserSecret
+	// Valid Actions
+	//  - "ActionCreate" :: create a user secret
+	//  - "ActionDelete" :: delete a user secret
+	//  - "ActionRead" :: read user secret metadata and value
+	//  - "ActionUpdate" :: update user secret metadata and value
+	ResourceUserSecret = Object{
+		Type: "user_secret",
+	}
+
 	// ResourceWebpushSubscription
 	// Valid Actions
 	//  - "ActionCreate" :: create webpush subscriptions
@@ -403,6 +413,7 @@ func AllResources() []Objecter {
 		ResourceTailnetCoordinator,
 		ResourceTemplate,
 		ResourceUser,
+		ResourceUserSecret,
 		ResourceWebpushSubscription,
 		ResourceWorkspace,
 		ResourceWorkspaceAgentDevcontainers,
