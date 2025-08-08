@@ -219,7 +219,7 @@ func TestTemplateEdit(t *testing.T) {
 
 		template, err := ownerClient.UpdateTemplateMeta(ctx, dbtemplate.ID, codersdk.UpdateTemplateMeta{
 			Name:                           expectedName,
-			DisplayName:                    expectedDisplayName,
+			DisplayName:                    &expectedDisplayName,
 			Description:                    &expectedDescription,
 			Icon:                           &expectedIcon,
 			DefaultTTLMillis:               expectedDefaultTTLMillis,
@@ -267,7 +267,7 @@ func TestTemplateEdit(t *testing.T) {
 
 		template, err = ownerClient.UpdateTemplateMeta(ctx, dbtemplate.ID, codersdk.UpdateTemplateMeta{
 			Name:                           expectedName,
-			DisplayName:                    expectedDisplayName,
+			DisplayName:                    &expectedDisplayName,
 			Description:                    &expectedDescription,
 			Icon:                           &expectedIcon,
 			DefaultTTLMillis:               expectedDefaultTTLMillis,

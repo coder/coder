@@ -771,6 +771,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		classicTemplateFlow = *req.UseClassicParameterFlow
 	}
 
+	displayName := ptr.NilToDefault(req.DisplayName, template.DisplayName)
 	description := ptr.NilToDefault(req.Description, template.Description)
 	icon := ptr.NilToDefault(req.Icon, template.Icon)
 
@@ -778,7 +779,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	err = api.Database.InTx(func(tx database.Store) error {
 		if req.Name == template.Name &&
 			description == template.Description &&
-			req.DisplayName == template.DisplayName &&
+			displayName == template.DisplayName &&
 			icon == template.Icon &&
 			req.AllowUserAutostart == template.AllowUserAutostart &&
 			req.AllowUserAutostop == template.AllowUserAutostop &&
@@ -830,7 +831,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			ID:                           template.ID,
 			UpdatedAt:                    dbtime.Now(),
 			Name:                         name,
-			DisplayName:                  req.DisplayName,
+			DisplayName:                  displayName,
 			Description:                  description,
 			Icon:                         icon,
 			AllowUserCancelWorkspaceJobs: req.AllowUserCancelWorkspaceJobs,

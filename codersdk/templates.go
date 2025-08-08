@@ -209,7 +209,7 @@ type ACLAvailable struct {
 
 type UpdateTemplateMeta struct {
 	Name             string  `json:"name,omitempty" validate:"omitempty,template_name"`
-	DisplayName      string  `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
+	DisplayName      *string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
 	Description      *string `json:"description,omitempty"`
 	Icon             *string `json:"icon,omitempty"`
 	DefaultTTLMillis int64   `json:"default_ttl_ms,omitempty"`

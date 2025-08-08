@@ -169,7 +169,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 
 			req := codersdk.UpdateTemplateMeta{
 				Name:               name,
-				DisplayName:        displayName,
+				DisplayName:        &displayName,
 				Description:        &description,
 				Icon:               &icon,
 				DefaultTTLMillis:   defaultTTL.Milliseconds(),
