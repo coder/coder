@@ -545,7 +545,7 @@ func validateAppHostnameLength(subdomainName string) bool {
 	if subdomainName == "" {
 		return true
 	}
-	
+
 	// Split the hostname into segments by '--' (the format is app--agent--workspace--user)
 	segments := strings.Split(subdomainName, "--")
 	for _, segment := range segments {
@@ -577,13 +577,13 @@ func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus
 		statuses := statusesByAppID[dbApp.ID]
 		subdomainName := AppSubdomain(dbApp, agent.Name, workspace.Name, ownerName)
 		appHealth := codersdk.WorkspaceAppHealth(dbApp.Health)
-		
+
 		// Check if this is a subdomain app with hostname length issues
 		if dbApp.Subdomain && subdomainName != "" && !validateAppHostnameLength(subdomainName) {
 			// Override health to unhealthy if hostname exceeds DNS limits
 			appHealth = codersdk.WorkspaceAppHealthUnhealthy
 		}
-		
+
 		apps = append(apps, codersdk.WorkspaceApp{
 			ID:            dbApp.ID,
 			URL:           dbApp.Url.String,

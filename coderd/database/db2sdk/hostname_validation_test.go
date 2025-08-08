@@ -14,44 +14,44 @@ func TestValidateAppHostnameLength(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
+		name          string
 		subdomainName string
-		expected     bool
+		expected      bool
 	}{
 		{
-			name:         "empty hostname",
+			name:          "empty hostname",
 			subdomainName: "",
-			expected:     true,
+			expected:      true,
 		},
 		{
-			name:         "valid short hostname",
+			name:          "valid short hostname",
 			subdomainName: "app--agent--workspace--user",
-			expected:     true,
+			expected:      true,
 		},
 		{
-			name:         "valid hostname with max length segment",
+			name:          "valid hostname with max length segment",
 			subdomainName: "a12345678901234567890123456789012345678901234567890123456789012--agent--workspace--user", // 63 chars in first segment
-			expected:     true,
+			expected:      true,
 		},
 		{
-			name:         "invalid hostname with long app name",
+			name:          "invalid hostname with long app name",
 			subdomainName: "toolongappnamethatexceedsthednslimitof63charactersforsureandshouldfail--agent--workspace--user", // 78 chars in first segment
-			expected:     false,
+			expected:      false,
 		},
 		{
-			name:         "invalid hostname with long agent name",
+			name:          "invalid hostname with long agent name",
 			subdomainName: "app--toolongagentnamethatexceedsthednslimitof63charactersforsureandshouldfail--workspace--user", // 72 chars in agent segment
-			expected:     false,
+			expected:      false,
 		},
 		{
-			name:         "invalid hostname with long workspace name",
+			name:          "invalid hostname with long workspace name",
 			subdomainName: "app--agent--toolongworkspacenamethatexceedsthednslimitof63charactersforsureandshouldfail--user", // 77 chars in workspace segment
-			expected:     false,
+			expected:      false,
 		},
 		{
-			name:         "invalid hostname with long username",
+			name:          "invalid hostname with long username",
 			subdomainName: "app--agent--workspace--toolongusernamethatexceedsthednslimitof63charactersforsureandshouldfail", // 72 chars in username segment
-			expected:     false,
+			expected:      false,
 		},
 	}
 
