@@ -245,7 +245,7 @@ WHERE
 ORDER BY
 	tv.name ASC, wb.build_number DESC;
 
--- name: UpdateWorkspaceBuildAITaskAndExternalAgentByID :exec
+-- name: UpdateWorkspaceBuildFlagsByID :exec
 UPDATE
 	workspace_builds
 SET

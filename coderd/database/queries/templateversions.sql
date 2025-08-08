@@ -226,7 +226,7 @@ WHERE
 	template_versions.id IN (archived_versions.id)
 RETURNING template_versions.id;
 
--- name: UpdateTemplateVersionAITaskAndExternalAgentByJobID :exec
+-- name: UpdateTemplateVersionFlagsByJobID :exec
 UPDATE
 	template_versions
 SET

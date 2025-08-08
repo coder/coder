@@ -13156,34 +13156,6 @@ func (q *sqlQuerier) UnarchiveTemplateVersion(ctx context.Context, arg Unarchive
 	return err
 }
 
-const updateTemplateVersionAITaskAndExternalAgentByJobID = `-- name: UpdateTemplateVersionAITaskAndExternalAgentByJobID :exec
-UPDATE
-	template_versions
-SET
-	has_ai_task = $2,
-	has_external_agent = $3,
-	updated_at = $4
-WHERE
-	job_id = $1
-`
-
-type UpdateTemplateVersionAITaskAndExternalAgentByJobIDParams struct {
-	JobID            uuid.UUID    `db:"job_id" json:"job_id"`
-	HasAITask        sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
-	HasExternalAgent sql.NullBool `db:"has_external_agent" json:"has_external_agent"`
-	UpdatedAt        time.Time    `db:"updated_at" json:"updated_at"`
-}
-
-func (q *sqlQuerier) UpdateTemplateVersionAITaskAndExternalAgentByJobID(ctx context.Context, arg UpdateTemplateVersionAITaskAndExternalAgentByJobIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateTemplateVersionAITaskAndExternalAgentByJobID,
-		arg.JobID,
-		arg.HasAITask,
-		arg.HasExternalAgent,
-		arg.UpdatedAt,
-	)
-	return err
-}
-
 const updateTemplateVersionByID = `-- name: UpdateTemplateVersionByID :exec
 UPDATE
 	template_versions
@@ -13254,6 +13226,34 @@ type UpdateTemplateVersionExternalAuthProvidersByJobIDParams struct {
 
 func (q *sqlQuerier) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateTemplateVersionExternalAuthProvidersByJobID, arg.JobID, arg.ExternalAuthProviders, arg.UpdatedAt)
+	return err
+}
+
+const updateTemplateVersionFlagsByJobID = `-- name: UpdateTemplateVersionFlagsByJobID :exec
+UPDATE
+	template_versions
+SET
+	has_ai_task = $2,
+	has_external_agent = $3,
+	updated_at = $4
+WHERE
+	job_id = $1
+`
+
+type UpdateTemplateVersionFlagsByJobIDParams struct {
+	JobID            uuid.UUID    `db:"job_id" json:"job_id"`
+	HasAITask        sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
+	HasExternalAgent sql.NullBool `db:"has_external_agent" json:"has_external_agent"`
+	UpdatedAt        time.Time    `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateTemplateVersionFlagsByJobID(ctx context.Context, arg UpdateTemplateVersionFlagsByJobIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateTemplateVersionFlagsByJobID,
+		arg.JobID,
+		arg.HasAITask,
+		arg.HasExternalAgent,
+		arg.UpdatedAt,
+	)
 	return err
 }
 
@@ -19211,36 +19211,6 @@ func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspa
 	return err
 }
 
-const updateWorkspaceBuildAITaskAndExternalAgentByID = `-- name: UpdateWorkspaceBuildAITaskAndExternalAgentByID :exec
-UPDATE
-	workspace_builds
-SET
-	has_ai_task = $1,
-	ai_task_sidebar_app_id = $2,
-	has_external_agent = $3,
-	updated_at = $4::timestamptz
-WHERE id = $5::uuid
-`
-
-type UpdateWorkspaceBuildAITaskAndExternalAgentByIDParams struct {
-	HasAITask        sql.NullBool  `db:"has_ai_task" json:"has_ai_task"`
-	SidebarAppID     uuid.NullUUID `db:"sidebar_app_id" json:"sidebar_app_id"`
-	HasExternalAgent sql.NullBool  `db:"has_external_agent" json:"has_external_agent"`
-	UpdatedAt        time.Time     `db:"updated_at" json:"updated_at"`
-	ID               uuid.UUID     `db:"id" json:"id"`
-}
-
-func (q *sqlQuerier) UpdateWorkspaceBuildAITaskAndExternalAgentByID(ctx context.Context, arg UpdateWorkspaceBuildAITaskAndExternalAgentByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildAITaskAndExternalAgentByID,
-		arg.HasAITask,
-		arg.SidebarAppID,
-		arg.HasExternalAgent,
-		arg.UpdatedAt,
-		arg.ID,
-	)
-	return err
-}
-
 const updateWorkspaceBuildCostByID = `-- name: UpdateWorkspaceBuildCostByID :exec
 UPDATE
 	workspace_builds
@@ -19281,6 +19251,36 @@ func (q *sqlQuerier) UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg U
 	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildDeadlineByID,
 		arg.Deadline,
 		arg.MaxDeadline,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	return err
+}
+
+const updateWorkspaceBuildFlagsByID = `-- name: UpdateWorkspaceBuildFlagsByID :exec
+UPDATE
+	workspace_builds
+SET
+	has_ai_task = $1,
+	ai_task_sidebar_app_id = $2,
+	has_external_agent = $3,
+	updated_at = $4::timestamptz
+WHERE id = $5::uuid
+`
+
+type UpdateWorkspaceBuildFlagsByIDParams struct {
+	HasAITask        sql.NullBool  `db:"has_ai_task" json:"has_ai_task"`
+	SidebarAppID     uuid.NullUUID `db:"sidebar_app_id" json:"sidebar_app_id"`
+	HasExternalAgent sql.NullBool  `db:"has_external_agent" json:"has_external_agent"`
+	UpdatedAt        time.Time     `db:"updated_at" json:"updated_at"`
+	ID               uuid.UUID     `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceBuildFlagsByID(ctx context.Context, arg UpdateWorkspaceBuildFlagsByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildFlagsByID,
+		arg.HasAITask,
+		arg.SidebarAppID,
+		arg.HasExternalAgent,
 		arg.UpdatedAt,
 		arg.ID,
 	)

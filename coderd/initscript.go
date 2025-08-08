@@ -7,6 +7,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 )
 
@@ -24,7 +26,9 @@ func (api *API) initScript(rw http.ResponseWriter, r *http.Request) {
 
 	script, exists := provisionersdk.AgentScriptEnv()[fmt.Sprintf("CODER_AGENT_SCRIPT_%s_%s", os, arch)]
 	if !exists {
-		rw.WriteHeader(http.StatusBadRequest)
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Unknown os/arch: %s/%s", os, arch),
+		})
 		return
 	}
 	script = strings.ReplaceAll(script, "${ACCESS_URL}", api.AccessURL.String()+"/")

@@ -1521,7 +1521,7 @@ func (s *MethodTestSuite) TestTemplate() {
 			ID: t1.ID,
 		}).Asserts(t1, policy.ActionUpdate)
 	}))
-	s.Run("UpdateTemplateVersionAITaskAndExternalAgentByJobID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpdateTemplateVersionFlagsByJobID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		u := dbgen.User(s.T(), db, database.User{})
@@ -1534,7 +1534,7 @@ func (s *MethodTestSuite) TestTemplate() {
 			JobID:          job.ID,
 			TemplateID:     uuid.NullUUID{UUID: t.ID, Valid: true},
 		})
-		check.Args(database.UpdateTemplateVersionAITaskAndExternalAgentByJobIDParams{
+		check.Args(database.UpdateTemplateVersionFlagsByJobIDParams{
 			JobID:            job.ID,
 			HasAITask:        sql.NullBool{Bool: true, Valid: true},
 			HasExternalAgent: sql.NullBool{Bool: true, Valid: true},
@@ -3228,7 +3228,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			Deadline:  b.Deadline,
 		}).Asserts(w, policy.ActionUpdate)
 	}))
-	s.Run("UpdateWorkspaceBuildAITaskAndExternalAgentByID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpdateWorkspaceBuildFlagsByID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		tpl := dbgen.Template(s.T(), db, database.Template{
@@ -3256,7 +3256,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: b.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		app := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agt.ID})
-		check.Args(database.UpdateWorkspaceBuildAITaskAndExternalAgentByIDParams{
+		check.Args(database.UpdateWorkspaceBuildFlagsByIDParams{
 			ID:               b.ID,
 			HasAITask:        sql.NullBool{Bool: true, Valid: true},
 			HasExternalAgent: sql.NullBool{Bool: true, Valid: true},
