@@ -6486,6 +6486,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `tailnet_coordinator`              |
 | `template`                         |
 | `user`                             |
+| `user_secret`                      |
 | `webpush_subscription`             |
 | `workspace`                        |
 | `workspace_agent_devcontainers`    |

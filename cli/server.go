@@ -56,6 +56,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/pretty"
 	"github.com/coder/quartz"
 	"github.com/coder/retry"
@@ -1523,14 +1524,14 @@ func newProvisionerDaemon(
 			tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
 			terraformClient, terraformServer := drpcsdk.MemTransportPipe()
 			wg.Add(1)
-			go func() {
+			pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceTerraformProvisioner), func(ctx context.Context) {
 				defer wg.Done()
 				<-ctx.Done()
 				_ = terraformClient.Close()
 				_ = terraformServer.Close()
-			}()
+			})
 			wg.Add(1)
-			go func() {
+			pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceTerraformProvisioner), func(ctx context.Context) {
 				defer wg.Done()
 				defer cancel()
 
@@ -1549,7 +1550,7 @@ func newProvisionerDaemon(
 					default:
 					}
 				}
-			}()
+			})
 
 			connector[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
 		default:
