@@ -52,6 +52,7 @@ type API struct {
 	*ScriptsAPI
 	*ConnLogAPI
 	*SubAgentAPI
+	*PrebuildClaimAPI
 	*tailnet.DRPCService
 
 	mu sync.Mutex
@@ -203,6 +204,13 @@ func New(opts Options) *API {
 		Log:            opts.Log,
 		Clock:          opts.Clock,
 		Database:       opts.Database,
+	}
+
+	api.PrebuildClaimAPI = &PrebuildClaimAPI{
+		AgentFn:  api.agent,
+		Database: opts.Database,
+		Log:      opts.Log,
+		Pubsub:   opts.Pubsub,
 	}
 
 	return api
