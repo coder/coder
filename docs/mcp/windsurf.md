@@ -20,7 +20,7 @@ coder login https://coder.example.com
 
 # Configure WindSurf to use Coder MCP
 coder exp mcp configure windsurf
-```
+```txt
 
 This command will:
 - Locate your WindSurf configuration directory
@@ -36,7 +36,7 @@ If automatic configuration doesn't work, you can manually set up MCP:
    - **Windows**: `%APPDATA%\WindSurf\User\globalStorage\mcp.json`
    - **Linux**: `~/.config/WindSurf/User/globalStorage/mcp.json`
 
-2. **Add Coder MCP server configuration**:
+1. **Add Coder MCP server configuration**:
    ```json
    {
      "mcpServers": {
@@ -50,7 +50,7 @@ If automatic configuration doesn't work, you can manually set up MCP:
    }
    ```
 
-3. **Restart WindSurf** to load the new configuration.
+1. **Restart WindSurf** to load the new configuration.
 
 ## Using Coder MCP in WindSurf
 
@@ -59,18 +59,21 @@ Once configured, WindSurf's AI can interact with your Coder workspaces through M
 ### Available Capabilities
 
 **Workspace Management**:
+
 - List and organize your Coder workspaces
 - Create new workspaces from templates
 - Start, stop, and manage workspace lifecycle
 - Monitor workspace status and resource utilization
 
 **AI-Enhanced Development**:
+
 - Execute commands in remote Coder workspaces
 - Run AI-assisted code generation in cloud environments
 - Perform automated testing and deployment
 - Access powerful cloud resources for AI workloads
 
 **Environment Integration**:
+
 - Access workspace file systems and configurations
 - Manage environment variables and secrets
 - Monitor running processes and services
@@ -79,22 +82,23 @@ Once configured, WindSurf's AI can interact with your Coder workspaces through M
 ### Example Interactions
 
 **AI-powered project setup**:
-```
+
+```txt
 You: "Create a new Next.js workspace with TypeScript and set up a modern web app structure"
 WindSurf AI: Creates a Coder workspace, installs Next.js with TypeScript, sets up project structure, and configures development environment
-```
+```txt
 
 **Intelligent code generation**:
-```
+```txt
 You: "Generate a REST API for user management in my backend workspace"
 WindSurf AI: Connects to your backend workspace, analyzes existing code, and generates API endpoints with proper error handling and validation
-```
+```txt
 
 **Cross-workspace development**:
-```
+```txt
 You: "Deploy my frontend changes and update the backend API to match"
 WindSurf AI: Coordinates changes across multiple Coder workspaces, ensuring consistency between frontend and backend
-```
+```txt
 
 ## WindSurf-Specific Features
 
@@ -143,7 +147,7 @@ Customize the MCP server for optimal WindSurf integration:
     }
   }
 }
-```
+```txt
 
 ### Environment Variables
 
@@ -158,7 +162,7 @@ export CODER_MCP_TIMEOUT=300s
 
 # Set custom workspace preferences
 export CODER_MCP_DEFAULT_TEMPLATE=ai-development
-```
+```txt
 
 ## Troubleshooting
 
@@ -171,12 +175,13 @@ export CODER_MCP_DEFAULT_TEMPLATE=ai-development
    coder workspaces list
    ```
 
-2. **Test MCP server independently**:
+1. **Test MCP server independently**:
+
    ```bash
    coder exp mcp server --log-level debug
    ```
 
-3. **Check WindSurf configuration**:
+1. **Check WindSurf configuration**:
    - Verify MCP configuration file syntax
    - Ensure WindSurf has necessary permissions
    - Check WindSurf's developer console for errors
@@ -188,7 +193,7 @@ export CODER_MCP_DEFAULT_TEMPLATE=ai-development
    - Consider GPU-enabled workspaces for ML tasks
    - Monitor workspace resource utilization
 
-2. **Network optimization**:
+1. **Network optimization**:
    - Check network latency to Coder deployment
    - Ensure stable internet connection
    - Consider workspace location relative to your location
@@ -196,12 +201,13 @@ export CODER_MCP_DEFAULT_TEMPLATE=ai-development
 ### WindSurf AI Not Using MCP
 
 1. **Verify MCP integration**: Ensure WindSurf recognizes the MCP server
-2. **Check AI model settings**: Some AI models may need explicit MCP enablement
-3. **Restart WindSurf**: Full restart may be needed after configuration changes
+1. **Check AI model settings**: Some AI models may need explicit MCP enablement
+1. **Restart WindSurf**: Full restart may be needed after configuration changes
 
 ## Best Practices
 
 ### Security
+
 - Secure Coder CLI credentials and authentication tokens
 - Use workspace templates with appropriate security configurations
 - Regularly audit AI assistant access to sensitive workspaces
@@ -209,6 +215,7 @@ export CODER_MCP_DEFAULT_TEMPLATE=ai-development
 - Implement proper secret management in workspaces
 
 ### Performance
+
 - Use workspace templates optimized for AI development
 - Allocate appropriate resources based on AI workload requirements
 - Implement intelligent workspace auto-stop policies
@@ -216,6 +223,7 @@ export CODER_MCP_DEFAULT_TEMPLATE=ai-development
 - Consider workspace caching strategies for frequently used environments
 
 ### AI Development Workflow
+
 - Create specialized workspace templates for different AI use cases
 - Use consistent naming conventions for AI projects and workspaces
 - Implement version control best practices for AI-generated code
@@ -254,7 +262,7 @@ resource "coder_workspace" "ai_dev" {
     pip install jupyter jupyterlab
   EOF
 }
-```
+```txt
 
 ### Integration with AI Workflows
 
@@ -272,7 +280,7 @@ coder ssh ml-training -- python train_model.py
 
 # Monitor training progress
 coder ssh ml-training -- tensorboard --logdir ./logs
-```
+```txt
 
 ### Team AI Development
 
@@ -295,8 +303,8 @@ Implement team-wide AI development practices:
 For WindSurf-specific MCP issues:
 
 1. Check [WindSurf's documentation](https://windsurf.ai/docs) for MCP support details
-2. [Contact Coder Support](https://coder.com/contact) for Coder MCP server issues
-3. [Join our Discord](https://discord.gg/coder) for community support and AI development discussions
+1. [Contact Coder Support](https://coder.com/contact) for Coder MCP server issues
+1. [Join our Discord](https://discord.gg/coder) for community support and AI development discussions
 4. [Report bugs](https://github.com/coder/coder/issues) on the Coder GitHub repository
 5. Check WindSurf's support channels for WindSurf-specific issues
 

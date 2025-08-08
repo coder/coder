@@ -20,7 +20,7 @@ coder login https://coder.example.com
 
 # Configure Cursor to use Coder MCP
 coder exp mcp configure cursor
-```
+```txt
 
 This command will:
 - Locate your Cursor configuration directory
@@ -36,7 +36,7 @@ If automatic configuration doesn't work, you can manually set up MCP:
    - **Windows**: `%APPDATA%\Cursor\User\globalStorage\mcp.json`
    - **Linux**: `~/.config/Cursor/User/globalStorage/mcp.json`
 
-2. **Add Coder MCP server configuration**:
+1. **Add Coder MCP server configuration**:
    ```json
    {
      "mcpServers": {
@@ -50,7 +50,7 @@ If automatic configuration doesn't work, you can manually set up MCP:
    }
    ```
 
-3. **Restart Cursor** to load the new configuration.
+1. **Restart Cursor** to load the new configuration.
 
 ## Using Coder MCP in Cursor
 
@@ -59,18 +59,21 @@ Once configured, Cursor's AI can interact with your Coder workspaces through MCP
 ### Available Capabilities
 
 **Workspace Management**:
+
 - List all your Coder workspaces
 - Create new workspaces from templates
 - Start, stop, and delete workspaces
 - Check workspace status and resource usage
 
 **Command Execution**:
+
 - Run commands in any workspace
 - Execute build scripts and tests
 - Install dependencies and packages
 - Manage development processes
 
 **Environment Interaction**:
+
 - Access workspace file systems
 - Monitor running processes
 - Check environment variables and configuration
@@ -78,22 +81,23 @@ Once configured, Cursor's AI can interact with your Coder workspaces through MCP
 ### Example Interactions
 
 **Creating a development environment**:
-```
+
+```txt
 You: "I need a new React workspace for my frontend project"
 Cursor AI: Creates a new Coder workspace using a React template, installs dependencies, and sets up the development environment
-```
+```txt
 
 **Running tests across workspaces**:
-```
+```txt
 You: "Run the test suite in my backend workspace"
 Cursor AI: Connects to your backend workspace via MCP and executes the test commands, showing results
-```
+```txt
 
 **Managing multiple environments**:
-```
+```txt
 You: "Show me the status of all my workspaces and start the ones that are stopped"
 Cursor AI: Lists workspace statuses and starts any stopped workspaces
-```
+```txt
 
 ## Cursor-Specific Features
 
@@ -138,7 +142,7 @@ You can customize the MCP server behavior in your configuration:
     }
   }
 }
-```
+```txt
 
 ### Environment Variables
 
@@ -150,7 +154,7 @@ export CODER_MCP_LOG_LEVEL=debug
 
 # Increase timeout for long-running operations
 export CODER_MCP_TIMEOUT=120s
-```
+```txt
 
 ## Troubleshooting
 
@@ -161,12 +165,13 @@ export CODER_MCP_TIMEOUT=120s
    coder whoami
    ```
 
-2. **Test MCP server manually**:
+1. **Test MCP server manually**:
+
    ```bash
    coder exp mcp server --help
    ```
 
-3. **Verify Cursor configuration**:
+1. **Verify Cursor configuration**:
    - Check that the MCP configuration file exists
    - Ensure the file has correct JSON syntax
    - Restart Cursor after making changes
@@ -174,13 +179,14 @@ export CODER_MCP_TIMEOUT=120s
 ### Cursor AI Not Recognizing MCP
 
 1. **Check Cursor version**: Ensure you're using a version that supports MCP
-2. **Restart Cursor**: Sometimes a full restart is needed
-3. **Check Cursor logs**: Look for MCP-related errors in Cursor's developer console
+1. **Restart Cursor**: Sometimes a full restart is needed
+1. **Check Cursor logs**: Look for MCP-related errors in Cursor's developer console
 
 ### Permission Issues
 
 1. **Verify Coder permissions**: Ensure your user can create and manage workspaces
-2. **Check authentication**: Re-authenticate if needed:
+1. **Check authentication**: Re-authenticate if needed:
+
    ```bash
    coder login https://coder.example.com
    ```
@@ -188,23 +194,26 @@ export CODER_MCP_TIMEOUT=120s
 ### Performance Issues
 
 1. **Optimize workspace templates**: Use lightweight templates for faster startup
-2. **Monitor resource usage**: Check workspace CPU and memory allocation
-3. **Adjust MCP timeout**: Increase timeout for slow operations
+1. **Monitor resource usage**: Check workspace CPU and memory allocation
+1. **Adjust MCP timeout**: Increase timeout for slow operations
 
 ## Best Practices
 
 ### Security
+
 - Keep your Coder CLI credentials secure
 - Use workspace templates with appropriate security configurations
 - Regularly review AI assistant access patterns
 - Enable audit logging for compliance requirements
 
 ### Performance
+
 - Use Coder workspace templates optimized for your development stack
 - Consider workspace resource allocation based on AI workload requirements
 - Implement workspace auto-stop policies to manage costs
 
 ### Development Workflow
+
 - Create project-specific workspace templates
 - Use consistent naming conventions for workspaces
 - Leverage Coder's collaboration features for team development
@@ -230,7 +239,7 @@ resource "coder_workspace" "dev" {
     npm install -g @cursor/cli
   EOF
 }
-```
+```txt
 
 ### Integration with CI/CD
 
@@ -251,6 +260,6 @@ Use Cursor + Coder MCP for automated development workflows:
 For Cursor-specific MCP issues:
 
 1. Check [Cursor's MCP documentation](https://docs.cursor.com/mcp) (when available)
-2. [Contact Coder Support](https://coder.com/contact) for Coder MCP server issues
-3. [Join our Discord](https://discord.gg/coder) for community support
+1. [Contact Coder Support](https://coder.com/contact) for Coder MCP server issues
+1. [Join our Discord](https://discord.gg/coder) for community support
 4. [Report bugs](https://github.com/coder/coder/issues) on GitHub

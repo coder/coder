@@ -14,16 +14,19 @@ Coder MCP is a server implementation that exposes Coder's functionality through 
 ## Benefits of Using Coder MCP
 
 ### Secure Remote Development
+
 - Keep your code and secrets in controlled, isolated environments
 - Leverage powerful cloud resources without local machine limitations
 - Maintain consistent development environments across your team
 
 ### Enhanced AI Productivity
+
 - AI agents can directly interact with your actual development environment
 - No need to copy code or context - agents work with live workspaces
 - Seamless integration with existing Coder infrastructure
 
 ### Enterprise-Ready
+
 - Built on Coder's enterprise-grade security and compliance features
 - Fine-grained access controls and audit logging
 - Self-hosted solution that keeps your data in your infrastructure
@@ -43,7 +46,7 @@ graph LR
     B --> C[Coder API]
     C --> D[Workspaces]
     C --> E[Infrastructure]
-```
+```txt
 
 ## Supported AI Tools and IDEs
 
@@ -80,7 +83,7 @@ coder login https://coder.example.com
 
 # Start the MCP server
 coder exp mcp server
-```
+```txt
 
 ### Remote MCP Server
 
@@ -89,12 +92,12 @@ For web-based AI assistants, enable the HTTP MCP server:
 ```bash
 # Enable experimental features
 CODER_EXPERIMENTS="oauth2,mcp-server-http" coder server
-```
+```txt
 
 The MCP server will be available at:
-```
+```txt
 https://coder.example.com/api/experimental/mcp/http
-```
+```txt
 
 ## Security and Authentication
 

@@ -20,7 +20,7 @@ coder login https://coder.example.com
 
 # Configure MCP for VS Code (when supported)
 coder exp mcp configure vscode
-```
+```txt
 
 > **Note**: Automatic configuration support varies by AI extension. Check with your specific AI extension's documentation for MCP support.
 
@@ -32,10 +32,10 @@ For extensions that support custom MCP servers, you can manually configure the c
    ```bash
    coder exp mcp server
    ```
-   
+
    The server will start on `stdio` by default and display connection details.
 
-2. **Configure your AI extension**:
+1. **Configure your AI extension**:
    - Open VS Code settings (Ctrl/Cmd + ,)
    - Search for your AI extension's MCP settings
    - Add the Coder MCP server configuration
@@ -54,7 +54,7 @@ Some AI extensions allow MCP configuration through VS Code's settings.json:
     }
   }
 }
-```
+```txt
 
 ## Supported AI Extensions
 
@@ -82,22 +82,22 @@ Once configured, your AI assistant can interact with Coder through MCP:
 ### Example Interactions
 
 **Creating a new workspace**:
-```
+```txt
 User: "Create a new Python workspace for my machine learning project"
 AI: Uses Coder MCP to create a workspace with Python and ML tools
-```
+```txt
 
 **Running commands**:
-```
+```txt
 User: "Run the tests in my backend workspace"
 AI: Executes test commands in the specified Coder workspace
-```
+```txt
 
 **Checking workspace status**:
-```
+```txt
 User: "What's the status of my workspaces?"
 AI: Lists all workspaces with their current state and resource usage
-```
+```txt
 
 ## Troubleshooting
 
@@ -108,12 +108,13 @@ AI: Lists all workspaces with their current state and resource usage
    coder whoami
    ```
 
-2. **Verify MCP server manually**:
+1. **Verify MCP server manually**:
+
    ```bash
    coder exp mcp server --help
    ```
 
-3. **Check VS Code extension logs**:
+2. **Check VS Code extension logs**:
    - Open VS Code Developer Tools (Help > Toggle Developer Tools)
    - Check the Console for MCP-related errors
 
@@ -126,7 +127,8 @@ AI: Lists all workspaces with their current state and resource usage
 ### Permission Issues
 
 1. **Check Coder permissions**: Ensure your user has appropriate workspace permissions
-2. **Verify authentication**: Re-authenticate with Coder if needed:
+1. **Verify authentication**: Re-authenticate with Coder if needed:
+
    ```bash
    coder login https://coder.example.com
    ```
@@ -134,16 +136,19 @@ AI: Lists all workspaces with their current state and resource usage
 ## Best Practices
 
 ### Security
+
 - Keep your Coder CLI credentials secure
 - Regularly rotate authentication tokens
 - Review AI assistant permissions and access patterns
 
 ### Performance
+
 - Use workspace templates optimized for AI development
 - Consider workspace resource allocation for AI workloads
 - Monitor workspace usage and costs
 
 ### Development Workflow
+
 - Create dedicated workspaces for different projects
 - Use Coder's workspace templates for consistent environments
 - Leverage Coder's collaboration features for team AI development
@@ -157,7 +162,7 @@ You can customize the MCP server behavior:
 ```bash
 # Start MCP server with custom options
 coder exp mcp server --log-level debug --timeout 30s
-```
+```txt
 
 ### Environment Variables
 
@@ -167,7 +172,7 @@ Configure MCP behavior through environment variables:
 export CODER_MCP_LOG_LEVEL=debug
 export CODER_MCP_TIMEOUT=60s
 coder exp mcp server
-```
+```txt
 
 ## Next Steps
 
@@ -181,5 +186,5 @@ coder exp mcp server
 For VS Code-specific MCP issues:
 
 1. Check your AI extension's documentation for MCP support
-2. [Contact Coder Support](https://coder.com/contact) for Coder MCP server issues
-3. [Report bugs](https://github.com/coder/coder/issues) on the Coder GitHub repository
+1. [Contact Coder Support](https://coder.com/contact) for Coder MCP server issues
+2. [Report bugs](https://github.com/coder/coder/issues) on the Coder GitHub repository

@@ -20,7 +20,7 @@ coder login https://coder.example.com
 
 # Configure Zed to use Coder MCP
 coder exp mcp configure zed
-```
+```txt
 
 This command will:
 - Locate your Zed configuration directory
@@ -35,7 +35,7 @@ If automatic configuration doesn't work, you can manually set up MCP:
    - Press `Cmd+,` (macOS) or `Ctrl+,` (Linux/Windows)
    - Or go to `Zed > Settings` in the menu
 
-2. **Add MCP server configuration**:
+1. **Add MCP server configuration**:
    ```json
    {
      "experimental": {
@@ -52,7 +52,7 @@ If automatic configuration doesn't work, you can manually set up MCP:
    }
    ```
 
-3. **Save settings** and restart Zed.
+1. **Save settings** and restart Zed.
 
 ### Alternative: Configuration File
 
@@ -69,18 +69,21 @@ Once configured, Zed's AI assistant can interact with your Coder workspaces thro
 ### Available Capabilities
 
 **Workspace Operations**:
+
 - List and filter your Coder workspaces
 - Create workspaces from templates
 - Start, stop, and manage workspace lifecycle
 - Monitor workspace resource usage and status
 
 **Development Commands**:
+
 - Execute commands in remote workspaces
 - Run build scripts, tests, and deployment commands
 - Install packages and manage dependencies
 - Access workspace terminals and processes
 
 **Environment Management**:
+
 - Access workspace file systems and configurations
 - Monitor running services and applications
 - Manage environment variables and secrets
@@ -88,22 +91,23 @@ Once configured, Zed's AI assistant can interact with your Coder workspaces thro
 ### Example Interactions
 
 **Setting up a new project**:
-```
+
+```txt
 You: "Create a Rust workspace for my new CLI tool project"
 Zed AI: Creates a Coder workspace with Rust toolchain, sets up cargo project structure, and configures development environment
-```
+```txt
 
 **Running development tasks**:
-```
+```txt
 You: "Build and test my application in the backend workspace"
 Zed AI: Executes cargo build and cargo test in your specified Coder workspace, showing output and results
-```
+```txt
 
 **Managing multiple environments**:
-```
+```txt
 You: "Check which workspaces are running and their resource usage"
 Zed AI: Lists all workspaces with their status, CPU, memory usage, and uptime
-```
+```txt
 
 ## Zed-Specific Features
 
@@ -152,7 +156,7 @@ Customize the MCP server behavior:
     }
   }
 }
-```
+```txt
 
 ### Environment Variables
 
@@ -167,7 +171,7 @@ export CODER_MCP_TIMEOUT=60s
 
 # Start Zed with custom environment
 zed
-```
+```txt
 
 ## Troubleshooting
 
@@ -179,12 +183,13 @@ zed
    coder whoami
    ```
 
-2. **Test MCP server manually**:
+1. **Test MCP server manually**:
+
    ```bash
    coder exp mcp server --help
    ```
 
-3. **Check Zed configuration**:
+1. **Check Zed configuration**:
    - Ensure JSON syntax is correct in settings
    - Verify the MCP configuration is in the right location
    - Check Zed's developer console for errors
@@ -192,39 +197,44 @@ zed
 ### Zed Not Recognizing MCP
 
 1. **Check Zed version**: Ensure you're using a version with MCP support
-2. **Verify experimental features**: Make sure MCP is enabled in experimental settings
-3. **Restart Zed**: A full restart may be needed after configuration changes
+1. **Verify experimental features**: Make sure MCP is enabled in experimental settings
+1. **Restart Zed**: A full restart may be needed after configuration changes
 
 ### Connection Issues
 
 1. **Check network connectivity**: Ensure you can reach your Coder deployment
-2. **Verify authentication**: Re-authenticate with Coder:
+1. **Verify authentication**: Re-authenticate with Coder:
+
    ```bash
    coder login https://coder.example.com
    ```
-3. **Check firewall settings**: Ensure MCP traffic isn't blocked
+
+1. **Check firewall settings**: Ensure MCP traffic isn't blocked
 
 ### Performance Issues
 
 1. **Optimize workspace resources**: Ensure adequate CPU and memory allocation
-2. **Check network latency**: High latency can affect MCP performance
-3. **Monitor workspace load**: Heavy workspace usage can slow MCP responses
+1. **Check network latency**: High latency can affect MCP performance
+1. **Monitor workspace load**: Heavy workspace usage can slow MCP responses
 
 ## Best Practices
 
 ### Security
+
 - Secure your Coder CLI credentials and tokens
 - Use workspace templates with appropriate security configurations
 - Regularly audit AI assistant access to workspaces
 - Enable Coder's audit logging for compliance
 
 ### Performance
+
 - Use lightweight workspace templates for faster operations
 - Optimize workspace resource allocation based on project needs
 - Implement workspace auto-stop policies to manage costs
 - Monitor and tune MCP timeout settings
 
 ### Development Workflow
+
 - Create standardized workspace templates for different project types
 - Use consistent naming conventions for workspaces and projects
 - Leverage Zed's collaboration features with Coder workspaces
@@ -255,7 +265,7 @@ resource "coder_workspace" "zed_dev" {
     pip install openai anthropic langchain
   EOF
 }
-```
+```txt
 
 ### Integration with Zed Extensions
 
@@ -284,7 +294,7 @@ Set up team workflows with Zed and Coder:
 For Zed-specific MCP issues:
 
 1. Check [Zed's documentation](https://zed.dev/docs) for MCP support details
-2. [Contact Coder Support](https://coder.com/contact) for Coder MCP server issues
-3. [Join our Discord](https://discord.gg/coder) for community support
+1. [Contact Coder Support](https://coder.com/contact) for Coder MCP server issues
+1. [Join our Discord](https://discord.gg/coder) for community support
 4. [Report bugs](https://github.com/coder/coder/issues) on the Coder GitHub repository
 5. Check [Zed's GitHub](https://github.com/zed-industries/zed) for Zed-specific issues

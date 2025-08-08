@@ -20,23 +20,23 @@ CODER_EXPERIMENTS="oauth2,mcp-server-http" coder server
 
 # Or using CLI flags
 coder server --experiments=oauth2,mcp-server-http
-```
+```txt
 
 ### Access the MCP Server
 
 Once enabled, the HTTP MCP server will be available at:
 
-```
+```txt
 https://your-coder-deployment.com/api/experimental/mcp/http
-```
+```txt
 
 ### Authentication Setup
 
 Web-based agents authenticate using OAuth2:
 
 1. **Navigate to your Coder deployment's OAuth2 settings**
-2. **Create a new OAuth2 application** for your AI agent
-3. **Configure the redirect URI** based on your AI agent's requirements
+1. **Create a new OAuth2 application** for your AI agent
+2. **Configure the redirect URI** based on your AI agent's requirements
 4. **Note the client ID and client secret** for configuration
 
 ## Supported Web-Based AI Agents
@@ -46,8 +46,8 @@ Web-based agents authenticate using OAuth2:
 Claude.ai supports MCP through its web interface:
 
 1. **Open claude.ai** in your browser
-2. **Go to Settings** > **Integrations** > **MCP Servers**
-3. **Add a new MCP server**:
+1. **Go to Settings** > **Integrations** > **MCP Servers**
+2. **Add a new MCP server**:
    - **Name**: Coder
    - **URL**: `https://your-coder-deployment.com/api/experimental/mcp/http`
    - **Authentication**: OAuth2
@@ -59,16 +59,16 @@ Claude.ai supports MCP through its web interface:
 
 For ChatGPT integration:
 1. Check OpenAI's documentation for current MCP support
-2. Use custom GPTs with API integrations as an alternative
-3. Consider using the OpenAI API with local MCP tools
+1. Use custom GPTs with API integrations as an alternative
+2. Consider using the OpenAI API with local MCP tools
 
 ### Other Web-Based Agents
 
 For other web-based AI agents that support MCP:
 
 1. **Check the agent's MCP documentation** for setup instructions
-2. **Use the HTTP MCP endpoint**: `https://your-coder-deployment.com/api/experimental/mcp/http`
-3. **Configure OAuth2 authentication** using your Coder deployment's OAuth2 settings
+1. **Use the HTTP MCP endpoint**: `https://your-coder-deployment.com/api/experimental/mcp/http`
+2. **Configure OAuth2 authentication** using your Coder deployment's OAuth2 settings
 
 ## Using Coder MCP with Web Agents
 
@@ -97,43 +97,43 @@ Once configured, web-based AI agents can interact with your Coder workspaces thr
 ### Example Interactions
 
 **Project initialization**:
-```
+```txt
 You: "I need to create a new React workspace and set up a modern web application with TypeScript and Tailwind CSS."
 
 AI Agent: I'll help you create a new Coder workspace and set up your React application. Let me:
 1. Create a new workspace using a Node.js template
-2. Initialize a new React project with TypeScript
-3. Install and configure Tailwind CSS
+1. Initialize a new React project with TypeScript
+2. Install and configure Tailwind CSS
 4. Set up the basic project structure
 
 [Agent uses HTTP MCP to create workspace and execute setup commands]
-```
+```txt
 
 **Cross-workspace development**:
-```
+```txt
 You: "Deploy my frontend changes to staging and update the backend API documentation to reflect the new endpoints."
 
 AI Agent: I'll coordinate the deployment across your workspaces:
 1. Build and deploy frontend changes from your frontend workspace
-2. Update API documentation in your backend workspace
-3. Verify the deployment is successful
+1. Update API documentation in your backend workspace
+2. Verify the deployment is successful
 4. Run integration tests to ensure everything works together
 
 [Agent uses HTTP MCP to coordinate across multiple workspaces]
-```
+```txt
 
 **Infrastructure management**:
-```
+```txt
 You: "Check the status of all my workspaces and optimize resource allocation."
 
 AI Agent: I'll analyze your workspace usage and optimize resources:
 1. List all workspaces with their current status
-2. Check resource utilization (CPU, memory, storage)
-3. Identify underutilized or overloaded workspaces
+1. Check resource utilization (CPU, memory, storage)
+2. Identify underutilized or overloaded workspaces
 4. Suggest resource optimization strategies
 
 [Agent uses HTTP MCP to gather workspace metrics and provide recommendations]
-```
+```txt
 
 ## Configuration Options
 
@@ -151,7 +151,7 @@ oauth2:
     scopes:
       - "read:user"
       - "user:email"
-```
+```txt
 
 ### HTTP MCP Server Settings
 
@@ -165,7 +165,7 @@ export CODER_MCP_HTTP_RATE_LIMIT=10
 
 # Start server with custom settings
 CODER_EXPERIMENTS="oauth2,mcp-server-http" coder server
-```
+```txt
 
 ### CORS Configuration
 
@@ -175,7 +175,7 @@ Configure CORS for web agent access:
 # Allow specific origins for web agents
 export CODER_ACCESS_URL="https://your-coder-deployment.com"
 export CODER_WILDCARD_ACCESS_URL="*.your-domain.com"
-```
+```txt
 
 ## Security Considerations
 
@@ -209,12 +209,13 @@ export CODER_WILDCARD_ACCESS_URL="*.your-domain.com"
    coder server --help | grep experiments
    ```
 
-2. **Verify server configuration**:
+1. **Verify server configuration**:
+
    ```bash
    curl -I https://your-coder-deployment.com/api/experimental/mcp/http
    ```
 
-3. **Check server logs** for MCP-related errors
+2. **Check server logs** for MCP-related errors
 
 ### OAuth2 Authentication Issues
 
@@ -223,7 +224,8 @@ export CODER_WILDCARD_ACCESS_URL="*.your-domain.com"
    - Verify redirect URIs
    - Ensure proper scopes are configured
 
-2. **Test OAuth2 flow manually**:
+1. **Test OAuth2 flow manually**:
+
    ```bash
    curl -X POST https://your-coder-deployment.com/api/v2/oauth2/authorize
    ```
@@ -234,6 +236,7 @@ export CODER_WILDCARD_ACCESS_URL="*.your-domain.com"
 2. **Verify network connectivity**: Test access to the MCP endpoint
 3. **Review browser console**: Check for JavaScript errors or network issues
 4. **Test with curl**: Verify the endpoint is accessible:
+
    ```bash
    curl -H "Authorization: Bearer your-token" \
         https://your-coder-deployment.com/api/experimental/mcp/http
@@ -249,6 +252,7 @@ export CODER_WILDCARD_ACCESS_URL="*.your-domain.com"
 ## Best Practices
 
 ### Security
+
 - Regularly rotate OAuth2 credentials
 - Monitor and audit AI agent access patterns
 - Implement proper secret management
@@ -256,12 +260,14 @@ export CODER_WILDCARD_ACCESS_URL="*.your-domain.com"
 - Keep Coder deployment and dependencies updated
 
 ### Performance
+
 - Monitor MCP server performance and resource usage
 - Implement appropriate rate limiting and throttling
 - Use efficient workspace templates
 - Consider geographic distribution for global teams
 
 ### Operational
+
 - Document AI agent configurations and access patterns
 - Implement monitoring and alerting for MCP operations
 - Establish incident response procedures
@@ -301,7 +307,7 @@ const mcpClient = {
     return response.json();
   }
 };
-```
+```txt
 
 ### Enterprise Integration
 
@@ -325,8 +331,8 @@ For enterprise deployments:
 For web agent MCP issues:
 
 1. [Contact Coder Support](https://coder.com/contact) for Coder MCP server issues
-2. [Join our Discord](https://discord.gg/coder) for community support
-3. [Report bugs](https://github.com/coder/coder/issues) on GitHub
+1. [Join our Discord](https://discord.gg/coder) for community support
+2. [Report bugs](https://github.com/coder/coder/issues) on GitHub
 4. Check your AI agent's documentation for platform-specific MCP support
 5. Review the [Model Context Protocol specification](https://modelcontextprotocol.io/)
 
