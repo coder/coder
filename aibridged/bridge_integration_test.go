@@ -130,7 +130,7 @@ func TestAnthropicMessages(t *testing.T) {
 				}, nil)
 				require.NoError(t, err)
 
-				mockSrv := httptest.NewServer(b.Handler())
+				mockSrv := httptest.NewServer(withInitiator(getCurrentUserID(t, client), b.Handler()))
 				// Make API call to aibridge for Anthropic /v1/messages
 				req := createAnthropicMessagesReq(t, mockSrv.URL, reqBody)
 				client := &http.Client{}
@@ -168,7 +168,6 @@ func TestAnthropicMessages(t *testing.T) {
 			})
 		}
 	})
-
 }
 
 func TestOpenAIChatCompletions(t *testing.T) {
@@ -234,7 +233,7 @@ func TestOpenAIChatCompletions(t *testing.T) {
 				}, nil)
 				require.NoError(t, err)
 
-				mockSrv := httptest.NewServer(b.Handler())
+				mockSrv := httptest.NewServer(withInitiator(getCurrentUserID(t, client), b.Handler()))
 				// Make API call to aibridge for OpenAI /v1/chat/completions
 				req := createOpenAIChatCompletionsReq(t, mockSrv.URL, reqBody)
 
@@ -275,7 +274,6 @@ func TestOpenAIChatCompletions(t *testing.T) {
 			})
 		}
 	})
-
 }
 
 func TestSimple(t *testing.T) {
@@ -426,7 +424,7 @@ func TestSimple(t *testing.T) {
 					b, err := tc.configureFunc(srv.URL, coderdClient)
 					require.NoError(t, err)
 
-					mockSrv := httptest.NewServer(b.Handler())
+					mockSrv := httptest.NewServer(withInitiator(getCurrentUserID(t, client), b.Handler()))
 					// When: calling the "API server" with the fixture's request body.
 					req := tc.createRequest(t, mockSrv.URL, reqBody)
 					client := &http.Client{}
@@ -681,7 +679,7 @@ func TestInjectedTool(t *testing.T) {
 					require.NoError(t, err)
 
 					// Invoke request to mocked API via aibridge.
-					bridgeSrv := httptest.NewServer(b.Handler())
+					bridgeSrv := httptest.NewServer(withInitiator(getCurrentUserID(t, client), b.Handler()))
 					t.Cleanup(bridgeSrv.Close)
 
 					req := tc.createRequest(t, bridgeSrv.URL, reqBody)
@@ -846,9 +844,12 @@ func newMockServer(ctx context.Context, t *testing.T, files archiveFileMap, resp
 	return ms
 }
 
+var _ proto.DRPCAIBridgeDaemonClient = &fakeBridgeDaemonClient{}
+
 type fakeBridgeDaemonClient struct {
 	mu sync.Mutex
 
+	sessions    []*proto.StartSessionRequest
 	tokenUsages []*proto.TrackTokenUsageRequest
 	userPrompts []*proto.TrackUserPromptRequest
 	toolUsages  []*proto.TrackToolUsageRequest
@@ -857,6 +858,17 @@ type fakeBridgeDaemonClient struct {
 func (*fakeBridgeDaemonClient) DRPCConn() drpc.Conn {
 	conn, _ := drpcsdk.MemTransportPipe()
 	return conn
+}
+
+// StartSession implements proto.DRPCAIBridgeDaemonClient.
+func (f *fakeBridgeDaemonClient) StartSession(ctx context.Context, in *proto.StartSessionRequest) (*proto.StartSessionResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.sessions = append(f.sessions, in)
+
+	return &proto.StartSessionResponse{
+		SessionId: uuid.NewString(),
+	}, nil
 }
 
 func (f *fakeBridgeDaemonClient) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageRequest) (*proto.TrackTokenUsageResponse, error) {
@@ -902,4 +914,21 @@ func createMockMCPSrv(t *testing.T) http.Handler {
 	})
 
 	return server.NewStreamableHTTPServer(s)
+}
+
+// withInitiator wraps a handler injecting the Bridge user ID into context.
+// TODO: this is only necessary because we're not exercising the real API's middleware, which may hide some problems.
+func withInitiator(userID uuid.UUID, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), aibridged.ContextKeyBridgeUserID{}, userID)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func getCurrentUserID(t *testing.T, client *codersdk.Client) uuid.UUID {
+	t.Helper()
+
+	me, err := client.User(t.Context(), "me")
+	require.NoError(t, err)
+	return me.ID
 }

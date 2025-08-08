@@ -29,8 +29,8 @@ func NewAnthropicMessagesStreamingSession(req *BetaMessageNewParamsWrapper) *Ant
 	}}
 }
 
-func (s *AnthropicMessagesStreamingSession) Init(logger slog.Logger, baseURL, key string, tracker Tracker, toolMgr ToolManager) string {
-	return s.AnthropicMessagesSessionBase.Init(logger.Named("streaming"), baseURL, key, tracker, toolMgr)
+func (s *AnthropicMessagesStreamingSession) Init(id string, logger slog.Logger, baseURL, key string, tracker Tracker, toolMgr ToolManager) {
+	s.AnthropicMessagesSessionBase.Init(id, logger.Named("streaming"), baseURL, key, tracker, toolMgr)
 }
 
 func (s *AnthropicMessagesStreamingSession) ProcessRequest(w http.ResponseWriter, r *http.Request) error {

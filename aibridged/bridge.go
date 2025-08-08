@@ -11,6 +11,8 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -109,7 +111,27 @@ func handleOpenAIChat(provider *OpenAIChatProvider, drpcClient proto.DRPCAIBridg
 			sess = provider.NewBlockingSession(req)
 		}
 
-		sessID := sess.Init(logger, provider.baseURL, provider.key, NewDRPCTracker(drpcClient), NewInjectedToolManager(tools))
+		userID, ok := r.Context().Value(ContextKeyBridgeUserID{}).(uuid.UUID)
+		if !ok {
+			logger.Error(r.Context(), "missing initiator ID in context")
+			http.Error(w, "unable to retrieve initiator", http.StatusInternalServerError)
+			return
+		}
+
+		resp, err := drpcClient.StartSession(r.Context(), &proto.StartSessionRequest{
+			InitiatorId: userID.String(),
+			Provider:    "openai",
+			Model:       req.Model,
+		})
+		if err != nil {
+			logger.Error(r.Context(), "failed to start session", slog.Error(err))
+			http.Error(w, "failed to start session", http.StatusInternalServerError)
+			return
+		}
+
+		sessID := resp.GetSessionId()
+
+		sess.Init(sessID, logger, provider.baseURL, provider.key, NewDRPCTracker(drpcClient), NewInjectedToolManager(tools))
 		logger.Debug(context.Background(), "starting openai session", slog.F("session_id", sessID))
 
 		defer func() {
@@ -153,7 +175,27 @@ func handleAnthropicMessages(provider *AnthropicMessagesProvider, drpcClient pro
 			sess = provider.NewBlockingSession(req)
 		}
 
-		sessID := sess.Init(logger, provider.baseURL, provider.key, NewDRPCTracker(drpcClient), NewInjectedToolManager(tools))
+		userID, ok := r.Context().Value(ContextKeyBridgeUserID{}).(uuid.UUID)
+		if !ok {
+			logger.Error(r.Context(), "missing initiator ID in context")
+			http.Error(w, "unable to retrieve initiator", http.StatusInternalServerError)
+			return
+		}
+
+		resp, err := drpcClient.StartSession(r.Context(), &proto.StartSessionRequest{
+			InitiatorId: userID.String(),
+			Provider:    "anthropic",
+			Model:       string(req.Model),
+		})
+		if err != nil {
+			logger.Error(r.Context(), "failed to start session", slog.Error(err))
+			http.Error(w, "failed to start session", http.StatusInternalServerError)
+			return
+		}
+
+		sessID := resp.GetSessionId()
+
+		sess.Init(sessID, logger, provider.baseURL, provider.key, NewDRPCTracker(drpcClient), NewInjectedToolManager(tools))
 		logger.Debug(context.Background(), "starting anthropic messages session", slog.F("session_id", sessID))
 
 		defer func() {

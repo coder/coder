@@ -4,11 +4,18 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/structpb"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
 )
+
+var _ proto.DRPCAIBridgeDaemonServer = &Server{}
 
 type Server struct {
 	// lifecycleCtx must be tied to the API server's lifecycle
@@ -16,53 +23,111 @@ type Server struct {
 	// long-running operations.
 	lifecycleCtx context.Context
 	store        database.Store
+	logger       slog.Logger
+}
+
+func NewServer(lifecycleCtx context.Context, store database.Store, logger slog.Logger) (*Server, error) {
+	return &Server{
+		lifecycleCtx: lifecycleCtx,
+		store:        store,
+		logger:       logger.Named("aibridgedserver"),
+	}, nil
+}
+
+// StartSession implements proto.DRPCAIBridgeDaemonServer.
+func (s *Server) StartSession(ctx context.Context, in *proto.StartSessionRequest) (*proto.StartSessionResponse, error) {
+	initID, err := uuid.Parse(in.GetInitiatorId())
+	if err != nil {
+		return nil, xerrors.Errorf("invalid initiator ID %q: %w", in.GetInitiatorId(), err)
+	}
+
+	id, err := s.store.InsertAIBridgeSession(ctx, database.InsertAIBridgeSessionParams{
+		ID:          uuid.New(),
+		InitiatorID: initID,
+		Provider:    in.Provider,
+		Model:       in.Model,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("start session: %w", err)
+	}
+
+	return &proto.StartSessionResponse{SessionId: id.String()}, nil
 }
 
 func (s *Server) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageRequest) (*proto.TrackTokenUsageResponse, error) {
-	raw, err := json.Marshal(in)
+	sessID, err := uuid.Parse(in.GetSessionId())
 	if err != nil {
-		return nil, xerrors.Errorf("marshal event: %w", err)
+		return nil, xerrors.Errorf("failed to parse session_id %q: %w", in.GetSessionId(), err)
 	}
 
-	err = s.store.InsertWormholeEvent(ctx, database.InsertWormholeEventParams{Event: raw, EventType: "token_usage"})
+	err = s.store.InsertAIBridgeTokenUsage(ctx, database.InsertAIBridgeTokenUsageParams{
+		ID:           uuid.New(),
+		SessionID:    sessID,
+		ProviderID:   in.GetMsgId(),
+		InputTokens:  in.GetInputTokens(),
+		OutputTokens: in.GetOutputTokens(),
+		Metadata:     s.marshalMetadata(in.GetMetadata()),
+	})
 	if err != nil {
-		return nil, xerrors.Errorf("store event: %w", err)
+		return nil, xerrors.Errorf("insert token usage: %w", err)
 	}
-
 	return &proto.TrackTokenUsageResponse{}, nil
 }
 
 func (s *Server) TrackUserPrompt(ctx context.Context, in *proto.TrackUserPromptRequest) (*proto.TrackUserPromptResponse, error) {
-	raw, err := json.Marshal(in)
+	sessID, err := uuid.Parse(in.GetSessionId())
 	if err != nil {
-		return nil, xerrors.Errorf("marshal event: %w", err)
+		return nil, xerrors.Errorf("failed to parse session_id %q: %w", in.GetSessionId(), err)
 	}
 
-	err = s.store.InsertWormholeEvent(ctx, database.InsertWormholeEventParams{Event: raw, EventType: "user_prompt"})
+	err = s.store.InsertAIBridgeUserPrompt(ctx, database.InsertAIBridgeUserPromptParams{
+		ID:         uuid.New(),
+		SessionID:  sessID,
+		ProviderID: in.GetMsgId(),
+		Prompt:     in.GetPrompt(),
+		Metadata:   s.marshalMetadata(in.GetMetadata()),
+	})
 	if err != nil {
-		return nil, xerrors.Errorf("store event: %w", err)
+		return nil, xerrors.Errorf("insert user prompt: %w", err)
 	}
-
 	return &proto.TrackUserPromptResponse{}, nil
 }
 
 func (s *Server) TrackToolUsage(ctx context.Context, in *proto.TrackToolUsageRequest) (*proto.TrackToolUsageResponse, error) {
-	raw, err := json.Marshal(in)
+	sessID, err := uuid.Parse(in.GetSessionId())
 	if err != nil {
-		return nil, xerrors.Errorf("marshal event: %w", err)
+		return nil, xerrors.Errorf("failed to parse session_id %q: %w", in.GetSessionId(), err)
 	}
 
-	err = s.store.InsertWormholeEvent(ctx, database.InsertWormholeEventParams{Event: raw, EventType: "tool_usage"})
+	err = s.store.InsertAIBridgeToolUsage(ctx, database.InsertAIBridgeToolUsageParams{
+		ID:         uuid.New(),
+		SessionID:  sessID,
+		ProviderID: in.GetMsgId(),
+		Tool:       in.GetTool(),
+		Input:      in.GetInput(),
+		Injected:   in.GetInjected(),
+		Metadata:   s.marshalMetadata(in.GetMetadata()),
+	})
 	if err != nil {
-		return nil, xerrors.Errorf("store event: %w", err)
+		return nil, xerrors.Errorf("insert tool usage: %w", err)
 	}
-
 	return &proto.TrackToolUsageResponse{}, nil
 }
 
-func NewServer(lifecycleCtx context.Context, store database.Store) (*Server, error) {
-	return &Server{
-		lifecycleCtx: lifecycleCtx,
-		store:        store,
-	}, nil
+func (s *Server) marshalMetadata(in map[string]*anypb.Any) []byte {
+	mdMap := map[string]interface{}{}
+	for k, v := range in {
+		if v == nil {
+			continue
+		}
+		var sv structpb.Value
+		if err := v.UnmarshalTo(&sv); err == nil {
+			mdMap[k] = sv.AsInterface()
+		}
+	}
+	out, err := json.Marshal(mdMap)
+	if err != nil {
+		s.logger.Warn(s.lifecycleCtx, "failed to marshal metadata", slog.Error(err))
+	}
+	return out
 }

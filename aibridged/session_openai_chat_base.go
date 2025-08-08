@@ -1,7 +1,6 @@
 package aibridged
 
 import (
-	"github.com/google/uuid"
 	"github.com/openai/openai-go"
 	"golang.org/x/xerrors"
 
@@ -20,8 +19,8 @@ type OpenAIChatSessionBase struct {
 	toolMgr ToolManager
 }
 
-func (s *OpenAIChatSessionBase) Init(logger slog.Logger, baseURL, key string, tracker Tracker, toolMgr ToolManager) string {
-	s.id = uuid.NewString()
+func (s *OpenAIChatSessionBase) Init(id string, logger slog.Logger, baseURL, key string, tracker Tracker, toolMgr ToolManager) {
+	s.id = id
 
 	s.logger = logger.With(slog.F("session_id", s.id))
 
@@ -30,8 +29,6 @@ func (s *OpenAIChatSessionBase) Init(logger slog.Logger, baseURL, key string, tr
 
 	s.tracker = tracker
 	s.toolMgr = toolMgr
-
-	return s.id
 }
 
 func (s *OpenAIChatSessionBase) LastUserPrompt() (*string, error) {

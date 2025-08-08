@@ -11,6 +11,7 @@ import (
 )
 
 type ContextKeyBridgeAPIKey struct{}
+type ContextKeyBridgeUserID struct{}
 
 // AuthMiddleware extracts and validates authorization tokens for AI bridge endpoints.
 // It supports both Bearer tokens in Authorization headers and Coder session tokens
@@ -28,7 +29,7 @@ func AuthMiddleware(db database.Store) func(http.Handler) http.Handler {
 			}
 
 			// Validate token using httpmw.APIKeyFromRequest
-			_, _, ok := httpmw.APIKeyFromRequest(ctx, db, func(r *http.Request) string {
+			key, _, ok := httpmw.APIKeyFromRequest(ctx, db, func(r *http.Request) string {
 				return token
 			}, &http.Request{})
 
@@ -37,8 +38,12 @@ func AuthMiddleware(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 
+			ctx = context.WithValue(
+				context.WithValue(ctx, ContextKeyBridgeUserID{}, key.UserID),
+				ContextKeyBridgeAPIKey{}, token)
+
 			// Pass request with modify context including the request token.
-			next.ServeHTTP(rw, r.WithContext(context.WithValue(ctx, ContextKeyBridgeAPIKey{}, token)))
+			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
 }

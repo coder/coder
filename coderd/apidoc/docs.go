@@ -10934,16 +10934,38 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIBridgeAnthropicConfig": {
+            "type": "object",
+            "properties": {
+                "base_url": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AIBridgeConfig": {
             "type": "object",
             "properties": {
-                "anthropic_base_url": {
-                    "type": "string"
+                "anthropic": {
+                    "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
                 },
                 "daemons": {
                     "type": "integer"
                 },
-                "openai_base_url": {
+                "openai": {
+                    "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
+                }
+            }
+        },
+        "codersdk.AIBridgeOpenAIConfig": {
+            "type": "object",
+            "properties": {
+                "base_url": {
+                    "type": "string"
+                },
+                "key": {
                     "type": "string"
                 }
             }

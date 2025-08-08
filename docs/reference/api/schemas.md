@@ -335,32 +335,76 @@
 | `groups` | array of [codersdk.Group](#codersdkgroup)             | false    |              |             |
 | `users`  | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |             |
 
-## codersdk.AIBridgeConfig
+## codersdk.AIBridgeAnthropicConfig
 
 ```json
 {
-  "anthropic_base_url": "string",
-  "daemons": 0,
-  "openai_base_url": "string"
+  "base_url": "string",
+  "key": "string"
 }
 ```
 
 ### Properties
 
-| Name                 | Type    | Required | Restrictions | Description |
-|----------------------|---------|----------|--------------|-------------|
-| `anthropic_base_url` | string  | false    |              |             |
-| `daemons`            | integer | false    |              |             |
-| `openai_base_url`    | string  | false    |              |             |
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `base_url` | string | false    |              |             |
+| `key`      | string | false    |              |             |
+
+## codersdk.AIBridgeConfig
+
+```json
+{
+  "anthropic": {
+    "base_url": "string",
+    "key": "string"
+  },
+  "daemons": 0,
+  "openai": {
+    "base_url": "string",
+    "key": "string"
+  }
+}
+```
+
+### Properties
+
+| Name        | Type                                                                 | Required | Restrictions | Description |
+|-------------|----------------------------------------------------------------------|----------|--------------|-------------|
+| `anthropic` | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |             |
+| `daemons`   | integer                                                              | false    |              |             |
+| `openai`    | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
+
+## codersdk.AIBridgeOpenAIConfig
+
+```json
+{
+  "base_url": "string",
+  "key": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `base_url` | string | false    |              |             |
+| `key`      | string | false    |              |             |
 
 ## codersdk.AIConfig
 
 ```json
 {
   "bridge": {
-    "anthropic_base_url": "string",
+    "anthropic": {
+      "base_url": "string",
+      "key": "string"
+    },
     "daemons": 0,
-    "openai_base_url": "string"
+    "openai": {
+      "base_url": "string",
+      "key": "string"
+    }
   }
 }
 ```
@@ -2190,9 +2234,15 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "agent_stat_refresh_interval": 0,
     "ai": {
       "bridge": {
-        "anthropic_base_url": "string",
+        "anthropic": {
+          "base_url": "string",
+          "key": "string"
+        },
         "daemons": 0,
-        "openai_base_url": "string"
+        "openai": {
+          "base_url": "string",
+          "key": "string"
+        }
       }
     },
     "allow_workspace_renames": true,
@@ -2684,9 +2734,15 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "agent_stat_refresh_interval": 0,
   "ai": {
     "bridge": {
-      "anthropic_base_url": "string",
+      "anthropic": {
+        "base_url": "string",
+        "key": "string"
+      },
       "daemons": 0,
-      "openai_base_url": "string"
+      "openai": {
+        "base_url": "string",
+        "key": "string"
+      }
     }
   },
   "allow_workspace_renames": true,

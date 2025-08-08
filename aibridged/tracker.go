@@ -3,14 +3,30 @@ package aibridged
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/coder/coder/v2/aibridged/proto"
 )
 
 type Metadata map[string]any
+
+func (m Metadata) MarshalForProto() map[string]*anypb.Any {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make(map[string]*anypb.Any, len(m))
+	for k, v := range m {
+		if sv, err := structpb.NewValue(v); err == nil {
+			if av, err := anypb.New(sv); err == nil {
+				out[k] = av
+			}
+		}
+	}
+	return out
+}
 
 type Tracker interface {
 	TrackTokensUsage(ctx context.Context, sessionID, msgID string, model Model, promptTokens, completionTokens int64, metadata Metadata) error
@@ -35,8 +51,7 @@ func (d *DRPCTracker) TrackTokensUsage(ctx context.Context, sessionID, msgID str
 		MsgId:        msgID,
 		InputTokens:  promptTokens,
 		OutputTokens: completionTokens,
-		Model:        fmt.Sprintf("%s.%s", model.Provider, model.ModelName), // TODO: make first-class type in proto.
-		// Other:        metadata, // TODO: implement map<string, any> in proto.
+		Metadata:     metadata.MarshalForProto(),
 	})
 	return err
 }
@@ -46,7 +61,7 @@ func (d *DRPCTracker) TrackPromptUsage(ctx context.Context, sessionID, msgID str
 		SessionId: sessionID,
 		MsgId:     msgID,
 		Prompt:    prompt,
-		Model:     fmt.Sprintf("%s.%s", model.Provider, model.ModelName), // TODO: make first-class type in proto.
+		Metadata:  metadata.MarshalForProto(),
 	})
 	return err
 }
@@ -73,9 +88,9 @@ func (d *DRPCTracker) TrackToolUsage(ctx context.Context, sessionID, msgID strin
 		SessionId: sessionID,
 		MsgId:     msgID,
 		Tool:      name,
-		Model:     fmt.Sprintf("%s.%s", model.Provider, model.ModelName), // TODO: make first-class type in proto.
 		Input:     string(serialized),
 		Injected:  injected,
+		Metadata:  metadata.MarshalForProto(),
 	})
 	return err
 }

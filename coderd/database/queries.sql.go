@@ -107,6 +107,118 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
+const insertAIBridgeSession = `-- name: InsertAIBridgeSession :one
+INSERT INTO aibridge_sessions (id, initiator_id, provider, model)
+VALUES ($1::uuid, $2::uuid, $3, $4)
+RETURNING $1::uuid
+`
+
+type InsertAIBridgeSessionParams struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	InitiatorID uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	Provider    string    `db:"provider" json:"provider"`
+	Model       string    `db:"model" json:"model"`
+}
+
+func (q *sqlQuerier) InsertAIBridgeSession(ctx context.Context, arg InsertAIBridgeSessionParams) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, insertAIBridgeSession,
+		arg.ID,
+		arg.InitiatorID,
+		arg.Provider,
+		arg.Model,
+	)
+	var column_1 uuid.UUID
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const insertAIBridgeTokenUsage = `-- name: InsertAIBridgeTokenUsage :exec
+INSERT INTO aibridge_token_usages (
+  id, session_id, provider_id, input_tokens, output_tokens, metadata
+) VALUES (
+  $1, $2, $3, $4, $5, COALESCE($6::jsonb, '{}'::jsonb)
+)
+`
+
+type InsertAIBridgeTokenUsageParams struct {
+	ID           uuid.UUID       `db:"id" json:"id"`
+	SessionID    uuid.UUID       `db:"session_id" json:"session_id"`
+	ProviderID   string          `db:"provider_id" json:"provider_id"`
+	InputTokens  int64           `db:"input_tokens" json:"input_tokens"`
+	OutputTokens int64           `db:"output_tokens" json:"output_tokens"`
+	Metadata     json.RawMessage `db:"metadata" json:"metadata"`
+}
+
+func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) error {
+	_, err := q.db.ExecContext(ctx, insertAIBridgeTokenUsage,
+		arg.ID,
+		arg.SessionID,
+		arg.ProviderID,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.Metadata,
+	)
+	return err
+}
+
+const insertAIBridgeToolUsage = `-- name: InsertAIBridgeToolUsage :exec
+INSERT INTO aibridge_tool_usages (
+  id, session_id, provider_id, tool, input, injected, metadata
+) VALUES (
+  $1, $2, $3, $4, $5, $6, COALESCE($7::jsonb, '{}'::jsonb)
+)
+`
+
+type InsertAIBridgeToolUsageParams struct {
+	ID         uuid.UUID       `db:"id" json:"id"`
+	SessionID  uuid.UUID       `db:"session_id" json:"session_id"`
+	ProviderID string          `db:"provider_id" json:"provider_id"`
+	Tool       string          `db:"tool" json:"tool"`
+	Input      string          `db:"input" json:"input"`
+	Injected   bool            `db:"injected" json:"injected"`
+	Metadata   json.RawMessage `db:"metadata" json:"metadata"`
+}
+
+func (q *sqlQuerier) InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBridgeToolUsageParams) error {
+	_, err := q.db.ExecContext(ctx, insertAIBridgeToolUsage,
+		arg.ID,
+		arg.SessionID,
+		arg.ProviderID,
+		arg.Tool,
+		arg.Input,
+		arg.Injected,
+		arg.Metadata,
+	)
+	return err
+}
+
+const insertAIBridgeUserPrompt = `-- name: InsertAIBridgeUserPrompt :exec
+INSERT INTO aibridge_user_prompts (
+  id, session_id, provider_id, prompt, metadata
+) VALUES (
+  $1, $2, $3, $4, COALESCE($5::jsonb, '{}'::jsonb)
+)
+`
+
+type InsertAIBridgeUserPromptParams struct {
+	ID         uuid.UUID       `db:"id" json:"id"`
+	SessionID  uuid.UUID       `db:"session_id" json:"session_id"`
+	ProviderID string          `db:"provider_id" json:"provider_id"`
+	Prompt     string          `db:"prompt" json:"prompt"`
+	Metadata   json.RawMessage `db:"metadata" json:"metadata"`
+}
+
+func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIBridgeUserPromptParams) error {
+	_, err := q.db.ExecContext(ctx, insertAIBridgeUserPrompt,
+		arg.ID,
+		arg.SessionID,
+		arg.ProviderID,
+		arg.Prompt,
+		arg.Metadata,
+	)
+	return err
+}
+
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
 DELETE FROM
 	api_keys
@@ -21277,19 +21389,4 @@ func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg Insert
 		return nil, err
 	}
 	return items, nil
-}
-
-const insertWormholeEvent = `-- name: InsertWormholeEvent :exec
-INSERT INTO wormhole (id, created_at, event, event_type)
-VALUES (gen_random_uuid(), now(), $1, $2)
-`
-
-type InsertWormholeEventParams struct {
-	Event     json.RawMessage `db:"event" json:"event"`
-	EventType string          `db:"event_type" json:"event_type"`
-}
-
-func (q *sqlQuerier) InsertWormholeEvent(ctx context.Context, arg InsertWormholeEventParams) error {
-	_, err := q.db.ExecContext(ctx, insertWormholeEvent, arg.Event, arg.EventType)
-	return err
 }

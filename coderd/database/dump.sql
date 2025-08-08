@@ -814,6 +814,44 @@ BEGIN
 END;
 $$;
 
+CREATE TABLE aibridge_sessions (
+    id uuid NOT NULL,
+    initiator_id uuid NOT NULL,
+    provider text NOT NULL,
+    model text NOT NULL,
+    created_at timestamp with time zone DEFAULT now()
+);
+
+CREATE TABLE aibridge_token_usages (
+    id uuid NOT NULL,
+    session_id uuid NOT NULL,
+    provider_id text NOT NULL,
+    input_tokens bigint NOT NULL,
+    output_tokens bigint NOT NULL,
+    metadata jsonb,
+    created_at timestamp with time zone DEFAULT now()
+);
+
+CREATE TABLE aibridge_tool_usages (
+    id uuid NOT NULL,
+    session_id uuid NOT NULL,
+    provider_id text NOT NULL,
+    tool text NOT NULL,
+    input text NOT NULL,
+    injected boolean DEFAULT false NOT NULL,
+    metadata jsonb,
+    created_at timestamp with time zone DEFAULT now()
+);
+
+CREATE TABLE aibridge_user_prompts (
+    id uuid NOT NULL,
+    session_id uuid NOT NULL,
+    provider_id text NOT NULL,
+    prompt text NOT NULL,
+    metadata jsonb,
+    created_at timestamp with time zone DEFAULT now()
+);
+
 CREATE TABLE api_keys (
     id text NOT NULL,
     hashed_secret bytea NOT NULL,
@@ -2471,13 +2509,6 @@ CREATE VIEW workspaces_expanded AS
 
 COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name.';
 
-CREATE TABLE wormhole (
-    id uuid,
-    created_at timestamp with time zone NOT NULL,
-    event jsonb NOT NULL,
-    event_type character varying(32) NOT NULL
-);
-
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
 ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provisioner_job_logs_id_seq'::regclass);
@@ -2492,6 +2523,18 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY aibridge_sessions
+    ADD CONSTRAINT aibridge_sessions_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY aibridge_token_usages
+    ADD CONSTRAINT aibridge_token_usages_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY aibridge_tool_usages
+    ADD CONSTRAINT aibridge_tool_usages_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY aibridge_user_prompts
+    ADD CONSTRAINT aibridge_user_prompts_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_pkey PRIMARY KEY (id);
@@ -2776,6 +2819,24 @@ CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (cr
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
 
+CREATE INDEX idx_aibridge_sessions_model ON aibridge_sessions USING btree (model);
+
+CREATE INDEX idx_aibridge_sessions_provider ON aibridge_sessions USING btree (provider);
+
+CREATE INDEX idx_aibridge_token_usages_session_id ON aibridge_token_usages USING btree (session_id);
+
+CREATE INDEX idx_aibridge_token_usages_session_provider_id ON aibridge_token_usages USING btree (session_id, provider_id);
+
+CREATE INDEX idx_aibridge_tool_usages_session_id ON aibridge_tool_usages USING btree (session_id);
+
+CREATE INDEX idx_aibridge_tool_usages_session_provider_id ON aibridge_tool_usages USING btree (session_id, provider_id);
+
+CREATE INDEX idx_aibridge_tool_usages_tool ON aibridge_tool_usages USING btree (tool);
+
+CREATE INDEX idx_aibridge_user_prompts_session_id ON aibridge_user_prompts USING btree (session_id);
+
+CREATE INDEX idx_aibridge_user_prompts_session_provider_id ON aibridge_user_prompts USING btree (session_id, provider_id);
+
 CREATE UNIQUE INDEX idx_api_key_name ON api_keys USING btree (user_id, token_name) WHERE (login_type = 'token'::login_type);
 
 CREATE INDEX idx_api_keys_user ON api_keys USING btree (user_id);
@@ -3003,6 +3064,18 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
+
+ALTER TABLE ONLY aibridge_sessions
+    ADD CONSTRAINT aibridge_sessions_initiator_id_fkey FOREIGN KEY (initiator_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY aibridge_token_usages
+    ADD CONSTRAINT aibridge_token_usages_session_id_fkey FOREIGN KEY (session_id) REFERENCES aibridge_sessions(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY aibridge_tool_usages
+    ADD CONSTRAINT aibridge_tool_usages_session_id_fkey FOREIGN KEY (session_id) REFERENCES aibridge_sessions(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY aibridge_user_prompts
+    ADD CONSTRAINT aibridge_user_prompts_session_id_fkey FOREIGN KEY (session_id) REFERENCES aibridge_sessions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

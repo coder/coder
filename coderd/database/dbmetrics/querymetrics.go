@@ -2098,6 +2098,34 @@ func (m queryMetricsStore) GetWorkspacesEligibleForTransition(ctx context.Contex
 	return workspaces, err
 }
 
+func (m queryMetricsStore) InsertAIBridgeSession(ctx context.Context, arg database.InsertAIBridgeSessionParams) (uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAIBridgeSession(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIBridgeSession").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) error {
+	start := time.Now()
+	r0 := m.s.InsertAIBridgeTokenUsage(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIBridgeTokenUsage").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) InsertAIBridgeToolUsage(ctx context.Context, arg database.InsertAIBridgeToolUsageParams) error {
+	start := time.Now()
+	r0 := m.s.InsertAIBridgeToolUsage(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIBridgeToolUsage").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) error {
+	start := time.Now()
+	r0 := m.s.InsertAIBridgeUserPrompt(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIBridgeUserPrompt").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	start := time.Now()
 	key, err := m.s.InsertAPIKey(ctx, arg)
@@ -2523,13 +2551,6 @@ func (m queryMetricsStore) InsertWorkspaceResourceMetadata(ctx context.Context, 
 	metadata, err := m.s.InsertWorkspaceResourceMetadata(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceResourceMetadata").Observe(time.Since(start).Seconds())
 	return metadata, err
-}
-
-func (m queryMetricsStore) InsertWormholeEvent(ctx context.Context, arg database.InsertWormholeEventParams) error {
-	start := time.Now()
-	r0 := m.s.InsertWormholeEvent(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertWormholeEvent").Observe(time.Since(start).Seconds())
-	return r0
 }
 
 func (m queryMetricsStore) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {

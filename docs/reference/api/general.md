@@ -163,9 +163,15 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "agent_stat_refresh_interval": 0,
     "ai": {
       "bridge": {
-        "anthropic_base_url": "string",
+        "anthropic": {
+          "base_url": "string",
+          "key": "string"
+        },
         "daemons": 0,
-        "openai_base_url": "string"
+        "openai": {
+          "base_url": "string",
+          "key": "string"
+        }
       }
     },
     "allow_workspace_renames": true,

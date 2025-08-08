@@ -149,6 +149,16 @@ func (s *Server) Client() (proto.DRPCAIBridgeDaemonClient, error) {
 	}
 }
 
+func (s *Server) StartSession(ctx context.Context, in *proto.StartSessionRequest) (*proto.StartSessionResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.StartSessionResponse, error) {
+		return client.StartSession(ctx, in)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (s *Server) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageRequest) (*proto.TrackTokenUsageResponse, error) {
 	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.TrackTokenUsageResponse, error) {
 		return client.TrackTokenUsage(ctx, in)

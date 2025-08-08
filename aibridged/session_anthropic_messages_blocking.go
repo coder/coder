@@ -27,8 +27,8 @@ func NewAnthropicMessagesBlockingSession(req *BetaMessageNewParamsWrapper) *Anth
 	}}
 }
 
-func (s *AnthropicMessagesBlockingSession) Init(logger slog.Logger, baseURL, key string, tracker Tracker, toolMgr ToolManager) string {
-	return s.AnthropicMessagesSessionBase.Init(logger.Named("blocking"), baseURL, key, tracker, toolMgr)
+func (s *AnthropicMessagesBlockingSession) Init(id string, logger slog.Logger, baseURL, key string, tracker Tracker, toolMgr ToolManager) {
+	s.AnthropicMessagesSessionBase.Init(id, logger.Named("blocking"), baseURL, key, tracker, toolMgr)
 }
 
 func (s *AnthropicMessagesBlockingSession) ProcessRequest(w http.ResponseWriter, r *http.Request) error {

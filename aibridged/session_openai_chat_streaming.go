@@ -27,8 +27,8 @@ func NewOpenAIStreamingChatSession(req *ChatCompletionNewParamsWrapper) *OpenAIS
 	}}
 }
 
-func (s *OpenAIStreamingChatSession) Init(logger slog.Logger, baseURL, key string, tracker Tracker, toolMgr ToolManager) string {
-	return s.OpenAIChatSessionBase.Init(logger.Named("streaming"), baseURL, key, tracker, toolMgr)
+func (s *OpenAIStreamingChatSession) Init(id string, logger slog.Logger, baseURL, key string, tracker Tracker, toolMgr ToolManager) {
+	s.OpenAIChatSessionBase.Init(id, logger.Named("streaming"), baseURL, key, tracker, toolMgr)
 }
 
 func (s *OpenAIStreamingChatSession) ProcessRequest(w http.ResponseWriter, r *http.Request) error {

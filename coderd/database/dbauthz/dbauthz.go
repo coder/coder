@@ -3617,6 +3617,26 @@ func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now ti
 	return q.db.GetWorkspacesEligibleForTransition(ctx, now)
 }
 
+func (q *querier) InsertAIBridgeSession(ctx context.Context, arg database.InsertAIBridgeSessionParams) (uuid.UUID, error) {
+	// TODO: authz.
+	return q.db.InsertAIBridgeSession(ctx, arg)
+}
+
+func (q *querier) InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) error {
+	// TODO: authz.
+	return q.db.InsertAIBridgeTokenUsage(ctx, arg)
+}
+
+func (q *querier) InsertAIBridgeToolUsage(ctx context.Context, arg database.InsertAIBridgeToolUsageParams) error {
+	// TODO: authz.
+	return q.db.InsertAIBridgeToolUsage(ctx, arg)
+}
+
+func (q *querier) InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) error {
+	// TODO: authz.
+	return q.db.InsertAIBridgeUserPrompt(ctx, arg)
+}
+
 func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	return insert(q.log, q.auth,
 		rbac.ResourceApiKey.WithOwner(arg.UserID.String()),
@@ -4143,10 +4163,6 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 		return nil, err
 	}
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
-}
-
-func (q *querier) InsertWormholeEvent(ctx context.Context, arg database.InsertWormholeEventParams) error {
-	return q.db.InsertWormholeEvent(ctx, arg) // TODO: authz.
 }
 
 func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {

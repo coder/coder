@@ -3,13 +3,24 @@ option go_package = "github.com/coder/coder/v2/aibridged/proto";
 
 package aibridged;
 
+import "google/protobuf/any.proto";
+
+message StartSessionRequest {
+  string initiator_id = 1;
+  string provider = 2;
+  string model = 3;
+}
+
+message StartSessionResponse {
+  string session_id = 1;
+}
+
 message TrackTokenUsageRequest {
 	string session_id = 1;
 	string msg_id = 2;
 	int64 input_tokens = 3;
 	int64 output_tokens = 4;
-	string model = 5;
-	map<string, int64> other = 6;
+	map<string, google.protobuf.Any> metadata = 5;
 }
 message TrackTokenUsageResponse {}
 
@@ -17,7 +28,7 @@ message TrackUserPromptRequest {
 	string session_id = 1;
 	string msg_id = 2;
 	string prompt = 3;
-	string model = 4;
+	map<string, google.protobuf.Any> metadata = 4;
 }
 message TrackUserPromptResponse {}
 
@@ -25,14 +36,15 @@ message TrackToolUsageRequest {
 	string session_id = 1;
 	string msg_id = 2;
 	string tool = 3;
-	string model = 4;
-	string input = 5;
-	bool injected = 6;
+	string input = 4;
+	bool injected = 5;
+	map<string, google.protobuf.Any> metadata = 6;
 }
 message TrackToolUsageResponse {}
 
 // AIBridgeDaemon describes the service exposed by coderd, which allows the AI bridge to send data to coderd.
 service AIBridgeDaemon {
+  rpc StartSession(StartSessionRequest) returns (StartSessionResponse);
 	rpc TrackTokenUsage(TrackTokenUsageRequest) returns (TrackTokenUsageResponse);
 	rpc TrackUserPrompt(TrackUserPromptRequest) returns (TrackUserPromptResponse);
 	rpc TrackToolUsage(TrackToolUsageRequest) returns (TrackToolUsageResponse);

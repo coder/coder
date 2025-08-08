@@ -38,6 +38,7 @@ func (drpcEncoding_File_aibridged_proto_aibridged_proto) JSONUnmarshal(buf []byt
 type DRPCAIBridgeDaemonClient interface {
 	DRPCConn() drpc.Conn
 
+	StartSession(ctx context.Context, in *StartSessionRequest) (*StartSessionResponse, error)
 	TrackTokenUsage(ctx context.Context, in *TrackTokenUsageRequest) (*TrackTokenUsageResponse, error)
 	TrackUserPrompt(ctx context.Context, in *TrackUserPromptRequest) (*TrackUserPromptResponse, error)
 	TrackToolUsage(ctx context.Context, in *TrackToolUsageRequest) (*TrackToolUsageResponse, error)
@@ -52,6 +53,15 @@ func NewDRPCAIBridgeDaemonClient(cc drpc.Conn) DRPCAIBridgeDaemonClient {
 }
 
 func (c *drpcAIBridgeDaemonClient) DRPCConn() drpc.Conn { return c.cc }
+
+func (c *drpcAIBridgeDaemonClient) StartSession(ctx context.Context, in *StartSessionRequest) (*StartSessionResponse, error) {
+	out := new(StartSessionResponse)
+	err := c.cc.Invoke(ctx, "/aibridged.AIBridgeDaemon/StartSession", drpcEncoding_File_aibridged_proto_aibridged_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
 
 func (c *drpcAIBridgeDaemonClient) TrackTokenUsage(ctx context.Context, in *TrackTokenUsageRequest) (*TrackTokenUsageResponse, error) {
 	out := new(TrackTokenUsageResponse)
@@ -81,12 +91,17 @@ func (c *drpcAIBridgeDaemonClient) TrackToolUsage(ctx context.Context, in *Track
 }
 
 type DRPCAIBridgeDaemonServer interface {
+	StartSession(context.Context, *StartSessionRequest) (*StartSessionResponse, error)
 	TrackTokenUsage(context.Context, *TrackTokenUsageRequest) (*TrackTokenUsageResponse, error)
 	TrackUserPrompt(context.Context, *TrackUserPromptRequest) (*TrackUserPromptResponse, error)
 	TrackToolUsage(context.Context, *TrackToolUsageRequest) (*TrackToolUsageResponse, error)
 }
 
 type DRPCAIBridgeDaemonUnimplementedServer struct{}
+
+func (s *DRPCAIBridgeDaemonUnimplementedServer) StartSession(context.Context, *StartSessionRequest) (*StartSessionResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
 
 func (s *DRPCAIBridgeDaemonUnimplementedServer) TrackTokenUsage(context.Context, *TrackTokenUsageRequest) (*TrackTokenUsageResponse, error) {
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
@@ -102,11 +117,20 @@ func (s *DRPCAIBridgeDaemonUnimplementedServer) TrackToolUsage(context.Context, 
 
 type DRPCAIBridgeDaemonDescription struct{}
 
-func (DRPCAIBridgeDaemonDescription) NumMethods() int { return 3 }
+func (DRPCAIBridgeDaemonDescription) NumMethods() int { return 4 }
 
 func (DRPCAIBridgeDaemonDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
 	case 0:
+		return "/aibridged.AIBridgeDaemon/StartSession", drpcEncoding_File_aibridged_proto_aibridged_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAIBridgeDaemonServer).
+					StartSession(
+						ctx,
+						in1.(*StartSessionRequest),
+					)
+			}, DRPCAIBridgeDaemonServer.StartSession, true
+	case 1:
 		return "/aibridged.AIBridgeDaemon/TrackTokenUsage", drpcEncoding_File_aibridged_proto_aibridged_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAIBridgeDaemonServer).
@@ -115,7 +139,7 @@ func (DRPCAIBridgeDaemonDescription) Method(n int) (string, drpc.Encoding, drpc.
 						in1.(*TrackTokenUsageRequest),
 					)
 			}, DRPCAIBridgeDaemonServer.TrackTokenUsage, true
-	case 1:
+	case 2:
 		return "/aibridged.AIBridgeDaemon/TrackUserPrompt", drpcEncoding_File_aibridged_proto_aibridged_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAIBridgeDaemonServer).
@@ -124,7 +148,7 @@ func (DRPCAIBridgeDaemonDescription) Method(n int) (string, drpc.Encoding, drpc.
 						in1.(*TrackUserPromptRequest),
 					)
 			}, DRPCAIBridgeDaemonServer.TrackUserPrompt, true
-	case 2:
+	case 3:
 		return "/aibridged.AIBridgeDaemon/TrackToolUsage", drpcEncoding_File_aibridged_proto_aibridged_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAIBridgeDaemonServer).
@@ -140,6 +164,22 @@ func (DRPCAIBridgeDaemonDescription) Method(n int) (string, drpc.Encoding, drpc.
 
 func DRPCRegisterAIBridgeDaemon(mux drpc.Mux, impl DRPCAIBridgeDaemonServer) error {
 	return mux.Register(impl, DRPCAIBridgeDaemonDescription{})
+}
+
+type DRPCAIBridgeDaemon_StartSessionStream interface {
+	drpc.Stream
+	SendAndClose(*StartSessionResponse) error
+}
+
+type drpcAIBridgeDaemon_StartSessionStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAIBridgeDaemon_StartSessionStream) SendAndClose(m *StartSessionResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_aibridged_proto_aibridged_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
 }
 
 type DRPCAIBridgeDaemon_TrackTokenUsageStream interface {

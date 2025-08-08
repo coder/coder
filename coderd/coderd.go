@@ -1982,7 +1982,7 @@ func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context, name strin
 	mux := drpcmux.New()
 	api.Logger.Debug(dialCtx, "starting in-memory AI bridge daemon", slog.F("name", name))
 	logger := api.Logger.Named(fmt.Sprintf("inmem-aibridged-%s", name))
-	srv, err := aibridgedserver.NewServer(api.ctx, api.Database)
+	srv, err := aibridgedserver.NewServer(api.ctx, api.Database, api.Logger)
 	if err != nil {
 		return nil, err
 	}

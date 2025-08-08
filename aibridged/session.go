@@ -12,7 +12,7 @@ type Model struct {
 
 // Session describes a (potentially) stateful interaction with an AI provider.
 type Session interface {
-	Init(logger slog.Logger, baseURL, key string, tracker Tracker, toolMgr ToolManager) (id string)
+	Init(id string, logger slog.Logger, baseURL, key string, tracker Tracker, toolMgr ToolManager)
 	LastUserPrompt() (*string, error)
 	Model() Model
 	ProcessRequest(w http.ResponseWriter, r *http.Request) error

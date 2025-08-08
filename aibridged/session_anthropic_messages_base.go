@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -22,8 +21,8 @@ type AnthropicMessagesSessionBase struct {
 	toolMgr ToolManager
 }
 
-func (s *AnthropicMessagesSessionBase) Init(logger slog.Logger, baseURL, key string, tracker Tracker, toolMgr ToolManager) string {
-	s.id = uuid.NewString()
+func (s *AnthropicMessagesSessionBase) Init(id string, logger slog.Logger, baseURL, key string, tracker Tracker, toolMgr ToolManager) {
+	s.id = id
 
 	s.logger = logger.With(slog.F("session_id", s.id))
 
@@ -32,8 +31,6 @@ func (s *AnthropicMessagesSessionBase) Init(logger slog.Logger, baseURL, key str
 
 	s.tracker = tracker
 	s.toolMgr = toolMgr
-
-	return s.id
 }
 
 func (s *AnthropicMessagesSessionBase) LastUserPrompt() (*string, error) {
