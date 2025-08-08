@@ -916,12 +916,12 @@ github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136 h1:0RgB61LcNs
 github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136/go.mod h1:VkD1P761nykiq75dz+4iFqIQIZka189tx1BQLOp0Skc=
 github.com/coder/guts v1.5.0 h1:a94apf7xMf5jDdg1bIHzncbRiTn3+BvBZgrFSDbUnyI=
 github.com/coder/guts v1.5.0/go.mod h1:0Sbv5Kp83u1Nl7MIQiV2zmacJ3o02I341bkWkjWXSUQ=
-github.com/coder/pq v1.10.5-0.20250630052411-a259f96b6102 h1:ahTJlTRmTogsubgRVGOUj40dg62WvqPQkzTQP7pyepI=
-github.com/coder/pq v1.10.5-0.20250630052411-a259f96b6102/go.mod h1:AlVN5x4E4T544tWzH6hKfbfQvm3HdbOxrmggDNAPY9o=
+github.com/coder/pq v1.10.5-0.20250807075151-6ad9b0a25151 h1:YAxwg3lraGNRwoQ18H7R7n+wsCqNve7Brdvj0F1rDnU=
+github.com/coder/pq v1.10.5-0.20250807075151-6ad9b0a25151/go.mod h1:AlVN5x4E4T544tWzH6hKfbfQvm3HdbOxrmggDNAPY9o=
 github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0 h1:3A0ES21Ke+FxEM8CXx9n47SZOKOpgSE1bbJzlE4qPVs=
 github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0/go.mod h1:5UuS2Ts+nTToAMeOjNlnHFkPahrtDkmpydBen/3wgZc=
-github.com/coder/preview v1.0.3-0.20250714153828-a737d4750448 h1:S86sFp4Dr4dUn++fXOMOTu6ClnEZ/NrGCYv7bxZjYYc=
-github.com/coder/preview v1.0.3-0.20250714153828-a737d4750448/go.mod h1:hQtBEqOFMJ3SHl9Q9pVvDA9CpeCEXBwbONNK29+3MLk=
+github.com/coder/preview v1.0.3 h1:et0/frnLB68PPwsGaa1KAZQdBKBxNSqzMplYKsBpcNA=
+github.com/coder/preview v1.0.3/go.mod h1:hQtBEqOFMJ3SHl9Q9pVvDA9CpeCEXBwbONNK29+3MLk=
 github.com/coder/quartz v0.2.1 h1:QgQ2Vc1+mvzewg2uD/nj8MJ9p9gE+QhGJm+Z+NGnrSE=
 github.com/coder/quartz v0.2.1/go.mod h1:vsiCc+AHViMKH2CQpGIpFgdHIEQsxwm8yCscqKmzbRA=
 github.com/coder/retry v1.5.1 h1:iWu8YnD8YqHs3XwqrqsjoBTAVqT9ml6z9ViJ2wlMiqc=

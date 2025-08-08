@@ -1870,8 +1870,9 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			Database:                    db,
 			TemplateScheduleStore:       templateScheduleStore,
 			UserQuietHoursScheduleStore: *s.UserQuietHoursScheduleStore.Load(),
-			Now:                         now,
-			Workspace:                   workspace.WorkspaceTable(),
+			// `now` is used below to set the build completion time.
+			WorkspaceBuildCompletedAt: now,
+			Workspace:                 workspace.WorkspaceTable(),
 			// Allowed to be the empty string.
 			WorkspaceAutostart: workspace.AutostartSchedule.String,
 		})

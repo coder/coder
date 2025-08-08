@@ -11,11 +11,11 @@ import (
 	"github.com/prometheus/common/model"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/agentmetrics"
-
 	"cdr.dev/slog"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/agentmetrics"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 )
 
 const (
@@ -298,7 +298,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 	done := make(chan struct{})
 
 	cleanupTicker := time.NewTicker(ma.metricsCleanupInterval)
-	go func() {
+	pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceAgentMetricAggregator), func(ctx context.Context) {
 		defer close(done)
 		defer cleanupTicker.Stop()
 
@@ -395,7 +395,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 				return
 			}
 		}
-	}()
+	})
 	return func() {
 		cancelFunc()
 		<-done

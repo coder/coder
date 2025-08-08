@@ -59,6 +59,19 @@ WHERE
 			tv.has_ai_task = sqlc.narg('has_ai_task') :: boolean
 		ELSE true
 	END
+	-- Filter by author_id
+	AND CASE
+		  WHEN @author_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			  t.created_by = @author_id
+		  ELSE true
+	END
+	-- Filter by author_username
+	AND CASE
+		  WHEN @author_username :: text != '' THEN
+			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower(@author_username) AND deleted = false)
+		  ELSE true
+	END
+
 	-- Filter by has_external_agent in latest version
 	AND CASE
 		WHEN sqlc.narg('has_external_agent') :: boolean IS NOT NULL THEN

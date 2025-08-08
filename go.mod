@@ -1,6 +1,6 @@
 module github.com/coder/coder/v2
 
-go 1.24.4
+go 1.24.6
 
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
@@ -58,7 +58,7 @@ replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0
 // Adds support for a new Listener from a driver.Connector
 // This lets us use rotating authentication tokens for passwords in connection strings
 // which we use in the awsiamrds package.
-replace github.com/lib/pq => github.com/coder/pq v1.10.5-0.20250630052411-a259f96b6102
+replace github.com/lib/pq => github.com/coder/pq v1.10.5-0.20250807075151-6ad9b0a25151
 
 // Removes an init() function that causes terminal sequences to be printed to the web terminal when
 // used in conjunction with agent-exec. See https://github.com/coder/coder/pull/15817
@@ -479,7 +479,7 @@ require (
 require (
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
 	github.com/coder/aisdk-go v0.0.9
-	github.com/coder/preview v1.0.3-0.20250714153828-a737d4750448
+	github.com/coder/preview v1.0.3
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/mark3labs/mcp-go v0.36.0

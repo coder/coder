@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
@@ -45,8 +46,8 @@ import (
 )
 
 var (
-	ttlMin = time.Minute //nolint:revive // min here means 'minimum' not 'minutes'
-	ttlMax = 30 * 24 * time.Hour
+	ttlMinimum = time.Minute
+	ttlMaximum = 30 * 24 * time.Hour
 
 	errTTLMin              = xerrors.New("time until shutdown must be at least one minute")
 	errTTLMax              = xerrors.New("time until shutdown must be less than 30 days")
@@ -1190,8 +1191,22 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 
 			if build.Transition == database.WorkspaceTransitionStart {
 				if err = s.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-					ID:          build.ID,
-					Deadline:    time.Time{},
+					ID: build.ID,
+					// Use the max_deadline as the new build deadline. It will
+					// either be zero (our target), or a non-zero value that we
+					// need to abide by anyway due to template policy.
+					//
+					// Previously, we would always set the deadline to zero,
+					// which was incorrect behavior. When max_deadline is
+					// non-zero, deadline must be set to a non-zero value that
+					// is less than max_deadline.
+					//
+					// Disabling TTL autostop (at a workspace or template level)
+					// does not trump the template's autostop requirement.
+					//
+					// Refer to the comments on schedule.CalculateAutostop for
+					// more information.
+					Deadline:    build.MaxDeadline,
 					MaxDeadline: build.MaxDeadline,
 					UpdatedAt:   dbtime.Time(api.Clock.Now()),
 				}); err != nil {
@@ -2072,17 +2087,10 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validErrs := validateWorkspaceACLPerms(ctx, api.Database, req.UserRoles, "user_roles")
-	validErrs = append(validErrs, validateWorkspaceACLPerms(
-		ctx,
-		api.Database,
-		req.GroupRoles,
-		"group_roles",
-	)...)
-
+	validErrs := acl.Validate(ctx, api.Database, WorkspaceACLUpdateValidator(req))
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid request to update template metadata!",
+			Message:     "Invalid request to update workspace ACL",
 			Validations: validErrs,
 		})
 		return
@@ -2391,11 +2399,11 @@ func validWorkspaceTTLMillis(millis *int64, templateDefault time.Duration) (sql.
 
 	dur := time.Duration(*millis) * time.Millisecond
 	truncated := dur.Truncate(time.Minute)
-	if truncated < ttlMin {
+	if truncated < ttlMinimum {
 		return sql.NullInt64{}, errTTLMin
 	}
 
-	if truncated > ttlMax {
+	if truncated > ttlMaximum {
 		return sql.NullInt64{}, errTTLMax
 	}
 
@@ -2478,50 +2486,28 @@ func (api *API) publishWorkspaceAgentLogsUpdate(ctx context.Context, workspaceAg
 	}
 }
 
-func validateWorkspaceACLPerms(ctx context.Context, db database.Store, perms map[string]codersdk.WorkspaceRole, field string) []codersdk.ValidationError {
-	// nolint:gocritic // Validate requires full read access to users and groups
-	ctx = dbauthz.AsSystemRestricted(ctx)
-	var validErrs []codersdk.ValidationError
-	for idStr, role := range perms {
-		if err := validateWorkspaceRole(role); err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: err.Error()})
-			continue
-		}
+type WorkspaceACLUpdateValidator codersdk.UpdateWorkspaceACL
 
-		id, err := uuid.Parse(idStr)
-		if err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: idStr + "is not a valid UUID."})
-			continue
-		}
+var (
+	workspaceACLUpdateUsersFieldName  = "user_roles"
+	workspaceACLUpdateGroupsFieldName = "group_roles"
+)
 
-		switch field {
-		case "user_roles":
-			// TODO(lilac): put this back after Kirby button shenanigans are over
-			// This could get slow if we get a ton of user perm updates.
-			// _, err = db.GetUserByID(ctx, id)
-			// if err != nil {
-			// 	validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: fmt.Sprintf("Failed to find resource with ID %q: %v", idStr, err.Error())})
-			// 	continue
-			// }
-		case "group_roles":
-			// This could get slow if we get a ton of group perm updates.
-			_, err = db.GetGroupByID(ctx, id)
-			if err != nil {
-				validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: fmt.Sprintf("Failed to find resource with ID %q: %v", idStr, err.Error())})
-				continue
-			}
-		default:
-			validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: "invalid field"})
-		}
-	}
+// WorkspaceACLUpdateValidator implements acl.UpdateValidator[codersdk.WorkspaceRole]
+var _ acl.UpdateValidator[codersdk.WorkspaceRole] = WorkspaceACLUpdateValidator{}
 
-	return validErrs
+func (w WorkspaceACLUpdateValidator) Users() (map[string]codersdk.WorkspaceRole, string) {
+	return w.UserRoles, workspaceACLUpdateUsersFieldName
 }
 
-func validateWorkspaceRole(role codersdk.WorkspaceRole) error {
+func (w WorkspaceACLUpdateValidator) Groups() (map[string]codersdk.WorkspaceRole, string) {
+	return w.GroupRoles, workspaceACLUpdateGroupsFieldName
+}
+
+func (WorkspaceACLUpdateValidator) ValidateRole(role codersdk.WorkspaceRole) error {
 	actions := db2sdk.WorkspaceRoleActions(role)
 	if len(actions) == 0 && role != codersdk.WorkspaceRoleDeleted {
-		return xerrors.Errorf("role %q is not a valid Workspace role", role)
+		return xerrors.Errorf("role %q is not a valid workspace role", role)
 	}
 
 	return nil

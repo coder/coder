@@ -814,6 +814,46 @@ func TestTemplatesByOrganization(t *testing.T) {
 		require.False(t, templates[0].Deprecated)
 		require.Empty(t, templates[0].DeprecationMessage)
 	})
+
+	t.Run("ListByAuthor", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		adminAlpha, adminAlphaData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		adminBravo, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		adminCharlie, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		versionA := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		versionB := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		versionC := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		foo := coderdtest.CreateTemplate(t, adminAlpha, owner.OrganizationID, versionA.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "foo"
+		})
+		bar := coderdtest.CreateTemplate(t, adminBravo, owner.OrganizationID, versionB.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "bar"
+		})
+		_ = coderdtest.CreateTemplate(t, adminCharlie, owner.OrganizationID, versionC.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "baz"
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// List alpha
+		alpha, err := client.Templates(ctx, codersdk.TemplateFilter{
+			AuthorUsername: adminAlphaData.Username,
+		})
+		require.NoError(t, err)
+		require.Len(t, alpha, 1)
+		require.Equal(t, foo.ID, alpha[0].ID)
+
+		// List bravo
+		bravo, err := adminBravo.Templates(ctx, codersdk.TemplateFilter{
+			AuthorUsername: codersdk.Me,
+		})
+		require.NoError(t, err)
+		require.Len(t, bravo, 1)
+		require.Equal(t, bar.ID, bravo[0].ID)
+	})
 }
 
 func TestTemplateByOrganizationAndName(t *testing.T) {

@@ -2869,6 +2869,37 @@ func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDPar
 	return i, err
 }
 
+const validateGroupIDs = `-- name: ValidateGroupIDs :one
+WITH input AS (
+	SELECT
+		unnest($1::uuid[]) AS id
+)
+SELECT
+	array_agg(input.id)::uuid[] as invalid_group_ids,
+	COUNT(*) = 0 as ok
+FROM
+	-- Preserve rows where there is not a matching left (groups) row for each
+	-- right (input) row...
+	groups
+	RIGHT JOIN input ON groups.id = input.id
+WHERE
+	-- ...so that we can retain exactly those rows where an input ID does not
+	-- match an existing group.
+	groups.id IS NULL
+`
+
+type ValidateGroupIDsRow struct {
+	InvalidGroupIds []uuid.UUID `db:"invalid_group_ids" json:"invalid_group_ids"`
+	Ok              bool        `db:"ok" json:"ok"`
+}
+
+func (q *sqlQuerier) ValidateGroupIDs(ctx context.Context, groupIds []uuid.UUID) (ValidateGroupIDsRow, error) {
+	row := q.db.QueryRowContext(ctx, validateGroupIDs, pq.Array(groupIds))
+	var i ValidateGroupIDsRow
+	err := row.Scan(pq.Array(&i.InvalidGroupIds), &i.Ok)
+	return i, err
+}
+
 const getTemplateAppInsights = `-- name: GetTemplateAppInsights :many
 WITH
 	-- Create a list of all unique apps by template, this is used to
@@ -6561,16 +6592,19 @@ WHERE
 			organization_id = $1
 		ELSE true
 	END
+  -- Filter by system type
+	AND CASE WHEN $2::bool THEN TRUE ELSE is_system = false END
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $2
+	LOWER(username) ASC OFFSET $3
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($3 :: int, 0)
+	NULLIF($4 :: int, 0)
 `
 
 type PaginatedOrganizationMembersParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	IncludeSystem  bool      `db:"include_system" json:"include_system"`
 	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
 }
@@ -6586,7 +6620,12 @@ type PaginatedOrganizationMembersRow struct {
 }
 
 func (q *sqlQuerier) PaginatedOrganizationMembers(ctx context.Context, arg PaginatedOrganizationMembersParams) ([]PaginatedOrganizationMembersRow, error) {
-	rows, err := q.db.QueryContext(ctx, paginatedOrganizationMembers, arg.OrganizationID, arg.OffsetOpt, arg.LimitOpt)
+	rows, err := q.db.QueryContext(ctx, paginatedOrganizationMembers,
+		arg.OrganizationID,
+		arg.IncludeSystem,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -8515,11 +8554,11 @@ func (q *sqlQuerier) InsertProvisionerJobLogs(ctx context.Context, arg InsertPro
 }
 
 const updateProvisionerJobLogsLength = `-- name: UpdateProvisionerJobLogsLength :exec
-UPDATE 
+UPDATE
 	provisioner_jobs
-SET 
+SET
 	logs_length = logs_length + $2
-WHERE 
+WHERE
 	id = $1
 `
 
@@ -8534,11 +8573,11 @@ func (q *sqlQuerier) UpdateProvisionerJobLogsLength(ctx context.Context, arg Upd
 }
 
 const updateProvisionerJobLogsOverflowed = `-- name: UpdateProvisionerJobLogsOverflowed :exec
-UPDATE 
+UPDATE
 	provisioner_jobs
-SET 
+SET
 	logs_overflowed = $2
-WHERE 
+WHERE
 	id = $1
 `
 
@@ -9556,7 +9595,7 @@ FROM
     provisioner_keys
 WHERE
     organization_id = $1
-AND 
+AND
     lower(name) = lower($2)
 `
 
@@ -9672,10 +9711,10 @@ WHERE
 AND
     -- exclude reserved built-in key
     id != '00000000-0000-0000-0000-000000000001'::uuid
-AND 
+AND
     -- exclude reserved user-auth key
     id != '00000000-0000-0000-0000-000000000002'::uuid
-AND 
+AND
     -- exclude reserved psk key
     id != '00000000-0000-0000-0000-000000000003'::uuid
 `
@@ -11459,7 +11498,7 @@ func (q *sqlQuerier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUI
 }
 
 const updateTailnetPeerStatusByCoordinator = `-- name: UpdateTailnetPeerStatusByCoordinator :exec
-UPDATE 
+UPDATE
 	tailnet_peers
 SET
 	status = $2
@@ -12059,6 +12098,19 @@ WHERE
 			tv.has_ai_task = $7 :: boolean
 		ELSE true
 	END
+	-- Filter by author_id
+	AND CASE
+		  WHEN $8 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			  t.created_by = $8
+		  ELSE true
+	END
+	-- Filter by author_username
+	AND CASE
+		  WHEN $9 :: text != '' THEN
+			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($9) AND deleted = false)
+		  ELSE true
+	END
+
 	-- Filter by has_external_agent in latest version
 	AND CASE
 		WHEN $8 :: boolean IS NOT NULL THEN
@@ -12071,13 +12123,15 @@ ORDER BY (t.name, t.id) ASC
 `
 
 type GetTemplatesWithFilterParams struct {
-	Deleted          bool         `db:"deleted" json:"deleted"`
-	OrganizationID   uuid.UUID    `db:"organization_id" json:"organization_id"`
-	ExactName        string       `db:"exact_name" json:"exact_name"`
-	FuzzyName        string       `db:"fuzzy_name" json:"fuzzy_name"`
-	IDs              []uuid.UUID  `db:"ids" json:"ids"`
-	Deprecated       sql.NullBool `db:"deprecated" json:"deprecated"`
-	HasAITask        sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
+	Deleted        bool         `db:"deleted" json:"deleted"`
+	OrganizationID uuid.UUID    `db:"organization_id" json:"organization_id"`
+	ExactName      string       `db:"exact_name" json:"exact_name"`
+	FuzzyName      string       `db:"fuzzy_name" json:"fuzzy_name"`
+	IDs            []uuid.UUID  `db:"ids" json:"ids"`
+	Deprecated     sql.NullBool `db:"deprecated" json:"deprecated"`
+	HasAITask      sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
+	AuthorID       uuid.UUID    `db:"author_id" json:"author_id"`
+	AuthorUsername string       `db:"author_username" json:"author_username"`
 	HasExternalAgent sql.NullBool `db:"has_external_agent" json:"has_external_agent"`
 }
 
@@ -12090,6 +12144,8 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		pq.Array(arg.IDs),
 		arg.Deprecated,
 		arg.HasAITask,
+		arg.AuthorID,
+		arg.AuthorUsername,
 		arg.HasExternalAgent,
 	)
 	if err != nil {
@@ -13418,14 +13474,14 @@ DO $$
 DECLARE
     table_record record;
 BEGIN
-    FOR table_record IN 
-        SELECT table_schema, table_name 
-        FROM information_schema.tables 
+    FOR table_record IN
+        SELECT table_schema, table_name
+        FROM information_schema.tables
         WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
         AND table_type = 'BASE TABLE'
     LOOP
-        EXECUTE format('ALTER TABLE %I.%I DISABLE TRIGGER ALL', 
-                    table_record.table_schema, 
+        EXECUTE format('ALTER TABLE %I.%I DISABLE TRIGGER ALL',
+                    table_record.table_schema,
                     table_record.table_name);
     END LOOP;
 END;
@@ -13777,6 +13833,196 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
 		&i.Claims,
+	)
+	return i, err
+}
+
+const createUserSecret = `-- name: CreateUserSecret :one
+INSERT INTO user_secrets (
+    id,
+    user_id,
+    name,
+    description,
+    value,
+    env_name,
+    file_path
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7
+) RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at
+`
+
+type CreateUserSecretParams struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	Value       string    `db:"value" json:"value"`
+	EnvName     string    `db:"env_name" json:"env_name"`
+	FilePath    string    `db:"file_path" json:"file_path"`
+}
+
+func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error) {
+	row := q.db.QueryRowContext(ctx, createUserSecret,
+		arg.ID,
+		arg.UserID,
+		arg.Name,
+		arg.Description,
+		arg.Value,
+		arg.EnvName,
+		arg.FilePath,
+	)
+	var i UserSecret
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Value,
+		&i.EnvName,
+		&i.FilePath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deleteUserSecret = `-- name: DeleteUserSecret :exec
+DELETE FROM user_secrets
+WHERE id = $1
+`
+
+func (q *sqlQuerier) DeleteUserSecret(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteUserSecret, id)
+	return err
+}
+
+const getUserSecret = `-- name: GetUserSecret :one
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at FROM user_secrets
+WHERE id = $1
+`
+
+func (q *sqlQuerier) GetUserSecret(ctx context.Context, id uuid.UUID) (UserSecret, error) {
+	row := q.db.QueryRowContext(ctx, getUserSecret, id)
+	var i UserSecret
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Value,
+		&i.EnvName,
+		&i.FilePath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUserSecretByUserIDAndName = `-- name: GetUserSecretByUserIDAndName :one
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at FROM user_secrets
+WHERE user_id = $1 AND name = $2
+`
+
+type GetUserSecretByUserIDAndNameParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Name   string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetUserSecretByUserIDAndName(ctx context.Context, arg GetUserSecretByUserIDAndNameParams) (UserSecret, error) {
+	row := q.db.QueryRowContext(ctx, getUserSecretByUserIDAndName, arg.UserID, arg.Name)
+	var i UserSecret
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Value,
+		&i.EnvName,
+		&i.FilePath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listUserSecrets = `-- name: ListUserSecrets :many
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at FROM user_secrets
+WHERE user_id = $1
+ORDER BY name ASC
+`
+
+func (q *sqlQuerier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]UserSecret, error) {
+	rows, err := q.db.QueryContext(ctx, listUserSecrets, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserSecret
+	for rows.Next() {
+		var i UserSecret
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Name,
+			&i.Description,
+			&i.Value,
+			&i.EnvName,
+			&i.FilePath,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateUserSecret = `-- name: UpdateUserSecret :one
+UPDATE user_secrets
+SET
+    description = $2,
+    value = $3,
+    env_name = $4,
+    file_path = $5,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at
+`
+
+type UpdateUserSecretParams struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	Description string    `db:"description" json:"description"`
+	Value       string    `db:"value" json:"value"`
+	EnvName     string    `db:"env_name" json:"env_name"`
+	FilePath    string    `db:"file_path" json:"file_path"`
+}
+
+func (q *sqlQuerier) UpdateUserSecret(ctx context.Context, arg UpdateUserSecretParams) (UserSecret, error) {
+	row := q.db.QueryRowContext(ctx, updateUserSecret,
+		arg.ID,
+		arg.Description,
+		arg.Value,
+		arg.EnvName,
+		arg.FilePath,
+	)
+	var i UserSecret
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Value,
+		&i.EnvName,
+		&i.FilePath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -14794,6 +15040,39 @@ func (q *sqlQuerier) UpdateUserThemePreference(ctx context.Context, arg UpdateUs
 	row := q.db.QueryRowContext(ctx, updateUserThemePreference, arg.UserID, arg.ThemePreference)
 	var i UserConfig
 	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
+}
+
+const validateUserIDs = `-- name: ValidateUserIDs :one
+WITH input AS (
+	SELECT
+		unnest($1::uuid[]) AS id
+)
+SELECT
+	array_agg(input.id)::uuid[] as invalid_user_ids,
+	COUNT(*) = 0 as ok
+FROM
+	-- Preserve rows where there is not a matching left (users) row for each
+	-- right (input) row...
+	users
+	RIGHT JOIN input ON users.id = input.id
+WHERE
+	-- ...so that we can retain exactly those rows where an input ID does not
+	-- match an existing user...
+	users.id IS NULL OR
+	-- ...or that only matches a user that was deleted.
+	users.deleted = true
+`
+
+type ValidateUserIDsRow struct {
+	InvalidUserIds []uuid.UUID `db:"invalid_user_ids" json:"invalid_user_ids"`
+	Ok             bool        `db:"ok" json:"ok"`
+}
+
+func (q *sqlQuerier) ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (ValidateUserIDsRow, error) {
+	row := q.db.QueryRowContext(ctx, validateUserIDs, pq.Array(userIds))
+	var i ValidateUserIDsRow
+	err := row.Scan(pq.Array(&i.InvalidUserIds), &i.Ok)
 	return i, err
 }
 
@@ -16998,7 +17277,7 @@ WITH agent_stats AS (
 		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
 	 FROM workspace_agent_stats
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0 
+	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
 	GROUP BY user_id, agent_id, workspace_id, template_id
 ), latest_agent_stats AS (
 	SELECT
