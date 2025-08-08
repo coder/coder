@@ -10,7 +10,6 @@ import {
 import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import { http, HttpResponse } from "msw";
 import type { FC } from "react";
-import { type Location, useLocation } from "react-router";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
@@ -338,7 +337,7 @@ describe("WorkspacePage", () => {
 
 		// After trying to update, a new dialog asking for missed parameters should
 		// be displayed and filled
-		const dialog = await screen.findByTestId("dialog");
+		const dialog = await waitFor(() => screen.findByTestId("dialog"));
 		const firstParameterInput = within(dialog).getByLabelText(
 			MockTemplateVersionParameter1.name,
 			{ exact: false },

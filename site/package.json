@@ -14,7 +14,7 @@
 		"format": "biome format --write .",
 		"format:check": "biome format .",
 		"lint": "pnpm run lint:check && pnpm run lint:types && pnpm run lint:circular-deps && knip",
-		"lint:check": " biome lint --error-on-warnings .",
+		"lint:check": "biome lint --error-on-warnings .",
 		"lint:circular-deps": "dpdm --no-tree --no-warning -T ./src/App.tsx",
 		"lint:knip": "knip",
 		"lint:fix": "biome lint --error-on-warnings --write . && knip --fix",
@@ -185,7 +185,11 @@
 		"vite-plugin-checker": "0.9.3",
 		"vite-plugin-turbosnap": "1.0.3"
 	},
-	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
+	"browserslist": [
+		"chrome 110",
+		"firefox 111",
+		"safari 16.0"
+	],
 	"resolutions": {
 		"optionator": "0.9.3",
 		"semver": "7.6.2"

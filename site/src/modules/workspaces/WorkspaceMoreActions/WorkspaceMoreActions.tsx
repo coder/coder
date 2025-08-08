@@ -205,7 +205,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 					workspaceName={workspace.name}
 					templateVersionId={
 						changeVersionMutation.error instanceof ParameterValidationError
-							? changeVersionMutation.error?.versionId
+							? changeVersionMutation.error.versionId
 							: undefined
 					}
 				/>
