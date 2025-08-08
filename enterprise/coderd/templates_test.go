@@ -259,9 +259,9 @@ func TestTemplates(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:        template.Name,
-			DisplayName: template.DisplayName,
-			Description: template.Description,
-			Icon:        template.Icon,
+			DisplayName: &template.DisplayName,
+			Description: &template.Description,
+			Icon:        &template.Icon,
 			AutostartRequirement: &codersdk.TemplateAutostartRequirement{
 				DaysOfWeek: []string{"monday", "saturday"},
 			},
@@ -276,9 +276,9 @@ func TestTemplates(t *testing.T) {
 		// Ensure a missing field is a noop
 		updated, err = anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:        template.Name,
-			DisplayName: template.DisplayName,
-			Description: template.Description,
-			Icon:        template.Icon + "something",
+			DisplayName: &template.DisplayName,
+			Description: &template.Description,
+			Icon:        ptr.Ref(template.Icon + "something"),
 		})
 		require.NoError(t, err)
 		require.Equal(t, []string{"monday", "saturday"}, updated.AutostartRequirement.DaysOfWeek)
@@ -313,9 +313,9 @@ func TestTemplates(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:        template.Name,
-			DisplayName: template.DisplayName,
-			Description: template.Description,
-			Icon:        template.Icon,
+			DisplayName: &template.DisplayName,
+			Description: &template.Description,
+			Icon:        &template.Icon,
 			AutostartRequirement: &codersdk.TemplateAutostartRequirement{
 				DaysOfWeek: []string{"foobar", "saturday"},
 			},
@@ -349,9 +349,9 @@ func TestTemplates(t *testing.T) {
 		ctx := context.Background()
 		updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:                         template.Name,
-			DisplayName:                  template.DisplayName,
-			Description:                  template.Description,
-			Icon:                         template.Icon,
+			DisplayName:                  &template.DisplayName,
+			Description:                  &template.Description,
+			Icon:                         &template.Icon,
 			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 			DefaultTTLMillis:             time.Hour.Milliseconds(),
 			AutostopRequirement: &codersdk.TemplateAutostopRequirement{
@@ -403,9 +403,9 @@ func TestTemplates(t *testing.T) {
 
 			updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 				Name:                           template.Name,
-				DisplayName:                    template.DisplayName,
-				Description:                    template.Description,
-				Icon:                           template.Icon,
+				DisplayName:                    &template.DisplayName,
+				Description:                    &template.Description,
+				Icon:                           &template.Icon,
 				AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
 				TimeTilDormantMillis:           inactivityTTL.Milliseconds(),
 				FailureTTLMillis:               failureTTL.Milliseconds(),
@@ -472,9 +472,9 @@ func TestTemplates(t *testing.T) {
 				t.Run(c.Name, func(t *testing.T) {
 					_, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 						Name:                           template.Name,
-						DisplayName:                    template.DisplayName,
-						Description:                    template.Description,
-						Icon:                           template.Icon,
+						DisplayName:                    &template.DisplayName,
+						Description:                    &template.Description,
+						Icon:                           &template.Icon,
 						AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
 						TimeTilDormantMillis:           c.TimeTilDormantMS,
 						FailureTTLMillis:               c.FailureTTLMS,
@@ -1004,9 +1004,9 @@ func TestTemplateACL(t *testing.T) {
 		require.Equal(t, 1, len(acl.Groups))
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:                         template.Name,
-			DisplayName:                  template.DisplayName,
-			Description:                  template.Description,
-			Icon:                         template.Icon,
+			DisplayName:                  &template.DisplayName,
+			Description:                  &template.Description,
+			Icon:                         &template.Icon,
 			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 			DisableEveryoneGroupAccess:   true,
 		})
