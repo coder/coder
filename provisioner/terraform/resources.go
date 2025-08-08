@@ -702,20 +702,21 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			if attrs.ResourceID != "" {
 				// Look for a resource with matching ID
 				foundLabels := labelsByResourceID[attrs.ResourceID]
-				if len(foundLabels) == 1 {
+				switch len(foundLabels) {
+				case 0:
+					// If we couldn't find by ID, fall back to graph traversal
+					logger.Warn(ctx, "coder_metadata resource_id not found, falling back to graph traversal",
+						slog.F("resource_id", attrs.ResourceID),
+						slog.F("metadata_address", resource.Address))
+				case 1:
 					// Single match - use it
 					targetLabel = foundLabels[0]
-				} else if len(foundLabels) > 1 {
+				default:
 					// Multiple resources with same ID - this creates ambiguity
 					logger.Warn(ctx, "multiple resources found with same resource_id, falling back to graph traversal",
 						slog.F("resource_id", attrs.ResourceID),
 						slog.F("metadata_address", resource.Address),
 						slog.F("matching_labels", foundLabels))
-				} else {
-					// If we couldn't find by ID, fall back to graph traversal
-					logger.Warn(ctx, "coder_metadata resource_id not found, falling back to graph traversal",
-						slog.F("resource_id", attrs.ResourceID),
-						slog.F("metadata_address", resource.Address))
 				}
 			}
 
