@@ -5,7 +5,6 @@ import {
 } from "api/api";
 import type { FieldError } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
-import { DynamicParametersResponse } from "api/typesGenerated";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import range from "lodash/range";
 import type { Permissions } from "modules/permissions";
@@ -3274,32 +3273,34 @@ export const MockValidationParameter: TypesGen.PreviewParameter = {
 	order: 1,
 };
 
-export const MockDynamicParametersResponse: TypesGen.DynamicParametersResponse = {
-	id: 1,
-	parameters: [
-		MockDropdownParameter,
-		MockSliderParameter,
-		MockSwitchParameter,
-		MockTagSelectParameter,
-		MockMultiSelectParameter,
-	],
-	diagnostics: [],
-};
+export const MockDynamicParametersResponse: TypesGen.DynamicParametersResponse =
+	{
+		id: 1,
+		parameters: [
+			MockDropdownParameter,
+			MockSliderParameter,
+			MockSwitchParameter,
+			MockTagSelectParameter,
+			MockMultiSelectParameter,
+		],
+		diagnostics: [],
+	};
 
-export const MockDynamicParametersResponseWithError: TypesGen.DynamicParametersResponse = {
-	id: 2,
-	parameters: [MockDropdownParameter],
-	diagnostics: [
-		{
-			severity: "error",
-			summary: "Validation failed",
-			detail: "The selected instance type is not available in this region",
-			extra: {
-				code: "",
+export const MockDynamicParametersResponseWithError: TypesGen.DynamicParametersResponse =
+	{
+		id: 2,
+		parameters: [MockDropdownParameter],
+		diagnostics: [
+			{
+				severity: "error",
+				summary: "Validation failed",
+				detail: "The selected instance type is not available in this region",
+				extra: {
+					code: "",
+				},
 			},
-		},
-	],
-};
+		],
+	};
 
 export const MockTemplateVersionExternalAuthGithub: TypesGen.TemplateVersionExternalAuth =
 	{

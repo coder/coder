@@ -3,17 +3,17 @@ import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import type { DynamicParametersResponse } from "api/typesGenerated";
 import {
+	MockDropdownParameter,
+	MockDynamicParametersResponse,
+	MockDynamicParametersResponseWithError,
 	MockPermissions,
+	MockSliderParameter,
 	MockTemplate,
 	MockTemplateVersionExternalAuthGithub,
 	MockTemplateVersionExternalAuthGithubAuthenticated,
 	MockUserOwner,
-	MockWorkspace,
-	MockDropdownParameter,
-	MockSliderParameter,
 	MockValidationParameter,
-	MockDynamicParametersResponse,
-	MockDynamicParametersResponseWithError,
+	MockWorkspace,
 } from "testHelpers/entities";
 import {
 	renderWithAuth,
@@ -57,7 +57,9 @@ describe("CreateWorkspacePageExperimental", () => {
 					callbacks.onMessage(JSON.parse(event.data));
 				});
 				mockWebSocket.addEventListener("error", () => {
-					callbacks.onError(new Error("Connection for dynamic parameters failed."));
+					callbacks.onError(
+						new Error("Connection for dynamic parameters failed."),
+					);
 				});
 				mockWebSocket.addEventListener("close", () => {
 					callbacks.onClose();
@@ -112,7 +114,9 @@ describe("CreateWorkspacePageExperimental", () => {
 						callbacks.onMessage(JSON.parse(event.data));
 					});
 					mockWebSocket.addEventListener("error", () => {
-						callbacks.onError(new Error("Connection for dynamic parameters failed."));
+						callbacks.onError(
+							new Error("Connection for dynamic parameters failed."),
+						);
 					});
 					mockWebSocket.addEventListener("close", () => {
 						callbacks.onClose();
@@ -167,13 +171,9 @@ describe("CreateWorkspacePageExperimental", () => {
 						callbacks.onError(new Error("Connection failed"));
 					});
 
-					setTimeout(() => {
-						publisher.publishError(
-							new ErrorEvent("error", {
-								error: new Error("Connection failed"),
-							}),
-						);
-					}, 10);
+					queueMicrotask(() =>
+						publisher.publishError(new Event("Connection failed")),
+					);
 
 					return mockWebSocket;
 				});
@@ -195,9 +195,7 @@ describe("CreateWorkspacePageExperimental", () => {
 						callbacks.onClose();
 					});
 
-					setTimeout(() => {
-						publisher.publishClose(new CloseEvent("close"));
-					}, 10);
+					queueMicrotask(() => publisher.publishClose(new CloseEvent("close")));
 
 					return mockWebSocket;
 				});
