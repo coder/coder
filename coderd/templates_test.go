@@ -862,8 +862,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 		req := codersdk.UpdateTemplateMeta{
 			Name:                         "new-template-name",
 			DisplayName:                  "Displayed Name 456",
-			Description:                  "lorem ipsum dolor sit amet et cetera",
-			Icon:                         "/icon/new-icon.png",
+			Description:                  ptr.Ref("lorem ipsum dolor sit amet et cetera"),
+			Icon:                         ptr.Ref("/icon/new-icon.png"),
 			DefaultTTLMillis:             12 * time.Hour.Milliseconds(),
 			ActivityBumpMillis:           3 * time.Hour.Milliseconds(),
 			AllowUserCancelWorkspaceJobs: false,
@@ -879,8 +879,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
 		assert.Equal(t, req.Name, updated.Name)
 		assert.Equal(t, req.DisplayName, updated.DisplayName)
-		assert.Equal(t, req.Description, updated.Description)
-		assert.Equal(t, req.Icon, updated.Icon)
+		assert.Equal(t, *req.Description, updated.Description)
+		assert.Equal(t, *req.Icon, updated.Icon)
 		assert.Equal(t, req.DefaultTTLMillis, updated.DefaultTTLMillis)
 		assert.Equal(t, req.ActivityBumpMillis, updated.ActivityBumpMillis)
 		assert.False(t, req.AllowUserCancelWorkspaceJobs)
@@ -891,8 +891,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
 		assert.Equal(t, req.Name, updated.Name)
 		assert.Equal(t, req.DisplayName, updated.DisplayName)
-		assert.Equal(t, req.Description, updated.Description)
-		assert.Equal(t, req.Icon, updated.Icon)
+		assert.Equal(t, *req.Description, updated.Description)
+		assert.Equal(t, *req.Icon, updated.Icon)
 		assert.Equal(t, req.DefaultTTLMillis, updated.DefaultTTLMillis)
 		assert.Equal(t, req.ActivityBumpMillis, updated.ActivityBumpMillis)
 		assert.False(t, req.AllowUserCancelWorkspaceJobs)
@@ -1128,8 +1128,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 				Name:                           template.Name,
 				DisplayName:                    template.DisplayName,
-				Description:                    template.Description,
-				Icon:                           template.Icon,
+				Description:                    &template.Description,
+				Icon:                           &template.Icon,
 				DefaultTTLMillis:               0,
 				AutostopRequirement:            &template.AutostopRequirement,
 				AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
@@ -1163,8 +1163,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 				Name:                           template.Name,
 				DisplayName:                    template.DisplayName,
-				Description:                    template.Description,
-				Icon:                           template.Icon,
+				Description:                    &template.Description,
+				Icon:                           &template.Icon,
 				DefaultTTLMillis:               template.DefaultTTLMillis,
 				AutostopRequirement:            &template.AutostopRequirement,
 				AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
@@ -1224,8 +1224,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 				Name:                         template.Name,
 				DisplayName:                  template.DisplayName,
-				Description:                  template.Description,
-				Icon:                         template.Icon,
+				Description:                  &template.Description,
+				Icon:                         &template.Icon,
 				DefaultTTLMillis:             template.DefaultTTLMillis,
 				AutostopRequirement:          &template.AutostopRequirement,
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
@@ -1255,8 +1255,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 				Name:        template.Name,
 				DisplayName: template.DisplayName,
-				Description: template.Description,
-				Icon:        template.Icon,
+				Description: &template.Description,
+				Icon:        &template.Icon,
 				// Increase the default TTL to avoid error "not modified".
 				DefaultTTLMillis:             template.DefaultTTLMillis + 1,
 				AutostopRequirement:          &template.AutostopRequirement,
@@ -1286,8 +1286,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 		req := codersdk.UpdateTemplateMeta{
 			Name:                template.Name,
-			Description:         template.Description,
-			Icon:                template.Icon,
+			Description:         &template.Description,
+			Icon:                &template.Icon,
 			DefaultTTLMillis:    template.DefaultTTLMillis,
 			ActivityBumpMillis:  template.ActivityBumpMillis,
 			AutostopRequirement: nil,
@@ -1347,7 +1347,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			ctr.Icon = "/icon/code.png"
 		})
 		req := codersdk.UpdateTemplateMeta{
-			Icon: "",
+			Icon: ptr.Ref(""),
 		}
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1403,8 +1403,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 			req := codersdk.UpdateTemplateMeta{
 				Name:                         template.Name,
 				DisplayName:                  template.DisplayName,
-				Description:                  template.Description,
-				Icon:                         template.Icon,
+				Description:                  &template.Description,
+				Icon:                         &template.Icon,
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 				DefaultTTLMillis:             time.Hour.Milliseconds(),
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
@@ -1480,8 +1480,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 			req := codersdk.UpdateTemplateMeta{
 				Name:                         template.Name,
 				DisplayName:                  template.DisplayName,
-				Description:                  template.Description,
-				Icon:                         template.Icon,
+				Description:                  &template.Description,
+				Icon:                         &template.Icon,
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 				DefaultTTLMillis:             time.Hour.Milliseconds(),
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
@@ -1517,8 +1517,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 			req := codersdk.UpdateTemplateMeta{
 				Name:                         template.Name,
 				DisplayName:                  template.DisplayName,
-				Description:                  template.Description,
-				Icon:                         template.Icon,
+				Description:                  &template.Description,
+				Icon:                         &template.Icon,
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 				DefaultTTLMillis:             time.Hour.Milliseconds(),
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
@@ -1577,6 +1577,69 @@ func TestPatchTemplateMeta(t *testing.T) {
 		updated, err = client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
 		assert.False(t, updated.UseClassicParameterFlow, "expected false")
+	})
+
+	t.Run("SupportEmptyOrDefault", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		description := "test-description"
+		icon := "/icon/icon.png"
+		defaultTTLMillis := 10 * time.Hour.Milliseconds()
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.Description = description
+			ctr.Icon = icon
+			ctr.DefaultTTLMillis = ptr.Ref(defaultTTLMillis)
+		})
+
+		restoreReq := codersdk.UpdateTemplateMeta{
+			Description:      &description,
+			Icon:             &icon,
+			DefaultTTLMillis: defaultTTLMillis,
+		}
+
+		type expected struct {
+			description      string
+			icon             string
+			defaultTTLMillis int64
+		}
+
+		type testCase struct {
+			name     string
+			req      codersdk.UpdateTemplateMeta
+			expected expected
+		}
+
+		tests := []testCase{
+			{name: "Only update default_ttl_ms", req: codersdk.UpdateTemplateMeta{DefaultTTLMillis: 99 * time.Hour.Milliseconds()}, expected: expected{description: template.Description, icon: template.Icon, defaultTTLMillis: 99 * time.Hour.Milliseconds()}},
+			{name: "Clear description", req: codersdk.UpdateTemplateMeta{Description: ptr.Ref("")}, expected: expected{description: "", icon: template.Icon, defaultTTLMillis: 0}},
+			{name: "Clear icon", req: codersdk.UpdateTemplateMeta{Icon: ptr.Ref("")}, expected: expected{description: template.Description, icon: "", defaultTTLMillis: 0}},
+			{name: "Nil description defaults to template description", req: codersdk.UpdateTemplateMeta{Description: nil}, expected: expected{description: template.Description, icon: template.Icon, defaultTTLMillis: 0}},
+			{name: "Nil icon defaults to template icon", req: codersdk.UpdateTemplateMeta{Icon: nil}, expected: expected{description: template.Description, icon: template.Icon, defaultTTLMillis: 0}},
+		}
+
+		// It is unfortunate we need to sleep, but the test can fail if the
+		// updatedAt is too close together.
+		time.Sleep(time.Millisecond * 5)
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				updated, err := client.UpdateTemplateMeta(ctx, template.ID, tc.req)
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected.description, updated.Description)
+				assert.Equal(t, tc.expected.icon, updated.Icon)
+				assert.Equal(t, tc.expected.defaultTTLMillis, updated.DefaultTTLMillis)
+
+				// Restore template after each test case
+				_, err = client.UpdateTemplateMeta(ctx, template.ID, restoreReq)
+				require.NoError(t, err)
+			})
+		}
 	})
 }
 

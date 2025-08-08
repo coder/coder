@@ -178,8 +178,8 @@ func TestTemplateEdit(t *testing.T) {
 		var (
 			expectedName                 = "template"
 			expectedDisplayName          = "template_display"
-			expectedDescription          = "My description"
-			expectedIcon                 = "icon.pjg"
+			expectedDescription          = ptr.Ref("My description")
+			expectedIcon                 = ptr.Ref("icon.pjg")
 			expectedDefaultTTLMillis     = time.Hour.Milliseconds()
 			expectedAllowAutostart       = false
 			expectedAllowAutostop        = false

@@ -262,8 +262,8 @@ func TestTemplates(t *testing.T) {
 		updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:        template.Name,
 			DisplayName: template.DisplayName,
-			Description: template.Description,
-			Icon:        template.Icon,
+			Description: &template.Description,
+			Icon:        &template.Icon,
 			AutostartRequirement: &codersdk.TemplateAutostartRequirement{
 				DaysOfWeek: []string{"monday", "saturday"},
 			},
@@ -279,8 +279,8 @@ func TestTemplates(t *testing.T) {
 		updated, err = anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:        template.Name,
 			DisplayName: template.DisplayName,
-			Description: template.Description,
-			Icon:        template.Icon + "something",
+			Description: &template.Description,
+			Icon:        ptr.Ref(template.Icon + "something"),
 		})
 		require.NoError(t, err)
 		require.Equal(t, []string{"monday", "saturday"}, updated.AutostartRequirement.DaysOfWeek)
@@ -316,8 +316,8 @@ func TestTemplates(t *testing.T) {
 		_, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:        template.Name,
 			DisplayName: template.DisplayName,
-			Description: template.Description,
-			Icon:        template.Icon,
+			Description: &template.Description,
+			Icon:        &template.Icon,
 			AutostartRequirement: &codersdk.TemplateAutostartRequirement{
 				DaysOfWeek: []string{"foobar", "saturday"},
 			},
@@ -352,8 +352,8 @@ func TestTemplates(t *testing.T) {
 		updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:                         template.Name,
 			DisplayName:                  template.DisplayName,
-			Description:                  template.Description,
-			Icon:                         template.Icon,
+			Description:                  &template.Description,
+			Icon:                         &template.Icon,
 			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 			DefaultTTLMillis:             time.Hour.Milliseconds(),
 			AutostopRequirement: &codersdk.TemplateAutostopRequirement{
@@ -406,8 +406,8 @@ func TestTemplates(t *testing.T) {
 			updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 				Name:                           template.Name,
 				DisplayName:                    template.DisplayName,
-				Description:                    template.Description,
-				Icon:                           template.Icon,
+				Description:                    &template.Description,
+				Icon:                           &template.Icon,
 				AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
 				TimeTilDormantMillis:           inactivityTTL.Milliseconds(),
 				FailureTTLMillis:               failureTTL.Milliseconds(),
@@ -475,8 +475,8 @@ func TestTemplates(t *testing.T) {
 					_, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 						Name:                           template.Name,
 						DisplayName:                    template.DisplayName,
-						Description:                    template.Description,
-						Icon:                           template.Icon,
+						Description:                    &template.Description,
+						Icon:                           &template.Icon,
 						AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
 						TimeTilDormantMillis:           c.TimeTilDormantMS,
 						FailureTTLMillis:               c.FailureTTLMS,
@@ -1014,8 +1014,8 @@ func TestTemplateACL(t *testing.T) {
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:                         template.Name,
 			DisplayName:                  template.DisplayName,
-			Description:                  template.Description,
-			Icon:                         template.Icon,
+			Description:                  &template.Description,
+			Icon:                         &template.Icon,
 			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 			DisableEveryoneGroupAccess:   true,
 		})
