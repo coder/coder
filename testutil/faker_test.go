@@ -25,9 +25,11 @@ type nestedStruct struct {
 
 func TestFake(t *testing.T) {
 	t.Parallel()
-	faker := gofakeit.New(0)
 
 	t.Run("Simple", func(t *testing.T) {
+		t.Parallel()
+
+		faker := gofakeit.New(0)
 		person := testutil.Fake(t, faker, simpleStruct{
 			Name: "alice",
 		})
@@ -39,6 +41,9 @@ func TestFake(t *testing.T) {
 	})
 
 	t.Run("Nested", func(t *testing.T) {
+		t.Parallel()
+
+		faker := gofakeit.New(0)
 		person := testutil.Fake(t, faker, nestedStruct{
 			Person: simpleStruct{
 				Name: "alice",
@@ -52,6 +57,9 @@ func TestFake(t *testing.T) {
 	})
 
 	t.Run("DatabaseType", func(t *testing.T) {
+		t.Parallel()
+
+		faker := gofakeit.New(0)
 		id := uuid.New()
 		key := testutil.Fake(t, faker, database.APIKey{
 			UserID:    id,
