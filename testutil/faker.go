@@ -48,7 +48,7 @@ func mergeZero[T any](dst *T, src T) {
 			if !df.CanSet() {
 				continue
 			}
-			if reflect.Value.IsZero(df) { // only write if currently zero
+			if df.IsZero() { // only write if currently zero
 				df.Set(sf)
 				continue
 			}
