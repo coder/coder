@@ -1985,12 +1985,15 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			// In order to surface this to the user, we will also insert a warning into the build logs.
 			if _, err := db.InsertProvisionerJobLogs(ctx, database.InsertProvisionerJobLogsParams{
 				JobID:     jobID,
-				CreatedAt: []time.Time{now},
-				Source:    []database.LogSource{database.LogSourceProvisionerDaemon},
-				Level:     []database.LogLevel{database.LogLevelWarn},
-				Stage:     []string{"Cleaning Up"},
+				CreatedAt: []time.Time{now, now, now, now},
+				Source:    []database.LogSource{database.LogSourceProvisionerDaemon, database.LogSourceProvisionerDaemon, database.LogSourceProvisionerDaemon, database.LogSourceProvisionerDaemon},
+				Level:     []database.LogLevel{database.LogLevelWarn, database.LogLevelWarn, database.LogLevelWarn, database.LogLevelWarn},
+				Stage:     []string{"Cleaning Up", "Cleaning Up", "Cleaning Up", "Cleaning Up"},
 				Output: []string{
 					fmt.Sprintf("Unknown ai_task_sidebar_app_id %q. This workspace will be unable to run AI tasks. This may be due to a template configuration issue, please check with the template author.", sidebarAppID.UUID.String()),
+					"Template author: double-check the following:",
+					"  - You have associated the coder_ai_task with a valid coder_app in your template (ref: https://registry.terraform.io/providers/coder/coder/latest/docs/resources/ai_task).",
+					"  - You have associated the coder_agent with at least one other compute resource. Agents with no other associated resources are not inserted into the database.",
 				},
 			}); err != nil {
 				s.Logger.Error(ctx, "insert provisioner job log for ai task sidebar app id warning",
