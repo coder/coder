@@ -1090,17 +1090,6 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Autostart configuration is not supported for prebuilt workspaces.
-	// Prebuild lifecycle is managed by the reconciliation loop, with scheduling behavior
-	// defined per preset at the template level, not per workspace.
-	if workspace.IsPrebuild() {
-		httpapi.Write(ctx, rw, http.StatusUnprocessableEntity, codersdk.Response{
-			Message: "Autostart is not supported for prebuilt workspaces",
-			Detail:  "Prebuilt workspace scheduling is configured per preset at the template level. Workspace-level overrides are not supported.",
-		})
-		return
-	}
-
 	dbSched, err := validWorkspaceSchedule(req.Schedule)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1182,17 +1171,6 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 
 	var req codersdk.UpdateWorkspaceTTLRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-
-	// TTL updates are not supported for prebuilt workspaces.
-	// Prebuild lifecycle is managed by the reconciliation loop, with TTL behavior
-	// defined per preset at the template level, not per workspace.
-	if workspace.IsPrebuild() {
-		httpapi.Write(ctx, rw, http.StatusUnprocessableEntity, codersdk.Response{
-			Message: "TTL updates are not supported for prebuilt workspaces",
-			Detail:  "Prebuilt workspace TTL is configured per preset at the template level. Workspace-level overrides are not supported.",
-		})
 		return
 	}
 
@@ -1309,16 +1287,6 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 
 	var req codersdk.UpdateWorkspaceDormancy
 	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-
-	// Dormancy configuration is not supported for prebuilt workspaces.
-	// Prebuilds are managed by the reconciliation loop and are not subject to dormancy.
-	if oldWorkspace.IsPrebuild() {
-		httpapi.Write(ctx, rw, http.StatusUnprocessableEntity, codersdk.Response{
-			Message: "Dormancy configuration is not supported for prebuilt workspaces",
-			Detail:  "Prebuilt workspaces are not subject to dormancy. Dormancy behavior is only applicable to regular workspaces",
-		})
 		return
 	}
 
@@ -1463,17 +1431,6 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 	var req codersdk.PutExtendWorkspaceRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-
-	// Deadline extensions are not supported for prebuilt workspaces.
-	// Prebuilds are managed by the reconciliation loop and must always have
-	// Deadline and MaxDeadline unset.
-	if workspace.IsPrebuild() {
-		httpapi.Write(ctx, rw, http.StatusUnprocessableEntity, codersdk.Response{
-			Message: "Deadline extension is not supported for prebuilt workspaces",
-			Detail:  "Prebuilt workspaces do not support user deadline modifications. Deadline extension is only applicable to regular workspaces",
-		})
 		return
 	}
 
