@@ -2186,7 +2186,7 @@ func convertWorkspaceAgentLog(logEntry database.WorkspaceAgentLog) codersdk.Work
 	}
 }
 
-// @Summary Get external agent credentials
+// @Summary Get workspace external agent credentials
 // @ID get-workspace-external-agent-credentials
 // @Security CoderSessionToken
 // @Produce json

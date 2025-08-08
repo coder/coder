@@ -1,6 +1,8 @@
-ALTER TABLE template_versions DROP COLUMN has_external_agent;
-
 DROP VIEW template_version_with_user;
+DROP VIEW workspace_build_with_user;
+
+ALTER TABLE template_versions DROP COLUMN has_external_agent;
+ALTER TABLE workspace_builds DROP COLUMN has_external_agent;
 
 -- Recreate `template_version_with_user` as defined in dump.sql
 CREATE VIEW template_version_with_user AS
@@ -32,10 +34,7 @@ FROM
 
 COMMENT ON VIEW template_version_with_user IS 'Joins in the username + avatar url of the created by user.';
 
-ALTER TABLE workspace_builds DROP COLUMN has_external_agent;
-
-DROP VIEW workspace_build_with_user;
-
+-- Recreate `workspace_build_with_user` as defined in dump.sql
 CREATE VIEW workspace_build_with_user AS
 SELECT
     workspace_builds.id,
@@ -75,3 +74,5 @@ FROM
     );
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
+
+
