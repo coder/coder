@@ -18,7 +18,7 @@ import {
 import NotFoundPage from "pages/404Page/404Page";
 import { type FC, Suspense, createContext, useContext } from "react";
 import { useQuery } from "react-query";
-import { Outlet, useParams } from "react-router-dom";
+import { Outlet, useParams } from "react-router";
 
 export const OrganizationSettingsContext = createContext<
 	OrganizationSettingsValue | undefined

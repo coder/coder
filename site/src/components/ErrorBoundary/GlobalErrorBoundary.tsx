@@ -9,7 +9,7 @@ import {
 	isRouteErrorResponse,
 	useLocation,
 	useRouteError,
-} from "react-router-dom";
+} from "react-router";
 
 const errorPageTitle = "Something went wrong";
 

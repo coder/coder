@@ -12,7 +12,7 @@ import {
 } from "components/SettingsHeader/SettingsHeader";
 import { UserPlusIcon } from "lucide-react";
 import type { ComponentProps, FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { UsersFilter } from "./UsersFilter";
 import { UsersTable } from "./UsersTable/UsersTable";
 

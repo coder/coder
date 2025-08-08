@@ -20,7 +20,7 @@ import { LogOutIcon } from "lucide-react";
 import { MessageSquareIcon } from "lucide-react";
 import { MonitorDownIcon, SquareArrowOutUpRightIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 export const Language = {
 	accountLabel: "Account",

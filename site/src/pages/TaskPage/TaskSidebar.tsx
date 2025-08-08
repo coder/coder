@@ -16,7 +16,7 @@ import {
 import { ArrowLeftIcon, EllipsisVerticalIcon } from "lucide-react";
 import type { Task } from "modules/tasks/tasks";
 import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { TaskAppIFrame } from "./TaskAppIframe";
 import { TaskStatusLink } from "./TaskStatusLink";
 
