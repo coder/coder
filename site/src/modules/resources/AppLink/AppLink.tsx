@@ -17,6 +17,17 @@ import { AgentButton } from "../AgentButton";
 import { BaseIcon } from "./BaseIcon";
 import { ShareIcon } from "./ShareIcon";
 
+// Check if an app's hostname has segments that exceed DNS label limits (63 characters)
+const hasHostnameLengthIssue = (app: TypesGen.WorkspaceApp): boolean => {
+	if (!app.subdomain || !app.subdomain_name) {
+		return false;
+	}
+	
+	// Split by '--' to get hostname segments (format: app--agent--workspace--user)
+	const segments = app.subdomain_name.split("--");
+	return segments.some(segment => segment.length > 63);
+};
+
 export const DisplayAppNameMap: Record<TypesGen.DisplayApp, string> = {
 	port_forwarding_helper: "Ports",
 	ssh_helper: "SSH",
@@ -68,7 +79,13 @@ export const AppLink: FC<AppLinkProps> = ({
 				css={{ color: theme.palette.warning.light }}
 			/>
 		);
-		primaryTooltip = "Unhealthy";
+		
+		// Check if the unhealthy status is due to hostname length issues
+		if (hasHostnameLengthIssue(app)) {
+			primaryTooltip = "App name too long for DNS hostname. Please use a shorter app name, workspace name, or username.";
+		} else {
+			primaryTooltip = "Unhealthy";
+		}
 	}
 
 	if (!host && app.subdomain) {

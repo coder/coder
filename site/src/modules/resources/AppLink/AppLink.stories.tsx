@@ -155,6 +155,19 @@ export const HealthUnhealthy: Story = {
 	},
 };
 
+export const HealthUnhealthyDueToHostnameLength: Story = {
+	args: {
+		workspace: MockWorkspace,
+		app: {
+			...MockWorkspaceApp,
+			health: "unhealthy",
+			subdomain: true,
+			subdomain_name: "very-long-application-name-that-exceeds-dns-limits-and-causes-failures--agent--workspace--user",
+		},
+		agent: MockWorkspaceAgent,
+	},
+};
+
 export const InternalApp: Story = {
 	args: {
 		workspace: MockWorkspace,
