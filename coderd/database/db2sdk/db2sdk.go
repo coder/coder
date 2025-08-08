@@ -539,6 +539,23 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 	}.String()
 }
 
+// validateAppHostnameLength checks if any segment of the app hostname exceeds the DNS label limit of 63 characters.
+// Returns true if the hostname is valid, false if any segment is too long.
+func validateAppHostnameLength(subdomainName string) bool {
+	if subdomainName == "" {
+		return true
+	}
+	
+	// Split the hostname into segments by '--' (the format is app--agent--workspace--user)
+	segments := strings.Split(subdomainName, "--")
+	for _, segment := range segments {
+		if len(segment) > 63 {
+			return false
+		}
+	}
+	return true
+}
+
 func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) []codersdk.WorkspaceApp {
 	sort.Slice(dbApps, func(i, j int) bool {
 		if dbApps[i].DisplayOrder != dbApps[j].DisplayOrder {
@@ -558,6 +575,15 @@ func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus
 	apps := make([]codersdk.WorkspaceApp, 0)
 	for _, dbApp := range dbApps {
 		statuses := statusesByAppID[dbApp.ID]
+		subdomainName := AppSubdomain(dbApp, agent.Name, workspace.Name, ownerName)
+		appHealth := codersdk.WorkspaceAppHealth(dbApp.Health)
+		
+		// Check if this is a subdomain app with hostname length issues
+		if dbApp.Subdomain && subdomainName != "" && !validateAppHostnameLength(subdomainName) {
+			// Override health to unhealthy if hostname exceeds DNS limits
+			appHealth = codersdk.WorkspaceAppHealthUnhealthy
+		}
+		
 		apps = append(apps, codersdk.WorkspaceApp{
 			ID:            dbApp.ID,
 			URL:           dbApp.Url.String,
@@ -567,14 +593,14 @@ func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus
 			Command:       dbApp.Command.String,
 			Icon:          dbApp.Icon,
 			Subdomain:     dbApp.Subdomain,
-			SubdomainName: AppSubdomain(dbApp, agent.Name, workspace.Name, ownerName),
+			SubdomainName: subdomainName,
 			SharingLevel:  codersdk.WorkspaceAppSharingLevel(dbApp.SharingLevel),
 			Healthcheck: codersdk.Healthcheck{
 				URL:       dbApp.HealthcheckUrl,
 				Interval:  dbApp.HealthcheckInterval,
 				Threshold: dbApp.HealthcheckThreshold,
 			},
-			Health:   codersdk.WorkspaceAppHealth(dbApp.Health),
+			Health:   appHealth,
 			Group:    dbApp.DisplayGroup.String,
 			Hidden:   dbApp.Hidden,
 			OpenIn:   codersdk.WorkspaceAppOpenIn(dbApp.OpenIn),
