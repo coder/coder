@@ -875,10 +875,47 @@
 					]
 				},
 				{
-					"title": "MCP Server",
-					"description": "Connect to agents Coder with a MCP server",
-					"path": "./ai-coder/mcp-server.md",
-					"state": ["beta"]
+					"title": "Model Context Protocol (MCP)",
+					"description": "Connect AI assistants to Coder with Model Context Protocol",
+					"path": "./mcp/index.md",
+					"state": ["beta"],
+					"children": [
+						{
+							"title": "VSCode",
+							"description": "Set up Coder MCP with Visual Studio Code",
+							"path": "./mcp/vscode.md"
+						},
+						{
+							"title": "Cursor",
+							"description": "Set up Coder MCP with Cursor AI editor",
+							"path": "./mcp/cursor.md"
+						},
+						{
+							"title": "Zed",
+							"description": "Set up Coder MCP with Zed editor",
+							"path": "./mcp/zed.md"
+						},
+						{
+							"title": "WindSurf",
+							"description": "Set up Coder MCP with WindSurf AI environment",
+							"path": "./mcp/windsurf.md"
+						},
+						{
+							"title": "Claude Desktop",
+							"description": "Set up Coder MCP with Claude Desktop",
+							"path": "./mcp/claude-desktop.md"
+						},
+						{
+							"title": "Web-based Agents",
+							"description": "Set up Coder MCP with web-based AI agents",
+							"path": "./mcp/web-agents.md"
+						},
+						{
+							"title": "MCP Server Reference",
+							"description": "Technical reference for Coder MCP server",
+							"path": "./ai-coder/mcp-server.md"
+						}
+					]
 				}
 			]
 		},
