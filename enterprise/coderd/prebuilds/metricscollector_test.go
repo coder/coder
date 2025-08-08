@@ -5,6 +5,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"tailscale.com/types/ptr"
@@ -222,7 +224,7 @@ func TestMetricsCollector(t *testing.T) {
 									for i := 0; i < numTemplates; i++ {
 										org, template := setupTestDBTemplate(t, db, ownerID, templateDeleted)
 										templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubsub, org.ID, ownerID, template.ID)
-										preset := setupTestDBPreset(t, db, templateVersionID, 1, uuid.New().String())
+										preset := dbfake.NewPreset(t, db, templateVersionID).WithDesiredInstances(1).Do()
 										workspace, _ := setupTestDBWorkspace(
 											t, clock, db, pubsub,
 											transition, jobStatus, org.ID, preset, template.ID, templateVersionID, initiatorID, ownerID,
@@ -350,7 +352,7 @@ func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 	setupTemplateWithDeps := func() database.Template {
 		template := setupTestDBTemplateWithinOrg(t, db, test.ownerID, false, "default-template", defaultOrg)
 		templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubsub, defaultOrg.ID, test.ownerID, template.ID)
-		preset := setupTestDBPreset(t, db, templateVersionID, 1, "default-preset")
+		preset := dbfake.NewPreset(t, db, templateVersionID).WithPresetName(presetName).WithDesiredInstances(1).Do()
 		workspace, _ := setupTestDBWorkspace(
 			t, clock, db, pubsub,
 			test.transition, test.jobStatus, defaultOrg.ID, preset, template.ID, templateVersionID, test.initiatorID, test.ownerID,
