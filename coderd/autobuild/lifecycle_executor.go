@@ -29,10 +29,13 @@ import (
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+const TestingStaleInterval = time.Second * 5
 
 // Executor automatically starts or stops workspaces.
 type Executor struct {
@@ -130,6 +133,36 @@ func (e *Executor) Run() {
 			}
 		}
 	})
+}
+
+func (e *Executor) hasAvailableProvisioners(ctx context.Context, tx database.Store, t time.Time, ws database.Workspace, templateVersionJob database.ProvisionerJob) (bool, error) {
+	queryParams := database.GetProvisionerDaemonsByOrganizationParams{
+		OrganizationID: ws.OrganizationID,
+		WantTags:       templateVersionJob.Tags,
+	}
+
+	// nolint: gocritic // The user (in this case, the user/context for autostart builds) may not have the full
+	// permissions to read provisioner daemons, but we need to check if there's any for the job prior to the
+	// execution of the job via autostart to fix: https://github.com/coder/coder/issues/17941
+	provisionerDaemons, err := tx.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), queryParams)
+	if err != nil {
+		return false, xerrors.Errorf("get provisioner daemons: %w", err)
+	}
+
+	// Check if any provisioners are active (not stale)
+	for _, pd := range provisionerDaemons {
+		if pd.LastSeenAt.Valid {
+			age := t.Sub(pd.LastSeenAt.Time)
+			if age <= provisionerdserver.StaleInterval {
+				e.log.Debug(ctx, "hasAvailableProvisioners: found active provisioner",
+					slog.F("daemon_id", pd.ID),
+				)
+				return true, nil
+			}
+		}
+	}
+	e.log.Debug(ctx, "hasAvailableProvisioners: no active provisioners found")
+	return false, nil
 }
 
 func (e *Executor) runOnce(t time.Time) Stats {
@@ -279,6 +312,22 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						// doesn't matter since the transaction is  read-only up to
 						// this point.
 						return nil
+					}
+
+					// Get the template version job to access tags
+					templateVersionJob, err := tx.GetProvisionerJobByID(e.ctx, activeTemplateVersion.JobID)
+					if err != nil {
+						return xerrors.Errorf("get template version job: %w", err)
+					}
+
+					// Before creating the workspace build, check for available provisioners
+					hasProvisioners, err := e.hasAvailableProvisioners(e.ctx, tx, t, ws, templateVersionJob)
+					if err != nil {
+						return xerrors.Errorf("check provisioner availability: %w", err)
+					}
+					if !hasProvisioners {
+						log.Warn(e.ctx, "skipping autostart - no available provisioners")
+						return nil // Skip this workspace
 					}
 
 					if nextTransition != "" {
