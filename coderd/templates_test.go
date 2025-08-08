@@ -1619,7 +1619,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.False(t, updated.UseClassicParameterFlow, "expected false")
 	})
 
-	t.Run("SupportEmptyOrDefault", func(t *testing.T) {
+	t.Run("SupportEmptyOrDefaultFields", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, nil)
@@ -1630,11 +1630,13 @@ func TestPatchTemplateMeta(t *testing.T) {
 		icon := "/icon/icon.png"
 		defaultTTLMillis := 10 * time.Hour.Milliseconds()
 
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+		reference := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.Description = description
 			ctr.Icon = icon
 			ctr.DefaultTTLMillis = ptr.Ref(defaultTTLMillis)
 		})
+		require.Equal(t, description, reference.Description)
+		require.Equal(t, icon, reference.Icon)
 
 		restoreReq := codersdk.UpdateTemplateMeta{
 			Description:      &description,
@@ -1655,29 +1657,48 @@ func TestPatchTemplateMeta(t *testing.T) {
 		}
 
 		tests := []testCase{
-			{name: "Only update default_ttl_ms", req: codersdk.UpdateTemplateMeta{DefaultTTLMillis: 99 * time.Hour.Milliseconds()}, expected: expected{description: template.Description, icon: template.Icon, defaultTTLMillis: 99 * time.Hour.Milliseconds()}},
-			{name: "Clear description", req: codersdk.UpdateTemplateMeta{Description: ptr.Ref("")}, expected: expected{description: "", icon: template.Icon, defaultTTLMillis: 0}},
-			{name: "Clear icon", req: codersdk.UpdateTemplateMeta{Icon: ptr.Ref("")}, expected: expected{description: template.Description, icon: "", defaultTTLMillis: 0}},
-			{name: "Nil description defaults to template description", req: codersdk.UpdateTemplateMeta{Description: nil}, expected: expected{description: template.Description, icon: template.Icon, defaultTTLMillis: 0}},
-			{name: "Nil icon defaults to template icon", req: codersdk.UpdateTemplateMeta{Icon: nil}, expected: expected{description: template.Description, icon: template.Icon, defaultTTLMillis: 0}},
+			{
+				name:     "Only update default_ttl_ms",
+				req:      codersdk.UpdateTemplateMeta{DefaultTTLMillis: 99 * time.Hour.Milliseconds()},
+				expected: expected{description: reference.Description, icon: reference.Icon, defaultTTLMillis: 99 * time.Hour.Milliseconds()},
+			},
+			{
+				name:     "Clear description",
+				req:      codersdk.UpdateTemplateMeta{Description: ptr.Ref("")},
+				expected: expected{description: "", icon: reference.Icon, defaultTTLMillis: 0},
+			},
+			{
+				name:     "Clear icon",
+				req:      codersdk.UpdateTemplateMeta{Icon: ptr.Ref("")},
+				expected: expected{description: reference.Description, icon: "", defaultTTLMillis: 0},
+			},
+			{
+				name:     "Nil description defaults to reference description",
+				req:      codersdk.UpdateTemplateMeta{Description: nil},
+				expected: expected{description: reference.Description, icon: reference.Icon, defaultTTLMillis: 0},
+			},
+			{
+				name:     "Nil icon defaults to reference icon",
+				req:      codersdk.UpdateTemplateMeta{Icon: nil},
+				expected: expected{description: reference.Description, icon: reference.Icon, defaultTTLMillis: 0},
+			},
 		}
 
-		// It is unfortunate we need to sleep, but the test can fail if the
-		// updatedAt is too close together.
-		time.Sleep(time.Millisecond * 5)
-
 		for _, tc := range tests {
+			//nolint:tparallel,paralleltest
 			t.Run(tc.name, func(t *testing.T) {
+				defer func() {
+					ctx := testutil.Context(t, testutil.WaitLong)
+					// Restore reference after each test case
+					_, err := client.UpdateTemplateMeta(ctx, reference.ID, restoreReq)
+					require.NoError(t, err)
+				}()
 				ctx := testutil.Context(t, testutil.WaitLong)
-				updated, err := client.UpdateTemplateMeta(ctx, template.ID, tc.req)
+				updated, err := client.UpdateTemplateMeta(ctx, reference.ID, tc.req)
 				require.NoError(t, err)
 				assert.Equal(t, tc.expected.description, updated.Description)
 				assert.Equal(t, tc.expected.icon, updated.Icon)
 				assert.Equal(t, tc.expected.defaultTTLMillis, updated.DefaultTTLMillis)
-
-				// Restore template after each test case
-				_, err = client.UpdateTemplateMeta(ctx, template.ID, restoreReq)
-				require.NoError(t, err)
 			})
 		}
 	})
