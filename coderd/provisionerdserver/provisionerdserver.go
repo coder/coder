@@ -1925,12 +1925,16 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			return xerrors.Errorf("update workspace build deadline: %w", err)
 		}
 
+		appIDs := make([]string, 0)
 		agentTimeouts := make(map[time.Duration]bool) // A set of agent timeouts.
 		// This could be a bulk insert to improve performance.
 		for _, protoResource := range jobType.WorkspaceBuild.Resources {
 			for _, protoAgent := range protoResource.Agents {
 				dur := time.Duration(protoAgent.GetConnectionTimeoutSeconds()) * time.Second
 				agentTimeouts[dur] = true
+				for _, app := range protoAgent.GetApps() {
+					appIDs = append(appIDs, app.GetId())
+				}
 			}
 
 			err = InsertWorkspaceResource(ctx, db, job.ID, workspaceBuild.Transition, protoResource, telemetrySnapshot)
@@ -1946,10 +1950,15 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 
 		var sidebarAppID uuid.NullUUID
 		hasAITask := len(jobType.WorkspaceBuild.AiTasks) == 1
+		warnUnknownSidebarAppID := false
 		if hasAITask {
 			task := jobType.WorkspaceBuild.AiTasks[0]
-			if task.SidebarApp == nil {
-				return xerrors.Errorf("update ai task: sidebar app is nil")
+			if task.SidebarApp == nil || len(task.SidebarApp.Id) == 0 {
+				return xerrors.Errorf("update ai task: sidebar app is nil or empty")
+			}
+
+			if !slices.Contains(appIDs, task.SidebarApp.Id) {
+				warnUnknownSidebarAppID = true
 			}
 
 			id, err := uuid.Parse(task.SidebarApp.Id)
@@ -1960,9 +1969,45 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			sidebarAppID = uuid.NullUUID{UUID: id, Valid: true}
 		}
 
+		if warnUnknownSidebarAppID {
+			// Ref: https://github.com/coder/coder/issues/18776
+			// This can happen for a number of reasons:
+			// 1. Misconfigured template
+			// 2. Count=0 on the agent due to stop transition, meaning the associated coder_app was not inserted.
+			// Failing the build at this point is not ideal, so log a warning instead.
+			s.Logger.Warn(ctx, "unknown ai_task_sidebar_app_id",
+				slog.F("ai_task_sidebar_app_id", sidebarAppID.UUID.String()),
+				slog.F("job_id", job.ID.String()),
+				slog.F("workspace_id", workspace.ID),
+				slog.F("workspace_build_id", workspaceBuild.ID),
+				slog.F("transition", string(workspaceBuild.Transition)),
+			)
+			// In order to surface this to the user, we will also insert a warning into the build logs.
+			if _, err := db.InsertProvisionerJobLogs(ctx, database.InsertProvisionerJobLogsParams{
+				JobID:     jobID,
+				CreatedAt: []time.Time{now},
+				Source:    []database.LogSource{database.LogSourceProvisionerDaemon},
+				Level:     []database.LogLevel{database.LogLevelWarn},
+				Stage:     []string{"Cleaning Up"},
+				Output: []string{
+					fmt.Sprintf("Unknown ai_task_sidebar_app_id %q. This workspace will be unable to run AI tasks. This may be due to a template configuration issue, please check with the template author.", sidebarAppID.UUID.String()),
+				},
+			}); err != nil {
+				s.Logger.Error(ctx, "insert provisioner job log for ai task sidebar app id warning",
+					slog.F("job_id", jobID),
+					slog.F("workspace_id", workspace.ID),
+					slog.F("workspace_build_id", workspaceBuild.ID),
+					slog.F("transition", string(workspaceBuild.Transition)),
+				)
+			}
+			// Important: reset hasAITask and sidebarAppID so that we don't run into a fk constraint violation.
+			hasAITask = false
+			sidebarAppID = uuid.NullUUID{}
+		}
+
 		// Regardless of whether there is an AI task or not, update the field to indicate one way or the other since it
 		// always defaults to nil. ONLY if has_ai_task=true MUST ai_task_sidebar_app_id be set.
-		err = db.UpdateWorkspaceBuildAITaskByID(ctx, database.UpdateWorkspaceBuildAITaskByIDParams{
+		if err := db.UpdateWorkspaceBuildAITaskByID(ctx, database.UpdateWorkspaceBuildAITaskByIDParams{
 			ID: workspaceBuild.ID,
 			HasAITask: sql.NullBool{
 				Bool:  hasAITask,
@@ -1970,8 +2015,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			},
 			SidebarAppID: sidebarAppID,
 			UpdatedAt:    now,
-		})
-		if err != nil {
+		}); err != nil {
 			return xerrors.Errorf("update workspace build ai tasks flag: %w", err)
 		}
 
