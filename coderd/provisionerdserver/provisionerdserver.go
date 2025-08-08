@@ -1949,19 +1949,21 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		}
 
 		var sidebarAppID uuid.NullUUID
-		hasAITask := len(jobType.WorkspaceBuild.AiTasks) == 1
-		warnUnknownSidebarAppID := false
-		if hasAITask {
-			task := jobType.WorkspaceBuild.AiTasks[0]
-			if task.SidebarApp == nil || len(task.SidebarApp.Id) == 0 {
+		var hasAITask bool
+		var warnUnknownSidebarAppID bool
+		if tasks := jobType.WorkspaceBuild.GetAiTasks(); len(tasks) > 0 {
+			hasAITask = true
+			task := tasks[0]
+			if task == nil || task.GetSidebarApp() == nil || len(task.GetSidebarApp().GetId()) == 0 {
 				return xerrors.Errorf("update ai task: sidebar app is nil or empty")
 			}
 
-			if !slices.Contains(appIDs, task.SidebarApp.Id) {
+			sidebarTaskID := task.GetSidebarApp().GetId()
+			if !slices.Contains(appIDs, sidebarTaskID) {
 				warnUnknownSidebarAppID = true
 			}
 
-			id, err := uuid.Parse(task.SidebarApp.Id)
+			id, err := uuid.Parse(task.GetSidebarApp().GetId())
 			if err != nil {
 				return xerrors.Errorf("parse sidebar app id: %w", err)
 			}
