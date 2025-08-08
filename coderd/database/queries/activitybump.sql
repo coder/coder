@@ -5,6 +5,8 @@
 --
 -- Max deadline is respected, and the deadline will never be bumped past it.
 -- The deadline will never decrease.
+-- NOTE: This query should only be called for regular user workspaces.
+-- Prebuilds are managed by the reconciliation loop and not subject to activity bumping.
 -- name: ActivityBumpWorkspace :exec
 WITH latest AS (
 	SELECT

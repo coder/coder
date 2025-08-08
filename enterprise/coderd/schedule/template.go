@@ -205,7 +205,6 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			if opts.DefaultTTL != 0 {
 				ttl = sql.NullInt64{Valid: true, Int64: int64(opts.DefaultTTL)}
 			}
-
 			if err = tx.UpdateWorkspacesTTLByTemplateID(ctx, database.UpdateWorkspacesTTLByTemplateIDParams{
 				TemplateID: template.ID,
 				Ttl:        ttl,
@@ -243,6 +242,10 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		nextStartAts := []time.Time{}
 
 		for _, workspace := range workspaces {
+			// Skip prebuilt workspaces
+			if workspace.IsPrebuild() {
+				continue
+			}
 			nextStartAt := time.Time{}
 			if workspace.AutostartSchedule.Valid {
 				next, err := agpl.NextAllowedAutostart(s.now(), workspace.AutostartSchedule.String, templateSchedule)
@@ -255,7 +258,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			nextStartAts = append(nextStartAts, nextStartAt)
 		}
 
-		//nolint:gocritic // We need to be able to update information about all workspaces.
+		//nolint:gocritic // We need to be able to update information about regular workspaces.
 		if err := db.BatchUpdateWorkspaceNextStartAt(dbauthz.AsSystemRestricted(ctx), database.BatchUpdateWorkspaceNextStartAtParams{
 			IDs:          workspaceIDs,
 			NextStartAts: nextStartAts,
@@ -333,6 +336,11 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 	workspace, err := db.GetWorkspaceByID(ctx, build.WorkspaceID)
 	if err != nil {
 		return xerrors.Errorf("get workspace %q: %w", build.WorkspaceID, err)
+	}
+
+	// Skip lifecycle updates for prebuilt workspaces
+	if workspace.IsPrebuild() {
+		return nil
 	}
 
 	job, err := db.GetProvisionerJobByID(ctx, build.JobID)

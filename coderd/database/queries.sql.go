@@ -98,6 +98,8 @@ type ActivityBumpWorkspaceParams struct {
 //
 // Max deadline is respected, and the deadline will never be bumped past it.
 // The deadline will never decrease.
+// NOTE: This query should only be called for regular user workspaces.
+// Prebuilds are managed by the reconciliation loop and not subject to activity bumping.
 // We only bump if the template has an activity bump duration set.
 // We only bump if the raw interval is positive and non-zero.
 // We only bump if workspace shutdown is manual.
@@ -7122,7 +7124,15 @@ const claimPrebuiltWorkspace = `-- name: ClaimPrebuiltWorkspace :one
 UPDATE workspaces w
 SET owner_id   = $1::uuid,
 	name       = $2::text,
-	updated_at = NOW()
+	updated_at = NOW(),
+	-- Update last_used_at during claim to ensure the claimed workspace is treated as recently used.
+	-- This avoids unintended dormancy caused by prebuilds having stale usage timestamps.
+	last_used_at = NOW(),
+	-- Clear dormant and deletion timestamps as a safeguard to ensure a clean lifecycle state after claim.
+	-- These fields should not be set on prebuilds, but we defensively reset them here to prevent
+	-- accidental dormancy or deletion by the lifecycle executor.
+	dormant_at = NULL,
+	deleting_at = NULL
 WHERE w.id IN (
 	SELECT p.id
 	FROM workspace_prebuilds p
@@ -19234,6 +19244,9 @@ type UpdateWorkspaceBuildDeadlineByIDParams struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 }
 
+// NOTE: This query should only be called for regular user workspaces.
+// Prebuilds are managed by the reconciliation loop, not the lifecycle
+// executor which handles deadline and max_deadline.
 func (q *sqlQuerier) UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg UpdateWorkspaceBuildDeadlineByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildDeadlineByID,
 		arg.Deadline,
@@ -21187,6 +21200,9 @@ type UpdateWorkspaceAutostartParams struct {
 	NextStartAt       sql.NullTime   `db:"next_start_at" json:"next_start_at"`
 }
 
+// NOTE: This query should only be called for regular user workspaces.
+// Prebuilds are managed by the reconciliation loop, not the lifecycle
+// executor which handles autostart_schedule and next_start_at.
 func (q *sqlQuerier) UpdateWorkspaceAutostart(ctx context.Context, arg UpdateWorkspaceAutostartParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceAutostart, arg.ID, arg.AutostartSchedule, arg.NextStartAt)
 	return err
@@ -21244,6 +21260,9 @@ type UpdateWorkspaceDormantDeletingAtParams struct {
 	DormantAt sql.NullTime `db:"dormant_at" json:"dormant_at"`
 }
 
+// NOTE: This query should only be called for regular user workspaces.
+// Prebuilds are managed by the reconciliation loop, not the lifecycle
+// executor which handles dormant_at and deleting_at.
 func (q *sqlQuerier) UpdateWorkspaceDormantDeletingAt(ctx context.Context, arg UpdateWorkspaceDormantDeletingAtParams) (WorkspaceTable, error) {
 	row := q.db.QueryRowContext(ctx, updateWorkspaceDormantDeletingAt, arg.ID, arg.DormantAt)
 	var i WorkspaceTable
@@ -21303,6 +21322,9 @@ type UpdateWorkspaceNextStartAtParams struct {
 	NextStartAt sql.NullTime `db:"next_start_at" json:"next_start_at"`
 }
 
+// NOTE: This query should only be called for regular user workspaces.
+// Prebuilds are managed by the reconciliation loop, not the lifecycle
+// executor which handles next_start_at.
 func (q *sqlQuerier) UpdateWorkspaceNextStartAt(ctx context.Context, arg UpdateWorkspaceNextStartAtParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceNextStartAt, arg.ID, arg.NextStartAt)
 	return err
@@ -21322,6 +21344,9 @@ type UpdateWorkspaceTTLParams struct {
 	Ttl sql.NullInt64 `db:"ttl" json:"ttl"`
 }
 
+// NOTE: This query should only be called for regular user workspaces.
+// Prebuilds are managed by the reconciliation loop, not the lifecycle
+// executor which handles regular workspace's TTL.
 func (q *sqlQuerier) UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceTTL, arg.ID, arg.Ttl)
 	return err
@@ -21338,8 +21363,11 @@ SET
     dormant_at = CASE WHEN $2::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN $2::timestamptz ELSE dormant_at END
 WHERE
     template_id = $3
-AND
-    dormant_at IS NOT NULL
+	AND dormant_at IS NOT NULL
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- should not have their dormant or deleting at set, as these are handled by the
+    -- prebuilds reconciliation loop.
+	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl
 `
 
@@ -21393,11 +21421,15 @@ func (q *sqlQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.C
 
 const updateWorkspacesTTLByTemplateID = `-- name: UpdateWorkspacesTTLByTemplateID :exec
 UPDATE
-		workspaces
+	workspaces
 SET
-		ttl = $2
+	ttl = $2
 WHERE
-		template_id = $1
+	template_id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- should not have their TTL updated, as they are handled by the prebuilds
+	-- reconciliation loop.
+	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 `
 
 type UpdateWorkspacesTTLByTemplateIDParams struct {

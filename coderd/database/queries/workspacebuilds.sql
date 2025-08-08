@@ -135,6 +135,9 @@ WHERE
 	id = $1;
 
 -- name: UpdateWorkspaceBuildDeadlineByID :exec
+-- NOTE: This query should only be called for regular user workspaces.
+-- Prebuilds are managed by the reconciliation loop, not the lifecycle
+-- executor which handles deadline and max_deadline.
 UPDATE
 	workspace_builds
 SET
