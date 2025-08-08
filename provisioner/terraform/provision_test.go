@@ -1147,7 +1147,7 @@ func TestProvision(t *testing.T) {
 					}
 				}
 				resource "coder_external_agent" "example" {
-					token = "123"
+					agent_id = "123"
 				}
 				`,
 			},
