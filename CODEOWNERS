@@ -29,3 +29,8 @@ site/src/api/countriesGenerated.ts
 site/src/api/rbacresourcesGenerated.ts
 site/src/api/typesGenerated.ts
 site/CLAUDE.md
+
+# The blood and guts of the autostop algorithm, which is quite complex and
+# requires elite ball knowledge of most of the scheduling code to make changes
+# without inadvertently affecting other parts of the codebase.
+coderd/schedule/autostop.go @deansheather @DanielleMaywood

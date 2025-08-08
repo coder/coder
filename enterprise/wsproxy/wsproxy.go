@@ -333,6 +333,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	r.Use(
 		// TODO: @emyrk Should we standardize these in some other package?
 		httpmw.Recover(s.Logger),
+		httpmw.WithProfilingLabels,
 		tracing.StatusWriterMiddleware,
 		tracing.Middleware(s.TracerProvider),
 		httpmw.AttachRequestID,
