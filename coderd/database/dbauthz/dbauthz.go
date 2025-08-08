@@ -2178,17 +2178,6 @@ func (q *querier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, work
 	return q.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
 }
 
-func (q *querier) GetLatestWorkspaceBuilds(ctx context.Context) ([]database.WorkspaceBuild, error) {
-	// This function is a system function until we implement a join for workspace builds.
-	// This is because we need to query for all related workspaces to the returned builds.
-	// This is a very inefficient method of fetching the latest workspace builds.
-	// We should just join the rbac properties.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetLatestWorkspaceBuilds(ctx)
-}
-
 func (q *querier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
 	// This function is a system function until we implement a join for workspace builds.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {

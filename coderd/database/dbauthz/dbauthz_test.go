@@ -4035,12 +4035,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			LoginType: l.LoginType,
 		}).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(l)
 	}))
-	s.Run("GetLatestWorkspaceBuilds", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{})
-		dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{})
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
-	}))
 	s.Run("GetActiveUserCount", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(int64(0))
 	}))

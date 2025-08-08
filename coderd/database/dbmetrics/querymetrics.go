@@ -943,13 +943,6 @@ func (m queryMetricsStore) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Cont
 	return build, err
 }
 
-func (m queryMetricsStore) GetLatestWorkspaceBuilds(ctx context.Context) ([]database.WorkspaceBuild, error) {
-	start := time.Now()
-	builds, err := m.s.GetLatestWorkspaceBuilds(ctx)
-	m.queryLatencies.WithLabelValues("GetLatestWorkspaceBuilds").Observe(time.Since(start).Seconds())
-	return builds, err
-}
-
 func (m queryMetricsStore) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
 	start := time.Now()
 	builds, err := m.s.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, ids)
