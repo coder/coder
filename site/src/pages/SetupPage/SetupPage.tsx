@@ -3,10 +3,10 @@ import { authMethods, createFirstUser } from "api/queries/users";
 import { Loader } from "components/Loader/Loader";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { type FC, useEffect } from "react";
+import { type FC, useEffect, useRef } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
-import { Navigate, useNavigate } from "react-router";
+import { Navigate } from "react-router";
 import { pageTitle } from "utils/page";
 import { sendDeploymentEvent } from "utils/telemetry";
 import { SetupPageView } from "./SetupPageView";
@@ -24,7 +24,7 @@ export const SetupPage: FC = () => {
 	const setupIsComplete = !isConfiguringTheFirstUser;
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	const navigate = useNavigate();
+	const setupRequired = useRef(false);
 
 	useEffect(() => {
 		if (!buildInfoQuery.data) {
@@ -41,13 +41,19 @@ export const SetupPage: FC = () => {
 
 	// If the user is logged in, navigate to the app
 	if (isSignedIn) {
-		return <Navigate to="/" state={{ isRedirect: true }} replace />;
+		return setupRequired.current ? (
+			<Navigate to="/templates" replace />
+		) : (
+			<Navigate to="/" state={{ isRedirect: true }} replace />
+		);
 	}
 
 	// If we've already completed setup, navigate to the login page
 	if (setupIsComplete) {
 		return <Navigate to="/login" state={{ isRedirect: true }} replace />;
 	}
+
+	setupRequired.current = true;
 
 	return (
 		<>
@@ -61,7 +67,6 @@ export const SetupPage: FC = () => {
 				onSubmit={async (firstUser) => {
 					await createFirstUserMutation.mutateAsync(firstUser);
 					await signIn(firstUser.email, firstUser.password);
-					navigate("/templates");
 				}}
 			/>
 		</>

@@ -135,10 +135,6 @@ describe("Setup Page", () => {
 						path: "/setup",
 						element: <SetupPage />,
 					},
-					{
-						path: "/templates",
-						element: <h1>Templates</h1>,
-					},
 				],
 				{ initialEntries: ["/setup"] },
 			),
