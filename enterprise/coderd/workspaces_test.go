@@ -3523,3 +3523,84 @@ func must[T any](value T, err error) T {
 	}
 	return value
 }
+
+func TestUpdateWorkspaceACL(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OKWithGroup", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				DeploymentValues:         dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+		orgID := adminUser.OrganizationID
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		_, friend := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		group := coderdtest.CreateGroup(t, adminClient, orgID, "bloob")
+
+		tv := coderdtest.CreateTemplateVersion(t, adminClient, orgID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, tv.ID)
+		template := coderdtest.CreateTemplate(t, adminClient, orgID, tv.ID)
+
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := client.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				friend.ID.String(): codersdk.WorkspaceRoleAdmin,
+			},
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleAdmin,
+			},
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("UnknownIDs", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+		adminClient := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			DeploymentValues:         dv,
+		})
+		adminUser := coderdtest.CreateFirstUser(t, adminClient)
+		orgID := adminUser.OrganizationID
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+
+		tv := coderdtest.CreateTemplateVersion(t, adminClient, orgID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, tv.ID)
+		template := coderdtest.CreateTemplate(t, adminClient, orgID, tv.ID)
+
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := client.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				uuid.NewString(): codersdk.WorkspaceRoleAdmin,
+			},
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				uuid.NewString(): codersdk.WorkspaceRoleAdmin,
+			},
+		})
+		require.Error(t, err)
+		cerr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Len(t, cerr.Validations, 2)
+		require.Equal(t, cerr.Validations[0].Field, "group_roles")
+		require.Equal(t, cerr.Validations[1].Field, "user_roles")
+	})
+}
