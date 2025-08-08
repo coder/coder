@@ -52,7 +52,11 @@ WITH latest AS (
 		ON workspaces.id = workspace_builds.workspace_id
 	JOIN templates
 		ON templates.id = workspaces.template_id
-	WHERE workspace_builds.workspace_id = @workspace_id::uuid
+	WHERE
+		workspace_builds.workspace_id = @workspace_id::uuid
+		-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+		-- are managed by the reconciliation loop and not subject to activity bumping
+	  	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 	ORDER BY workspace_builds.build_number DESC
 	LIMIT 1
 )
