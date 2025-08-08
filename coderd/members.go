@@ -203,7 +203,6 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 
 	paginatedMemberRows, err := api.Database.PaginatedOrganizationMembers(ctx, database.PaginatedOrganizationMembersParams{
 		OrganizationID: organization.ID,
-		IncludeSystem:  false,
 		// #nosec G115 - Pagination limits are small and fit in int32
 		LimitOpt: int32(paginationParams.Limit),
 		// #nosec G115 - Pagination offsets are small and fit in int32
