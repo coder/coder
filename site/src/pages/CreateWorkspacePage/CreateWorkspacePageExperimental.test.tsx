@@ -9,12 +9,11 @@ import {
 	MockTemplateVersionExternalAuthGithubAuthenticated,
 	MockUserOwner,
 	MockWorkspace,
-	mockDropdownParameter,
-	mockMultiSelectParameter,
-	mockSliderParameter,
-	mockSwitchParameter,
-	mockTagSelectParameter,
-	validationParameter,
+	MockDropdownParameter,
+	MockSliderParameter,
+	MockValidationParameter,
+	MockDynamicParametersResponse,
+	MockDynamicParametersResponseWithError,
 } from "testHelpers/entities";
 import {
 	renderWithAuth,
@@ -23,33 +22,6 @@ import {
 import { createMockWebSocket } from "testHelpers/websockets";
 import type { MockWebSocketServer } from "testHelpers/websockets";
 import CreateWorkspacePageExperimental from "./CreateWorkspacePageExperimental";
-
-const mockDynamicParametersResponse: DynamicParametersResponse = {
-	id: 1,
-	parameters: [
-		mockDropdownParameter,
-		mockSliderParameter,
-		mockSwitchParameter,
-		mockTagSelectParameter,
-		mockMultiSelectParameter,
-	],
-	diagnostics: [],
-};
-
-const mockDynamicParametersResponseWithError: DynamicParametersResponse = {
-	id: 2,
-	parameters: [mockDropdownParameter],
-	diagnostics: [
-		{
-			severity: "error",
-			summary: "Validation failed",
-			detail: "The selected instance type is not available in this region",
-			extra: {
-				code: "",
-			},
-		},
-	],
-};
 
 describe("CreateWorkspacePageExperimental", () => {
 	const renderCreateWorkspacePageExperimental = (
@@ -94,7 +66,7 @@ describe("CreateWorkspacePageExperimental", () => {
 				publisher.publishOpen(new Event("open"));
 				publisher.publishMessage(
 					new MessageEvent("message", {
-						data: JSON.stringify(mockDynamicParametersResponse),
+						data: JSON.stringify(MockDynamicParametersResponse),
 					}),
 				);
 
@@ -149,7 +121,7 @@ describe("CreateWorkspacePageExperimental", () => {
 					publisher.publishOpen(new Event("open"));
 					publisher.publishMessage(
 						new MessageEvent("message", {
-							data: JSON.stringify(mockDynamicParametersResponse),
+							data: JSON.stringify(MockDynamicParametersResponse),
 						}),
 					);
 
@@ -260,7 +232,7 @@ describe("CreateWorkspacePageExperimental", () => {
 						new MessageEvent("message", {
 							data: JSON.stringify({
 								id: 0,
-								parameters: [mockDropdownParameter],
+								parameters: [MockDropdownParameter],
 								diagnostics: [],
 							}),
 						}),
@@ -274,12 +246,12 @@ describe("CreateWorkspacePageExperimental", () => {
 
 			const response1: DynamicParametersResponse = {
 				id: 1,
-				parameters: [mockDropdownParameter],
+				parameters: [MockDropdownParameter],
 				diagnostics: [],
 			};
 			const response2: DynamicParametersResponse = {
 				id: 4,
-				parameters: [mockSliderParameter],
+				parameters: [MockSliderParameter],
 				diagnostics: [],
 			};
 
@@ -399,7 +371,7 @@ describe("CreateWorkspacePageExperimental", () => {
 
 					publisher.publishMessage(
 						new MessageEvent("message", {
-							data: JSON.stringify(mockDynamicParametersResponseWithError),
+							data: JSON.stringify(MockDynamicParametersResponseWithError),
 						}),
 					);
 
@@ -422,7 +394,7 @@ describe("CreateWorkspacePageExperimental", () => {
 		it("displays parameter validation errors for min/max constraints", async () => {
 			const mockResponseInitial: DynamicParametersResponse = {
 				id: 1,
-				parameters: [validationParameter],
+				parameters: [MockValidationParameter],
 				diagnostics: [],
 			};
 
@@ -430,7 +402,7 @@ describe("CreateWorkspacePageExperimental", () => {
 				id: 2,
 				parameters: [
 					{
-						...validationParameter,
+						...MockValidationParameter,
 						value: { value: "200", valid: false },
 						diagnostics: [
 							{

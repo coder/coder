@@ -5,6 +5,7 @@ import {
 } from "api/api";
 import type { FieldError } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
+import { DynamicParametersResponse } from "api/typesGenerated";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import range from "lodash/range";
 import type { Permissions } from "modules/permissions";
@@ -3125,16 +3126,12 @@ export const MockPreviewParameter: TypesGen.PreviewParameter = {
 	order: 0,
 };
 
-export const mockDropdownParameter: TypesGen.PreviewParameter = {
+export const MockDropdownParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
 	name: "instance_type",
 	display_name: "Instance Type",
 	description: "The type of instance to create",
-	type: "string",
 	form_type: "dropdown",
-	mutable: true,
-	ephemeral: false,
-	required: true,
-	value: { value: "", valid: true },
 	default_value: { value: "t3.micro", valid: true },
 	options: [
 		{
@@ -3156,9 +3153,6 @@ export const mockDropdownParameter: TypesGen.PreviewParameter = {
 			icon: "",
 		},
 	],
-	validations: [],
-	diagnostics: [],
-	icon: "",
 	styling: {
 		placeholder: "",
 		disabled: false,
@@ -3167,21 +3161,16 @@ export const mockDropdownParameter: TypesGen.PreviewParameter = {
 	order: 1,
 };
 
-export const mockTagSelectParameter: TypesGen.PreviewParameter = {
+export const MockTagSelectParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
 	name: "tags",
 	display_name: "Tags",
 	description: "Resource tags",
 	type: "list(string)",
 	form_type: "tag-select",
-	mutable: true,
-	ephemeral: false,
 	required: false,
 	value: { value: "[]", valid: true },
 	default_value: { value: "[]", valid: true },
-	options: [],
-	validations: [],
-	diagnostics: [],
-	icon: "",
 	styling: {
 		placeholder: "",
 		disabled: false,
@@ -3190,21 +3179,16 @@ export const mockTagSelectParameter: TypesGen.PreviewParameter = {
 	order: 4,
 };
 
-export const mockSwitchParameter: TypesGen.PreviewParameter = {
+export const MockSwitchParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
 	name: "enable_monitoring",
 	display_name: "Enable Monitoring",
 	description: "Enable system monitoring",
 	type: "bool",
 	form_type: "switch",
-	mutable: true,
-	ephemeral: false,
 	required: false,
 	value: { value: "true", valid: true },
 	default_value: { value: "true", valid: true },
-	options: [],
-	validations: [],
-	diagnostics: [],
-	icon: "",
 	styling: {
 		placeholder: "",
 		disabled: false,
@@ -3213,21 +3197,15 @@ export const mockSwitchParameter: TypesGen.PreviewParameter = {
 	order: 3,
 };
 
-export const mockSliderParameter: TypesGen.PreviewParameter = {
+export const MockSliderParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
 	name: "cpu_count",
 	display_name: "CPU Count",
 	description: "Number of CPU cores",
 	type: "number",
 	form_type: "slider",
-	mutable: true,
-	ephemeral: false,
-	required: true,
 	value: { value: "2", valid: true },
 	default_value: { value: "2", valid: true },
-	options: [],
-	validations: [],
-	diagnostics: [],
-	icon: "",
 	styling: {
 		placeholder: "",
 		disabled: false,
@@ -3236,14 +3214,13 @@ export const mockSliderParameter: TypesGen.PreviewParameter = {
 	order: 2,
 };
 
-export const mockMultiSelectParameter: TypesGen.PreviewParameter = {
+export const MockMultiSelectParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
 	name: "ides",
 	display_name: "IDEs",
 	description: "Enabled IDEs",
 	type: "list(string)",
 	form_type: "multi-select",
-	mutable: true,
-	ephemeral: false,
 	required: false,
 	value: { value: "[]", valid: true },
 	default_value: { value: "[]", valid: true },
@@ -3273,25 +3250,18 @@ export const mockMultiSelectParameter: TypesGen.PreviewParameter = {
 			icon: "",
 		},
 	],
-	validations: [],
-	diagnostics: [],
-	icon: "",
-	styling: {},
 	order: 5,
 };
 
-export const validationParameter: TypesGen.PreviewParameter = {
+export const MockValidationParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
 	name: "invalid_number",
 	display_name: "Invalid Parameter",
 	description: "Number parameter with validation error",
 	type: "number",
 	form_type: "input",
-	mutable: true,
-	ephemeral: false,
-	required: true,
 	value: { value: "50", valid: true },
 	default_value: { value: "50", valid: true },
-	options: [],
 	validations: [
 		{
 			validation_error: "Number must be between 0 and 100",
@@ -3301,10 +3271,34 @@ export const validationParameter: TypesGen.PreviewParameter = {
 			validation_monotonic: null,
 		},
 	],
-	diagnostics: [],
-	icon: "",
-	styling: {},
 	order: 1,
+};
+
+export const MockDynamicParametersResponse: TypesGen.DynamicParametersResponse = {
+	id: 1,
+	parameters: [
+		MockDropdownParameter,
+		MockSliderParameter,
+		MockSwitchParameter,
+		MockTagSelectParameter,
+		MockMultiSelectParameter,
+	],
+	diagnostics: [],
+};
+
+export const MockDynamicParametersResponseWithError: TypesGen.DynamicParametersResponse = {
+	id: 2,
+	parameters: [MockDropdownParameter],
+	diagnostics: [
+		{
+			severity: "error",
+			summary: "Validation failed",
+			detail: "The selected instance type is not available in this region",
+			extra: {
+				code: "",
+			},
+		},
+	],
 };
 
 export const MockTemplateVersionExternalAuthGithub: TypesGen.TemplateVersionExternalAuth =
