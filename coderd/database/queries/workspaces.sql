@@ -567,11 +567,7 @@ UPDATE
 SET
 	ttl = $2
 WHERE
-	template_id = $1
-	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
-	-- should not have their TTL updated, as they are handled by the prebuilds
-	-- reconciliation loop.
-	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID;
+	template_id = $1;
 
 -- name: UpdateWorkspaceLastUsedAt :exec
 UPDATE
@@ -821,11 +817,8 @@ SET
     dormant_at = CASE WHEN @dormant_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN @dormant_at::timestamptz ELSE dormant_at END
 WHERE
     template_id = @template_id
-	AND dormant_at IS NOT NULL
-	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
-	-- should not have their dormant or deleting at set, as these are handled by the
-    -- prebuilds reconciliation loop.
-	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
+AND
+    dormant_at IS NOT NULL
 RETURNING *;
 
 -- name: UpdateTemplateWorkspacesLastUsedAt :exec
