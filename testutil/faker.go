@@ -28,9 +28,14 @@ func Fake[T any](t *testing.T, faker *gofakeit.Faker, seed T) T {
 
 // mergeZero merges the fields of src into dst, but only if the field in dst is
 // currently the zero value.
-func mergeZero[T any](dst *T, src T) {
+// Make sure `dst` is a pointer to a struct, otherwise the fields are not assignable.
+func mergeZero(dst any, src any) {
+	srcv := reflect.ValueOf(src)
+	if srcv.Kind() == reflect.Ptr {
+		srcv = srcv.Elem()
+	}
 	remain := [][2]reflect.Value{
-		{reflect.ValueOf(dst).Elem(), reflect.ValueOf(src)},
+		{reflect.ValueOf(dst).Elem(), srcv},
 	}
 
 	// Traverse the struct fields and set them only if they are currently zero.
