@@ -6592,19 +6592,16 @@ WHERE
 			organization_id = $1
 		ELSE true
 	END
-  -- Filter by system type
-	AND CASE WHEN $2::bool THEN TRUE ELSE is_system = false END
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $3
+	LOWER(username) ASC OFFSET $2
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($4 :: int, 0)
+	NULLIF($3 :: int, 0)
 `
 
 type PaginatedOrganizationMembersParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	IncludeSystem  bool      `db:"include_system" json:"include_system"`
 	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
 }
@@ -6620,12 +6617,7 @@ type PaginatedOrganizationMembersRow struct {
 }
 
 func (q *sqlQuerier) PaginatedOrganizationMembers(ctx context.Context, arg PaginatedOrganizationMembersParams) ([]PaginatedOrganizationMembersRow, error) {
-	rows, err := q.db.QueryContext(ctx, paginatedOrganizationMembers,
-		arg.OrganizationID,
-		arg.IncludeSystem,
-		arg.OffsetOpt,
-		arg.LimitOpt,
-	)
+	rows, err := q.db.QueryContext(ctx, paginatedOrganizationMembers, arg.OrganizationID, arg.OffsetOpt, arg.LimitOpt)
 	if err != nil {
 		return nil, err
 	}
