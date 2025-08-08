@@ -393,7 +393,7 @@ func TestExternalWorkspaces(t *testing.T) {
 
 		err := inv.Run()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "get workspace by name")
+		assert.Contains(t, err.Error(), "Resource not found")
 	})
 
 	t.Run("AgentInstructionsNonExistentAgent", func(t *testing.T) {
