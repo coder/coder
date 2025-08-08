@@ -9,8 +9,17 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/aibridged/proto"
-	"github.com/coder/coder/v2/codersdk"
 )
+
+const (
+	ProviderOpenAI    = "openai"
+	ProviderAnthropic = "anthropic"
+)
+
+var providerRoutes = map[string][]string{
+	ProviderOpenAI:    {"/v1/chat/completions"},
+	ProviderAnthropic: {"/v1/messages"},
+}
 
 // Bridge is responsible for proxying requests to upstream AI providers.
 //
@@ -25,8 +34,6 @@ import (
 // 6.  multiple calls can be made to provider while holding client<->coderd conn open
 // 7.  client<->coderd conn must ONLY be closed on client-side disconn or coderd<->provider non-recoverable error.
 type Bridge struct {
-	cfg codersdk.AIBridgeConfig
-
 	httpSrv  *http.Server
 	clientFn func() (proto.DRPCAIBridgeDaemonClient, error)
 	logger   slog.Logger
@@ -34,18 +41,23 @@ type Bridge struct {
 	tools map[string]*MCPTool
 }
 
-func NewBridge(cfg codersdk.AIBridgeConfig, logger slog.Logger, clientFn func() (proto.DRPCAIBridgeDaemonClient, error), tools ToolRegistry) (*Bridge, error) {
+func NewBridge(registry ProviderRegistry, logger slog.Logger, clientFn func() (proto.DRPCAIBridgeDaemonClient, error), tools ToolRegistry) (*Bridge, error) {
 	drpcClient, err := clientFn()
 	if err != nil {
 		return nil, xerrors.Errorf("could not acquire coderd client for tracking: %w", err)
 	}
 
-	openAIProvider := NewOpenAIProvider(cfg.OpenAI.BaseURL.String(), cfg.OpenAI.Key.String())
-	anthropicMessagesProvider := NewAnthropicMessagesProvider(cfg.Anthropic.BaseURL.String(), cfg.Anthropic.Key.String())
-
 	mux := &http.ServeMux{}
-	mux.HandleFunc("/v1/chat/completions", NewSessionProcessor(openAIProvider, logger, drpcClient, tools))
-	mux.HandleFunc("/v1/messages", NewSessionProcessor(anthropicMessagesProvider, logger, drpcClient, tools))
+	for ident, provider := range registry {
+		routes, ok := providerRoutes[ident]
+		if !ok {
+			// Unknown provider identifier; skip.
+			continue
+		}
+		for _, path := range routes {
+			mux.HandleFunc(path, NewSessionProcessor(provider, logger, drpcClient, tools))
+		}
+	}
 
 	srv := &http.Server{
 		Handler: mux,
@@ -58,7 +70,6 @@ func NewBridge(cfg codersdk.AIBridgeConfig, logger slog.Logger, clientFn func() 
 	}
 
 	var bridge Bridge
-	bridge.cfg = cfg
 	bridge.httpSrv = srv
 	bridge.clientFn = clientFn
 	bridge.logger = logger

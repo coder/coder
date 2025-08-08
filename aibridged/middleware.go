@@ -10,8 +10,10 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 )
 
-type ContextKeyBridgeAPIKey struct{}
-type ContextKeyBridgeUserID struct{}
+type (
+	ContextKeyBridgeAPIKey struct{}
+	ContextKeyBridgeUserID struct{}
+)
 
 // AuthMiddleware extracts and validates authorization tokens for AI bridge endpoints.
 // It supports both Bearer tokens in Authorization headers and Coder session tokens

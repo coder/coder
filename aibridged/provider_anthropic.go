@@ -42,5 +42,5 @@ func (p *AnthropicMessagesProvider) CreateSession(w http.ResponseWriter, r *http
 }
 
 func (p *AnthropicMessagesProvider) Identifier() string {
-	return "anthropic"
+	return ProviderAnthropic
 }

@@ -134,6 +134,7 @@ func (b *MessageNewParamsWrapper) UnmarshalJSON(raw []byte) error {
 	b.Stream = extractStreamFlag(raw)
 	return nil
 }
+
 func (b *MessageNewParamsWrapper) UseStreaming() bool {
 	return b.Stream
 }

@@ -19,9 +19,7 @@ type Session interface {
 	ProcessRequest(w http.ResponseWriter, r *http.Request) error
 }
 
-var (
-	UnknownRoute = xerrors.New("unknown route")
-)
+var UnknownRoute = xerrors.New("unknown route")
 
 func NewSessionProcessor(p Provider, logger slog.Logger, client proto.DRPCAIBridgeDaemonClient, tools ToolRegistry) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

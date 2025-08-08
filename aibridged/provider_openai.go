@@ -27,7 +27,7 @@ func NewOpenAIProvider(baseURL, key string) *OpenAIProvider {
 }
 
 func (p *OpenAIProvider) Identifier() string {
-	return "openai"
+	return ProviderOpenAI
 }
 
 func (p *OpenAIProvider) CreateSession(w http.ResponseWriter, r *http.Request, tools ToolRegistry) (Session, error) {

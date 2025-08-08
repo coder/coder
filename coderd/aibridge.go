@@ -85,7 +85,12 @@ func (api *API) createOrLoadBridgeForAPIKey(ctx context.Context, key string, cli
 			api.Logger.Warn(ctx, "failed to load tools", slog.Error(err))
 		}
 
-		bridge, err := aibridged.NewBridge(api.DeploymentValues.AI.BridgeConfig, api.Logger.Named("ai_bridge"), clientFn, tools)
+		// TODO: only instantiate once.
+		registry := aibridged.ProviderRegistry{
+			aibridged.ProviderOpenAI:    aibridged.NewOpenAIProvider(api.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(), api.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String()),
+			aibridged.ProviderAnthropic: aibridged.NewAnthropicMessagesProvider(api.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(), api.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String()),
+		}
+		bridge, err := aibridged.NewBridge(registry, api.Logger.Named("ai_bridge"), clientFn, tools)
 		if err != nil {
 			return nil, xerrors.Errorf("create new bridge server: %w", err)
 		}

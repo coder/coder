@@ -120,8 +120,8 @@ type eventStream struct {
 type eventStreamProvider string
 
 const (
-	openAIEventStream    eventStreamProvider = "openai"
-	anthropicEventStream eventStreamProvider = "anthropic"
+	openAIEventStream    eventStreamProvider = ProviderOpenAI
+	anthropicEventStream eventStreamProvider = ProviderAnthropic
 )
 
 func newEventStream(kind eventStreamProvider) *eventStream {

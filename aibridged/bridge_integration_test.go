@@ -38,7 +38,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/serpent"
 )
 
 var (
@@ -119,13 +118,10 @@ func TestAnthropicMessages(t *testing.T) {
 				coderdClient := &fakeBridgeDaemonClient{}
 
 				logger := testutil.Logger(t) // slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-				b, err := aibridged.NewBridge(codersdk.AIBridgeConfig{
-					Daemons: 1,
-					Anthropic: codersdk.AIBridgeAnthropicConfig{
-						BaseURL: serpent.String(srv.URL),
-						Key:     serpent.String(sessionToken),
-					},
-				}, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
+				registry := aibridged.ProviderRegistry{
+					aibridged.ProviderAnthropic: aibridged.NewAnthropicMessagesProvider(srv.URL, sessionToken),
+				}
+				b, err := aibridged.NewBridge(registry, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
 					return coderdClient, nil
 				}, nil)
 				require.NoError(t, err)
@@ -222,13 +218,10 @@ func TestOpenAIChatCompletions(t *testing.T) {
 				coderdClient := &fakeBridgeDaemonClient{}
 
 				logger := testutil.Logger(t) // slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-				b, err := aibridged.NewBridge(codersdk.AIBridgeConfig{
-					Daemons: 1,
-					OpenAI: codersdk.AIBridgeOpenAIConfig{
-						BaseURL: serpent.String(srv.URL),
-						Key:     serpent.String(sessionToken),
-					},
-				}, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
+				registry := aibridged.ProviderRegistry{
+					aibridged.ProviderOpenAI: aibridged.NewOpenAIProvider(srv.URL, sessionToken),
+				}
+				b, err := aibridged.NewBridge(registry, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
 					return coderdClient, nil
 				}, nil)
 				require.NoError(t, err)
@@ -290,17 +283,14 @@ func TestSimple(t *testing.T) {
 		createRequest     func(*testing.T, string, []byte) *http.Request
 	}{
 		{
-			name:    "anthropic",
+			name:    aibridged.ProviderAnthropic,
 			fixture: antSimple,
 			configureFunc: func(addr string, client proto.DRPCAIBridgeDaemonClient) (*aibridged.Bridge, error) {
 				logger := testutil.Logger(t)
-				return aibridged.NewBridge(codersdk.AIBridgeConfig{
-					Daemons: 1,
-					Anthropic: codersdk.AIBridgeAnthropicConfig{
-						BaseURL: serpent.String(addr),
-						Key:     serpent.String(sessionToken),
-					},
-				}, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
+				registry := aibridged.ProviderRegistry{
+					aibridged.ProviderAnthropic: aibridged.NewAnthropicMessagesProvider(addr, sessionToken),
+				}
+				return aibridged.NewBridge(registry, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
 					return client, nil
 				}, nil)
 			},
@@ -337,17 +327,14 @@ func TestSimple(t *testing.T) {
 			createRequest: createAnthropicMessagesReq,
 		},
 		{
-			name:    "openai",
+			name:    aibridged.ProviderOpenAI,
 			fixture: oaiSimple,
 			configureFunc: func(addr string, client proto.DRPCAIBridgeDaemonClient) (*aibridged.Bridge, error) {
 				logger := testutil.Logger(t)
-				return aibridged.NewBridge(codersdk.AIBridgeConfig{
-					Daemons: 1,
-					OpenAI: codersdk.AIBridgeOpenAIConfig{
-						BaseURL: serpent.String(addr),
-						Key:     serpent.String(sessionToken),
-					},
-				}, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
+				registry := aibridged.ProviderRegistry{
+					aibridged.ProviderOpenAI: aibridged.NewOpenAIProvider(addr, sessionToken),
+				}
+				return aibridged.NewBridge(registry, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
 					return client, nil
 				}, nil)
 			},
@@ -496,17 +483,14 @@ func TestInjectedTool(t *testing.T) {
 		createRequest          func(*testing.T, string, []byte) *http.Request
 	}{
 		{
-			name:    "anthropic",
+			name:    aibridged.ProviderAnthropic,
 			fixture: antSingleInjectedTool,
 			configureFunc: func(addr string, client proto.DRPCAIBridgeDaemonClient, tools map[string][]*aibridged.MCPTool) (*aibridged.Bridge, error) {
 				logger := testutil.Logger(t)
-				return aibridged.NewBridge(codersdk.AIBridgeConfig{
-					Daemons: 1,
-					Anthropic: codersdk.AIBridgeAnthropicConfig{
-						BaseURL: serpent.String(addr),
-						Key:     serpent.String(sessionToken),
-					},
-				}, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
+				registry := aibridged.ProviderRegistry{
+					aibridged.ProviderAnthropic: aibridged.NewAnthropicMessagesProvider(addr, sessionToken),
+				}
+				return aibridged.NewBridge(registry, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
 					return client, nil
 				}, tools)
 			},
@@ -556,17 +540,14 @@ func TestInjectedTool(t *testing.T) {
 			createRequest: createAnthropicMessagesReq,
 		},
 		{
-			name:    "openai",
+			name:    aibridged.ProviderOpenAI,
 			fixture: oaiSingleInjectedTool,
 			configureFunc: func(addr string, client proto.DRPCAIBridgeDaemonClient, tools map[string][]*aibridged.MCPTool) (*aibridged.Bridge, error) {
 				logger := testutil.Logger(t)
-				return aibridged.NewBridge(codersdk.AIBridgeConfig{
-					Daemons: 1,
-					OpenAI: codersdk.AIBridgeOpenAIConfig{
-						BaseURL: serpent.String(addr),
-						Key:     serpent.String(sessionToken),
-					},
-				}, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
+				registry := aibridged.ProviderRegistry{
+					aibridged.ProviderOpenAI: aibridged.NewOpenAIProvider(addr, sessionToken),
+				}
+				return aibridged.NewBridge(registry, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
 					return client, nil
 				}, tools)
 			},
