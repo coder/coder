@@ -1,7 +1,6 @@
--- name: InsertAIBridgeSession :one
+-- name: InsertAIBridgeSession :exec
 INSERT INTO aibridge_sessions (id, initiator_id, provider, model)
-VALUES (@id::uuid, @initiator_id::uuid, @provider, @model)
-RETURNING @id::uuid;
+VALUES (@id::uuid, @initiator_id::uuid, @provider, @model);
 
 -- name: InsertAIBridgeTokenUsage :exec
 INSERT INTO aibridge_token_usages (

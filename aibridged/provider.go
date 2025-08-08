@@ -1,7 +1,10 @@
 package aibridged
 
-type Provider[Req any] interface {
-	ParseRequest(payload []byte) (*Req, error)
-	NewStreamingSession(*Req) Session
-	NewBlockingSession(*Req) Session
+import (
+	"net/http"
+)
+
+type Provider interface {
+	CreateSession(w http.ResponseWriter, r *http.Request, tools ToolRegistry) (Session, error)
+	Identifier() string
 }

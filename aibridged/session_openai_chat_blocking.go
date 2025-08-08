@@ -19,14 +19,16 @@ type OpenAIBlockingChatSession struct {
 	OpenAIChatSessionBase
 }
 
-func NewOpenAIBlockingChatSession(req *ChatCompletionNewParamsWrapper) *OpenAIBlockingChatSession {
+func NewOpenAIBlockingChatSession(req *ChatCompletionNewParamsWrapper, baseURL, key string) *OpenAIBlockingChatSession {
 	return &OpenAIBlockingChatSession{OpenAIChatSessionBase: OpenAIChatSessionBase{
-		req: req,
+		req:     req,
+		baseURL: baseURL,
+		key:     key,
 	}}
 }
 
-func (s *OpenAIBlockingChatSession) Init(id string, logger slog.Logger, baseURL, key string, tracker Tracker, toolMgr ToolManager) {
-	s.OpenAIChatSessionBase.Init(id, logger.Named("streaming"), baseURL, key, tracker, toolMgr)
+func (s *OpenAIBlockingChatSession) Init(logger slog.Logger, tracker Tracker, toolMgr ToolManager) string {
+	return s.OpenAIChatSessionBase.Init(logger.Named("blocking"), tracker, toolMgr)
 }
 
 func (s *OpenAIBlockingChatSession) ProcessRequest(w http.ResponseWriter, r *http.Request) error {
@@ -46,7 +48,7 @@ func (s *OpenAIBlockingChatSession) ProcessRequest(w http.ResponseWriter, r *htt
 
 	s.injectTools()
 
-	prompt, err := s.LastUserPrompt()
+	prompt, err := s.req.LastUserPrompt()
 	if err != nil {
 		logger.Warn(ctx, "failed to retrieve last user prompt", slog.Error(err))
 	}
@@ -58,7 +60,7 @@ func (s *OpenAIBlockingChatSession) ProcessRequest(w http.ResponseWriter, r *htt
 		}
 
 		if prompt != nil {
-			if err := s.tracker.TrackPromptUsage(ctx, s.id, completion.ID, s.Model(), *prompt, nil); err != nil {
+			if err := s.tracker.TrackPromptUsage(ctx, s.id, completion.ID, *prompt, nil); err != nil {
 				logger.Warn(ctx, "failed to track prompt usage", slog.Error(err))
 			}
 		}
@@ -67,7 +69,7 @@ func (s *OpenAIBlockingChatSession) ProcessRequest(w http.ResponseWriter, r *htt
 		cumulativeUsage = sumUsage(cumulativeUsage, completion.Usage)
 
 		// Track token usage
-		if err := s.tracker.TrackTokensUsage(ctx, s.id, completion.ID, s.Model(), cumulativeUsage.PromptTokens, cumulativeUsage.CompletionTokens, Metadata{
+		if err := s.tracker.TrackTokensUsage(ctx, s.id, completion.ID, cumulativeUsage.PromptTokens, cumulativeUsage.CompletionTokens, Metadata{
 			"prompt_audio":                   cumulativeUsage.PromptTokensDetails.AudioTokens,
 			"prompt_cached":                  cumulativeUsage.PromptTokensDetails.CachedTokens,
 			"completion_accepted_prediction": cumulativeUsage.CompletionTokensDetails.AcceptedPredictionTokens,
@@ -85,7 +87,7 @@ func (s *OpenAIBlockingChatSession) ProcessRequest(w http.ResponseWriter, r *htt
 				if s.toolMgr.GetTool(toolCall.Function.Name) != nil {
 					pendingToolCalls = append(pendingToolCalls, toolCall)
 				} else {
-					if err := s.tracker.TrackToolUsage(ctx, s.id, completion.ID, s.Model(), toolCall.Function.Name, toolCall.Function.Arguments, false, nil); err != nil {
+					if err := s.tracker.TrackToolUsage(ctx, s.id, completion.ID, toolCall.Function.Name, toolCall.Function.Arguments, false, nil); err != nil {
 						s.logger.Warn(ctx, "failed to track tool usage", slog.Error(err), slog.F("tool", toolCall.Function.Name))
 					}
 				}
@@ -113,7 +115,7 @@ func (s *OpenAIBlockingChatSession) ProcessRequest(w http.ResponseWriter, r *htt
 				appendedPrevMsg = true
 			}
 
-			if err := s.tracker.TrackToolUsage(ctx, s.id, completion.ID, s.Model(), tool.Name, tc.Function.Arguments, true, nil); err != nil {
+			if err := s.tracker.TrackToolUsage(ctx, s.id, completion.ID, tool.Name, tc.Function.Arguments, true, nil); err != nil {
 				logger.Warn(ctx, "failed to track tool usage", slog.Error(err), slog.F("tool", tool.Name))
 			}
 
@@ -194,22 +196,4 @@ func (s *OpenAIBlockingChatSession) ProcessRequest(w http.ResponseWriter, r *htt
 	_, _ = w.Write(out)
 
 	return nil
-}
-
-func (s *OpenAIBlockingChatSession) Model() Model {
-	var model string
-	if s.req == nil {
-		model = "?"
-	} else {
-		model = s.req.Model
-	}
-
-	return Model{
-		Provider:  "openai",
-		ModelName: model,
-	}
-}
-
-func (s *OpenAIBlockingChatSession) Close() error {
-	return nil // TODO: do we even need this?
 }

@@ -21,14 +21,16 @@ type AnthropicMessagesBlockingSession struct {
 	AnthropicMessagesSessionBase
 }
 
-func NewAnthropicMessagesBlockingSession(req *BetaMessageNewParamsWrapper) *AnthropicMessagesBlockingSession {
+func NewAnthropicMessagesBlockingSession(req *BetaMessageNewParamsWrapper, baseURL, key string) *AnthropicMessagesBlockingSession {
 	return &AnthropicMessagesBlockingSession{AnthropicMessagesSessionBase: AnthropicMessagesSessionBase{
-		req: req,
+		req:     req,
+		baseURL: baseURL,
+		key:     key,
 	}}
 }
 
-func (s *AnthropicMessagesBlockingSession) Init(id string, logger slog.Logger, baseURL, key string, tracker Tracker, toolMgr ToolManager) {
-	s.AnthropicMessagesSessionBase.Init(id, logger.Named("blocking"), baseURL, key, tracker, toolMgr)
+func (s *AnthropicMessagesBlockingSession) Init(logger slog.Logger, tracker Tracker, toolMgr ToolManager) string {
+	return s.AnthropicMessagesSessionBase.Init(logger.Named("blocking"), tracker, toolMgr)
 }
 
 func (s *AnthropicMessagesBlockingSession) ProcessRequest(w http.ResponseWriter, r *http.Request) error {
@@ -46,7 +48,7 @@ func (s *AnthropicMessagesBlockingSession) ProcessRequest(w http.ResponseWriter,
 	)
 	// Track user prompt if not a small/fast model
 	if !s.isSmallFastModel() {
-		prompt, err = s.LastUserPrompt()
+		prompt, err = s.req.LastUserPrompt()
 		if err != nil {
 			s.logger.Warn(ctx, "failed to retrieve last user prompt", slog.Error(err))
 		}
@@ -85,12 +87,12 @@ func (s *AnthropicMessagesBlockingSession) ProcessRequest(w http.ResponseWriter,
 		}
 
 		if prompt != nil {
-			if err := s.tracker.TrackPromptUsage(ctx, s.id, resp.ID, s.Model(), *prompt, nil); err != nil {
+			if err := s.tracker.TrackPromptUsage(ctx, s.id, resp.ID, *prompt, nil); err != nil {
 				s.logger.Warn(ctx, "failed to track prompt usage", slog.Error(err))
 			}
 		}
 
-		if err := s.tracker.TrackTokensUsage(ctx, s.id, resp.ID, s.Model(), resp.Usage.InputTokens, resp.Usage.OutputTokens, Metadata{
+		if err := s.tracker.TrackTokensUsage(ctx, s.id, resp.ID, resp.Usage.InputTokens, resp.Usage.OutputTokens, Metadata{
 			"web_search_requests":      resp.Usage.ServerToolUse.WebSearchRequests,
 			"cache_creation_input":     resp.Usage.CacheCreationInputTokens,
 			"cache_read_input":         resp.Usage.CacheReadInputTokens,
@@ -114,7 +116,7 @@ func (s *AnthropicMessagesBlockingSession) ProcessRequest(w http.ResponseWriter,
 			}
 
 			// If tool is not injected, track it since the client will be handling it.
-			if err := s.tracker.TrackToolUsage(ctx, s.id, resp.ID, s.Model(), toolUse.Name, toolUse.Input, false, nil); err != nil {
+			if err := s.tracker.TrackToolUsage(ctx, s.id, resp.ID, toolUse.Name, toolUse.Input, false, nil); err != nil {
 				logger.Warn(ctx, "failed to track tool usage", slog.Error(err))
 			}
 		}
@@ -163,7 +165,7 @@ func (s *AnthropicMessagesBlockingSession) ProcessRequest(w http.ResponseWriter,
 			if _, tool, err := DecodeToolID(toolName); err == nil {
 				toolName = tool
 			}
-			if err := s.tracker.TrackToolUsage(ctx, s.id, resp.ID, s.Model(), toolName, args, true, nil); err != nil {
+			if err := s.tracker.TrackToolUsage(ctx, s.id, resp.ID, toolName, args, true, nil); err != nil {
 				logger.Warn(ctx, "failed to track tool usage", slog.Error(err))
 			}
 

@@ -29,9 +29,9 @@ func (m Metadata) MarshalForProto() map[string]*anypb.Any {
 }
 
 type Tracker interface {
-	TrackTokensUsage(ctx context.Context, sessionID, msgID string, model Model, promptTokens, completionTokens int64, metadata Metadata) error
-	TrackPromptUsage(ctx context.Context, sessionID, msgID string, model Model, prompt string, metadata Metadata) error
-	TrackToolUsage(ctx context.Context, sessionID, msgID string, model Model, name string, args any, injected bool, metadata Metadata) error
+	TrackTokensUsage(ctx context.Context, sessionID, msgID string, promptTokens, completionTokens int64, metadata Metadata) error
+	TrackPromptUsage(ctx context.Context, sessionID, msgID, prompt string, metadata Metadata) error
+	TrackToolUsage(ctx context.Context, sessionID, msgID, name string, args any, injected bool, metadata Metadata) error
 }
 
 var _ Tracker = &DRPCTracker{}
@@ -45,7 +45,7 @@ func NewDRPCTracker(client proto.DRPCAIBridgeDaemonClient) *DRPCTracker {
 	return &DRPCTracker{client}
 }
 
-func (d *DRPCTracker) TrackTokensUsage(ctx context.Context, sessionID, msgID string, model Model, promptTokens, completionTokens int64, metadata Metadata) error {
+func (d *DRPCTracker) TrackTokensUsage(ctx context.Context, sessionID, msgID string, promptTokens, completionTokens int64, metadata Metadata) error {
 	_, err := d.client.TrackTokenUsage(ctx, &proto.TrackTokenUsageRequest{
 		SessionId:    sessionID,
 		MsgId:        msgID,
@@ -56,7 +56,7 @@ func (d *DRPCTracker) TrackTokensUsage(ctx context.Context, sessionID, msgID str
 	return err
 }
 
-func (d *DRPCTracker) TrackPromptUsage(ctx context.Context, sessionID, msgID string, model Model, prompt string, metadata Metadata) error {
+func (d *DRPCTracker) TrackPromptUsage(ctx context.Context, sessionID, msgID string, prompt string, metadata Metadata) error {
 	_, err := d.client.TrackUserPrompt(ctx, &proto.TrackUserPromptRequest{
 		SessionId: sessionID,
 		MsgId:     msgID,
@@ -66,7 +66,7 @@ func (d *DRPCTracker) TrackPromptUsage(ctx context.Context, sessionID, msgID str
 	return err
 }
 
-func (d *DRPCTracker) TrackToolUsage(ctx context.Context, sessionID, msgID string, model Model, name string, args any, injected bool, metadata Metadata) error {
+func (d *DRPCTracker) TrackToolUsage(ctx context.Context, sessionID, msgID, name string, args any, injected bool, metadata Metadata) error {
 	var (
 		serialized []byte
 		err        error

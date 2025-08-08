@@ -866,9 +866,7 @@ func (f *fakeBridgeDaemonClient) StartSession(ctx context.Context, in *proto.Sta
 	defer f.mu.Unlock()
 	f.sessions = append(f.sessions, in)
 
-	return &proto.StartSessionResponse{
-		SessionId: uuid.NewString(),
-	}, nil
+	return &proto.StartSessionResponse{}, nil
 }
 
 func (f *fakeBridgeDaemonClient) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageRequest) (*proto.TrackTokenUsageResponse, error) {

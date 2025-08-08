@@ -4487,12 +4487,11 @@ func (mr *MockStoreMockRecorder) InTx(arg0, arg1 any) *gomock.Call {
 }
 
 // InsertAIBridgeSession mocks base method.
-func (m *MockStore) InsertAIBridgeSession(ctx context.Context, arg database.InsertAIBridgeSessionParams) (uuid.UUID, error) {
+func (m *MockStore) InsertAIBridgeSession(ctx context.Context, arg database.InsertAIBridgeSessionParams) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertAIBridgeSession", ctx, arg)
-	ret0, _ := ret[0].(uuid.UUID)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // InsertAIBridgeSession indicates an expected call of InsertAIBridgeSession.

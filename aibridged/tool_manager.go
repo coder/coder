@@ -10,6 +10,8 @@ type ToolManager interface {
 	ListTools() []*MCPTool
 }
 
+type ToolRegistry map[string][]*MCPTool
+
 var _ ToolManager = &InjectedToolManager{}
 
 // InjectedToolManager is responsible for all injected tools.
@@ -28,7 +30,7 @@ type InjectedToolManager struct {
 //
 //
 
-func NewInjectedToolManager(tools map[string][]*MCPTool) *InjectedToolManager {
+func NewInjectedToolManager(tools ToolRegistry) *InjectedToolManager {
 	tm := &InjectedToolManager{}
 	for server, val := range tools {
 		tm.AddTools(server, val)

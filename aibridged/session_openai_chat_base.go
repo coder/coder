@@ -1,8 +1,8 @@
 package aibridged
 
 import (
+	"github.com/google/uuid"
 	"github.com/openai/openai-go"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 )
@@ -19,38 +19,23 @@ type OpenAIChatSessionBase struct {
 	toolMgr ToolManager
 }
 
-func (s *OpenAIChatSessionBase) Init(id string, logger slog.Logger, baseURL, key string, tracker Tracker, toolMgr ToolManager) {
-	s.id = id
+func (s *OpenAIChatSessionBase) Init(logger slog.Logger, tracker Tracker, toolMgr ToolManager) string {
+	s.id = uuid.NewString()
 
 	s.logger = logger.With(slog.F("session_id", s.id))
 
-	s.baseURL = baseURL
-	s.key = key
-
 	s.tracker = tracker
 	s.toolMgr = toolMgr
+
+	return s.id
 }
 
-func (s *OpenAIChatSessionBase) LastUserPrompt() (*string, error) {
+func (s *OpenAIChatSessionBase) Model() string {
 	if s.req == nil {
-		return nil, xerrors.New("nil request")
+		return "?"
 	}
 
-	return s.req.LastUserPrompt()
-}
-
-func (s *OpenAIChatSessionBase) Model() Model {
-	var model string
-	if s.req == nil {
-		model = "?"
-	} else {
-		model = s.req.Model
-	}
-
-	return Model{
-		Provider:  "openai",
-		ModelName: model,
-	}
+	return string(s.req.Model)
 }
 
 func (s *OpenAIChatSessionBase) newErrorResponse(err error) map[string]interface{} {

@@ -23,14 +23,16 @@ type AnthropicMessagesStreamingSession struct {
 	AnthropicMessagesSessionBase
 }
 
-func NewAnthropicMessagesStreamingSession(req *BetaMessageNewParamsWrapper) *AnthropicMessagesStreamingSession {
+func NewAnthropicMessagesStreamingSession(req *BetaMessageNewParamsWrapper, baseURL, key string) *AnthropicMessagesStreamingSession {
 	return &AnthropicMessagesStreamingSession{AnthropicMessagesSessionBase: AnthropicMessagesSessionBase{
-		req: req,
+		req:     req,
+		baseURL: baseURL,
+		key:     key,
 	}}
 }
 
-func (s *AnthropicMessagesStreamingSession) Init(id string, logger slog.Logger, baseURL, key string, tracker Tracker, toolMgr ToolManager) {
-	s.AnthropicMessagesSessionBase.Init(id, logger.Named("streaming"), baseURL, key, tracker, toolMgr)
+func (s *AnthropicMessagesStreamingSession) Init(logger slog.Logger, tracker Tracker, toolMgr ToolManager) string {
+	return s.AnthropicMessagesSessionBase.Init(logger.Named("streaming"), tracker, toolMgr)
 }
 
 func (s *AnthropicMessagesStreamingSession) ProcessRequest(w http.ResponseWriter, r *http.Request) error {
@@ -47,11 +49,11 @@ func (s *AnthropicMessagesStreamingSession) ProcessRequest(w http.ResponseWriter
 
 	// Track user prompt if not a small/fast model
 	if !s.isSmallFastModel() {
-		prompt, err := s.LastUserPrompt()
+		prompt, err := s.req.LastUserPrompt()
 		if err != nil {
 			s.logger.Warn(ctx, "failed to retrieve last user prompt", slog.Error(err))
 		} else if prompt != nil {
-			if err := s.tracker.TrackPromptUsage(ctx, s.id, "", s.Model(), *prompt, nil); err != nil {
+			if err := s.tracker.TrackPromptUsage(ctx, s.id, "", *prompt, nil); err != nil {
 				s.logger.Warn(ctx, "failed to track prompt usage", slog.Error(err))
 			}
 		}
@@ -141,7 +143,7 @@ func (s *AnthropicMessagesStreamingSession) ProcessRequest(w http.ResponseWriter
 					"cache_ephemeral_1h_input": start.Message.Usage.CacheCreation.Ephemeral1hInputTokens,
 					"cache_ephemeral_5m_input": start.Message.Usage.CacheCreation.Ephemeral5mInputTokens,
 				}
-				if err := s.tracker.TrackTokensUsage(streamCtx, s.id, message.ID, s.Model(), start.Message.Usage.InputTokens, start.Message.Usage.OutputTokens, metadata); err != nil {
+				if err := s.tracker.TrackTokensUsage(streamCtx, s.id, message.ID, start.Message.Usage.InputTokens, start.Message.Usage.OutputTokens, metadata); err != nil {
 					logger.Warn(ctx, "failed to track token usage", slog.Error(err))
 				}
 
@@ -162,7 +164,7 @@ func (s *AnthropicMessagesStreamingSession) ProcessRequest(w http.ResponseWriter
 					"cache_ephemeral_1h_input": 0,
 					"cache_ephemeral_5m_input": 0,
 				}
-				if err := s.tracker.TrackTokensUsage(streamCtx, s.id, message.ID, s.Model(), delta.Usage.InputTokens, delta.Usage.OutputTokens, metadata); err != nil {
+				if err := s.tracker.TrackTokensUsage(streamCtx, s.id, message.ID, delta.Usage.InputTokens, delta.Usage.OutputTokens, metadata); err != nil {
 					logger.Warn(ctx, "failed to track token usage", slog.Error(err))
 				}
 
@@ -224,7 +226,7 @@ func (s *AnthropicMessagesStreamingSession) ProcessRequest(w http.ResponseWriter
 						if _, decodedTool, err := DecodeToolID(toolName); err == nil {
 							toolName = decodedTool
 						}
-						if err := s.tracker.TrackToolUsage(streamCtx, s.id, message.ID, s.Model(), toolName, input, true, nil); err != nil {
+						if err := s.tracker.TrackToolUsage(streamCtx, s.id, message.ID, toolName, input, true, nil); err != nil {
 							logger.Warn(ctx, "failed to track tool usage", slog.Error(err))
 						}
 
@@ -325,7 +327,7 @@ func (s *AnthropicMessagesStreamingSession) ProcessRequest(w http.ResponseWriter
 								continue
 							}
 
-							if err := s.tracker.TrackToolUsage(streamCtx, s.id, message.ID, s.Model(), variant.Name, variant.Input, false, nil); err != nil {
+							if err := s.tracker.TrackToolUsage(streamCtx, s.id, message.ID, variant.Name, variant.Input, false, nil); err != nil {
 								logger.Warn(ctx, "failed to track tool usage", slog.Error(err))
 							}
 						}
@@ -378,9 +380,5 @@ func (s *AnthropicMessagesStreamingSession) ProcessRequest(w http.ResponseWriter
 		break
 	}
 
-	return nil
-}
-
-func (s *AnthropicMessagesStreamingSession) Close() error {
 	return nil
 }

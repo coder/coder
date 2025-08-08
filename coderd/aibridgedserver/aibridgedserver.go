@@ -36,13 +36,17 @@ func NewServer(lifecycleCtx context.Context, store database.Store, logger slog.L
 
 // StartSession implements proto.DRPCAIBridgeDaemonServer.
 func (s *Server) StartSession(ctx context.Context, in *proto.StartSessionRequest) (*proto.StartSessionResponse, error) {
+	sessID, err := uuid.Parse(in.GetSessionId())
+	if err != nil {
+		return nil, xerrors.Errorf("invalid session ID %q: %w", in.GetSessionId(), err)
+	}
 	initID, err := uuid.Parse(in.GetInitiatorId())
 	if err != nil {
 		return nil, xerrors.Errorf("invalid initiator ID %q: %w", in.GetInitiatorId(), err)
 	}
 
-	id, err := s.store.InsertAIBridgeSession(ctx, database.InsertAIBridgeSessionParams{
-		ID:          uuid.New(),
+	err = s.store.InsertAIBridgeSession(ctx, database.InsertAIBridgeSessionParams{
+		ID:          sessID,
 		InitiatorID: initID,
 		Provider:    in.Provider,
 		Model:       in.Model,
@@ -51,7 +55,7 @@ func (s *Server) StartSession(ctx context.Context, in *proto.StartSessionRequest
 		return nil, xerrors.Errorf("start session: %w", err)
 	}
 
-	return &proto.StartSessionResponse{SessionId: id.String()}, nil
+	return &proto.StartSessionResponse{}, nil
 }
 
 func (s *Server) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageRequest) (*proto.TrackTokenUsageResponse, error) {

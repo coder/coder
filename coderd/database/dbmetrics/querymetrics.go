@@ -2098,11 +2098,11 @@ func (m queryMetricsStore) GetWorkspacesEligibleForTransition(ctx context.Contex
 	return workspaces, err
 }
 
-func (m queryMetricsStore) InsertAIBridgeSession(ctx context.Context, arg database.InsertAIBridgeSessionParams) (uuid.UUID, error) {
+func (m queryMetricsStore) InsertAIBridgeSession(ctx context.Context, arg database.InsertAIBridgeSessionParams) error {
 	start := time.Now()
-	r0, r1 := m.s.InsertAIBridgeSession(ctx, arg)
+	r0 := m.s.InsertAIBridgeSession(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertAIBridgeSession").Observe(time.Since(start).Seconds())
-	return r0, r1
+	return r0
 }
 
 func (m queryMetricsStore) InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) error {

@@ -3617,7 +3617,7 @@ func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now ti
 	return q.db.GetWorkspacesEligibleForTransition(ctx, now)
 }
 
-func (q *querier) InsertAIBridgeSession(ctx context.Context, arg database.InsertAIBridgeSessionParams) (uuid.UUID, error) {
+func (q *querier) InsertAIBridgeSession(ctx context.Context, arg database.InsertAIBridgeSessionParams) error {
 	// TODO: authz.
 	return q.db.InsertAIBridgeSession(ctx, arg)
 }

@@ -6,14 +6,13 @@ package aibridged;
 import "google/protobuf/any.proto";
 
 message StartSessionRequest {
-  string initiator_id = 1;
-  string provider = 2;
-  string model = 3;
+	string session_id = 1;
+  string initiator_id = 2;
+  string provider = 3;
+  string model = 4;
 }
 
-message StartSessionResponse {
-  string session_id = 1;
-}
+message StartSessionResponse {}
 
 message TrackTokenUsageRequest {
 	string session_id = 1;

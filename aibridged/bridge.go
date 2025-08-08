@@ -1,17 +1,12 @@
 package aibridged
 
 import (
-	"context"
-	"fmt"
-	"io"
 	"net/http"
 	"time"
 
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
-	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
@@ -39,20 +34,18 @@ type Bridge struct {
 	tools map[string]*MCPTool
 }
 
-func NewBridge(cfg codersdk.AIBridgeConfig, logger slog.Logger, clientFn func() (proto.DRPCAIBridgeDaemonClient, error), tools map[string][]*MCPTool) (*Bridge, error) {
-	var bridge Bridge
-
-	openAIChatProvider := NewOpenAIChatProvider(cfg.OpenAI.BaseURL.String(), cfg.OpenAI.Key.String())
-	anthropicMessagesProvider := NewAnthropicMessagesProvider(cfg.Anthropic.BaseURL.String(), cfg.Anthropic.Key.String())
-
+func NewBridge(cfg codersdk.AIBridgeConfig, logger slog.Logger, clientFn func() (proto.DRPCAIBridgeDaemonClient, error), tools ToolRegistry) (*Bridge, error) {
 	drpcClient, err := clientFn()
 	if err != nil {
 		return nil, xerrors.Errorf("could not acquire coderd client for tracking: %w", err)
 	}
 
+	openAIProvider := NewOpenAIProvider(cfg.OpenAI.BaseURL.String(), cfg.OpenAI.Key.String())
+	anthropicMessagesProvider := NewAnthropicMessagesProvider(cfg.Anthropic.BaseURL.String(), cfg.Anthropic.Key.String())
+
 	mux := &http.ServeMux{}
-	mux.HandleFunc("/v1/chat/completions", handleOpenAIChat(openAIChatProvider, drpcClient, tools, logger.Named("openai")))
-	mux.HandleFunc("/v1/messages", handleAnthropicMessages(anthropicMessagesProvider, drpcClient, tools, logger.Named("anthropic")))
+	mux.HandleFunc("/v1/chat/completions", NewSessionProcessor(openAIProvider, logger, drpcClient, tools))
+	mux.HandleFunc("/v1/messages", NewSessionProcessor(anthropicMessagesProvider, logger, drpcClient, tools))
 
 	srv := &http.Server{
 		Handler: mux,
@@ -64,6 +57,7 @@ func NewBridge(cfg codersdk.AIBridgeConfig, logger slog.Logger, clientFn func() 
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
+	var bridge Bridge
 	bridge.cfg = cfg
 	bridge.httpSrv = srv
 	bridge.clientFn = clientFn
@@ -81,132 +75,4 @@ func NewBridge(cfg codersdk.AIBridgeConfig, logger slog.Logger, clientFn func() 
 
 func (b *Bridge) Handler() http.Handler {
 	return b.httpSrv.Handler
-}
-
-func handleOpenAIChat(provider *OpenAIChatProvider, drpcClient proto.DRPCAIBridgeDaemonClient, tools map[string][]*MCPTool, logger slog.Logger) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Read and parse request.
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			if isConnectionError(err) {
-				logger.Debug(r.Context(), "client disconnected during request body read", slog.Error(err))
-				return // Don't send error response if client already disconnected
-			}
-			logger.Error(r.Context(), "failed to read body", slog.Error(err))
-			http.Error(w, "failed to read body", http.StatusInternalServerError)
-			return
-		}
-		req, err := provider.ParseRequest(body)
-		if err != nil {
-			logger.Error(r.Context(), "failed to parse request", slog.Error(err))
-			http.Error(w, "failed to parse request", http.StatusBadRequest)
-			return
-		}
-
-		// Create a new session.
-		var sess Session
-		if req.Stream {
-			sess = provider.NewStreamingSession(req)
-		} else {
-			sess = provider.NewBlockingSession(req)
-		}
-
-		userID, ok := r.Context().Value(ContextKeyBridgeUserID{}).(uuid.UUID)
-		if !ok {
-			logger.Error(r.Context(), "missing initiator ID in context")
-			http.Error(w, "unable to retrieve initiator", http.StatusInternalServerError)
-			return
-		}
-
-		resp, err := drpcClient.StartSession(r.Context(), &proto.StartSessionRequest{
-			InitiatorId: userID.String(),
-			Provider:    "openai",
-			Model:       req.Model,
-		})
-		if err != nil {
-			logger.Error(r.Context(), "failed to start session", slog.Error(err))
-			http.Error(w, "failed to start session", http.StatusInternalServerError)
-			return
-		}
-
-		sessID := resp.GetSessionId()
-
-		sess.Init(sessID, logger, provider.baseURL, provider.key, NewDRPCTracker(drpcClient), NewInjectedToolManager(tools))
-		logger.Debug(context.Background(), "starting openai session", slog.F("session_id", sessID))
-
-		defer func() {
-			if err := sess.Close(); err != nil {
-				logger.Warn(context.Background(), "failed to close session", slog.Error(err), slog.F("session_id", sessID), slog.F("kind", fmt.Sprintf("%T", sess)))
-			}
-		}()
-
-		// Process the request.
-		if err := sess.ProcessRequest(w, r); err != nil {
-			logger.Error(r.Context(), "session execution failed", slog.Error(err))
-		}
-	}
-}
-
-func handleAnthropicMessages(provider *AnthropicMessagesProvider, drpcClient proto.DRPCAIBridgeDaemonClient, tools map[string][]*MCPTool, logger slog.Logger) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Read and parse request.
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			if isConnectionError(err) {
-				logger.Debug(r.Context(), "client disconnected during request body read", slog.Error(err))
-				return // Don't send error response if client already disconnected
-			}
-			logger.Error(r.Context(), "failed to read body", slog.Error(err))
-			http.Error(w, "failed to read body", http.StatusInternalServerError)
-			return
-		}
-		req, err := provider.ParseRequest(body)
-		if err != nil {
-			logger.Error(r.Context(), "failed to parse request", slog.Error(err))
-			http.Error(w, "failed to parse request", http.StatusBadRequest)
-			return
-		}
-
-		// Create a new session.
-		var sess Session
-		if req.UseStreaming() {
-			sess = provider.NewStreamingSession(req)
-		} else {
-			sess = provider.NewBlockingSession(req)
-		}
-
-		userID, ok := r.Context().Value(ContextKeyBridgeUserID{}).(uuid.UUID)
-		if !ok {
-			logger.Error(r.Context(), "missing initiator ID in context")
-			http.Error(w, "unable to retrieve initiator", http.StatusInternalServerError)
-			return
-		}
-
-		resp, err := drpcClient.StartSession(r.Context(), &proto.StartSessionRequest{
-			InitiatorId: userID.String(),
-			Provider:    "anthropic",
-			Model:       string(req.Model),
-		})
-		if err != nil {
-			logger.Error(r.Context(), "failed to start session", slog.Error(err))
-			http.Error(w, "failed to start session", http.StatusInternalServerError)
-			return
-		}
-
-		sessID := resp.GetSessionId()
-
-		sess.Init(sessID, logger, provider.baseURL, provider.key, NewDRPCTracker(drpcClient), NewInjectedToolManager(tools))
-		logger.Debug(context.Background(), "starting anthropic messages session", slog.F("session_id", sessID))
-
-		defer func() {
-			if err := sess.Close(); err != nil {
-				logger.Warn(context.Background(), "failed to close session", slog.Error(err), slog.F("session_id", sessID), slog.F("kind", fmt.Sprintf("%T", sess)))
-			}
-		}()
-
-		// Process the request.
-		if err := sess.ProcessRequest(w, r); err != nil {
-			logger.Error(r.Context(), "session execution failed", slog.Error(err))
-		}
-	}
 }
