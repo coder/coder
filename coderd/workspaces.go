@@ -664,9 +664,10 @@ func createWorkspace(
 			}
 		}
 
+		now := dbtime.Now()
+
 		// No prebuild found; regular flow.
 		if claimedWorkspace == nil {
-			now := dbtime.Now()
 			// Workspaces are created without any versions.
 			minimumWorkspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
 				ID:                uuid.New(),
@@ -681,7 +682,7 @@ func createWorkspace(
 				Ttl:               dbTTL,
 				// The workspaces page will sort by last used at, and it's useful to
 				// have the newly created workspace at the top of the list!
-				LastUsedAt:       dbtime.Now(),
+				LastUsedAt:       now,
 				AutomaticUpdates: dbAU,
 			})
 			if err != nil {
@@ -689,7 +690,24 @@ func createWorkspace(
 			}
 			workspaceID = minimumWorkspace.ID
 		} else {
-			// Prebuild found!
+			// Prebuild found! Update lifecycle related parameters
+			err = db.UpdateWorkspaceAutostart(ctx, database.UpdateWorkspaceAutostartParams{
+				ID:                claimedWorkspace.ID,
+				AutostartSchedule: dbAutostartSchedule,
+				NextStartAt:       nextStartAt,
+			})
+			if err != nil {
+				return xerrors.Errorf("update claimed workspace Autostart: %w", err)
+			}
+
+			err = db.UpdateWorkspaceTTL(ctx, database.UpdateWorkspaceTTLParams{
+				ID:  claimedWorkspace.ID,
+				Ttl: dbTTL,
+			})
+			if err != nil {
+				return xerrors.Errorf("update claimed workspace TTL: %w", err)
+			}
+
 			workspaceID = claimedWorkspace.ID
 			initiatorID = prebuildsClaimer.Initiator()
 		}

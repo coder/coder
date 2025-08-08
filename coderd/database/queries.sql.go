@@ -7122,7 +7122,15 @@ const claimPrebuiltWorkspace = `-- name: ClaimPrebuiltWorkspace :one
 UPDATE workspaces w
 SET owner_id   = $1::uuid,
 	name       = $2::text,
-	updated_at = NOW()
+	updated_at = NOW(),
+	-- Update last_used_at during claim to ensure the claimed workspace is treated as recently used.
+	-- This avoids unintended dormancy caused by prebuilds having stale usage timestamps.
+	last_used_at = NOW(),
+	-- Clear dormant and deletion timestamps as a safeguard to ensure a clean lifecycle state after claim.
+	-- These fields should not be set on prebuilds, but we defensively reset them here to prevent
+	-- accidental dormancy or deletion by the lifecycle executor.
+	dormant_at = NULL,
+	deleting_at = NULL
 WHERE w.id IN (
 	SELECT p.id
 	FROM workspace_prebuilds p
@@ -19224,7 +19232,15 @@ SET
 	deadline = $1::timestamptz,
 	max_deadline = $2::timestamptz,
 	updated_at = $3::timestamptz
-WHERE id = $4::uuid
+FROM
+	workspaces
+WHERE
+	workspace_builds.id = $4::uuid
+	AND workspace_builds.workspace_id = workspaces.id
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- deadline and max_deadline
+	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 `
 
 type UpdateWorkspaceBuildDeadlineByIDParams struct {
@@ -21179,6 +21195,10 @@ SET
 	next_start_at = $3
 WHERE
 	id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+  	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+  	-- autostart_schedule and next_start_at
+  	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 `
 
 type UpdateWorkspaceAutostartParams struct {
@@ -21235,6 +21255,10 @@ FROM
 WHERE
     workspaces.id = $1
     AND templates.id = workspaces.template_id
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- dormant_at and deleting_at
+	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 RETURNING
     workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl
 `
@@ -21296,6 +21320,10 @@ SET
 	next_start_at = $2
 WHERE
 	id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- next_start_at
+	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 `
 
 type UpdateWorkspaceNextStartAtParams struct {
@@ -21315,6 +21343,10 @@ SET
 	ttl = $2
 WHERE
 	id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- ttl
+	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 `
 
 type UpdateWorkspaceTTLParams struct {
@@ -21393,11 +21425,11 @@ func (q *sqlQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.C
 
 const updateWorkspacesTTLByTemplateID = `-- name: UpdateWorkspacesTTLByTemplateID :exec
 UPDATE
-		workspaces
+	workspaces
 SET
-		ttl = $2
+	ttl = $2
 WHERE
-		template_id = $1
+	template_id = $1
 `
 
 type UpdateWorkspacesTTLByTemplateIDParams struct {
