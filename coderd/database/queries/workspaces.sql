@@ -418,6 +418,8 @@ WHERE
 		'never'::automatic_updates, -- automatic_updates
 		false, -- favorite
 		'0001-01-01 00:00:00+00'::timestamptz, -- next_start_at
+		'{}'::jsonb, -- group_acl
+		'{}'::jsonb, -- user_acl
 		'', -- owner_avatar_url
 		'', -- owner_username
 		'', -- owner_name
@@ -871,3 +873,12 @@ GROUP BY workspaces.id, workspaces.name, latest_build.job_status, latest_build.j
 
 -- name: GetWorkspacesByTemplateID :many
 SELECT * FROM workspaces WHERE template_id = $1 AND deleted = false;
+
+-- name: UpdateWorkspaceACLByID :exec
+UPDATE
+	workspaces
+SET
+	group_acl = @group_acl,
+	user_acl = @user_acl
+WHERE
+	id = @id;

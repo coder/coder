@@ -286,10 +286,43 @@ export const GroupApp: Story = {
 };
 
 export const Devcontainer: Story = {
-	beforeEach: () => {
-		spyOn(API, "getAgentContainers").mockResolvedValue({
-			devcontainers: [M.MockWorkspaceAgentDevcontainer],
-			containers: [M.MockWorkspaceAgentContainer],
-		});
+	parameters: {
+		queries: [
+			{
+				key: ["agents", M.MockWorkspaceAgent.id, "containers"],
+				data: {
+					devcontainers: [M.MockWorkspaceAgentDevcontainer],
+					containers: [M.MockWorkspaceAgentContainer],
+				},
+			},
+		],
+		webSocket: [],
+	},
+};
+
+export const FoundDevcontainer: Story = {
+	args: {
+		agent: {
+			...M.MockWorkspaceAgentReady,
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: ["agents", M.MockWorkspaceAgentReady.id, "containers"],
+				data: {
+					devcontainers: [
+						{
+							...M.MockWorkspaceAgentDevcontainer,
+							status: "stopped",
+							container: undefined,
+							agent: undefined,
+						},
+					],
+					containers: [],
+				},
+			},
+		],
+		webSocket: [],
 	},
 };

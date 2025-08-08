@@ -78,12 +78,12 @@ Your workspace is now accessible via `ssh coder.<workspace_name>`
 ## Visual Studio Code
 
 You can develop in your Coder workspace remotely with
-[VSCode](https://code.visualstudio.com/download). We support connecting with the
-desktop client and VSCode in the browser with [code-server](#code-server).
+[VS Code](https://code.visualstudio.com/download).
+We support connecting with the desktop client and VS Code in the browser with [code-server](#code-server).
 
 ![Demo](https://github.com/coder/vscode-coder/raw/main/demo.gif?raw=true)
 
-Read more details on [using VSCode in your workspace](./vscode.md).
+Read more details on [using VS Code in your workspace](./vscode.md).
 
 ## Cursor
 
@@ -118,7 +118,8 @@ on connecting your JetBrains IDEs.
 ## code-server
 
 [code-server](https://github.com/coder/code-server) is our supported method of
-running VS Code in the web browser. You can read more in our
+running VS Code in the web browser.
+Learn more about [what makes code-server different from VS Code web](./code-server.md) or visit the
 [documentation for code-server](https://coder.com/docs/code-server/latest).
 
 ![code-server in a workspace](../../images/code-server-ide.png)

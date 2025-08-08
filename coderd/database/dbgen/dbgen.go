@@ -148,6 +148,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		AllowUserCancelWorkspaceJobs: seed.AllowUserCancelWorkspaceJobs,
 		MaxPortSharingLevel:          takeFirst(seed.MaxPortSharingLevel, database.AppSharingLevelOwner),
 		UseClassicParameterFlow:      takeFirst(seed.UseClassicParameterFlow, false),
+		CorsBehavior:                 takeFirst(seed.CorsBehavior, database.CorsBehaviorSimple),
 	})
 	require.NoError(t, err, "insert template")
 
@@ -774,6 +775,7 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 		Input:          takeFirstSlice(orig.Input, []byte("{}")),
 		Tags:           tags,
 		TraceMetadata:  pqtype.NullRawMessage{},
+		LogsOverflowed: false,
 	})
 	require.NoError(t, err, "insert job")
 	if ps != nil {
@@ -1418,6 +1420,20 @@ func PresetParameter(t testing.TB, db database.Store, seed database.InsertPreset
 
 	require.NoError(t, err, "insert preset parameters")
 	return parameters
+}
+
+func UserSecret(t testing.TB, db database.Store, seed database.UserSecret) database.UserSecret {
+	userSecret, err := db.CreateUserSecret(genCtx, database.CreateUserSecretParams{
+		ID:          takeFirst(seed.ID, uuid.New()),
+		UserID:      takeFirst(seed.UserID, uuid.New()),
+		Name:        takeFirst(seed.Name, "secret-name"),
+		Description: takeFirst(seed.Description, "secret description"),
+		Value:       takeFirst(seed.Value, "secret value"),
+		EnvName:     takeFirst(seed.EnvName, "SECRET_ENV_NAME"),
+		FilePath:    takeFirst(seed.FilePath, "~/secret/file/path"),
+	})
+	require.NoError(t, err, "failed to insert user secret")
+	return userSecret
 }
 
 func ClaimPrebuild(t testing.TB, db database.Store, newUserID uuid.UUID, newName string, presetID uuid.UUID) database.ClaimPrebuiltWorkspaceRow {

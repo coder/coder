@@ -623,6 +623,11 @@ func (s *MethodTestSuite) TestGroup() {
 			ID: g.ID,
 		}).Asserts(g, policy.ActionUpdate)
 	}))
+	s.Run("ValidateGroupIDs", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		g := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+		check.Args([]uuid.UUID{g.ID}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 }
 
 func (s *MethodTestSuite) TestProvisionerJob() {
@@ -1462,6 +1467,7 @@ func (s *MethodTestSuite) TestTemplate() {
 			Provisioner:         "echo",
 			OrganizationID:      orgID,
 			MaxPortSharingLevel: database.AppSharingLevelOwner,
+			CorsBehavior:        database.CorsBehaviorSimple,
 		}).Asserts(rbac.ResourceTemplate.InOrg(orgID), policy.ActionCreate)
 	}))
 	s.Run("InsertTemplateVersion", s.Subtest(func(db database.Store, check *expects) {
@@ -1582,6 +1588,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(database.UpdateTemplateMetaByIDParams{
 			ID:                  t1.ID,
 			MaxPortSharingLevel: "owner",
+			CorsBehavior:        database.CorsBehaviorSimple,
 		}).Asserts(t1, policy.ActionUpdate)
 	}))
 	s.Run("UpdateTemplateVersionByID", s.Subtest(func(db database.Store, check *expects) {
@@ -2075,6 +2082,10 @@ func (s *MethodTestSuite) TestUser() {
 			Interval:  int32((time.Hour * 24).Seconds()),
 		}).Asserts(rbac.ResourceUser, policy.ActionRead)
 	}))
+	s.Run("ValidateUserIDs", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		check.Args([]uuid.UUID{u.ID}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 }
 
 func (s *MethodTestSuite) TestWorkspace() {
@@ -2143,6 +2154,22 @@ func (s *MethodTestSuite) TestWorkspace() {
 	s.Run("GetAuthorizedWorkspaceBuildParametersByBuildIDs", s.Subtest(func(db database.Store, check *expects) {
 		// no asserts here because SQLFilter
 		check.Args([]uuid.UUID{}, emptyPreparedAuthorized{}).Asserts()
+	}))
+	s.Run("UpdateWorkspaceACLByID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		tpl := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			OwnerID:        u.ID,
+			OrganizationID: o.ID,
+			TemplateID:     tpl.ID,
+		})
+		check.Args(database.UpdateWorkspaceACLByIDParams{
+			ID: ws.ID,
+		}).Asserts(ws, policy.ActionCreate)
 	}))
 	s.Run("GetLatestWorkspaceBuildByWorkspaceID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -4339,6 +4366,20 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			UpdatedAt: time.Now(),
 		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
 	}))
+	s.Run("UpdateProvisionerJobLogsLength", s.Subtest(func(db database.Store, check *expects) {
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
+		check.Args(database.UpdateProvisionerJobLogsLengthParams{
+			ID:         j.ID,
+			LogsLength: 100,
+		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
+	}))
+	s.Run("UpdateProvisionerJobLogsOverflowed", s.Subtest(func(db database.Store, check *expects) {
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
+		check.Args(database.UpdateProvisionerJobLogsOverflowedParams{
+			ID:             j.ID,
+			LogsOverflowed: true,
+		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
+	}))
 	s.Run("InsertProvisionerJob", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.InsertProvisionerJobParams{
@@ -4793,9 +4834,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			}{TemplateVersionID: v.ID})),
 		})
 		check.Args(j.ID).Asserts(v.RBACObject(tpl), policy.ActionRead).Returns(j)
-	}))
-	s.Run("HasTemplateVersionsWithAITask", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts()
 	}))
 }
 
@@ -5843,5 +5881,66 @@ func (s *MethodTestSuite) TestAuthorizePrebuiltWorkspace() {
 				}
 				return nil
 			}).Asserts(w, policy.ActionUpdate, w.AsPrebuild(), policy.ActionUpdate)
+	}))
+}
+
+func (s *MethodTestSuite) TestUserSecrets() {
+	s.Run("GetUserSecretByUserIDAndName", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		userSecret := dbgen.UserSecret(s.T(), db, database.UserSecret{
+			UserID: user.ID,
+		})
+		arg := database.GetUserSecretByUserIDAndNameParams{
+			UserID: user.ID,
+			Name:   userSecret.Name,
+		}
+		check.Args(arg).
+			Asserts(rbac.ResourceUserSecret.WithOwner(arg.UserID.String()), policy.ActionRead).
+			Returns(userSecret)
+	}))
+	s.Run("GetUserSecret", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		userSecret := dbgen.UserSecret(s.T(), db, database.UserSecret{
+			UserID: user.ID,
+		})
+		check.Args(userSecret.ID).
+			Asserts(userSecret, policy.ActionRead).
+			Returns(userSecret)
+	}))
+	s.Run("ListUserSecrets", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		userSecret := dbgen.UserSecret(s.T(), db, database.UserSecret{
+			UserID: user.ID,
+		})
+		check.Args(user.ID).
+			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionRead).
+			Returns([]database.UserSecret{userSecret})
+	}))
+	s.Run("CreateUserSecret", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		arg := database.CreateUserSecretParams{
+			UserID: user.ID,
+		}
+		check.Args(arg).
+			Asserts(rbac.ResourceUserSecret.WithOwner(arg.UserID.String()), policy.ActionCreate)
+	}))
+	s.Run("UpdateUserSecret", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		userSecret := dbgen.UserSecret(s.T(), db, database.UserSecret{
+			UserID: user.ID,
+		})
+		arg := database.UpdateUserSecretParams{
+			ID: userSecret.ID,
+		}
+		check.Args(arg).
+			Asserts(userSecret, policy.ActionUpdate)
+	}))
+	s.Run("DeleteUserSecret", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		userSecret := dbgen.UserSecret(s.T(), db, database.UserSecret{
+			UserID: user.ID,
+		})
+		check.Args(userSecret.ID).
+			Asserts(userSecret, policy.ActionRead, userSecret, policy.ActionDelete)
 	}))
 }

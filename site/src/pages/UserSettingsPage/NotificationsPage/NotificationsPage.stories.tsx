@@ -40,7 +40,7 @@ const meta = {
 			},
 		],
 		user: MockUserOwner,
-		permissions: { viewDeploymentConfig: true },
+		permissions: { createTemplates: true, createUser: true },
 	},
 	decorators: [withGlobalSnackbar, withAuthProvider, withDashboardProvider],
 } satisfies Meta<typeof NotificationsPage>;
@@ -74,7 +74,19 @@ export const ToggleNotification: Story = {
 
 export const NonAdmin: Story = {
 	parameters: {
-		permissions: { viewDeploymentConfig: false },
+		permissions: { createTemplates: false, createUser: false },
+	},
+};
+
+export const TemplateAdmin: Story = {
+	parameters: {
+		permissions: { createTemplates: true, createUser: false },
+	},
+};
+
+export const UserAdmin: Story = {
+	parameters: {
+		permissions: { createTemplates: false, createUser: true },
 	},
 };
 

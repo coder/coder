@@ -55,7 +55,8 @@
           "template_name": "",
           "template_display_name": "",
           "template_icon": ""
-        }
+        },
+        "logs_overflowed": false
       },
       "reason": "initiator",
       "resources": [],
