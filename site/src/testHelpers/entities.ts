@@ -3160,7 +3160,7 @@ export const MockDropdownParameter: TypesGen.PreviewParameter = {
 	order: 1,
 };
 
-export const MockTagSelectParameter: TypesGen.PreviewParameter = {
+const MockTagSelectParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "tags",
 	display_name: "Tags",
@@ -3178,7 +3178,7 @@ export const MockTagSelectParameter: TypesGen.PreviewParameter = {
 	order: 4,
 };
 
-export const MockSwitchParameter: TypesGen.PreviewParameter = {
+const MockSwitchParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "enable_monitoring",
 	display_name: "Enable Monitoring",
@@ -3213,7 +3213,7 @@ export const MockSliderParameter: TypesGen.PreviewParameter = {
 	order: 2,
 };
 
-export const MockMultiSelectParameter: TypesGen.PreviewParameter = {
+const MockMultiSelectParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "ides",
 	display_name: "IDEs",
