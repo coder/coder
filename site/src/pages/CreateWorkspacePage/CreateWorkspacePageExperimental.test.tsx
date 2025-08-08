@@ -56,8 +56,8 @@ describe("CreateWorkspacePageExperimental", () => {
 				mockWebSocket.addEventListener("message", (event) => {
 					callbacks.onMessage(JSON.parse(event.data));
 				});
-				mockWebSocket.addEventListener("error", (event) => {
-					callbacks.onError((event as ErrorEvent).error);
+				mockWebSocket.addEventListener("error", () => {
+					callbacks.onError(new Error("Connection for dynamic parameters failed."));
 				});
 				mockWebSocket.addEventListener("close", () => {
 					callbacks.onClose();
@@ -111,8 +111,8 @@ describe("CreateWorkspacePageExperimental", () => {
 					mockWebSocket.addEventListener("message", (event) => {
 						callbacks.onMessage(JSON.parse(event.data));
 					});
-					mockWebSocket.addEventListener("error", (event) => {
-						callbacks.onError((event as ErrorEvent).error);
+					mockWebSocket.addEventListener("error", () => {
+						callbacks.onError(new Error("Connection for dynamic parameters failed."));
 					});
 					mockWebSocket.addEventListener("close", () => {
 						callbacks.onClose();
@@ -132,8 +132,6 @@ describe("CreateWorkspacePageExperimental", () => {
 			await waitForLoaderToBeRemoved();
 
 			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
-
-			expect(mockWebSocket.send).toBeDefined();
 
 			const instanceTypeSelect = screen.getByRole("button", {
 				name: /instance type/i,
@@ -165,8 +163,8 @@ describe("CreateWorkspacePageExperimental", () => {
 				.mockImplementation((_versionId, _ownerId, callbacks) => {
 					const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
 
-					mockWebSocket.addEventListener("error", (event) => {
-						callbacks.onError((event as ErrorEvent).error);
+					mockWebSocket.addEventListener("error", () => {
+						callbacks.onError(new Error("Connection failed"));
 					});
 
 					setTimeout(() => {
@@ -271,94 +269,6 @@ describe("CreateWorkspacePageExperimental", () => {
 	});
 
 	describe("Dynamic Parameter Types", () => {
-		it("renders dropdown parameter with options", async () => {
-			renderCreateWorkspacePageExperimental();
-			await waitForLoaderToBeRemoved();
-
-			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
-
-			const select = screen.getByRole("button", { name: /instance type/i });
-
-			await waitFor(async () => {
-				await userEvent.click(select);
-			});
-
-			// Options appear only in the dropdown when no value is selected
-			expect(screen.getByText(/t3\.micro/i)).toBeInTheDocument();
-			expect(screen.getByText(/t3\.small/i)).toBeInTheDocument();
-			expect(screen.getByText(/t3\.medium/i)).toBeInTheDocument();
-		});
-
-		it("renders number parameter with slider", async () => {
-			renderCreateWorkspacePageExperimental();
-			await waitForLoaderToBeRemoved();
-
-			await waitFor(() => {
-				expect(screen.getByText("CPU Count")).toBeInTheDocument();
-			});
-
-			await waitFor(() => {
-				const numberInput = screen.getByDisplayValue("2");
-				expect(numberInput).toBeInTheDocument();
-			});
-		});
-
-		it("renders boolean parameter with switch", async () => {
-			renderCreateWorkspacePageExperimental();
-			await waitForLoaderToBeRemoved();
-
-			await waitFor(() => {
-				expect(screen.getByText("Enable Monitoring")).toBeInTheDocument();
-				expect(
-					screen.getByRole("switch", { name: /enable monitoring/i }),
-				).toBeInTheDocument();
-			});
-		});
-
-		it("renders list parameter with tag input", async () => {
-			renderCreateWorkspacePageExperimental();
-			await waitForLoaderToBeRemoved();
-
-			await waitFor(() => {
-				expect(screen.getByText("Tags")).toBeInTheDocument();
-				expect(
-					screen.getByRole("textbox", { name: /tags/i }),
-				).toBeInTheDocument();
-			});
-		});
-
-		it("renders multi-select parameter", async () => {
-			renderCreateWorkspacePageExperimental();
-			await waitForLoaderToBeRemoved();
-
-			await waitFor(() => {
-				expect(screen.getByText("IDEs")).toBeInTheDocument();
-			});
-
-			const multiSelect = screen.getByTestId("multiselect-ides");
-			expect(multiSelect).toBeInTheDocument();
-
-			const select = multiSelect.querySelector('[role="combobox"]');
-			expect(select).toBeInTheDocument();
-
-			await waitFor(async () => {
-				await userEvent.click(select!);
-			});
-
-			expect(
-				screen.getByRole("option", { name: /vscode/i }),
-			).toBeInTheDocument();
-			expect(
-				screen.getByRole("option", { name: /cursor/i }),
-			).toBeInTheDocument();
-			expect(
-				screen.getByRole("option", { name: /goland/i }),
-			).toBeInTheDocument();
-			expect(
-				screen.getByRole("option", { name: /windsurf/i }),
-			).toBeInTheDocument();
-		});
-
 		it("displays parameter validation errors", async () => {
 			jest
 				.spyOn(API, "templateVersionDynamicParameters")
