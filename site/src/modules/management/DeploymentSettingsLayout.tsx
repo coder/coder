@@ -51,7 +51,7 @@ const DeploymentSettingsLayout: FC = () => {
 					</BreadcrumbList>
 				</Breadcrumb>
 				<hr className="h-px border-none bg-border" />
-				<div className="px-10 max-w-screen-2xl">
+				<div className="px-10 max-w-(--breakpoint-2xl)">
 					<div className="flex flex-row gap-28 py-10">
 						<DeploymentSidebar />
 						<main css={{ flexGrow: 1 }}>

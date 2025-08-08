@@ -71,7 +71,7 @@ export const useAppLink = (
 					displayError(`${label} must be installed first.`);
 				}
 			}, openAppExternallyFailedTimeout);
-			window.addEventListener("blur", () => {
+			window.addEventListener("blur-sm", () => {
 				clearTimeout(openAppExternallyFailed);
 			});
 

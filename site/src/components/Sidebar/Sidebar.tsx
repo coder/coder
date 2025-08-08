@@ -11,7 +11,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: FC<SidebarProps> = ({ children }) => {
-	return <nav className="w-60 flex-shrink-0">{children}</nav>;
+	return <nav className="w-60 shrink-0">{children}</nav>;
 };
 
 interface SidebarHeaderProps {

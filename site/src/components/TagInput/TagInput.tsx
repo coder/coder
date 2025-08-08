@@ -44,7 +44,7 @@ export const TagInput: FC<TagInputProps> = ({
 				<input
 					id={id}
 					aria-label={label}
-					className="flex-grow text-inherit p-0 border-none bg-transparent focus:outline-none"
+					className="grow text-inherit p-0 border-none bg-transparent focus:outline-hidden"
 					onKeyDown={(event) => {
 						if (event.key === ",") {
 							event.preventDefault();

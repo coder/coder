@@ -186,7 +186,7 @@ const TaskPage = () => {
 				<PanelResizeHandle>
 					<div className="w-1 bg-border h-full hover:bg-border-hover transition-all relative" />
 				</PanelResizeHandle>
-				<Panel className="[&>*]:h-full">{content}</Panel>
+				<Panel className="*:h-full">{content}</Panel>
 			</PanelGroup>
 		</>
 	);

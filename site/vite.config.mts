@@ -1,11 +1,13 @@
 import * as path from "node:path";
-import react from "@vitejs/plugin-react";
+import reactPlugin from "@vitejs/plugin-react";
 import { visualizer } from "rollup-plugin-visualizer";
 import { type PluginOption, defineConfig } from "vite";
 import checker from "vite-plugin-checker";
+import tailwindPlugin from "@tailwindcss/vite";
 
 const plugins: PluginOption[] = [
-	react(),
+	reactPlugin(),
+	tailwindPlugin(),
 	checker({
 		typescript: true,
 	}),

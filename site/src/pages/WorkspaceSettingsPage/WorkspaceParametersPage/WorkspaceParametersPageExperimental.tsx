@@ -205,7 +205,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	}
 
 	return (
-		<div className="flex flex-col gap-6 max-w-screen-md">
+		<div className="flex flex-col gap-6 max-w-(--breakpoint-md)">
 			<Helmet>
 				<title>{pageTitle(workspace.name, "Parameters")}</title>
 			</Helmet>

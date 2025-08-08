@@ -92,7 +92,7 @@ export const IconField: FC<IconFieldProps> = ({
 			/>
 			<Popover open={open} onOpenChange={setOpen}>
 				<PopoverTrigger>
-					<Button variant="outline" size="lg" className="flex-shrink-0">
+					<Button variant="outline" size="lg" className="shrink-0">
 						Emoji
 						<ChevronDownIcon />
 					</Button>
