@@ -5104,7 +5104,7 @@ func (q *querier) UpdateWorkspaceAutostart(ctx context.Context, arg database.Upd
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceAutostart)(ctx, arg)
 }
 
-func (q *querier) UpdateWorkspaceBuildAITaskByID(ctx context.Context, arg database.UpdateWorkspaceBuildAITaskByIDParams) error {
+func (q *querier) UpdateWorkspaceBuildAITaskAndExternalAgentByID(ctx context.Context, arg database.UpdateWorkspaceBuildAITaskAndExternalAgentByIDParams) error {
 	build, err := q.db.GetWorkspaceBuildByID(ctx, arg.ID)
 	if err != nil {
 		return err
@@ -5119,7 +5119,7 @@ func (q *querier) UpdateWorkspaceBuildAITaskByID(ctx context.Context, arg databa
 	if err != nil {
 		return err
 	}
-	return q.db.UpdateWorkspaceBuildAITaskByID(ctx, arg)
+	return q.db.UpdateWorkspaceBuildAITaskAndExternalAgentByID(ctx, arg)
 }
 
 // UpdateWorkspaceBuildCostByID is used by the provisioning system to update the cost of a workspace build.
@@ -5146,24 +5146,6 @@ func (q *querier) UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg data
 		return err
 	}
 	return q.db.UpdateWorkspaceBuildDeadlineByID(ctx, arg)
-}
-
-func (q *querier) UpdateWorkspaceBuildExternalAgentByID(ctx context.Context, arg database.UpdateWorkspaceBuildExternalAgentByIDParams) error {
-	build, err := q.db.GetWorkspaceBuildByID(ctx, arg.ID)
-	if err != nil {
-		return err
-	}
-
-	workspace, err := q.db.GetWorkspaceByID(ctx, build.WorkspaceID)
-	if err != nil {
-		return err
-	}
-
-	err = q.authorizeContext(ctx, policy.ActionUpdate, workspace.RBACObject())
-	if err != nil {
-		return err
-	}
-	return q.db.UpdateWorkspaceBuildExternalAgentByID(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {

@@ -471,19 +471,12 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 			require.NoError(t, err)
 		}
 
-		if hasAITask.Valid {
-			require.NoError(t, db.UpdateWorkspaceBuildAITaskByID(genCtx, database.UpdateWorkspaceBuildAITaskByIDParams{
-				HasAITask:    hasAITask,
-				SidebarAppID: sidebarAppID,
-				UpdatedAt:    dbtime.Now(),
-				ID:           buildID,
-			}))
-		}
-
-		if hasExternalAgent.Valid {
-			require.NoError(t, db.UpdateWorkspaceBuildExternalAgentByID(genCtx, database.UpdateWorkspaceBuildExternalAgentByIDParams{
+		if hasAITask.Valid || hasExternalAgent.Valid {
+			require.NoError(t, db.UpdateWorkspaceBuildAITaskAndExternalAgentByID(genCtx, database.UpdateWorkspaceBuildAITaskAndExternalAgentByIDParams{
 				ID:               buildID,
+				HasAITask:        hasAITask,
 				HasExternalAgent: hasExternalAgent,
+				SidebarAppID:     sidebarAppID,
 				UpdatedAt:        dbtime.Now(),
 			}))
 		}
@@ -1058,7 +1051,7 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 			return err
 		}
 
-		if hasAITask.Valid && hasExternalAgent.Valid {
+		if hasAITask.Valid || hasExternalAgent.Valid {
 			require.NoError(t, db.UpdateTemplateVersionAITaskAndExternalAgentByJobID(genCtx, database.UpdateTemplateVersionAITaskAndExternalAgentByJobIDParams{
 				JobID:            jobID,
 				HasAITask:        hasAITask,

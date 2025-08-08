@@ -1239,7 +1239,7 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get external agent credentials
+## Get workspace external agent credentials
 
 ### Code samples
 

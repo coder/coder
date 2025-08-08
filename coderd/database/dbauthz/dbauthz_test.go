@@ -3228,7 +3228,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			Deadline:  b.Deadline,
 		}).Asserts(w, policy.ActionUpdate)
 	}))
-	s.Run("UpdateWorkspaceBuildAITaskByID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpdateWorkspaceBuildAITaskAndExternalAgentByID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		tpl := dbgen.Template(s.T(), db, database.Template{
@@ -3256,10 +3256,12 @@ func (s *MethodTestSuite) TestWorkspace() {
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: b.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		app := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agt.ID})
-		check.Args(database.UpdateWorkspaceBuildAITaskByIDParams{
-			HasAITask:    sql.NullBool{Bool: true, Valid: true},
-			SidebarAppID: uuid.NullUUID{UUID: app.ID, Valid: true},
-			ID:           b.ID,
+		check.Args(database.UpdateWorkspaceBuildAITaskAndExternalAgentByIDParams{
+			ID:               b.ID,
+			HasAITask:        sql.NullBool{Bool: true, Valid: true},
+			HasExternalAgent: sql.NullBool{Bool: true, Valid: true},
+			SidebarAppID:     uuid.NullUUID{UUID: app.ID, Valid: true},
+			UpdatedAt:        b.UpdatedAt,
 		}).Asserts(w, policy.ActionUpdate)
 	}))
 	s.Run("SoftDeleteWorkspaceByID", s.Subtest(func(db database.Store, check *expects) {

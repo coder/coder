@@ -151,15 +151,6 @@ SET
 	updated_at = @updated_at::timestamptz
 WHERE id = @id::uuid;
 
--- name: UpdateWorkspaceBuildAITaskByID :exec
-UPDATE
-	workspace_builds
-SET
-	has_ai_task = @has_ai_task,
-	ai_task_sidebar_app_id = @sidebar_app_id,
-	updated_at = @updated_at::timestamptz
-WHERE id = @id::uuid;
-
 -- name: GetActiveWorkspaceBuildsByTemplateID :many
 SELECT wb.*
 FROM (
@@ -254,10 +245,12 @@ WHERE
 ORDER BY
 	tv.name ASC, wb.build_number DESC;
 
--- name: UpdateWorkspaceBuildExternalAgentByID :exec
+-- name: UpdateWorkspaceBuildAITaskAndExternalAgentByID :exec
 UPDATE
 	workspace_builds
 SET
+	has_ai_task = @has_ai_task,
+	ai_task_sidebar_app_id = @sidebar_app_id,
 	has_external_agent = @has_external_agent,
 	updated_at = @updated_at::timestamptz
 WHERE id = @id::uuid;

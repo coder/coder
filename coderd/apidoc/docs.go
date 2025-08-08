@@ -10317,7 +10317,7 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Get external agent credentials",
+                "summary": "Get workspace external agent credentials",
                 "operationId": "get-workspace-external-agent-credentials",
                 "parameters": [
                     {

@@ -3127,10 +3127,10 @@ func (m queryMetricsStore) UpdateWorkspaceAutostart(ctx context.Context, arg dat
 	return err
 }
 
-func (m queryMetricsStore) UpdateWorkspaceBuildAITaskByID(ctx context.Context, arg database.UpdateWorkspaceBuildAITaskByIDParams) error {
+func (m queryMetricsStore) UpdateWorkspaceBuildAITaskAndExternalAgentByID(ctx context.Context, arg database.UpdateWorkspaceBuildAITaskAndExternalAgentByIDParams) error {
 	start := time.Now()
-	r0 := m.s.UpdateWorkspaceBuildAITaskByID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildAITaskByID").Observe(time.Since(start).Seconds())
+	r0 := m.s.UpdateWorkspaceBuildAITaskAndExternalAgentByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildAITaskAndExternalAgentByID").Observe(time.Since(start).Seconds())
 	return r0
 }
 
@@ -3145,13 +3145,6 @@ func (m queryMetricsStore) UpdateWorkspaceBuildDeadlineByID(ctx context.Context,
 	start := time.Now()
 	r0 := m.s.UpdateWorkspaceBuildDeadlineByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildDeadlineByID").Observe(time.Since(start).Seconds())
-	return r0
-}
-
-func (m queryMetricsStore) UpdateWorkspaceBuildExternalAgentByID(ctx context.Context, arg database.UpdateWorkspaceBuildExternalAgentByIDParams) error {
-	start := time.Now()
-	r0 := m.s.UpdateWorkspaceBuildExternalAgentByID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildExternalAgentByID").Observe(time.Since(start).Seconds())
 	return r0
 }
 
