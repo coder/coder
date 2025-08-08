@@ -49,7 +49,7 @@ Coder's backend is built using a collection of robust, modern Go libraries and i
 
 The Coder backend is organized into multiple packages and directories, each with a specific purpose. Here's a high-level overview of the most important ones:
 
-* [agent](https://github.com/coder/coder/tree/main/agent): core logic of a workspace agent, supports DevContainers, remote SSH, startup/shutdown script execution. Protobuf definitions for DRPC communication with `coderd` are kept in [proto](https://github.com/coder/coder/tree/main/agent/proto).
+* [agent](https://github.com/coder/coder/tree/main/agent): core logic of a workspace agent, supports dev containers, remote SSH, startup/shutdown script execution. Protobuf definitions for DRPC communication with `coderd` are kept in [proto](https://github.com/coder/coder/tree/main/agent/proto).
 * [cli](https://github.com/coder/coder/tree/main/cli): CLI interface for `coder` command built on [coder/serpent](https://github.com/coder/serpent). Input controls are defined in [cliui](https://github.com/coder/coder/tree/docs-backend-contrib-guide/cli/cliui), and [testdata](https://github.com/coder/coder/tree/docs-backend-contrib-guide/cli/testdata) contains golden files for common CLI calls
 * [cmd](https://github.com/coder/coder/tree/main/cmd): entry points for CLI and services, including `coderd`
 * [coderd](https://github.com/coder/coder/tree/main/coderd): the main API server implementation with [chi](https://github.com/go-chi/chi) endpoints
@@ -72,7 +72,7 @@ The Coder backend is organized into multiple packages and directories, each with
   * [dbpurge](https://github.com/coder/coder/tree/main/coderd/database/dbpurge): simple wrapper for periodic database cleanup operations
   * [migrations](https://github.com/coder/coder/tree/main/coderd/database/migrations): an ordered list of up/down database migrations, use `./create_migration.sh my_migration_name` to modify the database schema
   * [pubsub](https://github.com/coder/coder/tree/main/coderd/database/pubsub): PubSub implementation using PostgreSQL and in-memory drop-in replacement
-  * [queries](https://github.com/coder/coder/tree/main/coderd/database/queries): contains SQL files with queries, `sqlc` compiles them to [Go functions](https://github.com/coder/coder/blob/docs-backend-contrib-guide/coderd/database/queries.sql.go)
+  * [queries](https://github.com/coder/coder/tree/main/coderd/database/queries): contains SQL files with queries, `sqlc` compiles them to [Go functions](https://github.com/coder/coder/tree/main/coderd/database/queries.sql.go)
   * [sqlc.yaml](https://github.com/coder/coder/tree/main/coderd/database/sqlc.yaml): defines mappings between SQL types and custom Go structures
 * [codersdk](https://github.com/coder/coder/tree/main/codersdk): user-facing API entities used by CLI and site to communicate with `coderd` endpoints
 * [dogfood](https://github.com/coder/coder/tree/main/dogfood): Terraform definition of the dogfood cluster deployment
