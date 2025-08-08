@@ -512,27 +512,29 @@ WHERE
 RETURNING *;
 
 -- name: UpdateWorkspaceAutostart :exec
--- NOTE: This query should only be called for regular user workspaces.
--- Prebuilds are managed by the reconciliation loop, not the lifecycle
--- executor which handles autostart_schedule and next_start_at.
 UPDATE
 	workspaces
 SET
 	autostart_schedule = $2,
 	next_start_at = $3
 WHERE
-	id = $1;
+	id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+  	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+  	-- autostart_schedule and next_start_at
+  	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID;
 
 -- name: UpdateWorkspaceNextStartAt :exec
--- NOTE: This query should only be called for regular user workspaces.
--- Prebuilds are managed by the reconciliation loop, not the lifecycle
--- executor which handles next_start_at.
 UPDATE
 	workspaces
 SET
 	next_start_at = $2
 WHERE
-	id = $1;
+	id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- next_start_at
+	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID;
 
 -- name: BatchUpdateWorkspaceNextStartAt :exec
 UPDATE
@@ -551,15 +553,16 @@ WHERE
 	workspaces.id = batch.id;
 
 -- name: UpdateWorkspaceTTL :exec
--- NOTE: This query should only be called for regular user workspaces.
--- Prebuilds are managed by the reconciliation loop, not the lifecycle
--- executor which handles regular workspace's TTL.
 UPDATE
 	workspaces
 SET
 	ttl = $2
 WHERE
-	id = $1;
+	id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- ttl
+	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID;
 
 -- name: UpdateWorkspacesTTLByTemplateID :exec
 UPDATE
@@ -777,9 +780,6 @@ WHERE
   	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID;
 
 -- name: UpdateWorkspaceDormantDeletingAt :one
--- NOTE: This query should only be called for regular user workspaces.
--- Prebuilds are managed by the reconciliation loop, not the lifecycle
--- executor which handles dormant_at and deleting_at.
 UPDATE
     workspaces
 SET
@@ -803,6 +803,10 @@ FROM
 WHERE
     workspaces.id = $1
     AND templates.id = workspaces.template_id
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- dormant_at and deleting_at
+	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 RETURNING
     workspaces.*;
 

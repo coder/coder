@@ -19232,7 +19232,15 @@ SET
 	deadline = $1::timestamptz,
 	max_deadline = $2::timestamptz,
 	updated_at = $3::timestamptz
-WHERE id = $4::uuid
+FROM
+	workspaces
+WHERE
+	workspace_builds.id = $4::uuid
+	AND workspace_builds.workspace_id = workspaces.id
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- deadline and max_deadline
+	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 `
 
 type UpdateWorkspaceBuildDeadlineByIDParams struct {
@@ -19242,9 +19250,6 @@ type UpdateWorkspaceBuildDeadlineByIDParams struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 }
 
-// NOTE: This query should only be called for regular user workspaces.
-// Prebuilds are managed by the reconciliation loop, not the lifecycle
-// executor which handles deadline and max_deadline.
 func (q *sqlQuerier) UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg UpdateWorkspaceBuildDeadlineByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildDeadlineByID,
 		arg.Deadline,
@@ -21190,6 +21195,10 @@ SET
 	next_start_at = $3
 WHERE
 	id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+  	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+  	-- autostart_schedule and next_start_at
+  	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 `
 
 type UpdateWorkspaceAutostartParams struct {
@@ -21198,9 +21207,6 @@ type UpdateWorkspaceAutostartParams struct {
 	NextStartAt       sql.NullTime   `db:"next_start_at" json:"next_start_at"`
 }
 
-// NOTE: This query should only be called for regular user workspaces.
-// Prebuilds are managed by the reconciliation loop, not the lifecycle
-// executor which handles autostart_schedule and next_start_at.
 func (q *sqlQuerier) UpdateWorkspaceAutostart(ctx context.Context, arg UpdateWorkspaceAutostartParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceAutostart, arg.ID, arg.AutostartSchedule, arg.NextStartAt)
 	return err
@@ -21249,6 +21255,10 @@ FROM
 WHERE
     workspaces.id = $1
     AND templates.id = workspaces.template_id
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- dormant_at and deleting_at
+	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 RETURNING
     workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl
 `
@@ -21258,9 +21268,6 @@ type UpdateWorkspaceDormantDeletingAtParams struct {
 	DormantAt sql.NullTime `db:"dormant_at" json:"dormant_at"`
 }
 
-// NOTE: This query should only be called for regular user workspaces.
-// Prebuilds are managed by the reconciliation loop, not the lifecycle
-// executor which handles dormant_at and deleting_at.
 func (q *sqlQuerier) UpdateWorkspaceDormantDeletingAt(ctx context.Context, arg UpdateWorkspaceDormantDeletingAtParams) (WorkspaceTable, error) {
 	row := q.db.QueryRowContext(ctx, updateWorkspaceDormantDeletingAt, arg.ID, arg.DormantAt)
 	var i WorkspaceTable
@@ -21313,6 +21320,10 @@ SET
 	next_start_at = $2
 WHERE
 	id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- next_start_at
+	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 `
 
 type UpdateWorkspaceNextStartAtParams struct {
@@ -21320,9 +21331,6 @@ type UpdateWorkspaceNextStartAtParams struct {
 	NextStartAt sql.NullTime `db:"next_start_at" json:"next_start_at"`
 }
 
-// NOTE: This query should only be called for regular user workspaces.
-// Prebuilds are managed by the reconciliation loop, not the lifecycle
-// executor which handles next_start_at.
 func (q *sqlQuerier) UpdateWorkspaceNextStartAt(ctx context.Context, arg UpdateWorkspaceNextStartAtParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceNextStartAt, arg.ID, arg.NextStartAt)
 	return err
@@ -21335,6 +21343,10 @@ SET
 	ttl = $2
 WHERE
 	id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- ttl
+	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 `
 
 type UpdateWorkspaceTTLParams struct {
@@ -21342,9 +21354,6 @@ type UpdateWorkspaceTTLParams struct {
 	Ttl sql.NullInt64 `db:"ttl" json:"ttl"`
 }
 
-// NOTE: This query should only be called for regular user workspaces.
-// Prebuilds are managed by the reconciliation loop, not the lifecycle
-// executor which handles regular workspace's TTL.
 func (q *sqlQuerier) UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceTTL, arg.ID, arg.Ttl)
 	return err
