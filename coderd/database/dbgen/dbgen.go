@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -346,7 +347,7 @@ func WorkspaceAgentScriptTimings(t testing.TB, db database.Store, scripts []data
 
 func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.WorkspaceAgentScriptTiming) database.WorkspaceAgentScriptTiming {
 	// retry a few times in case of a unique constraint violation
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		timing, err := db.InsertWorkspaceAgentScriptTimings(genCtx, database.InsertWorkspaceAgentScriptTimingsParams{
 			StartedAt: takeFirst(orig.StartedAt, dbtime.Now()),
 			EndedAt:   takeFirst(orig.EndedAt, dbtime.Now()),
@@ -360,7 +361,7 @@ func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.W
 		}
 		// Some tests run WorkspaceAgentScriptTiming in a loop and run into
 		// a unique violation - 2 rows get the same started_at value.
-		if (database.IsUniqueViolation(err, database.UniqueWorkspaceAgentScriptTimingsScriptIDStartedAtKey) && orig.StartedAt == time.Time{}) {
+		if (database.IsUniqueViolation(err, database.UniqueWorkspaceAgentScriptTimingsScriptIDStartedAtKey) && orig.StartedAt.Equal(time.Time{})) {
 			// Wait 1 millisecond so dbtime.Now() changes
 			time.Sleep(time.Millisecond * 1)
 			continue
@@ -656,10 +657,7 @@ func GroupMember(t testing.TB, db database.Store, member database.GroupMemberTab
 	require.NotEqual(t, member.GroupID, uuid.Nil, "A group id is required to use 'dbgen.GroupMember', use 'dbgen.Group'.")
 
 	//nolint:gosimple
-	err := db.InsertGroupMember(genCtx, database.InsertGroupMemberParams{
-		UserID:  member.UserID,
-		GroupID: member.GroupID,
-	})
+	err := db.InsertGroupMember(genCtx, database.InsertGroupMemberParams(member))
 	require.NoError(t, err, "insert group member")
 
 	user, err := db.GetUserByID(genCtx, member.UserID)
@@ -1151,7 +1149,7 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 	if orig.ConnectionsByProto == nil {
 		orig.ConnectionsByProto = json.RawMessage([]byte("{}"))
 	}
-	jsonProto := []byte(fmt.Sprintf("[%s]", orig.ConnectionsByProto))
+	jsonProto := fmt.Appendf(nil, "[%s]", orig.ConnectionsByProto)
 
 	params := database.InsertWorkspaceAgentStatsParams{
 		ID:                          []uuid.UUID{takeFirst(orig.ID, uuid.New())},
@@ -1248,7 +1246,7 @@ func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2
 	code, err := db.InsertOAuth2ProviderAppCode(genCtx, database.InsertOAuth2ProviderAppCodeParams{
 		ID:                  takeFirst(seed.ID, uuid.New()),
 		CreatedAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
-		ExpiresAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
+		ExpiresAt:           takeFirst(seed.ExpiresAt, dbtime.Now().Add(24*time.Hour)),
 		SecretPrefix:        takeFirstSlice(seed.SecretPrefix, []byte("prefix")),
 		HashedSecret:        takeFirstSlice(seed.HashedSecret, []byte("hashed-secret")),
 		AppID:               takeFirst(seed.AppID, uuid.New()),
@@ -1265,7 +1263,7 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 	token, err := db.InsertOAuth2ProviderAppToken(genCtx, database.InsertOAuth2ProviderAppTokenParams{
 		ID:          takeFirst(seed.ID, uuid.New()),
 		CreatedAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
-		ExpiresAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
+		ExpiresAt:   takeFirst(seed.ExpiresAt, dbtime.Now().Add(24*time.Hour)),
 		HashPrefix:  takeFirstSlice(seed.HashPrefix, []byte("prefix")),
 		RefreshHash: takeFirstSlice(seed.RefreshHash, []byte("hashed-secret")),
 		AppSecretID: takeFirst(seed.AppSecretID, uuid.New()),
@@ -1275,6 +1273,26 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 	})
 	require.NoError(t, err, "insert oauth2 app token")
 	return token
+}
+
+func OAuth2ProviderDeviceCode(t testing.TB, db database.Store, seed database.OAuth2ProviderDeviceCode) database.OAuth2ProviderDeviceCode {
+	t.Helper()
+	deviceCode, err := db.InsertOAuth2ProviderDeviceCode(genCtx, database.InsertOAuth2ProviderDeviceCodeParams{
+		ID:                      takeFirst(seed.ID, uuid.New()),
+		CreatedAt:               takeFirst(seed.CreatedAt, dbtime.Now()),
+		ExpiresAt:               takeFirst(seed.ExpiresAt, dbtime.Now().Add(24*time.Hour)),
+		DeviceCodeHash:          takeFirstSlice(seed.DeviceCodeHash, []byte("device-hash")),
+		DeviceCodePrefix:        takeFirst(seed.DeviceCodePrefix, testutil.GetRandomName(t)[:8]),
+		UserCode:                takeFirst(seed.UserCode, must(cryptorand.StringCharset(cryptorand.Human, 8))),
+		ClientID:                takeFirst(seed.ClientID, uuid.New()),
+		VerificationUri:         takeFirst(seed.VerificationUri, "https://example.com/device"),
+		VerificationUriComplete: seed.VerificationUriComplete,
+		Scope:                   seed.Scope,
+		ResourceUri:             seed.ResourceUri,
+		PollingInterval:         takeFirst(seed.PollingInterval, 5),
+	})
+	assert.NoError(t, err, "insert oauth2 device code")
+	return deviceCode
 }
 
 func WorkspaceAgentMemoryResourceMonitor(t testing.TB, db database.Store, seed database.WorkspaceAgentMemoryResourceMonitor) database.WorkspaceAgentMemoryResourceMonitor {

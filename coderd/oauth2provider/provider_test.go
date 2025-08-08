@@ -35,16 +35,9 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 				},
 			},
 			{
-				name: "NameSpaces",
-				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo bar",
-					CallbackURL: "http://localhost:3000",
-				},
-			},
-			{
 				name: "NameTooLong",
 				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "too loooooooooooooooooooooooooong",
+					Name:        "this is a really long name that exceeds the 64 character limit and should fail validation",
 					CallbackURL: "http://localhost:3000",
 				},
 			},
@@ -119,6 +112,101 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 
 				//nolint:gocritic // OAuth2 app management requires owner permission.
 				_, err := client.PostOAuth2ProviderApp(testCtx, test.req)
+				require.Error(t, err)
+			})
+		}
+	})
+
+	t.Run("ValidDisplayNames", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		tests := []struct {
+			name        string
+			displayName string
+		}{
+			{
+				name:        "WithSpaces",
+				displayName: "VS Code",
+			},
+			{
+				name:        "WithSpecialChars",
+				displayName: "My Company's App",
+			},
+			{
+				name:        "WithParentheses",
+				displayName: "Test App (Dev)",
+			},
+			{
+				name:        "WithDashes",
+				displayName: "Multi-Word-App",
+			},
+			{
+				name:        "WithNumbers",
+				displayName: "App 2.0",
+			},
+			{
+				name:        "SingleWord",
+				displayName: "SimpleApp",
+			},
+		}
+
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				testCtx := testutil.Context(t, testutil.WaitLong)
+
+				//nolint:gocritic // OAuth2 app management requires owner permission.
+				app, err := client.PostOAuth2ProviderApp(testCtx, codersdk.PostOAuth2ProviderAppRequest{
+					Name:        test.displayName,
+					CallbackURL: "http://localhost:3000",
+				})
+				require.NoError(t, err)
+				require.Equal(t, test.displayName, app.Name)
+			})
+		}
+	})
+
+	t.Run("InvalidDisplayNames", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		tests := []struct {
+			name        string
+			displayName string
+		}{
+			{
+				name:        "LeadingSpace",
+				displayName: " Leading Space",
+			},
+			{
+				name:        "TrailingSpace",
+				displayName: "Trailing Space ",
+			},
+			{
+				name:        "BothSpaces",
+				displayName: " Both Spaces ",
+			},
+			{
+				name:        "TooLong",
+				displayName: "This is a really long name that exceeds the 64 character limit and should fail validation",
+			},
+		}
+
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				testCtx := testutil.Context(t, testutil.WaitLong)
+
+				//nolint:gocritic // OAuth2 app management requires owner permission.
+				_, err := client.PostOAuth2ProviderApp(testCtx, codersdk.PostOAuth2ProviderAppRequest{
+					Name:        test.displayName,
+					CallbackURL: "http://localhost:3000",
+				})
 				require.Error(t, err)
 			})
 		}

@@ -212,7 +212,7 @@ func ExtractOAuth2ProviderApp(db database.Store) func(http.Handler) http.Handler
 
 // ExtractOAuth2ProviderAppWithOAuth2Errors is the same as ExtractOAuth2ProviderApp but
 // returns OAuth2-compliant errors instead of generic API errors. This should be used
-// for OAuth2 endpoints like /oauth2/tokens.
+// for OAuth2 endpoints like /oauth2/token.
 func ExtractOAuth2ProviderAppWithOAuth2Errors(db database.Store) func(http.Handler) http.Handler {
 	return extractOAuth2ProviderAppBase(db, &oauth2ErrorWriter{})
 }
@@ -289,7 +289,7 @@ func extractOAuth2ProviderAppBase(db database.Store, errWriter errorWriter) func
 				// If not provided by the url, then it is provided according to the
 				// oauth 2 spec. This can occur with query params, or in the body as
 				// form parameters.
-				// This also depends on if you are doing a POST (tokens) or GET (authorize).
+				// This also depends on if you are doing a POST (token) or GET (authorize).
 				paramAppID := r.URL.Query().Get("client_id")
 				if paramAppID == "" {
 					// Check the form params!
