@@ -1157,6 +1157,11 @@ func (api *API) convertWorkspaceBuild(
 		aiTasksSidebarAppID = &build.AITaskSidebarAppID.UUID
 	}
 
+	var hasExternalAgent *bool
+	if build.HasExternalAgent.Valid {
+		hasExternalAgent = &build.HasExternalAgent.Bool
+	}
+
 	apiJob := convertProvisionerJob(job)
 	transition := codersdk.WorkspaceTransition(build.Transition)
 	return codersdk.WorkspaceBuild{
@@ -1185,6 +1190,7 @@ func (api *API) convertWorkspaceBuild(
 		TemplateVersionPresetID: presetID,
 		HasAITask:               hasAITask,
 		AITaskSidebarAppID:      aiTasksSidebarAppID,
+		HasExternalAgent:        hasExternalAgent,
 	}, nil
 }
 

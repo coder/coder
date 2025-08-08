@@ -1421,6 +1421,9 @@ func New(options *Options) *API {
 					r.Post("/", api.postWorkspaceAgentPortShare)
 					r.Delete("/", api.deleteWorkspaceAgentPortShare)
 				})
+				r.Route("/external-agent", func(r chi.Router) {
+					r.Get("/{agent}/credentials", api.workspaceExternalAgentCredentials)
+				})
 				r.Get("/timings", api.workspaceTimings)
 				r.Route("/acl", func(r chi.Router) {
 					r.Use(
@@ -1556,6 +1559,9 @@ func New(options *Options) *API {
 		r.Route("/tailnet", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", api.tailnetRPCConn)
+		})
+		r.Route("/init-script", func(r chi.Router) {
+			r.Get("/{os}/{arch}", api.initScript)
 		})
 	})
 
