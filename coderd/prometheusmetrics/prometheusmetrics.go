@@ -150,7 +150,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Namespace: "coderd",
 		Subsystem: "api",
 		Name:      "workspace_latest_build",
-		Help:      "The current number of workspace builds by status.",
+		Help:      "The current number of workspace builds by status for all non-deleted workspaces.",
 	}, []string{"status"})
 	if err := registerer.Register(workspaceLatestBuildTotals); err != nil {
 		return nil, err
@@ -159,7 +159,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	workspaceLatestBuildStatuses := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Name:      "workspace_latest_build_status",
-		Help:      "The current workspace statuses by template, transition, and owner.",
+		Help:      "The current workspace statuses by template, transition, and owner for all non-deleted workspaces.",
 	}, []string{"status", "template_name", "template_version", "workspace_owner", "workspace_transition"})
 	if err := registerer.Register(workspaceLatestBuildStatuses); err != nil {
 		return nil, err
