@@ -7,7 +7,6 @@ import type {
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
-import type { Line } from "components/Logs/LogLine";
 import { Margins } from "components/Margins/Margins";
 import {
 	FullWidthPageHeader,

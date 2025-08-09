@@ -2,7 +2,7 @@ import type { Interpolation, Theme } from "@emotion/react";
 import Tooltip from "@mui/material/Tooltip";
 import type { WorkspaceAgentLogSource } from "api/typesGenerated";
 import type { Line } from "components/Logs/LogLine";
-import { type ComponentProps, forwardRef, ReactNode } from "react";
+import { type ComponentProps, type ReactNode, forwardRef } from "react";
 import { FixedSizeList as List } from "react-window";
 import { AGENT_LOG_LINE_HEIGHT, AgentLogLine } from "./AgentLogLine";
 
@@ -14,7 +14,9 @@ const fallbackLog: WorkspaceAgentLogSource = {
 	workspace_agent_id: "",
 };
 
-function groupLogSourcesById(sources: readonly WorkspaceAgentLogSource[]): Record<string, WorkspaceAgentLogSource> {
+function groupLogSourcesById(
+	sources: readonly WorkspaceAgentLogSource[],
+): Record<string, WorkspaceAgentLogSource> {
 	const sourcesById: Record<string, WorkspaceAgentLogSource> = {};
 	for (const source of sources) {
 		sourcesById[source.id] = source;
@@ -28,7 +30,7 @@ const message: ReactNode = (
 		written to the database! Logs will continue to be written to the
 		/tmp/coder-startup-script.log file in the workspace.
 	</p>
-)
+);
 
 type AgentLogsProps = Omit<
 	ComponentProps<typeof List>,
@@ -96,20 +98,19 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 						assignedIcon = true;
 					}
 
-					let doesNextLineHaveDifferentSource = false;
-					if (index < logs.length - 1) {
-						doesNextLineHaveDifferentSource =
-							getLogSource(logs[index + 1].sourceId).id !== log.sourceId;
-					}
+					const doesNextLineHaveDifferentSource =
+						index < logs.length - 1 &&
+						getLogSource(logs[index + 1].sourceId).id !== log.sourceId;
+
 					// We don't want every line to repeat the icon, because
 					// that is ugly and repetitive. This removes the icon
 					// for subsequent lines of the same source and shows a
 					// line instead, visually indicating they are from the
 					// same source.
-					if (
+					const shouldHideSource =
 						index > 0 &&
-						getLogSource(logs[index - 1].sourceId).id === log.sourceId
-					) {
+						getLogSource(logs[index - 1].sourceId).id === log.sourceId;
+					if (shouldHideSource) {
 						icon = (
 							<div
 								css={{
