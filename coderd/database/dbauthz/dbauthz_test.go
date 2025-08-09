@@ -218,25 +218,16 @@ func (s *MethodTestSuite) TestAPIKey() {
 		dbm.EXPECT().GetAPIKeyByID(gomock.Any(), key.ID).Return(key, nil).AnyTimes()
 		check.Args(key.ID).Asserts(key, policy.ActionRead).Returns(key)
 	}))
-	s.Run("GetAPIKeyByName", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{
-			TokenName: "marge-cat",
-			LoginType: database.LoginTypeToken,
-		})
-		check.Args(database.GetAPIKeyByNameParams{
-			TokenName: key.TokenName,
-			UserID:    key.UserID,
-		}).Asserts(key, policy.ActionRead).Returns(key)
+	s.Run("GetAPIKeyByName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		key := testutil.Fake(s.T(), faker, database.APIKey{LoginType: database.LoginTypeToken, TokenName: "marge-cat"})
+		dbm.EXPECT().GetAPIKeyByName(gomock.Any(), database.GetAPIKeyByNameParams{TokenName: key.TokenName, UserID: key.UserID}).Return(key, nil).AnyTimes()
+		check.Args(database.GetAPIKeyByNameParams{TokenName: key.TokenName, UserID: key.UserID}).Asserts(key, policy.ActionRead).Returns(key)
 	}))
-	s.Run("GetAPIKeysByLoginType", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		a, _ := dbgen.APIKey(s.T(), db, database.APIKey{LoginType: database.LoginTypePassword})
-		b, _ := dbgen.APIKey(s.T(), db, database.APIKey{LoginType: database.LoginTypePassword})
-		_, _ = dbgen.APIKey(s.T(), db, database.APIKey{LoginType: database.LoginTypeGithub})
-		check.Args(database.LoginTypePassword).
-			Asserts(a, policy.ActionRead, b, policy.ActionRead).
-			Returns(slice.New(a, b))
+	s.Run("GetAPIKeysByLoginType", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		a := testutil.Fake(s.T(), faker, database.APIKey{LoginType: database.LoginTypePassword})
+		b := testutil.Fake(s.T(), faker, database.APIKey{LoginType: database.LoginTypePassword})
+		dbm.EXPECT().GetAPIKeysByLoginType(gomock.Any(), database.LoginTypePassword).Return([]database.APIKey{a, b}, nil).AnyTimes()
+		check.Args(database.LoginTypePassword).Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(a, b))
 	}))
 	s.Run("GetAPIKeysByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u1 := testutil.Fake(s.T(), faker, database.User{})
@@ -248,57 +239,44 @@ func (s *MethodTestSuite) TestAPIKey() {
 			Asserts(keyA, policy.ActionRead, keyB, policy.ActionRead).
 			Returns(slice.New(keyA, keyB))
 	}))
-	s.Run("GetAPIKeysLastUsedAfter", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		a, _ := dbgen.APIKey(s.T(), db, database.APIKey{LastUsed: time.Now().Add(time.Hour)})
-		b, _ := dbgen.APIKey(s.T(), db, database.APIKey{LastUsed: time.Now().Add(time.Hour)})
-		_, _ = dbgen.APIKey(s.T(), db, database.APIKey{LastUsed: time.Now().Add(-time.Hour)})
-		check.Args(time.Now()).
-			Asserts(a, policy.ActionRead, b, policy.ActionRead).
-			Returns(slice.New(a, b))
+	s.Run("GetAPIKeysLastUsedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		now := time.Now()
+		a := database.APIKey{LastUsed: now.Add(time.Hour)}
+		b := database.APIKey{LastUsed: now.Add(time.Hour)}
+		dbm.EXPECT().GetAPIKeysLastUsedAfter(gomock.Any(), gomock.Any()).Return([]database.APIKey{a, b}, nil).AnyTimes()
+		check.Args(now).Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(a, b))
 	}))
-	s.Run("InsertAPIKey", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-
-		check.Args(database.InsertAPIKeyParams{
-			UserID:    u.ID,
-			LoginType: database.LoginTypePassword,
-			Scope:     database.APIKeyScopeAll,
-			IPAddress: defaultIPAddress(),
-		}).Asserts(rbac.ResourceApiKey.WithOwner(u.ID.String()), policy.ActionCreate)
+	s.Run("InsertAPIKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.InsertAPIKeyParams{UserID: u.ID, LoginType: database.LoginTypePassword, Scope: database.APIKeyScopeAll, IPAddress: defaultIPAddress()}
+		ret := testutil.Fake(s.T(), faker, database.APIKey{UserID: u.ID, LoginType: database.LoginTypePassword})
+		dbm.EXPECT().InsertAPIKey(gomock.Any(), arg).Return(ret, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceApiKey.WithOwner(u.ID.String()), policy.ActionCreate)
 	}))
-	s.Run("UpdateAPIKeyByID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		a, _ := dbgen.APIKey(s.T(), db, database.APIKey{UserID: u.ID, IPAddress: defaultIPAddress()})
-		check.Args(database.UpdateAPIKeyByIDParams{
-			ID:        a.ID,
-			IPAddress: defaultIPAddress(),
-			LastUsed:  time.Now(),
-			ExpiresAt: time.Now().Add(time.Hour),
-		}).Asserts(a, policy.ActionUpdate).Returns()
+	s.Run("UpdateAPIKeyByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		a := testutil.Fake(s.T(), faker, database.APIKey{UserID: u.ID, IPAddress: defaultIPAddress()})
+		arg := database.UpdateAPIKeyByIDParams{ID: a.ID, IPAddress: defaultIPAddress(), LastUsed: time.Now(), ExpiresAt: time.Now().Add(time.Hour)}
+		dbm.EXPECT().GetAPIKeyByID(gomock.Any(), a.ID).Return(a, nil).AnyTimes()
+		dbm.EXPECT().UpdateAPIKeyByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(a, policy.ActionUpdate).Returns()
 	}))
-	s.Run("DeleteApplicationConnectAPIKeysByUserID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		a, _ := dbgen.APIKey(s.T(), db, database.APIKey{
-			Scope: database.APIKeyScopeApplicationConnect,
-		})
+	s.Run("DeleteApplicationConnectAPIKeysByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		a := testutil.Fake(s.T(), faker, database.APIKey{Scope: database.APIKeyScopeApplicationConnect})
+		dbm.EXPECT().DeleteApplicationConnectAPIKeysByUserID(gomock.Any(), a.UserID).Return(nil).AnyTimes()
 		check.Args(a.UserID).Asserts(rbac.ResourceApiKey.WithOwner(a.UserID.String()), policy.ActionDelete).Returns()
 	}))
-	s.Run("DeleteExternalAuthLink", s.Subtest(func(db database.Store, check *expects) {
-		a := dbgen.ExternalAuthLink(s.T(), db, database.ExternalAuthLink{})
-		check.Args(database.DeleteExternalAuthLinkParams{
-			ProviderID: a.ProviderID,
-			UserID:     a.UserID,
-		}).Asserts(rbac.ResourceUserObject(a.UserID), policy.ActionUpdatePersonal).Returns()
+	s.Run("DeleteExternalAuthLink", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		a := testutil.Fake(s.T(), faker, database.ExternalAuthLink{})
+		dbm.EXPECT().GetExternalAuthLink(gomock.Any(), database.GetExternalAuthLinkParams{ProviderID: a.ProviderID, UserID: a.UserID}).Return(a, nil).AnyTimes()
+		dbm.EXPECT().DeleteExternalAuthLink(gomock.Any(), database.DeleteExternalAuthLinkParams{ProviderID: a.ProviderID, UserID: a.UserID}).Return(nil).AnyTimes()
+		check.Args(database.DeleteExternalAuthLinkParams{ProviderID: a.ProviderID, UserID: a.UserID}).Asserts(rbac.ResourceUserObject(a.UserID), policy.ActionUpdatePersonal).Returns()
 	}))
-	s.Run("GetExternalAuthLinksByUserID", s.Subtest(func(db database.Store, check *expects) {
-		a := dbgen.ExternalAuthLink(s.T(), db, database.ExternalAuthLink{})
-		b := dbgen.ExternalAuthLink(s.T(), db, database.ExternalAuthLink{
-			UserID: a.UserID,
-		})
-		check.Args(a.UserID).Asserts(
-			rbac.ResourceUserObject(a.UserID), policy.ActionReadPersonal,
-			rbac.ResourceUserObject(b.UserID), policy.ActionReadPersonal)
+	s.Run("GetExternalAuthLinksByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		a := testutil.Fake(s.T(), faker, database.ExternalAuthLink{})
+		b := testutil.Fake(s.T(), faker, database.ExternalAuthLink{UserID: a.UserID})
+		dbm.EXPECT().GetExternalAuthLinksByUserID(gomock.Any(), a.UserID).Return([]database.ExternalAuthLink{a, b}, nil).AnyTimes()
+		check.Args(a.UserID).Asserts(rbac.ResourceUserObject(a.UserID), policy.ActionReadPersonal, rbac.ResourceUserObject(b.UserID), policy.ActionReadPersonal)
 	}))
 }
 
