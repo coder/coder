@@ -1,9 +1,9 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Tooltip from "@mui/material/Tooltip";
 import type { WorkspaceAgentLogSource } from "api/typesGenerated";
 import type { Line } from "components/Logs/LogLine";
 import { type ComponentProps, forwardRef } from "react";
 import { FixedSizeList as List } from "react-window";
+import { cn } from "utils/cn";
 import { AGENT_LOG_LINE_HEIGHT, AgentLogLine } from "./AgentLogLine";
 
 const fallbackLog: WorkspaceAgentLogSource = {
@@ -43,10 +43,25 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 
 		return (
 			<div className="flex flex-col gap-2">
+				{overflowed && (
+					<p className="text-sm text-content-secondary bg-content-tertiary max-w-prose pl-6 m-0 pt-2.5 pb-1">
+						Startup logs exceeded the max size of{" "}
+						<span className="tracking-wide font-mono">1MB</span>, and will not
+						continue to be written to the database! Logs will continue to be
+						written to the
+						<span className="font-mono bg-surface-tertiary rounded-md px-1.5 py-0.5">
+							/tmp/coder-startup-script.log
+						</span>{" "}
+						file in the workspace.
+					</p>
+				)}
+
 				<List
 					{...listProps}
 					ref={ref}
-					css={styles.logs}
+					// We need the div selector to be able to apply the padding
+					// top from startupLogs
+					className="pt-4 [&>div]:relative bg-surface-secondary"
 					itemCount={logs.length}
 					itemSize={AGENT_LOG_LINE_HEIGHT}
 					itemKey={(index) => logs[index].id || 0}
@@ -64,26 +79,18 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 								<img
 									src={logSource.icon}
 									alt=""
-									width={14}
-									height={14}
-									css={{
-										marginRight: 8,
-										flexShrink: 0,
-									}}
+									className="size-3.5 mr-2 shrink-0"
 								/>
 							);
 						} else {
 							icon = (
 								<div
-									css={{
-										width: 14,
-										height: 14,
-										marginRight: 8,
-										flexShrink: 0,
+									role="presentation"
+									className="size-3.5 mr-2 shrink-0 rounded-full"
+									style={{
 										background: determineScriptDisplayColor(
 											logSource.display_name,
 										),
-										borderRadius: "100%",
 									}}
 								/>
 							);
@@ -104,38 +111,18 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 							getLogSource(logs[index - 1].sourceId).id === log.sourceId;
 						if (shouldHideSource) {
 							icon = (
-								<div
-									css={{
-										width: 14,
-										height: 14,
-										marginRight: 8,
-										display: "flex",
-										justifyContent: "center",
-										position: "relative",
-										flexShrink: 0,
-									}}
-								>
+								<div className="size-3.5 mr-2 flex justify-center relative shrink-0">
 									<div
-										className="dashed-line"
-										css={(theme) => ({
-											height: doesNextLineHaveDifferentSource ? "50%" : "100%",
-											width: 2,
-											background: theme.experimental.l1.outline,
-											borderRadius: 2,
-										})}
+										// dashed-line class comes from LogLine
+										className={cn(
+											"dashed-line w-0.5 rounded-[2px] bg-surface-tertiary h-full",
+											doesNextLineHaveDifferentSource && "h-1/2",
+										)}
 									/>
 									{doesNextLineHaveDifferentSource && (
 										<div
-											className="dashed-line"
-											css={(theme) => ({
-												height: 2,
-												width: "50%",
-												top: "calc(50% - 2px)",
-												left: "calc(50% - 1px)",
-												background: theme.experimental.l1.outline,
-												borderRadius: 2,
-												position: "absolute",
-											})}
+											role="presentation"
+											className="dashed-line h-[2px] w-1/2 top-[calc(50%-2px)] left-[calc(50%-1px)] rounded-[2px] absolute bg-surface-tertiary"
 										/>
 									)}
 								</div>
@@ -169,17 +156,6 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 						);
 					}}
 				</List>
-
-				{overflowed && (
-					<p>
-						Startup logs exceeded the max size of{" "}
-						<span className="tracking-wide font-mono">1MB</span>, and will not
-						continue to be written to the database! Logs will continue to be
-						written to the
-						<span className="font-mono">/tmp/coder-startup-script.log</span>{" "}
-						file in the workspace.
-					</p>
-				)}
 			</div>
 		);
 	},
@@ -207,15 +183,3 @@ const determineScriptDisplayColor = (displayName: string): string => {
 	}, 0);
 	return scriptDisplayColors[Math.abs(hash) % scriptDisplayColors.length];
 };
-
-const styles = {
-	logs: (theme) => ({
-		backgroundColor: theme.palette.background.paper,
-		paddingTop: 16,
-
-		// We need this to be able to apply the padding top from startupLogs
-		"& > div": {
-			position: "relative",
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
