@@ -281,41 +281,35 @@ func (s *MethodTestSuite) TestAPIKey() {
 }
 
 func (s *MethodTestSuite) TestAuditLogs() {
-	s.Run("InsertAuditLog", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.InsertAuditLogParams{
-			ResourceType:     database.ResourceTypeOrganization,
-			Action:           database.AuditActionCreate,
-			Diff:             json.RawMessage("{}"),
-			AdditionalFields: json.RawMessage("{}"),
-		}).Asserts(rbac.ResourceAuditLog, policy.ActionCreate)
+	s.Run("InsertAuditLog", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertAuditLogParams{ResourceType: database.ResourceTypeOrganization, Action: database.AuditActionCreate, Diff: json.RawMessage("{}"), AdditionalFields: json.RawMessage("{}")}
+		dbm.EXPECT().InsertAuditLog(gomock.Any(), arg).Return(database.AuditLog{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAuditLog, policy.ActionCreate)
 	}))
-	s.Run("GetAuditLogsOffset", s.Subtest(func(db database.Store, check *expects) {
-		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
-		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
-		check.Args(database.GetAuditLogsOffsetParams{
-			LimitOpt: 10,
-		}).Asserts(rbac.ResourceAuditLog, policy.ActionRead).WithNotAuthorized("nil")
+	s.Run("GetAuditLogsOffset", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetAuditLogsOffsetParams{LimitOpt: 10}
+		dbm.EXPECT().GetAuditLogsOffset(gomock.Any(), arg).Return([]database.GetAuditLogsOffsetRow{}, nil).AnyTimes()
+		dbm.EXPECT().GetAuthorizedAuditLogsOffset(gomock.Any(), arg, gomock.Any()).Return([]database.GetAuditLogsOffsetRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAuditLog, policy.ActionRead).WithNotAuthorized("nil")
 	}))
-	s.Run("GetAuthorizedAuditLogsOffset", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
-		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
-		check.Args(database.GetAuditLogsOffsetParams{
-			LimitOpt: 10,
-		}, emptyPreparedAuthorized{}).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
+	s.Run("GetAuthorizedAuditLogsOffset", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetAuditLogsOffsetParams{LimitOpt: 10}
+		dbm.EXPECT().GetAuthorizedAuditLogsOffset(gomock.Any(), arg, gomock.Any()).Return([]database.GetAuditLogsOffsetRow{}, nil).AnyTimes()
+		dbm.EXPECT().GetAuditLogsOffset(gomock.Any(), arg).Return([]database.GetAuditLogsOffsetRow{}, nil).AnyTimes()
+		check.Args(arg, emptyPreparedAuthorized{}).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
 	}))
-	s.Run("CountAuditLogs", s.Subtest(func(db database.Store, check *expects) {
-		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
-		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
+	s.Run("CountAuditLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().CountAuditLogs(gomock.Any(), database.CountAuditLogsParams{}).Return(int64(0), nil).AnyTimes()
+		dbm.EXPECT().CountAuthorizedAuditLogs(gomock.Any(), database.CountAuditLogsParams{}, gomock.Any()).Return(int64(0), nil).AnyTimes()
 		check.Args(database.CountAuditLogsParams{}).Asserts(rbac.ResourceAuditLog, policy.ActionRead).WithNotAuthorized("nil")
 	}))
-	s.Run("CountAuthorizedAuditLogs", s.Subtest(func(db database.Store, check *expects) {
-		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
-		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
+	s.Run("CountAuthorizedAuditLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().CountAuthorizedAuditLogs(gomock.Any(), database.CountAuditLogsParams{}, gomock.Any()).Return(int64(0), nil).AnyTimes()
+		dbm.EXPECT().CountAuditLogs(gomock.Any(), database.CountAuditLogsParams{}).Return(int64(0), nil).AnyTimes()
 		check.Args(database.CountAuditLogsParams{}, emptyPreparedAuthorized{}).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
 	}))
-	s.Run("DeleteOldAuditLogConnectionEvents", s.Subtest(func(db database.Store, check *expects) {
-		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
+	s.Run("DeleteOldAuditLogConnectionEvents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), database.DeleteOldAuditLogConnectionEventsParams{}).Return(nil).AnyTimes()
 		check.Args(database.DeleteOldAuditLogConnectionEventsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 }
