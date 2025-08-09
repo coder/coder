@@ -481,158 +481,151 @@ func (s *MethodTestSuite) TestFile() {
 }
 
 func (s *MethodTestSuite) TestGroup() {
-	s.Run("DeleteGroupByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		g := dbgen.Group(s.T(), db, database.Group{})
+	s.Run("DeleteGroupByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		g := testutil.Fake(s.T(), faker, database.Group{})
+		dbm.EXPECT().GetGroupByID(gomock.Any(), g.ID).Return(g, nil).AnyTimes()
+		dbm.EXPECT().DeleteGroupByID(gomock.Any(), g.ID).Return(nil).AnyTimes()
 		check.Args(g.ID).Asserts(g, policy.ActionDelete).Returns()
 	}))
-	s.Run("DeleteGroupMemberFromGroup", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		g := dbgen.Group(s.T(), db, database.Group{})
-		u := dbgen.User(s.T(), db, database.User{})
-		m := dbgen.GroupMember(s.T(), db, database.GroupMemberTable{
-			GroupID: g.ID,
-			UserID:  u.ID,
-		})
-		check.Args(database.DeleteGroupMemberFromGroupParams{
-			UserID:  m.UserID,
-			GroupID: g.ID,
-		}).Asserts(g, policy.ActionUpdate).Returns()
+
+	s.Run("DeleteGroupMemberFromGroup", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		g := testutil.Fake(s.T(), faker, database.Group{})
+		u := testutil.Fake(s.T(), faker, database.User{})
+		m := testutil.Fake(s.T(), faker, database.GroupMember{GroupID: g.ID, UserID: u.ID})
+		dbm.EXPECT().GetGroupByID(gomock.Any(), g.ID).Return(g, nil).AnyTimes()
+		dbm.EXPECT().DeleteGroupMemberFromGroup(gomock.Any(), database.DeleteGroupMemberFromGroupParams{UserID: m.UserID, GroupID: g.ID}).Return(nil).AnyTimes()
+		check.Args(database.DeleteGroupMemberFromGroupParams{UserID: m.UserID, GroupID: g.ID}).Asserts(g, policy.ActionUpdate).Returns()
 	}))
-	s.Run("GetGroupByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		g := dbgen.Group(s.T(), db, database.Group{})
+
+	s.Run("GetGroupByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		g := testutil.Fake(s.T(), faker, database.Group{})
+		dbm.EXPECT().GetGroupByID(gomock.Any(), g.ID).Return(g, nil).AnyTimes()
 		check.Args(g.ID).Asserts(g, policy.ActionRead).Returns(g)
 	}))
-	s.Run("GetGroupByOrgAndName", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		g := dbgen.Group(s.T(), db, database.Group{})
-		check.Args(database.GetGroupByOrgAndNameParams{
-			OrganizationID: g.OrganizationID,
-			Name:           g.Name,
-		}).Asserts(g, policy.ActionRead).Returns(g)
+
+	s.Run("GetGroupByOrgAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		g := testutil.Fake(s.T(), faker, database.Group{})
+		dbm.EXPECT().GetGroupByOrgAndName(gomock.Any(), database.GetGroupByOrgAndNameParams{OrganizationID: g.OrganizationID, Name: g.Name}).Return(g, nil).AnyTimes()
+		check.Args(database.GetGroupByOrgAndNameParams{OrganizationID: g.OrganizationID, Name: g.Name}).Asserts(g, policy.ActionRead).Returns(g)
 	}))
-	s.Run("GetGroupMembersByGroupID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		g := dbgen.Group(s.T(), db, database.Group{})
-		u := dbgen.User(s.T(), db, database.User{})
-		gm := dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
-		check.Args(database.GetGroupMembersByGroupIDParams{
-			GroupID:       g.ID,
-			IncludeSystem: false,
-		}).Asserts(gm, policy.ActionRead)
+
+	s.Run("GetGroupMembersByGroupID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		g := testutil.Fake(s.T(), faker, database.Group{})
+		u := testutil.Fake(s.T(), faker, database.User{})
+		gm := testutil.Fake(s.T(), faker, database.GroupMember{GroupID: g.ID, UserID: u.ID})
+		arg := database.GetGroupMembersByGroupIDParams{GroupID: g.ID, IncludeSystem: false}
+		dbm.EXPECT().GetGroupMembersByGroupID(gomock.Any(), arg).Return([]database.GroupMember{gm}, nil).AnyTimes()
+		check.Args(arg).Asserts(gm, policy.ActionRead)
 	}))
-	s.Run("GetGroupMembersCountByGroupID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		g := dbgen.Group(s.T(), db, database.Group{})
-		check.Args(database.GetGroupMembersCountByGroupIDParams{
-			GroupID:       g.ID,
-			IncludeSystem: false,
-		}).Asserts(g, policy.ActionRead)
+
+	s.Run("GetGroupMembersCountByGroupID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		g := testutil.Fake(s.T(), faker, database.Group{})
+		arg := database.GetGroupMembersCountByGroupIDParams{GroupID: g.ID, IncludeSystem: false}
+		dbm.EXPECT().GetGroupByID(gomock.Any(), g.ID).Return(g, nil).AnyTimes()
+		dbm.EXPECT().GetGroupMembersCountByGroupID(gomock.Any(), arg).Return(int64(0), nil).AnyTimes()
+		check.Args(arg).Asserts(g, policy.ActionRead)
 	}))
-	s.Run("GetGroupMembers", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		g := dbgen.Group(s.T(), db, database.Group{})
-		u := dbgen.User(s.T(), db, database.User{})
-		dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
+
+	s.Run("GetGroupMembers", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetGroupMembers(gomock.Any(), false).Return([]database.GroupMember{}, nil).AnyTimes()
 		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("System/GetGroups", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		_ = dbgen.Group(s.T(), db, database.Group{})
-		check.Args(database.GetGroupsParams{}).
-			Asserts(rbac.ResourceSystem, policy.ActionRead)
+
+	s.Run("System/GetGroups", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		g := testutil.Fake(s.T(), faker, database.Group{OrganizationID: o.ID})
+		row := database.GetGroupsRow{Group: g, OrganizationName: o.Name, OrganizationDisplayName: o.DisplayName}
+		dbm.EXPECT().GetGroups(gomock.Any(), database.GetGroupsParams{}).Return([]database.GetGroupsRow{row}, nil).AnyTimes()
+		check.Args(database.GetGroupsParams{}).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("GetGroups", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		g := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		u := dbgen.User(s.T(), db, database.User{})
-		gm := dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
-		check.Args(database.GetGroupsParams{
-			OrganizationID: g.OrganizationID,
-			HasMemberID:    gm.UserID,
-		}).Asserts(rbac.ResourceSystem, policy.ActionRead, g, policy.ActionRead).
-			// Fail the system resource skip
-			FailSystemObjectChecks()
+
+	s.Run("GetGroups", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		g := testutil.Fake(s.T(), faker, database.Group{OrganizationID: o.ID})
+		u := testutil.Fake(s.T(), faker, database.User{})
+		gm := testutil.Fake(s.T(), faker, database.GroupMember{GroupID: g.ID, UserID: u.ID})
+		params := database.GetGroupsParams{OrganizationID: g.OrganizationID, HasMemberID: gm.UserID}
+		row := database.GetGroupsRow{Group: g, OrganizationName: o.Name, OrganizationDisplayName: o.DisplayName}
+		dbm.EXPECT().GetGroups(gomock.Any(), params).Return([]database.GetGroupsRow{row}, nil).AnyTimes()
+		check.Args(params).Asserts(rbac.ResourceSystem, policy.ActionRead, g, policy.ActionRead).FailSystemObjectChecks()
 	}))
-	s.Run("InsertAllUsersGroup", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
+
+	s.Run("InsertAllUsersGroup", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		ret := testutil.Fake(s.T(), faker, database.Group{OrganizationID: o.ID})
+		dbm.EXPECT().InsertAllUsersGroup(gomock.Any(), o.ID).Return(ret, nil).AnyTimes()
 		check.Args(o.ID).Asserts(rbac.ResourceGroup.InOrg(o.ID), policy.ActionCreate)
 	}))
-	s.Run("InsertGroup", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		check.Args(database.InsertGroupParams{
-			OrganizationID: o.ID,
-			Name:           "test",
-		}).Asserts(rbac.ResourceGroup.InOrg(o.ID), policy.ActionCreate)
+
+	s.Run("InsertGroup", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		arg := database.InsertGroupParams{OrganizationID: o.ID, Name: "test"}
+		ret := testutil.Fake(s.T(), faker, database.Group{OrganizationID: o.ID, Name: arg.Name})
+		dbm.EXPECT().InsertGroup(gomock.Any(), arg).Return(ret, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceGroup.InOrg(o.ID), policy.ActionCreate)
 	}))
-	s.Run("InsertGroupMember", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		g := dbgen.Group(s.T(), db, database.Group{})
-		check.Args(database.InsertGroupMemberParams{
-			UserID:  uuid.New(),
-			GroupID: g.ID,
-		}).Asserts(g, policy.ActionUpdate).Returns()
+
+	s.Run("InsertGroupMember", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		g := testutil.Fake(s.T(), faker, database.Group{})
+		arg := database.InsertGroupMemberParams{UserID: uuid.New(), GroupID: g.ID}
+		dbm.EXPECT().GetGroupByID(gomock.Any(), g.ID).Return(g, nil).AnyTimes()
+		dbm.EXPECT().InsertGroupMember(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(g, policy.ActionUpdate).Returns()
 	}))
-	s.Run("InsertUserGroupsByName", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		u1 := dbgen.User(s.T(), db, database.User{})
-		g1 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		g2 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		check.Args(database.InsertUserGroupsByNameParams{
-			OrganizationID: o.ID,
-			UserID:         u1.ID,
-			GroupNames:     slice.New(g1.Name, g2.Name),
-		}).Asserts(rbac.ResourceGroup.InOrg(o.ID), policy.ActionUpdate).Returns()
+
+	s.Run("InsertUserGroupsByName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		u1 := testutil.Fake(s.T(), faker, database.User{})
+		g1 := testutil.Fake(s.T(), faker, database.Group{OrganizationID: o.ID})
+		g2 := testutil.Fake(s.T(), faker, database.Group{OrganizationID: o.ID})
+		arg := database.InsertUserGroupsByNameParams{OrganizationID: o.ID, UserID: u1.ID, GroupNames: slice.New(g1.Name, g2.Name)}
+		dbm.EXPECT().InsertUserGroupsByName(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceGroup.InOrg(o.ID), policy.ActionUpdate).Returns()
 	}))
-	s.Run("InsertUserGroupsByID", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		u1 := dbgen.User(s.T(), db, database.User{})
-		g1 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		g2 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		g3 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g1.ID, UserID: u1.ID})
+
+	s.Run("InsertUserGroupsByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		u1 := testutil.Fake(s.T(), faker, database.User{})
+		g1 := testutil.Fake(s.T(), faker, database.Group{OrganizationID: o.ID})
+		g2 := testutil.Fake(s.T(), faker, database.Group{OrganizationID: o.ID})
+		g3 := testutil.Fake(s.T(), faker, database.Group{OrganizationID: o.ID})
 		returns := slice.New(g2.ID, g3.ID)
-		if !dbtestutil.WillUsePostgres() {
-			returns = slice.New(g1.ID, g2.ID, g3.ID)
-		}
-		check.Args(database.InsertUserGroupsByIDParams{
-			UserID:   u1.ID,
-			GroupIds: slice.New(g1.ID, g2.ID, g3.ID),
-		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(returns)
+		arg := database.InsertUserGroupsByIDParams{UserID: u1.ID, GroupIds: slice.New(g1.ID, g2.ID, g3.ID)}
+		dbm.EXPECT().InsertUserGroupsByID(gomock.Any(), arg).Return(returns, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(returns)
 	}))
-	s.Run("RemoveUserFromAllGroups", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		u1 := dbgen.User(s.T(), db, database.User{})
-		g1 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		g2 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g1.ID, UserID: u1.ID})
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g2.ID, UserID: u1.ID})
+
+	s.Run("RemoveUserFromAllGroups", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u1 := testutil.Fake(s.T(), faker, database.User{})
+		dbm.EXPECT().RemoveUserFromAllGroups(gomock.Any(), u1.ID).Return(nil).AnyTimes()
 		check.Args(u1.ID).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
 	}))
-	s.Run("RemoveUserFromGroups", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		u1 := dbgen.User(s.T(), db, database.User{})
-		g1 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		g2 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g1.ID, UserID: u1.ID})
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g2.ID, UserID: u1.ID})
-		check.Args(database.RemoveUserFromGroupsParams{
-			UserID:   u1.ID,
-			GroupIds: []uuid.UUID{g1.ID, g2.ID},
-		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(slice.New(g1.ID, g2.ID))
+
+	s.Run("RemoveUserFromGroups", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		u1 := testutil.Fake(s.T(), faker, database.User{})
+		g1 := testutil.Fake(s.T(), faker, database.Group{OrganizationID: o.ID})
+		g2 := testutil.Fake(s.T(), faker, database.Group{OrganizationID: o.ID})
+		arg := database.RemoveUserFromGroupsParams{UserID: u1.ID, GroupIds: []uuid.UUID{g1.ID, g2.ID}}
+		dbm.EXPECT().RemoveUserFromGroups(gomock.Any(), arg).Return(slice.New(g1.ID, g2.ID), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(slice.New(g1.ID, g2.ID))
 	}))
-	s.Run("UpdateGroupByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		g := dbgen.Group(s.T(), db, database.Group{})
-		check.Args(database.UpdateGroupByIDParams{
-			ID: g.ID,
-		}).Asserts(g, policy.ActionUpdate)
+
+	s.Run("UpdateGroupByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		g := testutil.Fake(s.T(), faker, database.Group{})
+		arg := database.UpdateGroupByIDParams{ID: g.ID}
+		ret := testutil.Fake(s.T(), faker, database.Group{ID: g.ID})
+		dbm.EXPECT().GetGroupByID(gomock.Any(), g.ID).Return(g, nil).AnyTimes()
+		dbm.EXPECT().UpdateGroupByID(gomock.Any(), arg).Return(ret, nil).AnyTimes()
+		check.Args(arg).Asserts(g, policy.ActionUpdate)
 	}))
-	s.Run("ValidateGroupIDs", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		g := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		check.Args([]uuid.UUID{g.ID}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+
+	s.Run("ValidateGroupIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		g := testutil.Fake(s.T(), faker, database.Group{OrganizationID: o.ID})
+		ids := []uuid.UUID{g.ID}
+		dbm.EXPECT().ValidateGroupIDs(gomock.Any(), ids).Return(database.ValidateGroupIDsRow{}, nil).AnyTimes()
+		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 }
 
