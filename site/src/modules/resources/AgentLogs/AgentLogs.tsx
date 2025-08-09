@@ -26,9 +26,11 @@ function groupLogSourcesById(
 
 const message: ReactNode = (
 	<p>
-		Startup logs exceeded the max size of 1MB, and will not continue to be
-		written to the database! Logs will continue to be written to the
-		/tmp/coder-startup-script.log file in the workspace.
+		Startup logs exceeded the max size of{" "}
+		<span className="tracking-wide font-mono">1MB</span>, and will not continue
+		to be written to the database! Logs will continue to be written to the
+		<span className="font-mono">/tmp/coder-startup-script.log</span> file in the
+		workspace.
 	</p>
 );
 
@@ -43,13 +45,11 @@ type AgentLogsProps = Omit<
 
 export const AgentLogs = forwardRef<List, AgentLogsProps>(
 	({ logs, sources, ...listProps }, ref) => {
-		// getLogSource always returns a valid log source. We need
-		// this to support deployments that were made before
-		// `coder_script` was created and that haven't updated yet
+		// getLogSource must always returns a valid log source. We need this to
+		// support deployments that were made before `coder_script` was created
+		// and that haven't updated to a newer Coder version yet
 		const logSourceByID = groupLogSourcesById(sources);
-		const getLogSource = (id: string): WorkspaceAgentLogSource => {
-			return logSourceByID[id] || fallbackLog;
-		};
+		const getLogSource = (id: string) => logSourceByID[id] || fallbackLog;
 
 		return (
 			<List
