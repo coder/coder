@@ -448,28 +448,32 @@ func (s *MethodTestSuite) TestConnectionLogs() {
 }
 
 func (s *MethodTestSuite) TestFile() {
-	s.Run("GetFileByHashAndCreator", s.Subtest(func(db database.Store, check *expects) {
-		f := dbgen.File(s.T(), db, database.File{})
+	s.Run("GetFileByHashAndCreator", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		f := testutil.Fake(s.T(), faker, database.File{})
+		dbm.EXPECT().GetFileByHashAndCreator(gomock.Any(), gomock.Any()).Return(f, nil).AnyTimes()
+		// dbauthz may attempt to check template access on NotAuthorized; ensure mock handles it.
+		dbm.EXPECT().GetFileTemplates(gomock.Any(), f.ID).Return([]database.GetFileTemplatesRow{}, nil).AnyTimes()
 		check.Args(database.GetFileByHashAndCreatorParams{
 			Hash:      f.Hash,
 			CreatedBy: f.CreatedBy,
 		}).Asserts(f, policy.ActionRead).Returns(f)
 	}))
-	s.Run("GetFileByID", s.Subtest(func(db database.Store, check *expects) {
-		f := dbgen.File(s.T(), db, database.File{})
+	s.Run("GetFileByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		f := testutil.Fake(s.T(), faker, database.File{})
+		dbm.EXPECT().GetFileByID(gomock.Any(), f.ID).Return(f, nil).AnyTimes()
+		dbm.EXPECT().GetFileTemplates(gomock.Any(), f.ID).Return([]database.GetFileTemplatesRow{}, nil).AnyTimes()
 		check.Args(f.ID).Asserts(f, policy.ActionRead).Returns(f)
 	}))
-	s.Run("GetFileIDByTemplateVersionID", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		u := dbgen.User(s.T(), db, database.User{})
-		_ = dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID})
-		f := dbgen.File(s.T(), db, database.File{CreatedBy: u.ID})
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{StorageMethod: database.ProvisionerStorageMethodFile, FileID: f.ID})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{OrganizationID: o.ID, JobID: j.ID, CreatedBy: u.ID})
-		check.Args(tv.ID).Asserts(rbac.ResourceFile.WithID(f.ID), policy.ActionRead).Returns(f.ID)
+	s.Run("GetFileIDByTemplateVersionID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		tvID := uuid.New()
+		fileID := uuid.New()
+		dbm.EXPECT().GetFileIDByTemplateVersionID(gomock.Any(), tvID).Return(fileID, nil).AnyTimes()
+		check.Args(tvID).Asserts(rbac.ResourceFile.WithID(fileID), policy.ActionRead).Returns(fileID)
 	}))
-	s.Run("InsertFile", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
+	s.Run("InsertFile", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		ret := testutil.Fake(s.T(), faker, database.File{CreatedBy: u.ID})
+		dbm.EXPECT().InsertFile(gomock.Any(), gomock.Any()).Return(ret, nil).AnyTimes()
 		check.Args(database.InsertFileParams{
 			CreatedBy: u.ID,
 		}).Asserts(rbac.ResourceFile.WithOwner(u.ID.String()), policy.ActionCreate)
