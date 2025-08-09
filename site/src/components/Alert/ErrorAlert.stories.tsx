@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Button } from "components/Button/Button";
 import { mockApiError } from "testHelpers/entities";
 import { ErrorAlert } from "./ErrorAlert";

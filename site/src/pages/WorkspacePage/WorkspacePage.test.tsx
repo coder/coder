@@ -10,7 +10,6 @@ import {
 import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import { http, HttpResponse } from "msw";
 import type { FC } from "react";
-import { type Location, useLocation } from "react-router-dom";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
@@ -54,13 +53,15 @@ const renderWorkspacePage = async (
 		.mockResolvedValueOnce(MockDeploymentConfig);
 	jest.spyOn(apiModule, "watchWorkspaceAgentLogs");
 
-	renderWithAuth(<WorkspacePage />, {
+	const result = renderWithAuth(<WorkspacePage />, {
 		...options,
 		route: `/@${workspace.owner_name}/${workspace.name}`,
 		path: "/:username/:workspace",
 	});
 
 	await screen.findByText(workspace.name);
+
+	return result;
 };
 
 /**
@@ -336,7 +337,7 @@ describe("WorkspacePage", () => {
 
 		// After trying to update, a new dialog asking for missed parameters should
 		// be displayed and filled
-		const dialog = await screen.findByTestId("dialog");
+		const dialog = await waitFor(() => screen.findByTestId("dialog"));
 		const firstParameterInput = within(dialog).getByLabelText(
 			MockTemplateVersionParameter1.name,
 			{ exact: false },
@@ -617,10 +618,8 @@ describe("WorkspacePage", () => {
 				</DashboardContext.Provider>
 			);
 
-			let destinationLocation!: Location;
 			const MockWorkspacesPage: FC = () => {
-				destinationLocation = useLocation();
-				return null;
+				return <h1>Workspaces</h1>;
 			};
 
 			const workspace: Workspace = {
@@ -628,7 +627,7 @@ describe("WorkspacePage", () => {
 				organization_name: MockOrganization.name,
 			};
 
-			await renderWorkspacePage(workspace, {
+			const { router } = await renderWorkspacePage(workspace, {
 				mockAuthProviders: {
 					DashboardProvider: MockDashboardProvider,
 				},
@@ -652,8 +651,9 @@ describe("WorkspacePage", () => {
 			const user = userEvent.setup();
 			await user.click(quotaLink);
 
-			expect(destinationLocation.pathname).toBe("/workspaces");
-			expect(destinationLocation.search).toBe(
+			await waitFor(() => screen.findByText("Workspaces"));
+			expect(router.state.location.pathname).toBe("/workspaces");
+			expect(router.state.location.search).toBe(
 				`?filter=organization:${orgName}`,
 			);
 		});

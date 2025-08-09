@@ -69,7 +69,7 @@ describe("OrganizationRedirect", () => {
 			}),
 		);
 		const router = await renderPage();
-		const form = screen.getByText("Organization Settings");
+		const form = await screen.findByText("Organization Settings");
 		expect(form).toBeInTheDocument();
 		expect(router.state.location.pathname).toBe(
 			`/organizations/${MockDefaultOrganization.name}`,
@@ -94,7 +94,7 @@ describe("OrganizationRedirect", () => {
 			}),
 		);
 		const router = await renderPage();
-		const form = screen.getByText("Organization Settings");
+		const form = await screen.findByText("Organization Settings");
 		expect(form).toBeInTheDocument();
 		expect(router.state.location.pathname).toBe(
 			`/organizations/${MockOrganization2.name}`,
