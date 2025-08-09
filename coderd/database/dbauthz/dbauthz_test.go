@@ -2762,268 +2762,178 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().GetLastUpdateCheck(gomock.Any()).Return("value", nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("GetWorkspaceBuildsCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{CreatedAt: time.Now().Add(-time.Hour)})
-		check.Args(time.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	s.Run("GetWorkspaceBuildsCreatedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ts := time.Now()
+		dbm.EXPECT().GetWorkspaceBuildsCreatedAfter(gomock.Any(), ts).Return([]database.WorkspaceBuild{}, nil).AnyTimes()
+		check.Args(ts).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("GetWorkspaceAgentsCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		_ = dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{CreatedAt: time.Now().Add(-time.Hour)})
-		check.Args(time.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	s.Run("GetWorkspaceAgentsCreatedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ts := time.Now()
+		dbm.EXPECT().GetWorkspaceAgentsCreatedAfter(gomock.Any(), ts).Return([]database.WorkspaceAgent{}, nil).AnyTimes()
+		check.Args(ts).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("GetWorkspaceAppsCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		_ = dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{CreatedAt: time.Now().Add(-time.Hour), OpenIn: database.WorkspaceAppOpenInSlimWindow})
-		check.Args(time.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	s.Run("GetWorkspaceAppsCreatedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ts := time.Now()
+		dbm.EXPECT().GetWorkspaceAppsCreatedAfter(gomock.Any(), ts).Return([]database.WorkspaceApp{}, nil).AnyTimes()
+		check.Args(ts).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("GetWorkspaceResourcesCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		_ = dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{CreatedAt: time.Now().Add(-time.Hour)})
-		check.Args(time.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	s.Run("GetWorkspaceResourcesCreatedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ts := time.Now()
+		dbm.EXPECT().GetWorkspaceResourcesCreatedAfter(gomock.Any(), ts).Return([]database.WorkspaceResource{}, nil).AnyTimes()
+		check.Args(ts).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("GetWorkspaceResourceMetadataCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		_ = dbgen.WorkspaceResourceMetadatums(s.T(), db, database.WorkspaceResourceMetadatum{})
-		check.Args(time.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	s.Run("GetWorkspaceResourceMetadataCreatedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ts := time.Now()
+		dbm.EXPECT().GetWorkspaceResourceMetadataCreatedAfter(gomock.Any(), ts).Return([]database.WorkspaceResourceMetadatum{}, nil).AnyTimes()
+		check.Args(ts).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("DeleteOldWorkspaceAgentStats", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("DeleteOldWorkspaceAgentStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().DeleteOldWorkspaceAgentStats(gomock.Any()).Return(nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
-	s.Run("GetProvisionerJobsCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
-		_ = dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{CreatedAt: time.Now().Add(-time.Hour)})
-		check.Args(time.Now()).Asserts(rbac.ResourceProvisionerJobs, policy.ActionRead)
+	s.Run("GetProvisionerJobsCreatedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ts := time.Now()
+		dbm.EXPECT().GetProvisionerJobsCreatedAfter(gomock.Any(), ts).Return([]database.ProvisionerJob{}, nil).AnyTimes()
+		check.Args(ts).Asserts(rbac.ResourceProvisionerJobs, policy.ActionRead)
 	}))
-	s.Run("GetTemplateVersionsByIDs", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		t2 := dbgen.Template(s.T(), db, database.Template{})
-		tv1 := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-		})
-		tv2 := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: t2.ID, Valid: true},
-		})
-		tv3 := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: t2.ID, Valid: true},
-		})
-		check.Args([]uuid.UUID{tv1.ID, tv2.ID, tv3.ID}).
+	s.Run("GetTemplateVersionsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		tv1 := testutil.Fake(s.T(), faker, database.TemplateVersion{})
+		tv2 := testutil.Fake(s.T(), faker, database.TemplateVersion{})
+		tv3 := testutil.Fake(s.T(), faker, database.TemplateVersion{})
+		ids := []uuid.UUID{tv1.ID, tv2.ID, tv3.ID}
+		dbm.EXPECT().GetTemplateVersionsByIDs(gomock.Any(), ids).Return([]database.TemplateVersion{tv1, tv2, tv3}, nil).AnyTimes()
+		check.Args(ids).
 			Asserts(rbac.ResourceSystem, policy.ActionRead).
 			Returns(slice.New(tv1, tv2, tv3))
 	}))
-	s.Run("GetParameterSchemasByJobID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		tpl := dbgen.Template(s.T(), db, database.Template{})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
-		})
-		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: tv.JobID})
-		check.Args(job.ID).
+	s.Run("GetParameterSchemasByJobID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		tpl := testutil.Fake(s.T(), faker, database.Template{})
+		v := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
+		jobID := v.JobID
+		dbm.EXPECT().GetTemplateVersionByJobID(gomock.Any(), jobID).Return(v, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+		dbm.EXPECT().GetParameterSchemasByJobID(gomock.Any(), jobID).Return([]database.ParameterSchema{}, nil).AnyTimes()
+		check.Args(jobID).
 			Asserts(tpl, policy.ActionRead).
 			ErrorsWithInMemDB(sql.ErrNoRows).
 			Returns([]database.ParameterSchema{})
 	}))
-	s.Run("GetWorkspaceAppsByAgentIDs", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		aWs := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
-		aBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: aWs.ID, JobID: uuid.New()})
-		aRes := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: aBuild.JobID})
-		aAgt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: aRes.ID})
-		a := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: aAgt.ID, OpenIn: database.WorkspaceAppOpenInSlimWindow})
-
-		bWs := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
-		bBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: bWs.ID, JobID: uuid.New()})
-		bRes := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: bBuild.JobID})
-		bAgt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: bRes.ID})
-		b := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: bAgt.ID, OpenIn: database.WorkspaceAppOpenInSlimWindow})
-
-		check.Args([]uuid.UUID{a.AgentID, b.AgentID}).
+	s.Run("GetWorkspaceAppsByAgentIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		a := testutil.Fake(s.T(), faker, database.WorkspaceApp{})
+		b := testutil.Fake(s.T(), faker, database.WorkspaceApp{})
+		ids := []uuid.UUID{a.AgentID, b.AgentID}
+		dbm.EXPECT().GetWorkspaceAppsByAgentIDs(gomock.Any(), ids).Return([]database.WorkspaceApp{a, b}, nil).AnyTimes()
+		check.Args(ids).
 			Asserts(rbac.ResourceSystem, policy.ActionRead).
 			Returns([]database.WorkspaceApp{a, b})
 	}))
-	s.Run("GetWorkspaceResourcesByJobIDs", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		tpl := dbgen.Template(s.T(), db, database.Template{})
-		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, JobID: uuid.New()})
-		tJob := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: v.JobID, Type: database.ProvisionerJobTypeTemplateVersionImport})
-
-		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-		wJob := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
-		check.Args([]uuid.UUID{tJob.ID, wJob.ID}).
+	s.Run("GetWorkspaceResourcesByJobIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ids := []uuid.UUID{uuid.New(), uuid.New()}
+		dbm.EXPECT().GetWorkspaceResourcesByJobIDs(gomock.Any(), ids).Return([]database.WorkspaceResource{}, nil).AnyTimes()
+		check.Args(ids).
 			Asserts(rbac.ResourceSystem, policy.ActionRead).
 			Returns([]database.WorkspaceResource{})
 	}))
-	s.Run("GetWorkspaceResourceMetadataByResourceIDs", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-		_ = dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
-		a := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
-		b := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
-		check.Args([]uuid.UUID{a.ID, b.ID}).
+	s.Run("GetWorkspaceResourceMetadataByResourceIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ids := []uuid.UUID{uuid.New(), uuid.New()}
+		dbm.EXPECT().GetWorkspaceResourceMetadataByResourceIDs(gomock.Any(), ids).Return([]database.WorkspaceResourceMetadatum{}, nil).AnyTimes()
+		check.Args(ids).
 			Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("GetWorkspaceAgentsByResourceIDs", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
-		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
-		check.Args([]uuid.UUID{res.ID}).
+	s.Run("GetWorkspaceAgentsByResourceIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		resID := uuid.New()
+		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
+		dbm.EXPECT().GetWorkspaceAgentsByResourceIDs(gomock.Any(), []uuid.UUID{resID}).Return([]database.WorkspaceAgent{agt}, nil).AnyTimes()
+		check.Args([]uuid.UUID{resID}).
 			Asserts(rbac.ResourceSystem, policy.ActionRead).
 			Returns([]database.WorkspaceAgent{agt})
 	}))
-	s.Run("GetProvisionerJobsByIDs", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		a := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{OrganizationID: o.ID})
-		b := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{OrganizationID: o.ID})
-		check.Args([]uuid.UUID{a.ID, b.ID}).
-			Asserts(rbac.ResourceProvisionerJobs.InOrg(o.ID), policy.ActionRead).
+	s.Run("GetProvisionerJobsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		a := testutil.Fake(s.T(), faker, database.ProvisionerJob{OrganizationID: org.ID})
+		b := testutil.Fake(s.T(), faker, database.ProvisionerJob{OrganizationID: org.ID})
+		ids := []uuid.UUID{a.ID, b.ID}
+		dbm.EXPECT().GetProvisionerJobsByIDs(gomock.Any(), ids).Return([]database.ProvisionerJob{a, b}, nil).AnyTimes()
+		check.Args(ids).
+			Asserts(rbac.ResourceProvisionerJobs.InOrg(org.ID), policy.ActionRead).
 			Returns(slice.New(a, b))
 	}))
-	s.Run("DeleteWorkspaceSubAgentByID", s.Subtest(func(db database.Store, check *expects) {
-		_ = dbgen.User(s.T(), db, database.User{})
-		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{Type: database.ProvisionerJobTypeWorkspaceBuild})
-		tpl := dbgen.Template(s.T(), db, database.Template{CreatedBy: u.ID, OrganizationID: o.ID})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
-			JobID:          j.ID,
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
-		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OwnerID: u.ID, TemplateID: tpl.ID, OrganizationID: o.ID})
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: j.ID, TemplateVersionID: tv.ID})
-		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: j.ID})
-		agent := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
-		_ = dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID, ParentID: uuid.NullUUID{Valid: true, UUID: agent.ID}})
+	s.Run("DeleteWorkspaceSubAgentByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		agent := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().DeleteWorkspaceSubAgentByID(gomock.Any(), agent.ID).Return(nil).AnyTimes()
 		check.Args(agent.ID).Asserts(ws, policy.ActionDeleteAgent)
 	}))
-	s.Run("GetWorkspaceAgentsByParentID", s.Subtest(func(db database.Store, check *expects) {
-		_ = dbgen.User(s.T(), db, database.User{})
-		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{Type: database.ProvisionerJobTypeWorkspaceBuild})
-		tpl := dbgen.Template(s.T(), db, database.Template{CreatedBy: u.ID, OrganizationID: o.ID})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
-			JobID:          j.ID,
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
-		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OwnerID: u.ID, TemplateID: tpl.ID, OrganizationID: o.ID})
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: j.ID, TemplateVersionID: tv.ID})
-		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: j.ID})
-		agent := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
-		_ = dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID, ParentID: uuid.NullUUID{Valid: true, UUID: agent.ID}})
-		check.Args(agent.ID).Asserts(ws, policy.ActionRead)
+	s.Run("GetWorkspaceAgentsByParentID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		parent := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
+		child := testutil.Fake(s.T(), faker, database.WorkspaceAgent{ParentID: uuid.NullUUID{Valid: true, UUID: parent.ID}})
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), parent.ID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceAgentsByParentID(gomock.Any(), parent.ID).Return([]database.WorkspaceAgent{child}, nil).AnyTimes()
+		check.Args(parent.ID).Asserts(ws, policy.ActionRead)
 	}))
-	s.Run("InsertWorkspaceAgent", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{Type: database.ProvisionerJobTypeWorkspaceBuild})
-		tpl := dbgen.Template(s.T(), db, database.Template{CreatedBy: u.ID, OrganizationID: o.ID})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
-			JobID:          j.ID,
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
-		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OwnerID: u.ID, TemplateID: tpl.ID, OrganizationID: o.ID})
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: j.ID, TemplateVersionID: tv.ID})
-		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: j.ID})
-		check.Args(database.InsertWorkspaceAgentParams{
-			ID:          uuid.New(),
-			ResourceID:  res.ID,
-			Name:        "dev",
-			APIKeyScope: database.AgentKeyScopeEnumAll,
-		}).Asserts(ws, policy.ActionCreateAgent)
+	s.Run("InsertWorkspaceAgent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		res := testutil.Fake(s.T(), faker, database.WorkspaceResource{})
+		arg := database.InsertWorkspaceAgentParams{ID: uuid.New(), ResourceID: res.ID, Name: "dev", APIKeyScope: database.AgentKeyScopeEnumAll}
+		dbm.EXPECT().GetWorkspaceByResourceID(gomock.Any(), res.ID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().InsertWorkspaceAgent(gomock.Any(), arg).Return(testutil.Fake(s.T(), faker, database.WorkspaceAgent{ResourceID: res.ID}), nil).AnyTimes()
+		check.Args(arg).Asserts(ws, policy.ActionCreateAgent)
 	}))
-	s.Run("UpsertWorkspaceApp", s.Subtest(func(db database.Store, check *expects) {
-		_ = dbgen.User(s.T(), db, database.User{})
-		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{Type: database.ProvisionerJobTypeWorkspaceBuild})
-		tpl := dbgen.Template(s.T(), db, database.Template{CreatedBy: u.ID, OrganizationID: o.ID})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
-			JobID:          j.ID,
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
-		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OwnerID: u.ID, TemplateID: tpl.ID, OrganizationID: o.ID})
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: j.ID, TemplateVersionID: tv.ID})
-		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: j.ID})
-		agent := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
-		check.Args(database.UpsertWorkspaceAppParams{
-			ID:           uuid.New(),
-			AgentID:      agent.ID,
-			Health:       database.WorkspaceAppHealthDisabled,
-			SharingLevel: database.AppSharingLevelOwner,
-			OpenIn:       database.WorkspaceAppOpenInSlimWindow,
-		}).Asserts(ws, policy.ActionUpdate)
+	s.Run("UpsertWorkspaceApp", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		agent := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
+		arg := database.UpsertWorkspaceAppParams{ID: uuid.New(), AgentID: agent.ID, Health: database.WorkspaceAppHealthDisabled, SharingLevel: database.AppSharingLevelOwner, OpenIn: database.WorkspaceAppOpenInSlimWindow}
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().UpsertWorkspaceApp(gomock.Any(), arg).Return(testutil.Fake(s.T(), faker, database.WorkspaceApp{AgentID: agent.ID}), nil).AnyTimes()
+		check.Args(arg).Asserts(ws, policy.ActionUpdate)
 	}))
-	s.Run("InsertWorkspaceResourceMetadata", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.InsertWorkspaceResourceMetadataParams{
-			WorkspaceResourceID: uuid.New(),
-		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	s.Run("InsertWorkspaceResourceMetadata", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertWorkspaceResourceMetadataParams{WorkspaceResourceID: uuid.New()}
+		dbm.EXPECT().InsertWorkspaceResourceMetadata(gomock.Any(), arg).Return([]database.WorkspaceResourceMetadatum{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
-	s.Run("UpdateWorkspaceAgentConnectionByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
-		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
-		check.Args(database.UpdateWorkspaceAgentConnectionByIDParams{
-			ID: agt.ID,
-		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
+	s.Run("UpdateWorkspaceAgentConnectionByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
+		arg := database.UpdateWorkspaceAgentConnectionByIDParams{ID: agt.ID}
+		dbm.EXPECT().UpdateWorkspaceAgentConnectionByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
 	}))
-	s.Run("AcquireProvisionerJob", s.Subtest(func(db database.Store, check *expects) {
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			StartedAt: sql.NullTime{Valid: false},
-			UpdatedAt: time.Now(),
-		})
-		check.Args(database.AcquireProvisionerJobParams{
-			StartedAt:       sql.NullTime{Valid: true, Time: time.Now()},
-			OrganizationID:  j.OrganizationID,
-			Types:           []database.ProvisionerType{j.Provisioner},
-			ProvisionerTags: must(json.Marshal(j.Tags)),
-		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
+	s.Run("AcquireProvisionerJob", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.AcquireProvisionerJobParams{StartedAt: sql.NullTime{Valid: true, Time: time.Now()}, OrganizationID: uuid.New(), Types: []database.ProvisionerType{database.ProvisionerTypeEcho}, ProvisionerTags: json.RawMessage("{}")}
+		dbm.EXPECT().AcquireProvisionerJob(gomock.Any(), arg).Return(testutil.Fake(s.T(), faker, database.ProvisionerJob{}), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
 	}))
-	s.Run("UpdateProvisionerJobWithCompleteByID", s.Subtest(func(db database.Store, check *expects) {
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
-		check.Args(database.UpdateProvisionerJobWithCompleteByIDParams{
-			ID: j.ID,
-		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
+	s.Run("UpdateProvisionerJobWithCompleteByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{})
+		arg := database.UpdateProvisionerJobWithCompleteByIDParams{ID: j.ID}
+		dbm.EXPECT().UpdateProvisionerJobWithCompleteByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
 	}))
-	s.Run("UpdateProvisionerJobWithCompleteWithStartedAtByID", s.Subtest(func(db database.Store, check *expects) {
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
-		check.Args(database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams{
-			ID: j.ID,
-		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
+	s.Run("UpdateProvisionerJobWithCompleteWithStartedAtByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{})
+		arg := database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams{ID: j.ID}
+		dbm.EXPECT().UpdateProvisionerJobWithCompleteWithStartedAtByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
 	}))
-	s.Run("UpdateProvisionerJobByID", s.Subtest(func(db database.Store, check *expects) {
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
-		check.Args(database.UpdateProvisionerJobByIDParams{
-			ID:        j.ID,
-			UpdatedAt: time.Now(),
-		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
+	s.Run("UpdateProvisionerJobByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{})
+		arg := database.UpdateProvisionerJobByIDParams{ID: j.ID, UpdatedAt: time.Now()}
+		dbm.EXPECT().UpdateProvisionerJobByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
 	}))
-	s.Run("UpdateProvisionerJobLogsLength", s.Subtest(func(db database.Store, check *expects) {
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
-		check.Args(database.UpdateProvisionerJobLogsLengthParams{
-			ID:         j.ID,
-			LogsLength: 100,
-		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
+	s.Run("UpdateProvisionerJobLogsLength", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{})
+		arg := database.UpdateProvisionerJobLogsLengthParams{ID: j.ID, LogsLength: 100}
+		dbm.EXPECT().UpdateProvisionerJobLogsLength(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
 	}))
-	s.Run("UpdateProvisionerJobLogsOverflowed", s.Subtest(func(db database.Store, check *expects) {
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
-		check.Args(database.UpdateProvisionerJobLogsOverflowedParams{
-			ID:             j.ID,
-			LogsOverflowed: true,
-		}).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
+	s.Run("UpdateProvisionerJobLogsOverflowed", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{})
+		arg := database.UpdateProvisionerJobLogsOverflowedParams{ID: j.ID, LogsOverflowed: true}
+		dbm.EXPECT().UpdateProvisionerJobLogsOverflowed(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
 	}))
 	s.Run("InsertProvisionerJob", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
