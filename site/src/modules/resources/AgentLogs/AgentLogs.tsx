@@ -36,7 +36,7 @@ const message: ReactNode = (
 
 type AgentLogsProps = Omit<
 	ComponentProps<typeof List>,
-	"children" | "itemSize" | "itemCount"
+	"children" | "itemSize" | "itemCount" | "itemKey"
 > & {
 	logs: readonly Line[];
 	sources: readonly WorkspaceAgentLogSource[];
@@ -44,7 +44,7 @@ type AgentLogsProps = Omit<
 };
 
 export const AgentLogs = forwardRef<List, AgentLogsProps>(
-	({ logs, sources, ...listProps }, ref) => {
+	({ logs, sources, overflowed, ...listProps }, ref) => {
 		// getLogSource must always returns a valid log source. We need this to
 		// support deployments that were made before `coder_script` was created
 		// and that haven't updated to a newer Coder version yet
@@ -53,11 +53,12 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 
 		return (
 			<List
+				{...listProps}
 				ref={ref}
 				css={styles.logs}
 				itemCount={logs.length}
 				itemSize={AGENT_LOG_LINE_HEIGHT}
-				{...listProps}
+				itemKey={(index) => logs[index].id || 0}
 			>
 				{({ index, style }) => {
 					const log = logs[index];
