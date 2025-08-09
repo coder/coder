@@ -6,7 +6,6 @@ import type {
 	Template,
 	Workspace,
 	WorkspaceAgent,
-	WorkspaceAgentLog,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
@@ -80,22 +79,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
 	const logListRef = useRef<List>(null);
 	const logListDivRef = useRef<HTMLDivElement>(null);
-	const startupLogs = useMemo<readonly WorkspaceAgentLog[]>(() => {
-		if (!agent.logs_overflowed) {
-			return agentLogs;
-		}
-		return [
-			...agentLogs,
-			{
-				id: -1,
-				level: "error",
-				output:
-					"Startup logs exceeded the max size of 1MB, and will not continue to be written to the database! Logs will continue to be written to the /tmp/coder-startup-script.log file in the workspace.",
-				created_at: agentLogs.at(-1)?.created_at || new Date().toISOString(),
-				source_id: "",
-			},
-		];
-	}, [agentLogs, agent.logs_overflowed]);
 	const [bottomOfLogs, setBottomOfLogs] = useState(true);
 
 	useEffect(() => {
@@ -107,9 +90,9 @@ export const AgentRow: FC<AgentRowProps> = ({
 	useLayoutEffect(() => {
 		// If we're currently watching the bottom, we always want to stay at the bottom.
 		if (bottomOfLogs && logListRef.current) {
-			logListRef.current.scrollToItem(startupLogs.length - 1, "end");
+			logListRef.current.scrollToItem(agentLogs.length - 1, "end");
 		}
-	}, [showLogs, startupLogs, bottomOfLogs]);
+	}, [showLogs, agentLogs, bottomOfLogs]);
 
 	// This is a bit of a hack on the react-window API to get the scroll position.
 	// If we're scrolled to the bottom, we want to keep the list scrolled to the bottom.
@@ -313,7 +296,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 									width={width}
 									css={styles.startupLogs}
 									onScroll={handleLogScroll}
-									logs={startupLogs.map((l) => ({
+									overflowed={agent.logs_overflowed}
+									logs={agentLogs.map((l) => ({
 										id: l.id,
 										level: l.level,
 										output: l.output,

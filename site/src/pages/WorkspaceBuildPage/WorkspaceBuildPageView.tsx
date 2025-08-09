@@ -311,16 +311,17 @@ const AgentLogsContent: FC<AgentLogsContentProps> = ({ agent }) => {
 	const logs = useAgentLogs({ agentId: agent.id });
 	return (
 		<AgentLogs
+			overflowed={false}
 			sources={agent.log_sources}
-			logs={logs.map<Line>((l) => ({
+			height={560}
+			width="100%"
+			logs={logs.map((l) => ({
 				id: l.id,
 				output: l.output,
 				time: l.created_at,
 				level: l.level,
 				sourceId: l.source_id,
 			}))}
-			height={560}
-			width="100%"
 		/>
 	);
 };

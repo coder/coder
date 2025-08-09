@@ -2,9 +2,33 @@ import type { Interpolation, Theme } from "@emotion/react";
 import Tooltip from "@mui/material/Tooltip";
 import type { WorkspaceAgentLogSource } from "api/typesGenerated";
 import type { Line } from "components/Logs/LogLine";
-import { type ComponentProps, forwardRef, useMemo } from "react";
+import { type ComponentProps, forwardRef, ReactNode } from "react";
 import { FixedSizeList as List } from "react-window";
 import { AGENT_LOG_LINE_HEIGHT, AgentLogLine } from "./AgentLogLine";
+
+const fallbackLog: WorkspaceAgentLogSource = {
+	created_at: "",
+	display_name: "Logs",
+	icon: "",
+	id: "00000000-0000-0000-0000-000000000000",
+	workspace_agent_id: "",
+};
+
+function groupLogSourcesById(sources: readonly WorkspaceAgentLogSource[]): Record<string, WorkspaceAgentLogSource> {
+	const sourcesById: Record<string, WorkspaceAgentLogSource> = {};
+	for (const source of sources) {
+		sourcesById[source.id] = source;
+	}
+	return sourcesById;
+}
+
+const message: ReactNode = (
+	<p>
+		Startup logs exceeded the max size of 1MB, and will not continue to be
+		written to the database! Logs will continue to be written to the
+		/tmp/coder-startup-script.log file in the workspace.
+	</p>
+)
 
 type AgentLogsProps = Omit<
 	ComponentProps<typeof List>,
@@ -12,17 +36,18 @@ type AgentLogsProps = Omit<
 > & {
 	logs: readonly Line[];
 	sources: readonly WorkspaceAgentLogSource[];
+	overflowed: boolean;
 };
 
 export const AgentLogs = forwardRef<List, AgentLogsProps>(
 	({ logs, sources, ...listProps }, ref) => {
-		const logSourceByID = useMemo(() => {
-			const sourcesById: { [id: string]: WorkspaceAgentLogSource } = {};
-			for (const source of sources) {
-				sourcesById[source.id] = source;
-			}
-			return sourcesById;
-		}, [sources]);
+		// getLogSource always returns a valid log source. We need
+		// this to support deployments that were made before
+		// `coder_script` was created and that haven't updated yet
+		const logSourceByID = groupLogSourcesById(sources);
+		const getLogSource = (id: string): WorkspaceAgentLogSource => {
+			return logSourceByID[id] || fallbackLog;
+		};
 
 		return (
 			<List
@@ -34,20 +59,6 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 			>
 				{({ index, style }) => {
 					const log = logs[index];
-					// getLogSource always returns a valid log source.
-					// This is necessary to support deployments before `coder_script`.
-					// Existed that haven't restarted their agents.
-					const getLogSource = (id: string): WorkspaceAgentLogSource => {
-						return (
-							logSourceByID[id] || {
-								created_at: "",
-								display_name: "Logs",
-								icon: "",
-								id: "00000000-0000-0000-0000-000000000000",
-								workspace_agent_id: "",
-							}
-						);
-					};
 					const logSource = getLogSource(log.sourceId);
 
 					let assignedIcon = false;
@@ -85,9 +96,9 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 						assignedIcon = true;
 					}
 
-					let nextChangesSource = false;
+					let doesNextLineHaveDifferentSource = false;
 					if (index < logs.length - 1) {
-						nextChangesSource =
+						doesNextLineHaveDifferentSource =
 							getLogSource(logs[index + 1].sourceId).id !== log.sourceId;
 					}
 					// We don't want every line to repeat the icon, because
@@ -114,13 +125,13 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 								<div
 									className="dashed-line"
 									css={(theme) => ({
-										height: nextChangesSource ? "50%" : "100%",
+										height: doesNextLineHaveDifferentSource ? "50%" : "100%",
 										width: 2,
 										background: theme.experimental.l1.outline,
 										borderRadius: 2,
 									})}
 								/>
-								{nextChangesSource && (
+								{doesNextLineHaveDifferentSource && (
 									<div
 										className="dashed-line"
 										css={(theme) => ({
@@ -140,7 +151,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 
 					return (
 						<AgentLogLine
-							line={logs[index]}
+							line={log}
 							number={index + 1}
 							maxLineNumber={logs.length}
 							style={style}
@@ -172,7 +183,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 // These colors were picked at random. Feel free
 // to add more, adjust, or change! Users will not
 // depend on these colors.
-const scriptDisplayColors = [
+const scriptDisplayColors: readonly string[] = [
 	"#85A3B2",
 	"#A37EB2",
 	"#C29FDE",
