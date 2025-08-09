@@ -315,107 +315,33 @@ func (s *MethodTestSuite) TestAuditLogs() {
 }
 
 func (s *MethodTestSuite) TestConnectionLogs() {
-	createWorkspace := func(t *testing.T, db database.Store) database.WorkspaceTable {
-		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
-		return dbgen.Workspace(s.T(), db, database.WorkspaceTable{
-			ID:               uuid.New(),
-			OwnerID:          u.ID,
-			OrganizationID:   o.ID,
-			AutomaticUpdates: database.AutomaticUpdatesNever,
-			TemplateID:       tpl.ID,
-		})
-	}
-	s.Run("UpsertConnectionLog", s.Subtest(func(db database.Store, check *expects) {
-		ws := createWorkspace(s.T(), db)
-		check.Args(database.UpsertConnectionLogParams{
-			Ip:               defaultIPAddress(),
-			Type:             database.ConnectionTypeSsh,
-			WorkspaceID:      ws.ID,
-			OrganizationID:   ws.OrganizationID,
-			ConnectionStatus: database.ConnectionStatusConnected,
-			WorkspaceOwnerID: ws.OwnerID,
-		}).Asserts(rbac.ResourceConnectionLog, policy.ActionUpdate)
+	s.Run("UpsertConnectionLog", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.WorkspaceTable{})
+		arg := database.UpsertConnectionLogParams{Ip: defaultIPAddress(), Type: database.ConnectionTypeSsh, WorkspaceID: ws.ID, OrganizationID: ws.OrganizationID, ConnectionStatus: database.ConnectionStatusConnected, WorkspaceOwnerID: ws.OwnerID}
+		dbm.EXPECT().UpsertConnectionLog(gomock.Any(), arg).Return(database.ConnectionLog{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceConnectionLog, policy.ActionUpdate)
 	}))
-	s.Run("GetConnectionLogsOffset", s.Subtest(func(db database.Store, check *expects) {
-		ws := createWorkspace(s.T(), db)
-		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
-			Ip:               defaultIPAddress(),
-			Type:             database.ConnectionTypeSsh,
-			WorkspaceID:      ws.ID,
-			OrganizationID:   ws.OrganizationID,
-			WorkspaceOwnerID: ws.OwnerID,
-		})
-		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
-			Ip:               defaultIPAddress(),
-			Type:             database.ConnectionTypeSsh,
-			WorkspaceID:      ws.ID,
-			OrganizationID:   ws.OrganizationID,
-			WorkspaceOwnerID: ws.OwnerID,
-		})
-		check.Args(database.GetConnectionLogsOffsetParams{
-			LimitOpt: 10,
-		}).Asserts(rbac.ResourceConnectionLog, policy.ActionRead).WithNotAuthorized("nil")
+	s.Run("GetConnectionLogsOffset", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetConnectionLogsOffsetParams{LimitOpt: 10}
+		dbm.EXPECT().GetConnectionLogsOffset(gomock.Any(), arg).Return([]database.GetConnectionLogsOffsetRow{}, nil).AnyTimes()
+		dbm.EXPECT().GetAuthorizedConnectionLogsOffset(gomock.Any(), arg, gomock.Any()).Return([]database.GetConnectionLogsOffsetRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceConnectionLog, policy.ActionRead).WithNotAuthorized("nil")
 	}))
-	s.Run("GetAuthorizedConnectionLogsOffset", s.Subtest(func(db database.Store, check *expects) {
-		ws := createWorkspace(s.T(), db)
-		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
-			Ip:               defaultIPAddress(),
-			Type:             database.ConnectionTypeSsh,
-			WorkspaceID:      ws.ID,
-			OrganizationID:   ws.OrganizationID,
-			WorkspaceOwnerID: ws.OwnerID,
-		})
-		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
-			Ip:               defaultIPAddress(),
-			Type:             database.ConnectionTypeSsh,
-			WorkspaceID:      ws.ID,
-			OrganizationID:   ws.OrganizationID,
-			WorkspaceOwnerID: ws.OwnerID,
-		})
-		check.Args(database.GetConnectionLogsOffsetParams{
-			LimitOpt: 10,
-		}, emptyPreparedAuthorized{}).Asserts(rbac.ResourceConnectionLog, policy.ActionRead)
+	s.Run("GetAuthorizedConnectionLogsOffset", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetConnectionLogsOffsetParams{LimitOpt: 10}
+		dbm.EXPECT().GetAuthorizedConnectionLogsOffset(gomock.Any(), arg, gomock.Any()).Return([]database.GetConnectionLogsOffsetRow{}, nil).AnyTimes()
+		dbm.EXPECT().GetConnectionLogsOffset(gomock.Any(), arg).Return([]database.GetConnectionLogsOffsetRow{}, nil).AnyTimes()
+		check.Args(arg, emptyPreparedAuthorized{}).Asserts(rbac.ResourceConnectionLog, policy.ActionRead)
 	}))
-	s.Run("CountConnectionLogs", s.Subtest(func(db database.Store, check *expects) {
-		ws := createWorkspace(s.T(), db)
-		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
-			Type:             database.ConnectionTypeSsh,
-			WorkspaceID:      ws.ID,
-			OrganizationID:   ws.OrganizationID,
-			WorkspaceOwnerID: ws.OwnerID,
-		})
-		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
-			Type:             database.ConnectionTypeSsh,
-			WorkspaceID:      ws.ID,
-			OrganizationID:   ws.OrganizationID,
-			WorkspaceOwnerID: ws.OwnerID,
-		})
-		check.Args(database.CountConnectionLogsParams{}).Asserts(
-			rbac.ResourceConnectionLog, policy.ActionRead,
-		).WithNotAuthorized("nil")
+	s.Run("CountConnectionLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().CountConnectionLogs(gomock.Any(), database.CountConnectionLogsParams{}).Return(int64(0), nil).AnyTimes()
+		dbm.EXPECT().CountAuthorizedConnectionLogs(gomock.Any(), database.CountConnectionLogsParams{}, gomock.Any()).Return(int64(0), nil).AnyTimes()
+		check.Args(database.CountConnectionLogsParams{}).Asserts(rbac.ResourceConnectionLog, policy.ActionRead).WithNotAuthorized("nil")
 	}))
-	s.Run("CountAuthorizedConnectionLogs", s.Subtest(func(db database.Store, check *expects) {
-		ws := createWorkspace(s.T(), db)
-		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
-			Type:             database.ConnectionTypeSsh,
-			WorkspaceID:      ws.ID,
-			OrganizationID:   ws.OrganizationID,
-			WorkspaceOwnerID: ws.OwnerID,
-		})
-		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
-			Type:             database.ConnectionTypeSsh,
-			WorkspaceID:      ws.ID,
-			OrganizationID:   ws.OrganizationID,
-			WorkspaceOwnerID: ws.OwnerID,
-		})
-		check.Args(database.CountConnectionLogsParams{}, emptyPreparedAuthorized{}).Asserts(
-			rbac.ResourceConnectionLog, policy.ActionRead,
-		)
+	s.Run("CountAuthorizedConnectionLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().CountAuthorizedConnectionLogs(gomock.Any(), database.CountConnectionLogsParams{}, gomock.Any()).Return(int64(0), nil).AnyTimes()
+		dbm.EXPECT().CountConnectionLogs(gomock.Any(), database.CountConnectionLogsParams{}).Return(int64(0), nil).AnyTimes()
+		check.Args(database.CountConnectionLogsParams{}, emptyPreparedAuthorized{}).Asserts(rbac.ResourceConnectionLog, policy.ActionRead)
 	}))
 }
 
