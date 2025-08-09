@@ -3735,58 +3735,46 @@ func (s *MethodTestSuite) TestDBCrypt() {
 }
 
 func (s *MethodTestSuite) TestCryptoKeys() {
-	s.Run("GetCryptoKeys", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().
-			Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
-	}))
-	s.Run("InsertCryptoKey", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.InsertCryptoKeyParams{
-			Feature: database.CryptoKeyFeatureWorkspaceAppsAPIKey,
-		}).
-			Asserts(rbac.ResourceCryptoKey, policy.ActionCreate)
-	}))
-	s.Run("DeleteCryptoKey", s.Subtest(func(db database.Store, check *expects) {
-		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
-			Sequence: 4,
-		})
-		check.Args(database.DeleteCryptoKeyParams{
-			Feature:  key.Feature,
-			Sequence: key.Sequence,
-		}).Asserts(rbac.ResourceCryptoKey, policy.ActionDelete)
-	}))
-	s.Run("GetCryptoKeyByFeatureAndSequence", s.Subtest(func(db database.Store, check *expects) {
-		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
-			Sequence: 4,
-		})
-		check.Args(database.GetCryptoKeyByFeatureAndSequenceParams{
-			Feature:  key.Feature,
-			Sequence: key.Sequence,
-		}).Asserts(rbac.ResourceCryptoKey, policy.ActionRead).Returns(key)
-	}))
-	s.Run("GetLatestCryptoKeyByFeature", s.Subtest(func(db database.Store, check *expects) {
-		dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
-			Sequence: 4,
-		})
-		check.Args(database.CryptoKeyFeatureWorkspaceAppsAPIKey).Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
-	}))
-	s.Run("UpdateCryptoKeyDeletesAt", s.Subtest(func(db database.Store, check *expects) {
-		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
-			Sequence: 4,
-		})
-		check.Args(database.UpdateCryptoKeyDeletesAtParams{
-			Feature:   key.Feature,
-			Sequence:  key.Sequence,
-			DeletesAt: sql.NullTime{Time: time.Now(), Valid: true},
-		}).Asserts(rbac.ResourceCryptoKey, policy.ActionUpdate)
-	}))
-	s.Run("GetCryptoKeysByFeature", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.CryptoKeyFeatureWorkspaceAppsAPIKey).
-			Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
-	}))
+    s.Run("GetCryptoKeys", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        dbm.EXPECT().GetCryptoKeys(gomock.Any()).Return([]database.CryptoKey{}, nil).AnyTimes()
+        check.Args().
+            Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
+    }))
+    s.Run("InsertCryptoKey", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        arg := database.InsertCryptoKeyParams{Feature: database.CryptoKeyFeatureWorkspaceAppsAPIKey}
+        dbm.EXPECT().InsertCryptoKey(gomock.Any(), arg).Return(database.CryptoKey{}, nil).AnyTimes()
+        check.Args(arg).
+            Asserts(rbac.ResourceCryptoKey, policy.ActionCreate)
+    }))
+    s.Run("DeleteCryptoKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        key := testutil.Fake(s.T(), faker, database.CryptoKey{Feature: database.CryptoKeyFeatureWorkspaceAppsAPIKey, Sequence: 4})
+        arg := database.DeleteCryptoKeyParams{Feature: key.Feature, Sequence: key.Sequence}
+        dbm.EXPECT().DeleteCryptoKey(gomock.Any(), arg).Return(key, nil).AnyTimes()
+        check.Args(arg).Asserts(rbac.ResourceCryptoKey, policy.ActionDelete)
+    }))
+    s.Run("GetCryptoKeyByFeatureAndSequence", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        key := testutil.Fake(s.T(), faker, database.CryptoKey{Feature: database.CryptoKeyFeatureWorkspaceAppsAPIKey, Sequence: 4})
+        arg := database.GetCryptoKeyByFeatureAndSequenceParams{Feature: key.Feature, Sequence: key.Sequence}
+        dbm.EXPECT().GetCryptoKeyByFeatureAndSequence(gomock.Any(), arg).Return(key, nil).AnyTimes()
+        check.Args(arg).Asserts(rbac.ResourceCryptoKey, policy.ActionRead).Returns(key)
+    }))
+    s.Run("GetLatestCryptoKeyByFeature", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        feature := database.CryptoKeyFeatureWorkspaceAppsAPIKey
+        dbm.EXPECT().GetLatestCryptoKeyByFeature(gomock.Any(), feature).Return(database.CryptoKey{}, nil).AnyTimes()
+        check.Args(feature).Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
+    }))
+    s.Run("UpdateCryptoKeyDeletesAt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        key := testutil.Fake(s.T(), faker, database.CryptoKey{Feature: database.CryptoKeyFeatureWorkspaceAppsAPIKey, Sequence: 4})
+        arg := database.UpdateCryptoKeyDeletesAtParams{Feature: key.Feature, Sequence: key.Sequence, DeletesAt: sql.NullTime{Time: time.Now(), Valid: true}}
+        dbm.EXPECT().UpdateCryptoKeyDeletesAt(gomock.Any(), arg).Return(key, nil).AnyTimes()
+        check.Args(arg).Asserts(rbac.ResourceCryptoKey, policy.ActionUpdate)
+    }))
+    s.Run("GetCryptoKeysByFeature", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        feature := database.CryptoKeyFeatureWorkspaceAppsAPIKey
+        dbm.EXPECT().GetCryptoKeysByFeature(gomock.Any(), feature).Return([]database.CryptoKey{}, nil).AnyTimes()
+        check.Args(feature).
+            Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
+    }))
 }
 
 func (s *MethodTestSuite) TestSystemFunctions() {
