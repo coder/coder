@@ -15,12 +15,18 @@ export type CreateUseAgentLogsOptions = Readonly<{
 	) => OneWayWebSocket<WorkspaceAgentLog[]>;
 }>;
 
-export function createUseAgentLogs(options: CreateUseAgentLogsOptions) {
-	const { createSocket, onError } = options;
+type UseAgentLogsOptions = Readonly<{
+	agentId: string;
+	enabled?: boolean;
+}>;
+
+export function createUseAgentLogs(createOptions: CreateUseAgentLogsOptions) {
+	const { createSocket, onError } = createOptions;
+
 	return function useAgentLogs(
-		agentId: string,
-		enabled: boolean,
+		options: UseAgentLogsOptions,
 	): readonly WorkspaceAgentLog[] {
+		const { agentId, enabled = true } = options;
 		const [logs, setLogs] = useState<readonly WorkspaceAgentLog[]>([]);
 
 		// Clean up the logs when the agent is not enabled, using a mid-render

@@ -16,7 +16,7 @@ const millisecondsInOneMinute = 60_000;
 
 function generateMockLogs(
 	logCount: number,
-	baseDate = new Date(),
+	baseDate = new Date("April 1, 1970"),
 ): readonly WorkspaceAgentLog[] {
 	return Array.from({ length: logCount }, (_, i) => {
 		// Make sure that the logs generated each have unique timestamps, so
@@ -76,7 +76,7 @@ function mountHook(options: MountHookOptions): MountHookResult {
 	});
 
 	const { result: hookResult, rerender } = renderHook(
-		({ agentId, enabled }) => useAgentLogs(agentId, enabled),
+		(props) => useAgentLogs(props),
 		{ initialProps: { agentId: initialAgentId, enabled: enabled } },
 	);
 
@@ -93,7 +93,7 @@ describe("useAgentLogs", () => {
 		const reversed = logs.toReversed();
 
 		for (const log of reversed) {
-			act(() => {
+			await act(async () => {
 				serverResult.current?.publishMessage(
 					new MessageEvent("message", { data: JSON.stringify([log]) }),
 				);
@@ -153,15 +153,17 @@ describe("useAgentLogs", () => {
 		});
 
 		const errorEvent = new Event("error");
-		act(() => serverResult.current?.publishError(errorEvent));
+		await act(async () => serverResult.current?.publishError(errorEvent));
 		expect(onError).not.toHaveBeenCalled();
 
 		rerender({ agentId: MockWorkspaceAgent.id, enabled: true });
-		act(() => serverResult.current?.publishError(errorEvent));
+		await act(async () => serverResult.current?.publishError(errorEvent));
 		expect(onError).toHaveBeenCalledTimes(1);
 	});
 
-	it("Clears logs when hook becomes disabled (protection to avoid duplicate logs when hook goes back to being re-enabled)", async () => {
+	// This is a protection to avoid duplicate logs when the hook goes back to
+	// being re-enabled
+	it("Clears logs when hook becomes disabled", async () => {
 		const { hookResult, serverResult, rerender } = mountHook({
 			initialAgentId: MockWorkspaceAgent.id,
 		});
@@ -171,7 +173,7 @@ describe("useAgentLogs", () => {
 		const initialEvent = new MessageEvent("message", {
 			data: JSON.stringify(initialLogs),
 		});
-		act(() => serverResult.current?.publishMessage(initialEvent));
+		await act(async () => serverResult.current?.publishMessage(initialEvent));
 		await waitFor(() => expect(hookResult.current).toEqual(initialLogs));
 
 		// Need to do the following steps multiple times to make sure that we
@@ -188,7 +190,7 @@ describe("useAgentLogs", () => {
 			const newEvent = new MessageEvent("message", {
 				data: JSON.stringify(newLogs),
 			});
-			act(() => serverResult.current?.publishMessage(newEvent));
+			await act(async () => serverResult.current?.publishMessage(newEvent));
 			await waitFor(() => expect(hookResult.current).toEqual(newLogs));
 		}
 	});

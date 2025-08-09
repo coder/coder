@@ -77,7 +77,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		["starting", "start_timeout"].includes(agent.lifecycle_state) &&
 			hasStartupFeatures,
 	);
-	const agentLogs = useAgentLogs(agent.id, showLogs);
+	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
 	const logListRef = useRef<List>(null);
 	const logListDivRef = useRef<HTMLDivElement>(null);
 	const startupLogs = useMemo<readonly WorkspaceAgentLog[]>(() => {
@@ -91,7 +91,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 				level: "error",
 				output:
 					"Startup logs exceeded the max size of 1MB, and will not continue to be written to the database! Logs will continue to be written to the /tmp/coder-startup-script.log file in the workspace.",
-				created_at: new Date().toISOString(),
+				created_at: agentLogs.at(-1)?.created_at || new Date().toISOString(),
 				source_id: "",
 			},
 		];
