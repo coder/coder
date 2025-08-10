@@ -4651,248 +4651,112 @@ func (s *MethodTestSuite) TestNotifications() {
 }
 
 func (s *MethodTestSuite) TestPrebuilds() {
-	s.Run("GetPresetByWorkspaceBuildID", s.Subtest(func(db database.Store, check *expects) {
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		user := dbgen.User(s.T(), db, database.User{})
-		template := dbgen.Template(s.T(), db, database.Template{
-			CreatedBy:      user.ID,
-			OrganizationID: org.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		preset, err := db.InsertPreset(context.Background(), database.InsertPresetParams{
-			TemplateVersionID: templateVersion.ID,
-			Name:              "test",
-		})
-		require.NoError(s.T(), err)
-		workspace := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
-			OrganizationID: org.ID,
-			OwnerID:        user.ID,
-			TemplateID:     template.ID,
-		})
-		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			OrganizationID: org.ID,
-		})
-		workspaceBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
-			WorkspaceID:             workspace.ID,
-			TemplateVersionID:       templateVersion.ID,
-			TemplateVersionPresetID: uuid.NullUUID{UUID: preset.ID, Valid: true},
-			InitiatorID:             user.ID,
-			JobID:                   job.ID,
-		})
-		_, err = db.GetPresetByWorkspaceBuildID(context.Background(), workspaceBuild.ID)
-		require.NoError(s.T(), err)
-		check.Args(workspaceBuild.ID).Asserts(rbac.ResourceTemplate, policy.ActionRead)
-	}))
-	s.Run("GetPresetParametersByTemplateVersionID", s.Subtest(func(db database.Store, check *expects) {
-		ctx := context.Background()
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		user := dbgen.User(s.T(), db, database.User{})
-		template := dbgen.Template(s.T(), db, database.Template{
-			CreatedBy:      user.ID,
-			OrganizationID: org.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		preset, err := db.InsertPreset(ctx, database.InsertPresetParams{
-			TemplateVersionID: templateVersion.ID,
-			Name:              "test",
-		})
-		require.NoError(s.T(), err)
-		insertedParameters, err := db.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
-			TemplateVersionPresetID: preset.ID,
-			Names:                   []string{"test"},
-			Values:                  []string{"test"},
-		})
-		require.NoError(s.T(), err)
-		check.
-			Args(templateVersion.ID).
-			Asserts(template.RBACObject(), policy.ActionRead).
-			Returns(insertedParameters)
-	}))
-	s.Run("GetPresetParametersByPresetID", s.Subtest(func(db database.Store, check *expects) {
-		ctx := context.Background()
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		user := dbgen.User(s.T(), db, database.User{})
-		template := dbgen.Template(s.T(), db, database.Template{
-			CreatedBy:      user.ID,
-			OrganizationID: org.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		preset, err := db.InsertPreset(ctx, database.InsertPresetParams{
-			TemplateVersionID: templateVersion.ID,
-			Name:              "test",
-		})
-		require.NoError(s.T(), err)
-		insertedParameters, err := db.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
-			TemplateVersionPresetID: preset.ID,
-			Names:                   []string{"test"},
-			Values:                  []string{"test"},
-		})
-		require.NoError(s.T(), err)
-		check.
-			Args(preset.ID).
-			Asserts(template.RBACObject(), policy.ActionRead).
-			Returns(insertedParameters)
-	}))
-	s.Run("GetActivePresetPrebuildSchedules", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().
-			Asserts(rbac.ResourceTemplate.All(), policy.ActionRead).
-			Returns([]database.TemplateVersionPresetPrebuildSchedule{})
-	}))
-	s.Run("GetPresetsByTemplateVersionID", s.Subtest(func(db database.Store, check *expects) {
-		ctx := context.Background()
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		user := dbgen.User(s.T(), db, database.User{})
-		template := dbgen.Template(s.T(), db, database.Template{
-			CreatedBy:      user.ID,
-			OrganizationID: org.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-
-		_, err := db.InsertPreset(ctx, database.InsertPresetParams{
-			TemplateVersionID: templateVersion.ID,
-			Name:              "test",
-		})
-		require.NoError(s.T(), err)
-
-		presets, err := db.GetPresetsByTemplateVersionID(ctx, templateVersion.ID)
-		require.NoError(s.T(), err)
-
-		check.Args(templateVersion.ID).Asserts(template.RBACObject(), policy.ActionRead).Returns(presets)
-	}))
-	s.Run("ClaimPrebuiltWorkspace", s.Subtest(func(db database.Store, check *expects) {
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		user := dbgen.User(s.T(), db, database.User{})
-		template := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{
-				UUID:  template.ID,
-				Valid: true,
-			},
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		preset := dbgen.Preset(s.T(), db, database.InsertPresetParams{
-			TemplateVersionID: templateVersion.ID,
-		})
-		check.Args(database.ClaimPrebuiltWorkspaceParams{
-			NewUserID: user.ID,
-			NewName:   "",
-			PresetID:  preset.ID,
-		}).Asserts(
-			rbac.ResourceWorkspace.WithOwner(user.ID.String()).InOrg(org.ID), policy.ActionCreate,
-			template, policy.ActionRead,
-			template, policy.ActionUse,
-		).Errors(sql.ErrNoRows)
-	}))
-	s.Run("GetPrebuildMetrics", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args().
-			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
-	}))
-	s.Run("GetPrebuildsSettings", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts()
-	}))
-	s.Run("UpsertPrebuildsSettings", s.Subtest(func(db database.Store, check *expects) {
-		check.Args("foo").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
-	}))
-	s.Run("CountInProgressPrebuilds", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args().
-			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
-	}))
-	s.Run("GetPresetsAtFailureLimit", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args(int64(0)).
-			Asserts(rbac.ResourceTemplate.All(), policy.ActionViewInsights)
-	}))
-	s.Run("GetPresetsBackoff", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args(time.Time{}).
-			Asserts(rbac.ResourceTemplate.All(), policy.ActionViewInsights)
-	}))
-	s.Run("GetRunningPrebuiltWorkspaces", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args().
-			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
-	}))
-	s.Run("GetTemplatePresetsWithPrebuilds", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
-		check.Args(uuid.NullUUID{UUID: user.ID, Valid: true}).
-			Asserts(rbac.ResourceTemplate.All(), policy.ActionRead)
-	}))
-	s.Run("GetPresetByID", s.Subtest(func(db database.Store, check *expects) {
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		user := dbgen.User(s.T(), db, database.User{})
-		template := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{
-				UUID:  template.ID,
-				Valid: true,
-			},
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		preset := dbgen.Preset(s.T(), db, database.InsertPresetParams{
-			TemplateVersionID: templateVersion.ID,
-		})
-		check.Args(preset.ID).
-			Asserts(template, policy.ActionRead).
-			Returns(database.GetPresetByIDRow{
-				ID:                preset.ID,
-				TemplateVersionID: preset.TemplateVersionID,
-				Name:              preset.Name,
-				CreatedAt:         preset.CreatedAt,
-				TemplateID: uuid.NullUUID{
-					UUID:  template.ID,
-					Valid: true,
-				},
-				InvalidateAfterSecs: preset.InvalidateAfterSecs,
-				OrganizationID:      org.ID,
-				PrebuildStatus:      database.PrebuildStatusHealthy,
-			})
-	}))
-	s.Run("UpdatePresetPrebuildStatus", s.Subtest(func(db database.Store, check *expects) {
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		user := dbgen.User(s.T(), db, database.User{})
-		template := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{
-				UUID:  template.ID,
-				Valid: true,
-			},
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		preset := dbgen.Preset(s.T(), db, database.InsertPresetParams{
-			TemplateVersionID: templateVersion.ID,
-		})
-		req := database.UpdatePresetPrebuildStatusParams{
-			PresetID: preset.ID,
-			Status:   database.PrebuildStatusHealthy,
-		}
-		check.Args(req).
-			Asserts(rbac.ResourceTemplate.WithID(template.ID).InOrg(org.ID), policy.ActionUpdate)
-	}))
+    s.Run("GetPresetByWorkspaceBuildID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        wbID := uuid.New()
+        dbm.EXPECT().GetPresetByWorkspaceBuildID(gomock.Any(), wbID).Return(testutil.Fake(s.T(), faker, database.TemplateVersionPreset{}), nil).AnyTimes()
+        check.Args(wbID).Asserts(rbac.ResourceTemplate, policy.ActionRead)
+    }))
+    s.Run("GetPresetParametersByTemplateVersionID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        tpl := testutil.Fake(s.T(), faker, database.Template{})
+        tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, OrganizationID: tpl.OrganizationID, CreatedBy: tpl.CreatedBy})
+        params := []database.TemplateVersionPresetParameter{testutil.Fake(s.T(), faker, database.TemplateVersionPresetParameter{})}
+        dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), tv.ID).Return(tv, nil).AnyTimes()
+        dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+        dbm.EXPECT().GetPresetParametersByTemplateVersionID(gomock.Any(), tv.ID).Return(params, nil).AnyTimes()
+        check.Args(tv.ID).Asserts(tpl.RBACObject(), policy.ActionRead).Returns(params)
+    }))
+    s.Run("GetPresetParametersByPresetID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        tpl := testutil.Fake(s.T(), faker, database.Template{})
+        presetID := uuid.New()
+        prow := database.GetPresetByIDRow{ID: presetID, TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, OrganizationID: tpl.OrganizationID}
+        params := []database.TemplateVersionPresetParameter{testutil.Fake(s.T(), faker, database.TemplateVersionPresetParameter{})}
+        dbm.EXPECT().GetPresetByID(gomock.Any(), presetID).Return(prow, nil).AnyTimes()
+        dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+        dbm.EXPECT().GetPresetParametersByPresetID(gomock.Any(), presetID).Return(params, nil).AnyTimes()
+        check.Args(presetID).Asserts(tpl.RBACObject(), policy.ActionRead).Returns(params)
+    }))
+    s.Run("GetActivePresetPrebuildSchedules", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        dbm.EXPECT().GetActivePresetPrebuildSchedules(gomock.Any()).Return([]database.TemplateVersionPresetPrebuildSchedule{}, nil).AnyTimes()
+        check.Args().Asserts(rbac.ResourceTemplate.All(), policy.ActionRead).Returns([]database.TemplateVersionPresetPrebuildSchedule{})
+    }))
+    s.Run("GetPresetsByTemplateVersionID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        tpl := testutil.Fake(s.T(), faker, database.Template{})
+        tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, OrganizationID: tpl.OrganizationID, CreatedBy: tpl.CreatedBy})
+        presets := []database.TemplateVersionPreset{testutil.Fake(s.T(), faker, database.TemplateVersionPreset{TemplateVersionID: tv.ID})}
+        dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), tv.ID).Return(tv, nil).AnyTimes()
+        dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+        dbm.EXPECT().GetPresetsByTemplateVersionID(gomock.Any(), tv.ID).Return(presets, nil).AnyTimes()
+        check.Args(tv.ID).Asserts(tpl.RBACObject(), policy.ActionRead).Returns(presets)
+    }))
+    s.Run("ClaimPrebuiltWorkspace", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        org := testutil.Fake(s.T(), faker, database.Organization{})
+        user := testutil.Fake(s.T(), faker, database.User{})
+        tpl := testutil.Fake(s.T(), faker, database.Template{OrganizationID: org.ID, CreatedBy: user.ID})
+        arg := database.ClaimPrebuiltWorkspaceParams{NewUserID: user.ID, NewName: "", PresetID: uuid.New()}
+        prow := database.GetPresetByIDRow{ID: arg.PresetID, TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, OrganizationID: org.ID}
+        dbm.EXPECT().GetPresetByID(gomock.Any(), arg.PresetID).Return(prow, nil).AnyTimes()
+        dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+        dbm.EXPECT().ClaimPrebuiltWorkspace(gomock.Any(), arg).Return(database.ClaimPrebuiltWorkspaceRow{}, sql.ErrNoRows).AnyTimes()
+        check.Args(arg).Asserts(
+            rbac.ResourceWorkspace.WithOwner(user.ID.String()).InOrg(org.ID), policy.ActionCreate,
+            tpl, policy.ActionRead,
+            tpl, policy.ActionUse,
+        ).Errors(sql.ErrNoRows)
+    }))
+    s.Run("GetPrebuildMetrics", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        dbm.EXPECT().GetPrebuildMetrics(gomock.Any()).Return([]database.GetPrebuildMetricsRow{}, nil).AnyTimes()
+        check.Args().Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
+    }))
+    s.Run("GetPrebuildsSettings", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        dbm.EXPECT().GetPrebuildsSettings(gomock.Any()).Return("{}", nil).AnyTimes()
+        check.Args().Asserts()
+    }))
+    s.Run("UpsertPrebuildsSettings", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        dbm.EXPECT().UpsertPrebuildsSettings(gomock.Any(), "foo").Return(nil).AnyTimes()
+        check.Args("foo").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+    }))
+    s.Run("CountInProgressPrebuilds", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        dbm.EXPECT().CountInProgressPrebuilds(gomock.Any()).Return([]database.CountInProgressPrebuildsRow{}, nil).AnyTimes()
+        check.Args().Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
+    }))
+    s.Run("GetPresetsAtFailureLimit", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        dbm.EXPECT().GetPresetsAtFailureLimit(gomock.Any(), int64(0)).Return([]database.GetPresetsAtFailureLimitRow{}, nil).AnyTimes()
+        check.Args(int64(0)).Asserts(rbac.ResourceTemplate.All(), policy.ActionViewInsights)
+    }))
+    s.Run("GetPresetsBackoff", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        t0 := time.Time{}
+        dbm.EXPECT().GetPresetsBackoff(gomock.Any(), t0).Return([]database.GetPresetsBackoffRow{}, nil).AnyTimes()
+        check.Args(t0).Asserts(rbac.ResourceTemplate.All(), policy.ActionViewInsights)
+    }))
+    s.Run("GetRunningPrebuiltWorkspaces", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        dbm.EXPECT().GetRunningPrebuiltWorkspaces(gomock.Any()).Return([]database.GetRunningPrebuiltWorkspacesRow{}, nil).AnyTimes()
+        check.Args().Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
+    }))
+    s.Run("GetTemplatePresetsWithPrebuilds", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        user := testutil.Fake(s.T(), faker, database.User{})
+        arg := uuid.NullUUID{UUID: user.ID, Valid: true}
+        dbm.EXPECT().GetTemplatePresetsWithPrebuilds(gomock.Any(), arg).Return([]database.GetTemplatePresetsWithPrebuildsRow{}, nil).AnyTimes()
+        check.Args(arg).Asserts(rbac.ResourceTemplate.All(), policy.ActionRead)
+    }))
+    s.Run("GetPresetByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        org := testutil.Fake(s.T(), faker, database.Organization{})
+        tpl := testutil.Fake(s.T(), faker, database.Template{OrganizationID: org.ID})
+        presetID := uuid.New()
+        prow := database.GetPresetByIDRow{ID: presetID, TemplateVersionID: uuid.New(), Name: "test", TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, InvalidateAfterSecs: sql.NullInt32{}, OrganizationID: org.ID, PrebuildStatus: database.PrebuildStatusHealthy}
+        dbm.EXPECT().GetPresetByID(gomock.Any(), presetID).Return(prow, nil).AnyTimes()
+        dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+        check.Args(presetID).Asserts(tpl, policy.ActionRead).Returns(prow)
+    }))
+    s.Run("UpdatePresetPrebuildStatus", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        org := testutil.Fake(s.T(), faker, database.Organization{})
+        tpl := testutil.Fake(s.T(), faker, database.Template{OrganizationID: org.ID})
+        presetID := uuid.New()
+        prow := database.GetPresetByIDRow{ID: presetID, TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, OrganizationID: org.ID}
+        req := database.UpdatePresetPrebuildStatusParams{PresetID: presetID, Status: database.PrebuildStatusHealthy}
+        dbm.EXPECT().GetPresetByID(gomock.Any(), presetID).Return(prow, nil).AnyTimes()
+        dbm.EXPECT().UpdatePresetPrebuildStatus(gomock.Any(), req).Return(nil).AnyTimes()
+        check.Args(req).Asserts(rbac.ResourceTemplate.WithID(tpl.ID).InOrg(org.ID), policy.ActionUpdate)
+    }))
 }
 
 func (s *MethodTestSuite) TestOAuth2ProviderApps() {
