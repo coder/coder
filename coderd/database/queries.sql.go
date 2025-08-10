@@ -2869,6 +2869,37 @@ func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDPar
 	return i, err
 }
 
+const validateGroupIDs = `-- name: ValidateGroupIDs :one
+WITH input AS (
+	SELECT
+		unnest($1::uuid[]) AS id
+)
+SELECT
+	array_agg(input.id)::uuid[] as invalid_group_ids,
+	COUNT(*) = 0 as ok
+FROM
+	-- Preserve rows where there is not a matching left (groups) row for each
+	-- right (input) row...
+	groups
+	RIGHT JOIN input ON groups.id = input.id
+WHERE
+	-- ...so that we can retain exactly those rows where an input ID does not
+	-- match an existing group.
+	groups.id IS NULL
+`
+
+type ValidateGroupIDsRow struct {
+	InvalidGroupIds []uuid.UUID `db:"invalid_group_ids" json:"invalid_group_ids"`
+	Ok              bool        `db:"ok" json:"ok"`
+}
+
+func (q *sqlQuerier) ValidateGroupIDs(ctx context.Context, groupIds []uuid.UUID) (ValidateGroupIDsRow, error) {
+	row := q.db.QueryRowContext(ctx, validateGroupIDs, pq.Array(groupIds))
+	var i ValidateGroupIDsRow
+	err := row.Scan(pq.Array(&i.InvalidGroupIds), &i.Ok)
+	return i, err
+}
+
 const getTemplateAppInsights = `-- name: GetTemplateAppInsights :many
 WITH
 	-- Create a list of all unique apps by template, this is used to
@@ -13776,6 +13807,196 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 	return i, err
 }
 
+const createUserSecret = `-- name: CreateUserSecret :one
+INSERT INTO user_secrets (
+    id,
+    user_id,
+    name,
+    description,
+    value,
+    env_name,
+    file_path
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7
+) RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at
+`
+
+type CreateUserSecretParams struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	Value       string    `db:"value" json:"value"`
+	EnvName     string    `db:"env_name" json:"env_name"`
+	FilePath    string    `db:"file_path" json:"file_path"`
+}
+
+func (q *sqlQuerier) CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error) {
+	row := q.db.QueryRowContext(ctx, createUserSecret,
+		arg.ID,
+		arg.UserID,
+		arg.Name,
+		arg.Description,
+		arg.Value,
+		arg.EnvName,
+		arg.FilePath,
+	)
+	var i UserSecret
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Value,
+		&i.EnvName,
+		&i.FilePath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deleteUserSecret = `-- name: DeleteUserSecret :exec
+DELETE FROM user_secrets
+WHERE id = $1
+`
+
+func (q *sqlQuerier) DeleteUserSecret(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteUserSecret, id)
+	return err
+}
+
+const getUserSecret = `-- name: GetUserSecret :one
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at FROM user_secrets
+WHERE id = $1
+`
+
+func (q *sqlQuerier) GetUserSecret(ctx context.Context, id uuid.UUID) (UserSecret, error) {
+	row := q.db.QueryRowContext(ctx, getUserSecret, id)
+	var i UserSecret
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Value,
+		&i.EnvName,
+		&i.FilePath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUserSecretByUserIDAndName = `-- name: GetUserSecretByUserIDAndName :one
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at FROM user_secrets
+WHERE user_id = $1 AND name = $2
+`
+
+type GetUserSecretByUserIDAndNameParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Name   string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetUserSecretByUserIDAndName(ctx context.Context, arg GetUserSecretByUserIDAndNameParams) (UserSecret, error) {
+	row := q.db.QueryRowContext(ctx, getUserSecretByUserIDAndName, arg.UserID, arg.Name)
+	var i UserSecret
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Value,
+		&i.EnvName,
+		&i.FilePath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listUserSecrets = `-- name: ListUserSecrets :many
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at FROM user_secrets
+WHERE user_id = $1
+ORDER BY name ASC
+`
+
+func (q *sqlQuerier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]UserSecret, error) {
+	rows, err := q.db.QueryContext(ctx, listUserSecrets, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserSecret
+	for rows.Next() {
+		var i UserSecret
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Name,
+			&i.Description,
+			&i.Value,
+			&i.EnvName,
+			&i.FilePath,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateUserSecret = `-- name: UpdateUserSecret :one
+UPDATE user_secrets
+SET
+    description = $2,
+    value = $3,
+    env_name = $4,
+    file_path = $5,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING id, user_id, name, description, value, env_name, file_path, created_at, updated_at
+`
+
+type UpdateUserSecretParams struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	Description string    `db:"description" json:"description"`
+	Value       string    `db:"value" json:"value"`
+	EnvName     string    `db:"env_name" json:"env_name"`
+	FilePath    string    `db:"file_path" json:"file_path"`
+}
+
+func (q *sqlQuerier) UpdateUserSecret(ctx context.Context, arg UpdateUserSecretParams) (UserSecret, error) {
+	row := q.db.QueryRowContext(ctx, updateUserSecret,
+		arg.ID,
+		arg.Description,
+		arg.Value,
+		arg.EnvName,
+		arg.FilePath,
+	)
+	var i UserSecret
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Value,
+		&i.EnvName,
+		&i.FilePath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const allUserIDs = `-- name: AllUserIDs :many
 SELECT DISTINCT id FROM USERS
 	WHERE CASE WHEN $1::bool THEN TRUE ELSE is_system = false END
@@ -14789,6 +15010,39 @@ func (q *sqlQuerier) UpdateUserThemePreference(ctx context.Context, arg UpdateUs
 	row := q.db.QueryRowContext(ctx, updateUserThemePreference, arg.UserID, arg.ThemePreference)
 	var i UserConfig
 	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
+}
+
+const validateUserIDs = `-- name: ValidateUserIDs :one
+WITH input AS (
+	SELECT
+		unnest($1::uuid[]) AS id
+)
+SELECT
+	array_agg(input.id)::uuid[] as invalid_user_ids,
+	COUNT(*) = 0 as ok
+FROM
+	-- Preserve rows where there is not a matching left (users) row for each
+	-- right (input) row...
+	users
+	RIGHT JOIN input ON users.id = input.id
+WHERE
+	-- ...so that we can retain exactly those rows where an input ID does not
+	-- match an existing user...
+	users.id IS NULL OR
+	-- ...or that only matches a user that was deleted.
+	users.deleted = true
+`
+
+type ValidateUserIDsRow struct {
+	InvalidUserIds []uuid.UUID `db:"invalid_user_ids" json:"invalid_user_ids"`
+	Ok             bool        `db:"ok" json:"ok"`
+}
+
+func (q *sqlQuerier) ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (ValidateUserIDsRow, error) {
+	row := q.db.QueryRowContext(ctx, validateUserIDs, pq.Array(userIds))
+	var i ValidateUserIDsRow
+	err := row.Scan(pq.Array(&i.InvalidUserIds), &i.Ok)
 	return i, err
 }
 
