@@ -526,226 +526,128 @@ func (s *MethodTestSuite) TestGroup() {
 }
 
 func (s *MethodTestSuite) TestProvisionerJob() {
-	s.Run("ArchiveUnusedTemplateVersions", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			Type: database.ProvisionerJobTypeTemplateVersionImport,
-			Error: sql.NullString{
-				String: "failed",
-				Valid:  true,
-			},
-		})
-		tpl := dbgen.Template(s.T(), db, database.Template{})
-		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
-			JobID:      j.ID,
-		})
-		check.Args(database.ArchiveUnusedTemplateVersionsParams{
-			UpdatedAt:         dbtime.Now(),
-			TemplateID:        tpl.ID,
-			TemplateVersionID: uuid.Nil,
-			JobStatus:         database.NullProvisionerJobStatus{},
-		}).Asserts(v.RBACObject(tpl), policy.ActionUpdate)
-	}))
-	s.Run("UnarchiveTemplateVersion", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			Type: database.ProvisionerJobTypeTemplateVersionImport,
-		})
-		tpl := dbgen.Template(s.T(), db, database.Template{})
-		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
-			JobID:      j.ID,
-			Archived:   true,
-		})
-		check.Args(database.UnarchiveTemplateVersionParams{
-			UpdatedAt:         dbtime.Now(),
-			TemplateVersionID: v.ID,
-		}).Asserts(v.RBACObject(tpl), policy.ActionUpdate)
-	}))
-	s.Run("Build/GetProvisionerJobByID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
-		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
-			OwnerID:        u.ID,
-			OrganizationID: o.ID,
-			TemplateID:     tpl.ID,
-		})
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			Type: database.ProvisionerJobTypeWorkspaceBuild,
-		})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
-			JobID:          j.ID,
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
-			JobID:             j.ID,
-			WorkspaceID:       w.ID,
-			TemplateVersionID: tv.ID,
-		})
-		check.Args(j.ID).Asserts(w, policy.ActionRead).Returns(j)
-	}))
-	s.Run("TemplateVersion/GetProvisionerJobByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			Type: database.ProvisionerJobTypeTemplateVersionImport,
-		})
-		tpl := dbgen.Template(s.T(), db, database.Template{})
-		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
-			JobID:      j.ID,
-		})
-		check.Args(j.ID).Asserts(v.RBACObject(tpl), policy.ActionRead).Returns(j)
-	}))
-	s.Run("TemplateVersionDryRun/GetProvisionerJobByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		tpl := dbgen.Template(s.T(), db, database.Template{})
-		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
-		})
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			Type: database.ProvisionerJobTypeTemplateVersionDryRun,
-			Input: must(json.Marshal(struct {
-				TemplateVersionID uuid.UUID `json:"template_version_id"`
-			}{TemplateVersionID: v.ID})),
-		})
-		check.Args(j.ID).Asserts(v.RBACObject(tpl), policy.ActionRead).Returns(j)
-	}))
-	s.Run("Build/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID:               o.ID,
-			CreatedBy:                    u.ID,
-			AllowUserCancelWorkspaceJobs: true,
-		})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
-		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
-			TemplateID:     tpl.ID,
-			OrganizationID: o.ID,
-			OwnerID:        u.ID,
-		})
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			Type: database.ProvisionerJobTypeWorkspaceBuild,
-		})
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
-			JobID:             j.ID,
-			WorkspaceID:       w.ID,
-			TemplateVersionID: tv.ID,
-		})
-		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).Asserts(w, policy.ActionUpdate).Returns()
-	}))
-	s.Run("BuildFalseCancel/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID:               o.ID,
-			CreatedBy:                    u.ID,
-			AllowUserCancelWorkspaceJobs: false,
-		})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
-		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{TemplateID: tpl.ID, OrganizationID: o.ID, OwnerID: u.ID})
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			Type: database.ProvisionerJobTypeWorkspaceBuild,
-		})
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
-			JobID:             j.ID,
-			WorkspaceID:       w.ID,
-			TemplateVersionID: tv.ID,
-		})
-		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).Asserts(w, policy.ActionUpdate).Returns()
-	}))
-	s.Run("TemplateVersion/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			Type: database.ProvisionerJobTypeTemplateVersionImport,
-		})
-		tpl := dbgen.Template(s.T(), db, database.Template{})
-		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
-			JobID:      j.ID,
-		})
-		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).
-			Asserts(v.RBACObject(tpl), []policy.Action{policy.ActionRead, policy.ActionUpdate}).Returns()
-	}))
-	s.Run("TemplateVersionNoTemplate/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			Type: database.ProvisionerJobTypeTemplateVersionImport,
-		})
-		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: uuid.Nil, Valid: false},
-			JobID:      j.ID,
-		})
-		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).
-			Asserts(v.RBACObjectNoTemplate(), []policy.Action{policy.ActionRead, policy.ActionUpdate}).Returns()
-	}))
-	s.Run("TemplateVersionDryRun/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		tpl := dbgen.Template(s.T(), db, database.Template{})
-		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
-		})
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			Type: database.ProvisionerJobTypeTemplateVersionDryRun,
-			Input: must(json.Marshal(struct {
-				TemplateVersionID uuid.UUID `json:"template_version_id"`
-			}{TemplateVersionID: v.ID})),
-		})
-		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).
-			Asserts(v.RBACObject(tpl), []policy.Action{policy.ActionRead, policy.ActionUpdate}).Returns()
-	}))
-	s.Run("GetProvisionerJobsByIDs", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		a := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{OrganizationID: o.ID})
-		b := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{OrganizationID: o.ID})
-		check.Args([]uuid.UUID{a.ID, b.ID}).
-			Asserts(rbac.ResourceProvisionerJobs.InOrg(o.ID), policy.ActionRead).
-			Returns(slice.New(a, b))
-	}))
-	s.Run("GetProvisionerLogsAfterID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
-		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
-			OrganizationID: o.ID,
-			OwnerID:        u.ID,
-			TemplateID:     tpl.ID,
-		})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			Type: database.ProvisionerJobTypeWorkspaceBuild,
-		})
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
-			JobID:             j.ID,
-			WorkspaceID:       w.ID,
-			TemplateVersionID: tv.ID,
-		})
-		check.Args(database.GetProvisionerLogsAfterIDParams{
-			JobID: j.ID,
-		}).Asserts(w, policy.ActionRead).Returns([]database.ProvisionerJobLog{})
-	}))
+    s.Run("ArchiveUnusedTemplateVersions", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        tpl := testutil.Fake(s.T(), faker, database.Template{})
+        v := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
+        arg := database.ArchiveUnusedTemplateVersionsParams{UpdatedAt: dbtime.Now(), TemplateID: tpl.ID, TemplateVersionID: uuid.Nil, JobStatus: database.NullProvisionerJobStatus{}}
+        dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+        dbm.EXPECT().ArchiveUnusedTemplateVersions(gomock.Any(), arg).Return([]uuid.UUID{}, nil).AnyTimes()
+        check.Args(arg).Asserts(v.RBACObject(tpl), policy.ActionUpdate)
+    }))
+    s.Run("UnarchiveTemplateVersion", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        tpl := testutil.Fake(s.T(), faker, database.Template{})
+        v := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, Archived: true})
+        arg := database.UnarchiveTemplateVersionParams{UpdatedAt: dbtime.Now(), TemplateVersionID: v.ID}
+        dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), v.ID).Return(v, nil).AnyTimes()
+        dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+        dbm.EXPECT().UnarchiveTemplateVersion(gomock.Any(), arg).Return(nil).AnyTimes()
+        check.Args(arg).Asserts(v.RBACObject(tpl), policy.ActionUpdate)
+    }))
+    s.Run("Build/GetProvisionerJobByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        ws := testutil.Fake(s.T(), faker, database.Workspace{})
+        build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{WorkspaceID: ws.ID})
+        j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeWorkspaceBuild})
+        dbm.EXPECT().GetProvisionerJobByID(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
+        dbm.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), j.ID).Return(build, nil).AnyTimes()
+        dbm.EXPECT().GetWorkspaceByID(gomock.Any(), build.WorkspaceID).Return(ws, nil).AnyTimes()
+        check.Args(j.ID).Asserts(ws, policy.ActionRead).Returns(j)
+    }))
+    s.Run("TemplateVersion/GetProvisionerJobByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        tpl := testutil.Fake(s.T(), faker, database.Template{})
+        v := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
+        j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeTemplateVersionImport})
+        dbm.EXPECT().GetProvisionerJobByID(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
+        dbm.EXPECT().GetTemplateVersionByJobID(gomock.Any(), j.ID).Return(v, nil).AnyTimes()
+        dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+        check.Args(j.ID).Asserts(v.RBACObject(tpl), policy.ActionRead).Returns(j)
+    }))
+    s.Run("TemplateVersionDryRun/GetProvisionerJobByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        tpl := testutil.Fake(s.T(), faker, database.Template{})
+        v := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
+        j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeTemplateVersionDryRun})
+        j.Input = must(json.Marshal(struct{ TemplateVersionID uuid.UUID `json:"template_version_id"` }{TemplateVersionID: v.ID}))
+        dbm.EXPECT().GetProvisionerJobByID(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
+        dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), v.ID).Return(v, nil).AnyTimes()
+        dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+        check.Args(j.ID).Asserts(v.RBACObject(tpl), policy.ActionRead).Returns(j)
+    }))
+    s.Run("Build/UpdateProvisionerJobWithCancelByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        tpl := testutil.Fake(s.T(), faker, database.Template{AllowUserCancelWorkspaceJobs: true})
+        ws := testutil.Fake(s.T(), faker, database.Workspace{TemplateID: tpl.ID})
+        build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{WorkspaceID: ws.ID})
+        j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeWorkspaceBuild})
+        arg := database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}
+        dbm.EXPECT().GetProvisionerJobByID(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
+        dbm.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), j.ID).Return(build, nil).AnyTimes()
+        dbm.EXPECT().GetWorkspaceByID(gomock.Any(), build.WorkspaceID).Return(ws, nil).AnyTimes()
+        dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+        dbm.EXPECT().UpdateProvisionerJobWithCancelByID(gomock.Any(), arg).Return(nil).AnyTimes()
+        check.Args(arg).Asserts(ws, policy.ActionUpdate).Returns()
+    }))
+    s.Run("BuildFalseCancel/UpdateProvisionerJobWithCancelByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        tpl := testutil.Fake(s.T(), faker, database.Template{AllowUserCancelWorkspaceJobs: false})
+        ws := testutil.Fake(s.T(), faker, database.Workspace{TemplateID: tpl.ID})
+        build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{WorkspaceID: ws.ID})
+        j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeWorkspaceBuild})
+        arg := database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}
+        dbm.EXPECT().GetProvisionerJobByID(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
+        dbm.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), j.ID).Return(build, nil).AnyTimes()
+        dbm.EXPECT().GetWorkspaceByID(gomock.Any(), build.WorkspaceID).Return(ws, nil).AnyTimes()
+        dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+        dbm.EXPECT().UpdateProvisionerJobWithCancelByID(gomock.Any(), arg).Return(nil).AnyTimes()
+        check.Args(arg).Asserts(ws, policy.ActionUpdate).Returns()
+    }))
+    s.Run("TemplateVersion/UpdateProvisionerJobWithCancelByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        tpl := testutil.Fake(s.T(), faker, database.Template{})
+        v := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
+        j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeTemplateVersionImport})
+        arg := database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}
+        dbm.EXPECT().GetProvisionerJobByID(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
+        dbm.EXPECT().GetTemplateVersionByJobID(gomock.Any(), j.ID).Return(v, nil).AnyTimes()
+        dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+        dbm.EXPECT().UpdateProvisionerJobWithCancelByID(gomock.Any(), arg).Return(nil).AnyTimes()
+        check.Args(arg).Asserts(v.RBACObject(tpl), []policy.Action{policy.ActionRead, policy.ActionUpdate}).Returns()
+    }))
+    s.Run("TemplateVersionNoTemplate/UpdateProvisionerJobWithCancelByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        v := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: uuid.Nil, Valid: false}})
+        j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeTemplateVersionImport})
+        arg := database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}
+        dbm.EXPECT().GetProvisionerJobByID(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
+        dbm.EXPECT().GetTemplateVersionByJobID(gomock.Any(), j.ID).Return(v, nil).AnyTimes()
+        dbm.EXPECT().UpdateProvisionerJobWithCancelByID(gomock.Any(), arg).Return(nil).AnyTimes()
+        check.Args(arg).Asserts(v.RBACObjectNoTemplate(), []policy.Action{policy.ActionRead, policy.ActionUpdate}).Returns()
+    }))
+    s.Run("TemplateVersionDryRun/UpdateProvisionerJobWithCancelByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        tpl := testutil.Fake(s.T(), faker, database.Template{})
+        v := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
+        j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeTemplateVersionDryRun})
+        j.Input = must(json.Marshal(struct{ TemplateVersionID uuid.UUID `json:"template_version_id"` }{TemplateVersionID: v.ID}))
+        arg := database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}
+        dbm.EXPECT().GetProvisionerJobByID(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
+        dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), v.ID).Return(v, nil).AnyTimes()
+        dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+        dbm.EXPECT().UpdateProvisionerJobWithCancelByID(gomock.Any(), arg).Return(nil).AnyTimes()
+        check.Args(arg).Asserts(v.RBACObject(tpl), []policy.Action{policy.ActionRead, policy.ActionUpdate}).Returns()
+    }))
+    s.Run("GetProvisionerJobsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        org := testutil.Fake(s.T(), faker, database.Organization{})
+        a := testutil.Fake(s.T(), faker, database.ProvisionerJob{OrganizationID: org.ID})
+        b := testutil.Fake(s.T(), faker, database.ProvisionerJob{OrganizationID: org.ID})
+        ids := []uuid.UUID{a.ID, b.ID}
+        dbm.EXPECT().GetProvisionerJobsByIDs(gomock.Any(), ids).Return([]database.ProvisionerJob{a, b}, nil).AnyTimes()
+        check.Args(ids).Asserts(rbac.ResourceProvisionerJobs.InOrg(org.ID), policy.ActionRead).Returns(slice.New(a, b))
+    }))
+    s.Run("GetProvisionerLogsAfterID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        ws := testutil.Fake(s.T(), faker, database.Workspace{})
+        build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{WorkspaceID: ws.ID})
+        j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeWorkspaceBuild})
+        arg := database.GetProvisionerLogsAfterIDParams{JobID: j.ID}
+        dbm.EXPECT().GetProvisionerJobByID(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
+        dbm.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), j.ID).Return(build, nil).AnyTimes()
+        dbm.EXPECT().GetWorkspaceByID(gomock.Any(), build.WorkspaceID).Return(ws, nil).AnyTimes()
+        dbm.EXPECT().GetProvisionerLogsAfterID(gomock.Any(), arg).Return([]database.ProvisionerJobLog{}, nil).AnyTimes()
+        check.Args(arg).Asserts(ws, policy.ActionRead).Returns([]database.ProvisionerJobLog{})
+    }))
 }
 
 func (s *MethodTestSuite) TestLicense() {
