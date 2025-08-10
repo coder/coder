@@ -4528,250 +4528,158 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 }
 
 func (s *MethodTestSuite) TestNotifications() {
-	// System functions
-	s.Run("AcquireNotificationMessages", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args(database.AcquireNotificationMessagesParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
-	}))
-	s.Run("BulkMarkNotificationMessagesFailed", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args(database.BulkMarkNotificationMessagesFailedParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
-	}))
-	s.Run("BulkMarkNotificationMessagesSent", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args(database.BulkMarkNotificationMessagesSentParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
-	}))
-	s.Run("DeleteOldNotificationMessages", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args().Asserts(rbac.ResourceNotificationMessage, policy.ActionDelete)
-	}))
-	s.Run("EnqueueNotificationMessage", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		// TODO: update this test once we have a specific role for notifications
-		check.Args(database.EnqueueNotificationMessageParams{
-			Method:  database.NotificationMethodWebhook,
-			Payload: []byte("{}"),
-		}).Asserts(rbac.ResourceNotificationMessage, policy.ActionCreate)
-	}))
-	s.Run("FetchNewMessageMetadata", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		check.Args(database.FetchNewMessageMetadataParams{UserID: u.ID}).
-			Asserts(rbac.ResourceNotificationMessage, policy.ActionRead).
-			ErrorsWithPG(sql.ErrNoRows)
-	}))
-	s.Run("GetNotificationMessagesByStatus", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args(database.GetNotificationMessagesByStatusParams{
-			Status: database.NotificationMessageStatusLeased,
-			Limit:  10,
-		}).Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
-	}))
+    // System functions
+    s.Run("AcquireNotificationMessages", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        dbm.EXPECT().AcquireNotificationMessages(gomock.Any(), database.AcquireNotificationMessagesParams{}).Return([]database.AcquireNotificationMessagesRow{}, nil).AnyTimes()
+        check.Args(database.AcquireNotificationMessagesParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
+    }))
+    s.Run("BulkMarkNotificationMessagesFailed", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        dbm.EXPECT().BulkMarkNotificationMessagesFailed(gomock.Any(), database.BulkMarkNotificationMessagesFailedParams{}).Return(int64(0), nil).AnyTimes()
+        check.Args(database.BulkMarkNotificationMessagesFailedParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
+    }))
+    s.Run("BulkMarkNotificationMessagesSent", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        dbm.EXPECT().BulkMarkNotificationMessagesSent(gomock.Any(), database.BulkMarkNotificationMessagesSentParams{}).Return(int64(0), nil).AnyTimes()
+        check.Args(database.BulkMarkNotificationMessagesSentParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
+    }))
+    s.Run("DeleteOldNotificationMessages", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        dbm.EXPECT().DeleteOldNotificationMessages(gomock.Any()).Return(nil).AnyTimes()
+        check.Args().Asserts(rbac.ResourceNotificationMessage, policy.ActionDelete)
+    }))
+    s.Run("EnqueueNotificationMessage", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        arg := database.EnqueueNotificationMessageParams{Method: database.NotificationMethodWebhook, Payload: []byte("{}")}
+        dbm.EXPECT().EnqueueNotificationMessage(gomock.Any(), arg).Return(nil).AnyTimes()
+        // TODO: update this test once we have a specific role for notifications
+        check.Args(arg).Asserts(rbac.ResourceNotificationMessage, policy.ActionCreate)
+    }))
+    s.Run("FetchNewMessageMetadata", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        u := testutil.Fake(s.T(), faker, database.User{})
+        dbm.EXPECT().FetchNewMessageMetadata(gomock.Any(), database.FetchNewMessageMetadataParams{UserID: u.ID}).Return(database.FetchNewMessageMetadataRow{}, nil).AnyTimes()
+        check.Args(database.FetchNewMessageMetadataParams{UserID: u.ID}).
+            Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
+    }))
+    s.Run("GetNotificationMessagesByStatus", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        arg := database.GetNotificationMessagesByStatusParams{Status: database.NotificationMessageStatusLeased, Limit: 10}
+        dbm.EXPECT().GetNotificationMessagesByStatus(gomock.Any(), arg).Return([]database.NotificationMessage{}, nil).AnyTimes()
+        check.Args(arg).Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
+    }))
 
-	// webpush subscriptions
-	s.Run("GetWebpushSubscriptionsByUserID", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
-		check.Args(user.ID).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionRead)
-	}))
-	s.Run("InsertWebpushSubscription", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
-		check.Args(database.InsertWebpushSubscriptionParams{
-			UserID: user.ID,
-		}).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionCreate)
-	}))
-	s.Run("DeleteWebpushSubscriptions", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
-		push := dbgen.WebpushSubscription(s.T(), db, database.InsertWebpushSubscriptionParams{
-			UserID: user.ID,
-		})
-		check.Args([]uuid.UUID{push.ID}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
-	}))
-	s.Run("DeleteWebpushSubscriptionByUserIDAndEndpoint", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
-		push := dbgen.WebpushSubscription(s.T(), db, database.InsertWebpushSubscriptionParams{
-			UserID: user.ID,
-		})
-		check.Args(database.DeleteWebpushSubscriptionByUserIDAndEndpointParams{
-			UserID:   user.ID,
-			Endpoint: push.Endpoint,
-		}).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionDelete)
-	}))
-	s.Run("DeleteAllWebpushSubscriptions", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args().
-			Asserts(rbac.ResourceWebpushSubscription, policy.ActionDelete)
-	}))
+    // webpush subscriptions
+    s.Run("GetWebpushSubscriptionsByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        user := testutil.Fake(s.T(), faker, database.User{})
+        dbm.EXPECT().GetWebpushSubscriptionsByUserID(gomock.Any(), user.ID).Return([]database.WebpushSubscription{}, nil).AnyTimes()
+        check.Args(user.ID).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionRead)
+    }))
+    s.Run("InsertWebpushSubscription", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        user := testutil.Fake(s.T(), faker, database.User{})
+        arg := database.InsertWebpushSubscriptionParams{UserID: user.ID}
+        dbm.EXPECT().InsertWebpushSubscription(gomock.Any(), arg).Return(testutil.Fake(s.T(), faker, database.WebpushSubscription{UserID: user.ID}), nil).AnyTimes()
+        check.Args(arg).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionCreate)
+    }))
+    s.Run("DeleteWebpushSubscriptions", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        user := testutil.Fake(s.T(), faker, database.User{})
+        push := testutil.Fake(s.T(), faker, database.WebpushSubscription{UserID: user.ID})
+        dbm.EXPECT().DeleteWebpushSubscriptions(gomock.Any(), []uuid.UUID{push.ID}).Return(nil).AnyTimes()
+        check.Args([]uuid.UUID{push.ID}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+    }))
+    s.Run("DeleteWebpushSubscriptionByUserIDAndEndpoint", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        user := testutil.Fake(s.T(), faker, database.User{})
+        push := testutil.Fake(s.T(), faker, database.WebpushSubscription{UserID: user.ID})
+        arg := database.DeleteWebpushSubscriptionByUserIDAndEndpointParams{UserID: user.ID, Endpoint: push.Endpoint}
+        dbm.EXPECT().DeleteWebpushSubscriptionByUserIDAndEndpoint(gomock.Any(), arg).Return(nil).AnyTimes()
+        check.Args(arg).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionDelete)
+    }))
+    s.Run("DeleteAllWebpushSubscriptions", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        dbm.EXPECT().DeleteAllWebpushSubscriptions(gomock.Any()).Return(nil).AnyTimes()
+        check.Args().Asserts(rbac.ResourceWebpushSubscription, policy.ActionDelete)
+    }))
 
-	// Notification templates
-	s.Run("GetNotificationTemplateByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		user := dbgen.User(s.T(), db, database.User{})
-		check.Args(user.ID).Asserts(rbac.ResourceNotificationTemplate, policy.ActionRead).
-			ErrorsWithPG(sql.ErrNoRows)
-	}))
-	s.Run("GetNotificationTemplatesByKind", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.NotificationTemplateKindSystem).
-			Asserts()
-		// TODO(dannyk): add support for other database.NotificationTemplateKind types once implemented.
-	}))
-	s.Run("UpdateNotificationTemplateMethodByID", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.UpdateNotificationTemplateMethodByIDParams{
-			Method: database.NullNotificationMethod{NotificationMethod: database.NotificationMethodWebhook, Valid: true},
-			ID:     notifications.TemplateWorkspaceDormant,
-		}).Asserts(rbac.ResourceNotificationTemplate, policy.ActionUpdate)
-	}))
+    // Notification templates
+    s.Run("GetNotificationTemplateByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        tpl := testutil.Fake(s.T(), faker, database.NotificationTemplate{})
+        dbm.EXPECT().GetNotificationTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+        check.Args(tpl.ID).Asserts(rbac.ResourceNotificationTemplate, policy.ActionRead)
+    }))
+    s.Run("GetNotificationTemplatesByKind", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        dbm.EXPECT().GetNotificationTemplatesByKind(gomock.Any(), database.NotificationTemplateKindSystem).Return([]database.NotificationTemplate{}, nil).AnyTimes()
+        check.Args(database.NotificationTemplateKindSystem).Asserts()
+        // TODO(dannyk): add support for other database.NotificationTemplateKind types once implemented.
+    }))
+    s.Run("UpdateNotificationTemplateMethodByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+        arg := database.UpdateNotificationTemplateMethodByIDParams{Method: database.NullNotificationMethod{NotificationMethod: database.NotificationMethodWebhook, Valid: true}, ID: notifications.TemplateWorkspaceDormant}
+        dbm.EXPECT().UpdateNotificationTemplateMethodByID(gomock.Any(), arg).Return(database.NotificationTemplate{}, nil).AnyTimes()
+        check.Args(arg).Asserts(rbac.ResourceNotificationTemplate, policy.ActionUpdate)
+    }))
 
-	// Notification preferences
-	s.Run("GetUserNotificationPreferences", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
-		check.Args(user.ID).
-			Asserts(rbac.ResourceNotificationPreference.WithOwner(user.ID.String()), policy.ActionRead)
-	}))
-	s.Run("UpdateUserNotificationPreferences", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
-		check.Args(database.UpdateUserNotificationPreferencesParams{
-			UserID:                  user.ID,
-			NotificationTemplateIds: []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated, notifications.TemplateWorkspaceDeleted},
-			Disableds:               []bool{true, false},
-		}).Asserts(rbac.ResourceNotificationPreference.WithOwner(user.ID.String()), policy.ActionUpdate)
-	}))
+    // Notification preferences
+    s.Run("GetUserNotificationPreferences", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        user := testutil.Fake(s.T(), faker, database.User{})
+        dbm.EXPECT().GetUserNotificationPreferences(gomock.Any(), user.ID).Return([]database.NotificationPreference{}, nil).AnyTimes()
+        check.Args(user.ID).Asserts(rbac.ResourceNotificationPreference.WithOwner(user.ID.String()), policy.ActionRead)
+    }))
+    s.Run("UpdateUserNotificationPreferences", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        user := testutil.Fake(s.T(), faker, database.User{})
+        arg := database.UpdateUserNotificationPreferencesParams{UserID: user.ID, NotificationTemplateIds: []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated, notifications.TemplateWorkspaceDeleted}, Disableds: []bool{true, false}}
+        dbm.EXPECT().UpdateUserNotificationPreferences(gomock.Any(), arg).Return(int64(2), nil).AnyTimes()
+        check.Args(arg).Asserts(rbac.ResourceNotificationPreference.WithOwner(user.ID.String()), policy.ActionUpdate)
+    }))
 
-	s.Run("GetInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
+    s.Run("GetInboxNotificationsByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        u := testutil.Fake(s.T(), faker, database.User{})
+        notifID := uuid.New()
+        notif := testutil.Fake(s.T(), faker, database.InboxNotification{ID: notifID, UserID: u.ID, TemplateID: notifications.TemplateWorkspaceAutoUpdated})
+        arg := database.GetInboxNotificationsByUserIDParams{UserID: u.ID, ReadStatus: database.InboxNotificationReadStatusAll}
+        dbm.EXPECT().GetInboxNotificationsByUserID(gomock.Any(), arg).Return([]database.InboxNotification{notif}, nil).AnyTimes()
+        check.Args(arg).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
+    }))
 
-		notifID := uuid.New()
+    s.Run("GetFilteredInboxNotificationsByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        u := testutil.Fake(s.T(), faker, database.User{})
+        notifID := uuid.New()
+        notif := testutil.Fake(s.T(), faker, database.InboxNotification{ID: notifID, UserID: u.ID, TemplateID: notifications.TemplateWorkspaceAutoUpdated, Targets: []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}})
+        arg := database.GetFilteredInboxNotificationsByUserIDParams{UserID: u.ID, Templates: []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated}, Targets: []uuid.UUID{u.ID}, ReadStatus: database.InboxNotificationReadStatusAll}
+        dbm.EXPECT().GetFilteredInboxNotificationsByUserID(gomock.Any(), arg).Return([]database.InboxNotification{notif}, nil).AnyTimes()
+        check.Args(arg).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
+    }))
 
-		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
-			ID:         notifID,
-			UserID:     u.ID,
-			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
-			Title:      "test title",
-			Content:    "test content notification",
-			Icon:       "https://coder.com/favicon.ico",
-			Actions:    json.RawMessage("{}"),
-		})
+    s.Run("GetInboxNotificationByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        u := testutil.Fake(s.T(), faker, database.User{})
+        notifID := uuid.New()
+        notif := testutil.Fake(s.T(), faker, database.InboxNotification{ID: notifID, UserID: u.ID, TemplateID: notifications.TemplateWorkspaceAutoUpdated, Targets: []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}})
+        dbm.EXPECT().GetInboxNotificationByID(gomock.Any(), notifID).Return(notif, nil).AnyTimes()
+        check.Args(notifID).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns(notif)
+    }))
 
-		check.Args(database.GetInboxNotificationsByUserIDParams{
-			UserID:     u.ID,
-			ReadStatus: database.InboxNotificationReadStatusAll,
-		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
-	}))
+    s.Run("CountUnreadInboxNotificationsByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        u := testutil.Fake(s.T(), faker, database.User{})
+        dbm.EXPECT().CountUnreadInboxNotificationsByUserID(gomock.Any(), u.ID).Return(int64(1), nil).AnyTimes()
+        check.Args(u.ID).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionRead).Returns(int64(1))
+    }))
 
-	s.Run("GetFilteredInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
+    s.Run("InsertInboxNotification", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        u := testutil.Fake(s.T(), faker, database.User{})
+        notifID := uuid.New()
+        arg := database.InsertInboxNotificationParams{ID: notifID, UserID: u.ID, TemplateID: notifications.TemplateWorkspaceAutoUpdated, Targets: []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}, Title: "test title", Content: "test content notification", Icon: "https://coder.com/favicon.ico", Actions: json.RawMessage("{}")}
+        dbm.EXPECT().InsertInboxNotification(gomock.Any(), arg).Return(testutil.Fake(s.T(), faker, database.InboxNotification{ID: notifID, UserID: u.ID}), nil).AnyTimes()
+        check.Args(arg).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionCreate)
+    }))
 
-		notifID := uuid.New()
+    s.Run("UpdateInboxNotificationReadStatus", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        u := testutil.Fake(s.T(), faker, database.User{})
+        notifID := uuid.New()
+        readAt := dbtestutil.NowInDefaultTimezone()
+        arg := database.UpdateInboxNotificationReadStatusParams{ID: notifID, ReadAt: sql.NullTime{Time: readAt, Valid: true}}
+        notif := testutil.Fake(s.T(), faker, database.InboxNotification{ID: notifID, UserID: u.ID})
+        dbm.EXPECT().GetInboxNotificationByID(gomock.Any(), notifID).Return(notif, nil).AnyTimes()
+        dbm.EXPECT().UpdateInboxNotificationReadStatus(gomock.Any(), arg).Return(nil).AnyTimes()
+        check.Args(arg).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionUpdate)
+    }))
 
-		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
-
-		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
-			ID:         notifID,
-			UserID:     u.ID,
-			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
-			Targets:    targets,
-			Title:      "test title",
-			Content:    "test content notification",
-			Icon:       "https://coder.com/favicon.ico",
-			Actions:    json.RawMessage("{}"),
-		})
-
-		check.Args(database.GetFilteredInboxNotificationsByUserIDParams{
-			UserID:     u.ID,
-			Templates:  []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated},
-			Targets:    []uuid.UUID{u.ID},
-			ReadStatus: database.InboxNotificationReadStatusAll,
-		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
-	}))
-
-	s.Run("GetInboxNotificationByID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-
-		notifID := uuid.New()
-
-		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
-
-		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
-			ID:         notifID,
-			UserID:     u.ID,
-			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
-			Targets:    targets,
-			Title:      "test title",
-			Content:    "test content notification",
-			Icon:       "https://coder.com/favicon.ico",
-			Actions:    json.RawMessage("{}"),
-		})
-
-		check.Args(notifID).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns(notif)
-	}))
-
-	s.Run("CountUnreadInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-
-		notifID := uuid.New()
-
-		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
-
-		_ = dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
-			ID:         notifID,
-			UserID:     u.ID,
-			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
-			Targets:    targets,
-			Title:      "test title",
-			Content:    "test content notification",
-			Icon:       "https://coder.com/favicon.ico",
-			Actions:    json.RawMessage("{}"),
-		})
-
-		check.Args(u.ID).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionRead).Returns(int64(1))
-	}))
-
-	s.Run("InsertInboxNotification", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-
-		notifID := uuid.New()
-
-		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
-
-		check.Args(database.InsertInboxNotificationParams{
-			ID:         notifID,
-			UserID:     u.ID,
-			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
-			Targets:    targets,
-			Title:      "test title",
-			Content:    "test content notification",
-			Icon:       "https://coder.com/favicon.ico",
-			Actions:    json.RawMessage("{}"),
-		}).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionCreate)
-	}))
-
-	s.Run("UpdateInboxNotificationReadStatus", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-
-		notifID := uuid.New()
-
-		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
-		readAt := dbtestutil.NowInDefaultTimezone()
-
-		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
-			ID:         notifID,
-			UserID:     u.ID,
-			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
-			Targets:    targets,
-			Title:      "test title",
-			Content:    "test content notification",
-			Icon:       "https://coder.com/favicon.ico",
-			Actions:    json.RawMessage("{}"),
-		})
-
-		notif.ReadAt = sql.NullTime{Time: readAt, Valid: true}
-
-		check.Args(database.UpdateInboxNotificationReadStatusParams{
-			ID:     notifID,
-			ReadAt: sql.NullTime{Time: readAt, Valid: true},
-		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionUpdate)
-	}))
-
-	s.Run("MarkAllInboxNotificationsAsRead", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-
-		check.Args(database.MarkAllInboxNotificationsAsReadParams{
-			UserID: u.ID,
-			ReadAt: sql.NullTime{Time: dbtestutil.NowInDefaultTimezone(), Valid: true},
-		}).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionUpdate)
-	}))
+    s.Run("MarkAllInboxNotificationsAsRead", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+        u := testutil.Fake(s.T(), faker, database.User {})
+        arg := database.MarkAllInboxNotificationsAsReadParams{UserID: u.ID, ReadAt: sql.NullTime{Time: dbtestutil.NowInDefaultTimezone(), Valid: true}}
+        dbm.EXPECT().MarkAllInboxNotificationsAsRead(gomock.Any(), arg).Return(nil).AnyTimes()
+        check.Args(arg).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionUpdate)
+    }))
 }
 
 func (s *MethodTestSuite) TestPrebuilds() {
