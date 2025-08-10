@@ -4,7 +4,7 @@ import { Link } from "components/Link/Link";
 import { SquareCheckBig } from "lucide-react";
 import type { FC } from "react";
 import Markdown from "react-markdown";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { relativeTime } from "utils/time";
 import { InboxAvatar } from "./InboxAvatar";
 

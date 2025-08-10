@@ -1,6 +1,6 @@
-import { action } from "@storybook/addon-actions";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ProvisionerJobLog } from "api/typesGenerated";
+import { action } from "storybook/actions";
 import * as Mocks from "testHelpers/entities";
 import {
 	withAuthProvider,
