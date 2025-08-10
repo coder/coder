@@ -737,302 +737,186 @@ func (s *MethodTestSuite) TestOrganization() {
 		dbm.EXPECT().OIDCClaimFieldValues(gomock.Any(), arg).Return([]string{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceIdpsyncSettings.InOrg(id), policy.ActionRead).Returns([]string{})
 	}))
-	s.Run("ByOrganization/GetGroups", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		a := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		b := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		check.Args(database.GetGroupsParams{
-			OrganizationID: o.ID,
-		}).Asserts(rbac.ResourceSystem, policy.ActionRead, a, policy.ActionRead, b, policy.ActionRead).
-			Returns([]database.GetGroupsRow{
-				{Group: a, OrganizationName: o.Name, OrganizationDisplayName: o.DisplayName},
-				{Group: b, OrganizationName: o.Name, OrganizationDisplayName: o.DisplayName},
-			}).
-			// Fail the system check shortcut
+	s.Run("ByOrganization/GetGroups", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		a := testutil.Fake(s.T(), faker, database.Group{OrganizationID: o.ID})
+		b := testutil.Fake(s.T(), faker, database.Group{OrganizationID: o.ID})
+		params := database.GetGroupsParams{OrganizationID: o.ID}
+		rows := []database.GetGroupsRow{
+			{Group: a, OrganizationName: o.Name, OrganizationDisplayName: o.DisplayName},
+			{Group: b, OrganizationName: o.Name, OrganizationDisplayName: o.DisplayName},
+		}
+		dbm.EXPECT().GetGroups(gomock.Any(), params).Return(rows, nil).AnyTimes()
+		check.Args(params).
+			Asserts(rbac.ResourceSystem, policy.ActionRead, a, policy.ActionRead, b, policy.ActionRead).
+			Returns(rows).
 			FailSystemObjectChecks()
 	}))
-	s.Run("GetOrganizationByID", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
+	s.Run("GetOrganizationByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		dbm.EXPECT().GetOrganizationByID(gomock.Any(), o.ID).Return(o, nil).AnyTimes()
 		check.Args(o.ID).Asserts(o, policy.ActionRead).Returns(o)
 	}))
-	s.Run("GetOrganizationResourceCountByID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-
-		t := dbgen.Template(s.T(), db, database.Template{
-			CreatedBy:      u.ID,
-			OrganizationID: o.ID,
-		})
-		dbgen.Workspace(s.T(), db, database.WorkspaceTable{
-			OrganizationID: o.ID,
-			OwnerID:        u.ID,
-			TemplateID:     t.ID,
-		})
-		dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{
-			OrganizationID: o.ID,
-			UserID:         u.ID,
-		})
-
+	s.Run("GetOrganizationResourceCountByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		row := database.GetOrganizationResourceCountByIDRow{
+			WorkspaceCount:      1,
+			GroupCount:          1,
+			TemplateCount:       1,
+			MemberCount:         1,
+			ProvisionerKeyCount: 0,
+		}
+		dbm.EXPECT().GetOrganizationResourceCountByID(gomock.Any(), o.ID).Return(row, nil).AnyTimes()
 		check.Args(o.ID).Asserts(
 			rbac.ResourceOrganizationMember.InOrg(o.ID), policy.ActionRead,
 			rbac.ResourceWorkspace.InOrg(o.ID), policy.ActionRead,
 			rbac.ResourceGroup.InOrg(o.ID), policy.ActionRead,
 			rbac.ResourceTemplate.InOrg(o.ID), policy.ActionRead,
 			rbac.ResourceProvisionerDaemon.InOrg(o.ID), policy.ActionRead,
-		).Returns(database.GetOrganizationResourceCountByIDRow{
-			WorkspaceCount:      1,
-			GroupCount:          1,
-			TemplateCount:       1,
-			MemberCount:         1,
-			ProvisionerKeyCount: 0,
-		})
+		).Returns(row)
 	}))
-	s.Run("GetDefaultOrganization", s.Subtest(func(db database.Store, check *expects) {
-		o, _ := db.GetDefaultOrganization(context.Background())
+	s.Run("GetDefaultOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		dbm.EXPECT().GetDefaultOrganization(gomock.Any()).Return(o, nil).AnyTimes()
 		check.Args().Asserts(o, policy.ActionRead).Returns(o)
 	}))
-	s.Run("GetOrganizationByName", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		check.Args(database.GetOrganizationByNameParams{Name: o.Name, Deleted: o.Deleted}).Asserts(o, policy.ActionRead).Returns(o)
+	s.Run("GetOrganizationByName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		arg := database.GetOrganizationByNameParams{Name: o.Name, Deleted: o.Deleted}
+		dbm.EXPECT().GetOrganizationByName(gomock.Any(), arg).Return(o, nil).AnyTimes()
+		check.Args(arg).Asserts(o, policy.ActionRead).Returns(o)
 	}))
-	s.Run("GetOrganizationIDsByMemberIDs", s.Subtest(func(db database.Store, check *expects) {
-		oa := dbgen.Organization(s.T(), db, database.Organization{})
-		ob := dbgen.Organization(s.T(), db, database.Organization{})
-		ua := dbgen.User(s.T(), db, database.User{})
-		ub := dbgen.User(s.T(), db, database.User{})
-		ma := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: oa.ID, UserID: ua.ID})
-		mb := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: ob.ID, UserID: ub.ID})
-		check.Args([]uuid.UUID{ma.UserID, mb.UserID}).
-			Asserts(rbac.ResourceUserObject(ma.UserID), policy.ActionRead, rbac.ResourceUserObject(mb.UserID), policy.ActionRead).OutOfOrder()
+	s.Run("GetOrganizationIDsByMemberIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		oa := testutil.Fake(s.T(), faker, database.Organization{})
+		ob := testutil.Fake(s.T(), faker, database.Organization{})
+		ua := testutil.Fake(s.T(), faker, database.User{})
+		ub := testutil.Fake(s.T(), faker, database.User{})
+		ids := []uuid.UUID{ua.ID, ub.ID}
+		rows := []database.GetOrganizationIDsByMemberIDsRow{
+			{UserID: ua.ID, OrganizationIDs: []uuid.UUID{oa.ID}},
+			{UserID: ub.ID, OrganizationIDs: []uuid.UUID{ob.ID}},
+		}
+		dbm.EXPECT().GetOrganizationIDsByMemberIDs(gomock.Any(), ids).Return(rows, nil).AnyTimes()
+		check.Args(ids).
+			Asserts(rbac.ResourceUserObject(ua.ID), policy.ActionRead, rbac.ResourceUserObject(ub.ID), policy.ActionRead).
+			OutOfOrder()
 	}))
-	s.Run("GetOrganizations", s.Subtest(func(db database.Store, check *expects) {
-		def, _ := db.GetDefaultOrganization(context.Background())
-		a := dbgen.Organization(s.T(), db, database.Organization{})
-		b := dbgen.Organization(s.T(), db, database.Organization{})
-		check.Args(database.GetOrganizationsParams{}).Asserts(def, policy.ActionRead, a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(def, a, b))
+	s.Run("GetOrganizations", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		def := testutil.Fake(s.T(), faker, database.Organization{})
+		a := testutil.Fake(s.T(), faker, database.Organization{})
+		b := testutil.Fake(s.T(), faker, database.Organization{})
+		arg := database.GetOrganizationsParams{}
+		dbm.EXPECT().GetOrganizations(gomock.Any(), arg).Return([]database.Organization{def, a, b}, nil).AnyTimes()
+		check.Args(arg).Asserts(def, policy.ActionRead, a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(def, a, b))
 	}))
-	s.Run("GetOrganizationsByUserID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		a := dbgen.Organization(s.T(), db, database.Organization{})
-		_ = dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{UserID: u.ID, OrganizationID: a.ID})
-		b := dbgen.Organization(s.T(), db, database.Organization{})
-		_ = dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{UserID: u.ID, OrganizationID: b.ID})
-		check.Args(database.GetOrganizationsByUserIDParams{UserID: u.ID, Deleted: sql.NullBool{Valid: true, Bool: false}}).Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(a, b))
+	s.Run("GetOrganizationsByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		a := testutil.Fake(s.T(), faker, database.Organization{})
+		b := testutil.Fake(s.T(), faker, database.Organization{})
+		arg := database.GetOrganizationsByUserIDParams{UserID: u.ID, Deleted: sql.NullBool{Valid: true, Bool: false}}
+		dbm.EXPECT().GetOrganizationsByUserID(gomock.Any(), arg).Return([]database.Organization{a, b}, nil).AnyTimes()
+		check.Args(arg).Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(a, b))
 	}))
-	s.Run("InsertOrganization", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.InsertOrganizationParams{
-			ID:   uuid.New(),
-			Name: "new-org",
-		}).Asserts(rbac.ResourceOrganization, policy.ActionCreate)
+	s.Run("InsertOrganization", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertOrganizationParams{ID: uuid.New(), Name: "new-org"}
+		dbm.EXPECT().InsertOrganization(gomock.Any(), arg).Return(database.Organization{ID: arg.ID, Name: arg.Name}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceOrganization, policy.ActionCreate)
 	}))
-	s.Run("InsertOrganizationMember", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		u := dbgen.User(s.T(), db, database.User{})
-
-		check.Args(database.InsertOrganizationMemberParams{
-			OrganizationID: o.ID,
-			UserID:         u.ID,
-			Roles:          []string{codersdk.RoleOrganizationAdmin},
-		}).Asserts(
+	s.Run("InsertOrganizationMember", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		u := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.InsertOrganizationMemberParams{OrganizationID: o.ID, UserID: u.ID, Roles: []string{codersdk.RoleOrganizationAdmin}}
+		dbm.EXPECT().InsertOrganizationMember(gomock.Any(), arg).Return(database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID, Roles: arg.Roles}, nil).AnyTimes()
+		check.Args(arg).Asserts(
 			rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionAssign,
-			rbac.ResourceOrganizationMember.InOrg(o.ID).WithID(u.ID), policy.ActionCreate)
-	}))
-	s.Run("InsertPreset", s.Subtest(func(db database.Store, check *expects) {
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		user := dbgen.User(s.T(), db, database.User{})
-		template := dbgen.Template(s.T(), db, database.Template{
-			CreatedBy:      user.ID,
-			OrganizationID: org.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		workspace := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
-			OrganizationID: org.ID,
-			OwnerID:        user.ID,
-			TemplateID:     template.ID,
-		})
-		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			OrganizationID: org.ID,
-		})
-		workspaceBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: templateVersion.ID,
-			InitiatorID:       user.ID,
-			JobID:             job.ID,
-		})
-		insertPresetParams := database.InsertPresetParams{
-			TemplateVersionID: workspaceBuild.TemplateVersionID,
-			Name:              "test",
-		}
-		check.Args(insertPresetParams).Asserts(rbac.ResourceTemplate, policy.ActionUpdate)
-	}))
-	s.Run("InsertPresetParameters", s.Subtest(func(db database.Store, check *expects) {
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		user := dbgen.User(s.T(), db, database.User{})
-		template := dbgen.Template(s.T(), db, database.Template{
-			CreatedBy:      user.ID,
-			OrganizationID: org.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		workspace := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
-			OrganizationID: org.ID,
-			OwnerID:        user.ID,
-			TemplateID:     template.ID,
-		})
-		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			OrganizationID: org.ID,
-		})
-		workspaceBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: templateVersion.ID,
-			InitiatorID:       user.ID,
-			JobID:             job.ID,
-		})
-		insertPresetParams := database.InsertPresetParams{
-			TemplateVersionID: workspaceBuild.TemplateVersionID,
-			Name:              "test",
-		}
-		preset := dbgen.Preset(s.T(), db, insertPresetParams)
-		insertPresetParametersParams := database.InsertPresetParametersParams{
-			TemplateVersionPresetID: preset.ID,
-			Names:                   []string{"test"},
-			Values:                  []string{"test"},
-		}
-		check.Args(insertPresetParametersParams).Asserts(rbac.ResourceTemplate, policy.ActionUpdate)
-	}))
-	s.Run("InsertPresetPrebuildSchedule", s.Subtest(func(db database.Store, check *expects) {
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		user := dbgen.User(s.T(), db, database.User{})
-		template := dbgen.Template(s.T(), db, database.Template{
-			CreatedBy:      user.ID,
-			OrganizationID: org.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		preset := dbgen.Preset(s.T(), db, database.InsertPresetParams{
-			TemplateVersionID: templateVersion.ID,
-			Name:              "test",
-		})
-		arg := database.InsertPresetPrebuildScheduleParams{
-			PresetID: preset.ID,
-		}
-		check.Args(arg).
-			Asserts(rbac.ResourceTemplate, policy.ActionUpdate)
-	}))
-	s.Run("DeleteOrganizationMember", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		u := dbgen.User(s.T(), db, database.User{})
-		member := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{UserID: u.ID, OrganizationID: o.ID})
-
-		cancelledErr := "fetch object: context canceled"
-		if !dbtestutil.WillUsePostgres() {
-			cancelledErr = sql.ErrNoRows.Error()
-		}
-
-		check.Args(database.DeleteOrganizationMemberParams{
-			OrganizationID: o.ID,
-			UserID:         u.ID,
-		}).Asserts(
-			// Reads the org member before it tries to delete it
-			member, policy.ActionRead,
-			member, policy.ActionDelete).
-			WithNotAuthorized("no rows").
-			WithCancelled(cancelledErr)
-	}))
-	s.Run("UpdateOrganization", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{
-			Name: "something-unique",
-		})
-		check.Args(database.UpdateOrganizationParams{
-			ID:   o.ID,
-			Name: "something-different",
-		}).Asserts(o, policy.ActionUpdate)
-	}))
-	s.Run("UpdateOrganizationDeletedByID", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{
-			Name: "doomed",
-		})
-		check.Args(database.UpdateOrganizationDeletedByIDParams{
-			ID:        o.ID,
-			UpdatedAt: o.UpdatedAt,
-		}).Asserts(o, policy.ActionDelete).Returns()
-	}))
-	s.Run("OrganizationMembers", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		u := dbgen.User(s.T(), db, database.User{})
-		mem := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{
-			OrganizationID: o.ID,
-			UserID:         u.ID,
-			Roles:          []string{rbac.RoleOrgAdmin()},
-		})
-
-		check.Args(database.OrganizationMembersParams{
-			OrganizationID: o.ID,
-			UserID:         u.ID,
-		}).Asserts(
-			mem, policy.ActionRead,
+			rbac.ResourceOrganizationMember.InOrg(o.ID).WithID(u.ID), policy.ActionCreate,
 		)
 	}))
-	s.Run("PaginatedOrganizationMembers", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		u := dbgen.User(s.T(), db, database.User{})
-		mem := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{
-			OrganizationID: o.ID,
-			UserID:         u.ID,
-			Roles:          []string{rbac.RoleOrgAdmin()},
-		})
-
-		check.Args(database.PaginatedOrganizationMembersParams{
-			OrganizationID: o.ID,
-			LimitOpt:       0,
-		}).Asserts(
-			rbac.ResourceOrganizationMember.InOrg(o.ID), policy.ActionRead,
-		).Returns([]database.PaginatedOrganizationMembersRow{
-			{
-				OrganizationMember: mem,
-				Username:           u.Username,
-				AvatarURL:          u.AvatarURL,
-				Name:               u.Name,
-				Email:              u.Email,
-				GlobalRoles:        u.RBACRoles,
-				Count:              1,
-			},
-		})
+	s.Run("InsertPreset", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertPresetParams{TemplateVersionID: uuid.New(), Name: "test"}
+		dbm.EXPECT().InsertPreset(gomock.Any(), arg).Return(database.TemplateVersionPreset{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionUpdate)
 	}))
-	s.Run("UpdateMemberRoles", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		u := dbgen.User(s.T(), db, database.User{})
-		mem := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{
-			OrganizationID: o.ID,
-			UserID:         u.ID,
-			Roles:          []string{codersdk.RoleOrganizationAdmin},
-		})
+	s.Run("InsertPresetParameters", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertPresetParametersParams{TemplateVersionPresetID: uuid.New(), Names: []string{"test"}, Values: []string{"test"}}
+		dbm.EXPECT().InsertPresetParameters(gomock.Any(), arg).Return([]database.TemplateVersionPresetParameter{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionUpdate)
+	}))
+	s.Run("InsertPresetPrebuildSchedule", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertPresetPrebuildScheduleParams{PresetID: uuid.New()}
+		dbm.EXPECT().InsertPresetPrebuildSchedule(gomock.Any(), arg).Return(database.TemplateVersionPresetPrebuildSchedule{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionUpdate)
+	}))
+	s.Run("DeleteOrganizationMember", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		u := testutil.Fake(s.T(), faker, database.User{})
+		member := testutil.Fake(s.T(), faker, database.OrganizationMember{UserID: u.ID, OrganizationID: o.ID})
+
+		params := database.OrganizationMembersParams{OrganizationID: o.ID, UserID: u.ID, IncludeSystem: false}
+		dbm.EXPECT().OrganizationMembers(gomock.Any(), params).Return([]database.OrganizationMembersRow{{OrganizationMember: member}}, nil).AnyTimes()
+		dbm.EXPECT().DeleteOrganizationMember(gomock.Any(), database.DeleteOrganizationMemberParams{OrganizationID: o.ID, UserID: u.ID}).Return(nil).AnyTimes()
+
+
+		check.Args(database.DeleteOrganizationMemberParams{OrganizationID: o.ID, UserID: u.ID}).Asserts(
+			member, policy.ActionRead,
+			member, policy.ActionDelete,
+		).WithNotAuthorized("no rows").WithCancelled(sql.ErrNoRows.Error())
+	}))
+	s.Run("UpdateOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{Name: "something-unique"})
+		dbm.EXPECT().GetOrganizationByID(gomock.Any(), o.ID).Return(o, nil).AnyTimes()
+		arg := database.UpdateOrganizationParams{ID: o.ID, Name: "something-different"}
+		dbm.EXPECT().UpdateOrganization(gomock.Any(), arg).Return(o, nil).AnyTimes()
+		check.Args(arg).Asserts(o, policy.ActionUpdate)
+	}))
+	s.Run("UpdateOrganizationDeletedByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{Name: "doomed"})
+		dbm.EXPECT().GetOrganizationByID(gomock.Any(), o.ID).Return(o, nil).AnyTimes()
+		dbm.EXPECT().UpdateOrganizationDeletedByID(gomock.Any(), gomock.AssignableToTypeOf(database.UpdateOrganizationDeletedByIDParams{})).Return(nil).AnyTimes()
+		check.Args(database.UpdateOrganizationDeletedByIDParams{ID: o.ID, UpdatedAt: o.UpdatedAt}).Asserts(o, policy.ActionDelete).Returns()
+	}))
+	s.Run("OrganizationMembers", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		u := testutil.Fake(s.T(), faker, database.User{})
+		mem := testutil.Fake(s.T(), faker, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID, Roles: []string{rbac.RoleOrgAdmin()}})
+
+		arg := database.OrganizationMembersParams{OrganizationID: o.ID, UserID: u.ID}
+		dbm.EXPECT().OrganizationMembers(gomock.Any(), gomock.AssignableToTypeOf(database.OrganizationMembersParams{})).Return([]database.OrganizationMembersRow{{OrganizationMember: mem}}, nil).AnyTimes()
+
+		check.Args(arg).Asserts(mem, policy.ActionRead)
+	}))
+	s.Run("PaginatedOrganizationMembers", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		u := testutil.Fake(s.T(), faker, database.User{})
+		mem := testutil.Fake(s.T(), faker, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID, Roles: []string{rbac.RoleOrgAdmin()}})
+
+		arg := database.PaginatedOrganizationMembersParams{OrganizationID: o.ID, LimitOpt: 0}
+		rows := []database.PaginatedOrganizationMembersRow{{
+			OrganizationMember: mem,
+			Username:           u.Username,
+			AvatarURL:          u.AvatarURL,
+			Name:               u.Name,
+			Email:              u.Email,
+			GlobalRoles:        u.RBACRoles,
+			Count:              1,
+		}}
+		dbm.EXPECT().PaginatedOrganizationMembers(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceOrganizationMember.InOrg(o.ID), policy.ActionRead).Returns(rows)
+	}))
+	s.Run("UpdateMemberRoles", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		u := testutil.Fake(s.T(), faker, database.User {})
+		mem := testutil.Fake(s.T(), faker, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID, Roles: []string{codersdk.RoleOrganizationAdmin}})
 		out := mem
 		out.Roles = []string{}
 
-		cancelledErr := "fetch object: context canceled"
-		if !dbtestutil.WillUsePostgres() {
-			cancelledErr = sql.ErrNoRows.Error()
-		}
+		dbm.EXPECT().OrganizationMembers(gomock.Any(), database.OrganizationMembersParams{OrganizationID: o.ID, UserID: u.ID, IncludeSystem: false}).Return([]database.OrganizationMembersRow{{OrganizationMember: mem}}, nil).AnyTimes()
+		arg := database.UpdateMemberRolesParams{GrantedRoles: []string{}, UserID: u.ID, OrgID: o.ID}
+		dbm.EXPECT().UpdateMemberRoles(gomock.Any(), arg).Return(out, nil).AnyTimes()
 
-		check.Args(database.UpdateMemberRolesParams{
-			GrantedRoles: []string{},
-			UserID:       u.ID,
-			OrgID:        o.ID,
-		}).
+		check.Args(arg).
 			WithNotAuthorized(sql.ErrNoRows.Error()).
-			WithCancelled(cancelledErr).
+			WithCancelled(sql.ErrNoRows.Error()).
 			Asserts(
 				mem, policy.ActionRead,
 				rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionAssign, // org-mem
