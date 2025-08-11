@@ -1,7 +1,7 @@
 import Link from "@mui/material/Link";
 import type { ConnectionLog } from "api/typesGenerated";
 import type { FC, ReactNode } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { connectionTypeToFriendlyName } from "utils/connection";
 
 interface ConnectionLogDescriptionProps {

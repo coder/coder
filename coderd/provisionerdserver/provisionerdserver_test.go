@@ -2794,6 +2794,22 @@ func TestCompleteJob(t *testing.T) {
 					},
 					expected: true,
 				},
+				// Checks regression for https://github.com/coder/coder/issues/18776
+				{
+					name: "non-existing app",
+					input: &proto.CompletedJob_WorkspaceBuild{
+						AiTasks: []*sdkproto.AITask{
+							{
+								Id: uuid.NewString(),
+								SidebarApp: &sdkproto.AITaskSidebarApp{
+									// Non-existing app ID would previously trigger a FK violation.
+									Id: uuid.NewString(),
+								},
+							},
+						},
+					},
+					expected: false,
+				},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					t.Parallel()

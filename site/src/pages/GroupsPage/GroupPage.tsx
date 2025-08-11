@@ -54,7 +54,7 @@ import { EllipsisVertical, TrashIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
+import { Link as RouterLink, useNavigate, useParams } from "react-router";
 import { isEveryoneGroup } from "utils/groups";
 import { pageTitle } from "utils/page";
 

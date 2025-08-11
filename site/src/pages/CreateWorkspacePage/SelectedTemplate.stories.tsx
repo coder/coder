@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { MockTemplate } from "testHelpers/entities";
 import { SelectedTemplate } from "./SelectedTemplate";
 

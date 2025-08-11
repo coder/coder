@@ -1,6 +1,6 @@
 # Custom Agents
 
-Custom agents beyond the ones listed in the [Coder registry](https://registry.coder.com/modules?tag=agent) can be used with Coder Tasks.
+Custom agents beyond the ones listed in the [Coder registry](https://registry.coder.com/modules?search=tag%3Aagent) can be used with Coder Tasks.
 
 ## Prerequisites
 
