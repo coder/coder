@@ -994,7 +994,8 @@ func New(options *Options) *API {
 		r.Use(apiKeyMiddleware)
 		r.Route("/aitasks", func(r chi.Router) {
 			r.Get("/prompts", api.aiTasksPrompts)
-			r.Post("/", api.aiTasksCreate)
+
+			r.With(apiRateLimiter).Post("/", api.aiTasksCreate)
 		})
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(
