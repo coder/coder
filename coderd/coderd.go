@@ -1430,9 +1430,6 @@ func New(options *Options) *API {
 					r.Post("/", api.postWorkspaceAgentPortShare)
 					r.Delete("/", api.deleteWorkspaceAgentPortShare)
 				})
-				r.Route("/external-agent", func(r chi.Router) {
-					r.Get("/{agent}/credentials", api.workspaceExternalAgentCredentials)
-				})
 				r.Get("/timings", api.workspaceTimings)
 				r.Route("/acl", func(r chi.Router) {
 					r.Use(

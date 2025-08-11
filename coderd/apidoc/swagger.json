@@ -9122,7 +9122,7 @@
 					}
 				],
 				"produces": ["application/json"],
-				"tags": ["Agents"],
+				"tags": ["Enterprise"],
 				"summary": "Get workspace external agent credentials",
 				"operationId": "get-workspace-external-agent-credentials",
 				"parameters": [

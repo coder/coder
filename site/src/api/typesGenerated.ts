@@ -1058,6 +1058,7 @@ export type FeatureName =
 	| "user_limit"
 	| "user_role_management"
 	| "workspace_batch_actions"
+	| "workspace_external_agent"
 	| "workspace_prebuilds"
 	| "workspace_proxy";
 
@@ -1081,6 +1082,7 @@ export const FeatureNames: FeatureName[] = [
 	"user_limit",
 	"user_role_management",
 	"workspace_batch_actions",
+	"workspace_external_agent",
 	"workspace_prebuilds",
 	"workspace_proxy",
 ];

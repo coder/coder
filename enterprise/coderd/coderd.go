@@ -506,6 +506,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			apiKeyMiddleware,
 			httpmw.ExtractNotificationTemplateParam(options.Database),
 		).Put("/notifications/templates/{notification_template}/method", api.updateNotificationTemplateMethod)
+
+		r.Route("/workspaces/{workspace}/external-agent", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractWorkspaceParam(options.Database),
+				api.RequireFeatureMW(codersdk.FeatureWorkspaceExternalAgent),
+			)
+			r.Get("/{agent}/credentials", api.workspaceExternalAgentCredentials)
+		})
 	})
 
 	if len(options.SCIMAPIKey) != 0 {
