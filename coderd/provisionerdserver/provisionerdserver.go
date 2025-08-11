@@ -1727,13 +1727,14 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		if err != nil {
 			return xerrors.Errorf("update template version external auth providers: %w", err)
 		}
-		err = db.UpdateTemplateVersionAITaskByJobID(ctx, database.UpdateTemplateVersionAITaskByJobIDParams{
+		err = db.UpdateTemplateVersionFlagsByJobID(ctx, database.UpdateTemplateVersionFlagsByJobIDParams{
 			JobID: jobID,
 			HasAITask: sql.NullBool{
 				Bool:  jobType.TemplateImport.HasAiTasks,
 				Valid: true,
 			},
-			UpdatedAt: now,
+			HasExternalAgent: sql.NullBool{},
+			UpdatedAt:        now,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template version external auth providers: %w", err)
@@ -2028,14 +2029,15 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 
 		// Regardless of whether there is an AI task or not, update the field to indicate one way or the other since it
 		// always defaults to nil. ONLY if has_ai_task=true MUST ai_task_sidebar_app_id be set.
-		if err := db.UpdateWorkspaceBuildAITaskByID(ctx, database.UpdateWorkspaceBuildAITaskByIDParams{
+		if err := db.UpdateWorkspaceBuildFlagsByID(ctx, database.UpdateWorkspaceBuildFlagsByIDParams{
 			ID: workspaceBuild.ID,
 			HasAITask: sql.NullBool{
 				Bool:  hasAITask,
 				Valid: true,
 			},
-			SidebarAppID: sidebarAppID,
-			UpdatedAt:    now,
+			HasExternalAgent: sql.NullBool{},
+			SidebarAppID:     sidebarAppID,
+			UpdatedAt:        now,
 		}); err != nil {
 			return xerrors.Errorf("update workspace build ai tasks flag: %w", err)
 		}

@@ -1355,13 +1355,13 @@ func (s *MethodTestSuite) TestTemplate() {
 		dbm.EXPECT().UpdateTemplateScheduleByID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(t1, policy.ActionUpdate)
 	}))
-	s.Run("UpdateTemplateVersionAITaskByJobID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("UpdateTemplateVersionFlagsByJobID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t := testutil.Fake(s.T(), faker, database.Template{})
 		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t.ID, Valid: true}})
-		arg := database.UpdateTemplateVersionAITaskByJobIDParams{JobID: tv.JobID, HasAITask: sql.NullBool{Bool: true, Valid: true}}
+		arg := database.UpdateTemplateVersionFlagsByJobIDParams{JobID: tv.JobID, HasAITask: sql.NullBool{Bool: true, Valid: true}, HasExternalAgent: sql.NullBool{Bool: true, Valid: true}}
 		dbm.EXPECT().GetTemplateVersionByJobID(gomock.Any(), tv.JobID).Return(tv, nil).AnyTimes()
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), t.ID).Return(t, nil).AnyTimes()
-		dbm.EXPECT().UpdateTemplateVersionAITaskByJobID(gomock.Any(), arg).Return(nil).AnyTimes()
+		dbm.EXPECT().UpdateTemplateVersionFlagsByJobID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(t, policy.ActionUpdate)
 	}))
 	s.Run("UpdateTemplateWorkspacesLastUsedAt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -2955,7 +2955,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			Deadline:  b.Deadline,
 		}).Asserts(w, policy.ActionUpdate)
 	}))
-	s.Run("UpdateWorkspaceBuildAITaskByID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpdateWorkspaceBuildFlagsByID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		tpl := dbgen.Template(s.T(), db, database.Template{
@@ -2983,10 +2983,12 @@ func (s *MethodTestSuite) TestWorkspace() {
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: b.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		app := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agt.ID})
-		check.Args(database.UpdateWorkspaceBuildAITaskByIDParams{
-			HasAITask:    sql.NullBool{Bool: true, Valid: true},
-			SidebarAppID: uuid.NullUUID{UUID: app.ID, Valid: true},
-			ID:           b.ID,
+		check.Args(database.UpdateWorkspaceBuildFlagsByIDParams{
+			ID:               b.ID,
+			HasAITask:        sql.NullBool{Bool: true, Valid: true},
+			HasExternalAgent: sql.NullBool{Bool: true, Valid: true},
+			SidebarAppID:     uuid.NullUUID{UUID: app.ID, Valid: true},
+			UpdatedAt:        b.UpdatedAt,
 		}).Asserts(w, policy.ActionUpdate)
 	}))
 	s.Run("SoftDeleteWorkspaceByID", s.Subtest(func(db database.Store, check *expects) {
