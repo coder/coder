@@ -2955,34 +2955,38 @@ func (s *MethodTestSuite) TestWorkspace() {
 			Deadline:  b.Deadline,
 		}).Asserts(w, policy.ActionUpdate)
 	}))
-	s.Run("UpdateWorkspaceBuildFlagsByID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
+	s.Run("UpdateWorkspaceBuildFlagsByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		tpl := testutil.Fake(s.T(), faker, database.Template{
 			OrganizationID: o.ID,
 			CreatedBy:      u.ID,
 		})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{
 			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
 			OrganizationID: o.ID,
 			CreatedBy:      u.ID,
 		})
-		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+		w := testutil.Fake(s.T(), faker, database.Workspace{
 			TemplateID:     tpl.ID,
 			OrganizationID: o.ID,
 			OwnerID:        u.ID,
 		})
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeWorkspaceBuild,
 		})
-		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
+		b := testutil.Fake(s.T(), faker, database.WorkspaceBuild{
 			JobID:             j.ID,
 			WorkspaceID:       w.ID,
 			TemplateVersionID: tv.ID,
 		})
-		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: b.JobID})
-		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
-		app := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agt.ID})
+		res := testutil.Fake(s.T(), faker, database.WorkspaceResource{JobID: b.JobID})
+		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{ResourceID: res.ID})
+		app := testutil.Fake(s.T(), faker, database.WorkspaceApp{AgentID: agt.ID})
+
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceBuildByID(gomock.Any(), b.ID).Return(b, nil).AnyTimes()
+		dbm.EXPECT().UpdateWorkspaceBuildFlagsByID(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		check.Args(database.UpdateWorkspaceBuildFlagsByIDParams{
 			ID:               b.ID,
 			HasAITask:        sql.NullBool{Bool: true, Valid: true},
