@@ -17,8 +17,8 @@ import {
 import { useFormik } from "formik";
 import { ArrowLeft } from "lucide-react";
 import type { FC } from "react";
-import { useNavigate } from "react-router-dom";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router";
+import { Link } from "react-router";
 import { docs } from "utils/docs";
 import {
 	displayNameValidator,
