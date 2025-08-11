@@ -646,7 +646,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
 		tickTime := build.Job.CompletedAt.Add(failureTTL * 2)
 
-		p, err := coderdtest.GetProvisionerForWorkspace(t, db, time.Now(), ws.OrganizationID, database.ProvisionerJob{})
+		p, err := coderdtest.GetProvisionerForTags(t, db, time.Now(), ws.OrganizationID, nil)
 		require.NoError(t, err)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
 		ticker <- tickTime
@@ -698,7 +698,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// Make it impossible to trigger the failure TTL.
 		tickTime := build.Job.CompletedAt.Add(-failureTTL * 2)
 
-		p, err := coderdtest.GetProvisionerForWorkspace(t, db, time.Now(), ws.OrganizationID, database.ProvisionerJob{})
+		p, err := coderdtest.GetProvisionerForTags(t, db, time.Now(), ws.OrganizationID, nil)
 		require.NoError(t, err)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
 		ticker <- tickTime
@@ -803,7 +803,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// Simulate being inactive.
 		tickTime := workspace.LastUsedAt.Add(inactiveTTL * 2)
 
-		p, err := coderdtest.GetProvisionerForWorkspace(t, db, time.Now(), workspace.OrganizationID, database.ProvisionerJob{})
+		p, err := coderdtest.GetProvisionerForTags(t, db, time.Now(), workspace.OrganizationID, nil)
 		require.NoError(t, err)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
 		ticker <- tickTime
@@ -906,7 +906,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// Simulate being inactive.
 		// Fix provisioner stale issue by updating LastSeenAt to the tick time
 		tickTime := time.Now().Add(time.Hour)
-		p, err := coderdtest.GetProvisionerForWorkspace(t, db, time.Now(), workspaces[0].OrganizationID, database.ProvisionerJob{})
+		p, err := coderdtest.GetProvisionerForTags(t, db, time.Now(), workspaces[0].OrganizationID, nil)
 		require.NoError(t, err)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
 		ticker <- tickTime
@@ -1051,7 +1051,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Simulate not having accessed the workspace in a while.
 		tickTime := ws.LastUsedAt.Add(2 * inactiveTTL)
-		p, err := coderdtest.GetProvisionerForWorkspace(t, db, time.Now(), ws.OrganizationID, database.ProvisionerJob{})
+		p, err := coderdtest.GetProvisionerForTags(t, db, time.Now(), ws.OrganizationID, nil)
 		require.NoError(t, err)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
 		ticker <- tickTime
@@ -1105,7 +1105,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Simulate not having accessed the workspace in a while.
 		tickTime := ws.LastUsedAt.Add(2 * transitionTTL)
-		p, err := coderdtest.GetProvisionerForWorkspace(t, db, time.Now(), ws.OrganizationID, database.ProvisionerJob{})
+		p, err := coderdtest.GetProvisionerForTags(t, db, time.Now(), ws.OrganizationID, nil)
 		require.NoError(t, err)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
 		ticker <- tickTime
@@ -1190,7 +1190,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Ensure we haven't breached our threshold.
 		tickTime := ws.DormantAt.Add(-dormantTTL * 2)
-		p, err := coderdtest.GetProvisionerForWorkspace(t, db, time.Now(), ws.OrganizationID, database.ProvisionerJob{})
+		p, err := coderdtest.GetProvisionerForTags(t, db, time.Now(), ws.OrganizationID, nil)
 		require.NoError(t, err)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
 		ticker <- tickTime
@@ -1255,7 +1255,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Assert that autostart works when the workspace isn't dormant..
 		tickTime := sched.Next(ws.LatestBuild.CreatedAt)
-		p, err := coderdtest.GetProvisionerForWorkspace(t, db, time.Now(), ws.OrganizationID, database.ProvisionerJob{})
+		p, err := coderdtest.GetProvisionerForTags(t, db, time.Now(), ws.OrganizationID, nil)
 		require.NoError(t, err)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
 		tickCh <- tickTime
@@ -1379,7 +1379,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// Under normal circumstances this should result in a transition but
 		// since our last build resulted in failure it should be skipped.
 		tickTime := build.Job.CompletedAt.Add(time.Hour)
-		p, err := coderdtest.GetProvisionerForWorkspace(t, db, time.Now(), ws.OrganizationID, database.ProvisionerJob{})
+		p, err := coderdtest.GetProvisionerForTags(t, db, time.Now(), ws.OrganizationID, nil)
 		require.NoError(t, err)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
 		ticker <- tickTime
@@ -1451,7 +1451,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Kick of an autostart build.
 		tickTime := sched.Next(ws.LatestBuild.CreatedAt)
-		p, err := coderdtest.GetProvisionerForWorkspace(t, db, time.Now(), ws.OrganizationID, database.ProvisionerJob{})
+		p, err := coderdtest.GetProvisionerForTags(t, db, time.Now(), ws.OrganizationID, nil)
 		require.NoError(t, err)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
 		tickCh <- tickTime
@@ -1549,7 +1549,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			next = sched.Next(next)
 
 			clock.Set(next)
-			p, err := coderdtest.GetProvisionerForWorkspace(t, db, time.Now(), ws.OrganizationID, database.ProvisionerJob{})
+			p, err := coderdtest.GetProvisionerForTags(t, db, time.Now(), ws.OrganizationID, nil)
 			require.NoError(t, err)
 			coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), next)
 			tickCh <- next
@@ -2272,7 +2272,7 @@ func TestExecutorPrebuilds(t *testing.T) {
 		coderdtest.MustWaitForProvisionersAvailable(t, db, prebuild, provisionerdserver.StaleInterval)
 
 		tickTime := sched.Next(prebuild.LatestBuild.CreatedAt).Add(time.Minute)
-		p, err := coderdtest.GetProvisionerForWorkspace(t, db, time.Now(), workspace.OrganizationID, database.ProvisionerJob{})
+		p, err := coderdtest.GetProvisionerForTags(t, db, time.Now(), workspace.OrganizationID, nil)
 		require.NoError(t, err)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
 

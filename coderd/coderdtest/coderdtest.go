@@ -1593,11 +1593,14 @@ func DeploymentValues(t testing.TB, mut ...func(*codersdk.DeploymentValues)) *co
 	return cfg
 }
 
-// GetProvisionerForWorkspace returns the first valid provisioner for a workspace + template tags.
-func GetProvisionerForWorkspace(t *testing.T, tx database.Store, curTime time.Time, orgID uuid.UUID, templateVersionJob database.ProvisionerJob) (database.ProvisionerDaemon, error) {
+// GetProvisionerForTags returns the first valid provisioner for a workspace + template tags.
+func GetProvisionerForTags(t *testing.T, tx database.Store, curTime time.Time, orgID uuid.UUID, tags map[string]string) (database.ProvisionerDaemon, error) {
+	if tags == nil {
+		tags = map[string]string{}
+	}
 	queryParams := database.GetProvisionerDaemonsByOrganizationParams{
 		OrganizationID: orgID,
-		WantTags:       templateVersionJob.Tags,
+		WantTags:       tags,
 	}
 
 	// nolint: gocritic // The user (in this case, the user/context for autostart builds) may not have the full
@@ -1613,13 +1616,11 @@ func GetProvisionerForWorkspace(t *testing.T, tx database.Store, curTime time.Ti
 		if pd.LastSeenAt.Valid {
 			age := curTime.Sub(pd.LastSeenAt.Time)
 			if age <= provisionerdserver.StaleInterval {
-				t.Logf("hasAvailableProvisioners found active provisioner, daemon_id: %+v", pd.ID)
 				return pd, nil
 			}
 		}
 	}
-	t.Logf("hasAvailableProvisioners: no active provisioners found")
-	return database.ProvisionerDaemon{}, nil
+	return database.ProvisionerDaemon{}, xerrors.New("no available provisioners found")
 }
 
 func ctxWithProvisionerPermissions(ctx context.Context) context.Context {
