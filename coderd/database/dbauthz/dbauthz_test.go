@@ -1686,9 +1686,9 @@ func (s *MethodTestSuite) TestUser() {
 		check.Args(arg, emptyPreparedAuthorized{}).Asserts()
 	}))
 	s.Run("DeleteAPIKeysByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		u := testutil.Fake(s.T(), faker, database.User{})
-		dbm.EXPECT().DeleteAPIKeysByUserID(gomock.Any(), u.ID).Return(nil).AnyTimes()
-		check.Args(u.ID).Asserts(rbac.ResourceApiKey.WithOwner(u.ID.String()), policy.ActionDelete).Returns()
+		key := testutil.Fake(s.T(), faker, database.APIKey{})
+		dbm.EXPECT().DeleteAPIKeysByUserID(gomock.Any(), key.UserID).Return(nil).AnyTimes()
+		check.Args(key.UserID).Asserts(key, policy.ActionDelete).Returns()
 	}))
 	s.Run("GetQuotaAllowanceForUser", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
@@ -1704,7 +1704,7 @@ func (s *MethodTestSuite) TestUser() {
 	}))
 	s.Run("GetUserByEmailOrUsername", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		arg := database.GetUserByEmailOrUsernameParams{Username: u.Username, Email: u.Email}
+		arg := database.GetUserByEmailOrUsernameParams{Email: u.Email}
 		dbm.EXPECT().GetUserByEmailOrUsername(gomock.Any(), arg).Return(u, nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionRead).Returns(u)
 	}))
@@ -1728,7 +1728,7 @@ func (s *MethodTestSuite) TestUser() {
 	}))
 	s.Run("InsertUser", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.InsertUserParams{ID: uuid.New(), LoginType: database.LoginTypePassword, RBACRoles: []string{}}
-		dbm.EXPECT().InsertUser(gomock.Any(), arg).Return(database.User{}, nil).AnyTimes()
+		dbm.EXPECT().InsertUser(gomock.Any(), arg).Return(database.User{ID: arg.ID, LoginType: arg.LoginType}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceAssignRole, policy.ActionAssign, rbac.ResourceUser, policy.ActionCreate)
 	}))
 	s.Run("InsertUserLink", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -1759,7 +1759,7 @@ func (s *MethodTestSuite) TestUser() {
 	}))
 	s.Run("UpdateUserHashedOneTimePasscode", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		arg := database.UpdateUserHashedOneTimePasscodeParams{ID: u.ID, HashedOneTimePasscode: []byte{}, OneTimePasscodeExpiresAt: sql.NullTime{Time: u.CreatedAt, Valid: true}}
+		arg := database.UpdateUserHashedOneTimePasscodeParams{ID: u.ID}
 		dbm.EXPECT().UpdateUserHashedOneTimePasscode(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
 	}))
