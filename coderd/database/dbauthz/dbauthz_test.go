@@ -1688,7 +1688,7 @@ func (s *MethodTestSuite) TestUser() {
 	s.Run("DeleteAPIKeysByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		key := testutil.Fake(s.T(), faker, database.APIKey{})
 		dbm.EXPECT().DeleteAPIKeysByUserID(gomock.Any(), key.UserID).Return(nil).AnyTimes()
-		check.Args(key.UserID).Asserts(key, policy.ActionDelete).Returns()
+		check.Args(key.UserID).Asserts(rbac.ResourceApiKey.WithOwner(key.UserID.String()), policy.ActionDelete).Returns()
 	}))
 	s.Run("GetQuotaAllowanceForUser", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
