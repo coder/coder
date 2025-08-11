@@ -641,7 +641,19 @@ jobs:
 
           version="$(./scripts/version.sh)"
 
-          binaries=(
+          # Source array of slim binaries
+          slim_binaries=(
+              "coder-slim_${version}_darwin_amd64"
+              "coder-slim_${version}_darwin_arm64"
+              "coder-slim_${version}_linux_amd64"
+              "coder-slim_${version}_linux_arm64"
+              "coder-slim_${version}_linux_armv7"
+              "coder-slim_${version}_windows_amd64.exe"
+              "coder-slim_${version}_windows_arm64.exe"
+          )
+
+          # Target array of CLI binary names
+          cli_binaries=(
               "coder-darwin-amd64"
               "coder-darwin-arm64"
               "coder-linux-amd64"
@@ -651,10 +663,22 @@ jobs:
               "coder-windows-arm64.exe"
           )
 
-          for binary in "${binaries[@]}"; do
-            detached_signature="${binary}.asc"
-            gcloud storage cp "./site/out/bin/${binary}" "gs://releases.coder.com/coder-cli/${version}/${binary}"
-            gcloud storage cp "./site/out/bin/${detached_signature}" "gs://releases.coder.com/coder-cli/${version}/${detached_signature}"
+          # Map slim binaries from the filesystem to the resulting cli binary names in the GCS bucket
+          for ((i=0; i<${#slim_binaries[@]}; i++)); do
+              # Get the slim and cli binary names using the current index
+              slim_binary="${slim_binaries[$i]}"
+              cli_binary="${cli_binaries[$i]}"
+
+              # The detached signature file name remains the same as the slim binary name
+              detached_signature="${slim_binary}.asc"
+
+              echo "Copying ${slim_binary} to ${cli_binary}..."
+              # Copy the main binary, renaming it in the process
+              gcloud storage cp "./build/${slim_binary}" "gs://releases.coder.com/coder-cli/${version}/${cli_binary}"
+
+              echo "Copying ${detached_signature}..."
+              # Copy the signature file without renaming
+              gcloud storage cp "./build/${detached_signature}" "gs://releases.coder.com/coder-cli/${version}/${detached_signature}"
           done
 
       - name: Publish release
