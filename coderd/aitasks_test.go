@@ -154,6 +154,8 @@ func TestAITasksCreate(t *testing.T) {
 	}
 
 	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
 		var (
 			ctx = testutil.Context(t, testutil.WaitShort)
 
