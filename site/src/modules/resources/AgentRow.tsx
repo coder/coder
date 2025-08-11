@@ -59,7 +59,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	onUpdateAgent,
 	initialMetadata,
 }) => {
-	const { browser_only } = useFeatureVisibility();
+	const { browser_only, workspace_external_agent } = useFeatureVisibility();
 	const appSections = organizeAgentApps(agent.apps);
 	const hasAppsToDisplay =
 		!browser_only || appSections.some((it) => it.apps.length > 0);
@@ -296,7 +296,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 				)}
 
 				{isExternalAgent &&
-					(agent.status === "timeout" || agent.status === "connecting") && (
+					(agent.status === "timeout" || agent.status === "connecting") &&
+					workspace_external_agent && (
 						<AgentExternal
 							isExternalAgent={isExternalAgent}
 							agent={agent}
