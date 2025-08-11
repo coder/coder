@@ -110,7 +110,7 @@ func (api *API) aiTasksCreate(rw http.ResponseWriter, r *http.Request) {
 	}
 	if !hasAIPrompt {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: `Template does not have required parameter "AI Prompt"`,
+			Message: `Template does not have required parameter "` + codersdk.AITaskPromptParameterName + `"`,
 		})
 		return
 	}
@@ -120,7 +120,7 @@ func (api *API) aiTasksCreate(rw http.ResponseWriter, r *http.Request) {
 		TemplateVersionID:       req.TemplateVersionID,
 		TemplateVersionPresetID: req.TemplateVersionPresetID,
 		RichParameterValues: []codersdk.WorkspaceBuildParameter{
-			{Name: "AI Prompt", Value: req.Prompt},
+			{Name: codersdk.AITaskPromptParameterName, Value: req.Prompt},
 		},
 	}
 

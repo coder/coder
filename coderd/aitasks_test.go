@@ -191,7 +191,7 @@ func TestAITasksCreate(t *testing.T) {
 		parameters, err := client.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
 		require.NoError(t, err)
 		require.Len(t, parameters, 1)
-		assert.Equal(t, "AI Prompt", parameters[0].Name)
+		assert.Equal(t, codersdk.AITaskPromptParameterName, parameters[0].Name)
 		assert.Equal(t, taskPrompt, parameters[0].Value)
 	})
 
