@@ -670,15 +670,11 @@ jobs:
               cli_binary="${cli_binaries[$i]}"
 
               # The detached signature file name remains the same as the slim binary name
-              detached_signature="${slim_binary}.asc"
+              source_detached_signature="${slim_binary}.asc"
+              target_detached_signature="${cli_binary}.asc"
 
-              echo "Copying ${slim_binary} to ${cli_binary}..."
-              # Copy the main binary, renaming it in the process
               gcloud storage cp "./build/${slim_binary}" "gs://releases.coder.com/coder-cli/${version}/${cli_binary}"
-
-              echo "Copying ${detached_signature}..."
-              # Copy the signature file without renaming
-              gcloud storage cp "./build/${detached_signature}" "gs://releases.coder.com/coder-cli/${version}/${detached_signature}"
+              gcloud storage cp "./build/${source_detached_signature}" "gs://releases.coder.com/coder-cli/${version}/${target_detached_signature}"
           done
 
       - name: Publish release
