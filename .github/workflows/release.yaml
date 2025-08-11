@@ -641,7 +641,7 @@ jobs:
 
           version="$(./scripts/version.sh)"
 
-           # Source array of slim binaries
+          # Source array of slim binaries
           declare -A binaries
           binaries["coder-darwin-amd64"]="coder-slim_${version}_darwin_amd64"
           binaries["coder-darwin-arm64"]="coder-slim_${version}_darwin_arm64"
