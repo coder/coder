@@ -1,10 +1,10 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	ProvisionerKeyNameBuiltIn,
 	ProvisionerKeyNamePSK,
 	ProvisionerKeyNameUserAuth,
 } from "api/typesGenerated";
+import { userEvent } from "storybook/test";
 import { ProvisionerKey } from "./ProvisionerKey";
 
 const meta: Meta<typeof ProvisionerKey> = {

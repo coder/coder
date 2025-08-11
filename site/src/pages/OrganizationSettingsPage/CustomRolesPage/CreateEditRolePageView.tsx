@@ -32,7 +32,7 @@ import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { type ChangeEvent, type FC, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { getFormHelpers, nameValidator } from "utils/formUtils";
 import * as Yup from "yup";
 
