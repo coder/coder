@@ -1913,7 +1913,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		}()
 
 		// Then: the prebuilt workspace should remain in a start transition
-		prebuildStats := <-statsCh
+		prebuildStats := testutil.RequireReceive(ctx, t, statsCh)
 		require.Len(t, prebuildStats.Errors, 0)
 		require.Len(t, prebuildStats.Transitions, 0)
 		require.Equal(t, codersdk.WorkspaceTransitionStart, prebuild.LatestBuild.Transition)
@@ -1938,7 +1938,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		}()
 
 		// Then: the workspace should be stopped
-		workspaceStats := <-statsCh
+		workspaceStats := testutil.RequireReceive(ctx, t, statsCh)
 		require.Len(t, workspaceStats.Errors, 0)
 		require.Len(t, workspaceStats.Transitions, 1)
 		require.Contains(t, workspaceStats.Transitions, workspace.ID)
@@ -2036,7 +2036,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		}()
 
 		// Then: the prebuilt workspace should remain in a start transition
-		prebuildStats := <-statsCh
+		prebuildStats := testutil.RequireReceive(ctx, t, statsCh)
 		require.Len(t, prebuildStats.Errors, 0)
 		require.Len(t, prebuildStats.Transitions, 0)
 		require.Equal(t, codersdk.WorkspaceTransitionStart, prebuild.LatestBuild.Transition)
@@ -2060,7 +2060,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		}()
 
 		// Then: the workspace should be stopped
-		workspaceStats := <-statsCh
+		workspaceStats := testutil.RequireReceive(ctx, t, statsCh)
 		require.Len(t, workspaceStats.Errors, 0)
 		require.Len(t, workspaceStats.Transitions, 1)
 		require.Contains(t, workspaceStats.Transitions, workspace.ID)
@@ -2160,7 +2160,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		}()
 
 		// Then: the prebuilt workspace should remain in a stop transition
-		prebuildStats := <-statsCh
+		prebuildStats := testutil.RequireReceive(ctx, t, statsCh)
 		require.Len(t, prebuildStats.Errors, 0)
 		require.Len(t, prebuildStats.Transitions, 0)
 		require.Equal(t, codersdk.WorkspaceTransitionStop, prebuild.LatestBuild.Transition)
@@ -2194,7 +2194,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		}()
 
 		// Then: the workspace should have a NextStartAt equal to the next autostart schedule
-		workspaceStats := <-statsCh
+		workspaceStats := testutil.RequireReceive(ctx, t, statsCh)
 		require.Len(t, workspaceStats.Errors, 0)
 		require.Len(t, workspaceStats.Transitions, 1)
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
@@ -2290,7 +2290,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		}()
 
 		// Then: the prebuilt workspace should remain in a start transition
-		prebuildStats := <-statsCh
+		prebuildStats := testutil.RequireReceive(ctx, t, statsCh)
 		require.Len(t, prebuildStats.Errors, 0)
 		require.Len(t, prebuildStats.Transitions, 0)
 		require.Equal(t, codersdk.WorkspaceTransitionStart, prebuild.LatestBuild.Transition)
@@ -2314,7 +2314,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		}()
 
 		// Then: the workspace should transition to stopped state for breaching dormant TTL
-		workspaceStats := <-statsCh
+		workspaceStats := testutil.RequireReceive(ctx, t, statsCh)
 		require.Len(t, workspaceStats.Errors, 0)
 		require.Len(t, workspaceStats.Transitions, 1)
 		require.Contains(t, workspaceStats.Transitions, workspace.ID)
@@ -2333,7 +2333,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		}()
 
 		// Then: the workspace should be deleted
-		dormantWorkspaceStats := <-statsCh
+		dormantWorkspaceStats := testutil.RequireReceive(ctx, t, statsCh)
 		require.Len(t, dormantWorkspaceStats.Errors, 0)
 		require.Len(t, dormantWorkspaceStats.Transitions, 1)
 		require.Contains(t, dormantWorkspaceStats.Transitions, workspace.ID)
@@ -2433,7 +2433,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		}()
 
 		// Then: the prebuilt workspace should remain in a start transition
-		prebuildStats := <-statsCh
+		prebuildStats := testutil.RequireReceive(ctx, t, statsCh)
 		require.Len(t, prebuildStats.Errors, 0)
 		require.Len(t, prebuildStats.Transitions, 0)
 		require.Equal(t, codersdk.WorkspaceTransitionStart, prebuild.LatestBuild.Transition)
