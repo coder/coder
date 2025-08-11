@@ -199,6 +199,8 @@ func TestAITasksCreate(t *testing.T) {
 	})
 
 	t.Run("FailsOnNonTaskTemplate", func(t *testing.T) {
+		t.Parallel()
+
 		var (
 			ctx = testutil.Context(t, testutil.WaitShort)
 
