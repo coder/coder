@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as apiModule from "api/api";
+import { ParameterValidationError } from "api/errors";
 import type { TemplateVersionParameter, Workspace } from "api/typesGenerated";
 import MockServerSocket from "jest-websocket-mock";
 import {
@@ -282,11 +283,9 @@ describe("WorkspacePage", () => {
 	});
 
 	it("requests an update when the user presses Update", async () => {
-		// Mocks
 		jest
 			.spyOn(API, "getWorkspaceByOwnerAndName")
 			.mockResolvedValueOnce(MockOutdatedWorkspace);
-
 		const updateWorkspaceMock = jest
 			.spyOn(API, "updateWorkspace")
 			.mockResolvedValueOnce(MockWorkspaceBuild);
@@ -306,73 +305,37 @@ describe("WorkspacePage", () => {
 		});
 	});
 
-	it("updates the parameters when they are missing during update", async () => {
-		// Mocks
+	it("requires invalid parameters to be updated", async () => {
 		jest
 			.spyOn(API, "getWorkspaceByOwnerAndName")
 			.mockResolvedValueOnce(MockOutdatedWorkspace);
-		const updateWorkspaceSpy = jest
+		const updateWorkspaceMock = jest
 			.spyOn(API, "updateWorkspace")
 			.mockRejectedValueOnce(
-				new MissingBuildParameters(
-					[MockTemplateVersionParameter1, MockTemplateVersionParameter2],
+				new ParameterValidationError(
 					MockOutdatedWorkspace.template_active_version_id,
+					[
+						{
+							field: MockTemplateVersionParameter1.name,
+							detail:
+								"Required parameter not provided; parameter value is null",
+						},
+					],
 				),
 			);
 
-		// Render
 		await renderWorkspacePage(MockWorkspace);
 
-		// Actions
+		// Start workspace update
 		const user = userEvent.setup();
 		await user.click(screen.getByTestId("workspace-update-button"));
 		const confirmButton = await screen.findByTestId("confirm-button");
 		await user.click(confirmButton);
 
-		// The update was called
-		await waitFor(() => {
-			expect(API.updateWorkspace).toBeCalled();
-			updateWorkspaceSpy.mockClear();
-		});
-
-		// After trying to update, a new dialog asking for missed parameters should
-		// be displayed and filled
-		const dialog = await waitFor(() => screen.findByTestId("dialog"), {
-			timeout: 2000,
-		});
-		const firstParameterInput = within(dialog).getByLabelText(
-			MockTemplateVersionParameter1.name,
-			{ exact: false },
-		);
-		await user.clear(firstParameterInput);
-		await user.type(firstParameterInput, "some-value");
-		const secondParameterInput = within(dialog).getByLabelText(
-			MockTemplateVersionParameter2.name,
-			{ exact: false },
-		);
-		await user.clear(secondParameterInput);
-		await user.type(secondParameterInput, "2");
-		await user.click(
-			within(dialog).getByRole("button", { name: /update parameters/i }),
-		);
-
-		// Check if the update was called using the values from the form
-		await waitFor(() => {
-			expect(API.updateWorkspace).toHaveBeenCalledWith(
-				MockOutdatedWorkspace,
-				[
-					{
-						name: MockTemplateVersionParameter1.name,
-						value: "some-value",
-					},
-					{
-						name: MockTemplateVersionParameter2.name,
-						value: "2",
-					},
-				],
-				false,
-			);
-		});
+		// Dialog should warn the parameters need to be updated
+		const dialog = await screen.findByTestId("dialog");
+		await within(dialog).findByText("Update workspace parameters");
+		await screen.findByText(/go to the workspace parameters page to review/);
 	});
 
 	it("restart the workspace with one time parameters when having the confirmation dialog", async () => {

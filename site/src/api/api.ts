@@ -24,7 +24,7 @@ import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
 import { OneWayWebSocket } from "../utils/OneWayWebSocket";
 import { delay } from "../utils/delay";
-import { type FieldError, isApiError } from "./errors";
+import { ParameterValidationError, isApiError } from "./errors";
 import type {
 	DynamicParametersRequest,
 	PostWorkspaceUsageRequest,
@@ -395,15 +395,6 @@ export class MissingBuildParameters extends Error {
 		super("Missing build parameters.");
 		this.parameters = parameters;
 		this.versionId = versionId;
-	}
-}
-
-export class ParameterValidationError extends Error {
-	constructor(
-		public readonly versionId: string,
-		public readonly validations: FieldError[],
-	) {
-		super("Parameters are not valid for new template version");
 	}
 }
 
@@ -2256,6 +2247,7 @@ class ApiMethods {
 					error.response.data.validations &&
 					error.response.data.validations.length > 0
 				) {
+					console.log(error.response.data.validations);
 					throw new ParameterValidationError(
 						templateVersionId,
 						error.response.data.validations,
