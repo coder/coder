@@ -2,6 +2,7 @@ package toolsdk_test
 
 import (
 	"context"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -14,6 +15,9 @@ import (
 
 func TestWorkspaceBash(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows: Workspace MCP bash tools rely on a Unix-like shell (bash) and POSIX/SSH semantics. Use Linux/macOS or WSL for these tests.")
+	}
 
 	t.Run("ValidateArgs", func(t *testing.T) {
 		t.Parallel()
@@ -97,6 +101,9 @@ func TestWorkspaceBash(t *testing.T) {
 
 func TestNormalizeWorkspaceInput(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows: Workspace MCP bash tools rely on a Unix-like shell (bash) and POSIX/SSH semantics. Use Linux/macOS or WSL for these tests.")
+	}
 
 	testCases := []struct {
 		name     string
@@ -151,6 +158,9 @@ func TestNormalizeWorkspaceInput(t *testing.T) {
 
 func TestAllToolsIncludesBash(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows: Workspace MCP bash tools rely on a Unix-like shell (bash) and POSIX/SSH semantics. Use Linux/macOS or WSL for these tests.")
+	}
 
 	// Verify that WorkspaceBash is included in the All slice
 	found := false
@@ -169,6 +179,9 @@ func TestAllToolsIncludesBash(t *testing.T) {
 
 func TestWorkspaceBashTimeout(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows: Workspace MCP bash tools rely on a Unix-like shell (bash) and POSIX/SSH semantics. Use Linux/macOS or WSL for these tests.")
+	}
 
 	t.Run("TimeoutDefaultValue", func(t *testing.T) {
 		t.Parallel()
@@ -251,6 +264,9 @@ func TestWorkspaceBashTimeout(t *testing.T) {
 
 func TestWorkspaceBashTimeoutIntegration(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows: Workspace MCP bash tools rely on a Unix-like shell (bash) and POSIX/SSH semantics. Use Linux/macOS or WSL for these tests.")
+	}
 
 	t.Run("ActualTimeoutBehavior", func(t *testing.T) {
 		t.Parallel()
@@ -338,6 +354,9 @@ func TestWorkspaceBashTimeoutIntegration(t *testing.T) {
 
 func TestWorkspaceBashBackgroundIntegration(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows: Workspace MCP bash tools rely on a Unix-like shell (bash) and POSIX/SSH semantics. Use Linux/macOS or WSL for these tests.")
+	}
 
 	t.Run("BackgroundCommandCapturesOutput", func(t *testing.T) {
 		t.Parallel()
