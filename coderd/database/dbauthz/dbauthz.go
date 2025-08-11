@@ -2874,15 +2874,15 @@ func (q *querier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg
 	return tv, nil
 }
 
-func (q *querier) GetTemplateVersionHasAIPrompt(ctx context.Context, id uuid.UUID) (bool, error) {
+func (q *querier) GetTemplateVersionHasAITask(ctx context.Context, id uuid.UUID) (bool, error) {
 	// If we can successfully call `GetTemplateVersionByID`, then
 	// we know the actor has sufficient permissions to know if the
-	// template has an AI Prompt.
+	// template has an AI task.
 	if _, err := q.GetTemplateVersionByID(ctx, id); err != nil {
 		return false, err
 	}
 
-	return q.db.GetTemplateVersionHasAIPrompt(ctx, id)
+	return q.db.GetTemplateVersionHasAITask(ctx, id)
 }
 
 func (q *querier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {

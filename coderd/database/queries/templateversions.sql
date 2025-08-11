@@ -235,7 +235,7 @@ WHERE
 	template_versions.id IN (archived_versions.id)
 RETURNING template_versions.id;
 
--- name: GetTemplateVersionHasAIPrompt :one
+-- name: GetTemplateVersionHasAITask :one
 SELECT EXISTS (
 	SELECT 1
 	FROM template_versions

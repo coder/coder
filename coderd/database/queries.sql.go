@@ -12870,7 +12870,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 	return i, err
 }
 
-const getTemplateVersionHasAIPrompt = `-- name: GetTemplateVersionHasAIPrompt :one
+const getTemplateVersionHasAITask = `-- name: GetTemplateVersionHasAITask :one
 SELECT EXISTS (
 	SELECT 1
 	FROM template_versions
@@ -12878,8 +12878,8 @@ SELECT EXISTS (
 )
 `
 
-func (q *sqlQuerier) GetTemplateVersionHasAIPrompt(ctx context.Context, id uuid.UUID) (bool, error) {
-	row := q.db.QueryRowContext(ctx, getTemplateVersionHasAIPrompt, id)
+func (q *sqlQuerier) GetTemplateVersionHasAITask(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateVersionHasAITask, id)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err

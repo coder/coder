@@ -1443,7 +1443,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		})
 		check.Args(now.Add(-time.Hour)).Asserts(rbac.ResourceTemplate.All(), policy.ActionRead)
 	}))
-	s.Run("GetTemplateVersionHasAIPrompt", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetTemplateVersionHasAITask", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		u := dbgen.User(s.T(), db, database.User{})
 		t := dbgen.Template(s.T(), db, database.Template{

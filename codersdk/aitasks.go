@@ -53,7 +53,7 @@ type CreateAITasksRequest struct {
 }
 
 func (c *ExperimentalClient) AITasksCreate(ctx context.Context, request CreateAITasksRequest) (Workspace, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/aitasks/", request)
+	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/aitasks", request)
 	if err != nil {
 		return Workspace{}, err
 	}

@@ -1538,10 +1538,10 @@ func (m queryMetricsStore) GetTemplateVersionByTemplateIDAndName(ctx context.Con
 	return version, err
 }
 
-func (m queryMetricsStore) GetTemplateVersionHasAIPrompt(ctx context.Context, id uuid.UUID) (bool, error) {
+func (m queryMetricsStore) GetTemplateVersionHasAITask(ctx context.Context, id uuid.UUID) (bool, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetTemplateVersionHasAIPrompt(ctx, id)
-	m.queryLatencies.WithLabelValues("GetTemplateVersionHasAIPrompt").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetTemplateVersionHasAITask(ctx, id)
+	m.queryLatencies.WithLabelValues("GetTemplateVersionHasAITask").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

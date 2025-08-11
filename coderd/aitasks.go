@@ -95,7 +95,7 @@ func (api *API) aiTasksCreate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hasAIPrompt, err := api.Database.GetTemplateVersionHasAIPrompt(ctx, req.TemplateVersionID)
+	hasAITask, err := api.Database.GetTemplateVersionHasAITask(ctx, req.TemplateVersionID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || rbac.IsUnauthorizedError(err) {
 			httpapi.ResourceNotFound(rw)
@@ -103,12 +103,12 @@ func (api *API) aiTasksCreate(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching if template version has ai prompt.",
+			Message: "Internal error fetching whether the template version has an AI task.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	if !hasAIPrompt {
+	if !hasAITask {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: `Template does not have required parameter "` + codersdk.AITaskPromptParameterName + `"`,
 		})
