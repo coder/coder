@@ -337,7 +337,9 @@ describe("WorkspacePage", () => {
 
 		// After trying to update, a new dialog asking for missed parameters should
 		// be displayed and filled
-		const dialog = await waitFor(() => screen.findByTestId("dialog"));
+		const dialog = await waitFor(() => screen.findByTestId("dialog"), {
+			timeout: 2000,
+		});
 		const firstParameterInput = within(dialog).getByLabelText(
 			MockTemplateVersionParameter1.name,
 			{ exact: false },
