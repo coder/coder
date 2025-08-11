@@ -133,11 +133,11 @@ func (e *Executor) Run() {
 }
 
 // hasValidProvisioner checks whether there is at least one valid (non-stale, correct tags) provisioner
-// based on t and the tags on templateVersionJob.
-func (e *Executor) hasValidProvisioner(ctx context.Context, tx database.Store, t time.Time, ws database.Workspace, templateVersionJob database.ProvisionerJob) (bool, error) {
+// based on time t and the tags maps (such as from a templateVersionJob).
+func (e *Executor) hasValidProvisioner(ctx context.Context, tx database.Store, t time.Time, ws database.Workspace, tags map[string]string) (bool, error) {
 	queryParams := database.GetProvisionerDaemonsByOrganizationParams{
 		OrganizationID: ws.OrganizationID,
-		WantTags:       templateVersionJob.Tags,
+		WantTags:       tags,
 	}
 
 	// nolint: gocritic // The user (in this case, the user/context for autostart builds) may not have the full
@@ -148,20 +148,20 @@ func (e *Executor) hasValidProvisioner(ctx context.Context, tx database.Store, t
 		return false, xerrors.Errorf("get provisioner daemons: %w", err)
 	}
 
-	logger := e.log.With(slog.F("tags", templateVersionJob.Tags))
+	logger := e.log.With(slog.F("tags", tags))
 	// Check if any provisioners are active (not stale)
 	for _, pd := range provisionerDaemons {
 		if pd.LastSeenAt.Valid {
 			age := t.Sub(pd.LastSeenAt.Time)
 			if age <= provisionerdserver.StaleInterval {
-				logger.Debug(ctx, "hasAvailableProvisioners: found active provisioner",
+				logger.Debug(ctx, "hasValidProvisioner: found active provisioner",
 					slog.F("daemon_id", pd.ID),
 				)
 				return true, nil
 			}
 		}
 	}
-	logger.Debug(ctx, "hasAvailableProvisioners: no active provisioners found")
+	logger.Debug(ctx, "hasValidProvisioner: no active provisioners found")
 	return false, nil
 }
 
@@ -321,7 +321,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 
 					// Before creating the workspace build, check for available provisioners
-					hasProvisioners, err := e.hasValidProvisioner(e.ctx, tx, t, ws, templateVersionJob)
+					hasProvisioners, err := e.hasValidProvisioner(e.ctx, tx, t, ws, templateVersionJob.Tags)
 					if err != nil {
 						return xerrors.Errorf("check provisioner availability: %w", err)
 					}
