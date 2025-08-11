@@ -2874,6 +2874,17 @@ func (q *querier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg
 	return tv, nil
 }
 
+func (q *querier) GetTemplateVersionHasAIPrompt(ctx context.Context, id uuid.UUID) (bool, error) {
+	// If we can successfully call `GetTemplateVersionByID`, then
+	// we know the actor has sufficient permissions to know if the
+	// template has an AI Prompt.
+	if _, err := q.GetTemplateVersionByID(ctx, id); err != nil {
+		return false, err
+	}
+
+	return q.db.GetTemplateVersionHasAIPrompt(ctx, id)
+}
+
 func (q *querier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
 	// An actor can read template version parameters if they can read the related template.
 	tv, err := q.db.GetTemplateVersionByID(ctx, templateVersionID)

@@ -1538,6 +1538,13 @@ func (m queryMetricsStore) GetTemplateVersionByTemplateIDAndName(ctx context.Con
 	return version, err
 }
 
+func (m queryMetricsStore) GetTemplateVersionHasAIPrompt(ctx context.Context, id uuid.UUID) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateVersionHasAIPrompt(ctx, id)
+	m.queryLatencies.WithLabelValues("GetTemplateVersionHasAIPrompt").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
 	start := time.Now()
 	parameters, err := m.s.GetTemplateVersionParameters(ctx, templateVersionID)

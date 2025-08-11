@@ -234,3 +234,10 @@ FROM
 WHERE
 	template_versions.id IN (archived_versions.id)
 RETURNING template_versions.id;
+
+-- name: GetTemplateVersionHasAIPrompt :one
+SELECT EXISTS (
+	SELECT 1
+	FROM template_versions
+	WHERE id = $1 AND has_ai_task = TRUE
+);

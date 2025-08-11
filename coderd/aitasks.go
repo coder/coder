@@ -92,6 +92,21 @@ func (api *API) aiTasksCreate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	hasAIPrompt, err := api.Database.GetTemplateVersionHasAIPrompt(ctx, req.TemplateVersionID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching if template version has ai prompt.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !hasAIPrompt {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: `Template does not have required parameter "AI Prompt"`,
+		})
+		return
+	}
+
 	createReq := codersdk.CreateWorkspaceRequest{
 		Name:                    req.Name,
 		TemplateVersionID:       req.TemplateVersionID,

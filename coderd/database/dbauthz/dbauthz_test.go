@@ -1443,6 +1443,20 @@ func (s *MethodTestSuite) TestTemplate() {
 		})
 		check.Args(now.Add(-time.Hour)).Asserts(rbac.ResourceTemplate.All(), policy.ActionRead)
 	}))
+	s.Run("GetTemplateVersionHasAIPrompt", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u := dbgen.User(s.T(), db, database.User{})
+		t := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			OrganizationID: o.ID,
+			TemplateID:     uuid.NullUUID{UUID: t.ID, Valid: true},
+			CreatedBy:      u.ID,
+		})
+		check.Args(tv.ID).Asserts(t, policy.ActionRead)
+	}))
 	s.Run("GetTemplatesWithFilter", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		u := dbgen.User(s.T(), db, database.User{})
