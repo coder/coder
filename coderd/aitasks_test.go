@@ -230,6 +230,8 @@ func TestAITasksCreate(t *testing.T) {
 	})
 
 	t.Run("FailsOnInvalidTemplate", func(t *testing.T) {
+		t.Parallel()
+
 		var (
 			ctx = testutil.Context(t, testutil.WaitShort)
 
