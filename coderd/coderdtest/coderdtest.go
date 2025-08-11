@@ -1594,7 +1594,7 @@ func DeploymentValues(t testing.TB, mut ...func(*codersdk.DeploymentValues)) *co
 }
 
 // GetProvisionerForTags returns the first valid provisioner for a workspace + template tags.
-func GetProvisionerForTags(t *testing.T, tx database.Store, curTime time.Time, orgID uuid.UUID, tags map[string]string) (database.ProvisionerDaemon, error) {
+func GetProvisionerForTags(tx database.Store, curTime time.Time, orgID uuid.UUID, tags map[string]string) (database.ProvisionerDaemon, error) {
 	if tags == nil {
 		tags = map[string]string{}
 	}

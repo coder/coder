@@ -132,7 +132,7 @@ func (e *Executor) Run() {
 	}()
 }
 
-// hasNonStaleProvisioner checks whether there is at least one valid (non-stale, correct tags) provisioner
+// hasValidProvisioner checks whether there is at least one valid (non-stale, correct tags) provisioner
 // based on t and the tags on templateVersionJob.
 func (e *Executor) hasValidProvisioner(ctx context.Context, tx database.Store, t time.Time, ws database.Workspace, templateVersionJob database.ProvisionerJob) (bool, error) {
 	queryParams := database.GetProvisionerDaemonsByOrganizationParams{
@@ -321,7 +321,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 
 					// Before creating the workspace build, check for available provisioners
-					hasProvisioners, err := e.hasNonStaleProvisioner(e.ctx, tx, t, ws, templateVersionJob)
+					hasProvisioners, err := e.hasValidProvisioner(e.ctx, tx, t, ws, templateVersionJob)
 					if err != nil {
 						return xerrors.Errorf("check provisioner availability: %w", err)
 					}
