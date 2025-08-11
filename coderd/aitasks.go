@@ -7,7 +7,10 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -60,4 +63,60 @@ func (api *API) aiTasksPrompts(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AITasksPromptsResponse{
 		Prompts: promptsByBuildID,
 	})
+}
+
+// This endpoint is experimental and not guaranteed to be stable, so we're not
+// generating public-facing documentation for it.
+func (api *API) aiTasksCreate(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx     = r.Context()
+		apiKey  = httpmw.APIKey(r)
+		auditor = api.Auditor.Load()
+	)
+
+	var req codersdk.CreateAITasksRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	user, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	createReq := codersdk.CreateWorkspaceRequest{
+		Name:                    req.Name,
+		TemplateVersionID:       req.TemplateVersionID,
+		TemplateVersionPresetID: req.TemplateVersionPresetID,
+		RichParameterValues: []codersdk.WorkspaceBuildParameter{
+			{Name: "AI Prompt", Value: req.Prompt},
+		},
+	}
+
+	owner := workspaceOwner{
+		ID:        user.ID,
+		Username:  user.Username,
+		AvatarURL: user.AvatarURL,
+	}
+
+	aReq, commitAudit := audit.InitRequest[database.WorkspaceTable](rw, &audit.RequestParams{
+		Audit:   *auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionCreate,
+		AdditionalFields: audit.AdditionalFields{
+			WorkspaceOwner: owner.Username,
+		},
+	})
+
+	defer commitAudit()
+	createWorkspace(ctx, aReq, apiKey.UserID, api, owner, createReq, rw, r)
 }

@@ -232,7 +232,6 @@ type TaskFormProps = {
 };
 
 const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
-	const { user } = useAuthenticated();
 	const queryClient = useQueryClient();
 	const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
 		templates[0].id,
@@ -293,7 +292,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 			templateVersionId,
 			presetId,
 		}: CreateTaskMutationFnProps) =>
-			data.createTask(prompt, user.id, templateVersionId, presetId),
+			data.createTask(prompt, templateVersionId, presetId),
 		onSuccess: async (task) => {
 			await queryClient.invalidateQueries({
 				queryKey: ["tasks"],
@@ -727,7 +726,6 @@ export const data = {
 
 	async createTask(
 		prompt: string,
-		userId: string,
 		templateVersionId: string,
 		presetId: string | null = null,
 	): Promise<Task> {
@@ -741,13 +739,11 @@ export const data = {
 			}
 		}
 
-		const workspace = await API.createWorkspace(userId, {
+		const workspace = await API.experimental.createAITask({
 			name: `task-${generateWorkspaceName()}`,
 			template_version_id: templateVersionId,
 			template_version_preset_id: preset_id || undefined,
-			rich_parameter_values: [
-				{ name: AI_PROMPT_PARAMETER_NAME, value: prompt },
-			],
+			prompt,
 		});
 
 		return {

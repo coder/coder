@@ -422,6 +422,14 @@ export interface ConvertLoginRequest {
 	readonly password: string;
 }
 
+// From codersdk/aitasks.go
+export interface CreateAITasksRequest {
+	readonly name: string;
+	readonly template_version_id: string;
+	readonly template_version_preset_id?: string;
+	readonly prompt: string;
+}
+
 // From codersdk/users.go
 export interface CreateFirstUserRequest {
 	readonly email: string;

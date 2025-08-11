@@ -44,3 +44,29 @@ func (c *ExperimentalClient) AITaskPrompts(ctx context.Context, buildIDs []uuid.
 	var prompts AITasksPromptsResponse
 	return prompts, json.NewDecoder(res.Body).Decode(&prompts)
 }
+
+type CreateAITasksRequest struct {
+	Name                    string    `json:"name"`
+	TemplateVersionID       uuid.UUID `json:"template_version_id"`
+	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty"`
+	Prompt                  string    `json:"prompt"`
+}
+
+func (c *ExperimentalClient) AITasksCreate(ctx context.Context, request CreateAITasksRequest) (Workspace, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/aitasks/", request)
+	if err != nil {
+		return Workspace{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusCreated {
+		return Workspace{}, ReadBodyAsError(res)
+	}
+
+	var workspace Workspace
+	if err := json.NewDecoder(res.Body).Decode(&workspace); err != nil {
+		return Workspace{}, err
+	}
+
+	return workspace, nil
+}

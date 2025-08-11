@@ -2665,6 +2665,17 @@ class ExperimentalApiMethods {
 
 		return response.data;
 	};
+
+	createAITask = async (
+		req: TypesGen.CreateAITasksRequest,
+	): Promise<TypesGen.Workspace> => {
+		const response = await this.axios.post<TypesGen.Workspace>(
+			"/api/experimental/aitasks",
+			req,
+		);
+
+		return response.data;
+	};
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,

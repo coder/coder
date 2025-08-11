@@ -139,3 +139,58 @@ func TestAITasksPrompts(t *testing.T) {
 		require.Empty(t, prompts.Prompts)
 	})
 }
+
+func TestAITasksCreate(t *testing.T) {
+	t.Parallel()
+
+	makeEchoResponses := func(parameters []*proto.RichParameter) *echo.Responses {
+		return &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionPlan: []*proto.Response{
+				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{Parameters: parameters}}},
+			},
+		}
+	}
+
+	t.Run("OK", func(t *testing.T) {
+		var (
+			ctx = testutil.Context(t, testutil.WaitShort)
+
+			taskName   = "task-foo-bar-baz"
+			taskPrompt = "Some task prompt"
+		)
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Given: A template with an "AI Prompt"
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, makeEchoResponses([]*proto.RichParameter{
+			{Name: "AI Prompt", Type: "string"},
+		}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		expClient := codersdk.NewExperimentalClient(client)
+
+		// When: We attempt to create a Task.
+		workspace, err := expClient.AITasksCreate(ctx, codersdk.CreateAITasksRequest{
+			Name:              taskName,
+			TemplateVersionID: template.ActiveVersionID,
+			Prompt:            taskPrompt,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// Then: We expect a workspace to have been created.
+		require.Equal(t, taskName, workspace.Name)
+		require.Equal(t, template.ID, workspace.TemplateID)
+
+		// And: We expect it to have the "AI Prompt" parameter correctly set.
+		parameters, err := client.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, parameters, 1)
+		require.Equal(t, "AI Prompt", parameters[0].Name)
+		require.Equal(t, taskPrompt, parameters[0].Value)
+	})
+}
