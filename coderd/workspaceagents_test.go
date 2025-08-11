@@ -3136,3 +3136,77 @@ func (p *pubsubReinitSpy) Subscribe(event string, listener pubsub.Listener) (can
 	p.Unlock()
 	return cancel, err
 }
+
+func TestWorkspaceExternalAgentCredentials(t *testing.T) {
+	t.Parallel()
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
+	t.Run("Success - linux", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+			a[0].Name = "test-agent"
+			a[0].OperatingSystem = "linux"
+			a[0].Architecture = "amd64"
+			return a
+		}).Do()
+
+		credentials, err := client.WorkspaceExternalAgentCredentials(
+			ctx, r.Workspace.ID, "test-agent")
+		require.NoError(t, err)
+
+		require.Equal(t, r.AgentToken, credentials.AgentToken)
+		expectedCommand := fmt.Sprintf("CODER_AGENT_TOKEN=%q curl -fsSL \"%s/api/v2/init-script/linux/amd64\" | sh", r.AgentToken, client.URL)
+		require.Equal(t, expectedCommand, credentials.Command)
+	})
+
+	t.Run("Success - windows", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+			a[0].Name = "test-agent"
+			a[0].OperatingSystem = "windows"
+			a[0].Architecture = "amd64"
+			return a
+		}).Do()
+
+		credentials, err := client.WorkspaceExternalAgentCredentials(
+			ctx, r.Workspace.ID, "test-agent")
+		require.NoError(t, err)
+
+		require.Equal(t, r.AgentToken, credentials.AgentToken)
+		expectedCommand := fmt.Sprintf("$env:CODER_AGENT_TOKEN=%q; iwr -useb \"%s/api/v2/init-script/windows/amd64\" | iex", r.AgentToken, client.URL)
+		require.Equal(t, expectedCommand, credentials.Command)
+	})
+
+	t.Run("WithInstanceID - should return 404", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+			a[0].Name = "test-agent"
+			a[0].Auth = &proto.Agent_InstanceId{
+				InstanceId: uuid.New().String(),
+			}
+			return a
+		}).Do()
+
+		_, err := client.WorkspaceExternalAgentCredentials(ctx, r.Workspace.ID, "test-agent")
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, "External agent is authenticated with an instance ID.", apiErr.Message)
+	})
+}
