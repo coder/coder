@@ -2265,9 +2265,6 @@ func TestExecutorPrebuilds(t *testing.T) {
 		// Then: the claimed workspace should inherit and respect that same NextStartAt
 		require.True(t, workspace.NextStartAt.Equal(*prebuild.NextStartAt))
 
-		// Wait for provisioner to be registered
-		coderdtest.MustWaitForAnyProvisioner(t, db)
-
 		// Wait for provisioner to be available for this specific workspace
 		coderdtest.MustWaitForProvisionersAvailable(t, db, prebuild)
 
