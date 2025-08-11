@@ -641,40 +641,21 @@ jobs:
 
           version="$(./scripts/version.sh)"
 
-          # Source array of slim binaries
-          slim_binaries=(
-              "coder-slim_${version}_darwin_amd64"
-              "coder-slim_${version}_darwin_arm64"
-              "coder-slim_${version}_linux_amd64"
-              "coder-slim_${version}_linux_arm64"
-              "coder-slim_${version}_linux_armv7"
-              "coder-slim_${version}_windows_amd64.exe"
-              "coder-slim_${version}_windows_arm64.exe"
-          )
+           # Source array of slim binaries
+          declare -A binaries
+          binaries["coder-darwin-amd64"]="coder-slim_${version}_darwin_amd64"
+          binaries["coder-darwin-arm64"]="coder-slim_${version}_darwin_arm64"
+          binaries["coder-linux-amd64"]="coder-slim_${version}_linux_amd64"
+          binaries["coder-linux-arm64"]="coder-slim_${version}_linux_arm64"
+          binaries["coder-linux-armv7"]="coder-slim_${version}_linux_armv7"
+          binaries["coder-windows-amd64.exe"]="coder-slim_${version}_windows_amd64.exe"
+          binaries["coder-windows-arm64.exe"]="coder-slim_${version}_windows_arm64.exe"
 
-          # Target array of CLI binary names
-          cli_binaries=(
-              "coder-darwin-amd64"
-              "coder-darwin-arm64"
-              "coder-linux-amd64"
-              "coder-linux-arm64"
-              "coder-linux-armv7"
-              "coder-windows-amd64.exe"
-              "coder-windows-arm64.exe"
-          )
-
-          # Map slim binaries from the filesystem to the resulting cli binary names in the GCS bucket
-          for ((i=0; i<${#slim_binaries[@]}; i++)); do
-              # Get the slim and cli binary names using the current index
-              slim_binary="${slim_binaries[$i]}"
-              cli_binary="${cli_binaries[$i]}"
-
-              # The detached signature file name remains the same as the slim binary name
-              source_detached_signature="${slim_binary}.asc"
-              target_detached_signature="${cli_binary}.asc"
-
-              gcloud storage cp "./build/${slim_binary}" "gs://releases.coder.com/coder-cli/${version}/${cli_binary}"
-              gcloud storage cp "./build/${source_detached_signature}" "gs://releases.coder.com/coder-cli/${version}/${target_detached_signature}"
+          for cli_name in "${!binaries[@]}"; do
+            slim_binary="${binaries[$cli_name]}"
+            detached_signature="${slim_binary}.asc"
+            gcloud storage cp "./build/${slim_binary}" "gs://releases.coder.com/coder-cli/${version}/${cli_name}"
+            gcloud storage cp "./build/${detached_signature}" "gs://releases.coder.com/coder-cli/${version}/${cli_name}.asc"
           done
 
       - name: Publish release
