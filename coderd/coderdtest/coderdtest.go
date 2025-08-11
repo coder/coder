@@ -1631,10 +1631,10 @@ func ctxWithProvisionerPermissions(ctx context.Context) context.Context {
 
 // UpdateProvisionerLastSeenAt updates the provisioner daemon's LastSeenAt timestamp
 // to the specified time to prevent it from appearing stale during autobuild operations
-func UpdateProvisionerLastSeenAt(t *testing.T, db database.Store, id uuid.UUID, prev, tickTime time.Time) {
+func UpdateProvisionerLastSeenAt(t *testing.T, db database.Store, id uuid.UUID, tickTime time.Time) {
 	t.Helper()
 	ctx := ctxWithProvisionerPermissions(context.Background())
-	t.Logf("Updating provisioner %s LastSeenAt from %v to %v", id, prev, tickTime)
+	t.Logf("Updating provisioner %s LastSeenAt from %v to %v", id, tickTime)
 	err := db.UpdateProvisionerDaemonLastSeenAt(ctx, database.UpdateProvisionerDaemonLastSeenAtParams{
 		ID:         id,
 		LastSeenAt: sql.NullTime{Time: tickTime, Valid: true},
@@ -1643,7 +1643,7 @@ func UpdateProvisionerLastSeenAt(t *testing.T, db database.Store, id uuid.UUID, 
 	t.Logf("Successfully updated provisioner LastSeenAt")
 }
 
-func MustWaitForProvisioners(t *testing.T, db database.Store) {
+func MustWaitForAnyProvisioner(t *testing.T, db database.Store) {
 	t.Helper()
 	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitShort))
 	require.Eventually(t, func() bool {
@@ -1652,7 +1652,7 @@ func MustWaitForProvisioners(t *testing.T, db database.Store) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
-func MustWaitForProvisionersWithClient(t *testing.T, client *codersdk.Client) {
+func MustWaitForAnyProvisionerWithClient(t *testing.T, client *codersdk.Client) {
 	t.Helper()
 	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitShort))
 	require.Eventually(t, func() bool {
@@ -1661,8 +1661,8 @@ func MustWaitForProvisionersWithClient(t *testing.T, client *codersdk.Client) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
-// mustWaitForProvisionersAvailable waits for provisioners to be available for a specific workspace
-func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace codersdk.Workspace, staleDuration time.Duration) uuid.UUID {
+// MustWaitForProvisionersAvailable waits for provisioners to be available for a specific workspace.
+func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace codersdk.Workspace) uuid.UUID {
 	t.Helper()
 	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitShort))
 	id := uuid.UUID{}
@@ -1699,7 +1699,7 @@ func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace
 		for _, pd := range provisionerDaemons {
 			if pd.LastSeenAt.Valid {
 				age := now.Sub(pd.LastSeenAt.Time)
-				if age <= staleDuration {
+				if age <= provisionerdserver.StaleInterval {
 					id = pd.ID
 					return true // Found an active provisioner
 				}

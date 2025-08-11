@@ -61,7 +61,7 @@ func TestExecutorAutostartOK(t *testing.T) {
 	// When: the autobuild executor ticks after the scheduled time
 	go func() {
 		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
-		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		close(tickCh)
 	}()
@@ -122,7 +122,7 @@ func TestMultipleLifecycleExecutors(t *testing.T) {
 	require.NoError(t, err)
 	// Get both clients to perform a lifecycle execution tick
 	next := sched.Next(workspace.LatestBuild.CreatedAt)
-	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), next)
+	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, next)
 
 	startCh := make(chan struct{})
 	go func() {
@@ -261,7 +261,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 			// When: the autobuild executor ticks after the scheduled time
 			go func() {
 				tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
-				coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
+				coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 				tickCh <- tickTime
 				close(tickCh)
 			}()
@@ -446,7 +446,7 @@ func TestExecutorAutostopOK(t *testing.T) {
 	// When: the autobuild executor ticks *after* the deadline:
 	go func() {
 		tickTime := workspace.LatestBuild.Deadline.Time.Add(time.Minute)
-		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		close(tickCh)
 	}()
@@ -495,7 +495,7 @@ func TestExecutorAutostopExtend(t *testing.T) {
 	// When: the autobuild executor ticks *after* the original deadline:
 	go func() {
 		tickTime := originalDeadline.Time.Add(time.Minute)
-		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 	}()
 
@@ -507,7 +507,7 @@ func TestExecutorAutostopExtend(t *testing.T) {
 	// When: the autobuild executor ticks after the *new* deadline:
 	go func() {
 		tickTime := newDeadline.Add(time.Minute)
-		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		close(tickCh)
 	}()
@@ -701,7 +701,7 @@ func TestExecuteAutostopSuspendedUser(t *testing.T) {
 
 	admin := coderdtest.CreateFirstUser(t, client)
 	// Wait for provisioner to be available
-	coderdtest.MustWaitForProvisionersWithClient(t, client)
+	coderdtest.MustWaitForAnyProvisionerWithClient(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
@@ -808,7 +808,7 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 	// When: the autobuild executor ticks past the scheduled time
 	go func() {
 		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
-		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		tickCh2 <- tickTime
 		close(tickCh)
@@ -878,7 +878,7 @@ func TestExecutorAutostartWithParameters(t *testing.T) {
 	// When: the autobuild executor ticks after the scheduled time
 	go func() {
 		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
-		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		close(tickCh)
 	}()
@@ -977,7 +977,7 @@ func TestExecutorAutostopTemplateDisabled(t *testing.T) {
 	// When: the autobuild executor ticks after the workspace setting, but before the template setting:
 	go func() {
 		tickTime := workspace.LatestBuild.Job.CompletedAt.Add(45 * time.Minute)
-		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 	}()
 
@@ -989,7 +989,7 @@ func TestExecutorAutostopTemplateDisabled(t *testing.T) {
 	// When: the autobuild executor ticks after the template setting:
 	go func() {
 		tickTime := workspace.LatestBuild.Job.CompletedAt.Add(61 * time.Minute)
-		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		close(tickCh)
 	}()
@@ -1020,7 +1020,7 @@ func TestExecutorRequireActiveVersion(t *testing.T) {
 		})
 	)
 	// Wait for provisioner to be available
-	coderdtest.MustWaitForProvisioners(t, db)
+	coderdtest.MustWaitForAnyProvisioner(t, db)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
@@ -1063,7 +1063,7 @@ func TestExecutorRequireActiveVersion(t *testing.T) {
 	require.NoError(t, err)
 
 	tickTime := sched.Next(ws.LatestBuild.CreatedAt)
-	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
+	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 	ticker <- tickTime
 	stats := <-statCh
 	require.Len(t, stats.Transitions, 1)
@@ -1227,7 +1227,7 @@ func TestNotifications(t *testing.T) {
 		// Wait for workspace to become dormant
 		notifyEnq.Clear()
 		tickTime := workspace.LastUsedAt.Add(timeTilDormant * 3)
-		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		ticker <- tickTime
 		_ = testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statCh)
 
@@ -1308,7 +1308,7 @@ func TestExecutorPrebuilds(t *testing.T) {
 		// When: the autobuild executor ticks *after* the deadline:
 		go func() {
 			tickTime := prebuild.LatestBuild.Deadline.Time.Add(time.Minute)
-			coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
+			coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 			tickCh <- tickTime
 		}()
 
@@ -1327,7 +1327,7 @@ func TestExecutorPrebuilds(t *testing.T) {
 		// When: the autobuild executor ticks *after* the deadline:
 		go func() {
 			tickTime := workspace.LatestBuild.Deadline.Time.Add(time.Minute)
-			coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), tickTime)
+			coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 			tickCh <- tickTime
 			close(tickCh)
 		}()
@@ -1696,13 +1696,13 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 	// Wait for provisioner to be available for this specific workspace
-	coderdtest.MustWaitForProvisionersAvailable(t, db, workspace, provisionerdserver.StaleInterval)
+	coderdtest.MustWaitForProvisionersAvailable(t, db, workspace)
 	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
 	require.NoError(t, err, "Error getting provisioner for workspace")
 
 	// Ensure the provisioner is stale
 	staleTime := sched.Next(workspace.LatestBuild.CreatedAt).Add((-1 * provisionerdserver.StaleInterval) + -10*time.Second)
-	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), staleTime)
+	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, staleTime)
 
 	// Trigger autobuild
 	tickCh <- sched.Next(workspace.LatestBuild.CreatedAt)
@@ -1715,7 +1715,7 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 
 	// Ensure the provisioner is  NOT stale, and see if we get a successful state transition.
 	notStaleTime := sched.Next(workspace.LatestBuild.CreatedAt).Add((-1 * provisionerdserver.StaleInterval) + 10*time.Second)
-	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, time.Now(), notStaleTime)
+	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, notStaleTime)
 
 	// Trigger autobuild
 	go func() {
