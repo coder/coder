@@ -143,10 +143,9 @@ func TestAnthropicMessages(t *testing.T) {
 					// Ensure the message starts and completes, at a minimum.
 					assert.Contains(t, sp.AllEvents(), "message_start")
 					assert.Contains(t, sp.AllEvents(), "message_stop")
-					require.Len(t, coderdClient.tokenUsages, 2) // One from message_start, one from message_delta.
-				} else {
-					require.Len(t, coderdClient.tokenUsages, 1)
 				}
+
+				require.Len(t, coderdClient.tokenUsages, 1)
 
 				assert.EqualValues(t, tc.expectedInputTokens, calculateTotalInputTokens(coderdClient.tokenUsages), "input tokens miscalculated")
 				assert.EqualValues(t, tc.expectedOutputTokens, calculateTotalOutputTokens(coderdClient.tokenUsages), "output tokens miscalculated")

@@ -88,6 +88,10 @@ func (s *AnthropicMessagesStreamingSession) ProcessRequest(w http.ResponseWriter
 	messages := s.req.BetaMessageNewParams
 	logger := s.logger.With(slog.F("model", s.req.Model))
 
+	// Accumulate usage across the entire streaming interaction (including tool reinvocations).
+	var cumulativeInputTokens int64
+	var cumulativeOutputTokens int64
+
 	isFirst := true
 	for {
 	newStream:
@@ -134,19 +138,9 @@ func (s *AnthropicMessagesStreamingSession) ProcessRequest(w http.ResponseWriter
 					continue
 				}
 			case string(ant_constant.ValueOf[ant_constant.MessageStart]()):
-				// Track token usage
 				start := event.AsMessageStart()
-				metadata := Metadata{
-					"web_search_requests":      start.Message.Usage.ServerToolUse.WebSearchRequests,
-					"cache_creation_input":     start.Message.Usage.CacheCreationInputTokens,
-					"cache_read_input":         start.Message.Usage.CacheReadInputTokens,
-					"cache_ephemeral_1h_input": start.Message.Usage.CacheCreation.Ephemeral1hInputTokens,
-					"cache_ephemeral_5m_input": start.Message.Usage.CacheCreation.Ephemeral5mInputTokens,
-				}
-				if err := s.tracker.TrackTokensUsage(streamCtx, s.id, message.ID, start.Message.Usage.InputTokens, start.Message.Usage.OutputTokens, metadata); err != nil {
-					logger.Warn(ctx, "failed to track token usage", slog.Error(err))
-				}
-
+				cumulativeInputTokens += start.Message.Usage.InputTokens
+				cumulativeOutputTokens += start.Message.Usage.OutputTokens
 				if !isFirst {
 					// Don't send message_start unless first message!
 					// We're sending multiple messages back and forth with the API, but from the client's perspective
@@ -155,19 +149,8 @@ func (s *AnthropicMessagesStreamingSession) ProcessRequest(w http.ResponseWriter
 				}
 			case string(ant_constant.ValueOf[ant_constant.MessageDelta]()):
 				delta := event.AsMessageDelta()
-				// Track token usage
-				metadata := Metadata{
-					"web_search_requests":  delta.Usage.ServerToolUse.WebSearchRequests,
-					"cache_creation_input": delta.Usage.CacheCreationInputTokens,
-					"cache_read_input":     delta.Usage.CacheReadInputTokens,
-					// Note: CacheCreation fields are not available in MessageDeltaUsage
-					"cache_ephemeral_1h_input": 0,
-					"cache_ephemeral_5m_input": 0,
-				}
-				if err := s.tracker.TrackTokensUsage(streamCtx, s.id, message.ID, delta.Usage.InputTokens, delta.Usage.OutputTokens, metadata); err != nil {
-					logger.Warn(ctx, "failed to track token usage", slog.Error(err))
-				}
-
+				cumulativeInputTokens += delta.Usage.InputTokens
+				cumulativeOutputTokens += delta.Usage.OutputTokens
 				// Don't relay message_delta events which indicate injected tool use.
 				if len(pendingToolCalls) > 0 && s.toolMgr.GetTool(lastToolName) != nil {
 					continue
@@ -183,7 +166,6 @@ func (s *AnthropicMessagesStreamingSession) ProcessRequest(w http.ResponseWriter
 
 			// Don't send message_stop until all tools have been called.
 			case string(ant_constant.ValueOf[ant_constant.MessageStop]()):
-
 				if len(pendingToolCalls) > 0 {
 					// Append the whole message from this stream as context since we'll be sending a new request with the tool results.
 					messages.Messages = append(messages.Messages, message.ToParam())
@@ -345,6 +327,18 @@ func (s *AnthropicMessagesStreamingSession) ProcessRequest(w http.ResponseWriter
 					s.logger.Error(ctx, "error during sending event", slog.Error(err))
 				}
 			}
+		}
+
+		// Emit a single, final token usage total for this stream.
+		metadata := Metadata{
+			"web_search_requests":      message.Usage.ServerToolUse.WebSearchRequests,
+			"cache_creation_input":     message.Usage.CacheCreationInputTokens,
+			"cache_read_input":         message.Usage.CacheReadInputTokens,
+			"cache_ephemeral_1h_input": message.Usage.CacheCreation.Ephemeral1hInputTokens,
+			"cache_ephemeral_5m_input": message.Usage.CacheCreation.Ephemeral5mInputTokens,
+		}
+		if err := s.tracker.TrackTokensUsage(streamCtx, s.id, message.ID, cumulativeInputTokens, cumulativeOutputTokens, metadata); err != nil {
+			logger.Warn(ctx, "failed to track token usage", slog.Error(err))
 		}
 
 		var streamErr error
