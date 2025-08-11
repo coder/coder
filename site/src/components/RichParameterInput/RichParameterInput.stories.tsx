@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { TemplateVersionParameter } from "api/typesGenerated";
 import { chromatic } from "testHelpers/chromatic";
 import { RichParameterInput } from "./RichParameterInput";

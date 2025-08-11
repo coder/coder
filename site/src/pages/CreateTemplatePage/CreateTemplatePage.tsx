@@ -5,7 +5,7 @@ import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation } from "react-query";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { BuildLogsDrawer } from "./BuildLogsDrawer";
 import { DuplicateTemplateView } from "./DuplicateTemplateView";
