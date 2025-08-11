@@ -228,4 +228,36 @@ func TestAITasksCreate(t *testing.T) {
 		require.ErrorAsf(t, err, &sdkErr, "error should be of type *codersdk.Error")
 		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})
+
+	t.Run("FailsOnInvalidTemplate", func(t *testing.T) {
+		var (
+			ctx = testutil.Context(t, testutil.WaitShort)
+
+			taskName   = "task-foo-bar-baz"
+			taskPrompt = "Some task prompt"
+		)
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Given: A template
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		expClient := codersdk.NewExperimentalClient(client)
+
+		// When: We attempt to create a Task with an invalid template version ID.
+		_, err := expClient.AITasksCreate(ctx, codersdk.CreateAITasksRequest{
+			Name:              taskName,
+			TemplateVersionID: uuid.New(),
+			Prompt:            taskPrompt,
+		})
+
+		// Then: We expect it to fail.
+		var sdkErr *codersdk.Error
+		require.Error(t, err)
+		require.ErrorAsf(t, err, &sdkErr, "error should be of type *codersdk.Error")
+		assert.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
 }

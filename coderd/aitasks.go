@@ -1,6 +1,8 @@
 package coderd
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -94,6 +97,11 @@ func (api *API) aiTasksCreate(rw http.ResponseWriter, r *http.Request) {
 
 	hasAIPrompt, err := api.Database.GetTemplateVersionHasAIPrompt(ctx, req.TemplateVersionID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || rbac.IsUnauthorizedError(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching if template version has ai prompt.",
 			Detail:  err.Error(),
