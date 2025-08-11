@@ -7123,6 +7123,11 @@ UPDATE workspaces w
 SET owner_id   = $1::uuid,
 	name       = $2::text,
 	updated_at = NOW(),
+	-- Update autostart_schedule, next_start_at and ttl according to template and workspace-level
+	-- configurations, allowing the workspace to be managed by the lifecycle executor as expected.
+	autostart_schedule = $3,
+	next_start_at = $4,
+	ttl = $5,
 	-- Update last_used_at during claim to ensure the claimed workspace is treated as recently used.
 	-- This avoids unintended dormancy caused by prebuilds having stale usage timestamps.
 	last_used_at = NOW(),
@@ -7141,7 +7146,7 @@ WHERE w.id IN (
 		-- The prebuilds system should never try to claim a prebuild for an inactive template version.
 		-- Nevertheless, this filter is here as a defensive measure:
 		AND b.template_version_id = t.active_version_id
-		AND p.current_preset_id = $3::uuid
+		AND p.current_preset_id = $6::uuid
 		AND p.ready
 		AND NOT t.deleted
 	LIMIT 1 FOR UPDATE OF p SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
@@ -7150,9 +7155,12 @@ RETURNING w.id, w.name
 `
 
 type ClaimPrebuiltWorkspaceParams struct {
-	NewUserID uuid.UUID `db:"new_user_id" json:"new_user_id"`
-	NewName   string    `db:"new_name" json:"new_name"`
-	PresetID  uuid.UUID `db:"preset_id" json:"preset_id"`
+	NewUserID         uuid.UUID      `db:"new_user_id" json:"new_user_id"`
+	NewName           string         `db:"new_name" json:"new_name"`
+	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
+	NextStartAt       sql.NullTime   `db:"next_start_at" json:"next_start_at"`
+	WorkspaceTtl      sql.NullInt64  `db:"workspace_ttl" json:"workspace_ttl"`
+	PresetID          uuid.UUID      `db:"preset_id" json:"preset_id"`
 }
 
 type ClaimPrebuiltWorkspaceRow struct {
@@ -7161,7 +7169,14 @@ type ClaimPrebuiltWorkspaceRow struct {
 }
 
 func (q *sqlQuerier) ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error) {
-	row := q.db.QueryRowContext(ctx, claimPrebuiltWorkspace, arg.NewUserID, arg.NewName, arg.PresetID)
+	row := q.db.QueryRowContext(ctx, claimPrebuiltWorkspace,
+		arg.NewUserID,
+		arg.NewName,
+		arg.AutostartSchedule,
+		arg.NextStartAt,
+		arg.WorkspaceTtl,
+		arg.PresetID,
+	)
 	var i ClaimPrebuiltWorkspaceRow
 	err := row.Scan(&i.ID, &i.Name)
 	return i, err

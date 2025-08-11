@@ -1438,9 +1438,12 @@ func UserSecret(t testing.TB, db database.Store, seed database.UserSecret) datab
 
 func ClaimPrebuild(t testing.TB, db database.Store, newUserID uuid.UUID, newName string, presetID uuid.UUID) database.ClaimPrebuiltWorkspaceRow {
 	claimedWorkspace, err := db.ClaimPrebuiltWorkspace(genCtx, database.ClaimPrebuiltWorkspaceParams{
-		NewUserID: newUserID,
-		NewName:   newName,
-		PresetID:  presetID,
+		NewUserID:         newUserID,
+		NewName:           newName,
+		PresetID:          presetID,
+		AutostartSchedule: sql.NullString{},
+		NextStartAt:       sql.NullTime{},
+		WorkspaceTtl:      sql.NullInt64{},
 	})
 	require.NoError(t, err, "claim prebuilt workspace")
 

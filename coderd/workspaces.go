@@ -638,7 +638,11 @@ func createWorkspace(
 		// If a template preset was chosen, try claim a prebuilt workspace.
 		if req.TemplateVersionPresetID != uuid.Nil {
 			// Try and claim an eligible prebuild, if available.
-			claimedWorkspace, err = claimPrebuild(ctx, prebuildsClaimer, db, api.Logger, req, owner)
+			// On successful claim, initialize all lifecycle fields from template and workspace-level config
+			// so the newly claimed workspace is properly managed by the lifecycle executor.
+			claimedWorkspace, err = claimPrebuild(
+				ctx, prebuildsClaimer, db, api.Logger, req, owner,
+				dbAutostartSchedule, nextStartAt, dbTTL)
 			// If claiming fails with an expected error (no claimable prebuilds or AGPL does not support prebuilds),
 			// we fall back to creating a new workspace. Otherwise, propagate the unexpected error.
 			if err != nil {
@@ -690,24 +694,7 @@ func createWorkspace(
 			}
 			workspaceID = minimumWorkspace.ID
 		} else {
-			// Prebuild found! Update lifecycle related parameters
-			err = db.UpdateWorkspaceAutostart(ctx, database.UpdateWorkspaceAutostartParams{
-				ID:                claimedWorkspace.ID,
-				AutostartSchedule: dbAutostartSchedule,
-				NextStartAt:       nextStartAt,
-			})
-			if err != nil {
-				return xerrors.Errorf("update claimed workspace Autostart: %w", err)
-			}
-
-			err = db.UpdateWorkspaceTTL(ctx, database.UpdateWorkspaceTTLParams{
-				ID:  claimedWorkspace.ID,
-				Ttl: dbTTL,
-			})
-			if err != nil {
-				return xerrors.Errorf("update claimed workspace TTL: %w", err)
-			}
-
+			// Prebuild found!
 			workspaceID = claimedWorkspace.ID
 			initiatorID = prebuildsClaimer.Initiator()
 		}
@@ -890,8 +877,17 @@ func requestTemplate(ctx context.Context, rw http.ResponseWriter, req codersdk.C
 	return template, true
 }
 
-func claimPrebuild(ctx context.Context, claimer prebuilds.Claimer, db database.Store, logger slog.Logger, req codersdk.CreateWorkspaceRequest, owner workspaceOwner) (*database.Workspace, error) {
-	claimedID, err := claimer.Claim(ctx, owner.ID, req.Name, req.TemplateVersionPresetID)
+func claimPrebuild(
+	ctx context.Context,
+	claimer prebuilds.Claimer,
+	db database.Store, logger slog.Logger,
+	req codersdk.CreateWorkspaceRequest,
+	owner workspaceOwner,
+	autostartSchedule sql.NullString,
+	nextStartAt sql.NullTime,
+	ttl sql.NullInt64,
+) (*database.Workspace, error) {
+	claimedID, err := claimer.Claim(ctx, owner.ID, req.Name, req.TemplateVersionPresetID, autostartSchedule, nextStartAt, ttl)
 	if err != nil {
 		// TODO: enhance this by clarifying whether this *specific* prebuild failed or whether there are none to claim.
 		return nil, xerrors.Errorf("claim prebuild: %w", err)

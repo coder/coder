@@ -27,11 +27,17 @@ func (c EnterpriseClaimer) Claim(
 	userID uuid.UUID,
 	name string,
 	presetID uuid.UUID,
+	autostartSchedule sql.NullString,
+	nextStartAt sql.NullTime,
+	ttl sql.NullInt64,
 ) (*uuid.UUID, error) {
 	result, err := c.store.ClaimPrebuiltWorkspace(ctx, database.ClaimPrebuiltWorkspaceParams{
-		NewUserID: userID,
-		NewName:   name,
-		PresetID:  presetID,
+		NewUserID:         userID,
+		NewName:           name,
+		PresetID:          presetID,
+		AutostartSchedule: autostartSchedule,
+		NextStartAt:       nextStartAt,
+		WorkspaceTtl:      ttl,
 	})
 	if err != nil {
 		switch {
