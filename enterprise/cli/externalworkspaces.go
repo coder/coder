@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
@@ -23,7 +24,7 @@ type externalAgent struct {
 }
 
 func (r *RootCmd) externalWorkspaces() *serpent.Command {
-	orgContext := NewOrganizationContext()
+	orgContext := agpl.NewOrganizationContext()
 
 	cmd := &serpent.Command{
 		Use:   "external-workspaces [subcommand]",
@@ -44,8 +45,8 @@ func (r *RootCmd) externalWorkspaces() *serpent.Command {
 
 // externalWorkspaceCreate extends `coder create` to create an external workspace.
 func (r *RootCmd) externalWorkspaceCreate() *serpent.Command {
-	opts := createOptions{
-		beforeCreate: func(ctx context.Context, client *codersdk.Client, _ codersdk.Template, templateVersionID uuid.UUID) error {
+	opts := agpl.CreateOptions{
+		BeforeCreate: func(ctx context.Context, client *codersdk.Client, _ codersdk.Template, templateVersionID uuid.UUID) error {
 			resources, err := client.TemplateVersionResources(ctx, templateVersionID)
 			if err != nil {
 				return xerrors.Errorf("get template version resources: %w", err)
@@ -68,7 +69,7 @@ func (r *RootCmd) externalWorkspaceCreate() *serpent.Command {
 
 			return nil
 		},
-		afterCreate: func(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace) error {
+		AfterCreate: func(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace) error {
 			workspace, err := client.WorkspaceByOwnerAndName(ctx, codersdk.Me, workspace.Name, codersdk.WorkspaceOptions{})
 			if err != nil {
 				return xerrors.Errorf("get workspace by name: %w", err)
@@ -85,7 +86,7 @@ func (r *RootCmd) externalWorkspaceCreate() *serpent.Command {
 		},
 	}
 
-	cmd := r.create(opts)
+	cmd := r.Create(opts)
 	cmd.Use = "create [workspace]"
 	cmd.Short = "Create a new external workspace"
 	cmd.Middleware = serpent.Chain(
@@ -122,7 +123,7 @@ func (r *RootCmd) externalWorkspaceAgentInstructions() *serpent.Command {
 		Short:      "Get the instructions for an external agent",
 		Middleware: serpent.Chain(r.InitClient(client), serpent.RequireNArgs(1)),
 		Handler: func(inv *serpent.Invocation) error {
-			workspace, workspaceAgent, _, err := getWorkspaceAndAgent(inv.Context(), inv, client, false, inv.Args[0])
+			workspace, workspaceAgent, _, err := agpl.GetWorkspaceAndAgent(inv.Context(), inv, client, false, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("find workspace and agent: %w", err)
 			}
@@ -159,7 +160,7 @@ func (r *RootCmd) externalWorkspaceList() *serpent.Command {
 		filter    cliui.WorkspaceFilter
 		formatter = cliui.NewOutputFormatter(
 			cliui.TableFormat(
-				[]workspaceListRow{},
+				[]agpl.WorkspaceListRow{},
 				[]string{
 					"workspace",
 					"template",
@@ -175,10 +176,12 @@ func (r *RootCmd) externalWorkspaceList() *serpent.Command {
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
-		Annotations: workspaceCommand,
-		Use:         "list",
-		Short:       "List external workspaces",
-		Aliases:     []string{"ls"},
+		Annotations: map[string]string{
+			"workspaces": "",
+		},
+		Use:     "list",
+		Short:   "List external workspaces",
+		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
 			r.InitClient(client),
@@ -192,7 +195,7 @@ func (r *RootCmd) externalWorkspaceList() *serpent.Command {
 				baseFilter.FilterQuery += " has-external-agent:true"
 			}
 
-			res, err := queryConvertWorkspaces(inv.Context(), client, baseFilter, workspaceListRowFromWorkspace)
+			res, err := agpl.QueryConvertWorkspaces(inv.Context(), client, baseFilter, agpl.WorkspaceListRowFromWorkspace)
 			if err != nil {
 				return err
 			}
