@@ -161,18 +161,14 @@ describe("CreateWorkspacePageExperimental", () => {
 		});
 
 		it("handles WebSocket error gracefully", async () => {
+			const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
+
 			jest
 				.spyOn(API, "templateVersionDynamicParameters")
 				.mockImplementation((_versionId, _ownerId, callbacks) => {
-					const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
-
 					mockWebSocket.addEventListener("error", () => {
 						callbacks.onError(new Error("Connection failed"));
 					});
-
-					queueMicrotask(() =>
-						publisher.publishError(new Event("Connection failed")),
-					);
 
 					return mockWebSocket;
 				});
@@ -180,21 +176,21 @@ describe("CreateWorkspacePageExperimental", () => {
 			renderCreateWorkspacePageExperimental();
 
 			await waitFor(() => {
+				expect(mockPublisher).toBeDefined();
+				mockPublisher.publishError(new Event("Connection failed"));
 				expect(screen.getByText(/connection failed/i)).toBeInTheDocument();
 			});
 		});
 
 		it("handles WebSocket close event", async () => {
+			const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
+
 			jest
 				.spyOn(API, "templateVersionDynamicParameters")
 				.mockImplementation((_versionId, _ownerId, callbacks) => {
-					const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
-
 					mockWebSocket.addEventListener("close", () => {
 						callbacks.onClose();
 					});
-
-					queueMicrotask(() => publisher.publishClose(new CloseEvent("close")));
 
 					return mockWebSocket;
 				});
@@ -202,6 +198,8 @@ describe("CreateWorkspacePageExperimental", () => {
 			renderCreateWorkspacePageExperimental();
 
 			await waitFor(() => {
+				expect(mockPublisher).toBeDefined();
+				mockPublisher.publishClose(new Event("close") as CloseEvent);
 				expect(
 					screen.getByText(/websocket connection.*unexpectedly closed/i),
 				).toBeInTheDocument();
