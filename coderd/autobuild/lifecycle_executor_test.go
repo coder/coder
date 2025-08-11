@@ -1259,7 +1259,14 @@ func TestExecutorPrebuilds(t *testing.T) {
 		require.Equal(t, codersdk.BuildReasonInitiator, prebuild.LatestBuild.Reason)
 
 		// Given: a user claims the prebuilt workspace
-		dbWorkspace := dbgen.ClaimPrebuild(t, db, user.ID, "claimedWorkspace-autostop", preset.ID)
+		dbWorkspace := dbgen.ClaimPrebuild(
+			t, db,
+			user.ID,
+			"claimedWorkspace-autostop",
+			preset.ID,
+			sql.NullString{},
+			sql.NullTime{},
+			sql.NullInt64{})
 		workspace := coderdtest.MustWorkspace(t, client, dbWorkspace.ID)
 
 		// When: the autobuild executor ticks *after* the deadline:
@@ -1353,7 +1360,14 @@ func TestExecutorPrebuilds(t *testing.T) {
 			database.WorkspaceTransitionStart)
 
 		// Given: a user claims the prebuilt workspace
-		dbWorkspace := dbgen.ClaimPrebuild(t, db, user.ID, "claimedWorkspace-autostart", preset.ID)
+		dbWorkspace := dbgen.ClaimPrebuild(
+			t, db,
+			user.ID,
+			"claimedWorkspace-autostart",
+			preset.ID,
+			autostartSched,
+			sql.NullTime{},
+			sql.NullInt64{})
 		workspace := coderdtest.MustWorkspace(t, client, dbWorkspace.ID)
 
 		// Given: the prebuilt workspace goes to a stop status
