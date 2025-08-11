@@ -689,3 +689,23 @@ func (c *Client) UpdateWorkspaceACL(ctx context.Context, workspaceID uuid.UUID, 
 	}
 	return nil
 }
+
+// ExternalAgentCredentials contains the credentials needed for an external agent to connect to Coder.
+type ExternalAgentCredentials struct {
+	Command    string `json:"command"`
+	AgentToken string `json:"agent_token"`
+}
+
+func (c *Client) WorkspaceExternalAgentCredentials(ctx context.Context, workspaceID uuid.UUID, agentName string) (ExternalAgentCredentials, error) {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/external-agent/%s/credentials", workspaceID.String(), agentName)
+	res, err := c.Request(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return ExternalAgentCredentials{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ExternalAgentCredentials{}, ReadBodyAsError(res)
+	}
+	var credentials ExternalAgentCredentials
+	return credentials, json.NewDecoder(res.Body).Decode(&credentials)
+}

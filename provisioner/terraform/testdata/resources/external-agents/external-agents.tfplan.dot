@@ -1,0 +1,22 @@
+digraph {
+	compound = "true"
+	newrank = "true"
+	subgraph "root" {
+		"[root] coder_agent.dev1 (expand)" [label = "coder_agent.dev1", shape = "box"]
+		"[root] coder_external_agent.dev1 (expand)" [label = "coder_external_agent.dev1", shape = "box"]
+		"[root] data.coder_provisioner.me (expand)" [label = "data.coder_provisioner.me", shape = "box"]
+		"[root] data.coder_workspace.me (expand)" [label = "data.coder_workspace.me", shape = "box"]
+		"[root] data.coder_workspace_owner.me (expand)" [label = "data.coder_workspace_owner.me", shape = "box"]
+		"[root] provider[\"registry.terraform.io/coder/coder\"]" [label = "provider[\"registry.terraform.io/coder/coder\"]", shape = "diamond"]
+		"[root] coder_agent.dev1 (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] coder_external_agent.dev1 (expand)" -> "[root] coder_agent.dev1 (expand)"
+		"[root] data.coder_provisioner.me (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] data.coder_workspace.me (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] data.coder_workspace_owner.me (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_external_agent.dev1 (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] data.coder_provisioner.me (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] data.coder_workspace.me (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] data.coder_workspace_owner.me (expand)"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/coder/coder\"] (close)"
+	}
+}
