@@ -1,0 +1,24 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder external-workspaces list [flags]
+
+  List external workspaces
+
+  Aliases: ls
+
+OPTIONS:
+  -a, --all bool
+          Specifies whether all workspaces will be listed or not.
+
+  -c, --column [favorite|workspace|organization id|organization name|template|status|healthy|last built|current version|outdated|starts at|starts next|stops after|stops next|daily cost] (default: workspace,template,status,healthy,last built,current version,outdated)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+      --search string (default: owner:me)
+          Search for a workspace with a query.
+
+———
+Run `coder --help` for a list of global options.
