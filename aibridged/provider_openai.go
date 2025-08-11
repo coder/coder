@@ -20,6 +20,14 @@ type OpenAIProvider struct {
 }
 
 func NewOpenAIProvider(baseURL, key string) *OpenAIProvider {
+	if baseURL == "" {
+		baseURL = "https://api.openai.com/v1/"
+	}
+
+	if key == "" {
+		key = os.Getenv("OPENAI_API_KEY")
+	}
+
 	return &OpenAIProvider{
 		baseURL: baseURL,
 		key:     key,
@@ -37,7 +45,7 @@ func (p *OpenAIProvider) CreateSession(w http.ResponseWriter, r *http.Request, t
 	}
 
 	switch r.URL.Path {
-	case "/v1/chat/completions":
+	case "/openai/v1/chat/completions":
 		var req ChatCompletionNewParamsWrapper
 		if err := json.Unmarshal(payload, &req); err != nil {
 			return nil, xerrors.Errorf("unmarshal request body: %w", err)
@@ -53,15 +61,18 @@ func (p *OpenAIProvider) CreateSession(w http.ResponseWriter, r *http.Request, t
 	return nil, UnknownRoute
 }
 
+func (p *OpenAIProvider) BaseURL() string {
+	return p.baseURL
+}
+
+func (p *OpenAIProvider) Key() string {
+	return p.key
+}
+
 func newOpenAIClient(baseURL, key string) openai.Client {
 	var opts []option.RequestOption
-	if key == "" {
-		key = os.Getenv("OPENAI_API_KEY")
-	}
 	opts = append(opts, option.WithAPIKey(key))
-	if baseURL != "" {
-		opts = append(opts, option.WithBaseURL(baseURL))
-	}
+	opts = append(opts, option.WithBaseURL(baseURL))
 
 	return openai.NewClient(opts...)
 }

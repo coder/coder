@@ -56,6 +56,12 @@ var (
 
 	//go:embed fixtures/openai/simple.txtar
 	oaiSimple []byte
+
+	//go:embed fixtures/anthropic/fallthrough.txtar
+	antFallthrough []byte
+
+	//go:embed fixtures/openai/fallthrough.txtar
+	oaiFallthrough []byte
 )
 
 const (
@@ -64,6 +70,7 @@ const (
 	fixtureNonStreamingResponse     = "non-streaming"
 	fixtureStreamingToolResponse    = "streaming/tool-call"
 	fixtureNonStreamingToolResponse = "non-streaming/tool-call"
+	fixtureResponse                 = "response"
 )
 
 func TestAnthropicMessages(t *testing.T) {
@@ -444,6 +451,99 @@ func TestSimple(t *testing.T) {
 	}
 }
 
+func TestFallthrough(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	sessionToken := getSessionToken(t, client)
+
+	testCases := []struct {
+		provider       string
+		fixture        []byte
+		authHeaderName string
+		configureFunc  func(string, proto.DRPCAIBridgeDaemonClient) (*aibridged.Bridge, error)
+	}{
+		{
+			provider: aibridged.ProviderAnthropic,
+			fixture:  antFallthrough,
+			configureFunc: func(addr string, client proto.DRPCAIBridgeDaemonClient) (*aibridged.Bridge, error) {
+				logger := testutil.Logger(t)
+				registry := aibridged.ProviderRegistry{
+					aibridged.ProviderAnthropic: aibridged.NewAnthropicMessagesProvider(addr, sessionToken),
+				}
+				return aibridged.NewBridge(registry, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
+					return client, nil
+				}, nil)
+			},
+		},
+		{
+			provider: aibridged.ProviderOpenAI,
+			fixture:  oaiFallthrough,
+			configureFunc: func(addr string, client proto.DRPCAIBridgeDaemonClient) (*aibridged.Bridge, error) {
+				logger := testutil.Logger(t)
+				registry := aibridged.ProviderRegistry{
+					aibridged.ProviderOpenAI: aibridged.NewOpenAIProvider(addr, sessionToken),
+				}
+				return aibridged.NewBridge(registry, logger, func() (proto.DRPCAIBridgeDaemonClient, error) {
+					return client, nil
+				}, nil)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.provider, func(t *testing.T) {
+			t.Parallel()
+
+			arc := txtar.Parse(tc.fixture)
+			t.Logf("%s: %s", t.Name(), arc.Comment)
+
+			files := filesMap(arc)
+			require.Contains(t, files, fixtureResponse)
+
+			respBody := files[fixtureResponse]
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/v1/models" {
+					t.Errorf("unexpected request path: %q", r.URL.Path)
+					t.FailNow()
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(respBody)
+			}))
+			t.Cleanup(upstream.Close)
+
+			coderdClient := &fakeBridgeDaemonClient{}
+
+			bridge, err := tc.configureFunc(upstream.URL, coderdClient)
+			require.NoError(t, err)
+
+			bridgeSrv := httptest.NewServer(bridge.Handler())
+			t.Cleanup(bridgeSrv.Close)
+
+			req, err := http.NewRequestWithContext(t.Context(), "GET", fmt.Sprintf("%s/%s/v1/models", bridgeSrv.URL, tc.provider), nil)
+			require.NoError(t, err)
+
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			gotBytes, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			// Compare JSON bodies for semantic equality.
+			var got any
+			var exp any
+			require.NoError(t, json.Unmarshal(gotBytes, &got))
+			require.NoError(t, json.Unmarshal(respBody, &exp))
+			require.EqualValues(t, exp, got)
+		})
+	}
+}
+
 // setupMCPToolsForTest creates a mock MCP server, initializes the MCP bridge, and returns the tools
 func setupMCPToolsForTest(t *testing.T) map[string][]*aibridged.MCPTool {
 	t.Helper()
@@ -722,7 +822,7 @@ func filesMap(archive *txtar.Archive) archiveFileMap {
 func createAnthropicMessagesReq(t *testing.T, baseURL string, input []byte) *http.Request {
 	t.Helper()
 
-	req, err := http.NewRequestWithContext(t.Context(), "POST", baseURL+"/v1/messages", bytes.NewReader(input))
+	req, err := http.NewRequestWithContext(t.Context(), "POST", baseURL+"/anthropic/v1/messages", bytes.NewReader(input))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -732,7 +832,7 @@ func createAnthropicMessagesReq(t *testing.T, baseURL string, input []byte) *htt
 func createOpenAIChatCompletionsReq(t *testing.T, baseURL string, input []byte) *http.Request {
 	t.Helper()
 
-	req, err := http.NewRequestWithContext(t.Context(), "POST", baseURL+"/v1/chat/completions", bytes.NewReader(input))
+	req, err := http.NewRequestWithContext(t.Context(), "POST", baseURL+"/openai/v1/chat/completions", bytes.NewReader(input))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -816,6 +916,8 @@ func newMockServer(ctx context.Context, t *testing.T, files archiveFileMap, resp
 			return
 		}
 	}))
+	t.Cleanup(srv.Close)
+
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
 		return ctx
 	}

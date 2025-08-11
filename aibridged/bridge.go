@@ -1,6 +1,7 @@
 package aibridged
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -17,8 +18,8 @@ const (
 )
 
 var providerRoutes = map[string][]string{
-	ProviderOpenAI:    {"/v1/chat/completions"},
-	ProviderAnthropic: {"/v1/messages"},
+	ProviderOpenAI:    {"/openai/v1/chat/completions"},
+	ProviderAnthropic: {"/anthropic/v1/messages"},
 }
 
 // Bridge is responsible for proxying requests to upstream AI providers.
@@ -54,9 +55,17 @@ func NewBridge(registry ProviderRegistry, logger slog.Logger, clientFn func() (p
 			// Unknown provider identifier; skip.
 			continue
 		}
+		// Add the known provider-specific routes.
 		for _, path := range routes {
 			mux.HandleFunc(path, NewSessionProcessor(provider, logger, drpcClient, tools))
 		}
+
+		// Implement a catch-all route: any requests which fall through to this will be reverse-proxied to the upstream.
+		// Note: net/http ServeMux uses subtree matching when the pattern ends with a trailing slash.
+		fallthroughRoute := fmt.Sprintf("/%s/", ident)
+		mux.Handle(fallthroughRoute, http.StripPrefix(fallthroughRoute,
+			newFallthroughRouter(provider, logger.Named(fmt.Sprintf("%s.fallthrough", ident)))),
+		)
 	}
 
 	srv := &http.Server{
