@@ -63,6 +63,14 @@ export const abilitiesByWorkspaceStatus = (
 		};
 	}
 
+	if (workspace.latest_build.has_external_agent) {
+		return {
+			actions: [],
+			canCancel: false,
+			canAcceptJobs: true,
+		};
+	}
+
 	const status = workspace.latest_build.status;
 
 	switch (status) {
