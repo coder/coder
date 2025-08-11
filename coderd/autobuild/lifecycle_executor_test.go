@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/quartz"
 
@@ -1669,7 +1670,6 @@ func TestMain(m *testing.M) {
 func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t)
 	var (
 		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
 		tickCh  = make(chan time.Time)
@@ -1679,12 +1679,10 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 	// Create client with provisioner closer
 	provisionerDaemonTags := map[string]string{"owner": "testowner", "scope": "organization"}
 	t.Logf("Setting provisioner daemon tags: %v", provisionerDaemonTags)
-	client, provisionerCloser := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 		AutobuildTicker:          tickCh,
 		IncludeProvisionerDaemon: true,
 		AutobuildStats:           statsCh,
-		Database:                 db,
-		Pubsub:                   ps,
 		ProvisionerDaemonTags:    provisionerDaemonTags,
 	})
 
@@ -1695,147 +1693,34 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 	})
 
 	// Stop the workspace while provisioner is available
-	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID,
-		codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
-
-	// Wait for provisioner to be registered
-	coderdtest.MustWaitForProvisioners(t, db)
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 	// Wait for provisioner to be available for this specific workspace
-	coderdtest.MustWaitForProvisionersAvailable(t, db, workspace, autobuild.TestingStaleInterval)
+	id := coderdtest.MustWaitForProvisionersAvailable(t, db, workspace, provisionerdserver.StaleInterval)
 
-	// Now shut down the provisioner daemon
-	ctx := testutil.Context(t, testutil.WaitShort)
-	err := provisionerCloser.Close()
-	require.NoError(t, err)
+	// Ensure the provisioner is stale
+	staleTime := sched.Next(workspace.LatestBuild.CreatedAt).Add((-1 * provisionerdserver.StaleInterval) + -10*time.Second)
+	coderdtest.UpdateProvisionerLastSeenAt(t, db, id, time.Now(), staleTime)
 
-	// Wait for the provisioner to become stale (heartbeat stops)
-	// The stale interval is 5 seconds, so we need to wait a bit longer
-	time.Sleep(6 * time.Second)
+	// Trigger autobuild
+	tickCh <- sched.Next(workspace.LatestBuild.CreatedAt)
 
-	// Debug: check what's in the database
-	daemons, err := db.GetProvisionerDaemons(ctx)
-	require.NoError(t, err)
-	t.Logf("After close: found %d daemons", len(daemons))
-	for i, daemon := range daemons {
-		t.Logf("Daemon %d: ID=%s, Name=%s, LastSeen=%v", i, daemon.ID, daemon.Name, daemon.LastSeenAt)
-	}
+	stats := <-statsCh
 
-	// Since we commented out the close call, the provisioner should NOT become stale
-	// Let's wait a bit but NOT longer than the stale interval
-	time.Sleep(2 * time.Second) // Wait less than the 5-second stale interval
+	// This assertion should FAIL when provisioner is available (not stale), can confirm by commenting out the
+	// UpdateProvisionerLastSeenAt call above.
+	assert.Len(t, stats.Transitions, 0, "should not create builds when no provisioners available")
 
-	daemons, err = db.GetProvisionerDaemons(ctx)
-	require.NoError(t, err)
-	require.NotEmpty(t, daemons, "should have provisioner daemons")
-
-	now := time.Now()
-	for _, daemon := range daemons {
-		if daemon.LastSeenAt.Valid {
-			age := now.Sub(daemon.LastSeenAt.Time)
-			t.Logf("Daemon %s: age=%v, staleInterval=%v, isStale=%v", daemon.Name, age, autobuild.TestingStaleInterval, age > autobuild.TestingStaleInterval)
-			// Since we closed the provisioner, it should be stale
-			require.True(t, age > autobuild.TestingStaleInterval, "provisioner should be stale since we closed it")
-		}
-	}
-
-	// Debug: Check the template version job tags and organization
-	templateVersion, err := client.TemplateVersion(context.Background(), workspace.LatestBuild.TemplateVersionID)
-	require.NoError(t, err)
-	t.Logf("Template version job ID: %s", templateVersion.Job.ID)
-	t.Logf("Template version job tags: %v", templateVersion.Job.Tags)
-	t.Logf("Workspace organization ID: %s", workspace.OrganizationID)
-	t.Logf("Template version organization ID: %s", templateVersion.OrganizationID)
-	t.Logf("Workspace LatestBuild.TemplateVersionID: %s", workspace.LatestBuild.TemplateVersionID)
-
-	// Debug: Get the template version job directly from database to compare
-	templateVersionJobFromDB, err := db.GetProvisionerJobByID(context.Background(), templateVersion.Job.ID)
-	require.NoError(t, err)
-	t.Logf("Template version job from DB - ID: %s, Tags: %v", templateVersionJobFromDB.ID, templateVersionJobFromDB.Tags)
-
-	// Debug: Query database directly to see what provisioner daemons exist
-	allDaemons, err := db.GetProvisionerDaemons(context.Background())
-	require.NoError(t, err)
-	t.Logf("Total provisioner daemons in database: %d", len(allDaemons))
-	for i, daemon := range allDaemons {
-		t.Logf("Daemon %d: ID=%s, Name=%s, OrgID=%s, Tags=%v", i, daemon.ID, daemon.Name, daemon.OrganizationID, daemon.Tags)
-	}
-
-	// Debug: Test if we can query using the ACTUAL provisioner daemon tags
-	if len(allDaemons) > 0 {
-		actualDaemonTags := allDaemons[0].Tags
-		t.Logf("Testing query with ACTUAL daemon tags: %v", actualDaemonTags)
-		queryWithActualTags := database.GetProvisionerDaemonsByOrganizationParams{
-			OrganizationID: workspace.OrganizationID,
-			WantTags:       actualDaemonTags,
-		}
-		matchingWithActualTags, err := db.GetProvisionerDaemonsByOrganization(context.Background(), queryWithActualTags)
-		require.NoError(t, err)
-		t.Logf("Query with actual daemon tags returns: %d daemons", len(matchingWithActualTags))
-	}
-
-	// Debug: Test the exact query that hasAvailableProvisioners uses
-	queryParams := database.GetProvisionerDaemonsByOrganizationParams{
-		OrganizationID: workspace.OrganizationID,
-		WantTags:       templateVersion.Job.Tags,
-	}
-	t.Logf("Query params: OrgID=%s, WantTags=%v", queryParams.OrganizationID, queryParams.WantTags)
-	t.Logf("Test query detailed params: org_id_type=%T, org_id_value=%s, want_tags_type=%T, want_tags_value=%v",
-		queryParams.OrganizationID, queryParams.OrganizationID, queryParams.WantTags, queryParams.WantTags)
-
-	// Test 1: Transaction isolation - try with different transaction contexts
-	t.Logf("=== Testing transaction isolation ===")
-
-	// Query with context.Background() (what we used above)
-	matchingDaemons1, err := db.GetProvisionerDaemonsByOrganization(context.Background(), queryParams)
-	require.NoError(t, err)
-	t.Logf("With context.Background(): %d daemons", len(matchingDaemons1))
-
-	// Query with a fresh context
-	ctx2 := context.Background()
-	matchingDaemons2, err2 := db.GetProvisionerDaemonsByOrganization(ctx2, queryParams)
-	require.NoError(t, err2)
-	t.Logf("With fresh context: %d daemons", len(matchingDaemons2))
-
-	// Query within a transaction (like hasAvailableProvisioners might use)
-	err = db.InTx(func(tx database.Store) error {
-		matchingDaemons3, err := tx.GetProvisionerDaemonsByOrganization(ctx2, queryParams)
-		if err != nil {
-			return err
-		}
-		t.Logf("Within transaction: %d daemons", len(matchingDaemons3))
-		return nil
-	}, nil)
-	require.NoError(t, err)
-
-	// Test 2: Timing issue - query right before and after hasAvailableProvisioners
-	t.Logf("=== Testing timing issue ===")
-
-	// Query right before the autostart trigger
-	beforeDaemons, err := db.GetProvisionerDaemonsByOrganization(context.Background(), queryParams)
-	require.NoError(t, err)
-	t.Logf("Right before autostart: %d daemons", len(beforeDaemons))
-
-	// Since we commented out the close call, the provisioner is still active
-	// This means autobuild should proceed (not be skipped) and create transitions
-	// The test expects 0 transitions (skipped autostart), but with an active provisioner,
-	// it should get >0 transitions, causing the test to FAIL as intended
+	// Ensure the provisioner is  NOT stale, and see if we get a successful state transition.
+	notStaleTime := sched.Next(workspace.LatestBuild.CreatedAt).Add((-1 * provisionerdserver.StaleInterval) + 10*time.Second)
+	coderdtest.UpdateProvisionerLastSeenAt(t, db, id, time.Now(), notStaleTime)
 
 	// Trigger autobuild
 	go func() {
 		tickCh <- sched.Next(workspace.LatestBuild.CreatedAt)
 		close(tickCh)
 	}()
+	stats = <-statsCh
 
-	stats := <-statsCh
-
-	// Query right after hasAvailableProvisioners was called
-	afterDaemons, err := db.GetProvisionerDaemonsByOrganization(context.Background(), queryParams)
-	require.NoError(t, err)
-	t.Logf("Right after autostart: %d daemons", len(afterDaemons))
-
-	// This assertion should FAIL when provisioner is available (demonstrating the fix works)
-	// When provisioner close is commented out: provisioner available → autostart proceeds → transitions > 0 → test fails ✓
-	// When provisioner close is active: provisioner unavailable → autostart skipped → transitions = 0 → test passes ✓
-	assert.Len(t, stats.Transitions, 0, "should not create builds when no provisioners available")
+	assert.Len(t, stats.Transitions, 1, "should not create builds when no provisioners available")
 }

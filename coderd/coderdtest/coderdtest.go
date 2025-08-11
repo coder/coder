@@ -1661,10 +1661,10 @@ func MustWaitForProvisionersWithClient(t *testing.T, client *codersdk.Client) {
 }
 
 // mustWaitForProvisionersAvailable waits for provisioners to be available for a specific workspace
-func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace codersdk.Workspace, staleDuration time.Duration) {
+func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace codersdk.Workspace, staleDuration time.Duration) uuid.UUID {
 	t.Helper()
 	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitShort))
-
+	id := uuid.UUID{}
 	// Get the workspace from the database
 	require.Eventually(t, func() bool {
 		ws, err := db.GetWorkspaceByID(ctx, workspace.ID)
@@ -1699,10 +1699,13 @@ func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace
 			if pd.LastSeenAt.Valid {
 				age := now.Sub(pd.LastSeenAt.Time)
 				if age <= staleDuration {
+					id = pd.ID
 					return true // Found an active provisioner
 				}
 			}
 		}
 		return false // No active provisioners found
 	}, testutil.WaitShort, testutil.IntervalFast)
+
+	return id
 }

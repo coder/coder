@@ -34,8 +34,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-const TestingStaleInterval = time.Second * 5
-
 // Executor automatically starts or stops workspaces.
 type Executor struct {
 	ctx                   context.Context
@@ -148,19 +146,20 @@ func (e *Executor) hasAvailableProvisioners(ctx context.Context, tx database.Sto
 		return false, xerrors.Errorf("get provisioner daemons: %w", err)
 	}
 
+	logger := e.log.With(slog.F("tags", templateVersionJob.Tags))
 	// Check if any provisioners are active (not stale)
 	for _, pd := range provisionerDaemons {
 		if pd.LastSeenAt.Valid {
 			age := t.Sub(pd.LastSeenAt.Time)
 			if age <= provisionerdserver.StaleInterval {
-				e.log.Debug(ctx, "hasAvailableProvisioners: found active provisioner",
+				logger.Debug(ctx, "hasAvailableProvisioners: found active provisioner",
 					slog.F("daemon_id", pd.ID),
 				)
 				return true, nil
 			}
 		}
 	}
-	e.log.Debug(ctx, "hasAvailableProvisioners: no active provisioners found")
+	logger.Debug(ctx, "hasAvailableProvisioners: no active provisioners found")
 	return false, nil
 }
 
