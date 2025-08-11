@@ -27,6 +27,7 @@ import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
+import { AgentExternal } from "./AgentExternal";
 import { AgentLatency } from "./AgentLatency";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
 import { AgentLogs } from "./AgentLogs/AgentLogs";
@@ -62,9 +63,10 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const appSections = organizeAgentApps(agent.apps);
 	const hasAppsToDisplay =
 		!browser_only || appSections.some((it) => it.apps.length > 0);
+	const isExternalAgent = workspace.latest_build.has_external_agent;
 	const shouldDisplayAgentApps =
 		(agent.status === "connected" && hasAppsToDisplay) ||
-		agent.status === "connecting";
+		(agent.status === "connecting" && !isExternalAgent);
 	const hasVSCodeApp =
 		agent.display_apps.includes("vscode") ||
 		agent.display_apps.includes("vscode_insiders");
@@ -258,7 +260,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</section>
 				)}
 
-				{agent.status === "connecting" && (
+				{agent.status === "connecting" && !isExternalAgent && (
 					<section css={styles.apps}>
 						<Skeleton
 							width={80}
@@ -292,6 +294,15 @@ export const AgentRow: FC<AgentRowProps> = ({
 						})}
 					</section>
 				)}
+
+				{isExternalAgent &&
+					(agent.status === "timeout" || agent.status === "connecting") && (
+						<AgentExternal
+							isExternalAgent={isExternalAgent}
+							agent={agent}
+							workspace={workspace}
+						/>
+					)}
 
 				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />
 			</div>
