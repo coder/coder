@@ -110,7 +110,7 @@ data "coder_workspace_owner" "me" {}
 
 module "slackme" {
   source           = "dev.registry.coder.com/coder/slackme/coder"
-  version          = "1.0.30"
+  version          = "1.0.31"
   agent_id         = coder_agent.dev.id
   auth_provider_id = "slack"
 }
