@@ -145,16 +145,6 @@ func TestAITasksPrompts(t *testing.T) {
 func TestAITasksCreate(t *testing.T) {
 	t.Parallel()
 
-	makeEchoResponses := func(parameters []*proto.RichParameter) *echo.Responses {
-		return &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionApply: echo.ApplyComplete,
-			ProvisionPlan: []*proto.Response{
-				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{Parameters: parameters}}},
-			},
-		}
-	}
-
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
@@ -169,9 +159,16 @@ func TestAITasksCreate(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		// Given: A template with an "AI Prompt" parameter
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, makeEchoResponses([]*proto.RichParameter{
-			{Name: "AI Prompt", Type: "string"},
-		}))
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionPlan: []*proto.Response{
+				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+					Parameters: []*proto.RichParameter{{Name: "AI Prompt", Type: "string"}},
+					HasAiTasks: true,
+				}}},
+			},
+		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
