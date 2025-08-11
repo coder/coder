@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1009,11 +1010,16 @@ func TestGetCryptoKeys(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		db, pubsub := dbtestutil.NewDB(t)
+		// IgnoreErrors is set here to avoid a test failure due to "used of closed network connection".
+		logger := slogtest.Make(t, &slogtest.Options{
+			IgnoreErrors: true,
+		})
 		cclient, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				Database:                 db,
 				Pubsub:                   pubsub,
 				IncludeProvisionerDaemon: true,
+				Logger:                   &logger,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
