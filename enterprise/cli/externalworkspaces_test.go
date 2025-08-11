@@ -12,6 +12,8 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/pty/ptytest"
@@ -121,8 +123,16 @@ func TestExternalWorkspaces(t *testing.T) {
 
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceExternalAgent: 1,
+				},
+			},
+		})
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithExternalAgent())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -134,7 +144,7 @@ func TestExternalWorkspaces(t *testing.T) {
 			"my-external-workspace",
 			"--template", template.Name,
 		}
-		inv, root := clitest.New(t, args...)
+		inv, root := newCLI(t, args...)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
@@ -165,8 +175,16 @@ func TestExternalWorkspaces(t *testing.T) {
 
 	t.Run("CreateWithoutTemplate", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceExternalAgent: 1,
+				},
+			},
+		})
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		args := []string{
@@ -174,7 +192,7 @@ func TestExternalWorkspaces(t *testing.T) {
 			"create",
 			"my-external-workspace",
 		}
-		inv, root := clitest.New(t, args...)
+		inv, root := newCLI(t, args...)
 		clitest.SetupConfig(t, member, root)
 
 		err := inv.Run()
@@ -184,8 +202,16 @@ func TestExternalWorkspaces(t *testing.T) {
 
 	t.Run("CreateWithRegularTemplate", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceExternalAgent: 1,
+				},
+			},
+		})
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithRegularAgent())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -197,7 +223,7 @@ func TestExternalWorkspaces(t *testing.T) {
 			"my-external-workspace",
 			"--template", template.Name,
 		}
-		inv, root := clitest.New(t, args...)
+		inv, root := newCLI(t, args...)
 		clitest.SetupConfig(t, member, root)
 
 		err := inv.Run()
@@ -207,8 +233,16 @@ func TestExternalWorkspaces(t *testing.T) {
 
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceExternalAgent: 1,
+				},
+			},
+		})
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithExternalAgent())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -222,7 +256,7 @@ func TestExternalWorkspaces(t *testing.T) {
 			"external-workspaces",
 			"list",
 		}
-		inv, root := clitest.New(t, args...)
+		inv, root := newCLI(t, args...)
 		clitest.SetupConfig(t, member, root)
 		pty := ptytest.New(t).Attach(inv)
 
@@ -242,8 +276,16 @@ func TestExternalWorkspaces(t *testing.T) {
 
 	t.Run("ListJSON", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceExternalAgent: 1,
+				},
+			},
+		})
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithExternalAgent())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -258,7 +300,7 @@ func TestExternalWorkspaces(t *testing.T) {
 			"list",
 			"--output=json",
 		}
-		inv, root := clitest.New(t, args...)
+		inv, root := newCLI(t, args...)
 		clitest.SetupConfig(t, member, root)
 
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -277,15 +319,23 @@ func TestExternalWorkspaces(t *testing.T) {
 
 	t.Run("ListNoWorkspaces", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceExternalAgent: 1,
+				},
+			},
+		})
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		args := []string{
 			"external-workspaces",
 			"list",
 		}
-		inv, root := clitest.New(t, args...)
+		inv, root := newCLI(t, args...)
 		clitest.SetupConfig(t, member, root)
 		pty := ptytest.New(t).Attach(inv)
 
@@ -305,8 +355,16 @@ func TestExternalWorkspaces(t *testing.T) {
 
 	t.Run("AgentInstructions", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceExternalAgent: 1,
+				},
+			},
+		})
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithExternalAgent())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -321,7 +379,7 @@ func TestExternalWorkspaces(t *testing.T) {
 			"agent-instructions",
 			ws.Name,
 		}
-		inv, root := clitest.New(t, args...)
+		inv, root := newCLI(t, args...)
 		clitest.SetupConfig(t, member, root)
 		pty := ptytest.New(t).Attach(inv)
 
@@ -342,8 +400,16 @@ func TestExternalWorkspaces(t *testing.T) {
 
 	t.Run("AgentInstructionsJSON", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceExternalAgent: 1,
+				},
+			},
+		})
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithExternalAgent())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -359,7 +425,7 @@ func TestExternalWorkspaces(t *testing.T) {
 			ws.Name,
 			"--output=json",
 		}
-		inv, root := clitest.New(t, args...)
+		inv, root := newCLI(t, args...)
 		clitest.SetupConfig(t, member, root)
 
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -379,8 +445,16 @@ func TestExternalWorkspaces(t *testing.T) {
 
 	t.Run("AgentInstructionsNonExistentWorkspace", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceExternalAgent: 1,
+				},
+			},
+		})
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		args := []string{
@@ -388,7 +462,7 @@ func TestExternalWorkspaces(t *testing.T) {
 			"agent-instructions",
 			"non-existent-workspace",
 		}
-		inv, root := clitest.New(t, args...)
+		inv, root := newCLI(t, args...)
 		clitest.SetupConfig(t, member, root)
 
 		err := inv.Run()
@@ -398,8 +472,16 @@ func TestExternalWorkspaces(t *testing.T) {
 
 	t.Run("AgentInstructionsNonExistentAgent", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceExternalAgent: 1,
+				},
+			},
+		})
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithExternalAgent())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -414,7 +496,7 @@ func TestExternalWorkspaces(t *testing.T) {
 			"agent-instructions",
 			ws.Name + ".non-existent-agent",
 		}
-		inv, root := clitest.New(t, args...)
+		inv, root := newCLI(t, args...)
 		clitest.SetupConfig(t, member, root)
 
 		err := inv.Run()
@@ -424,8 +506,16 @@ func TestExternalWorkspaces(t *testing.T) {
 
 	t.Run("CreateWithTemplateVersion", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceExternalAgent: 1,
+				},
+			},
+		})
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithExternalAgent())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -439,7 +529,7 @@ func TestExternalWorkspaces(t *testing.T) {
 			"--template-version", version.Name,
 			"-y",
 		}
-		inv, root := clitest.New(t, args...)
+		inv, root := newCLI(t, args...)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)

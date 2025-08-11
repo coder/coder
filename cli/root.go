@@ -108,7 +108,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		// Workspace Commands
 		r.autoupdate(),
 		r.configSSH(),
-		r.create(createOptions{}),
+		r.Create(CreateOptions{}),
 		r.deleteWorkspace(),
 		r.favorite(),
 		r.list(),
@@ -126,7 +126,6 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.unfavorite(),
 		r.update(),
 		r.whoami(),
-		r.externalWorkspaces(),
 
 		// Hidden
 		r.connectCmd(),
