@@ -387,21 +387,21 @@ func TestSchedulePrebuilds(t *testing.T) {
 		cmdArgs     func(string) []string
 	}{
 		{
-			name:        "Autostart",
+			name:        "AutostartPrebuildError",
 			cliErrorMsg: "autostart configuration is not supported for prebuilt workspaces",
 			cmdArgs: func(workspaceName string) []string {
 				return []string{"schedule", "start", workspaceName, "7:30AM", "Mon-Fri", "Europe/Lisbon"}
 			},
 		},
 		{
-			name:        "Autostop",
+			name:        "AutostopPrebuildError",
 			cliErrorMsg: "autostop configuration is not supported for prebuilt workspaces",
 			cmdArgs: func(workspaceName string) []string {
 				return []string{"schedule", "stop", workspaceName, "8h30m"}
 			},
 		},
 		//{
-		//	name:        "Extend",
+		//	name:        "ExtendPrebuildError",
 		//	cliErrorMsg: "extend configuration is not supported for prebuilt workspaces",
 		//	cmdArgs: func(workspaceName string) []string {
 		//		return []string{"schedule", "extend", workspaceName, "90m"}
