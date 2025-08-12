@@ -93,7 +93,7 @@ func (c *Client) OAuth2ProviderApp(ctx context.Context, id uuid.UUID) (OAuth2Pro
 
 type PostOAuth2ProviderAppRequest struct {
 	Name         string                    `json:"name" validate:"required,oauth2_app_display_name"`
-	RedirectURIs []string                  `json:"redirect_uris" validate:"dive,http_url"`
+	RedirectURIs []string                  `json:"redirect_uris" validate:"dive,oauth2_redirect_uri"`
 	Icon         string                    `json:"icon" validate:"omitempty"`
 	GrantTypes   []OAuth2ProviderGrantType `json:"grant_types,omitempty" validate:"dive,oneof=authorization_code refresh_token client_credentials urn:ietf:params:oauth:grant-type:device_code"`
 }
@@ -150,7 +150,7 @@ func (c *Client) PostOAuth2ProviderApp(ctx context.Context, app PostOAuth2Provid
 
 type PutOAuth2ProviderAppRequest struct {
 	Name         string                    `json:"name" validate:"required,oauth2_app_display_name"`
-	RedirectURIs []string                  `json:"redirect_uris" validate:"dive,http_url"`
+	RedirectURIs []string                  `json:"redirect_uris" validate:"dive,oauth2_redirect_uri"`
 	Icon         string                    `json:"icon" validate:"omitempty"`
 	GrantTypes   []OAuth2ProviderGrantType `json:"grant_types,omitempty" validate:"dive,oneof=authorization_code refresh_token client_credentials urn:ietf:params:oauth:grant-type:device_code"`
 }
