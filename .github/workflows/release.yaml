@@ -288,8 +288,8 @@ jobs:
         id: gcloud_auth
         uses: google-github-actions/auth@140bb5113ffb6b65a7e9b937a81fa96cf5064462 # v2.1.11
         with:
-          workload_identity_provider: ${{ secrets.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
-          service_account: ${{ secrets.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ vars.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ vars.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
           token_format: "access_token"
 
       - name: Setup GCloud SDK
@@ -698,8 +698,8 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@140bb5113ffb6b65a7e9b937a81fa96cf5064462 # v2.1.11
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_ID_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
 
       - name: Setup GCloud SDK
         uses: google-github-actions/setup-gcloud@6a7c903a70c8625ed6700fa299f5ddb4ca6022e9 # 2.1.5
