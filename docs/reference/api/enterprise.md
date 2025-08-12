@@ -794,9 +794,10 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
 
 ### Parameters
 
-| Name      | In    | Type   | Required | Description                                  |
-|-----------|-------|--------|----------|----------------------------------------------|
-| `user_id` | query | string | false    | Filter by applications authorized for a user |
+| Name       | In    | Type   | Required | Description                                  |
+|------------|-------|--------|----------|----------------------------------------------|
+| `user_id`  | query | string | false    | Filter by applications authorized for a user |
+| `owner_id` | query | string | false    | Filter by applications owned by a user       |
 
 ### Example responses
 
@@ -805,18 +806,25 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
 ```json
 [
   {
+    "created_at": "2019-08-24T14:15:22Z",
+    "email": "string",
     "endpoints": {
       "authorization": "string",
       "device_authorization": "string",
       "revocation": "string",
       "token": "string"
     },
+    "grant_types": [
+      "string"
+    ],
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "redirect_uris": [
       "string"
-    ]
+    ],
+    "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+    "username": "string"
   }
 ]
 ```
@@ -834,15 +842,20 @@ Status Code **200**
 | Name                      | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                                             |
 |---------------------------|----------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `[array item]`            | array                                                                | false    |              |                                                                                                                                                                                                         |
+| `» created_at`            | string(date-time)                                                    | false    |              |                                                                                                                                                                                                         |
+| `» email`                 | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `» endpoints`             | [codersdk.OAuth2AppEndpoints](schemas.md#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
 | `»» authorization`        | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `»» device_authorization` | string                                                               | false    |              | Device authorization is the device authorization endpoint for RFC 8628.                                                                                                                                 |
 | `»» revocation`           | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `»» token`                | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `» grant_types`           | array                                                                | false    |              |                                                                                                                                                                                                         |
 | `» icon`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `» id`                    | string(uuid)                                                         | false    |              |                                                                                                                                                                                                         |
 | `» name`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `» redirect_uris`         | array                                                                | false    |              |                                                                                                                                                                                                         |
+| `» user_id`               | string(uuid)                                                         | false    |              |                                                                                                                                                                                                         |
+| `» username`              | string                                                               | false    |              |                                                                                                                                                                                                         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -887,18 +900,25 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
 
 ```json
 {
+  "created_at": "2019-08-24T14:15:22Z",
+  "email": "string",
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
     "revocation": "string",
     "token": "string"
   },
+  "grant_types": [
+    "string"
+  ],
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "redirect_uris": [
     "string"
-  ]
+  ],
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
 }
 ```
 
@@ -935,18 +955,25 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 ```json
 {
+  "created_at": "2019-08-24T14:15:22Z",
+  "email": "string",
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
     "revocation": "string",
     "token": "string"
   },
+  "grant_types": [
+    "string"
+  ],
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "redirect_uris": [
     "string"
-  ]
+  ],
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
 }
 ```
 
@@ -1000,18 +1027,25 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 ```json
 {
+  "created_at": "2019-08-24T14:15:22Z",
+  "email": "string",
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
     "revocation": "string",
     "token": "string"
   },
+  "grant_types": [
+    "string"
+  ],
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "redirect_uris": [
     "string"
-  ]
+  ],
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
 }
 ```
 
@@ -1076,6 +1110,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets \
 [
   {
     "client_secret_truncated": "string",
+    "created_at": "2019-08-24T14:15:22Z",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_used_at": "string"
   }
@@ -1092,12 +1127,13 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets \
 
 Status Code **200**
 
-| Name                        | Type         | Required | Restrictions | Description |
-|-----------------------------|--------------|----------|--------------|-------------|
-| `[array item]`              | array        | false    |              |             |
-| `» client_secret_truncated` | string       | false    |              |             |
-| `» id`                      | string(uuid) | false    |              |             |
-| `» last_used_at`            | string       | false    |              |             |
+| Name                        | Type              | Required | Restrictions | Description |
+|-----------------------------|-------------------|----------|--------------|-------------|
+| `[array item]`              | array             | false    |              |             |
+| `» client_secret_truncated` | string            | false    |              |             |
+| `» created_at`              | string(date-time) | false    |              |             |
+| `» id`                      | string(uuid)      | false    |              |             |
+| `» last_used_at`            | string            | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

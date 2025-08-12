@@ -4429,6 +4429,9 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 		name: "foo",
 		redirect_uris: ["http://localhost:3001", "http://localhost:3002"],
 		icon: "/icon/github.svg",
+		created_at: "2022-12-16T20:10:45.637452Z",
+		grant_types: ["authorization_code", "refresh_token"],
+		user_id: "test-user-id",
 		endpoints: {
 			authorization: "http://localhost:3001/oauth2/authorize",
 			token: "http://localhost:3001/oauth2/token",
@@ -4442,11 +4445,13 @@ export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] =
 	[
 		{
 			id: "1",
+			created_at: "2022-12-16T20:10:45.637452Z",
 			client_secret_truncated: "foo",
 			last_used_at: null,
 		},
 		{
-			id: "1",
+			id: "2",
+			created_at: "2022-12-16T20:10:45.637452Z",
 			last_used_at: "2022-12-16T20:10:45.637452Z",
 			client_secret_truncated: "foo",
 		},
