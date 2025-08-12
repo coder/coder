@@ -32,7 +32,7 @@ var ownerCtx = dbauthz.As(context.Background(), rbac.Subject{
 	ID:     "owner",
 	Roles:  rbac.Roles(must(rbac.RoleIdentifiers{rbac.RoleOwner()}.Expand())),
 	Groups: []string{},
-	Scope:  rbac.ExpandableScope(rbac.ScopeAll),
+	Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 })
 
 type WorkspaceResponse struct {

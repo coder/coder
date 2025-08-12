@@ -22,7 +22,7 @@ func BenchmarkRBACValueAllocation(b *testing.B) {
 	actor := Subject{
 		Roles:  RoleIdentifiers{ScopedRoleOrgMember(uuid.New()), ScopedRoleOrgAdmin(uuid.New()), RoleMember()},
 		ID:     uuid.NewString(),
-		Scope:  ScopeAll,
+		Scopes: []ExpandableScope{ScopeAll},
 		Groups: []string{uuid.NewString(), uuid.NewString(), uuid.NewString()},
 	}
 	obj := ResourceTemplate.
@@ -38,11 +38,16 @@ func BenchmarkRBACValueAllocation(b *testing.B) {
 		uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
 	})
 
+	scopes := make([]Scope, len(actor.Scopes))
+	for i, scope := range actor.Scopes {
+		scopes[i] = must(scope.Expand())
+	}
+
 	jsonSubject := authSubject{
 		ID:     actor.ID,
 		Roles:  must(actor.Roles.Expand()),
 		Groups: actor.Groups,
-		Scope:  must(actor.Scope.Expand()),
+		Scopes: scopes,
 	}
 
 	b.Run("ManualRegoValue", func(b *testing.B) {
@@ -84,7 +89,7 @@ func TestRegoInputValue(t *testing.T) {
 	actor := Subject{
 		Roles:  Roles(roles),
 		ID:     uuid.NewString(),
-		Scope:  ScopeAll,
+		Scopes: []ExpandableScope{ScopeAll},
 		Groups: []string{uuid.NewString(), uuid.NewString(), uuid.NewString()},
 	}
 
@@ -106,13 +111,18 @@ func TestRegoInputValue(t *testing.T) {
 	t.Run("InputValue", func(t *testing.T) {
 		t.Parallel()
 
+		scopes := make([]Scope, len(actor.Scopes))
+		for i, scope := range actor.Scopes {
+			scopes[i] = must(scope.Expand())
+		}
+
 		// This is the input that would be passed to the rego policy.
-		jsonInput := map[string]interface{}{
+		jsonInput := map[string]any{
 			"subject": authSubject{
 				ID:     actor.ID,
 				Roles:  must(actor.Roles.Expand()),
 				Groups: actor.Groups,
-				Scope:  must(actor.Scope.Expand()),
+				Scopes: scopes,
 			},
 			"action": action,
 			"object": obj,
@@ -137,13 +147,18 @@ func TestRegoInputValue(t *testing.T) {
 	t.Run("PartialInputValue", func(t *testing.T) {
 		t.Parallel()
 
+		scopes := make([]Scope, len(actor.Scopes))
+		for i, scope := range actor.Scopes {
+			scopes[i] = must(scope.Expand())
+		}
+
 		// This is the input that would be passed to the rego policy.
 		jsonInput := map[string]interface{}{
 			"subject": authSubject{
 				ID:     actor.ID,
 				Roles:  must(actor.Roles.Expand()),
 				Groups: actor.Groups,
-				Scope:  must(actor.Scope.Expand()),
+				Scopes: scopes,
 			},
 			"action": action,
 			"object": map[string]interface{}{
@@ -190,19 +205,25 @@ func ignoreNames(t *testing.T, value ast.Value) {
 		obj.Insert(ast.StringTerm("display_name"), ast.StringTerm("ignore"))
 	})
 
-	// Override the names of the scope role
+	// Override the names of the scope roles (now an array)
 	ref = ast.Ref{
 		ast.StringTerm("subject"),
-		ast.StringTerm("scope"),
+		ast.StringTerm("scopes"),
 	}
-	scope, err := value.Find(ref)
+	scopes, err := value.Find(ref)
 	require.NoError(t, err)
 
-	scopeObj, ok := scope.(ast.Object)
-	require.True(t, ok, "scope is expected to be an object")
+	scopesArray, ok := scopes.(*ast.Array)
+	require.True(t, ok, "scopes is expected to be an array")
 
-	scopeObj.Insert(ast.StringTerm("name"), ast.StringTerm("ignore"))
-	scopeObj.Insert(ast.StringTerm("display_name"), ast.StringTerm("ignore"))
+	// Override names for each scope in the array
+	for i := 0; i < scopesArray.Len(); i++ {
+		scopeObj, ok := scopesArray.Elem(i).Value.(ast.Object)
+		require.True(t, ok, "scope element is expected to be an object")
+
+		scopeObj.Insert(ast.StringTerm("name"), ast.StringTerm("ignore"))
+		scopeObj.Insert(ast.StringTerm("display_name"), ast.StringTerm("ignore"))
+	}
 }
 
 func TestRoleByName(t *testing.T) {

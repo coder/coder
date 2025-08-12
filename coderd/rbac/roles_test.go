@@ -54,9 +54,9 @@ func TestBuiltInRoles(t *testing.T) {
 //nolint:tparallel,paralleltest
 func TestOwnerExec(t *testing.T) {
 	owner := rbac.Subject{
-		ID:    uuid.NewString(),
-		Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleOwner()},
-		Scope: rbac.ScopeAll,
+		ID:     uuid.NewString(),
+		Roles:  rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleOwner()},
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	}
 
 	t.Run("NoExec", func(t *testing.T) {
@@ -931,8 +931,8 @@ func TestRolePermissions(t *testing.T) {
 						// TODO: scopey
 						actor := subj.Actor
 						// Actor is missing some fields
-						if actor.Scope == nil {
-							actor.Scope = rbac.ScopeAll
+						if len(actor.Scopes) == 0 {
+							actor.Scopes = []rbac.ExpandableScope{rbac.ScopeAll}
 						}
 
 						delete(remainingPermissions[c.Resource.Type], action)

@@ -12,7 +12,20 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
 
 CREATE TYPE api_key_scope AS ENUM (
     'all',
-    'application_connect'
+    'application_connect',
+    'user:read',
+    'user:write',
+    'workspace:read',
+    'workspace:write',
+    'workspace:ssh',
+    'workspace:apps',
+    'template:read',
+    'template:write',
+    'organization:read',
+    'organization:write',
+    'audit:read',
+    'system:read',
+    'system:write'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -832,8 +845,8 @@ CREATE TABLE api_keys (
     login_type login_type NOT NULL,
     lifetime_seconds bigint DEFAULT 86400 NOT NULL,
     ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL,
-    scope api_key_scope DEFAULT 'all'::api_key_scope NOT NULL,
-    token_name text DEFAULT ''::text NOT NULL
+    token_name text DEFAULT ''::text NOT NULL,
+    scopes api_key_scope[] DEFAULT '{all}'::api_key_scope[] NOT NULL
 );
 
 COMMENT ON COLUMN api_keys.hashed_secret IS 'hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.';
@@ -1232,7 +1245,6 @@ CREATE TABLE oauth2_provider_apps (
     grant_types text[] DEFAULT '{authorization_code,refresh_token}'::text[],
     response_types text[] DEFAULT '{code}'::text[],
     token_endpoint_auth_method text DEFAULT 'client_secret_basic'::text,
-    scope text DEFAULT ''::text,
     contacts text[],
     client_uri text,
     logo_uri text,
@@ -1245,6 +1257,7 @@ CREATE TABLE oauth2_provider_apps (
     registration_access_token text,
     registration_client_uri text,
     user_id uuid,
+    scopes api_key_scope[] NOT NULL,
     CONSTRAINT redirect_uris_not_empty_unless_client_credentials CHECK ((((grant_types = ARRAY['client_credentials'::text]) AND (cardinality(redirect_uris) >= 0)) OR ((grant_types <> ARRAY['client_credentials'::text]) AND (cardinality(redirect_uris) > 0))))
 );
 
@@ -1265,8 +1278,6 @@ COMMENT ON COLUMN oauth2_provider_apps.grant_types IS 'RFC 7591: Array of grant 
 COMMENT ON COLUMN oauth2_provider_apps.response_types IS 'RFC 7591: Array of response types the client supports';
 
 COMMENT ON COLUMN oauth2_provider_apps.token_endpoint_auth_method IS 'RFC 7591: Authentication method for token endpoint';
-
-COMMENT ON COLUMN oauth2_provider_apps.scope IS 'RFC 7591: Space-delimited scope values the client can request';
 
 COMMENT ON COLUMN oauth2_provider_apps.contacts IS 'RFC 7591: Array of email addresses for responsible parties';
 

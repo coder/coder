@@ -110,7 +110,7 @@ var pgCoordSubject = rbac.Subject{
 			User: []rbac.Permission{},
 		},
 	}),
-	Scope: rbac.ScopeAll,
+	Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 }.WithCachedASTValue()
 
 // NewPGCoord creates a high-availability coordinator that stores state in the PostgreSQL database and

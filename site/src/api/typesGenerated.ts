@@ -23,15 +23,46 @@ export interface APIKey {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly login_type: LoginType;
-	readonly scope: APIKeyScope;
+	readonly scopes: readonly APIKeyScope[];
 	readonly token_name: string;
 	readonly lifetime_seconds: number;
 }
 
 // From codersdk/apikey.go
-export type APIKeyScope = "all" | "application_connect";
+export type APIKeyScope =
+	| "all"
+	| "application_connect"
+	| "audit:read"
+	| "organization:read"
+	| "organization:write"
+	| "system:read"
+	| "system:write"
+	| "template:read"
+	| "template:write"
+	| "user:read"
+	| "user:write"
+	| "workspace:apps"
+	| "workspace:read"
+	| "workspace:ssh"
+	| "workspace:write";
 
-export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"];
+export const APIKeyScopes: APIKeyScope[] = [
+	"all",
+	"application_connect",
+	"audit:read",
+	"organization:read",
+	"organization:write",
+	"system:read",
+	"system:write",
+	"template:read",
+	"template:write",
+	"user:read",
+	"user:write",
+	"workspace:apps",
+	"workspace:read",
+	"workspace:ssh",
+	"workspace:write",
+];
 
 // From codersdk/apikey.go
 export interface APIKeyWithOwner extends APIKey {
@@ -543,7 +574,7 @@ export interface CreateTestAuditLogRequest {
 // From codersdk/apikey.go
 export interface CreateTokenRequest {
 	readonly lifetime: number;
-	readonly scope: APIKeyScope;
+	readonly scopes?: readonly APIKeyScope[];
 	readonly token_name: string;
 }
 

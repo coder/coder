@@ -110,7 +110,7 @@ func TestTemplateVersionPresets(t *testing.T) {
 				}
 			}
 
-			userSubject, _, err := httpmw.UserRBACSubject(ctx, db, user.UserID, rbac.ScopeAll)
+			userSubject, _, err := httpmw.UserRBACSubject(ctx, db, user.UserID, []rbac.ExpandableScope{rbac.ScopeAll})
 			require.NoError(t, err)
 			userCtx := dbauthz.As(ctx, userSubject)
 
@@ -206,7 +206,7 @@ func TestTemplateVersionPresetsDefault(t *testing.T) {
 			}
 
 			// Get presets via API
-			userSubject, _, err := httpmw.UserRBACSubject(ctx, db, user.UserID, rbac.ScopeAll)
+			userSubject, _, err := httpmw.UserRBACSubject(ctx, db, user.UserID, []rbac.ExpandableScope{rbac.ScopeAll})
 			require.NoError(t, err)
 			userCtx := dbauthz.As(ctx, userSubject)
 

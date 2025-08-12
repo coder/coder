@@ -434,7 +434,19 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	// If the key is valid, we also fetch the user roles and status.
 	// The roles are used for RBAC authorize checks, and the status
 	// is to block 'suspended' users from accessing the platform.
-	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, rbac.ScopeName(key.Scope))
+
+	// Convert database scopes to ExpandableScope slice
+	scopes := make([]rbac.ExpandableScope, len(key.Scopes))
+	for i, scope := range key.Scopes {
+		scopes[i] = rbac.ScopeName(scope)
+	}
+
+	// Use default scope if no scopes provided
+	if len(scopes) == 0 {
+		scopes = []rbac.ExpandableScope{rbac.ScopeAll}
+	}
+
+	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, scopes)
 	if err != nil {
 		return write(http.StatusUnauthorized, codersdk.Response{
 			Message: internalErrorMessage,
@@ -668,7 +680,7 @@ func extractExpectedAudience(accessURL *url.URL, r *http.Request) string {
 
 // UserRBACSubject fetches a user's rbac.Subject from the database. It pulls all roles from both
 // site and organization scopes. It also pulls the groups, and the user's status.
-func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, scope rbac.ExpandableScope) (rbac.Subject, database.UserStatus, error) {
+func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, scopes []rbac.ExpandableScope) (rbac.Subject, database.UserStatus, error) {
 	//nolint:gocritic // system needs to update user roles
 	roles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), userID)
 	if err != nil {
@@ -693,7 +705,7 @@ func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, s
 		ID:           userID.String(),
 		Roles:        rbacRoles,
 		Groups:       roles.Groups,
-		Scope:        scope,
+		Scopes:       scopes,
 	}.WithCachedASTValue()
 	return actor, roles.Status, nil
 }

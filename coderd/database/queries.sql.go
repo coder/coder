@@ -136,7 +136,7 @@ DELETE FROM
 	api_keys
 WHERE
 	user_id = $1 AND
-	scope = 'application_connect'::api_key_scope
+	'application_connect'::api_key_scope = ANY(scopes)
 `
 
 func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
@@ -146,7 +146,7 @@ func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
-	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes
 FROM
 	api_keys
 WHERE
@@ -169,15 +169,15 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 		&i.LoginType,
 		&i.LifetimeSeconds,
 		&i.IPAddress,
-		&i.Scope,
 		&i.TokenName,
+		pq.Array(&i.Scopes),
 	)
 	return i, err
 }
 
 const getAPIKeyByName = `-- name: GetAPIKeyByName :one
 SELECT
-	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes
 FROM
 	api_keys
 WHERE
@@ -208,14 +208,14 @@ func (q *sqlQuerier) GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNamePar
 		&i.LoginType,
 		&i.LifetimeSeconds,
 		&i.IPAddress,
-		&i.Scope,
 		&i.TokenName,
+		pq.Array(&i.Scopes),
 	)
 	return i, err
 }
 
 const getAPIKeysByLoginType = `-- name: GetAPIKeysByLoginType :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name FROM api_keys WHERE login_type = $1
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes FROM api_keys WHERE login_type = $1
 `
 
 func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType LoginType) ([]APIKey, error) {
@@ -238,8 +238,8 @@ func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType LoginT
 			&i.LoginType,
 			&i.LifetimeSeconds,
 			&i.IPAddress,
-			&i.Scope,
 			&i.TokenName,
+			pq.Array(&i.Scopes),
 		); err != nil {
 			return nil, err
 		}
@@ -255,7 +255,7 @@ func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType LoginT
 }
 
 const getAPIKeysByUserID = `-- name: GetAPIKeysByUserID :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name FROM api_keys WHERE login_type = $1 AND user_id = $2
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes FROM api_keys WHERE login_type = $1 AND user_id = $2
 `
 
 type GetAPIKeysByUserIDParams struct {
@@ -283,8 +283,8 @@ func (q *sqlQuerier) GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUse
 			&i.LoginType,
 			&i.LifetimeSeconds,
 			&i.IPAddress,
-			&i.Scope,
 			&i.TokenName,
+			pq.Array(&i.Scopes),
 		); err != nil {
 			return nil, err
 		}
@@ -300,7 +300,7 @@ func (q *sqlQuerier) GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUse
 }
 
 const getAPIKeysLastUsedAfter = `-- name: GetAPIKeysLastUsedAfter :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name FROM api_keys WHERE last_used > $1
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes FROM api_keys WHERE last_used > $1
 `
 
 func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error) {
@@ -323,8 +323,8 @@ func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.
 			&i.LoginType,
 			&i.LifetimeSeconds,
 			&i.IPAddress,
-			&i.Scope,
 			&i.TokenName,
+			pq.Array(&i.Scopes),
 		); err != nil {
 			return nil, err
 		}
@@ -352,7 +352,7 @@ INSERT INTO
 		created_at,
 		updated_at,
 		login_type,
-		scope,
+		scopes,
 		token_name
 	)
 VALUES
@@ -362,22 +362,22 @@ VALUES
 	     WHEN 0 THEN 86400
 		 ELSE $2::bigint
 	 END
-	 , $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
+	 , $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes
 `
 
 type InsertAPIKeyParams struct {
-	ID              string      `db:"id" json:"id"`
-	LifetimeSeconds int64       `db:"lifetime_seconds" json:"lifetime_seconds"`
-	HashedSecret    []byte      `db:"hashed_secret" json:"hashed_secret"`
-	IPAddress       pqtype.Inet `db:"ip_address" json:"ip_address"`
-	UserID          uuid.UUID   `db:"user_id" json:"user_id"`
-	LastUsed        time.Time   `db:"last_used" json:"last_used"`
-	ExpiresAt       time.Time   `db:"expires_at" json:"expires_at"`
-	CreatedAt       time.Time   `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time   `db:"updated_at" json:"updated_at"`
-	LoginType       LoginType   `db:"login_type" json:"login_type"`
-	Scope           APIKeyScope `db:"scope" json:"scope"`
-	TokenName       string      `db:"token_name" json:"token_name"`
+	ID              string        `db:"id" json:"id"`
+	LifetimeSeconds int64         `db:"lifetime_seconds" json:"lifetime_seconds"`
+	HashedSecret    []byte        `db:"hashed_secret" json:"hashed_secret"`
+	IPAddress       pqtype.Inet   `db:"ip_address" json:"ip_address"`
+	UserID          uuid.UUID     `db:"user_id" json:"user_id"`
+	LastUsed        time.Time     `db:"last_used" json:"last_used"`
+	ExpiresAt       time.Time     `db:"expires_at" json:"expires_at"`
+	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
+	LoginType       LoginType     `db:"login_type" json:"login_type"`
+	Scopes          []APIKeyScope `db:"scopes" json:"scopes"`
+	TokenName       string        `db:"token_name" json:"token_name"`
 }
 
 func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error) {
@@ -392,7 +392,7 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.LoginType,
-		arg.Scope,
+		pq.Array(arg.Scopes),
 		arg.TokenName,
 	)
 	var i APIKey
@@ -407,8 +407,8 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		&i.LoginType,
 		&i.LifetimeSeconds,
 		&i.IPAddress,
-		&i.Scope,
 		&i.TokenName,
+		pq.Array(&i.Scopes),
 	)
 	return i, err
 }
@@ -5526,7 +5526,7 @@ func (q *sqlQuerier) DeleteOAuth2ProviderDeviceCodeByID(ctx context.Context, id 
 
 const getOAuth2ProviderAppByClientID = `-- name: GetOAuth2ProviderAppByClientID :one
 
-SELECT id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri, user_id FROM oauth2_provider_apps WHERE id = $1
+SELECT id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri, user_id, scopes FROM oauth2_provider_apps WHERE id = $1
 `
 
 // RFC 7591/7592 Dynamic Client Registration queries
@@ -5547,7 +5547,6 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByClientID(ctx context.Context, id uuid
 		pq.Array(&i.GrantTypes),
 		pq.Array(&i.ResponseTypes),
 		&i.TokenEndpointAuthMethod,
-		&i.Scope,
 		pq.Array(&i.Contacts),
 		&i.ClientUri,
 		&i.LogoUri,
@@ -5560,13 +5559,14 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByClientID(ctx context.Context, id uuid
 		&i.RegistrationAccessToken,
 		&i.RegistrationClientUri,
 		&i.UserID,
+		pq.Array(&i.Scopes),
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppByID = `-- name: GetOAuth2ProviderAppByID :one
 SELECT
-    oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.redirect_uris, oauth2_provider_apps.client_type, oauth2_provider_apps.dynamically_registered, oauth2_provider_apps.client_id_issued_at, oauth2_provider_apps.client_secret_expires_at, oauth2_provider_apps.grant_types, oauth2_provider_apps.response_types, oauth2_provider_apps.token_endpoint_auth_method, oauth2_provider_apps.scope, oauth2_provider_apps.contacts, oauth2_provider_apps.client_uri, oauth2_provider_apps.logo_uri, oauth2_provider_apps.tos_uri, oauth2_provider_apps.policy_uri, oauth2_provider_apps.jwks_uri, oauth2_provider_apps.jwks, oauth2_provider_apps.software_id, oauth2_provider_apps.software_version, oauth2_provider_apps.registration_access_token, oauth2_provider_apps.registration_client_uri, oauth2_provider_apps.user_id,
+    oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.redirect_uris, oauth2_provider_apps.client_type, oauth2_provider_apps.dynamically_registered, oauth2_provider_apps.client_id_issued_at, oauth2_provider_apps.client_secret_expires_at, oauth2_provider_apps.grant_types, oauth2_provider_apps.response_types, oauth2_provider_apps.token_endpoint_auth_method, oauth2_provider_apps.contacts, oauth2_provider_apps.client_uri, oauth2_provider_apps.logo_uri, oauth2_provider_apps.tos_uri, oauth2_provider_apps.policy_uri, oauth2_provider_apps.jwks_uri, oauth2_provider_apps.jwks, oauth2_provider_apps.software_id, oauth2_provider_apps.software_version, oauth2_provider_apps.registration_access_token, oauth2_provider_apps.registration_client_uri, oauth2_provider_apps.user_id, oauth2_provider_apps.scopes,
     users.username,
     users.email
 FROM oauth2_provider_apps
@@ -5588,7 +5588,6 @@ type GetOAuth2ProviderAppByIDRow struct {
 	GrantTypes              []string              `db:"grant_types" json:"grant_types"`
 	ResponseTypes           []string              `db:"response_types" json:"response_types"`
 	TokenEndpointAuthMethod sql.NullString        `db:"token_endpoint_auth_method" json:"token_endpoint_auth_method"`
-	Scope                   sql.NullString        `db:"scope" json:"scope"`
 	Contacts                []string              `db:"contacts" json:"contacts"`
 	ClientUri               sql.NullString        `db:"client_uri" json:"client_uri"`
 	LogoUri                 sql.NullString        `db:"logo_uri" json:"logo_uri"`
@@ -5601,6 +5600,7 @@ type GetOAuth2ProviderAppByIDRow struct {
 	RegistrationAccessToken sql.NullString        `db:"registration_access_token" json:"registration_access_token"`
 	RegistrationClientUri   sql.NullString        `db:"registration_client_uri" json:"registration_client_uri"`
 	UserID                  uuid.NullUUID         `db:"user_id" json:"user_id"`
+	Scopes                  []APIKeyScope         `db:"scopes" json:"scopes"`
 	Username                sql.NullString        `db:"username" json:"username"`
 	Email                   sql.NullString        `db:"email" json:"email"`
 }
@@ -5622,7 +5622,6 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID)
 		pq.Array(&i.GrantTypes),
 		pq.Array(&i.ResponseTypes),
 		&i.TokenEndpointAuthMethod,
-		&i.Scope,
 		pq.Array(&i.Contacts),
 		&i.ClientUri,
 		&i.LogoUri,
@@ -5635,6 +5634,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID)
 		&i.RegistrationAccessToken,
 		&i.RegistrationClientUri,
 		&i.UserID,
+		pq.Array(&i.Scopes),
 		&i.Username,
 		&i.Email,
 	)
@@ -5642,7 +5642,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID)
 }
 
 const getOAuth2ProviderAppByRegistrationToken = `-- name: GetOAuth2ProviderAppByRegistrationToken :one
-SELECT id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri, user_id FROM oauth2_provider_apps WHERE registration_access_token = $1
+SELECT id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri, user_id, scopes FROM oauth2_provider_apps WHERE registration_access_token = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken sql.NullString) (OAuth2ProviderApp, error) {
@@ -5662,7 +5662,6 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context
 		pq.Array(&i.GrantTypes),
 		pq.Array(&i.ResponseTypes),
 		&i.TokenEndpointAuthMethod,
-		&i.Scope,
 		pq.Array(&i.Contacts),
 		&i.ClientUri,
 		&i.LogoUri,
@@ -5675,6 +5674,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context
 		&i.RegistrationAccessToken,
 		&i.RegistrationClientUri,
 		&i.UserID,
+		pq.Array(&i.Scopes),
 	)
 	return i, err
 }
@@ -5843,7 +5843,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hash
 
 const getOAuth2ProviderApps = `-- name: GetOAuth2ProviderApps :many
 SELECT
-    oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.redirect_uris, oauth2_provider_apps.client_type, oauth2_provider_apps.dynamically_registered, oauth2_provider_apps.client_id_issued_at, oauth2_provider_apps.client_secret_expires_at, oauth2_provider_apps.grant_types, oauth2_provider_apps.response_types, oauth2_provider_apps.token_endpoint_auth_method, oauth2_provider_apps.scope, oauth2_provider_apps.contacts, oauth2_provider_apps.client_uri, oauth2_provider_apps.logo_uri, oauth2_provider_apps.tos_uri, oauth2_provider_apps.policy_uri, oauth2_provider_apps.jwks_uri, oauth2_provider_apps.jwks, oauth2_provider_apps.software_id, oauth2_provider_apps.software_version, oauth2_provider_apps.registration_access_token, oauth2_provider_apps.registration_client_uri, oauth2_provider_apps.user_id,
+    oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.redirect_uris, oauth2_provider_apps.client_type, oauth2_provider_apps.dynamically_registered, oauth2_provider_apps.client_id_issued_at, oauth2_provider_apps.client_secret_expires_at, oauth2_provider_apps.grant_types, oauth2_provider_apps.response_types, oauth2_provider_apps.token_endpoint_auth_method, oauth2_provider_apps.contacts, oauth2_provider_apps.client_uri, oauth2_provider_apps.logo_uri, oauth2_provider_apps.tos_uri, oauth2_provider_apps.policy_uri, oauth2_provider_apps.jwks_uri, oauth2_provider_apps.jwks, oauth2_provider_apps.software_id, oauth2_provider_apps.software_version, oauth2_provider_apps.registration_access_token, oauth2_provider_apps.registration_client_uri, oauth2_provider_apps.user_id, oauth2_provider_apps.scopes,
     users.username,
     users.email
 FROM oauth2_provider_apps
@@ -5865,7 +5865,6 @@ type GetOAuth2ProviderAppsRow struct {
 	GrantTypes              []string              `db:"grant_types" json:"grant_types"`
 	ResponseTypes           []string              `db:"response_types" json:"response_types"`
 	TokenEndpointAuthMethod sql.NullString        `db:"token_endpoint_auth_method" json:"token_endpoint_auth_method"`
-	Scope                   sql.NullString        `db:"scope" json:"scope"`
 	Contacts                []string              `db:"contacts" json:"contacts"`
 	ClientUri               sql.NullString        `db:"client_uri" json:"client_uri"`
 	LogoUri                 sql.NullString        `db:"logo_uri" json:"logo_uri"`
@@ -5878,6 +5877,7 @@ type GetOAuth2ProviderAppsRow struct {
 	RegistrationAccessToken sql.NullString        `db:"registration_access_token" json:"registration_access_token"`
 	RegistrationClientUri   sql.NullString        `db:"registration_client_uri" json:"registration_client_uri"`
 	UserID                  uuid.NullUUID         `db:"user_id" json:"user_id"`
+	Scopes                  []APIKeyScope         `db:"scopes" json:"scopes"`
 	Username                sql.NullString        `db:"username" json:"username"`
 	Email                   sql.NullString        `db:"email" json:"email"`
 }
@@ -5905,7 +5905,6 @@ func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]GetOAuth2Prov
 			pq.Array(&i.GrantTypes),
 			pq.Array(&i.ResponseTypes),
 			&i.TokenEndpointAuthMethod,
-			&i.Scope,
 			pq.Array(&i.Contacts),
 			&i.ClientUri,
 			&i.LogoUri,
@@ -5918,6 +5917,7 @@ func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]GetOAuth2Prov
 			&i.RegistrationAccessToken,
 			&i.RegistrationClientUri,
 			&i.UserID,
+			pq.Array(&i.Scopes),
 			&i.Username,
 			&i.Email,
 		); err != nil {
@@ -5936,7 +5936,7 @@ func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]GetOAuth2Prov
 
 const getOAuth2ProviderAppsByOwnerID = `-- name: GetOAuth2ProviderAppsByOwnerID :many
 SELECT
-    oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.redirect_uris, oauth2_provider_apps.client_type, oauth2_provider_apps.dynamically_registered, oauth2_provider_apps.client_id_issued_at, oauth2_provider_apps.client_secret_expires_at, oauth2_provider_apps.grant_types, oauth2_provider_apps.response_types, oauth2_provider_apps.token_endpoint_auth_method, oauth2_provider_apps.scope, oauth2_provider_apps.contacts, oauth2_provider_apps.client_uri, oauth2_provider_apps.logo_uri, oauth2_provider_apps.tos_uri, oauth2_provider_apps.policy_uri, oauth2_provider_apps.jwks_uri, oauth2_provider_apps.jwks, oauth2_provider_apps.software_id, oauth2_provider_apps.software_version, oauth2_provider_apps.registration_access_token, oauth2_provider_apps.registration_client_uri, oauth2_provider_apps.user_id,
+    oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.redirect_uris, oauth2_provider_apps.client_type, oauth2_provider_apps.dynamically_registered, oauth2_provider_apps.client_id_issued_at, oauth2_provider_apps.client_secret_expires_at, oauth2_provider_apps.grant_types, oauth2_provider_apps.response_types, oauth2_provider_apps.token_endpoint_auth_method, oauth2_provider_apps.contacts, oauth2_provider_apps.client_uri, oauth2_provider_apps.logo_uri, oauth2_provider_apps.tos_uri, oauth2_provider_apps.policy_uri, oauth2_provider_apps.jwks_uri, oauth2_provider_apps.jwks, oauth2_provider_apps.software_id, oauth2_provider_apps.software_version, oauth2_provider_apps.registration_access_token, oauth2_provider_apps.registration_client_uri, oauth2_provider_apps.user_id, oauth2_provider_apps.scopes,
     users.username,
     users.email
 FROM oauth2_provider_apps
@@ -5959,7 +5959,6 @@ type GetOAuth2ProviderAppsByOwnerIDRow struct {
 	GrantTypes              []string              `db:"grant_types" json:"grant_types"`
 	ResponseTypes           []string              `db:"response_types" json:"response_types"`
 	TokenEndpointAuthMethod sql.NullString        `db:"token_endpoint_auth_method" json:"token_endpoint_auth_method"`
-	Scope                   sql.NullString        `db:"scope" json:"scope"`
 	Contacts                []string              `db:"contacts" json:"contacts"`
 	ClientUri               sql.NullString        `db:"client_uri" json:"client_uri"`
 	LogoUri                 sql.NullString        `db:"logo_uri" json:"logo_uri"`
@@ -5972,6 +5971,7 @@ type GetOAuth2ProviderAppsByOwnerIDRow struct {
 	RegistrationAccessToken sql.NullString        `db:"registration_access_token" json:"registration_access_token"`
 	RegistrationClientUri   sql.NullString        `db:"registration_client_uri" json:"registration_client_uri"`
 	UserID                  uuid.NullUUID         `db:"user_id" json:"user_id"`
+	Scopes                  []APIKeyScope         `db:"scopes" json:"scopes"`
 	Username                sql.NullString        `db:"username" json:"username"`
 	Email                   sql.NullString        `db:"email" json:"email"`
 }
@@ -5999,7 +5999,6 @@ func (q *sqlQuerier) GetOAuth2ProviderAppsByOwnerID(ctx context.Context, userID 
 			pq.Array(&i.GrantTypes),
 			pq.Array(&i.ResponseTypes),
 			&i.TokenEndpointAuthMethod,
-			&i.Scope,
 			pq.Array(&i.Contacts),
 			&i.ClientUri,
 			&i.LogoUri,
@@ -6012,6 +6011,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppsByOwnerID(ctx context.Context, userID 
 			&i.RegistrationAccessToken,
 			&i.RegistrationClientUri,
 			&i.UserID,
+			pq.Array(&i.Scopes),
 			&i.Username,
 			&i.Email,
 		); err != nil {
@@ -6031,7 +6031,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppsByOwnerID(ctx context.Context, userID 
 const getOAuth2ProviderAppsByUserID = `-- name: GetOAuth2ProviderAppsByUserID :many
 SELECT
   COUNT(DISTINCT oauth2_provider_app_tokens.id) as token_count,
-  oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.redirect_uris, oauth2_provider_apps.client_type, oauth2_provider_apps.dynamically_registered, oauth2_provider_apps.client_id_issued_at, oauth2_provider_apps.client_secret_expires_at, oauth2_provider_apps.grant_types, oauth2_provider_apps.response_types, oauth2_provider_apps.token_endpoint_auth_method, oauth2_provider_apps.scope, oauth2_provider_apps.contacts, oauth2_provider_apps.client_uri, oauth2_provider_apps.logo_uri, oauth2_provider_apps.tos_uri, oauth2_provider_apps.policy_uri, oauth2_provider_apps.jwks_uri, oauth2_provider_apps.jwks, oauth2_provider_apps.software_id, oauth2_provider_apps.software_version, oauth2_provider_apps.registration_access_token, oauth2_provider_apps.registration_client_uri, oauth2_provider_apps.user_id
+  oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.redirect_uris, oauth2_provider_apps.client_type, oauth2_provider_apps.dynamically_registered, oauth2_provider_apps.client_id_issued_at, oauth2_provider_apps.client_secret_expires_at, oauth2_provider_apps.grant_types, oauth2_provider_apps.response_types, oauth2_provider_apps.token_endpoint_auth_method, oauth2_provider_apps.contacts, oauth2_provider_apps.client_uri, oauth2_provider_apps.logo_uri, oauth2_provider_apps.tos_uri, oauth2_provider_apps.policy_uri, oauth2_provider_apps.jwks_uri, oauth2_provider_apps.jwks, oauth2_provider_apps.software_id, oauth2_provider_apps.software_version, oauth2_provider_apps.registration_access_token, oauth2_provider_apps.registration_client_uri, oauth2_provider_apps.user_id, oauth2_provider_apps.scopes
 FROM oauth2_provider_app_tokens
   INNER JOIN oauth2_provider_app_secrets
     ON oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
@@ -6072,7 +6072,6 @@ func (q *sqlQuerier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID u
 			pq.Array(&i.OAuth2ProviderApp.GrantTypes),
 			pq.Array(&i.OAuth2ProviderApp.ResponseTypes),
 			&i.OAuth2ProviderApp.TokenEndpointAuthMethod,
-			&i.OAuth2ProviderApp.Scope,
 			pq.Array(&i.OAuth2ProviderApp.Contacts),
 			&i.OAuth2ProviderApp.ClientUri,
 			&i.OAuth2ProviderApp.LogoUri,
@@ -6085,6 +6084,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID u
 			&i.OAuth2ProviderApp.RegistrationAccessToken,
 			&i.OAuth2ProviderApp.RegistrationClientUri,
 			&i.OAuth2ProviderApp.UserID,
+			pq.Array(&i.OAuth2ProviderApp.Scopes),
 		); err != nil {
 			return nil, err
 		}
@@ -6236,7 +6236,7 @@ INSERT INTO oauth2_provider_apps (
     grant_types,
     response_types,
     token_endpoint_auth_method,
-    scope,
+    scopes,
     contacts,
     client_uri,
     logo_uri,
@@ -6276,7 +6276,7 @@ INSERT INTO oauth2_provider_apps (
     $24,
     $25,
     $26
-) RETURNING id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri, user_id
+) RETURNING id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri, user_id, scopes
 `
 
 type InsertOAuth2ProviderAppParams struct {
@@ -6293,7 +6293,7 @@ type InsertOAuth2ProviderAppParams struct {
 	GrantTypes              []string              `db:"grant_types" json:"grant_types"`
 	ResponseTypes           []string              `db:"response_types" json:"response_types"`
 	TokenEndpointAuthMethod sql.NullString        `db:"token_endpoint_auth_method" json:"token_endpoint_auth_method"`
-	Scope                   sql.NullString        `db:"scope" json:"scope"`
+	Scopes                  []APIKeyScope         `db:"scopes" json:"scopes"`
 	Contacts                []string              `db:"contacts" json:"contacts"`
 	ClientUri               sql.NullString        `db:"client_uri" json:"client_uri"`
 	LogoUri                 sql.NullString        `db:"logo_uri" json:"logo_uri"`
@@ -6323,7 +6323,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAut
 		pq.Array(arg.GrantTypes),
 		pq.Array(arg.ResponseTypes),
 		arg.TokenEndpointAuthMethod,
-		arg.Scope,
+		pq.Array(arg.Scopes),
 		pq.Array(arg.Contacts),
 		arg.ClientUri,
 		arg.LogoUri,
@@ -6352,7 +6352,6 @@ func (q *sqlQuerier) InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAut
 		pq.Array(&i.GrantTypes),
 		pq.Array(&i.ResponseTypes),
 		&i.TokenEndpointAuthMethod,
-		&i.Scope,
 		pq.Array(&i.Contacts),
 		&i.ClientUri,
 		&i.LogoUri,
@@ -6365,6 +6364,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAut
 		&i.RegistrationAccessToken,
 		&i.RegistrationClientUri,
 		&i.UserID,
+		pq.Array(&i.Scopes),
 	)
 	return i, err
 }
@@ -6647,7 +6647,7 @@ UPDATE oauth2_provider_apps SET
     grant_types = $8,
     response_types = $9,
     token_endpoint_auth_method = $10,
-    scope = $11,
+    scopes = $11,
     contacts = $12,
     client_uri = $13,
     logo_uri = $14,
@@ -6657,7 +6657,7 @@ UPDATE oauth2_provider_apps SET
     jwks = $18,
     software_id = $19,
     software_version = $20
-WHERE id = $1 RETURNING id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri, user_id
+WHERE id = $1 RETURNING id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri, user_id, scopes
 `
 
 type UpdateOAuth2ProviderAppByClientIDParams struct {
@@ -6671,7 +6671,7 @@ type UpdateOAuth2ProviderAppByClientIDParams struct {
 	GrantTypes              []string              `db:"grant_types" json:"grant_types"`
 	ResponseTypes           []string              `db:"response_types" json:"response_types"`
 	TokenEndpointAuthMethod sql.NullString        `db:"token_endpoint_auth_method" json:"token_endpoint_auth_method"`
-	Scope                   sql.NullString        `db:"scope" json:"scope"`
+	Scopes                  []APIKeyScope         `db:"scopes" json:"scopes"`
 	Contacts                []string              `db:"contacts" json:"contacts"`
 	ClientUri               sql.NullString        `db:"client_uri" json:"client_uri"`
 	LogoUri                 sql.NullString        `db:"logo_uri" json:"logo_uri"`
@@ -6695,7 +6695,7 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppByClientID(ctx context.Context, arg 
 		pq.Array(arg.GrantTypes),
 		pq.Array(arg.ResponseTypes),
 		arg.TokenEndpointAuthMethod,
-		arg.Scope,
+		pq.Array(arg.Scopes),
 		pq.Array(arg.Contacts),
 		arg.ClientUri,
 		arg.LogoUri,
@@ -6721,7 +6721,6 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppByClientID(ctx context.Context, arg 
 		pq.Array(&i.GrantTypes),
 		pq.Array(&i.ResponseTypes),
 		&i.TokenEndpointAuthMethod,
-		&i.Scope,
 		pq.Array(&i.Contacts),
 		&i.ClientUri,
 		&i.LogoUri,
@@ -6734,6 +6733,7 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppByClientID(ctx context.Context, arg 
 		&i.RegistrationAccessToken,
 		&i.RegistrationClientUri,
 		&i.UserID,
+		pq.Array(&i.Scopes),
 	)
 	return i, err
 }
@@ -6750,7 +6750,7 @@ UPDATE oauth2_provider_apps SET
     grant_types = $9,
     response_types = $10,
     token_endpoint_auth_method = $11,
-    scope = $12,
+    scopes = $12,
     contacts = $13,
     client_uri = $14,
     logo_uri = $15,
@@ -6760,7 +6760,7 @@ UPDATE oauth2_provider_apps SET
     jwks = $19,
     software_id = $20,
     software_version = $21
-WHERE id = $1 RETURNING id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri, user_id
+WHERE id = $1 RETURNING id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri, user_id, scopes
 `
 
 type UpdateOAuth2ProviderAppByIDParams struct {
@@ -6775,7 +6775,7 @@ type UpdateOAuth2ProviderAppByIDParams struct {
 	GrantTypes              []string              `db:"grant_types" json:"grant_types"`
 	ResponseTypes           []string              `db:"response_types" json:"response_types"`
 	TokenEndpointAuthMethod sql.NullString        `db:"token_endpoint_auth_method" json:"token_endpoint_auth_method"`
-	Scope                   sql.NullString        `db:"scope" json:"scope"`
+	Scopes                  []APIKeyScope         `db:"scopes" json:"scopes"`
 	Contacts                []string              `db:"contacts" json:"contacts"`
 	ClientUri               sql.NullString        `db:"client_uri" json:"client_uri"`
 	LogoUri                 sql.NullString        `db:"logo_uri" json:"logo_uri"`
@@ -6800,7 +6800,7 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg Update
 		pq.Array(arg.GrantTypes),
 		pq.Array(arg.ResponseTypes),
 		arg.TokenEndpointAuthMethod,
-		arg.Scope,
+		pq.Array(arg.Scopes),
 		pq.Array(arg.Contacts),
 		arg.ClientUri,
 		arg.LogoUri,
@@ -6826,7 +6826,6 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg Update
 		pq.Array(&i.GrantTypes),
 		pq.Array(&i.ResponseTypes),
 		&i.TokenEndpointAuthMethod,
-		&i.Scope,
 		pq.Array(&i.Contacts),
 		&i.ClientUri,
 		&i.LogoUri,
@@ -6839,6 +6838,7 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg Update
 		&i.RegistrationAccessToken,
 		&i.RegistrationClientUri,
 		&i.UserID,
+		pq.Array(&i.Scopes),
 	)
 	return i, err
 }
