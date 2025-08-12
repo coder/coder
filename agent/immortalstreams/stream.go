@@ -11,7 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/coderd/agentapi/backedpipe"
+	"github.com/coder/coder/v2/agent/immortalstreams/backedpipe"
 	"github.com/coder/coder/v2/codersdk"
 )
 

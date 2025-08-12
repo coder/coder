@@ -1,4 +1,4 @@
-package agentapi
+package immortalstreams
 
 import (
 	"context"
@@ -12,28 +12,27 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/agent/immortalstreams"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/websocket"
 )
 
-// ImmortalStreamsHandler handles immortal stream requests
-type ImmortalStreamsHandler struct {
+// Handler handles immortal stream requests
+type Handler struct {
 	logger  slog.Logger
-	manager *immortalstreams.Manager
+	manager *Manager
 }
 
-// NewImmortalStreamsHandler creates a new immortal streams handler
-func NewImmortalStreamsHandler(logger slog.Logger, manager *immortalstreams.Manager) *ImmortalStreamsHandler {
-	return &ImmortalStreamsHandler{
+// NewHandler creates a new immortal streams handler
+func NewHandler(logger slog.Logger, manager *Manager) *Handler {
+	return &Handler{
 		logger:  logger,
 		manager: manager,
 	}
 }
 
 // Routes registers the immortal streams routes
-func (h *ImmortalStreamsHandler) Routes() chi.Router {
+func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 
 	r.Post("/", h.createStream)
@@ -48,7 +47,7 @@ func (h *ImmortalStreamsHandler) Routes() chi.Router {
 }
 
 // streamMiddleware validates and extracts the stream ID
-func (*ImmortalStreamsHandler) streamMiddleware(next http.Handler) http.Handler {
+func (*Handler) streamMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		streamIDStr := chi.URLParam(r, "streamID")
 		streamID, err := uuid.Parse(streamIDStr)
@@ -65,7 +64,7 @@ func (*ImmortalStreamsHandler) streamMiddleware(next http.Handler) http.Handler 
 }
 
 // createStream creates a new immortal stream
-func (h *ImmortalStreamsHandler) createStream(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) createStream(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var req codersdk.CreateImmortalStreamRequest
@@ -95,14 +94,14 @@ func (h *ImmortalStreamsHandler) createStream(w http.ResponseWriter, r *http.Req
 }
 
 // listStreams lists all immortal streams
-func (h *ImmortalStreamsHandler) listStreams(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listStreams(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	streams := h.manager.ListStreams()
 	httpapi.Write(ctx, w, http.StatusOK, streams)
 }
 
 // handleStreamRequest handles GET requests for a specific stream and returns stream info or handles WebSocket upgrades
-func (h *ImmortalStreamsHandler) handleStreamRequest(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleStreamRequest(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	streamID := getStreamID(ctx)
 
@@ -125,7 +124,7 @@ func (h *ImmortalStreamsHandler) handleStreamRequest(w http.ResponseWriter, r *h
 }
 
 // deleteStream deletes a stream
-func (h *ImmortalStreamsHandler) deleteStream(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) deleteStream(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	streamID := getStreamID(ctx)
 
@@ -145,7 +144,7 @@ func (h *ImmortalStreamsHandler) deleteStream(w http.ResponseWriter, r *http.Req
 }
 
 // handleUpgrade handles WebSocket upgrade for immortal stream connections
-func (h *ImmortalStreamsHandler) handleUpgrade(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleUpgrade(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	streamID := getStreamID(ctx)
 

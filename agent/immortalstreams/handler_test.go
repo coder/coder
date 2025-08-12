@@ -1,4 +1,4 @@
-package agentapi_test
+package immortalstreams_test
 
 import (
 	"bytes"
@@ -18,7 +18,6 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/immortalstreams"
-	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/websocket"
@@ -55,11 +54,11 @@ func TestImmortalStreamsHandler_CreateStream(t *testing.T) {
 		}()
 
 		// Create handler
-		dialer := &testDialer{}
+		dialer := &handlerTestDialer{}
 		manager := immortalstreams.New(logger, dialer)
 		defer manager.Close()
 
-		handler := agentapi.NewImmortalStreamsHandler(logger, manager)
+		handler := immortalstreams.NewHandler(logger, manager)
 		router := chi.NewRouter()
 		router.Mount("/api/v0/immortal-stream", handler.Routes())
 
@@ -100,11 +99,11 @@ func TestImmortalStreamsHandler_CreateStream(t *testing.T) {
 		logger := slogtest.Make(t, nil)
 
 		// Create handler
-		dialer := &testDialer{}
+		dialer := &handlerTestDialer{}
 		manager := immortalstreams.New(logger, dialer)
 		defer manager.Close()
 
-		handler := agentapi.NewImmortalStreamsHandler(logger, manager)
+		handler := immortalstreams.NewHandler(logger, manager)
 		router := chi.NewRouter()
 		router.Mount("/api/v0/immortal-stream", handler.Routes())
 
@@ -165,7 +164,7 @@ func TestImmortalStreamsHandler_ListStreams(t *testing.T) {
 	manager := immortalstreams.New(logger, dialer)
 	defer manager.Close()
 
-	handler := agentapi.NewImmortalStreamsHandler(logger, manager)
+	handler := immortalstreams.NewHandler(logger, manager)
 	router := chi.NewRouter()
 	router.Mount("/api/v0/immortal-stream", handler.Routes())
 
@@ -244,7 +243,7 @@ func TestImmortalStreamsHandler_GetStream(t *testing.T) {
 	manager := immortalstreams.New(logger, dialer)
 	defer manager.Close()
 
-	handler := agentapi.NewImmortalStreamsHandler(logger, manager)
+	handler := immortalstreams.NewHandler(logger, manager)
 	router := chi.NewRouter()
 	router.Mount("/api/v0/immortal-stream", handler.Routes())
 
@@ -311,7 +310,7 @@ func TestImmortalStreamsHandler_DeleteStream(t *testing.T) {
 	manager := immortalstreams.New(logger, dialer)
 	defer manager.Close()
 
-	handler := agentapi.NewImmortalStreamsHandler(logger, manager)
+	handler := immortalstreams.NewHandler(logger, manager)
 	router := chi.NewRouter()
 	router.Mount("/api/v0/immortal-stream", handler.Routes())
 
@@ -375,7 +374,7 @@ func TestImmortalStreamsHandler_Upgrade(t *testing.T) {
 	manager := immortalstreams.New(logger, dialer)
 	defer manager.Close()
 
-	handler := agentapi.NewImmortalStreamsHandler(logger, manager)
+	handler := immortalstreams.NewHandler(logger, manager)
 
 	// Create a test server
 	server := httptest.NewServer(handler.Routes())
@@ -420,8 +419,8 @@ func TestImmortalStreamsHandler_Upgrade(t *testing.T) {
 
 // Test helpers
 
-type testDialer struct{}
+type handlerTestDialer struct{}
 
-func (*testDialer) DialContext(_ context.Context, network, address string) (net.Conn, error) {
+func (*handlerTestDialer) DialContext(_ context.Context, network, address string) (net.Conn, error) {
 	return net.Dial(network, address)
 }
