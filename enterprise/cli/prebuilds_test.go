@@ -2,17 +2,30 @@ package cli_test
 
 import (
 	"bytes"
+	"database/sql"
 	"net/http"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestPrebuildsPause(t *testing.T) {
@@ -340,4 +353,145 @@ func TestPrebuildsSettingsAPI(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, settings.ReconciliationPaused)
 	})
+}
+
+// TestSchedulePrebuilds verifies the CLI schedule command when used with prebuilds.
+// Running the command on an unclaimed prebuild fails, but after the prebuild is
+// claimed (becoming a regular workspace) it succeeds as expected.
+func TestSchedulePrebuilds(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("this test requires postgres")
+	}
+
+	// Setup
+	clock := quartz.NewMock(t)
+	clock.Set(dbtime.Now())
+	client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues:         coderdtest.DeploymentValues(t),
+			IncludeProvisionerDaemon: true,
+			Clock:                    clock,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspacePrebuilds: 1,
+			},
+		},
+	})
+
+	cases := []struct {
+		name        string
+		cliErrorMsg string
+		cmdArgs     func(string) []string
+	}{
+		{
+			name:        "Autostart",
+			cliErrorMsg: "autostart configuration is not supported for prebuilt workspaces",
+			cmdArgs: func(workspaceName string) []string {
+				return []string{"schedule", "start", workspaceName, "7:30AM", "Mon-Fri", "Europe/Lisbon"}
+			},
+		},
+		{
+			name:        "Autostop",
+			cliErrorMsg: "autostop configuration is not supported for prebuilt workspaces",
+			cmdArgs: func(workspaceName string) []string {
+				return []string{"schedule", "stop", workspaceName, "8h30m"}
+			},
+		},
+		//{
+		//	name:        "Extend",
+		//	cliErrorMsg: "extend configuration is not supported for prebuilt workspaces",
+		//	cmdArgs: func(workspaceName string) []string {
+		//		return []string{"schedule", "extend", workspaceName, "90m"}
+		//	},
+		// },
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Given: a template and a template version with preset and a prebuilt workspace
+			presetID := uuid.New()
+			tv := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+				OrganizationID: owner.OrganizationID,
+				CreatedBy:      owner.UserID,
+			}).Preset(database.TemplateVersionPreset{
+				ID: presetID,
+				DesiredInstances: sql.NullInt32{
+					Int32: 1,
+					Valid: true,
+				},
+			}).Do()
+
+			workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:    database.PrebuildsSystemUserID,
+				TemplateID: tv.Template.ID,
+			}).Seed(database.WorkspaceBuild{
+				TemplateVersionID: tv.TemplateVersion.ID,
+				TemplateVersionPresetID: uuid.NullUUID{
+					UUID:  presetID,
+					Valid: true,
+				},
+				Deadline: clock.Now().Add(time.Hour),
+			}).WithAgent(func(agent []*proto.Agent) []*proto.Agent {
+				return agent
+			}).Do()
+
+			// nolint:gocritic
+			ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
+			agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, uuid.MustParse(workspaceBuild.AgentToken))
+			require.NoError(t, err)
+			err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+				ID:             agent.WorkspaceAgent.ID,
+				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			})
+			require.NoError(t, err)
+			prebuild := coderdtest.MustWorkspace(t, client, workspaceBuild.Workspace.ID)
+
+			// When: running the schedule command over a prebuilt workspace
+			inv, root := clitest.New(t, tc.cmdArgs(prebuild.OwnerName+"/"+prebuild.Name)...)
+			clitest.SetupConfig(t, client, root)
+			ptytest.New(t).Attach(inv)
+			doneChan := make(chan struct{})
+			var runErr error
+			go func() {
+				defer close(doneChan)
+				runErr = inv.Run()
+			}()
+			<-doneChan
+
+			// Then: return an error
+			require.Error(t, runErr)
+			require.Contains(t, runErr.Error(), tc.cliErrorMsg)
+
+			// Given: a user claims the prebuilt workspace
+			user, err := client.User(ctx, "testUser")
+			require.NoError(t, err)
+			claimedWorkspace, err := client.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
+				TemplateVersionID:       tv.TemplateVersion.ID,
+				TemplateVersionPresetID: presetID,
+				Name:                    coderdtest.RandomUsername(t),
+				// The 'extend' command requires the workspace to have an existing deadline.
+				// To ensure this, we set the workspace's TTL to 1 hour.
+				TTLMillis: ptr.Ref[int64](3600000),
+			})
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, claimedWorkspace.LatestBuild.ID)
+			workspace := coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)
+			require.Equal(t, prebuild.ID, workspace.ID)
+
+			// When: running the schedule command over the claimed workspace
+			inv, root = clitest.New(t, tc.cmdArgs(workspace.OwnerName+"/"+workspace.Name)...)
+			clitest.SetupConfig(t, client, root)
+			pty := ptytest.New(t).Attach(inv)
+			require.NoError(t, inv.Run())
+
+			// Then: the updated schedule should be shown
+			pty.ExpectMatch(workspace.OwnerName + "/" + workspace.Name)
+		})
+	}
 }
