@@ -7,6 +7,7 @@ type AbbrProps = HTMLAttributes<HTMLElement> & {
 	children: string;
 	title: string;
 	pronunciation?: Pronunciation;
+	className?: string;
 };
 
 /**
@@ -22,23 +23,28 @@ export const Abbr: FC<AbbrProps> = ({
 	children,
 	title,
 	pronunciation = "shorthand",
+	className,
 	...delegatedProps
 }) => {
 	return (
 		<abbr
-			// Title attributes usually aren't natively available to screen readers;
-			// always have to supplement with aria-label
+			// Adding title to make things a little easier for sighted users,
+			// but titles aren't always exposed via screen readers. Still have
+			// to inject the actual text content inside the abbr itself
 			title={title}
-			aria-label={getAccessibleLabel(children, title, pronunciation)}
 			className={cn(
-				"decoration-inherit",
+				"underline-none",
 				children === children.toUpperCase()
 					? "tracking-wide"
 					: "tracking-normal",
+				className,
 			)}
 			{...delegatedProps}
 		>
 			<span aria-hidden>{children}</span>
+			<span className="sr-only">
+				{getAccessibleLabel(children, title, pronunciation)}
+			</span>
 		</abbr>
 	);
 };
