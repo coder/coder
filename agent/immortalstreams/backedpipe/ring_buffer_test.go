@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"github.com/coder/coder/v2/coderd/agentapi/backedpipe"
+	"github.com/coder/coder/v2/agent/immortalstreams/backedpipe"
 	"github.com/coder/coder/v2/testutil"
 )
 

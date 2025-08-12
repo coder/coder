@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/agentapi/backedpipe"
+	"github.com/coder/coder/v2/agent/immortalstreams/backedpipe"
 )
 
 // mockReader implements io.Reader with controllable behavior for testing
