@@ -270,13 +270,13 @@ func (s *MethodTestSuite) TestAPIKey() {
 		a := testutil.Fake(s.T(), faker, database.ExternalAuthLink{})
 		dbm.EXPECT().GetExternalAuthLink(gomock.Any(), database.GetExternalAuthLinkParams{ProviderID: a.ProviderID, UserID: a.UserID}).Return(a, nil).AnyTimes()
 		dbm.EXPECT().DeleteExternalAuthLink(gomock.Any(), database.DeleteExternalAuthLinkParams{ProviderID: a.ProviderID, UserID: a.UserID}).Return(nil).AnyTimes()
-		check.Args(database.DeleteExternalAuthLinkParams{ProviderID: a.ProviderID, UserID: a.UserID}).Asserts(rbac.ResourceUserObject(a.UserID), policy.ActionUpdatePersonal).Returns()
+		check.Args(database.DeleteExternalAuthLinkParams{ProviderID: a.ProviderID, UserID: a.UserID}).Asserts(a, policy.ActionUpdatePersonal).Returns()
 	}))
 	s.Run("GetExternalAuthLinksByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		a := testutil.Fake(s.T(), faker, database.ExternalAuthLink{})
 		b := testutil.Fake(s.T(), faker, database.ExternalAuthLink{UserID: a.UserID})
 		dbm.EXPECT().GetExternalAuthLinksByUserID(gomock.Any(), a.UserID).Return([]database.ExternalAuthLink{a, b}, nil).AnyTimes()
-		check.Args(a.UserID).Asserts(rbac.ResourceUserObject(a.UserID), policy.ActionReadPersonal, rbac.ResourceUserObject(b.UserID), policy.ActionReadPersonal)
+		check.Args(a.UserID).Asserts(a, policy.ActionReadPersonal, b, policy.ActionReadPersonal)
 	}))
 }
 
