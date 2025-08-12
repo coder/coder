@@ -1706,7 +1706,7 @@ func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace
 			}
 		}
 		return false // No active provisioners found
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	return id
 }

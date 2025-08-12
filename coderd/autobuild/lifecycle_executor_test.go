@@ -37,6 +37,10 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
+}
+
 func TestExecutorAutostartOK(t *testing.T) {
 	t.Parallel()
 
@@ -1663,10 +1667,6 @@ func mustWorkspaceParameters(t *testing.T, client *codersdk.Client, workspaceID 
 	require.NotEmpty(t, buildParameters)
 }
 
-func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
-}
-
 func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 	t.Parallel()
 
@@ -1680,11 +1680,19 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 	// We can't overwrite owner or scope as there's a `provisionersdk.MutateTags` function that has restrictions on those.
 	provisionerDaemonTags := map[string]string{"test-tag": "asdf"}
 	t.Logf("Setting provisioner daemon tags: %v", provisionerDaemonTags)
-	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+
+	db, ps := dbtestutil.NewDB(t)
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		Database:                 db,
+		Pubsub:                   ps,
+		IncludeProvisionerDaemon: false,
 		AutobuildTicker:          tickCh,
-		IncludeProvisionerDaemon: true,
 		AutobuildStats:           statsCh,
-		ProvisionerDaemonTags:    provisionerDaemonTags,
+	})
+
+	daemon1Closer := coderdtest.NewTaggedProvisionerDaemon(t, api, "name", provisionerDaemonTags)
+	t.Cleanup(func() {
+		_ = daemon1Closer.Close()
 	})
 
 	// Create workspace with autostart enabled and matching provisioner tags
@@ -1700,6 +1708,8 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
 	require.NoError(t, err, "Error getting provisioner for workspace")
 
+	daemon1Closer.Close()
+
 	// Ensure the provisioner is stale
 	staleTime := sched.Next(workspace.LatestBuild.CreatedAt).Add((-1 * provisionerdserver.StaleInterval) + -10*time.Second)
 	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, staleTime)
@@ -1713,7 +1723,14 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 	// UpdateProvisionerLastSeenAt call above.
 	assert.Len(t, stats.Transitions, 0, "should not create builds when no provisioners available")
 
+	daemon2Closer := coderdtest.NewTaggedProvisionerDaemon(t, api, "name", provisionerDaemonTags)
+	t.Cleanup(func() {
+		_ = daemon2Closer.Close()
+	})
+
 	// Ensure the provisioner is  NOT stale, and see if we get a successful state transition.
+	p, err = coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
+	require.NoError(t, err, "Error getting provisioner for workspace")
 	notStaleTime := sched.Next(workspace.LatestBuild.CreatedAt).Add((-1 * provisionerdserver.StaleInterval) + 10*time.Second)
 	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, notStaleTime)
 
