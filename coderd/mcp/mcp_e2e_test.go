@@ -444,8 +444,8 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 
 	// Create OAuth2 app (for demonstration that OAuth2 provider is working)
 	_, err := coderClient.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
-		Name:        "test-mcp-app",
-		CallbackURL: "http://localhost:3000/callback",
+		Name:         "test-mcp-app",
+		RedirectURIs: []string{"http://localhost:3000/callback"},
 	})
 	require.NoError(t, err)
 
@@ -539,8 +539,8 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		t.Parallel()
 		// Create an OAuth2 app specifically for this test
 		app, err := coderClient.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
-			Name:        "test-oauth2-flow-app",
-			CallbackURL: "http://localhost:3000/callback",
+			Name:         "test-oauth2-flow-app",
+			RedirectURIs: []string{"http://localhost:3000/callback"},
 		})
 		require.NoError(t, err)
 

@@ -181,11 +181,14 @@ func TestOAuth2AuthorizationCodeInvalidRedirectURI(t *testing.T) {
 	req.Header.Set("Coder-Session-Token", userClient.SessionToken())
 
 	// Don't follow redirects
-	userClient.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
+	httpClient := &http.Client{
+		Transport: userClient.HTTPClient.Transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
 
-	resp, err := userClient.HTTPClient.Do(req)
+	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
