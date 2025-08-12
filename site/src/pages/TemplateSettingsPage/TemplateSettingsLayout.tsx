@@ -8,7 +8,7 @@ import { Stack } from "components/Stack/Stack";
 import { type FC, Suspense, createContext, useContext } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { Outlet, useParams } from "react-router-dom";
+import { Outlet, useParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { Sidebar } from "./Sidebar";
 

@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { mockSuccessResult } from "components/PaginationWidget/PaginationContainer.mocks";
 import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
 import {

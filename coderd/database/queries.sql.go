@@ -12870,6 +12870,21 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 	return i, err
 }
 
+const getTemplateVersionHasAITask = `-- name: GetTemplateVersionHasAITask :one
+SELECT EXISTS (
+	SELECT 1
+	FROM template_versions
+	WHERE id = $1 AND has_ai_task = TRUE
+)
+`
+
+func (q *sqlQuerier) GetTemplateVersionHasAITask(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateVersionHasAITask, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const getTemplateVersionsByIDs = `-- name: GetTemplateVersionsByIDs :many
 SELECT
 	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, created_by_avatar_url, created_by_username, created_by_name
@@ -18662,65 +18677,6 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 		&i.InitiatorByName,
 	)
 	return i, err
-}
-
-const getLatestWorkspaceBuilds = `-- name: GetLatestWorkspaceBuilds :many
-SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline, wb.template_version_preset_id, wb.has_ai_task, wb.ai_task_sidebar_app_id, wb.initiator_by_avatar_url, wb.initiator_by_username, wb.initiator_by_name
-FROM (
-    SELECT
-        workspace_id, MAX(build_number) as max_build_number
-    FROM
-		workspace_build_with_user AS workspace_builds
-    GROUP BY
-        workspace_id
-) m
-JOIN
-	 workspace_build_with_user AS wb
-ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number
-`
-
-func (q *sqlQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuild, error) {
-	rows, err := q.db.QueryContext(ctx, getLatestWorkspaceBuilds)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkspaceBuild
-	for rows.Next() {
-		var i WorkspaceBuild
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.WorkspaceID,
-			&i.TemplateVersionID,
-			&i.BuildNumber,
-			&i.Transition,
-			&i.InitiatorID,
-			&i.ProvisionerState,
-			&i.JobID,
-			&i.Deadline,
-			&i.Reason,
-			&i.DailyCost,
-			&i.MaxDeadline,
-			&i.TemplateVersionPresetID,
-			&i.HasAITask,
-			&i.AITaskSidebarAppID,
-			&i.InitiatorByAvatarUrl,
-			&i.InitiatorByUsername,
-			&i.InitiatorByName,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getLatestWorkspaceBuildsByWorkspaceIDs = `-- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many

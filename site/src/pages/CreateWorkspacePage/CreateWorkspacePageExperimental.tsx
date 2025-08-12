@@ -28,7 +28,7 @@ import {
 } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import { CreateWorkspacePageViewExperimental } from "./CreateWorkspacePageViewExperimental";
@@ -274,16 +274,19 @@ const CreateWorkspacePageExperimental: FC = () => {
 		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
 	}, [latestResponse?.parameters]);
 
+	const shouldShowLoader =
+		!templateQuery.data ||
+		isLoadingFormData ||
+		isLoadingExternalAuth ||
+		autoCreateReady ||
+		(!latestResponse && !wsError);
+
 	return (
 		<>
 			<Helmet>
 				<title>{pageTitle(title)}</title>
 			</Helmet>
-			{!latestResponse ||
-			!templateQuery.data ||
-			isLoadingFormData ||
-			isLoadingExternalAuth ||
-			autoCreateReady ? (
+			{shouldShowLoader ? (
 				<Loader />
 			) : (
 				<CreateWorkspacePageViewExperimental

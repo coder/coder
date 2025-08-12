@@ -8,7 +8,7 @@ import { RequireAuth } from "contexts/auth/RequireAuth";
 import WS from "jest-websocket-mock";
 import { http, HttpResponse } from "msw";
 import { QueryClient } from "react-query";
-import { RouterProvider, createMemoryRouter } from "react-router-dom";
+import { RouterProvider, createMemoryRouter } from "react-router";
 import {
 	MockTemplate,
 	MockTemplateVersion,

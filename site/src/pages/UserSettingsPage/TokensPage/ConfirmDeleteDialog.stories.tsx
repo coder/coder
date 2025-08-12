@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { MockToken } from "testHelpers/entities";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";

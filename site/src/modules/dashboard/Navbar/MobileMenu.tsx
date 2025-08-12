@@ -23,7 +23,7 @@ import {
 	XIcon,
 } from "lucide-react";
 import { type FC, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { cn } from "utils/cn";
 import { sortProxiesByLatency } from "./proxyUtils";
 

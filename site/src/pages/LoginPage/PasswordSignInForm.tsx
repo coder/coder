@@ -5,7 +5,7 @@ import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
 import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 import * as Yup from "yup";
 import { Language } from "./Language";

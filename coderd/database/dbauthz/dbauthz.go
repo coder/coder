@@ -2178,17 +2178,6 @@ func (q *querier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, work
 	return q.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
 }
 
-func (q *querier) GetLatestWorkspaceBuilds(ctx context.Context) ([]database.WorkspaceBuild, error) {
-	// This function is a system function until we implement a join for workspace builds.
-	// This is because we need to query for all related workspaces to the returned builds.
-	// This is a very inefficient method of fetching the latest workspace builds.
-	// We should just join the rbac properties.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetLatestWorkspaceBuilds(ctx)
-}
-
 func (q *querier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
 	// This function is a system function until we implement a join for workspace builds.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
@@ -2872,6 +2861,17 @@ func (q *querier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg
 		return database.TemplateVersion{}, err
 	}
 	return tv, nil
+}
+
+func (q *querier) GetTemplateVersionHasAITask(ctx context.Context, id uuid.UUID) (bool, error) {
+	// If we can successfully call `GetTemplateVersionByID`, then
+	// we know the actor has sufficient permissions to know if the
+	// template has an AI task.
+	if _, err := q.GetTemplateVersionByID(ctx, id); err != nil {
+		return false, err
+	}
+
+	return q.db.GetTemplateVersionHasAITask(ctx, id)
 }
 
 func (q *querier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {

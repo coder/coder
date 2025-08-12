@@ -59,7 +59,7 @@ import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName"
 import { type FC, type ReactNode, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
@@ -741,13 +741,11 @@ export const data = {
 			}
 		}
 
-		const workspace = await API.createWorkspace(userId, {
+		const workspace = await API.experimental.createTask(userId, {
 			name: `task-${generateWorkspaceName()}`,
 			template_version_id: templateVersionId,
 			template_version_preset_id: preset_id || undefined,
-			rich_parameter_values: [
-				{ name: AI_PROMPT_PARAMETER_NAME, value: prompt },
-			],
+			prompt,
 		});
 
 		return {

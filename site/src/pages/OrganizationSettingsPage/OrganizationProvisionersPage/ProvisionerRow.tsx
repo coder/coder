@@ -18,7 +18,7 @@ import {
 } from "modules/provisioners/ProvisionerTags";
 import { ProvisionerKey } from "pages/OrganizationSettingsPage/OrganizationProvisionersPage/ProvisionerKey";
 import { type FC, useState } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
 import { relativeTime } from "utils/time";
 import { ProvisionerVersion } from "./ProvisionerVersion";

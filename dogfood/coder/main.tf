@@ -279,7 +279,7 @@ module "dotfiles" {
 module "git-clone" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/git-clone/coder"
-  version  = "1.1.0"
+  version  = "1.1.1"
   agent_id = coder_agent.dev.id
   url      = "https://github.com/coder/coder"
   base_dir = local.repo_base_dir
@@ -317,7 +317,7 @@ module "vscode-web" {
 module "jetbrains" {
   count         = data.coder_workspace.me.start_count
   source        = "dev.registry.coder.com/coder/jetbrains/coder"
-  version       = "1.0.0"
+  version       = "1.0.2"
   agent_id      = coder_agent.dev.id
   agent_name    = "dev"
   folder        = local.repo_dir

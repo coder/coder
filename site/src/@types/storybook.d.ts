@@ -9,7 +9,7 @@ import type {
 import type { Permissions } from "modules/permissions";
 import type { QueryKey } from "react-query";
 
-declare module "@storybook/react" {
+declare module "@storybook/react-vite" {
 	type WebSocketEvent =
 		| { event: "message"; data: string }
 		| { event: "error" | "close" };

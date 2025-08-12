@@ -5,7 +5,7 @@ import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { CreateOrganizationPageView } from "./CreateOrganizationPageView";
 
 const CreateOrganizationPage: FC = () => {
