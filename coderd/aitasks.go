@@ -1,15 +1,21 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 
+	"github.com/anthropics/anthropic-sdk-go"
+	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/google/uuid"
 
+	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -69,6 +75,69 @@ func (api *API) aiTasksPrompts(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (api *API) generateTaskName(ctx context.Context, prompt, fallback string) (string, error) {
+	// TODO(DanielleMaywood):
+	// Should we extract this out into our typical coderd option handling?
+	anthropicAPIKey := os.Getenv("ANTHROPIC_API_KEY")
+
+	// The deployment doesn't have a valid external cloud AI provider, so we'll
+	// fallback to the user supplied name for now.
+	if anthropicAPIKey == "" {
+		return fallback, nil
+	}
+
+	anthropicClient := anthropic.NewClient(anthropicoption.WithAPIKey(anthropicAPIKey))
+
+	messages, system, err := aisdk.MessagesToAnthropic([]aisdk.Message{
+		{
+			Role: "system",
+			Parts: []aisdk.Part{{
+				Type: aisdk.PartTypeText,
+				Text: `
+					You are a task summarizer.
+					You summarize AI prompts into workspace names.
+					You will only respond with a workspace name.
+					The workspace name **MUST** follow this regex /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+					The workspace name **MUST** be 32 characters or **LESS**.
+					The workspace name **MUST** be all lower case.
+					The workspace name **MUST** end in a number between 0 and 100.
+					The workspace name **MUST** be prefixed with "task".
+				`,
+			}},
+		},
+		{
+			Role: "user",
+			Parts: []aisdk.Part{{
+				Type: aisdk.PartTypeText,
+				Text: prompt,
+			}},
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+
+	stream := aisdk.AnthropicToDataStream(anthropicClient.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
+		Model:     anthropic.ModelClaude3_5HaikuLatest,
+		Messages:  messages,
+		System:    system,
+		MaxTokens: 24,
+	}))
+
+	var acc aisdk.DataStreamAccumulator
+	stream = stream.WithAccumulator(&acc)
+
+	if err := stream.Pipe(io.Discard); err != nil {
+		return "", err
+	}
+
+	if len(acc.Messages()) == 0 {
+		return fallback, nil
+	}
+
+	return acc.Messages()[0].Content, nil
+}
+
 // This endpoint is experimental and not guaranteed to be stable, so we're not
 // generating public-facing documentation for it.
 func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
@@ -104,8 +173,21 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	taskName, err := api.generateTaskName(ctx, req.Prompt, req.Name)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error generating name for task.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if taskName == "" {
+		taskName = req.Name
+	}
+
 	createReq := codersdk.CreateWorkspaceRequest{
-		Name:                    req.Name,
+		Name:                    taskName,
 		TemplateVersionID:       req.TemplateVersionID,
 		TemplateVersionPresetID: req.TemplateVersionPresetID,
 		RichParameterValues: []codersdk.WorkspaceBuildParameter{
