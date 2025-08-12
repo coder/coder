@@ -952,6 +952,18 @@ func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templ
 	// When there are no licenses installed, a noop usage checker is used
 	// instead.
 
+	// If the template version has an external agent, we need to check that the
+	// license is entitled to this feature.
+	if templateVersion.HasExternalAgent.Valid && templateVersion.HasExternalAgent.Bool {
+		feature, ok := api.Entitlements.Feature(codersdk.FeatureWorkspaceExternalAgent)
+		if !ok || !feature.Enabled {
+			return wsbuilder.UsageCheckResponse{
+				Permitted: false,
+				Message:   "You have a template which uses external agents but your license is not entitled to this feature. You will be unable to create new workspaces from these templates.",
+			}, nil
+		}
+	}
+
 	// If the template version doesn't have an AI task, we don't need to check
 	// usage.
 	if !templateVersion.HasAITask.Valid || !templateVersion.HasAITask.Bool {
