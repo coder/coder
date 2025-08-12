@@ -34,41 +34,50 @@ func NewBackedReader() *BackedReader {
 // When connected, it reads from the underlying reader and updates sequence numbers.
 // Connection failures are automatically detected and reported to the higher layer via callback.
 func (br *BackedReader) Read(p []byte) (int, error) {
-	br.mu.Lock()
-	defer br.mu.Unlock()
-
 	for {
+		// Step 1: Wait until we have a reader or are closed
+		br.mu.Lock()
 		for br.reader == nil && !br.closed {
 			br.cond.Wait()
 		}
 
-		// Check if closed
 		if br.closed {
+			br.mu.Unlock()
 			return 0, io.ErrClosedPipe
 		}
 
+		// Capture the current reader and release the lock while performing
+		// the potentially blocking I/O operation to avoid deadlocks with Close().
+		r := br.reader
 		br.mu.Unlock()
-		n, err := br.reader.Read(p)
-		br.mu.Lock()
 
+		// Step 2: Perform the read without holding the mutex
+		n, err := r.Read(p)
+
+		// Step 3: Reacquire the lock to update state based on the result
+		br.mu.Lock()
 		if err == nil {
 			br.sequenceNum += uint64(n) // #nosec G115 -- n is always >= 0 per io.Reader contract
+			br.mu.Unlock()
 			return n, nil
 		}
 
+		// Mark disconnected so future reads will wait for reconnection
 		br.reader = nil
 
 		if br.onError != nil {
 			br.onError(err)
 		}
 
-		// If we got some data before the error, return it
+		// If we got some data before the error, return it now
 		if n > 0 {
 			br.sequenceNum += uint64(n)
+			br.mu.Unlock()
 			return n, nil
 		}
 
-		// Return to Step 2 (continue the loop)
+		// Otherwise loop and wait for reconnection or close
+		br.mu.Unlock()
 	}
 }
 
