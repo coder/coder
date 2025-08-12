@@ -2,7 +2,7 @@
 	"_comment": "This version doesn't matter, it's just to allow importing from other repos.",
 	"name": "coder",
 	"version": "0.0.0",
-	"packageManager": "pnpm@9.14.4",
+	"packageManager": "pnpm@9.15.1+sha512.1acb565e6193efbebda772702950469150cf12bcc764262e7587e71d19dc98a423dff9536e57ea44c49bdf790ff694e83c27be5faa23d67e0c033b583be4bfcf",
 	"scripts": {
 		"format-docs": "markdown-table-formatter $(find docs -name '*.md') *.md",
 		"lint-docs": "markdownlint-cli2 --fix $(find docs -name '*.md') *.md",
