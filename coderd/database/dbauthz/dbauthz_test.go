@@ -1266,6 +1266,11 @@ func (s *MethodTestSuite) TestTemplate() {
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
 		check.Args(tv.ID).Asserts(t1, policy.ActionRead).Returns(tv)
 	}))
+	s.Run("Orphaned/GetTemplateVersionByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{Valid: false}})
+		dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), tv.ID).Return(tv, nil).AnyTimes()
+		check.Args(tv.ID).Asserts(tv.RBACObjectNoTemplate(), policy.ActionRead).Returns(tv)
+	}))
 	s.Run("GetTemplateVersionsByTemplateID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t1 := testutil.Fake(s.T(), faker, database.Template{})
 		a := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}})
@@ -1303,7 +1308,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(arg, emptyPreparedAuthorized{}).Asserts().Returns(slice.New(a))
 	}))
 	s.Run("InsertTemplate", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.InsertTemplateParams{Provisioner: "echo", OrganizationID: uuid.New(), MaxPortSharingLevel: database.AppSharingLevelOwner, CorsBehavior: database.CorsBehaviorSimple}
+		arg := database.InsertTemplateParams{OrganizationID: uuid.New()}
 		dbm.EXPECT().InsertTemplate(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceTemplate.InOrg(arg.OrganizationID), policy.ActionCreate)
 	}))
