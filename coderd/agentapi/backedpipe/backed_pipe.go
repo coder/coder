@@ -4,7 +4,9 @@ import (
 	"context"
 	"io"
 	"sync"
+	"time"
 
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 )
 
@@ -48,6 +50,9 @@ type BackedPipe struct {
 
 	// Connection state notification
 	connectionChanged chan struct{}
+
+	// singleflight group to dedupe concurrent ForceReconnect calls
+	sf singleflight.Group
 }
 
 // NewBackedPipe creates a new BackedPipe with default options and the specified reconnect function.
@@ -87,7 +92,7 @@ func NewBackedPipe(ctx context.Context, reconnectFn ReconnectFunc) *BackedPipe {
 }
 
 // Connect establishes the initial connection using the reconnect function.
-func (bp *BackedPipe) Connect(ctx context.Context) error {
+func (bp *BackedPipe) Connect(_ context.Context) error { // external ctx ignored; internal ctx used
 	bp.mu.Lock()
 	defer bp.mu.Unlock()
 
@@ -99,7 +104,9 @@ func (bp *BackedPipe) Connect(ctx context.Context) error {
 		return xerrors.New("pipe is already connected")
 	}
 
-	return bp.reconnectLocked(ctx)
+	// Use internal context for the actual reconnect operation to ensure
+	// Close() reliably cancels any in-flight attempt.
+	return bp.reconnectLocked()
 }
 
 // Read implements io.Reader by delegating to the BackedReader.
@@ -188,7 +195,7 @@ func (bp *BackedPipe) signalConnectionChange() {
 }
 
 // reconnectLocked handles the reconnection logic. Must be called with write lock held.
-func (bp *BackedPipe) reconnectLocked(ctx context.Context) error {
+func (bp *BackedPipe) reconnectLocked() error {
 	if bp.reconnecting {
 		return xerrors.New("reconnection already in progress")
 	}
@@ -212,7 +219,7 @@ func (bp *BackedPipe) reconnectLocked(ctx context.Context) error {
 
 	// Unlock during reconnect attempt to avoid blocking reads/writes
 	bp.mu.Unlock()
-	conn, readerSeqNum, err := bp.reconnectFn(ctx, writerSeqNum)
+	conn, readerSeqNum, err := bp.reconnectFn(bp.ctx, writerSeqNum)
 	bp.mu.Lock()
 
 	if err != nil {
@@ -280,8 +287,8 @@ func (bp *BackedPipe) handleErrors() {
 			bp.connected = false
 			bp.signalConnectionChange()
 
-			// Try to reconnect
-			reconnectErr := bp.reconnectLocked(bp.ctx)
+			// Try to reconnect using internal context
+			reconnectErr := bp.reconnectLocked()
 			bp.mu.Unlock()
 
 			if reconnectErr != nil {
@@ -314,19 +321,27 @@ func (bp *BackedPipe) WaitForConnection(ctx context.Context) error {
 			return ctx.Err()
 		case <-bp.connectionChanged:
 			// Connection state changed, check again
+		case <-time.After(10 * time.Millisecond):
+			// Periodically re-check to avoid missed notifications
 		}
 	}
 }
 
 // ForceReconnect forces a reconnection attempt immediately.
 // This can be used to force a reconnection if a new connection is established.
-func (bp *BackedPipe) ForceReconnect(ctx context.Context) error {
-	bp.mu.Lock()
-	defer bp.mu.Unlock()
+func (bp *BackedPipe) ForceReconnect() error {
+	// Deduplicate concurrent ForceReconnect calls so only one reconnection
+	// attempt runs at a time from this API. Use the pipe's internal context
+	// to ensure Close() cancels any in-flight attempt.
+	_, err, _ := bp.sf.Do("backedpipe-reconnect", func() (interface{}, error) {
+		bp.mu.Lock()
+		defer bp.mu.Unlock()
 
-	if bp.closed {
-		return io.ErrClosedPipe
-	}
+		if bp.closed {
+			return nil, io.ErrClosedPipe
+		}
 
-	return bp.reconnectLocked(ctx)
+		return nil, bp.reconnectLocked()
+	})
+	return err
 }
