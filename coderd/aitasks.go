@@ -70,28 +70,16 @@ func (api *API) aiTasksPrompts(rw http.ResponseWriter, r *http.Request) {
 
 // This endpoint is experimental and not guaranteed to be stable, so we're not
 // generating public-facing documentation for it.
-func (api *API) aiTasksCreate(rw http.ResponseWriter, r *http.Request) {
+func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx     = r.Context()
 		apiKey  = httpmw.APIKey(r)
 		auditor = api.Auditor.Load()
+		member  = httpmw.OrganizationMemberParam(r)
 	)
 
 	var req codersdk.CreateAITasksRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-
-	user, err := api.Database.GetUserByID(ctx, apiKey.UserID)
-	if httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching user.",
-			Detail:  err.Error(),
-		})
 		return
 	}
 
@@ -125,9 +113,9 @@ func (api *API) aiTasksCreate(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	owner := workspaceOwner{
-		ID:        user.ID,
-		Username:  user.Username,
-		AvatarURL: user.AvatarURL,
+		ID:        member.UserID,
+		Username:  member.Username,
+		AvatarURL: member.AvatarURL,
 	}
 
 	aReq, commitAudit := audit.InitRequest[database.WorkspaceTable](rw, &audit.RequestParams{
