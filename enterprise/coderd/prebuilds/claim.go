@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -24,6 +25,7 @@ func NewEnterpriseClaimer(store database.Store) *EnterpriseClaimer {
 
 func (c EnterpriseClaimer) Claim(
 	ctx context.Context,
+	now time.Time,
 	userID uuid.UUID,
 	name string,
 	presetID uuid.UUID,
@@ -34,6 +36,7 @@ func (c EnterpriseClaimer) Claim(
 	result, err := c.store.ClaimPrebuiltWorkspace(ctx, database.ClaimPrebuiltWorkspaceParams{
 		NewUserID:         userID,
 		NewName:           name,
+		Now:               now,
 		PresetID:          presetID,
 		AutostartSchedule: autostartSchedule,
 		NextStartAt:       nextStartAt,

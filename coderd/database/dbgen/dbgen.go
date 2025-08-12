@@ -1439,6 +1439,7 @@ func UserSecret(t testing.TB, db database.Store, seed database.UserSecret) datab
 func ClaimPrebuild(
 	t testing.TB,
 	db database.Store,
+	now time.Time,
 	newUserID uuid.UUID,
 	newName string,
 	presetID uuid.UUID,
@@ -1449,6 +1450,7 @@ func ClaimPrebuild(
 	claimedWorkspace, err := db.ClaimPrebuiltWorkspace(genCtx, database.ClaimPrebuiltWorkspaceParams{
 		NewUserID:         newUserID,
 		NewName:           newName,
+		Now:               now,
 		PresetID:          presetID,
 		AutostartSchedule: autostartSchedule,
 		NextStartAt:       nextStartAt,

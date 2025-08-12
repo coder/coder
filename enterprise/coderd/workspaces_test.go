@@ -2210,9 +2210,9 @@ func TestPrebuildsAutobuild(t *testing.T) {
 	t.Run("DormantOnlyAfterClaimed", func(t *testing.T) {
 		t.Parallel()
 
-		// Set the clock to dbtime.Now() to match the workspace's LastUsedAt
+		// Set the clock to Monday, January 1st, 2024 at 8:00 AM UTC to keep the test deterministic
 		clock := quartz.NewMock(t)
-		clock.Set(dbtime.Now())
+		clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
 
 		// Setup
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
@@ -2237,9 +2237,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 				),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling: 1,
-				},
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
 			},
 		})
 
@@ -2284,9 +2282,11 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.Nil(t, prebuild.DormantAt)
 		require.Nil(t, prebuild.DeletingAt)
 
-		// When: the autobuild executor ticks *after* the dormant TTL
+		// When: the autobuild executor ticks *after* the dormant TTL (10:00 AM UTC)
+		next := clock.Now().Add(dormantTTL).Add(time.Minute)
+		clock.Set(next) // 10:01 AM UTC
 		go func() {
-			tickCh <- prebuild.LastUsedAt.Add(dormantTTL).Add(time.Minute)
+			tickCh <- next
 		}()
 
 		// Then: the prebuilt workspace should remain in a start transition
@@ -2299,7 +2299,8 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.Nil(t, prebuild.DormantAt)
 		require.Nil(t, prebuild.DeletingAt)
 
-		// Given: a user claims the prebuilt workspace
+		// Given: a user claims the prebuilt workspace sometime later
+		clock.Set(clock.Now().Add(1 * time.Hour)) // 11:01 AM UTC
 		workspace := claimPrebuild(t, ctx, client, userClient, user.Username, version, presets[0].ID)
 		require.Equal(t, prebuild.ID, workspace.ID)
 		// Then: the claimed workspace should have DormantAt and DeletingAt unset (nil),
@@ -2308,9 +2309,11 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.Nil(t, workspace.DeletingAt)
 		require.True(t, workspace.LastUsedAt.After(prebuild.LastUsedAt))
 
-		// When: the autobuild executor ticks *after* the dormant TTL
+		// When: the autobuild executor ticks *after* the dormant TTL (1:01 PM UTC)
+		next = clock.Now().Add(dormantTTL).Add(time.Minute)
+		clock.Set(next) // 1:02 PM UTC
 		go func() {
-			tickCh <- workspace.LastUsedAt.Add(dormantTTL).Add(time.Minute)
+			tickCh <- next
 		}()
 
 		// Then: the workspace should transition to stopped state for breaching dormant TTL

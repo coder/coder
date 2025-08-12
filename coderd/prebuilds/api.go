@@ -3,6 +3,7 @@ package prebuilds
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -57,6 +58,7 @@ type StateSnapshotter interface {
 type Claimer interface {
 	Claim(
 		ctx context.Context,
+		now time.Time,
 		userID uuid.UUID,
 		name string,
 		presetID uuid.UUID,

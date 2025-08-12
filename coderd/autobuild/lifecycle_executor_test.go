@@ -1261,6 +1261,7 @@ func TestExecutorPrebuilds(t *testing.T) {
 		// Given: a user claims the prebuilt workspace
 		dbWorkspace := dbgen.ClaimPrebuild(
 			t, db,
+			clock.Now(),
 			user.ID,
 			"claimedWorkspace-autostop",
 			preset.ID,
@@ -1362,6 +1363,7 @@ func TestExecutorPrebuilds(t *testing.T) {
 		// Given: a user claims the prebuilt workspace
 		dbWorkspace := dbgen.ClaimPrebuild(
 			t, db,
+			clock.Now(),
 			user.ID,
 			"claimedWorkspace-autostart",
 			preset.ID,
@@ -1500,8 +1502,8 @@ func setupTestDBWorkspaceBuild(
 		Architecture:    "i386",
 		OperatingSystem: "linux",
 		LifecycleState:  database.WorkspaceAgentLifecycleStateReady,
-		StartedAt:       sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
-		ReadyAt:         sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
+		StartedAt:       sql.NullTime{Time: clock.Now().Add(time.Hour), Valid: true},
+		ReadyAt:         sql.NullTime{Time: clock.Now().Add(-1 * time.Hour), Valid: true},
 		APIKeyScope:     database.AgentKeyScopeEnumAll,
 	})
 
@@ -1538,8 +1540,9 @@ func setupTestDBPrebuiltWorkspace(
 		OrganizationID:    orgID,
 		OwnerID:           database.PrebuildsSystemUserID,
 		Deleted:           false,
-		CreatedAt:         time.Now().Add(-time.Hour * 2),
+		CreatedAt:         clock.Now().Add(-time.Hour * 2),
 		AutostartSchedule: options.AutostartSchedule,
+		LastUsedAt:        clock.Now(),
 	})
 	setupTestDBWorkspaceBuild(ctx, t, clock, db, ps, orgID, workspace.ID, templateVersionID, presetID, buildTransition)
 
