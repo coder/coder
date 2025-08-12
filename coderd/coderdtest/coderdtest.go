@@ -1634,7 +1634,7 @@ func ctxWithProvisionerPermissions(ctx context.Context) context.Context {
 func UpdateProvisionerLastSeenAt(t *testing.T, db database.Store, id uuid.UUID, tickTime time.Time) {
 	t.Helper()
 	ctx := ctxWithProvisionerPermissions(context.Background())
-	t.Logf("Updating provisioner %s LastSeenAt from %v to %v", id, tickTime)
+	t.Logf("Updating provisioner %s LastSeenAt to %v", id, tickTime)
 	err := db.UpdateProvisionerDaemonLastSeenAt(ctx, database.UpdateProvisionerDaemonLastSeenAtParams{
 		ID:         id,
 		LastSeenAt: sql.NullTime{Time: tickTime, Valid: true},
