@@ -3,13 +3,26 @@ package backedpipe_test
 import (
 	"bytes"
 	"fmt"
+	"os"
+	"runtime"
 	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/coder/coder/v2/coderd/agentapi/backedpipe"
+	"github.com/coder/coder/v2/testutil"
 )
+
+func TestMain(m *testing.M) {
+	if runtime.GOOS == "windows" {
+		// Don't run goleak on windows tests, they're super flaky right now.
+		// See: https://github.com/coder/coder/issues/8954
+		os.Exit(m.Run())
+	}
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
+}
 
 func TestRingBuffer_NewRingBuffer(t *testing.T) {
 	t.Parallel()
