@@ -10,15 +10,11 @@ You can also use the [Windsurf module](https://registry.coder.com/modules/coder/
 
 ## Install Windsurf
 
-Windsurf can connect to your Coder workspaces via SSH:
+Windsurf can connect to a Coder workspace using the Coder extension:
 
 1. [Install Windsurf](https://docs.codeium.com/windsurf/getting-started) on your local machine.
 
-1. Open Windsurf and select **Get started**.
-
-   Import your settings from another IDE, or select **Start fresh**.
-
-1. Complete the setup flow and log in or [create a Codeium account](https://codeium.com/windsurf/signup)
+1. Open Windsurf and log in or [create a Codeium account](https://codeium.com/windsurf/signup)
    if you don't have one already.
 
 ## Install the Coder extension
@@ -31,7 +27,7 @@ Windsurf can connect to your Coder workspaces via SSH:
 
    ## Extension Marketplace
 
-   Search for Coder from the Extensions Pane and select **Install**.
+   1. Search for Coder from the Extensions Pane and select **Install**.
 
    ## Manually
 
