@@ -256,8 +256,8 @@ jobs:
           pushd /tmp/proto
           curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip
           unzip protoc.zip
-          cp -r ./bin/* /usr/local/bin
-          cp -r ./include /usr/local/bin/include
+          sudo cp -r ./bin/* /usr/local/bin
+          sudo cp -r ./include /usr/local/bin/include
           popd
 
       - name: make gen
@@ -875,8 +875,8 @@ jobs:
           pushd /tmp/proto
           curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip
           unzip protoc.zip
-          cp -r ./bin/* /usr/local/bin
-          cp -r ./include /usr/local/bin/include
+          sudo cp -r ./bin/* /usr/local/bin
+          sudo cp -r ./include /usr/local/bin/include
           popd
 
       - name: Setup Go
