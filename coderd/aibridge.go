@@ -11,8 +11,9 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/aibridge"
+	"github.com/coder/aibridge/proto"
 	"github.com/coder/coder/v2/aibridged"
-	aibridgedproto "github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
@@ -50,7 +51,7 @@ func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key, ok := r.Context().Value(aibridged.ContextKeyBridgeAPIKey{}).(string)
+	key, ok := r.Context().Value(aibridge.ContextKeyBridgeAPIKey{}).(string)
 	if key == "" || !ok {
 		http.Error(rw, "unable to retrieve request session key", http.StatusBadRequest)
 		return
@@ -65,7 +66,7 @@ func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 	http.StripPrefix("/api/v2/aibridge", bridge.Handler()).ServeHTTP(rw, r)
 }
 
-func (api *API) createOrLoadBridgeForAPIKey(ctx context.Context, key string, clientFn func() (aibridgedproto.DRPCAIBridgeDaemonClient, error)) (*aibridged.Bridge, error) {
+func (api *API) createOrLoadBridgeForAPIKey(ctx context.Context, key string, clientFn func() (proto.DRPCStoreClient, error)) (*aibridge.Bridge, error) {
 	if api.AIBridges == nil {
 		return nil, xerrors.New("bridge cache storage is not configured")
 	}
@@ -86,11 +87,11 @@ func (api *API) createOrLoadBridgeForAPIKey(ctx context.Context, key string, cli
 		}
 
 		// TODO: only instantiate once.
-		registry := aibridged.ProviderRegistry{
-			aibridged.ProviderOpenAI:    aibridged.NewOpenAIProvider(api.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(), api.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String()),
-			aibridged.ProviderAnthropic: aibridged.NewAnthropicMessagesProvider(api.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(), api.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String()),
+		registry := aibridge.ProviderRegistry{
+			aibridge.ProviderOpenAI:    aibridge.NewOpenAIProvider(api.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(), api.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String()),
+			aibridge.ProviderAnthropic: aibridge.NewAnthropicMessagesProvider(api.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(), api.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String()),
 		}
-		bridge, err := aibridged.NewBridge(registry, api.Logger.Named("ai_bridge"), clientFn, tools)
+		bridge, err := aibridge.NewBridge(registry, api.Logger.Named("ai_bridge"), clientFn, tools)
 		if err != nil {
 			return nil, xerrors.Errorf("create new bridge server: %w", err)
 		}
@@ -104,9 +105,9 @@ func (api *API) createOrLoadBridgeForAPIKey(ctx context.Context, key string, cli
 	return val, nil
 }
 
-func (api *API) fetchTools(ctx context.Context, logger slog.Logger, key string) (map[string][]*aibridged.MCPTool, error) {
+func (api *API) fetchTools(ctx context.Context, logger slog.Logger, key string) (map[string][]*aibridge.MCPTool, error) {
 	url := api.DeploymentValues.AccessURL.String() + "/api/experimental/mcp/http"
-	coderMCP, err := aibridged.NewMCPToolBridge("coder", url, map[string]string{
+	coderMCP, err := aibridge.NewMCPToolBridge("coder", url, map[string]string{
 		"Coder-Session-Token": key,
 	}, logger.Named("mcp-bridge-coder"))
 	if err != nil {
@@ -131,7 +132,7 @@ func (api *API) fetchTools(ctx context.Context, logger slog.Logger, key string) 
 		return nil, xerrors.Errorf("MCP proxy init: %w", err)
 	}
 
-	return map[string][]*aibridged.MCPTool{
+	return map[string][]*aibridge.MCPTool{
 		"coder": coderMCP.ListTools(),
 	}, nil
 }

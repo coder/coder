@@ -196,7 +196,7 @@ require (
 	go.uber.org/mock v0.5.0
 	go4.org/netipx v0.0.0-20230728180743-ad4cb58a6516
 	golang.org/x/crypto v0.41.0
-	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0
+	golang.org/x/exp v0.0.0-20250811191247-51f88131bc50
 	golang.org/x/mod v0.27.0
 	golang.org/x/net v0.43.0
 	golang.org/x/oauth2 v0.30.0
@@ -208,14 +208,14 @@ require (
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
 	google.golang.org/api v0.246.0
 	google.golang.org/grpc v1.74.2
-	google.golang.org/protobuf v1.36.6
+	google.golang.org/protobuf v1.36.7
 	gopkg.in/DataDog/dd-trace-go.v1 v1.74.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 	gvisor.dev/gvisor v0.0.0-20240509041132-65b30f7869dc
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.73
-	storj.io/drpc v0.0.33
-	tailscale.com v1.80.3
+	storj.io/drpc v0.0.34
+	tailscale.com v1.86.4
 )
 
 require (
@@ -466,7 +466,10 @@ require (
 
 require github.com/coder/clistat v1.0.0
 
-require github.com/SherClockHolmes/webpush-go v1.4.0
+require (
+	github.com/SherClockHolmes/webpush-go v1.4.0
+	github.com/coder/aibridge v0.0.0
+)
 
 require (
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
@@ -477,7 +480,6 @@ require (
 )
 
 require (
-	github.com/anthropics/anthropic-sdk-go v1.4.0
 	github.com/brianvoe/gofakeit/v7 v7.3.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
 	github.com/coder/aisdk-go v0.0.9
@@ -485,9 +487,11 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/mark3labs/mcp-go v0.37.0
-	github.com/openai/openai-go v1.8.1
-	github.com/tidwall/sjson v1.2.5
+	github.com/tidwall/sjson v1.2.5 // indirect
 )
+
+// aibridge-related deps and directives.
+replace github.com/coder/aibridge v0.0.0 => /home/coder/aibridge
 
 require (
 	cel.dev/expr v0.24.0 // indirect
@@ -503,6 +507,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.50.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.50.0 // indirect
 	github.com/Masterminds/semver/v3 v3.3.1 // indirect
+	github.com/anthropics/anthropic-sdk-go v1.4.0 // indirect
 	github.com/aquasecurity/go-version v0.0.1 // indirect
 	github.com/aquasecurity/trivy v0.58.2 // indirect
 	github.com/aws/aws-sdk-go v1.55.7 // indirect
@@ -526,6 +531,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/moby/sys/user v0.4.0 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
+	github.com/openai/openai-go v1.12.0 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/samber/lo v1.50.0 // indirect

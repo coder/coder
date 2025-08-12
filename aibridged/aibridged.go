@@ -15,15 +15,15 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/retry"
 
-	"github.com/coder/coder/v2/aibridged/proto"
+	"github.com/coder/aibridge/proto"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-type Dialer func(ctx context.Context) (proto.DRPCAIBridgeDaemonClient, error)
+type Dialer func(ctx context.Context) (proto.DRPCStoreClient, error)
 
 type Server struct {
 	clientDialer Dialer
-	clientCh     chan proto.DRPCAIBridgeDaemonClient
+	clientCh     chan proto.DRPCStoreClient
 
 	logger slog.Logger
 	wg     sync.WaitGroup
@@ -50,9 +50,9 @@ type Server struct {
 	shuttingDownCh chan struct{}
 }
 
-var _ proto.DRPCAIBridgeDaemonServer = &Server{}
+var _ proto.DRPCStoreServer = &Server{}
 
-func New(rpcDialer Dialer, httpAddr string, logger slog.Logger) (*Server, error) {
+func New(rpcDialer Dialer, logger slog.Logger) (*Server, error) {
 	if rpcDialer == nil {
 		return nil, xerrors.Errorf("nil rpcDialer given")
 	}
@@ -61,7 +61,7 @@ func New(rpcDialer Dialer, httpAddr string, logger slog.Logger) (*Server, error)
 	daemon := &Server{
 		logger:           logger,
 		clientDialer:     rpcDialer,
-		clientCh:         make(chan proto.DRPCAIBridgeDaemonClient),
+		clientCh:         make(chan proto.DRPCStoreClient),
 		closeContext:     ctx,
 		closeCancel:      cancel,
 		closedCh:         make(chan struct{}),
@@ -137,7 +137,7 @@ connectLoop:
 	}
 }
 
-func (s *Server) Client() (proto.DRPCAIBridgeDaemonClient, error) {
+func (s *Server) Client() (proto.DRPCStoreClient, error) {
 	select {
 	case <-s.closeContext.Done():
 		return nil, xerrors.New("context closed")
@@ -149,9 +149,9 @@ func (s *Server) Client() (proto.DRPCAIBridgeDaemonClient, error) {
 	}
 }
 
-func (s *Server) StartSession(ctx context.Context, in *proto.StartSessionRequest) (*proto.StartSessionResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.StartSessionResponse, error) {
-		return client.StartSession(ctx, in)
+func (s *Server) StoreSession(ctx context.Context, in *proto.StoreSessionRequest) (*proto.StoreSessionResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCStoreClient) (*proto.StoreSessionResponse, error) {
+		return client.StoreSession(ctx, in)
 	})
 	if err != nil {
 		return nil, err
@@ -160,7 +160,7 @@ func (s *Server) StartSession(ctx context.Context, in *proto.StartSessionRequest
 }
 
 func (s *Server) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageRequest) (*proto.TrackTokenUsageResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.TrackTokenUsageResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCStoreClient) (*proto.TrackTokenUsageResponse, error) {
 		return client.TrackTokenUsage(ctx, in)
 	})
 	if err != nil {
@@ -170,7 +170,7 @@ func (s *Server) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageR
 }
 
 func (s *Server) TrackUserPrompt(ctx context.Context, in *proto.TrackUserPromptRequest) (*proto.TrackUserPromptResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.TrackUserPromptResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCStoreClient) (*proto.TrackUserPromptResponse, error) {
 		return client.TrackUserPrompt(ctx, in)
 	})
 	if err != nil {
@@ -180,7 +180,7 @@ func (s *Server) TrackUserPrompt(ctx context.Context, in *proto.TrackUserPromptR
 }
 
 func (s *Server) TrackToolUsage(ctx context.Context, in *proto.TrackToolUsageRequest) (*proto.TrackToolUsageResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.TrackToolUsageResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCStoreClient) (*proto.TrackToolUsageResponse, error) {
 		return client.TrackToolUsage(ctx, in)
 	})
 	if err != nil {
@@ -202,8 +202,8 @@ func retryable(err error) bool {
 // expires.
 // NOTE: mostly copypasta from provisionerd; might be work abstracting.
 func clientDoWithRetries[T any](ctx context.Context,
-	getClient func() (proto.DRPCAIBridgeDaemonClient, error),
-	f func(context.Context, proto.DRPCAIBridgeDaemonClient) (T, error),
+	getClient func() (proto.DRPCStoreClient, error),
+	f func(context.Context, proto.DRPCStoreClient) (T, error),
 ) (ret T, _ error) {
 	for retrier := retry.New(25*time.Millisecond, 5*time.Second); retrier.Wait(ctx); {
 		var empty T

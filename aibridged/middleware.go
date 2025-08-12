@@ -6,13 +6,9 @@ import (
 	"crypto/subtle"
 	"net/http"
 
+	"github.com/coder/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpmw"
-)
-
-type (
-	ContextKeyBridgeAPIKey struct{}
-	ContextKeyBridgeUserID struct{}
 )
 
 // AuthMiddleware extracts and validates authorization tokens for AI bridge endpoints.
@@ -31,7 +27,7 @@ func AuthMiddleware(db database.Store) func(http.Handler) http.Handler {
 			}
 
 			// Validate token using httpmw.APIKeyFromRequest
-			key, _, ok := httpmw.APIKeyFromRequest(ctx, db, func(r *http.Request) string {
+			key, _, ok := httpmw.APIKeyFromRequest(ctx, db, func(*http.Request) string {
 				return token
 			}, &http.Request{})
 
@@ -41,8 +37,8 @@ func AuthMiddleware(db database.Store) func(http.Handler) http.Handler {
 			}
 
 			ctx = context.WithValue(
-				context.WithValue(ctx, ContextKeyBridgeUserID{}, key.UserID),
-				ContextKeyBridgeAPIKey{}, token)
+				context.WithValue(ctx, aibridge.ContextKeyBridgeUserID{}, key.UserID),
+				aibridge.ContextKeyBridgeAPIKey{}, token)
 
 			// Pass request with modify context including the request token.
 			next.ServeHTTP(rw, r.WithContext(ctx))

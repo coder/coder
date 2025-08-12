@@ -22,6 +22,8 @@ import (
 
 	"github.com/ammario/tlru"
 
+	aibridgeproto "github.com/coder/aibridge/proto"
+	"github.com/coder/coder/v2/aibridged"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/prebuilds"
@@ -45,7 +47,7 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
-	"github.com/coder/coder/v2/aibridged"
+	"github.com/coder/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridgedserver"
 	provisionerdproto "github.com/coder/coder/v2/provisionerd/proto"
 
@@ -63,7 +65,6 @@ import (
 	"github.com/coder/coder/v2/coderd/webpush"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
-	aibridgedproto "github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/buildinfo"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
 	"github.com/coder/coder/v2/coderd/appearance"
@@ -1738,7 +1739,7 @@ type API struct {
 	dbRolluper *dbrollup.Rolluper
 
 	AIBridgeDaemons []*aibridged.Server
-	AIBridges       *tlru.Cache[string, *aibridged.Bridge]
+	AIBridges       *tlru.Cache[string, *aibridge.Bridge]
 	AIBridgesMu     sync.RWMutex
 }
 
@@ -1969,7 +1970,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	return provisionerdproto.NewDRPCProvisionerDaemonClient(clientSession), nil
 }
 
-func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context, name string) (client aibridgedproto.DRPCAIBridgeDaemonClient, err error) {
+func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context, name string) (client aibridgeproto.DRPCStoreClient, err error) {
 	// TODO(dannyk): implement options.
 	// TODO(dannyk): implement tracing.
 
@@ -1991,7 +1992,7 @@ func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context, name strin
 	if err != nil {
 		return nil, err
 	}
-	err = aibridgedproto.DRPCRegisterAIBridgeDaemon(mux, srv)
+	err = aibridgeproto.DRPCRegisterStore(mux, srv)
 	if err != nil {
 		return nil, err
 	}
@@ -2024,7 +2025,7 @@ func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context, name strin
 		_ = serverSession.Close()
 	}()
 
-	return aibridgedproto.NewDRPCAIBridgeDaemonClient(clientSession), nil
+	return aibridgeproto.NewDRPCStoreClient(clientSession), nil
 }
 
 func (api *API) DERPMap() *tailcfg.DERPMap {

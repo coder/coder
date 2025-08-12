@@ -11,11 +11,11 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/v2/aibridged/proto"
+	proto "github.com/coder/aibridge/proto"
 	"github.com/coder/coder/v2/coderd/database"
 )
 
-var _ proto.DRPCAIBridgeDaemonServer = &Server{}
+var _ proto.DRPCStoreServer = &Server{}
 
 type Server struct {
 	// lifecycleCtx must be tied to the API server's lifecycle
@@ -34,8 +34,8 @@ func NewServer(lifecycleCtx context.Context, store database.Store, logger slog.L
 	}, nil
 }
 
-// StartSession implements proto.DRPCAIBridgeDaemonServer.
-func (s *Server) StartSession(ctx context.Context, in *proto.StartSessionRequest) (*proto.StartSessionResponse, error) {
+// StoreSession implements proto.DRPCStoreServer.
+func (s *Server) StoreSession(ctx context.Context, in *proto.StoreSessionRequest) (*proto.StoreSessionResponse, error) {
 	sessID, err := uuid.Parse(in.GetSessionId())
 	if err != nil {
 		return nil, xerrors.Errorf("invalid session ID %q: %w", in.GetSessionId(), err)
@@ -55,7 +55,7 @@ func (s *Server) StartSession(ctx context.Context, in *proto.StartSessionRequest
 		return nil, xerrors.Errorf("start session: %w", err)
 	}
 
-	return &proto.StartSessionResponse{}, nil
+	return &proto.StoreSessionResponse{}, nil
 }
 
 func (s *Server) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageRequest) (*proto.TrackTokenUsageResponse, error) {

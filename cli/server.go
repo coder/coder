@@ -63,8 +63,9 @@ import (
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
 
+	"github.com/coder/aibridge"
+	aibridgeproto "github.com/coder/aibridge/proto"
 	"github.com/coder/coder/v2/aibridged"
-	aibridgedproto "github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -1127,7 +1128,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				aiBridgeDaemons = append(aiBridgeDaemons, daemon)
 			}
 			coderAPI.AIBridgeDaemons = aiBridgeDaemons
-			coderAPI.AIBridges = tlru.New[string](tlru.ConstantCost[*aibridged.Bridge], 100) // TODO: configurable.
+			coderAPI.AIBridges = tlru.New[string](tlru.ConstantCost[*aibridge.Bridge], 100) // TODO: configurable.
 
 			// Updates the systemd status from activating to activated.
 			_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
@@ -1573,12 +1574,11 @@ func newProvisionerDaemon(
 }
 
 func newAIBridgeDaemon(ctx context.Context, coderAPI *coderd.API, name string, bridgeCfg codersdk.AIBridgeConfig) (*aibridged.Server, error) {
-	httpAddr := "0.0.0.0:0" // TODO: configurable.
-	return aibridged.New(func(dialCtx context.Context) (aibridgedproto.DRPCAIBridgeDaemonClient, error) {
+	return aibridged.New(func(dialCtx context.Context) (aibridgeproto.DRPCStoreClient, error) {
 		// This debounces calls to listen every second.
 		// TODO: is this true / necessary?
 		return coderAPI.CreateInMemoryAIBridgeDaemon(dialCtx, name)
-	}, httpAddr, coderAPI.Logger.Named("aibridged").With(slog.F("name", name)))
+	}, coderAPI.Logger.Named("aibridged").With(slog.F("name", name)))
 }
 
 // nolint: revive
