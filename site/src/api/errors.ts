@@ -149,3 +149,12 @@ export class DetailedError extends Error {
 		super(message);
 	}
 }
+
+export class ParameterValidationError extends Error {
+	constructor(
+		public readonly versionId: string,
+		public readonly validations: FieldError[],
+	) {
+		super("Parameters are not valid for new template version");
+	}
+}

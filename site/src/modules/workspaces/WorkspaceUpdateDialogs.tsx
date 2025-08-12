@@ -1,4 +1,5 @@
-import { MissingBuildParameters, ParameterValidationError } from "api/api";
+import { MissingBuildParameters } from "api/api";
+import { ParameterValidationError } from "api/errors";
 import { updateWorkspace } from "api/queries/workspaces";
 import type {
 	TemplateVersion,
