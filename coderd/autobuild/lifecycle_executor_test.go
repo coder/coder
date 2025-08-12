@@ -694,9 +694,9 @@ func TestExecuteAutostopSuspendedUser(t *testing.T) {
 	t.Parallel()
 
 	var (
-		tickCh  = make(chan time.Time)
-		statsCh = make(chan autobuild.Stats)
-		client  = coderdtest.New(t, &coderdtest.Options{
+		tickCh     = make(chan time.Time)
+		statsCh    = make(chan autobuild.Stats)
+		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
 			AutobuildStats:           statsCh,
@@ -705,7 +705,7 @@ func TestExecuteAutostopSuspendedUser(t *testing.T) {
 
 	admin := coderdtest.CreateFirstUser(t, client)
 	// Wait for provisioner to be available
-	coderdtest.MustWaitForAnyProvisionerWithClient(t, client)
+	coderdtest.MustWaitForAnyProvisioner(t, db)
 	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)

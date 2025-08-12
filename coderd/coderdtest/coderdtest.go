@@ -1652,15 +1652,6 @@ func MustWaitForAnyProvisioner(t *testing.T, db database.Store) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
-func MustWaitForAnyProvisionerWithClient(t *testing.T, client *codersdk.Client) {
-	t.Helper()
-	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitShort))
-	require.Eventually(t, func() bool {
-		daemons, err := client.ProvisionerDaemons(ctx)
-		return err == nil && len(daemons) > 0
-	}, testutil.WaitShort, testutil.IntervalFast)
-}
-
 // MustWaitForProvisionersAvailable waits for provisioners to be available for a specific workspace.
 func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace codersdk.Workspace) uuid.UUID {
 	t.Helper()
