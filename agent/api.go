@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -65,6 +66,12 @@ func (a *agent) apiHandler() http.Handler {
 	r.Get("/debug/magicsock/debug-logging/{state}", a.HandleHTTPMagicsockDebugLoggingState)
 	r.Get("/debug/manifest", a.HandleHTTPDebugManifest)
 	r.Get("/debug/prometheus", promHandler.ServeHTTP)
+
+	// Mount immortal streams API
+	if a.immortalStreamsManager != nil {
+		immortalStreamsHandler := agentapi.NewImmortalStreamsHandler(a.logger, a.immortalStreamsManager)
+		r.Mount("/api/v0/immortal-stream", immortalStreamsHandler.Routes())
+	}
 
 	return r
 }
