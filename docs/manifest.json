@@ -416,11 +416,11 @@
 							"description": "Configure OpenID Connect authentication with identity providers like Okta or Active Directory",
 							"path": "./admin/users/oidc-auth/index.md",
 							"children": [
-            {
-              "title": "Google",
-              "description": "Configure Google as an OIDC provider",
-              "path": "./admin/users/oidc-auth/google.md"
-            },
+            					{
+              						"title": "Google",
+              						"description": "Configure Google as an OIDC provider",
+              						"path": "./admin/users/oidc-auth/google.md"
+            					},
 								{
 									"title": "Configure OIDC refresh tokens",
 									"description": "How to configure OIDC refresh tokens",
