@@ -46,7 +46,7 @@ When enabling scheduled stop, enter a duration in one of the following formats:
   * 2m   (2 minutes)
   * 2    (2 minutes)
 `
-	scheduleExtendDescriptionLong = `
+	scheduleExtendDescriptionLong = `Extends the workspace deadline.
   * The new stop time is calculated from *now*.
   * The new stop time must be at least 30 minutes in the future.
   * The workspace template may restrict the maximum workspace runtime.
@@ -267,6 +267,13 @@ func (r *RootCmd) scheduleExtend() *serpent.Command {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
+			}
+
+			// Deadline extensions are not supported for prebuilt workspaces.
+			// Prebuild lifecycle is managed by the reconciliation loop, with TTL behavior
+			// defined per preset at the template level, not per workspace.
+			if workspace.IsPrebuild {
+				return xerrors.Errorf("extend configuration is not supported for prebuilt workspaces")
 			}
 
 			loc, err := tz.TimezoneIANA()
