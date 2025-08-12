@@ -12870,6 +12870,21 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 	return i, err
 }
 
+const getTemplateVersionHasAITask = `-- name: GetTemplateVersionHasAITask :one
+SELECT EXISTS (
+	SELECT 1
+	FROM template_versions
+	WHERE id = $1 AND has_ai_task = TRUE
+)
+`
+
+func (q *sqlQuerier) GetTemplateVersionHasAITask(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateVersionHasAITask, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const getTemplateVersionsByIDs = `-- name: GetTemplateVersionsByIDs :many
 SELECT
 	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, created_by_avatar_url, created_by_username, created_by_name
