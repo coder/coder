@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
@@ -23,6 +24,52 @@ import (
 // TestOAuth2TokenRevocation tests the OAuth2 token revocation endpoint
 func TestOAuth2TokenRevocation(t *testing.T) {
 	t.Parallel()
+
+	t.Run("ClientCredentialsTokenRevocation", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Create an app owned by the user.
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:         "test-app",
+			RedirectURIs: []string{"http://localhost:3000"},
+			GrantTypes:   []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeClientCredentials},
+		})
+		require.NoError(t, err)
+
+		// Create a secret for the app.
+		secret, err := client.PostOAuth2ProviderAppSecret(ctx, app.ID)
+		require.NoError(t, err)
+
+		// Request a token.
+		conf := &clientcredentials.Config{
+			ClientID:     app.ID.String(),
+			ClientSecret: secret.ClientSecretFull,
+			TokenURL:     client.URL.String() + "/oauth2/token",
+		}
+		token, err := conf.Token(ctx)
+		require.NoError(t, err)
+
+		// Revoke the access token
+		revokeResp := revokeToken(t, client.URL.String(), revokeParams{
+			Token:    token.AccessToken,
+			ClientID: app.ID.String(),
+		})
+		defer revokeResp.Body.Close()
+		require.Equal(t, http.StatusOK, revokeResp.StatusCode)
+
+		// Verify token is revoked by trying to use it
+		staticSource := oauth2.StaticTokenSource(token)
+		httpClient := oauth2.NewClient(ctx, staticSource)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/users/me", nil)
+		require.NoError(t, err)
+		resp, err := httpClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
 
 	t.Run("RefreshTokenRevocation", func(t *testing.T) {
 		t.Parallel()
@@ -510,6 +557,108 @@ func TestOAuth2TokenRevocation(t *testing.T) {
 				})
 			}
 		})
+	})
+
+	t.Run("ClientCredentialsTokenRevocationWithResource", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Create an app owned by the user.
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:         "test-app-revoke-with-resource",
+			RedirectURIs: []string{"http://localhost:3000"},
+			GrantTypes:   []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeClientCredentials},
+		})
+		require.NoError(t, err)
+
+		// Create a secret for the app.
+		secret, err := client.PostOAuth2ProviderAppSecret(ctx, app.ID)
+		require.NoError(t, err)
+
+		// Request a token with resource parameter using the OAuth2 client credentials config
+		conf := &clientcredentials.Config{
+			ClientID:     app.ID.String(),
+			ClientSecret: secret.ClientSecretFull,
+			TokenURL:     client.URL.String() + "/oauth2/token",
+			EndpointParams: url.Values{
+				"resource": {"https://api.example.com"},
+			},
+		}
+		token, err := conf.Token(ctx)
+		require.NoError(t, err)
+
+		// Revoke the access token
+		revokeResp := revokeToken(t, client.URL.String(), revokeParams{
+			Token:    token.AccessToken,
+			ClientID: app.ID.String(),
+		})
+		defer revokeResp.Body.Close()
+		require.Equal(t, http.StatusOK, revokeResp.StatusCode)
+
+		// Note: We don't verify token revocation by using it because audience validation
+		// would reject a token with audience "https://api.example.com" when accessing Coder's API.
+		// This test verifies that client credentials tokens with resource parameters can be revoked.
+	})
+
+	t.Run("RevokeWithWrongClient", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Create two apps owned by the user.
+		app1, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:         "test-app-1",
+			RedirectURIs: []string{"http://localhost:3000"},
+			GrantTypes:   []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeClientCredentials},
+		})
+		require.NoError(t, err)
+
+		app2, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:         "test-app-2",
+			RedirectURIs: []string{"http://localhost:3000"},
+			GrantTypes:   []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeClientCredentials},
+		})
+		require.NoError(t, err)
+
+		// Create secrets for both apps.
+		secret1, err := client.PostOAuth2ProviderAppSecret(ctx, app1.ID)
+		require.NoError(t, err)
+
+		// Request a token for app1.
+		conf := &clientcredentials.Config{
+			ClientID:     app1.ID.String(),
+			ClientSecret: secret1.ClientSecretFull,
+			TokenURL:     client.URL.String() + "/oauth2/token",
+		}
+		token, err := conf.Token(ctx)
+		require.NoError(t, err)
+
+		// Try to revoke app1's token using app2's client_id - should succeed per RFC 7009
+		// (don't reveal token existence)
+		revokeResp := revokeToken(t, client.URL.String(), revokeParams{
+			Token:    token.AccessToken,
+			ClientID: app2.ID.String(),
+		})
+		defer revokeResp.Body.Close()
+		require.Equal(t, http.StatusOK, revokeResp.StatusCode)
+
+		// Verify the original token still works (wasn't actually revoked)
+		staticSource := oauth2.StaticTokenSource(token)
+		httpClient := oauth2.NewClient(ctx, staticSource)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/users/me", nil)
+		require.NoError(t, err)
+		userResp, err := httpClient.Do(req)
+		require.NoError(t, err)
+		defer userResp.Body.Close()
+		require.Equal(t, http.StatusOK, userResp.StatusCode)
+
+		var gotUser codersdk.User
+		err = json.NewDecoder(userResp.Body).Decode(&gotUser)
+		require.NoError(t, err)
+		require.Equal(t, owner.UserID, gotUser.ID)
 	})
 }
 

@@ -24,12 +24,12 @@ curl -X GET http://coder-server:8080/api/v2/.well-known/oauth-authorization-serv
   ],
   "device_authorization_endpoint": "string",
   "grant_types_supported": [
-    "string"
+    "authorization_code"
   ],
   "issuer": "string",
   "registration_endpoint": "string",
   "response_types_supported": [
-    "string"
+    "code"
   ],
   "scopes_supported": [
     "string"
@@ -864,6 +864,9 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
 
 ```json
 {
+  "grant_types": [
+    "authorization_code"
+  ],
   "icon": "string",
   "name": "string",
   "redirect_uris": [
@@ -973,6 +976,9 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 ```json
 {
+  "grant_types": [
+    "authorization_code"
+  ],
   "icon": "string",
   "name": "string",
   "redirect_uris": [
@@ -1704,6 +1710,7 @@ grant_type: authorization_code
 | `» grant_type` | `authorization_code`                           |
 | `» grant_type` | `refresh_token`                                |
 | `» grant_type` | `urn:ietf:params:oauth:grant-type:device_code` |
+| `» grant_type` | `client_credentials`                           |
 
 ### Example responses
 
