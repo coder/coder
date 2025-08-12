@@ -420,7 +420,7 @@ jobs:
           curl -fsSL "$URL" -o "${DEST}"
           chmod +x "${DEST}"
           "${DEST}" version
-          mv "${DEST}" /usr/local/bin/coder
+          sudo mv "${DEST}" /usr/local/bin/coder
 
       - name: Create first user
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
