@@ -44,7 +44,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 		return (
 			<div className="flex flex-col gap-2">
 				{overflowed && (
-					<p className="text-sm text-content-secondary bg-content-tertiary max-w-prose pl-6 m-0 pt-2.5 pb-1">
+					<p className="text-sm w-full text-content-secondary bg-content-tertiary max-w-prose pl-4 m-0 pt-2.5 pb-1">
 						Startup logs exceeded the max size of{" "}
 						<span className="tracking-wide font-mono">1MB</span>, and will not
 						continue to be written to the database! Logs will continue to be
