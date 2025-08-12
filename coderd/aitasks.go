@@ -14,6 +14,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -76,33 +77,26 @@ func (api *API) aiTasksPrompts(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) generateTaskName(ctx context.Context, prompt, fallback string) (string, error) {
-	// TODO(DanielleMaywood):
-	// Should we extract this out into our typical coderd option handling?
-	anthropicAPIKey := os.Getenv("ANTHROPIC_API_KEY")
+	var (
+		stream aisdk.DataStream
+		err    error
+	)
 
-	// The deployment doesn't have a valid external cloud AI provider, so we'll
-	// fallback to the user supplied name for now.
-	if anthropicAPIKey == "" {
-		return fallback, nil
-	}
-
-	anthropicClient := anthropic.NewClient(anthropicoption.WithAPIKey(anthropicAPIKey))
-
-	messages, system, err := aisdk.MessagesToAnthropic([]aisdk.Message{
+	conversation := []aisdk.Message{
 		{
 			Role: "system",
 			Parts: []aisdk.Part{{
 				Type: aisdk.PartTypeText,
 				Text: `
-					You are a task summarizer.
-					You summarize AI prompts into workspace names.
-					You will only respond with a workspace name.
-					The workspace name **MUST** follow this regex /^[a-z0-9]+(?:-[a-z0-9]+)*$/
-					The workspace name **MUST** be 32 characters or **LESS**.
-					The workspace name **MUST** be all lower case.
-					The workspace name **MUST** end in a number between 0 and 100.
-					The workspace name **MUST** be prefixed with "task".
-				`,
+						You are a task summarizer.
+						You summarize AI prompts into workspace names.
+						You will only respond with a workspace name.
+						The workspace name **MUST** follow this regex /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+						The workspace name **MUST** be 32 characters or **LESS**.
+						The workspace name **MUST** be all lower case.
+						The workspace name **MUST** end in a number between 0 and 100.
+						The workspace name **MUST** be prefixed with "task".
+					`,
 			}},
 		},
 		{
@@ -112,17 +106,19 @@ func (api *API) generateTaskName(ctx context.Context, prompt, fallback string) (
 				Text: prompt,
 			}},
 		},
-	})
-	if err != nil {
-		return "", err
 	}
 
-	stream := aisdk.AnthropicToDataStream(anthropicClient.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
-		Model:     anthropic.ModelClaude3_5HaikuLatest,
-		Messages:  messages,
-		System:    system,
-		MaxTokens: 24,
-	}))
+	if anthropicAPIKey := os.Getenv("ANTHROPIC_API_KEY"); anthropicAPIKey != "" {
+		anthropicAPIKey := os.Getenv("ANTHROPIC_API_KEY")
+		anthropicClient := anthropic.NewClient(anthropicoption.WithAPIKey(anthropicAPIKey))
+
+		stream, err = anthropicDataStream(ctx, anthropicClient, conversation)
+		if err != nil {
+			return "", xerrors.Errorf("create anthropic data stream: %w", err)
+		}
+	} else {
+		return fallback, nil
+	}
 
 	var acc aisdk.DataStreamAccumulator
 	stream = stream.WithAccumulator(&acc)
@@ -136,6 +132,20 @@ func (api *API) generateTaskName(ctx context.Context, prompt, fallback string) (
 	}
 
 	return acc.Messages()[0].Content, nil
+}
+
+func anthropicDataStream(ctx context.Context, client anthropic.Client, input []aisdk.Message) (aisdk.DataStream, error) {
+	messages, system, err := aisdk.MessagesToAnthropic(input)
+	if err != nil {
+		return nil, xerrors.Errorf("convert messages to anthropic format: %w", err)
+	}
+
+	return aisdk.AnthropicToDataStream(client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
+		Model:     anthropic.ModelClaude3_5HaikuLatest,
+		MaxTokens: 24,
+		System:    system,
+		Messages:  messages,
+	})), nil
 }
 
 // This endpoint is experimental and not guaranteed to be stable, so we're not
