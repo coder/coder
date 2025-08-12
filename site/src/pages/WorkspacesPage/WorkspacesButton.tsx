@@ -19,7 +19,7 @@ import type { UseQueryResult } from "react-query";
 import {
 	Link as RouterLink,
 	type LinkProps as RouterLinkProps,
-} from "react-router-dom";
+} from "react-router";
 
 type TemplatesQuery = UseQueryResult<Template[]>;
 

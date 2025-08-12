@@ -1,9 +1,11 @@
 package coderd_test
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -137,5 +139,127 @@ func TestAITasksPrompts(t *testing.T) {
 		prompts, err := experimentalClient.AITaskPrompts(ctx, []uuid.UUID{nonExistentID})
 		require.NoError(t, err)
 		require.Empty(t, prompts.Prompts)
+	})
+}
+
+func TestTaskCreate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx = testutil.Context(t, testutil.WaitShort)
+
+			taskName   = "task-foo-bar-baz"
+			taskPrompt = "Some task prompt"
+		)
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Given: A template with an "AI Prompt" parameter
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionPlan: []*proto.Response{
+				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+					Parameters: []*proto.RichParameter{{Name: "AI Prompt", Type: "string"}},
+					HasAiTasks: true,
+				}}},
+			},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		expClient := codersdk.NewExperimentalClient(client)
+
+		// When: We attempt to create a Task.
+		workspace, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+			Name:              taskName,
+			TemplateVersionID: template.ActiveVersionID,
+			Prompt:            taskPrompt,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// Then: We expect a workspace to have been created.
+		assert.Equal(t, taskName, workspace.Name)
+		assert.Equal(t, template.ID, workspace.TemplateID)
+
+		// And: We expect it to have the "AI Prompt" parameter correctly set.
+		parameters, err := client.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, parameters, 1)
+		assert.Equal(t, codersdk.AITaskPromptParameterName, parameters[0].Name)
+		assert.Equal(t, taskPrompt, parameters[0].Value)
+	})
+
+	t.Run("FailsOnNonTaskTemplate", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx = testutil.Context(t, testutil.WaitShort)
+
+			taskName   = "task-foo-bar-baz"
+			taskPrompt = "Some task prompt"
+		)
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Given: A template without an "AI Prompt" parameter
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		expClient := codersdk.NewExperimentalClient(client)
+
+		// When: We attempt to create a Task.
+		_, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+			Name:              taskName,
+			TemplateVersionID: template.ActiveVersionID,
+			Prompt:            taskPrompt,
+		})
+
+		// Then: We expect it to fail.
+		var sdkErr *codersdk.Error
+		require.Error(t, err)
+		require.ErrorAsf(t, err, &sdkErr, "error should be of type *codersdk.Error")
+		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("FailsOnInvalidTemplate", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx = testutil.Context(t, testutil.WaitShort)
+
+			taskName   = "task-foo-bar-baz"
+			taskPrompt = "Some task prompt"
+		)
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Given: A template
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		expClient := codersdk.NewExperimentalClient(client)
+
+		// When: We attempt to create a Task with an invalid template version ID.
+		_, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+			Name:              taskName,
+			TemplateVersionID: uuid.New(),
+			Prompt:            taskPrompt,
+		})
+
+		// Then: We expect it to fail.
+		var sdkErr *codersdk.Error
+		require.Error(t, err)
+		require.ErrorAsf(t, err, &sdkErr, "error should be of type *codersdk.Error")
+		assert.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 }

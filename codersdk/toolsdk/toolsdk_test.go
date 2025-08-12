@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"runtime"
 	"sort"
 	"sync"
 	"testing"
@@ -397,6 +398,9 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("WorkspaceSSHExec", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("WorkspaceSSHExec is not supported on Windows")
+		}
 		// Setup workspace exactly like main SSH tests
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 

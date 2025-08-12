@@ -1966,21 +1966,6 @@ func (mr *MockStoreMockRecorder) GetLatestWorkspaceBuildByWorkspaceID(ctx, works
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestWorkspaceBuildByWorkspaceID", reflect.TypeOf((*MockStore)(nil).GetLatestWorkspaceBuildByWorkspaceID), ctx, workspaceID)
 }
 
-// GetLatestWorkspaceBuilds mocks base method.
-func (m *MockStore) GetLatestWorkspaceBuilds(ctx context.Context) ([]database.WorkspaceBuild, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetLatestWorkspaceBuilds", ctx)
-	ret0, _ := ret[0].([]database.WorkspaceBuild)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetLatestWorkspaceBuilds indicates an expected call of GetLatestWorkspaceBuilds.
-func (mr *MockStoreMockRecorder) GetLatestWorkspaceBuilds(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestWorkspaceBuilds", reflect.TypeOf((*MockStore)(nil).GetLatestWorkspaceBuilds), ctx)
-}
-
 // GetLatestWorkspaceBuildsByWorkspaceIDs mocks base method.
 func (m *MockStore) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
 	m.ctrl.T.Helper()
@@ -3269,6 +3254,21 @@ func (m *MockStore) GetTemplateVersionByTemplateIDAndName(ctx context.Context, a
 func (mr *MockStoreMockRecorder) GetTemplateVersionByTemplateIDAndName(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateVersionByTemplateIDAndName", reflect.TypeOf((*MockStore)(nil).GetTemplateVersionByTemplateIDAndName), ctx, arg)
+}
+
+// GetTemplateVersionHasAITask mocks base method.
+func (m *MockStore) GetTemplateVersionHasAITask(ctx context.Context, id uuid.UUID) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateVersionHasAITask", ctx, id)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateVersionHasAITask indicates an expected call of GetTemplateVersionHasAITask.
+func (mr *MockStoreMockRecorder) GetTemplateVersionHasAITask(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateVersionHasAITask", reflect.TypeOf((*MockStore)(nil).GetTemplateVersionHasAITask), ctx, id)
 }
 
 // GetTemplateVersionParameters mocks base method.
