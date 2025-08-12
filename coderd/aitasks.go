@@ -99,7 +99,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	}
 	if !hasAITask {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: `Template does not have required parameter "` + codersdk.AITaskPromptParameterName + `"`,
+			Message: fmt.Sprintf(`Template does not have required parameter "%s"`, codersdk.AITaskPromptParameterName),
 		})
 		return
 	}
