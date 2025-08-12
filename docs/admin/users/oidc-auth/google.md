@@ -12,7 +12,7 @@ This guide shows how to configure Coder to authenticate users with Google using 
 1. Open Google Cloud Console → APIs & Services → Credentials → Create Credentials → OAuth client ID.
 2. Application type: Web application.
 3. Authorized redirect URIs: add your Coder callback URL:
-   - `https://coder.domain.com/api/v2/users/oidc/callback`
+   - `https://coder.example.com/api/v2/users/oidc/callback`
 4. Save and note the Client ID and Client secret.
 
 ## Step 2: Configure Coder OIDC for Google
