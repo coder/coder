@@ -393,6 +393,47 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
 }
 
+// WorkspaceAgentImmortalStreams returns a list of immortal streams for the given agent.
+func (c *Client) WorkspaceAgentImmortalStreams(ctx context.Context, agentID uuid.UUID) ([]ImmortalStream, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/immortal-streams", agentID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var streams []ImmortalStream
+	return streams, json.NewDecoder(res.Body).Decode(&streams)
+}
+
+// WorkspaceAgentCreateImmortalStream creates a new immortal stream for the given agent.
+func (c *Client) WorkspaceAgentCreateImmortalStream(ctx context.Context, agentID uuid.UUID, req CreateImmortalStreamRequest) (ImmortalStream, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/immortal-streams", agentID), req)
+	if err != nil {
+		return ImmortalStream{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return ImmortalStream{}, ReadBodyAsError(res)
+	}
+	var stream ImmortalStream
+	return stream, json.NewDecoder(res.Body).Decode(&stream)
+}
+
+// WorkspaceAgentDeleteImmortalStream deletes an immortal stream for the given agent.
+func (c *Client) WorkspaceAgentDeleteImmortalStream(ctx context.Context, agentID uuid.UUID, streamID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/workspaceagents/%s/immortal-streams/%s", agentID, streamID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // WorkspaceAgentDevcontainerStatus is the status of a devcontainer.
 type WorkspaceAgentDevcontainerStatus string
 
