@@ -3,6 +3,7 @@ package tailnet
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -795,6 +796,73 @@ func (c *Conn) forwardTCP(src, dst netip.AddrPort) (handler func(net.Conn), opts
 		}
 		_ = conn.Close()
 	}, opts, true
+}
+
+// DialInternalTCP attempts to connect to an in-process tailnet listener for the
+// given TCP destination port by using a net.Pipe and the internal forwardTCP
+// handler.
+//
+// The call blocks until the connection is delivered to the listener's accept
+// queue (or the context is done). It returns (conn, nil) if delivery succeeded.
+// It returns a non-nil error if the listener isn't present, delivery timed out
+// or closed, the tailnet connection is closed, or the context was canceled.
+func (c *Conn) DialInternalTCP(ctx context.Context, dstPort uint16) (net.Conn, error) {
+	// Fast-path: if the tailnet connection is closed, report closed.
+	select {
+	case <-c.closed:
+		return nil, ErrConnClosed
+	default:
+	}
+
+	// forwardTCP only inspects the destination port to route to a listener.
+	// Use an unspecified address for logging context.
+	unspec := netip.AddrFrom16([16]byte{})
+	// Look up the internal listener for this destination port.
+	handler, _, ok := c.forwardTCP(netip.AddrPortFrom(unspec, 0), netip.AddrPortFrom(unspec, dstPort))
+	if !ok || handler == nil {
+		return nil, xerrors.Errorf("tailnet: no internal listener for port %d", dstPort)
+	}
+
+	// Create an in-memory pipe and synchronously deliver the server end to the
+	// listener. We wait until delivery to mirror typical dial semantics where
+	// the dial completes when the connection is established. If delivery times
+	// out or the listener is closed, return nil.
+	server, client := net.Pipe()
+
+	// The forwardTCP handler uses a 1s timeout when delivering to the listener's
+	// accept channel. Call it synchronously so we only return once it's delivered
+	// (or definitively failed/closed). Also respect the provided context.
+	done := make(chan struct{})
+	go func() {
+		handler(server)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// If the handler returned, either delivery succeeded (listener Accept
+		// received the connection) or it timed out/closed the server. Check if
+		// the peer was closed by attempting a non-blocking read; a closed peer
+		// returns a non-timeout error, whereas a live connection with no data
+		// will return a timeout error. In the latter case, we assume success.
+		_ = client.SetReadDeadline(time.Now())
+		var probe [1]byte
+		if _, err := client.Read(probe[:]); err != nil {
+			var ne net.Error
+			if errors.As(err, &ne) && ne.Timeout() {
+				_ = client.SetReadDeadline(time.Time{})
+				return client, nil
+			}
+			_ = client.Close()
+			return nil, xerrors.Errorf("deliver to internal listener: %w", err)
+		}
+		// Unexpected: read returned data. Consider it established.
+		_ = client.SetReadDeadline(time.Time{})
+		return client, nil
+	case <-ctx.Done():
+		_ = client.Close()
+		return nil, ctx.Err()
+	}
 }
 
 // SetConnStatsCallback sets a callback to be called after maxPeriod or

@@ -44,50 +44,55 @@ func NewBackedReader(errorEventChan chan<- ErrorEvent) *BackedReader {
 // When connected, it reads from the underlying reader and updates sequence numbers.
 // Connection failures are automatically detected and reported to the higher layer via callback.
 func (br *BackedReader) Read(p []byte) (int, error) {
+	// Step 1: Wait until we have a reader or are closed
 	br.mu.Lock()
-	defer br.mu.Unlock()
-
-	for {
-		// Step 1: Wait until we have a reader or are closed
-		for br.reader == nil && !br.closed {
-			br.cond.Wait()
-		}
-
-		if br.closed {
-			return 0, io.EOF
-		}
-
-		// Step 2: Perform the read while holding the mutex
-		// This ensures proper synchronization with Reconnect and Close operations
-		n, err := br.reader.Read(p)
-		br.sequenceNum += uint64(n) // #nosec G115 -- n is always >= 0 per io.Reader contract
-
-		if err == nil {
-			return n, nil
-		}
-
-		// Mark reader as disconnected so future reads will wait for reconnection
-		br.reader = nil
-
-		// Notify parent of error with generation information
-		select {
-		case br.errorEventChan <- ErrorEvent{
-			Err:        err,
-			Component:  "reader",
-			Generation: br.currentGen,
-		}:
-		default:
-			// Channel is full, drop the error.
-			// This is not a problem, because we set the reader to nil
-			// and block until reconnected so no new errors will be sent
-			// until pipe processes the error and reconnects.
-		}
-
-		// If we got some data before the error, return it now
-		if n > 0 {
-			return n, nil
-		}
+	for br.reader == nil && !br.closed {
+		br.cond.Wait()
 	}
+
+	if br.closed {
+		br.mu.Unlock()
+		return 0, io.EOF
+	}
+
+	// Snapshot the reader and current generation, then release the lock
+	// before performing a potentially blocking Read.
+	r := br.reader
+	gen := br.currentGen
+	br.mu.Unlock()
+
+	// Step 2: Perform the read without holding the mutex to avoid blocking
+	// other operations such as Connected() checks.
+	n, err := r.Read(p)
+
+	// Step 3: Update state and handle errors
+	br.mu.Lock()
+	br.sequenceNum += uint64(n) // #nosec G115 -- n is always >= 0 per io.Reader contract
+	if err == nil {
+		br.mu.Unlock()
+		return n, nil
+	}
+
+	// Mark reader as disconnected so future reads will wait for reconnection
+	br.reader = nil
+	br.mu.Unlock()
+
+	// Notify parent of error with generation information (non-blocking)
+	select {
+	case br.errorEventChan <- ErrorEvent{
+		Err:        err,
+		Component:  "reader",
+		Generation: gen,
+	}:
+	default:
+		// Channel is full, drop the error.
+	}
+
+	// If we got some data before the error, return it now
+	if n > 0 {
+		return n, nil
+	}
+	return 0, err
 }
 
 // Reconnect coordinates reconnection using channels for better synchronization.
