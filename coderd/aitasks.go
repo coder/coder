@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -75,10 +76,10 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		ctx     = r.Context()
 		apiKey  = httpmw.APIKey(r)
 		auditor = api.Auditor.Load()
-		member  = httpmw.OrganizationMemberParam(r)
+		mems    = httpmw.OrganizationMembersParam(r)
 	)
 
-	var req codersdk.CreateAITasksRequest
+	var req codersdk.CreateTaskRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -112,10 +113,49 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	owner := workspaceOwner{
-		ID:        member.UserID,
-		Username:  member.Username,
-		AvatarURL: member.AvatarURL,
+	var owner workspaceOwner
+	if mems.User != nil {
+		// This user fetch is an optimization path for the most common case of creating a
+		// task for 'Me'.
+		//
+		// This is also required to allow `owners` to create workspaces for users
+		// that are not in an organization.
+		owner = workspaceOwner{
+			ID:        mems.User.ID,
+			Username:  mems.User.Username,
+			AvatarURL: mems.User.AvatarURL,
+		}
+	} else {
+		// A task can still be created if the caller can read the organization
+		// member. The organization is required, which can be sourced from the
+		// template.
+		//
+		// TODO: This code gets called twice for each workspace build request.
+		//   This is inefficient and costs at most 2 extra RTTs to the DB.
+		//   This can be optimized. It exists as it is now for code simplicity.
+		//   The most common case is to create a workspace for 'Me'. Which does
+		//   not enter this code branch.
+		template, ok := requestTemplate(ctx, rw, createReq, api.Database)
+		if !ok {
+			return
+		}
+
+		// If the caller can find the organization membership in the same org
+		// as the template, then they can continue.
+		orgIndex := slices.IndexFunc(mems.Memberships, func(mem httpmw.OrganizationMember) bool {
+			return mem.OrganizationID == template.OrganizationID
+		})
+		if orgIndex == -1 {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+
+		member := mems.Memberships[orgIndex]
+		owner = workspaceOwner{
+			ID:        member.UserID,
+			Username:  member.Username,
+			AvatarURL: member.AvatarURL,
+		}
 	}
 
 	aReq, commitAudit := audit.InitRequest[database.WorkspaceTable](rw, &audit.RequestParams{

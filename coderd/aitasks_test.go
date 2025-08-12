@@ -142,7 +142,7 @@ func TestAITasksPrompts(t *testing.T) {
 	})
 }
 
-func TestAITasksCreate(t *testing.T) {
+func TestTaskCreate(t *testing.T) {
 	t.Parallel()
 
 	t.Run("OK", func(t *testing.T) {
@@ -175,7 +175,7 @@ func TestAITasksCreate(t *testing.T) {
 		expClient := codersdk.NewExperimentalClient(client)
 
 		// When: We attempt to create a Task.
-		workspace, err := expClient.AITasksCreate(ctx, codersdk.CreateAITasksRequest{
+		workspace, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
 			Name:              taskName,
 			TemplateVersionID: template.ActiveVersionID,
 			Prompt:            taskPrompt,
@@ -216,7 +216,7 @@ func TestAITasksCreate(t *testing.T) {
 		expClient := codersdk.NewExperimentalClient(client)
 
 		// When: We attempt to create a Task.
-		_, err := expClient.AITasksCreate(ctx, codersdk.CreateAITasksRequest{
+		_, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
 			Name:              taskName,
 			TemplateVersionID: template.ActiveVersionID,
 			Prompt:            taskPrompt,
@@ -250,7 +250,7 @@ func TestAITasksCreate(t *testing.T) {
 		expClient := codersdk.NewExperimentalClient(client)
 
 		// When: We attempt to create a Task with an invalid template version ID.
-		_, err := expClient.AITasksCreate(ctx, codersdk.CreateAITasksRequest{
+		_, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
 			Name:              taskName,
 			TemplateVersionID: uuid.New(),
 			Prompt:            taskPrompt,

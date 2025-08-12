@@ -2666,11 +2666,12 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
-	createAITask = async (
-		req: TypesGen.CreateAITasksRequest,
+	createTask = async (
+		user: string,
+		req: TypesGen.CreateTaskRequest,
 	): Promise<TypesGen.Workspace> => {
 		const response = await this.axios.post<TypesGen.Workspace>(
-			"/api/experimental/aitasks",
+			`/api/experimental/tasks/${user}`,
 			req,
 		);
 

@@ -998,7 +998,11 @@ func New(options *Options) *API {
 		r.Route("/tasks", func(r chi.Router) {
 			r.Use(apiRateLimiter)
 
-			r.Post("/{user}", api.tasksCreate)
+			r.Route("/{user}", func(r chi.Router) {
+				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+
+				r.Post("/", api.tasksCreate)
+			})
 		})
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(

@@ -422,14 +422,6 @@ export interface ConvertLoginRequest {
 	readonly password: string;
 }
 
-// From codersdk/aitasks.go
-export interface CreateAITasksRequest {
-	readonly name: string;
-	readonly template_version_id: string;
-	readonly template_version_preset_id?: string;
-	readonly prompt: string;
-}
-
 // From codersdk/users.go
 export interface CreateFirstUserRequest {
 	readonly email: string;
@@ -482,6 +474,14 @@ export interface CreateProvisionerKeyRequest {
 // From codersdk/provisionerdaemons.go
 export interface CreateProvisionerKeyResponse {
 	readonly key: string;
+}
+
+// From codersdk/aitasks.go
+export interface CreateTaskRequest {
+	readonly name: string;
+	readonly template_version_id: string;
+	readonly template_version_preset_id?: string;
+	readonly prompt: string;
 }
 
 // From codersdk/organizations.go
