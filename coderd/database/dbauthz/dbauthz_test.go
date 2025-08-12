@@ -512,9 +512,8 @@ func (s *MethodTestSuite) TestGroup() {
 	s.Run("UpdateGroupByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		g := testutil.Fake(s.T(), faker, database.Group{})
 		arg := database.UpdateGroupByIDParams{ID: g.ID}
-		ret := testutil.Fake(s.T(), faker, database.Group{ID: g.ID})
 		dbm.EXPECT().GetGroupByID(gomock.Any(), g.ID).Return(g, nil).AnyTimes()
-		dbm.EXPECT().UpdateGroupByID(gomock.Any(), arg).Return(ret, nil).AnyTimes()
+		dbm.EXPECT().UpdateGroupByID(gomock.Any(), arg).Return(g, nil).AnyTimes()
 		check.Args(arg).Asserts(g, policy.ActionUpdate)
 	}))
 
