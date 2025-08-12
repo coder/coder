@@ -15,6 +15,7 @@ func getAnthropicErrorResponse(err error) *AnthropicErrorResponse {
 	}
 
 	msg := apierr.Error()
+	typ := string(ant_constant.ValueOf[ant_constant.APIError]())
 
 	var detail *anthropic.BetaAPIError
 	if field, ok := apierr.JSON.ExtraFields["error"]; ok {
@@ -22,13 +23,14 @@ func getAnthropicErrorResponse(err error) *AnthropicErrorResponse {
 	}
 	if detail != nil {
 		msg = detail.Message
+		typ = string(detail.Type)
 	}
 
 	return &AnthropicErrorResponse{
 		BetaErrorResponse: &anthropic.BetaErrorResponse{
 			Error: anthropic.BetaErrorUnion{
 				Message: msg,
-				Type:    string(detail.Type),
+				Type:    typ,
 			},
 			Type: ant_constant.ValueOf[ant_constant.Error](),
 		},
