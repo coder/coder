@@ -741,13 +741,11 @@ export const data = {
 			}
 		}
 
-		const workspace = await API.createWorkspace(userId, {
+		const workspace = await API.experimental.createTask(userId, {
 			name: `task-${generateWorkspaceName()}`,
 			template_version_id: templateVersionId,
 			template_version_preset_id: preset_id || undefined,
-			rich_parameter_values: [
-				{ name: AI_PROMPT_PARAMETER_NAME, value: prompt },
-			],
+			prompt,
 		});
 
 		return {
