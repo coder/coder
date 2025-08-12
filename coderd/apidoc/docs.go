@@ -9098,6 +9098,129 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/{workspaceagent}/immortal-streams": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get workspace agent immortal streams",
+                "operationId": "get-workspace-agent-immortal-streams",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ImmortalStream"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Create workspace agent immortal stream",
+                "operationId": "create-workspace-agent-immortal-stream",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create immortal stream request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateImmortalStreamRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ImmortalStream"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceagents/{workspaceagent}/immortal-streams/{immortalstream}": {
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Delete workspace agent immortal stream",
+                "operationId": "delete-workspace-agent-immortal-stream",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Immortal stream ID",
+                        "name": "immortalstream",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/{workspaceagent}/listening-ports": {
             "get": {
                 "security": [
@@ -12387,6 +12510,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateImmortalStreamRequest": {
+            "type": "object",
+            "properties": {
+                "tcp_port": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.CreateOrganizationRequest": {
             "type": "object",
             "required": [
@@ -14002,6 +14133,33 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "threshold_database": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.ImmortalStream": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "last_connection_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "last_disconnection_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "tcp_port": {
                     "type": "integer"
                 }
             }

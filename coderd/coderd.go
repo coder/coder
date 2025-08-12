@@ -1417,6 +1417,11 @@ func New(options *Options) *API {
 				r.Get("/containers/watch", api.watchWorkspaceAgentContainers)
 				r.Post("/containers/devcontainers/{devcontainer}/recreate", api.workspaceAgentRecreateDevcontainer)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
+				r.Route("/immortal-streams", func(r chi.Router) {
+					r.Get("/", api.workspaceAgentImmortalStreams)
+					r.Post("/", api.workspaceAgentCreateImmortalStream)
+					r.Delete("/{immortalstream}", api.workspaceAgentDeleteImmortalStream)
+				})
 
 				// PTY is part of workspaceAppServer.
 			})

@@ -81,6 +81,21 @@ func (mr *MockAgentConnMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockAgentConn)(nil).Close))
 }
 
+// CreateImmortalStream mocks base method.
+func (m *MockAgentConn) CreateImmortalStream(ctx context.Context, req codersdk.CreateImmortalStreamRequest) (codersdk.ImmortalStream, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateImmortalStream", ctx, req)
+	ret0, _ := ret[0].(codersdk.ImmortalStream)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateImmortalStream indicates an expected call of CreateImmortalStream.
+func (mr *MockAgentConnMockRecorder) CreateImmortalStream(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateImmortalStream", reflect.TypeOf((*MockAgentConn)(nil).CreateImmortalStream), ctx, req)
+}
+
 // DebugLogs mocks base method.
 func (m *MockAgentConn) DebugLogs(ctx context.Context) ([]byte, error) {
 	m.ctrl.T.Helper()
@@ -126,6 +141,20 @@ func (mr *MockAgentConnMockRecorder) DebugManifest(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugManifest", reflect.TypeOf((*MockAgentConn)(nil).DebugManifest), ctx)
 }
 
+// DeleteImmortalStream mocks base method.
+func (m *MockAgentConn) DeleteImmortalStream(ctx context.Context, streamID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteImmortalStream", ctx, streamID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteImmortalStream indicates an expected call of DeleteImmortalStream.
+func (mr *MockAgentConnMockRecorder) DeleteImmortalStream(ctx, streamID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteImmortalStream", reflect.TypeOf((*MockAgentConn)(nil).DeleteImmortalStream), ctx, streamID)
+}
+
 // DialContext mocks base method.
 func (m *MockAgentConn) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	m.ctrl.T.Helper()
@@ -167,6 +196,21 @@ func (m *MockAgentConn) GetPeerDiagnostics() tailnet.PeerDiagnostics {
 func (mr *MockAgentConnMockRecorder) GetPeerDiagnostics() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPeerDiagnostics", reflect.TypeOf((*MockAgentConn)(nil).GetPeerDiagnostics))
+}
+
+// ImmortalStreams mocks base method.
+func (m *MockAgentConn) ImmortalStreams(ctx context.Context) ([]codersdk.ImmortalStream, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ImmortalStreams", ctx)
+	ret0, _ := ret[0].([]codersdk.ImmortalStream)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ImmortalStreams indicates an expected call of ImmortalStreams.
+func (mr *MockAgentConnMockRecorder) ImmortalStreams(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ImmortalStreams", reflect.TypeOf((*MockAgentConn)(nil).ImmortalStreams), ctx)
 }
 
 // LS mocks base method.

@@ -71,6 +71,11 @@ type AgentConn interface {
 	SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn, error)
 	Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error)
 	WatchContainers(ctx context.Context, logger slog.Logger) (<-chan codersdk.WorkspaceAgentListContainersResponse, io.Closer, error)
+
+	// Agent HTTP API: Immortal Streams
+	ImmortalStreams(ctx context.Context) ([]codersdk.ImmortalStream, error)
+	CreateImmortalStream(ctx context.Context, req codersdk.CreateImmortalStreamRequest) (codersdk.ImmortalStream, error)
+	DeleteImmortalStream(ctx context.Context, streamID uuid.UUID) error
 }
 
 // AgentConn represents a connection to a workspace agent.
@@ -315,6 +320,74 @@ func (c *agentConn) ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgent
 
 	var resp codersdk.WorkspaceAgentListeningPortsResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ImmortalStreams lists the immortal streams that are currently active in the workspace.
+func (c *agentConn) ImmortalStreams(ctx context.Context) ([]codersdk.ImmortalStream, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/immortal-stream", nil)
+	if err != nil {
+		return nil, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, codersdk.ReadBodyAsError(res)
+	}
+
+	var streams []codersdk.ImmortalStream
+	return streams, json.NewDecoder(res.Body).Decode(&streams)
+}
+
+// CreateImmortalStream creates a new immortal stream to the specified port.
+func (c *agentConn) CreateImmortalStream(ctx context.Context, req codersdk.CreateImmortalStreamRequest) (codersdk.ImmortalStream, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	// Note: We can't easily add logging here since AgentConn doesn't have a logger
+	// But we can add some debug info to the error messages
+
+	reqBody, err := json.Marshal(req)
+	if err != nil {
+		return codersdk.ImmortalStream{}, xerrors.Errorf("marshal request: %w", err)
+	}
+
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/immortal-stream", bytes.NewReader(reqBody))
+	if err != nil {
+		return codersdk.ImmortalStream{}, xerrors.Errorf("do request to agent /api/v0/immortal-stream: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusCreated {
+		bodyErr := codersdk.ReadBodyAsError(res)
+		return codersdk.ImmortalStream{}, xerrors.Errorf("agent responded with status %d: %w", res.StatusCode, bodyErr)
+	}
+
+	var stream codersdk.ImmortalStream
+	err = json.NewDecoder(res.Body).Decode(&stream)
+	if err != nil {
+		return codersdk.ImmortalStream{}, xerrors.Errorf("decode response: %w", err)
+	}
+	return stream, nil
+}
+
+// DeleteImmortalStream deletes an immortal stream by ID.
+func (c *agentConn) DeleteImmortalStream(ctx context.Context, streamID uuid.UUID) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	path := fmt.Sprintf("/api/v0/immortal-stream/%s", streamID)
+	res, err := c.apiRequest(ctx, http.MethodDelete, path, nil)
+	if err != nil {
+		return xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return codersdk.ReadBodyAsError(res)
+	}
+
+	return nil
 }
 
 // Netcheck returns a network check report from the workspace agent.
