@@ -15,6 +15,6 @@ indent_size = 2
 indent_style = space
 indent_size = 2
 
-[coderd/database/dump.sql]
+[*.sql]
 indent_style = space
 indent_size = 4
