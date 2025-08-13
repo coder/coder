@@ -43,7 +43,7 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "sensitive_values": {
-            "token": true
+            "agent_id": true
           }
         }
       ]
@@ -108,12 +108,12 @@
         "before": null,
         "after": {},
         "after_unknown": {
-          "id": true,
-          "token": true
+          "agent_id": true,
+          "id": true
         },
         "before_sensitive": false,
         "after_sensitive": {
-          "token": true
+          "agent_id": true
         }
       }
     }
@@ -226,7 +226,7 @@
           "name": "dev1",
           "provider_config_key": "coder",
           "expressions": {
-            "token": {
+            "agent_id": {
               "references": [
                 "coder_agent.dev1.token",
                 "coder_agent.dev1"

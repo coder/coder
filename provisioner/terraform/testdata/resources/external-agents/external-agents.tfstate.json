@@ -122,11 +122,11 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "id": "4d87dd70-879c-4347-b0c1-b8f3587d1021",
-            "token": "d054c66b-cc5c-41ae-aa0c-2098a1075272"
+            "agent_id": "d054c66b-cc5c-41ae-aa0c-2098a1075272",
+            "id": "4d87dd70-879c-4347-b0c1-b8f3587d1021"
           },
           "sensitive_values": {
-            "token": true
+            "agent_id": true
           },
           "depends_on": [
             "coder_agent.dev1"

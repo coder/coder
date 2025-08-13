@@ -17,5 +17,5 @@ resource "coder_agent" "dev1" {
 }
 
 resource "coder_external_agent" "dev1" {
-  token = coder_agent.dev1.token
+  agent_id = coder_agent.dev1.token
 }
