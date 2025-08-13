@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
 import HubOutlined from "@mui/icons-material/HubOutlined";
 import AlertTitle from "@mui/material/AlertTitle";
@@ -23,7 +22,6 @@ import {
 } from "./WorkspaceBuildProgress";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
-import { height } from "@mui/system";
 
 interface WorkspaceProps {
 	workspace: TypesGen.Workspace;
@@ -68,7 +66,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 	handleDebug,
 }) => {
 	const navigate = useNavigate();
-	const theme = useTheme();
 
 	const transitionStats =
 		template !== undefined ? ActiveTransition(template, workspace) : undefined;

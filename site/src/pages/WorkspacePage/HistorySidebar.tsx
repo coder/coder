@@ -63,4 +63,3 @@ export const HistorySidebar: FC<HistorySidebarProps> = ({ workspace }) => {
 		</Sidebar>
 	);
 };
-
