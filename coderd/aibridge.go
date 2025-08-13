@@ -11,8 +11,9 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/aibridge"
-	"github.com/coder/aibridge/proto"
 	"github.com/coder/coder/v2/aibridged"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
@@ -51,11 +52,20 @@ func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key, ok := r.Context().Value(aibridge.ContextKeyBridgeAPIKey{}).(string)
+	key, ok := r.Context().Value(aibridged.ContextKeyBridgeAPIKey{}).(string)
 	if key == "" || !ok {
 		http.Error(rw, "unable to retrieve request session key", http.StatusBadRequest)
 		return
 	}
+
+	userID, ok := r.Context().Value(aibridged.ContextKeyBridgeUserID{}).(uuid.UUID)
+	if !ok {
+		api.Logger.Error(r.Context(), "missing initiator ID in context")
+		http.Error(rw, "unable to retrieve initiator", http.StatusInternalServerError)
+		return
+	}
+
+	r.Header.Set(aibridge.InitiatorHeaderKey, userID.String())
 
 	bridge, err := api.createOrLoadBridgeForAPIKey(ctx, key, server.Client)
 	if err != nil {
@@ -66,7 +76,7 @@ func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 	http.StripPrefix("/api/v2/aibridge", bridge.Handler()).ServeHTTP(rw, r)
 }
 
-func (api *API) createOrLoadBridgeForAPIKey(ctx context.Context, key string, clientFn func() (proto.DRPCStoreClient, error)) (*aibridge.Bridge, error) {
+func (api *API) createOrLoadBridgeForAPIKey(ctx context.Context, key string, apiClientFn func() (aibridge.APIClient, error)) (*aibridge.Bridge, error) {
 	if api.AIBridges == nil {
 		return nil, xerrors.New("bridge cache storage is not configured")
 	}
@@ -91,7 +101,7 @@ func (api *API) createOrLoadBridgeForAPIKey(ctx context.Context, key string, cli
 			aibridge.ProviderOpenAI:    aibridge.NewOpenAIProvider(api.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(), api.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String()),
 			aibridge.ProviderAnthropic: aibridge.NewAnthropicMessagesProvider(api.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(), api.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String()),
 		}
-		bridge, err := aibridge.NewBridge(registry, api.Logger.Named("ai_bridge"), clientFn, tools)
+		bridge, err := aibridge.NewBridge(registry, api.Logger.Named("ai_bridge"), apiClientFn, tools)
 		if err != nil {
 			return nil, xerrors.Errorf("create new bridge server: %w", err)
 		}

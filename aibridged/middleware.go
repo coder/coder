@@ -6,7 +6,6 @@ import (
 	"crypto/subtle"
 	"net/http"
 
-	"github.com/coder/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpmw"
 )
@@ -37,8 +36,8 @@ func AuthMiddleware(db database.Store) func(http.Handler) http.Handler {
 			}
 
 			ctx = context.WithValue(
-				context.WithValue(ctx, aibridge.ContextKeyBridgeUserID{}, key.UserID),
-				aibridge.ContextKeyBridgeAPIKey{}, token)
+				context.WithValue(ctx, ContextKeyBridgeUserID{}, key.UserID),
+				ContextKeyBridgeAPIKey{}, token)
 
 			// Pass request with modify context including the request token.
 			next.ServeHTTP(rw, r.WithContext(ctx))

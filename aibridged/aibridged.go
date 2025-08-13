@@ -15,15 +15,16 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/retry"
 
+	"github.com/coder/aibridge"
 	"github.com/coder/aibridge/proto"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-type Dialer func(ctx context.Context) (proto.DRPCStoreClient, error)
+type Dialer func(ctx context.Context) (aibridge.APIClient, error)
 
 type Server struct {
 	clientDialer Dialer
-	clientCh     chan proto.DRPCStoreClient
+	clientCh     chan aibridge.APIClient
 
 	logger slog.Logger
 	wg     sync.WaitGroup
@@ -50,7 +51,7 @@ type Server struct {
 	shuttingDownCh chan struct{}
 }
 
-var _ proto.DRPCStoreServer = &Server{}
+var _ aibridge.APIServer = &Server{}
 
 func New(rpcDialer Dialer, logger slog.Logger) (*Server, error) {
 	if rpcDialer == nil {
@@ -61,7 +62,7 @@ func New(rpcDialer Dialer, logger slog.Logger) (*Server, error) {
 	daemon := &Server{
 		logger:           logger,
 		clientDialer:     rpcDialer,
-		clientCh:         make(chan proto.DRPCStoreClient),
+		clientCh:         make(chan aibridge.APIClient),
 		closeContext:     ctx,
 		closeCancel:      cancel,
 		closedCh:         make(chan struct{}),
@@ -137,7 +138,7 @@ connectLoop:
 	}
 }
 
-func (s *Server) Client() (proto.DRPCStoreClient, error) {
+func (s *Server) Client() (aibridge.APIClient, error) {
 	select {
 	case <-s.closeContext.Done():
 		return nil, xerrors.New("context closed")
@@ -150,7 +151,7 @@ func (s *Server) Client() (proto.DRPCStoreClient, error) {
 }
 
 func (s *Server) StoreSession(ctx context.Context, in *proto.StoreSessionRequest) (*proto.StoreSessionResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCStoreClient) (*proto.StoreSessionResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client aibridge.APIClient) (*proto.StoreSessionResponse, error) {
 		return client.StoreSession(ctx, in)
 	})
 	if err != nil {
@@ -160,7 +161,7 @@ func (s *Server) StoreSession(ctx context.Context, in *proto.StoreSessionRequest
 }
 
 func (s *Server) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageRequest) (*proto.TrackTokenUsageResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCStoreClient) (*proto.TrackTokenUsageResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client aibridge.APIClient) (*proto.TrackTokenUsageResponse, error) {
 		return client.TrackTokenUsage(ctx, in)
 	})
 	if err != nil {
@@ -170,7 +171,7 @@ func (s *Server) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageR
 }
 
 func (s *Server) TrackUserPrompt(ctx context.Context, in *proto.TrackUserPromptRequest) (*proto.TrackUserPromptResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCStoreClient) (*proto.TrackUserPromptResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client aibridge.APIClient) (*proto.TrackUserPromptResponse, error) {
 		return client.TrackUserPrompt(ctx, in)
 	})
 	if err != nil {
@@ -180,7 +181,7 @@ func (s *Server) TrackUserPrompt(ctx context.Context, in *proto.TrackUserPromptR
 }
 
 func (s *Server) TrackToolUsage(ctx context.Context, in *proto.TrackToolUsageRequest) (*proto.TrackToolUsageResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCStoreClient) (*proto.TrackToolUsageResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client aibridge.APIClient) (*proto.TrackToolUsageResponse, error) {
 		return client.TrackToolUsage(ctx, in)
 	})
 	if err != nil {
@@ -202,8 +203,8 @@ func retryable(err error) bool {
 // expires.
 // NOTE: mostly copypasta from provisionerd; might be work abstracting.
 func clientDoWithRetries[T any](ctx context.Context,
-	getClient func() (proto.DRPCStoreClient, error),
-	f func(context.Context, proto.DRPCStoreClient) (T, error),
+	getClient func() (aibridge.APIClient, error),
+	f func(context.Context, aibridge.APIClient) (T, error),
 ) (ret T, _ error) {
 	for retrier := retry.New(25*time.Millisecond, 5*time.Second); retrier.Wait(ctx); {
 		var empty T
