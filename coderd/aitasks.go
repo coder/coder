@@ -85,16 +85,14 @@ func (api *API) generateTaskName(ctx context.Context, prompt, fallback string) (
 			Role: "system",
 			Parts: []aisdk.Part{{
 				Type: aisdk.PartTypeText,
-				Text: `
-					You are a task summarizer.
-					You summarize AI prompts into workspace names.
-					You will only respond with a workspace name.
-					The workspace name **MUST** follow this regex /^[a-z0-9]+(?:-[a-z0-9]+)*$/
-					The workspace name **MUST** be 32 characters or **LESS**.
-					The workspace name **MUST** be all lower case.
-					The workspace name **MUST** end in a number between 0 and 100.
-					The workspace name **MUST** be prefixed with "task".
-				`,
+				Text: `You are a task summarizer.
+You summarize AI prompts into workspace names.
+You will only respond with a workspace name.
+The workspace name **MUST** follow this regex /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+The workspace name **MUST** be 32 characters or **LESS**.
+The workspace name **MUST** be all lower case.
+The workspace name **MUST** end in a number between 0 and 100.
+The workspace name **MUST** be prefixed with "task".`,
 			}},
 		},
 		{
