@@ -1,7 +1,6 @@
 package backedpipe
 
 import (
-	"context"
 	"io"
 	"sync"
 
@@ -9,39 +8,42 @@ import (
 )
 
 // BackedWriter wraps an unreliable io.Writer and makes it resilient to disconnections.
-// It maintains a ring buffer of recent writes for replay during reconnection and
-// always writes to the buffer even when disconnected.
+// It maintains a ring buffer of recent writes for replay during reconnection.
 type BackedWriter struct {
 	mu          sync.Mutex
 	cond        *sync.Cond
 	writer      io.Writer
-	buffer      *RingBuffer
+	buffer      *ringBuffer
 	sequenceNum uint64 // total bytes written
 	closed      bool
 
-	// Error callback to notify parent when connection fails
-	onError func(error)
+	// Error channel to notify parent when connection fails
+	errorChan chan<- error
 }
 
-// NewBackedWriter creates a new BackedWriter with a 64MB ring buffer.
-// The writer is initially disconnected and will buffer writes until connected.
-func NewBackedWriter() *BackedWriter {
-	return NewBackedWriterWithCapacity(64 * 1024 * 1024)
-}
-
-// NewBackedWriterWithCapacity creates a new BackedWriter with the specified buffer capacity.
-// The writer is initially disconnected and will buffer writes until connected.
-func NewBackedWriterWithCapacity(capacity int) *BackedWriter {
+// NewBackedWriter creates a new BackedWriter with the specified buffer capacity.
+// The writer is initially disconnected and will block writes until connected.
+// The errorChan is required and will receive connection errors.
+// Capacity must be > 0.
+func NewBackedWriter(capacity int, errorChan chan<- error) *BackedWriter {
+	if capacity <= 0 {
+		panic("backed writer capacity must be > 0")
+	}
+	if errorChan == nil {
+		panic("error channel cannot be nil")
+	}
 	bw := &BackedWriter{
-		buffer: NewRingBufferWithCapacity(capacity),
+		buffer:    newRingBuffer(capacity),
+		errorChan: errorChan,
 	}
 	bw.cond = sync.NewCond(&bw.mu)
 	return bw
 }
 
-// Write implements io.Writer. It always writes to the ring buffer, even when disconnected.
-// When connected, it also writes to the underlying writer. If the underlying write fails,
-// the writer is marked as disconnected but the buffer write still succeeds.
+// Write implements io.Writer.
+// When connected, it writes to both the ring buffer and the underlying writer.
+// If the underlying write fails, the writer is marked as disconnected and the write blocks
+// until reconnection occurs.
 func (bw *BackedWriter) Write(p []byte) (int, error) {
 	if len(p) == 0 {
 		return 0, nil
@@ -54,34 +56,47 @@ func (bw *BackedWriter) Write(p []byte) (int, error) {
 		return 0, io.ErrClosedPipe
 	}
 
-	// Always write to buffer first
-	written, _ := bw.buffer.Write(p)
-	//nolint:gosec // Safe conversion: written is always non-negative from buffer.Write
-	bw.sequenceNum += uint64(written)
-
-	// If connected, also write to underlying writer
-	if bw.writer != nil {
-		// Unlock during actual write to avoid blocking other operations
-		bw.mu.Unlock()
-		n, err := bw.writer.Write(p)
-		bw.mu.Lock()
-
-		if n != len(p) {
-			err = xerrors.Errorf("partial write: wrote %d of %d bytes", n, len(p))
-		}
-
-		if err != nil {
-			// Connection failed, mark as disconnected
-			bw.writer = nil
-
-			// Notify parent of error if callback is set
-			if bw.onError != nil {
-				bw.onError(err)
-			}
-		}
+	// Block until connected
+	for bw.writer == nil && !bw.closed {
+		bw.cond.Wait()
 	}
 
-	return written, nil
+	// Check if we were closed while waiting
+	if bw.closed {
+		return 0, io.ErrClosedPipe
+	}
+
+	// Always write to buffer first
+	bw.buffer.Write(p)
+	// Always advance sequence number by the full length
+	bw.sequenceNum += uint64(len(p))
+
+	// Write to underlying writer
+	n, err := bw.writer.Write(p)
+
+	if err != nil {
+		// Connection failed, mark as disconnected
+		bw.writer = nil
+
+		// Notify parent of error
+		select {
+		case bw.errorChan <- err:
+		default:
+		}
+		return 0, err
+	}
+
+	if n != len(p) {
+		bw.writer = nil
+		err = xerrors.Errorf("short write: %d bytes written, %d expected", n, len(p))
+		select {
+		case bw.errorChan <- err:
+		default:
+		}
+		return 0, err
+	}
+
+	return len(p), nil
 }
 
 // Reconnect replaces the current writer with a new one and replays data from the specified
@@ -123,25 +138,30 @@ func (bw *BackedWriter) Reconnect(replayFromSeq uint64, newWriter io.Writer) err
 		}
 	}
 
-	// Set new writer
-	bw.writer = newWriter
+	// Clear the current writer first in case replay fails
+	bw.writer = nil
 
-	// Replay data if needed
+	// Replay data if needed. We keep the writer as nil during replay to ensure
+	// no concurrent writes can happen, then set it only after successful replay.
 	if len(replayData) > 0 {
 		bw.mu.Unlock()
 		n, err := newWriter.Write(replayData)
 		bw.mu.Lock()
 
 		if err != nil {
-			bw.writer = nil
+			// Reconnect failed, writer remains nil
 			return xerrors.Errorf("replay failed: %w", err)
 		}
 
 		if n != len(replayData) {
-			bw.writer = nil
+			// Reconnect failed, writer remains nil
 			return xerrors.Errorf("partial replay: wrote %d of %d bytes", n, len(replayData))
 		}
 	}
+
+	// Set new writer only after successful replay. This ensures no concurrent
+	// writes can interfere with the replay operation.
+	bw.writer = newWriter
 
 	// Wake up any operations waiting for connection
 	bw.cond.Broadcast()
@@ -170,14 +190,6 @@ func (bw *BackedWriter) Close() error {
 	return nil
 }
 
-// SetErrorCallback sets the callback function that will be called when
-// a connection error occurs.
-func (bw *BackedWriter) SetErrorCallback(fn func(error)) {
-	bw.mu.Lock()
-	defer bw.mu.Unlock()
-	bw.onError = fn
-}
-
 // SequenceNum returns the current sequence number (total bytes written).
 func (bw *BackedWriter) SequenceNum() uint64 {
 	bw.mu.Lock()
@@ -190,55 +202,4 @@ func (bw *BackedWriter) Connected() bool {
 	bw.mu.Lock()
 	defer bw.mu.Unlock()
 	return bw.writer != nil
-}
-
-// CanReplayFrom returns true if the writer can replay data from the given sequence number.
-func (bw *BackedWriter) CanReplayFrom(seqNum uint64) bool {
-	bw.mu.Lock()
-	defer bw.mu.Unlock()
-	return seqNum <= bw.sequenceNum && bw.sequenceNum-seqNum <= DefaultBufferSize
-}
-
-// WaitForConnection blocks until the writer is connected or the context is canceled.
-func (bw *BackedWriter) WaitForConnection(ctx context.Context) error {
-	bw.mu.Lock()
-	defer bw.mu.Unlock()
-
-	return bw.waitForConnectionLocked(ctx)
-}
-
-// waitForConnectionLocked waits for connection with lock held.
-func (bw *BackedWriter) waitForConnectionLocked(ctx context.Context) error {
-	for bw.writer == nil && !bw.closed {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			// Use a timeout to avoid infinite waiting
-			done := make(chan struct{})
-			go func() {
-				select {
-				case <-ctx.Done():
-					bw.cond.Broadcast()
-				case <-done:
-				}
-			}()
-
-			bw.cond.Wait()
-			close(done)
-
-			// Check context again after waking up
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
-		}
-	}
-
-	if bw.closed {
-		return io.ErrClosedPipe
-	}
-
-	return nil
 }

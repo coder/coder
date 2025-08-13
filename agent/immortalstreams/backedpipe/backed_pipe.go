@@ -4,14 +4,13 @@ import (
 	"context"
 	"io"
 	"sync"
-	"time"
 
 	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 )
 
 const (
-	// DefaultBufferSize is the default buffer size for the BackedWriter (64MB)
+	// Default buffer capacity used by the writer - 64MB
 	DefaultBufferSize = 64 * 1024 * 1024
 )
 
@@ -60,25 +59,19 @@ type BackedPipe struct {
 func NewBackedPipe(ctx context.Context, reconnectFn ReconnectFunc) *BackedPipe {
 	pipeCtx, cancel := context.WithCancel(ctx)
 
+	errorChan := make(chan error, 2) // Buffer for reader and writer errors
 	bp := &BackedPipe{
 		ctx:               pipeCtx,
 		cancel:            cancel,
 		reader:            NewBackedReader(),
-		writer:            NewBackedWriterWithCapacity(DefaultBufferSize), // 64MB default buffer
+		writer:            NewBackedWriter(DefaultBufferSize, errorChan),
 		reconnectFn:       reconnectFn,
-		errorChan:         make(chan error, 2), // Buffer for reader and writer errors
+		errorChan:         errorChan,
 		connectionChanged: make(chan struct{}, 1),
 	}
 
-	// Set up error callbacks
+	// Set up error callback for reader only (writer uses error channel directly)
 	bp.reader.SetErrorCallback(func(err error) {
-		select {
-		case bp.errorChan <- err:
-		case <-bp.ctx.Done():
-		}
-	})
-
-	bp.writer.SetErrorCallback(func(err error) {
 		select {
 		case bp.errorChan <- err:
 		case <-bp.ctx.Done():
@@ -233,16 +226,6 @@ func (bp *BackedPipe) reconnectLocked() error {
 			readerSeqNum, writerSeqNum)
 	}
 
-	// Validate writer can replay from the requested sequence
-	if !bp.writer.CanReplayFrom(readerSeqNum) {
-		_ = conn.Close()
-		// Calculate data loss
-		currentSeq := bp.writer.SequenceNum()
-		dataLoss := currentSeq - DefaultBufferSize - readerSeqNum
-		return xerrors.Errorf("cannot replay from sequence %d (current: %d, data loss: ~%d bytes)",
-			readerSeqNum, currentSeq, dataLoss)
-	}
-
 	// Reconnect reader and writer
 	seqNum := make(chan uint64, 1)
 	newR := make(chan io.Reader, 1)
@@ -296,33 +279,6 @@ func (bp *BackedPipe) handleErrors() {
 				// For now, we'll just continue and wait for manual reconnection
 				_ = err // Use the original error
 			}
-		}
-	}
-}
-
-// WaitForConnection blocks until the pipe is connected or the context is canceled.
-func (bp *BackedPipe) WaitForConnection(ctx context.Context) error {
-	for {
-		bp.mu.RLock()
-		connected := bp.connected
-		closed := bp.closed
-		bp.mu.RUnlock()
-
-		if closed {
-			return io.ErrClosedPipe
-		}
-
-		if connected {
-			return nil
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-bp.connectionChanged:
-			// Connection state changed, check again
-		case <-time.After(10 * time.Millisecond):
-			// Periodically re-check to avoid missed notifications
 		}
 	}
 }

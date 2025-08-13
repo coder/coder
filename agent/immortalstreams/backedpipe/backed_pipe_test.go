@@ -240,21 +240,35 @@ func TestBackedPipe_BasicReadWrite(t *testing.T) {
 
 func TestBackedPipe_WriteBeforeConnect(t *testing.T) {
 	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
 
-	ctx := context.Background()
 	conn := newMockConnection()
 	reconnectFn, _, _ := mockReconnectFunc(conn)
 
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
 	defer bp.Close()
 
-	// Write before connecting should succeed (buffered)
-	n, err := bp.Write([]byte("hello"))
-	require.NoError(t, err)
-	require.Equal(t, 5, n)
+	// Write before connecting should block
+	writeComplete := make(chan error, 1)
+	go func() {
+		_, err := bp.Write([]byte("hello"))
+		writeComplete <- err
+	}()
 
-	// Connect should replay the buffered data
-	err = bp.Connect(ctx)
+	// Verify write is blocked
+	select {
+	case <-writeComplete:
+		t.Fatal("Write should have blocked when disconnected")
+	case <-time.After(100 * time.Millisecond):
+		// Expected - write is blocked
+	}
+
+	// Connect should unblock the write
+	err := bp.Connect(ctx)
+	require.NoError(t, err)
+
+	// Write should now complete
+	err = testutil.RequireReceive(ctx, t, writeComplete)
 	require.NoError(t, err)
 
 	// Check that data was replayed to connection
@@ -265,6 +279,7 @@ func TestBackedPipe_ReadBlocksWhenDisconnected(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
+	testCtx := testutil.Context(t, testutil.WaitShort)
 	reconnectFn, _, _ := mockReconnectFunc(newMockConnection())
 
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
@@ -283,7 +298,7 @@ func TestBackedPipe_ReadBlocksWhenDisconnected(t *testing.T) {
 	}()
 
 	// Wait for the goroutine to start
-	<-readStarted
+	testutil.TryReceive(testCtx, t, readStarted)
 
 	// Give a brief moment for the read to actually block
 	time.Sleep(time.Millisecond)
@@ -299,18 +314,15 @@ func TestBackedPipe_ReadBlocksWhenDisconnected(t *testing.T) {
 	// Close should unblock the read
 	bp.Close()
 
-	select {
-	case <-readDone:
-		require.Equal(t, io.ErrClosedPipe, readErr)
-	case <-time.After(time.Second):
-		t.Fatal("Read did not unblock after close")
-	}
+	testutil.TryReceive(testCtx, t, readDone)
+	require.Equal(t, io.EOF, readErr)
 }
 
 func TestBackedPipe_Reconnection(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
+	testCtx := testutil.Context(t, testutil.WaitShort)
 	conn1 := newMockConnection()
 	conn2 := newMockConnection()
 	conn2.seqNum = 17 // Remote has received 17 bytes, so replay from sequence 17
@@ -333,10 +345,12 @@ func TestBackedPipe_Reconnection(t *testing.T) {
 	// Trigger a write to cause the pipe to notice the failure
 	_, _ = bp.Write([]byte("trigger failure "))
 
-	<-signalChan
+	testutil.RequireReceive(testCtx, t, signalChan)
 
-	err = bp.WaitForConnection(ctx)
-	require.NoError(t, err)
+	// Wait for reconnection to complete
+	require.Eventually(t, func() bool {
+		return bp.Connected()
+	}, testutil.WaitShort, testutil.IntervalFast, "pipe should reconnect")
 
 	replayedData := conn2.ReadString()
 	require.Equal(t, "***trigger failure ", replayedData, "Should replay exactly the data written after sequence 17")
@@ -391,45 +405,10 @@ func TestBackedPipe_CloseIdempotent(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestBackedPipe_WaitForConnection(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	conn := newMockConnection()
-	reconnectFn, _, _ := mockReconnectFunc(conn)
-
-	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
-	defer bp.Close()
-
-	// Should timeout when not connected
-	// Use a shorter timeout for this test to speed up test runs
-	timeoutCtx, cancel := context.WithTimeout(ctx, testutil.WaitSuperShort)
-	defer cancel()
-
-	err := bp.WaitForConnection(timeoutCtx)
-	require.Equal(t, context.DeadlineExceeded, err)
-
-	// Connect in background after a brief delay
-	connectionStarted := make(chan struct{})
-	go func() {
-		close(connectionStarted)
-		// Small delay to ensure WaitForConnection is called first
-		time.Sleep(time.Millisecond)
-		bp.Connect(context.Background())
-	}()
-
-	// Wait for connection goroutine to start
-	<-connectionStarted
-
-	// Should succeed once connected
-	err = bp.WaitForConnection(context.Background())
-	require.NoError(t, err)
-}
-
 func TestBackedPipe_ConcurrentReadWrite(t *testing.T) {
 	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
 
-	ctx := context.Background()
 	conn := newMockConnection()
 	reconnectFn, _, _ := mockReconnectFunc(conn)
 
@@ -487,12 +466,7 @@ func TestBackedPipe_ConcurrentReadWrite(t *testing.T) {
 		wg.Wait()
 	}()
 
-	select {
-	case <-done:
-		// Success
-	case <-time.After(5 * time.Second):
-		t.Fatal("Test timed out")
-	}
+	testutil.TryReceive(ctx, t, done)
 
 	// Close the channel and collect all written data
 	close(writtenData)

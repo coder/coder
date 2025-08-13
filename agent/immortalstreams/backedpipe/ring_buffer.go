@@ -1,138 +1,129 @@
 package backedpipe
 
 import (
-	"sync"
-
 	"golang.org/x/xerrors"
 )
 
-// RingBuffer implements an efficient circular buffer with a fixed-size allocation.
-// It supports concurrent access and handles wrap-around seamlessly.
-// The buffer is designed for high-performance scenarios where avoiding
-// dynamic memory allocation during operation is critical.
-type RingBuffer struct {
-	mu     sync.RWMutex
+// ringBuffer implements an efficient circular buffer with a fixed-size allocation.
+// This implementation is not thread-safe and relies on external synchronization.
+type ringBuffer struct {
 	buffer []byte
 	start  int // index of first valid byte
-	end    int // index after last valid byte
-	size   int // current number of bytes in buffer
-	cap    int // maximum capacity
+	end    int // index of last valid byte (-1 when empty)
 }
 
-// NewRingBuffer creates a new ring buffer with 64MB capacity.
-func NewRingBuffer() *RingBuffer {
-	const capacity = 64 * 1024 * 1024 // 64MB
-	return NewRingBufferWithCapacity(capacity)
-}
-
-// NewRingBufferWithCapacity creates a new ring buffer with the specified capacity.
-// If capacity is <= 0, it defaults to 64MB.
-func NewRingBufferWithCapacity(capacity int) *RingBuffer {
+// newRingBuffer creates a new ring buffer with the specified capacity.
+// Capacity must be > 0.
+func newRingBuffer(capacity int) *ringBuffer {
 	if capacity <= 0 {
-		capacity = 64 * 1024 * 1024 // Default to 64MB
+		panic("ring buffer capacity must be > 0")
 	}
-	return &RingBuffer{
+	return &ringBuffer{
 		buffer: make([]byte, capacity),
-		cap:    capacity,
+		end:    -1, // -1 indicates empty buffer
 	}
+}
+
+// Size returns the current number of bytes in the buffer.
+func (rb *ringBuffer) Size() int {
+	if rb.end == -1 {
+		return 0 // Buffer is empty
+	}
+	if rb.start <= rb.end {
+		return rb.end - rb.start + 1
+	}
+	// Buffer wraps around
+	return len(rb.buffer) - rb.start + rb.end + 1
 }
 
 // Write writes data to the ring buffer. If the buffer would overflow,
 // it evicts the oldest data to make room for new data.
-// Returns the number of bytes written and the number of bytes evicted.
-func (rb *RingBuffer) Write(data []byte) (written int, evicted int) {
+func (rb *ringBuffer) Write(data []byte) {
 	if len(data) == 0 {
-		return 0, 0
+		return
 	}
 
-	rb.mu.Lock()
-	defer rb.mu.Unlock()
-
-	written = len(data)
+	capacity := len(rb.buffer)
 
 	// If data is larger than capacity, only keep the last capacity bytes
-	if len(data) > rb.cap {
-		evicted = len(data) - rb.cap
-		data = data[evicted:]
-		written = rb.cap
+	if len(data) > capacity {
+		data = data[len(data)-capacity:]
 		// Clear buffer and write new data
 		rb.start = 0
-		rb.end = 0
-		rb.size = 0
+		rb.end = -1 // Will be set properly below
 	}
 
 	// Calculate how much we need to evict to fit new data
 	spaceNeeded := len(data)
-	availableSpace := rb.cap - rb.size
+	availableSpace := capacity - rb.Size()
 
 	if spaceNeeded > availableSpace {
 		bytesToEvict := spaceNeeded - availableSpace
-		evicted += bytesToEvict
 		rb.evict(bytesToEvict)
 	}
 
-	// Write the data
-	for _, b := range data {
-		rb.buffer[rb.end] = b
-		rb.end = (rb.end + 1) % rb.cap
-		rb.size++
+	// Buffer has data, write after current end
+	writePos := (rb.end + 1) % capacity
+	if writePos+len(data) <= capacity {
+		// No wrap needed - single copy
+		copy(rb.buffer[writePos:], data)
+		rb.end = (rb.end + len(data)) % capacity
+	} else {
+		// Need to wrap around - two copies
+		firstChunk := capacity - writePos
+		copy(rb.buffer[writePos:], data[:firstChunk])
+		copy(rb.buffer[0:], data[firstChunk:])
+		rb.end = len(data) - firstChunk - 1
 	}
-
-	return written, evicted
 }
 
 // evict removes the specified number of bytes from the beginning of the buffer.
-// Must be called with lock held.
-func (rb *RingBuffer) evict(count int) {
-	if count >= rb.size {
+func (rb *ringBuffer) evict(count int) {
+	if count >= rb.Size() {
 		// Evict everything
 		rb.start = 0
-		rb.end = 0
-		rb.size = 0
+		rb.end = -1
 		return
 	}
 
-	rb.start = (rb.start + count) % rb.cap
-	rb.size -= count
+	rb.start = (rb.start + count) % len(rb.buffer)
+	// Buffer remains non-empty after partial eviction
 }
 
 // ReadLast returns the last n bytes from the buffer.
-// If n is greater than the available data, returns all available data.
-// If n is 0 or negative, returns nil.
-func (rb *RingBuffer) ReadLast(n int) ([]byte, error) {
-	rb.mu.RLock()
-	defer rb.mu.RUnlock()
+// If n is greater than the available data, returns an error.
+// If n is negative, returns an error.
+func (rb *ringBuffer) ReadLast(n int) ([]byte, error) {
+	if n < 0 {
+		return nil, xerrors.New("cannot read negative number of bytes")
+	}
 
-	if n <= 0 {
+	if n == 0 {
 		return nil, nil
 	}
 
-	if rb.size == 0 {
-		return nil, xerrors.New("buffer is empty")
-	}
+	size := rb.Size()
 
 	// If requested more than available, return error
-	if n > rb.size {
-		return nil, xerrors.Errorf("requested %d bytes but only %d available", n, rb.size)
+	if n > size {
+		return nil, xerrors.Errorf("requested %d bytes but only %d available", n, size)
 	}
 
 	result := make([]byte, n)
+	capacity := len(rb.buffer)
 
 	// Calculate where to start reading from (n bytes before the end)
-	startOffset := rb.size - n
-	actualStart := rb.start + startOffset
-	if rb.cap > 0 {
-		actualStart %= rb.cap
-	}
+	startOffset := size - n
+	actualStart := (rb.start + startOffset) % capacity
 
 	// Copy the last n bytes
-	if actualStart+n <= rb.cap {
+	if actualStart+n <= capacity {
 		// No wrap needed
 		copy(result, rb.buffer[actualStart:actualStart+n])
 	} else {
 		// Need to wrap around
-		firstChunk := rb.cap - actualStart
-		copy(result[0:firstChunk], rb.buffer[actualStart:rb.cap])
+		firstChunk := capacity - actualStart
+		copy(result[0:firstChunk], rb.buffer[actualStart:capacity])
 		copy(result[firstChunk:], rb.buffer[0:n-firstChunk])
 	}
 

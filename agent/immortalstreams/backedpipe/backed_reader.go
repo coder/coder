@@ -34,35 +34,29 @@ func NewBackedReader() *BackedReader {
 // When connected, it reads from the underlying reader and updates sequence numbers.
 // Connection failures are automatically detected and reported to the higher layer via callback.
 func (br *BackedReader) Read(p []byte) (int, error) {
+	br.mu.Lock()
+	defer br.mu.Unlock()
+
 	for {
 		// Step 1: Wait until we have a reader or are closed
-		br.mu.Lock()
 		for br.reader == nil && !br.closed {
 			br.cond.Wait()
 		}
 
 		if br.closed {
-			br.mu.Unlock()
-			return 0, io.ErrClosedPipe
+			return 0, io.EOF
 		}
 
-		// Capture the current reader and release the lock while performing
-		// the potentially blocking I/O operation to avoid deadlocks with Close().
-		r := br.reader
-		br.mu.Unlock()
+		// Step 2: Perform the read while holding the mutex
+		// This ensures proper synchronization with Reconnect and Close operations
+		n, err := br.reader.Read(p)
+		br.sequenceNum += uint64(n) // #nosec G115 -- n is always >= 0 per io.Reader contract
 
-		// Step 2: Perform the read without holding the mutex
-		n, err := r.Read(p)
-
-		// Step 3: Reacquire the lock to update state based on the result
-		br.mu.Lock()
 		if err == nil {
-			br.sequenceNum += uint64(n) // #nosec G115 -- n is always >= 0 per io.Reader contract
-			br.mu.Unlock()
 			return n, nil
 		}
 
-		// Mark disconnected so future reads will wait for reconnection
+		// Mark reader as disconnected so future reads will wait for reconnection
 		br.reader = nil
 
 		if br.onError != nil {
@@ -71,13 +65,8 @@ func (br *BackedReader) Read(p []byte) (int, error) {
 
 		// If we got some data before the error, return it now
 		if n > 0 {
-			br.sequenceNum += uint64(n)
-			br.mu.Unlock()
 			return n, nil
 		}
-
-		// Otherwise loop and wait for reconnection or close
-		br.mu.Unlock()
 	}
 }
 
@@ -91,8 +80,7 @@ func (br *BackedReader) Reconnect(seqNum chan<- uint64, newR <-chan io.Reader) {
 	defer br.mu.Unlock()
 
 	if br.closed {
-		// Send 0 sequence number and close the channel to indicate closed state
-		seqNum <- 0
+		// Close the channel to indicate closed state
 		close(seqNum)
 		return
 	}
@@ -117,8 +105,8 @@ func (br *BackedReader) Reconnect(seqNum chan<- uint64, newR <-chan io.Reader) {
 	br.cond.Broadcast()
 }
 
-// Closes the reader and wakes up any blocked reads.
-// After closing, all Read calls will return io.ErrClosedPipe.
+// Close the reader and wake up any blocked reads.
+// After closing, all Read calls will return io.EOF.
 func (br *BackedReader) Close() error {
 	br.mu.Lock()
 	defer br.mu.Unlock()
