@@ -186,11 +186,7 @@
 		"vite-plugin-checker": "0.9.3",
 		"vite-plugin-turbosnap": "1.0.3"
 	},
-	"browserslist": [
-		"chrome 110",
-		"firefox 111",
-		"safari 16.0"
-	],
+	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
 	"resolutions": {
 		"optionator": "0.9.3",
 		"semver": "7.6.2"
@@ -207,8 +203,6 @@
 			"form-data": "4.0.4",
 			"prismjs": "1.30.0"
 		},
-		"ignoredBuiltDependencies": [
-			"storybook-addon-remix-react-router"
-		]
+		"ignoredBuiltDependencies": ["storybook-addon-remix-react-router"]
 	}
 }
