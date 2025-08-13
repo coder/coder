@@ -37,12 +37,12 @@ type Forwarder interface {
 
 // Manager manages multiple port forwards.
 type Manager interface {
-	// AddForward adds a new port forward.
-	AddForward(spec Spec) (Forwarder, error)
-	// RemoveForward removes an existing port forward.
-	RemoveForward(spec Spec) error
-	// ListForwards returns all active port forwards.
-	ListForwards() []Forwarder
+	// Add adds a new port forward.
+	Add(spec Spec) (Forwarder, error)
+	// Remove removes an existing port forward.
+	Remove(spec Spec) error
+	// List returns all active port forwards.
+	List() []Forwarder
 	// Start starts all port forwards.
 	Start(ctx context.Context) error
 	// Stop stops all port forwards.
@@ -66,8 +66,8 @@ type Options struct {
 	Listener Listener
 }
 
-// localForwarder implements a single port forward from local to remote.
-type localForwarder struct {
+// LocalForwarder implements a single port forward from local to remote.
+type LocalForwarder struct {
 	spec     Spec
 	opts     Options
 	listener net.Listener
@@ -76,15 +76,15 @@ type localForwarder struct {
 	wg       sync.WaitGroup
 }
 
-// NewForwarder creates a new port forwarder.
-func NewForwarder(spec Spec, opts Options) Forwarder {
-	return &localForwarder{
+// NewLocal creates a new local port forwarder.
+func NewLocal(spec Spec, opts Options) *LocalForwarder {
+	return &LocalForwarder{
 		spec: spec,
 		opts: opts,
 	}
 }
 
-func (f *localForwarder) Start(ctx context.Context) error {
+func (f *LocalForwarder) Start(ctx context.Context) error {
 	if f.active.Load() {
 		return xerrors.New("forwarder is already active")
 	}
@@ -157,7 +157,7 @@ func (f *localForwarder) Start(ctx context.Context) error {
 	return nil
 }
 
-func (f *localForwarder) Stop() error {
+func (f *LocalForwarder) Stop() error {
 	if !f.active.Load() {
 		return nil
 	}
@@ -172,11 +172,11 @@ func (f *localForwarder) Stop() error {
 	return nil
 }
 
-func (f *localForwarder) IsActive() bool {
+func (f *LocalForwarder) IsActive() bool {
 	return f.active.Load()
 }
 
-func (f *localForwarder) Spec() Spec {
+func (f *LocalForwarder) Spec() Spec {
 	return f.spec
 }
 
@@ -195,7 +195,7 @@ func NewManager(opts Options) Manager {
 	}
 }
 
-func (m *manager) AddForward(spec Spec) (Forwarder, error) {
+func (m *manager) Add(spec Spec) (Forwarder, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -204,12 +204,12 @@ func (m *manager) AddForward(spec Spec) (Forwarder, error) {
 		return nil, xerrors.Errorf("forwarder already exists for %s", key)
 	}
 
-	forwarder := NewForwarder(spec, m.opts)
+	forwarder := NewLocal(spec, m.opts)
 	m.forwarders[key] = forwarder
 	return forwarder, nil
 }
 
-func (m *manager) RemoveForward(spec Spec) error {
+func (m *manager) Remove(spec Spec) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -224,7 +224,7 @@ func (m *manager) RemoveForward(spec Spec) error {
 	return err
 }
 
-func (m *manager) ListForwards() []Forwarder {
+func (m *manager) List() []Forwarder {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 

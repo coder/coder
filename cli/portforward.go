@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -19,24 +18,6 @@ import (
 	"github.com/coder/coder/v2/portforward"
 	"github.com/coder/serpent"
 )
-
-// cliDialer adapts workspacesdk.AgentConn to portforward.Dialer
-type cliDialer struct {
-	conn *workspacesdk.AgentConn
-}
-
-func (d *cliDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	return d.conn.DialContext(ctx, network, address)
-}
-
-// cliListener adapts serpent.Invocation.Net to portforward.Listener
-type cliListener struct {
-	inv *serpent.Invocation
-}
-
-func (l *cliListener) Listen(network, address string) (net.Listener, error) {
-	return l.inv.Net.Listen(network, address)
-}
 
 func (r *RootCmd) portForward() *serpent.Command {
 	var (
@@ -132,24 +113,18 @@ func (r *RootCmd) portForward() *serpent.Command {
 			}
 			defer conn.Close()
 
-			// Create port forwarding options
+			// Create port forwarding manager
 			pfOpts := portforward.Options{
 				Logger:   logger,
-				Dialer:   &cliDialer{conn: conn},
-				Listener: &cliListener{inv: inv},
+				Dialer:   conn,
+				Listener: inv.Net,
 			}
-
-			// Start all forwarders.
-			var (
-				forwarders         = make([]portforward.Forwarder, 0, len(specs))
-				closeAllForwarders = func() {
-					logger.Debug(ctx, "closing all forwarders")
-					for _, f := range forwarders {
-						_ = f.Stop()
-					}
+			manager := portforward.NewManager(pfOpts)
+			defer func() {
+				if stopErr := manager.Stop(); stopErr != nil {
+					logger.Error(ctx, "failed to stop port forwarding manager", slog.Error(stopErr))
 				}
-			)
-			defer closeAllForwarders()
+			}()
 
 			// Create a signal handler for graceful shutdown
 			shutdownCh := make(chan struct{})
@@ -165,28 +140,30 @@ func (r *RootCmd) portForward() *serpent.Command {
 					// first, opportunistically try to listen on IPv6
 					spec6 := spec
 					spec6.ListenHost = portforward.IPv6Loopback
-					f6 := portforward.NewForwarder(spec6, pfOpts)
-					err6 := f6.Start(ctx)
-					if err6 != nil {
-						logger.Info(ctx, "failed to opportunistically listen on IPv6", slog.F("spec", spec), slog.Error(err6))
+					_, err := manager.Add(spec6)
+					if err != nil {
+						logger.Info(ctx, "failed to opportunistically add IPv6 forwarder", slog.F("spec", spec), slog.Error(err))
 					} else {
-						forwarders = append(forwarders, f6)
 						_, _ = fmt.Fprintf(inv.Stderr, "Forwarding '%s://[%s]:%d' locally to '%s://127.0.0.1:%d' in the workspace\n",
 							spec6.Network, spec6.ListenHost, spec6.ListenPort, spec6.Network, spec6.DialPort)
 					}
 					spec.ListenHost = portforward.IPv4Loopback
 				}
 
-				f := portforward.NewForwarder(spec, pfOpts)
-				err := f.Start(ctx)
+				_, err := manager.Add(spec)
 				if err != nil {
-					logger.Error(ctx, "failed to listen", slog.F("spec", spec), slog.Error(err))
+					logger.Error(ctx, "failed to add forwarder", slog.F("spec", spec), slog.Error(err))
 					return err
 				}
 
-				forwarders = append(forwarders, f)
 				_, _ = fmt.Fprintf(inv.Stderr, "Forwarding '%s://%s:%d' locally to '%s://127.0.0.1:%d' in the workspace\n",
 					spec.Network, spec.ListenHost, spec.ListenPort, spec.Network, spec.DialPort)
+			}
+
+			// Start all forwarders at once
+			err = manager.Start(ctx)
+			if err != nil {
+				return xerrors.Errorf("start port forwarding: %w", err)
 			}
 
 			conn.AwaitReachable(ctx)
