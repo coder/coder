@@ -201,11 +201,10 @@ func (h *Handler) handleUpgrade(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Keep the connection open until the context is cancelled
+	// Keep the connection open until the context is canceled
 	// The wsConn will handle connection closure through its Read/Write methods
-	// When the connection is closed, the backing pipe will detect it and the context should be cancelled
+	// When the connection is closed, the backing pipe will detect it and the context should be canceled
 	<-connCtx.Done()
-	h.logger.Debug(ctx, "websocket connection handler exiting")
 }
 
 // wsConn adapts a WebSocket connection to io.ReadWriteCloser
