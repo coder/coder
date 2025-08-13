@@ -80,8 +80,9 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 									color: theme.palette.text.disabled,
 								},
 							]}
-							className={`option-array-item-${option} ${isEnabled ? "option-enabled" : "option-disabled"
-								}`}
+							className={`option-array-item-${option} ${
+								isEnabled ? "option-enabled" : "option-disabled"
+							}`}
 						>
 							<div
 								css={{

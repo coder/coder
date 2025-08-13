@@ -85,7 +85,7 @@ const tableRowVariants = cva(
 export const TableRow = React.forwardRef<
 	HTMLTableRowElement,
 	React.HTMLAttributes<HTMLTableRowElement> &
-	VariantProps<typeof tableRowVariants>
+		VariantProps<typeof tableRowVariants>
 >(({ className, hover, ...props }, ref) => (
 	<tr
 		ref={ref}

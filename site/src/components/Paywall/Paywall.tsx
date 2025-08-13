@@ -34,7 +34,8 @@ export const Paywall: FC<PaywallProps> = ({
 						css={{ fontWeight: 600 }}
 					>
 						Read the documentation
-					</Link></div>
+					</Link>
+				</div>
 			</div>
 			<div css={styles.separator} />
 			<Stack direction="column" alignItems="left" spacing={3}>
