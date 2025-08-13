@@ -1855,7 +1855,9 @@ UPDATE external_auth_links SET
     oauth_refresh_token_key_id = $7,
     oauth_expiry = $8,
 	oauth_extra = $9,
-	-- Only 'UpdateExternalAuthLinkRefreshToken' supports updating the oauth_refresh_failure_reason
+	-- Only 'UpdateExternalAuthLinkRefreshToken' supports updating the oauth_refresh_failure_reason.
+	-- Any updates to the external auth link, will be assumed to change the state and clear
+	-- any cached errors.
 	oauth_refresh_failure_reason = ''
 WHERE provider_id = $1 AND user_id = $2 RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason
 `
@@ -1905,6 +1907,8 @@ const updateExternalAuthLinkRefreshToken = `-- name: UpdateExternalAuthLinkRefre
 UPDATE
 	external_auth_links
 SET
+	-- oauth_refresh_failure_reason can be set to cache the failure reason
+	-- for subsequent refresh attempts.
 	oauth_refresh_failure_reason = $1,
 	oauth_refresh_token = $2,
 	updated_at = $3
