@@ -23,6 +23,7 @@ import {
 } from "./WorkspaceBuildProgress";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
+import { height } from "@mui/system";
 
 interface WorkspaceProps {
 	workspace: TypesGen.Workspace;
@@ -99,7 +100,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
 
 	return (
-		<div className="flex flex-col overflow-hidden flex-1">
+		<div className="flex flex-col flex-1 min-h-0">
 			<WorkspaceTopbar
 				workspace={workspace}
 				template={template}
@@ -118,7 +119,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 				handleToggleFavorite={handleToggleFavorite}
 			/>
 
-			<div className="flex flex-1">
+			<div className="flex flex-1 min-h-0">
 				<div className="flex">
 					<div className="flex flex-col h-full overflow-y-auto border-solid border-0 border-r border-r-border">
 						<SidebarIconButton
