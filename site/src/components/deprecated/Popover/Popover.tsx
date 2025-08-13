@@ -73,8 +73,8 @@ export const Popover: FC<PopoverProps> = (props) => {
 	// component, but this is basically the most we can do from here
 	useEffect(() => {
 		const closeOnTabSwitch = () => setUncontrolledOpen(false);
-		window.addEventListener("blur-sm", closeOnTabSwitch);
-		return () => window.removeEventListener("blur-sm", closeOnTabSwitch);
+		window.addEventListener("blur", closeOnTabSwitch);
+		return () => window.removeEventListener("blur", closeOnTabSwitch);
 	}, []);
 
 	const value: PopoverContextValue = {
@@ -109,8 +109,8 @@ type PopoverTriggerRenderProps = Readonly<{
 type PopoverTriggerProps = Readonly<
 	Omit<HTMLAttributes<HTMLElement>, "children"> & {
 		children:
-			| TriggerElement
-			| ((props: PopoverTriggerRenderProps) => TriggerElement);
+		| TriggerElement
+		| ((props: PopoverTriggerRenderProps) => TriggerElement);
 	}
 >;
 
