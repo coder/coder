@@ -739,6 +739,8 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			return codersdk.Entitlements{}, err
 		}
 
+		api.HasLicense = reloadedEntitlements.HasLicense
+
 		if reloadedEntitlements.RequireTelemetry && !api.DeploymentValues.Telemetry.Enable.Value() {
 			api.Logger.Error(ctx, "license requires telemetry enabled")
 			return codersdk.Entitlements{}, entitlements.ErrLicenseRequiresTelemetry
@@ -929,17 +931,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 		reloadedEntitlements.Features[codersdk.FeatureExternalTokenEncryption] = featureExternalTokenEncryption
 
-		// If there's a license installed, we will use the enterprise build
-		// limit checker.
-		// This checker currently only enforces the managed agent limit.
-		if reloadedEntitlements.HasLicense {
-			var checker wsbuilder.UsageChecker = api
-			api.AGPL.BuildUsageChecker.Store(&checker)
-		} else {
-			// Don't check any usage, just like AGPL.
-			var checker wsbuilder.UsageChecker = wsbuilder.NoopUsageChecker{}
-			api.AGPL.BuildUsageChecker.Store(&checker)
-		}
+		// Always use the enterprise usage checker
+		var checker wsbuilder.UsageChecker = api
+		api.AGPL.BuildUsageChecker.Store(&checker)
 
 		return reloadedEntitlements, nil
 	})
@@ -948,10 +942,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 var _ wsbuilder.UsageChecker = &API{}
 
 func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion) (wsbuilder.UsageCheckResponse, error) {
-	// We assume that if this function is called, a valid license is installed.
-	// When there are no licenses installed, a noop usage checker is used
-	// instead.
-
 	// If the template version has an external agent, we need to check that the
 	// license is entitled to this feature.
 	if templateVersion.HasExternalAgent.Valid && templateVersion.HasExternalAgent.Bool {
@@ -972,32 +962,35 @@ func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templ
 		}, nil
 	}
 
-	// Otherwise, we need to check that we haven't breached the managed agent
+	// When unlicensed, we need to check that we haven't breached the managed agent
 	// limit.
-	managedAgentLimit, ok := api.Entitlements.Feature(codersdk.FeatureManagedAgentLimit)
-	if !ok || !managedAgentLimit.Enabled || managedAgentLimit.Limit == nil || managedAgentLimit.UsagePeriod == nil {
-		return wsbuilder.UsageCheckResponse{
-			Permitted: false,
-			Message:   "Your license is not entitled to managed agents. Please contact sales to continue using managed agents.",
-		}, nil
-	}
+	// Unlicensed deployments are allowed to use unlimited managed agents.
+	if api.HasLicense {
+		managedAgentLimit, ok := api.Entitlements.Feature(codersdk.FeatureManagedAgentLimit)
+		if !ok || !managedAgentLimit.Enabled || managedAgentLimit.Limit == nil || managedAgentLimit.UsagePeriod == nil {
+			return wsbuilder.UsageCheckResponse{
+				Permitted: false,
+				Message:   "Your license is not entitled to managed agents. Please contact sales to continue using managed agents.",
+			}, nil
+		}
 
-	// This check is intentionally not committed to the database. It's fine if
-	// it's not 100% accurate or allows for minor breaches due to build races.
-	// nolint:gocritic // Requires permission to read all workspaces to read managed agent count.
-	managedAgentCount, err := store.GetManagedAgentCount(agpldbauthz.AsSystemRestricted(ctx), database.GetManagedAgentCountParams{
-		StartTime: managedAgentLimit.UsagePeriod.Start,
-		EndTime:   managedAgentLimit.UsagePeriod.End,
-	})
-	if err != nil {
-		return wsbuilder.UsageCheckResponse{}, xerrors.Errorf("get managed agent count: %w", err)
-	}
+		// This check is intentionally not committed to the database. It's fine if
+		// it's not 100% accurate or allows for minor breaches due to build races.
+		// nolint:gocritic // Requires permission to read all workspaces to read managed agent count.
+		managedAgentCount, err := store.GetManagedAgentCount(agpldbauthz.AsSystemRestricted(ctx), database.GetManagedAgentCountParams{
+			StartTime: managedAgentLimit.UsagePeriod.Start,
+			EndTime:   managedAgentLimit.UsagePeriod.End,
+		})
+		if err != nil {
+			return wsbuilder.UsageCheckResponse{}, xerrors.Errorf("get managed agent count: %w", err)
+		}
 
-	if managedAgentCount >= *managedAgentLimit.Limit {
-		return wsbuilder.UsageCheckResponse{
-			Permitted: false,
-			Message:   "You have breached the managed agent limit in your license. Please contact sales to continue using managed agents.",
-		}, nil
+		if managedAgentCount >= *managedAgentLimit.Limit {
+			return wsbuilder.UsageCheckResponse{
+				Permitted: false,
+				Message:   "You have breached the managed agent limit in your license. Please contact sales to continue using managed agents.",
+			}, nil
+		}
 	}
 
 	return wsbuilder.UsageCheckResponse{
