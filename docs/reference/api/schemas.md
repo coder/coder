@@ -7630,6 +7630,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "username": "string"
   },
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "job": {
     "available_workers": [
@@ -7694,6 +7695,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `archived`             | boolean                                                                     | false    |              |             |
 | `created_at`           | string                                                                      | false    |              |             |
 | `created_by`           | [codersdk.MinimalUser](#codersdkminimaluser)                                | false    |              |             |
+| `has_external_agent`   | boolean                                                                     | false    |              |             |
 | `id`                   | string                                                                      | false    |              |             |
 | `job`                  | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                          | false    |              |             |
 | `matched_provisioners` | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)                | false    |              |             |

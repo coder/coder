@@ -3008,6 +3008,7 @@ export interface TemplateVersion {
 	readonly archived: boolean;
 	readonly warnings?: readonly TemplateVersionWarning[];
 	readonly matched_provisioners?: MatchedProvisioners;
+	readonly has_external_agent: boolean;
 }
 
 // From codersdk/templateversions.go

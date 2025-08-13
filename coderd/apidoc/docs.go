@@ -9868,7 +9868,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has-external-agent.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent.",
                         "name": "q",
                         "in": "query"
                     },
@@ -16901,6 +16901,9 @@ const docTemplate = `{
                 },
                 "created_by": {
                     "$ref": "#/definitions/codersdk.MinimalUser"
+                },
+                "has_external_agent": {
+                    "type": "boolean"
                 },
                 "id": {
                     "type": "string",
