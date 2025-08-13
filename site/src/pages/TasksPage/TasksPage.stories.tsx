@@ -19,7 +19,8 @@ import {
 	withGlobalSnackbar,
 	withProxyProvider,
 } from "testHelpers/storybook";
-import TasksPage, { data } from "./TasksPage";
+import TasksPage from "./TasksPage";
+import { data } from "./data";
 
 const meta: Meta<typeof TasksPage> = {
 	title: "pages/TasksPage",
@@ -38,7 +39,7 @@ const meta: Meta<typeof TasksPage> = {
 			users: MockUsers,
 			count: MockUsers.length,
 		});
-		spyOn(data, "fetchAITemplates").mockResolvedValue([
+		spyOn(API, "getTemplates").mockResolvedValue([
 			MockTemplate,
 			{
 				...MockTemplate,
@@ -55,7 +56,7 @@ type Story = StoryObj<typeof TasksPage>;
 
 export const LoadingAITemplates: Story = {
 	beforeEach: () => {
-		spyOn(data, "fetchAITemplates").mockImplementation(
+		spyOn(API, "getTemplates").mockImplementation(
 			() => new Promise(() => 1000 * 60 * 60),
 		);
 	},
@@ -63,7 +64,7 @@ export const LoadingAITemplates: Story = {
 
 export const LoadingAITemplatesError: Story = {
 	beforeEach: () => {
-		spyOn(data, "fetchAITemplates").mockRejectedValue(
+		spyOn(API, "getTemplates").mockRejectedValue(
 			mockApiError({
 				message: "Failed to load AI templates",
 				detail: "You don't have permission to access this resource.",
@@ -74,14 +75,15 @@ export const LoadingAITemplatesError: Story = {
 
 export const EmptyAITemplates: Story = {
 	beforeEach: () => {
-		spyOn(data, "fetchAITemplates").mockResolvedValue([]);
+		spyOn(API, "getTemplates").mockResolvedValue([]);
+		spyOn(API.experimental, "getTasks").mockResolvedValue([]);
 	},
 };
 
 export const LoadingTasks: Story = {
 	beforeEach: () => {
-		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
-		spyOn(data, "fetchTasks").mockImplementation(
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API.experimental, "getTasks").mockImplementation(
 			() => new Promise(() => 1000 * 60 * 60),
 		);
 	},
@@ -98,8 +100,8 @@ export const LoadingTasks: Story = {
 
 export const LoadingTasksError: Story = {
 	beforeEach: () => {
-		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
-		spyOn(data, "fetchTasks").mockRejectedValue(
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API.experimental, "getTasks").mockRejectedValue(
 			mockApiError({
 				message: "Failed to load tasks",
 			}),
@@ -109,16 +111,16 @@ export const LoadingTasksError: Story = {
 
 export const EmptyTasks: Story = {
 	beforeEach: () => {
-		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
-		spyOn(data, "fetchTasks").mockResolvedValue([]);
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API.experimental, "getTasks").mockResolvedValue([]);
 	},
 };
 
 export const LoadedTasks: Story = {
 	decorators: [withProxyProvider()],
 	beforeEach: () => {
-		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
-		spyOn(data, "fetchTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
 	},
 };
 
@@ -132,11 +134,11 @@ export const LoadedTasksWithPresets: Story = {
 			display_name: "Template with Presets",
 		};
 
-		spyOn(data, "fetchAITemplates").mockResolvedValue([
+		spyOn(API, "getTemplates").mockResolvedValue([
 			MockTemplate,
 			mockTemplateWithPresets,
 		]);
-		spyOn(data, "fetchTasks").mockResolvedValue(MockTasks);
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
 		spyOn(API, "getTemplateVersionPresets").mockImplementation(
 			async (versionId) => {
 				// Return presets only for the second template
@@ -159,11 +161,11 @@ export const LoadedTasksWithAIPromptPresets: Story = {
 			display_name: "Template with AI Prompt Presets",
 		};
 
-		spyOn(data, "fetchAITemplates").mockResolvedValue([
+		spyOn(API, "getTemplates").mockResolvedValue([
 			MockTemplate,
 			mockTemplateWithPresets,
 		]);
-		spyOn(data, "fetchTasks").mockResolvedValue(MockTasks);
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
 		spyOn(API, "getTemplateVersionPresets").mockImplementation(
 			async (versionId) => {
 				// Return presets only for the second template
@@ -179,8 +181,8 @@ export const LoadedTasksWithAIPromptPresets: Story = {
 export const LoadedTasksEdgeCases: Story = {
 	decorators: [withProxyProvider()],
 	beforeEach: () => {
-		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
-		spyOn(data, "fetchTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
 
 		// Test various edge cases for presets
 		spyOn(API, "getTemplateVersionPresets").mockImplementation(async () => {
@@ -216,8 +218,8 @@ export const CreateTaskSuccessfully: Story = {
 		}),
 	},
 	beforeEach: () => {
-		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
-		spyOn(data, "fetchTasks")
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API.experimental, "getTasks")
 			.mockResolvedValueOnce(MockTasks)
 			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
 		spyOn(data, "createTask").mockResolvedValue(MockNewTaskData);
@@ -242,8 +244,8 @@ export const CreateTaskSuccessfully: Story = {
 export const CreateTaskError: Story = {
 	decorators: [withProxyProvider(), withGlobalSnackbar],
 	beforeEach: () => {
-		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
-		spyOn(data, "fetchTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
 		spyOn(data, "createTask").mockRejectedValue(
 			mockApiError({
 				message: "Failed to create task",
@@ -271,7 +273,7 @@ export const CreateTaskError: Story = {
 export const WithAuthenticatedExternalAuth: Story = {
 	decorators: [withProxyProvider()],
 	beforeEach: () => {
-		spyOn(data, "fetchTasks")
+		spyOn(API.experimental, "getTasks")
 			.mockResolvedValueOnce(MockTasks)
 			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
 		spyOn(data, "createTask").mockResolvedValue(MockNewTaskData);
@@ -298,7 +300,7 @@ export const WithAuthenticatedExternalAuth: Story = {
 export const MissingExternalAuth: Story = {
 	decorators: [withProxyProvider()],
 	beforeEach: () => {
-		spyOn(data, "fetchTasks")
+		spyOn(API.experimental, "getTasks")
 			.mockResolvedValueOnce(MockTasks)
 			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
 		spyOn(data, "createTask").mockResolvedValue(MockNewTaskData);
@@ -325,7 +327,7 @@ export const MissingExternalAuth: Story = {
 export const ExternalAuthError: Story = {
 	decorators: [withProxyProvider()],
 	beforeEach: () => {
-		spyOn(data, "fetchTasks")
+		spyOn(API.experimental, "getTasks")
 			.mockResolvedValueOnce(MockTasks)
 			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
 		spyOn(data, "createTask").mockResolvedValue(MockNewTaskData);
@@ -359,8 +361,8 @@ export const NonAdmin: Story = {
 		},
 	},
 	beforeEach: () => {
-		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
-		spyOn(data, "fetchTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
 	},
 	play: async ({ canvasElement, step }) => {
 		const canvas = within(canvasElement);
