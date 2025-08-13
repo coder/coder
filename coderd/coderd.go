@@ -180,8 +180,6 @@ type Options struct {
 	// Entitlements can come from the enterprise caller if enterprise code is
 	// included.
 	Entitlements *entitlements.Set
-	// HasLicense indicates if a license is installed.
-	HasLicense bool
 	// PostAuthAdditionalHeadersFunc is used to add additional headers to the response
 	// after a successful authentication.
 	// This is somewhat janky, but seemingly the only reasonable way to add a header

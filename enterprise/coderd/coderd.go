@@ -739,8 +739,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			return codersdk.Entitlements{}, err
 		}
 
-		api.HasLicense = reloadedEntitlements.HasLicense
-
 		if reloadedEntitlements.RequireTelemetry && !api.DeploymentValues.Telemetry.Enable.Value() {
 			api.Logger.Error(ctx, "license requires telemetry enabled")
 			return codersdk.Entitlements{}, entitlements.ErrLicenseRequiresTelemetry
@@ -965,7 +963,7 @@ func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templ
 	// When unlicensed, we need to check that we haven't breached the managed agent
 	// limit.
 	// Unlicensed deployments are allowed to use unlimited managed agents.
-	if api.HasLicense {
+	if api.Entitlements.HasLicense() {
 		managedAgentLimit, ok := api.Entitlements.Feature(codersdk.FeatureManagedAgentLimit)
 		if !ok || !managedAgentLimit.Enabled || managedAgentLimit.Limit == nil || managedAgentLimit.UsagePeriod == nil {
 			return wsbuilder.UsageCheckResponse{
