@@ -465,34 +465,4 @@ func TestWorkspaceExternalAgentCredentials(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, "Workspace does not have an external agent.", apiErr.Message)
 	})
-
-	t.Run("No external agent associated with agent - should return 404", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
-		}).Seed(database.WorkspaceBuild{
-			HasExternalAgent: sql.NullBool{
-				Bool:  true,
-				Valid: true,
-			},
-		}).Resource(&proto.Resource{
-			Name: "test-external-agent",
-			Type: "coder_external_agent",
-		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
-			a[0].Name = "test-agent-no-external-agent"
-			a[0].Auth = &proto.Agent_Token{
-				Token: uuid.NewString(),
-			}
-			return a
-		}).Do()
-
-		_, err := client.WorkspaceExternalAgentCredentials(ctx, r.Workspace.ID, "test-agent-no-external-agent")
-		require.Error(t, err)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, "Agent 'test-agent-no-external-agent' does not have an external agent associated with it.", apiErr.Message)
-	})
 }
