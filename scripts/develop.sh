@@ -74,7 +74,7 @@ fi
 # Preflight checks: ensure we have our required dependencies, and make sure nothing is listening on port 3000 or 8080
 dependencies curl git go jq make pnpm
 
-if curl --fail http://127.0.0.1:3000 >/dev/null 2>&1; then
+if curl --silent --fail http://127.0.0.1:3000; then
 	# Check if this is the Coder development server.
 	if curl --silent --fail http://127.0.0.1:3000/api/v2/buildinfo 2>&1 | jq -r '.version' >/dev/null 2>&1; then
 		echo '== INFO: Coder development server is already running on port 3000!' && exit 0
