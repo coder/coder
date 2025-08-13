@@ -53,7 +53,7 @@ export const OverviewPageView: FC<OverviewPageViewProps> = ({
 				{invalidExperiments.length > 0 && (
 					<Alert severity="warning">
 						<AlertTitle>Invalid experiments in use:</AlertTitle>
-						<ul className="pl-4 list-disc">
+						<ul className="list-inside list-disc">
 							{invalidExperiments.map((it) => (
 								<li key={it}>
 									<pre>{it}</pre>

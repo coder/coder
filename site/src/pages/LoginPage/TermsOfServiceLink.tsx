@@ -21,7 +21,7 @@ export const TermsOfServiceLink: FC<TermsOfServiceLinkProps> = ({
 				rel="noreferrer"
 			>
 				Terms of Service&nbsp;
-				<SquareArrowOutUpRightIcon className="size-icon-xs" />
+				<SquareArrowOutUpRightIcon className="inline-block size-icon-xs" />
 			</Link>
 		</div>
 	);

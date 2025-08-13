@@ -80,9 +80,8 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 									color: theme.palette.text.disabled,
 								},
 							]}
-							className={`option-array-item-${option} ${
-								isEnabled ? "option-enabled" : "option-disabled"
-							}`}
+							className={`option-array-item-${option} ${isEnabled ? "option-enabled" : "option-disabled"
+								}`}
 						>
 							<div
 								css={{
@@ -110,7 +109,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
 	if (Array.isArray(value)) {
 		return (
-			<ul css={{ listStylePosition: "inside" }} className="option-array">
+			<ul className="list-inside list-disc option-array">
 				{value.map((item) => (
 					<li key={item} css={styles.option}>
 						{item}
