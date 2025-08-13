@@ -1,0 +1,138 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.12.2",
+  "values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "data.coder_provisioner.me",
+          "mode": "data",
+          "type": "coder_provisioner",
+          "name": "me",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "arch": "amd64",
+            "id": "0ce4713c-28d6-4999-9381-52b8a603b672",
+            "os": "linux"
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "data.coder_workspace.me",
+          "mode": "data",
+          "type": "coder_workspace",
+          "name": "me",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "access_port": 443,
+            "access_url": "https://dev.coder.com/",
+            "id": "dfa1dbe8-ad31-410b-b201-a4ed4d884938",
+            "is_prebuild": false,
+            "is_prebuild_claim": false,
+            "name": "kacper",
+            "prebuild_count": 0,
+            "start_count": 1,
+            "template_id": "",
+            "template_name": "",
+            "template_version": "",
+            "transition": "start"
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "data.coder_workspace_owner.me",
+          "mode": "data",
+          "type": "coder_workspace_owner",
+          "name": "me",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "email": "default@example.com",
+            "full_name": "kacpersaw",
+            "groups": [],
+            "id": "f5e82b90-ea22-4288-8286-9cf7af651143",
+            "login_type": null,
+            "name": "default",
+            "oidc_access_token": "",
+            "rbac_roles": [],
+            "session_token": "",
+            "ssh_private_key": "",
+            "ssh_public_key": ""
+          },
+          "sensitive_values": {
+            "groups": [],
+            "oidc_access_token": true,
+            "rbac_roles": [],
+            "session_token": true,
+            "ssh_private_key": true
+          }
+        },
+        {
+          "address": "coder_agent.dev1",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "dev1",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "api_key_scope": "all",
+            "arch": "amd64",
+            "auth": "token",
+            "connection_timeout": 120,
+            "dir": null,
+            "display_apps": [
+              {
+                "port_forwarding_helper": true,
+                "ssh_helper": true,
+                "vscode": true,
+                "vscode_insiders": false,
+                "web_terminal": true
+              }
+            ],
+            "env": null,
+            "id": "15a35370-3b2e-4ee7-8b28-81cef0152d8b",
+            "init_script": "",
+            "metadata": [],
+            "motd_file": null,
+            "order": null,
+            "os": "linux",
+            "resources_monitoring": [],
+            "shutdown_script": null,
+            "startup_script": null,
+            "startup_script_behavior": "non-blocking",
+            "token": "d054c66b-cc5c-41ae-aa0c-2098a1075272",
+            "troubleshooting_url": null
+          },
+          "sensitive_values": {
+            "display_apps": [
+              {}
+            ],
+            "metadata": [],
+            "resources_monitoring": [],
+            "token": true
+          }
+        },
+        {
+          "address": "coder_external_agent.dev1",
+          "mode": "managed",
+          "type": "coder_external_agent",
+          "name": "dev1",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "agent_id": "d054c66b-cc5c-41ae-aa0c-2098a1075272",
+            "id": "4d87dd70-879c-4347-b0c1-b8f3587d1021"
+          },
+          "sensitive_values": {
+            "agent_id": true
+          },
+          "depends_on": [
+            "coder_agent.dev1"
+          ]
+        }
+      ]
+    }
+  }
+}

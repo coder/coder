@@ -252,6 +252,36 @@ func TestSearchWorkspace(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name:  "HasExternalAgentTrue",
+			Query: "has_external_agent:true",
+			Expected: database.GetWorkspacesParams{
+				HasExternalAgent: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasExternalAgentFalse",
+			Query: "has_external_agent:false",
+			Expected: database.GetWorkspacesParams{
+				HasExternalAgent: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasExternalAgentMissing",
+			Query: "",
+			Expected: database.GetWorkspacesParams{
+				HasExternalAgent: sql.NullBool{
+					Bool:  false,
+					Valid: false,
+				},
+			},
+		},
 
 		// Failures
 		{
@@ -684,6 +714,36 @@ func TestSearchTemplates(t *testing.T) {
 			Query: "",
 			Expected: database.GetTemplatesWithFilterParams{
 				HasAITask: sql.NullBool{
+					Bool:  false,
+					Valid: false,
+				},
+			},
+		},
+		{
+			Name:  "HasExternalAgent",
+			Query: "has_external_agent:true",
+			Expected: database.GetTemplatesWithFilterParams{
+				HasExternalAgent: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasExternalAgentFalse",
+			Query: "has_external_agent:false",
+			Expected: database.GetTemplatesWithFilterParams{
+				HasExternalAgent: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasExternalAgentMissing",
+			Query: "",
+			Expected: database.GetTemplatesWithFilterParams{
+				HasExternalAgent: sql.NullBool{
 					Bool:  false,
 					Valid: false,
 				},

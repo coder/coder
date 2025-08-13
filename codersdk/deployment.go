@@ -88,7 +88,8 @@ const (
 	// ManagedAgentLimit is a usage period feature, so the value in the license
 	// contains both a soft and hard limit. Refer to
 	// enterprise/coderd/license/license.go for the license format.
-	FeatureManagedAgentLimit FeatureName = "managed_agent_limit"
+	FeatureManagedAgentLimit      FeatureName = "managed_agent_limit"
+	FeatureWorkspaceExternalAgent FeatureName = "workspace_external_agent"
 )
 
 var (
@@ -115,6 +116,7 @@ var (
 		FeatureMultipleOrganizations,
 		FeatureWorkspacePrebuilds,
 		FeatureManagedAgentLimit,
+		FeatureWorkspaceExternalAgent,
 	}
 
 	// FeatureNamesMap is a map of all feature names for quick lookups.
@@ -155,6 +157,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureCustomRoles:                true,
 		FeatureMultipleOrganizations:      true,
 		FeatureWorkspacePrebuilds:         true,
+		FeatureWorkspaceExternalAgent:     true,
 	}[n]
 }
 

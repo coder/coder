@@ -2221,3 +2221,36 @@ func TestTemplateArchiveVersions(t *testing.T) {
 	require.NoError(t, err, "fetch all versions")
 	require.Len(t, remaining, totalVersions-len(expArchived)-len(allFailed)+1, "remaining versions")
 }
+
+func TestTemplateVersionHasExternalAgent(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Response{
+			{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						Resources: []*proto.Resource{
+							{
+								Name: "example",
+								Type: "coder_external_agent",
+							},
+						},
+						HasExternalAgents: true,
+					},
+				},
+			},
+		},
+		ProvisionApply: echo.ApplyComplete,
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+	version, err := client.TemplateVersion(ctx, version.ID)
+	require.NoError(t, err)
+	require.True(t, version.HasExternalAgent)
+}

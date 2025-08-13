@@ -1566,6 +1566,9 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", api.tailnetRPCConn)
 		})
+		r.Route("/init-script", func(r chi.Router) {
+			r.Get("/{os}/{arch}", api.initScript)
+		})
 	})
 
 	if options.SwaggerEndpoint {

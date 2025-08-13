@@ -723,6 +723,12 @@ func TestEntitlements(t *testing.T) {
 				return true
 			})).
 			Return(int64(175), nil)
+		mDB.EXPECT().
+			GetWorkspaces(gomock.Any(), gomock.Any()).
+			Return([]database.GetWorkspacesRow{}, nil)
+		mDB.EXPECT().
+			GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
+			Return([]database.Template{}, nil)
 
 		entitlements, err := license.Entitlements(context.Background(), mDB, 1, 0, coderdenttest.Keys, all)
 		require.NoError(t, err)
@@ -766,6 +772,7 @@ func TestLicenseEntitlements(t *testing.T) {
 		codersdk.FeatureUserRoleManagement:         true,
 		codersdk.FeatureAccessControl:              true,
 		codersdk.FeatureControlSharedPorts:         true,
+		codersdk.FeatureWorkspaceExternalAgent:     true,
 	}
 
 	legacyLicense := func() *coderdenttest.LicenseOptions {
@@ -1107,6 +1114,32 @@ func TestLicenseEntitlements(t *testing.T) {
 				assert.Equal(t, int64(100), *feature.SoftLimit)
 				assert.Equal(t, int64(200), *feature.Limit)
 				assert.Equal(t, int64(200), *feature.Actual)
+			},
+		},
+		{
+			Name: "ExternalWorkspace",
+			Licenses: []*coderdenttest.LicenseOptions{
+				enterpriseLicense().UserLimit(100),
+			},
+			Arguments: license.FeatureArguments{
+				ExternalWorkspaceCount: 1,
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assert.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[codersdk.FeatureWorkspaceExternalAgent].Entitlement)
+				assert.True(t, entitlements.Features[codersdk.FeatureWorkspaceExternalAgent].Enabled)
+			},
+		},
+		{
+			Name: "ExternalTemplate",
+			Licenses: []*coderdenttest.LicenseOptions{
+				enterpriseLicense().UserLimit(100),
+			},
+			Arguments: license.FeatureArguments{
+				ExternalTemplateCount: 1,
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assert.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[codersdk.FeatureWorkspaceExternalAgent].Entitlement)
+				assert.True(t, entitlements.Features[codersdk.FeatureWorkspaceExternalAgent].Enabled)
 			},
 		},
 	}

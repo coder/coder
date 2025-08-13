@@ -223,6 +223,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 		Valid: values.Has("outdated"),
 	}
 	filter.HasAITask = parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task")
+	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 
 	type paramMatch struct {
@@ -277,15 +278,16 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetTemplatesWithFilterParams{
-		Deleted:        parser.Boolean(values, false, "deleted"),
-		OrganizationID: parseOrganization(ctx, db, parser, values, "organization"),
-		ExactName:      parser.String(values, "", "exact_name"),
-		FuzzyName:      parser.String(values, "", "name"),
-		IDs:            parser.UUIDs(values, []uuid.UUID{}, "ids"),
-		Deprecated:     parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
-		HasAITask:      parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
-		AuthorID:       parser.UUID(values, uuid.Nil, "author_id"),
-		AuthorUsername: parser.String(values, "", "author"),
+		Deleted:          parser.Boolean(values, false, "deleted"),
+		OrganizationID:   parseOrganization(ctx, db, parser, values, "organization"),
+		ExactName:        parser.String(values, "", "exact_name"),
+		FuzzyName:        parser.String(values, "", "name"),
+		IDs:              parser.UUIDs(values, []uuid.UUID{}, "ids"),
+		Deprecated:       parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
+		HasAITask:        parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
+		AuthorID:         parser.UUID(values, uuid.Nil, "author_id"),
+		AuthorUsername:   parser.String(values, "", "author"),
+		HasExternalAgent: parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent"),
 	}
 
 	if filter.AuthorUsername == codersdk.Me {
