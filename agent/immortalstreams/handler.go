@@ -174,18 +174,25 @@ func (h *Handler) handleUpgrade(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error(ctx, "failed to accept websocket", slog.Error(err))
 		return
 	}
-	defer conn.Close(websocket.StatusInternalError, "internal error")
 
-	// BackedPipe handles sequence numbers internally
-	// No need to expose them through the API
+	// Create a context that we can cancel to clean up the connection
+	connCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Ensure WebSocket is closed when this function returns
+	defer func() {
+		conn.Close(websocket.StatusNormalClosure, "connection closed")
+	}()
 
 	// Create a WebSocket adapter
 	wsConn := &wsConn{
 		conn:   conn,
 		logger: h.logger,
+		ctx:    connCtx,
+		cancel: cancel,
 	}
 
-	// Handle the reconnection
+	// Handle the reconnection - this establishes the connection
 	// BackedPipe only needs the reader sequence number for replay
 	err = h.manager.HandleConnection(streamID, wsConn, readSeqNum)
 	if err != nil {
@@ -194,19 +201,26 @@ func (h *Handler) handleUpgrade(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Keep the connection open until it's closed
-	<-ctx.Done()
+	// Keep the connection open until the context is cancelled
+	// The wsConn will handle connection closure through its Read/Write methods
+	// When the connection is closed, the backing pipe will detect it and the context should be cancelled
+	<-connCtx.Done()
+	h.logger.Debug(ctx, "websocket connection handler exiting")
 }
 
 // wsConn adapts a WebSocket connection to io.ReadWriteCloser
 type wsConn struct {
 	conn   *websocket.Conn
 	logger slog.Logger
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func (c *wsConn) Read(p []byte) (n int, err error) {
-	typ, data, err := c.conn.Read(context.Background())
+	typ, data, err := c.conn.Read(c.ctx)
 	if err != nil {
+		// Cancel the context when read fails (connection closed)
+		c.cancel()
 		return 0, err
 	}
 	if typ != websocket.MessageBinary {
@@ -217,14 +231,17 @@ func (c *wsConn) Read(p []byte) (n int, err error) {
 }
 
 func (c *wsConn) Write(p []byte) (n int, err error) {
-	err = c.conn.Write(context.Background(), websocket.MessageBinary, p)
+	err = c.conn.Write(c.ctx, websocket.MessageBinary, p)
 	if err != nil {
+		// Cancel the context when write fails (connection closed)
+		c.cancel()
 		return 0, err
 	}
 	return len(p), nil
 }
 
 func (c *wsConn) Close() error {
+	c.cancel() // Cancel the context when explicitly closed
 	return c.conn.Close(websocket.StatusNormalClosure, "")
 }
 
