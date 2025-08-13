@@ -7,17 +7,7 @@ export const Sidebar: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	const theme = useTheme();
 	return (
 		<div
-			css={{
-				width: 260,
-				borderRight: `1px solid ${theme.palette.divider}`,
-				height: "100%",
-				overflow: "auto",
-				flexShrink: 0,
-				padding: "8px 0",
-				display: "flex",
-				flexDirection: "column",
-				gap: 1,
-			}}
+			className="w-64 border-0 border-solid border-r border-r-border h-full overflow-auto shrink-0 py-2 flex flex-col gap-px"
 			{...props}
 		/>
 	);

@@ -88,7 +88,7 @@ export const SelectMenuList: FC<MenuListProps> = (props) => {
 		return children;
 	}, [props.children]);
 	return (
-		<MenuList css={{ maxHeight: 480 }} {...props}>
+		<MenuList className="max-h-[480px]" {...props}>
 			{items}
 		</MenuList>
 	);
@@ -107,23 +107,18 @@ function moveSelectedElementToFirst(items: ReactElement<MenuItemProps>[]) {
 }
 
 export const SelectMenuIcon: FC<HTMLProps<HTMLDivElement>> = (props) => {
-	return <div css={{ marginRight: 16 }} {...props} />;
+	return <div className="mr-4" {...props} />;
 };
 
 export const SelectMenuItem: FC<MenuItemProps> = (props) => {
 	return (
 		<MenuItem
-			css={{
-				fontSize: 14,
-				gap: 0,
-				lineHeight: 1,
-				padding: `12px ${SIDE_PADDING}px`,
-			}}
+			className="text-sm gap-0 leading-none py-3 px-4"
 			{...props}
 		>
 			{props.children}
 			{props.selected && (
-				<CheckIcon className="size-icon-xs" css={{ marginLeft: "auto" }} />
+				<CheckIcon className="size-icon-xs ml-auto" />
 			)}
 		</MenuItem>
 	);
