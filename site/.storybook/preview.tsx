@@ -12,8 +12,8 @@ import { HelmetProvider } from "react-helmet-async";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
 import "theme/globalFonts";
-import themes from "../src/theme";
 import type { Decorator, Loader, Parameters } from "@storybook/react-vite";
+import themes from "../src/theme";
 
 DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
 
