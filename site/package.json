@@ -4,7 +4,7 @@
 	"repository": "https://github.com/coder/coder",
 	"private": true,
 	"license": "AGPL-3.0",
-	"packageManager": "pnpm@9.15.1+sha512.1acb565e6193efbebda772702950469150cf12bcc764262e7587e71d19dc98a423dff9536e57ea44c49bdf790ff694e83c27be5faa23d67e0c033b583be4bfcf",
+	"packageManager": "pnpm@10.14.0+sha512.ad27a79641b49c3e481a16a805baa71817a04bbe06a38d17e60e2eaee83f6a146c6a688125f5792e48dd5ba30e7da52a5cda4c3992b9ccf333f9ce223af84748",
 	"scripts": {
 		"build": "NODE_ENV=production pnpm vite build",
 		"check": "biome check --error-on-warnings .",
@@ -192,7 +192,7 @@
 		"semver": "7.6.2"
 	},
 	"engines": {
-		"pnpm": ">=9.0.0 <10.0.0",
+		"pnpm": ">=10.0.0 <11.0.0",
 		"node": ">=18.0.0 <21.0.0"
 	},
 	"pnpm": {
@@ -202,6 +202,7 @@
 			"esbuild": "^0.25.0",
 			"form-data": "4.0.4",
 			"prismjs": "1.30.0"
-		}
+		},
+		"ignoredBuiltDependencies": ["storybook-addon-remix-react-router"]
 	}
 }
