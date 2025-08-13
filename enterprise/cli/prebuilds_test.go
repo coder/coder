@@ -16,7 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -361,10 +361,6 @@ func TestPrebuildsSettingsAPI(t *testing.T) {
 func TestSchedulePrebuilds(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("this test requires postgres")
-	}
-
 	cases := []struct {
 		name        string
 		cliErrorMsg string
@@ -384,13 +380,13 @@ func TestSchedulePrebuilds(t *testing.T) {
 				return []string{"schedule", "stop", workspaceName, "8h30m"}
 			},
 		},
-		//{
-		//	name:        "ExtendPrebuildError",
-		//	cliErrorMsg: "extend configuration is not supported for prebuilt workspaces",
-		//	cmdArgs: func(workspaceName string) []string {
-		//		return []string{"schedule", "extend", workspaceName, "90m"}
-		//	},
-		// },
+		{
+			name:        "ExtendPrebuildError",
+			cliErrorMsg: "extend configuration is not supported for prebuilt workspaces",
+			cmdArgs: func(workspaceName string) []string {
+				return []string{"schedule", "extend", workspaceName, "90m"}
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -398,9 +394,10 @@ func TestSchedulePrebuilds(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Setup
 			clock := quartz.NewMock(t)
 			clock.Set(dbtime.Now())
+
+			// Setup
 			client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
@@ -415,31 +412,28 @@ func TestSchedulePrebuilds(t *testing.T) {
 
 			// Given: a template and a template version with preset and a prebuilt workspace
 			presetID := uuid.New()
-			tv := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
-				OrganizationID: owner.OrganizationID,
-				CreatedBy:      owner.UserID,
-			}).Preset(database.TemplateVersionPreset{
-				ID: presetID,
-				DesiredInstances: sql.NullInt32{
-					Int32: 1,
-					Valid: true,
-				},
-			}).Do()
-
+			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+			dbgen.Preset(t, db, database.InsertPresetParams{
+				ID:                presetID,
+				TemplateVersionID: version.ID,
+				DesiredInstances:  sql.NullInt32{Int32: 1, Valid: true},
+			})
 			workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 				OwnerID:    database.PrebuildsSystemUserID,
-				TemplateID: tv.Template.ID,
+				TemplateID: template.ID,
 			}).Seed(database.WorkspaceBuild{
-				TemplateVersionID: tv.TemplateVersion.ID,
+				TemplateVersionID: version.ID,
 				TemplateVersionPresetID: uuid.NullUUID{
 					UUID:  presetID,
 					Valid: true,
 				},
-				Deadline: clock.Now().Add(time.Hour),
 			}).WithAgent(func(agent []*proto.Agent) []*proto.Agent {
 				return agent
 			}).Do()
 
+			// Mark the prebuilt workspace's agent as ready so the prebuild can be claimed
 			// nolint:gocritic
 			ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
 			agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, uuid.MustParse(workspaceBuild.AgentToken))
@@ -449,6 +443,8 @@ func TestSchedulePrebuilds(t *testing.T) {
 				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
 			})
 			require.NoError(t, err)
+
+			// Given: a prebuilt workspace
 			prebuild := coderdtest.MustWorkspace(t, client, workspaceBuild.Workspace.ID)
 
 			// When: running the schedule command over a prebuilt workspace
@@ -463,20 +459,20 @@ func TestSchedulePrebuilds(t *testing.T) {
 			}()
 			<-doneChan
 
-			// Then: return an error
+			// Then: an error should be returned, with an error message specific to the lifecycle parameter
 			require.Error(t, runErr)
 			require.Contains(t, runErr.Error(), tc.cliErrorMsg)
 
-			// Given: a user claims the prebuilt workspace
+			// Given: the prebuilt workspace is claimed by a user
 			user, err := client.User(ctx, "testUser")
 			require.NoError(t, err)
 			claimedWorkspace, err := client.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
-				TemplateVersionID:       tv.TemplateVersion.ID,
+				TemplateVersionID:       version.ID,
 				TemplateVersionPresetID: presetID,
 				Name:                    coderdtest.RandomUsername(t),
 				// The 'extend' command requires the workspace to have an existing deadline.
 				// To ensure this, we set the workspace's TTL to 1 hour.
-				TTLMillis: ptr.Ref[int64](3600000),
+				TTLMillis: ptr.Ref[int64](time.Hour.Milliseconds()),
 			})
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, claimedWorkspace.LatestBuild.ID)
