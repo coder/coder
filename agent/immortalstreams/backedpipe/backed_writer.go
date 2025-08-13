@@ -73,7 +73,6 @@ func (bw *BackedWriter) Write(p []byte) (int, error) {
 
 	// Write to underlying writer
 	n, err := bw.writer.Write(p)
-
 	if err != nil {
 		// Connection failed, mark as disconnected
 		bw.writer = nil
