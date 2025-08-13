@@ -995,6 +995,15 @@ func New(options *Options) *API {
 		r.Route("/aitasks", func(r chi.Router) {
 			r.Get("/prompts", api.aiTasksPrompts)
 		})
+		r.Route("/tasks", func(r chi.Router) {
+			r.Use(apiRateLimiter)
+
+			r.Route("/{user}", func(r chi.Router) {
+				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+
+				r.Post("/", api.tasksCreate)
+			})
+		})
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP),

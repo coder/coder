@@ -943,13 +943,6 @@ func (m queryMetricsStore) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Cont
 	return build, err
 }
 
-func (m queryMetricsStore) GetLatestWorkspaceBuilds(ctx context.Context) ([]database.WorkspaceBuild, error) {
-	start := time.Now()
-	builds, err := m.s.GetLatestWorkspaceBuilds(ctx)
-	m.queryLatencies.WithLabelValues("GetLatestWorkspaceBuilds").Observe(time.Since(start).Seconds())
-	return builds, err
-}
-
 func (m queryMetricsStore) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
 	start := time.Now()
 	builds, err := m.s.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, ids)
@@ -1536,6 +1529,13 @@ func (m queryMetricsStore) GetTemplateVersionByTemplateIDAndName(ctx context.Con
 	version, err := m.s.GetTemplateVersionByTemplateIDAndName(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetTemplateVersionByTemplateIDAndName").Observe(time.Since(start).Seconds())
 	return version, err
+}
+
+func (m queryMetricsStore) GetTemplateVersionHasAITask(ctx context.Context, id uuid.UUID) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateVersionHasAITask(ctx, id)
+	m.queryLatencies.WithLabelValues("GetTemplateVersionHasAITask").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {

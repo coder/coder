@@ -391,7 +391,7 @@ parameters in one of two ways:
 
   Or set the [environment variable](../../setup/index.md), `CODER_EXPERIMENTS=auto-fill-parameters`
 
-## Dynamic Parameters (beta)
+## Dynamic Parameters
 
 Coder v2.24.0 introduces [Dynamic Parameters](./dynamic-parameters.md) to extend the existing parameter system with
 conditional form controls, enriched input types, and user identity awareness.

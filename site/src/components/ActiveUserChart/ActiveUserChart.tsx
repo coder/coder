@@ -113,7 +113,7 @@ type ActiveUsersTitleProps = {
 
 export const ActiveUsersTitle: FC<ActiveUsersTitleProps> = ({ interval }) => {
 	return (
-		<div css={{ display: "flex", alignItems: "center", gap: 8 }}>
+		<div className="flex items-center gap-2">
 			{interval === "day" ? "Daily" : "Weekly"} Active Users
 			<HelpTooltip>
 				<HelpTooltipTrigger size="small" />

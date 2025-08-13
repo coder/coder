@@ -34,6 +34,7 @@ interface ComboboxProps {
 	onInputChange?: (value: string) => void;
 	onKeyDown?: KeyboardEventHandler<HTMLInputElement>;
 	onSelect: (value: string) => void;
+	id?: string;
 }
 
 type ComboboxOption = {
@@ -53,6 +54,7 @@ export const Combobox: FC<ComboboxProps> = ({
 	onInputChange,
 	onKeyDown,
 	onSelect,
+	id,
 }) => {
 	const [managedOpen, setManagedOpen] = useState(false);
 	const [managedInputValue, setManagedInputValue] = useState("");
@@ -78,6 +80,7 @@ export const Combobox: FC<ComboboxProps> = ({
 		<Popover open={isOpen} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
 				<Button
+					id={id}
 					variant="outline"
 					aria-expanded={isOpen}
 					className="w-full justify-between group"

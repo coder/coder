@@ -10,7 +10,7 @@ import { useAuthenticated } from "hooks";
 import { canViewDeploymentSettings } from "modules/permissions";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, Suspense } from "react";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router";
 import { DeploymentSidebar } from "./DeploymentSidebar";
 
 const DeploymentSettingsLayout: FC = () => {
