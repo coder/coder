@@ -7,12 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"slices"
 	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -88,15 +86,15 @@ func (api *API) generateTaskName(ctx context.Context, prompt, fallback string) (
 			Parts: []aisdk.Part{{
 				Type: aisdk.PartTypeText,
 				Text: `
-						You are a task summarizer.
-						You summarize AI prompts into workspace names.
-						You will only respond with a workspace name.
-						The workspace name **MUST** follow this regex /^[a-z0-9]+(?:-[a-z0-9]+)*$/
-						The workspace name **MUST** be 32 characters or **LESS**.
-						The workspace name **MUST** be all lower case.
-						The workspace name **MUST** end in a number between 0 and 100.
-						The workspace name **MUST** be prefixed with "task".
-					`,
+					You are a task summarizer.
+					You summarize AI prompts into workspace names.
+					You will only respond with a workspace name.
+					The workspace name **MUST** follow this regex /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+					The workspace name **MUST** be 32 characters or **LESS**.
+					The workspace name **MUST** be all lower case.
+					The workspace name **MUST** end in a number between 0 and 100.
+					The workspace name **MUST** be prefixed with "task".
+				`,
 			}},
 		},
 		{
@@ -108,11 +106,8 @@ func (api *API) generateTaskName(ctx context.Context, prompt, fallback string) (
 		},
 	}
 
-	if anthropicAPIKey := os.Getenv("ANTHROPIC_API_KEY"); anthropicAPIKey != "" {
-		anthropicAPIKey := os.Getenv("ANTHROPIC_API_KEY")
-		anthropicClient := anthropic.NewClient(anthropicoption.WithAPIKey(anthropicAPIKey))
-
-		stream, err = anthropicDataStream(ctx, anthropicClient, conversation)
+	if anthropicClient := api.anthropicClient.Load(); anthropicClient != nil {
+		stream, err = anthropicDataStream(ctx, *anthropicClient, conversation)
 		if err != nil {
 			return "", xerrors.Errorf("create anthropic data stream: %w", err)
 		}

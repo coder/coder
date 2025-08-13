@@ -20,6 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/prebuilds"
@@ -276,6 +277,8 @@ type Options struct {
 
 	// WebPushDispatcher is a way to send notifications over Web Push.
 	WebPushDispatcher webpush.Dispatcher
+
+	AnthropicClient *atomic.Pointer[anthropic.Client]
 }
 
 // @title Coder API
@@ -475,6 +478,10 @@ func New(options *Options) *API {
 		options.NotificationsEnqueuer = notifications.NewNoopEnqueuer()
 	}
 
+	if options.AnthropicClient == nil {
+		options.AnthropicClient = &atomic.Pointer[anthropic.Client]{}
+	}
+
 	r := chi.NewRouter()
 	// We add this middleware early, to make sure that authorization checks made
 	// by other middleware get recorded.
@@ -600,7 +607,8 @@ func New(options *Options) *API {
 			options.Database,
 			options.Pubsub,
 		),
-		dbRolluper: options.DatabaseRolluper,
+		dbRolluper:      options.DatabaseRolluper,
+		anthropicClient: options.AnthropicClient,
 	}
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		options.Logger.Named("workspaceapps"),
@@ -1723,6 +1731,8 @@ type API struct {
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
+
+	anthropicClient *atomic.Pointer[anthropic.Client]
 }
 
 // Close waits for all WebSocket connections to drain before returning.

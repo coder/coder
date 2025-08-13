@@ -497,6 +497,7 @@ type DeploymentValues struct {
 	WorkspaceHostnameSuffix         serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
 	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 	HideAITasks                     serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
+	AnthropicAPIKey                 serpent.String                       `json:"anthropic_api_key,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -3204,6 +3205,13 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.HideAITasks,
 			Group:       &deploymentGroupClient,
 			YAML:        "hideAITasks",
+		},
+		{
+			Name:        "Anthropic API Key",
+			Description: "API Key for accessing Anthropic's API platform.",
+			Env:         "ANTHROPIC_API_KEY",
+			Value:       &c.AnthropicAPIKey,
+			Group:       &deploymentGroupClient,
 		},
 	}
 

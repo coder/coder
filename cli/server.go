@@ -31,6 +31,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/anthropics/anthropic-sdk-go"
+	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-systemd/daemon"
@@ -629,6 +631,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					vals.WorkspaceHostnameSuffix.String())
 			}
 
+			var anthropicClient atomic.Pointer[anthropic.Client]
+			if vals.AnthropicAPIKey.String() != "" {
+				client := anthropic.NewClient(anthropicoption.WithAPIKey(vals.AnthropicAPIKey.String()))
+
+				anthropicClient.Store(&client)
+			}
+
 			options := &coderd.Options{
 				AccessURL:                   vals.AccessURL.Value(),
 				AppHostname:                 appHostname,
@@ -666,6 +675,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				AllowWorkspaceRenames: vals.AllowWorkspaceRenames.Value(),
 				Entitlements:          entitlements.New(),
 				NotificationsEnqueuer: notifications.NewNoopEnqueuer(), // Changed further down if notifications enabled.
+				AnthropicClient:       &anthropicClient,
 			}
 			if httpServers.TLSConfig != nil {
 				options.TLSCertificates = httpServers.TLSConfig.Certificates
