@@ -46,7 +46,7 @@ export const SidebarHeader: FC<SidebarHeaderProps> = ({
 				) : (
 					<span className={titleStyles.normal}>{title}</span>
 				)}
-				<span className="text-content-secondary font-size-sm overflow-hidden overflow-ellipsis">
+				<span className="text-content-secondary text-sm overflow-hidden overflow-ellipsis">
 					{subtitle}
 				</span>
 			</div>
@@ -101,7 +101,7 @@ export const SidebarNavItem: FC<SidebarNavItemProps> = ({
 					"block relative text-sm text-inherit mb-px p-3 pl-4 rounded-sm",
 					"transition-colors no-underline hover:bg-surface-secondary",
 					isActive &&
-						"bg-surface-secondary border-0 border-solid border-l-[3px] border-highlight-sky",
+					"bg-surface-secondary border-0 border-solid border-l-[3px] border-highlight-sky",
 				)
 			}
 		>
