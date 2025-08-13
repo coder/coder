@@ -17,6 +17,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+
 	"github.com/coder/coder/v2/coderd/files"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
@@ -2516,6 +2518,185 @@ func templateWithFailedResponseAndPresetsWithPrebuilds(desiredInstances int32) *
 			},
 		},
 		ProvisionApply: echo.ApplyFailed,
+	}
+}
+
+func TestPrebuildUpdateLifecycleParams(t *testing.T) {
+	t.Parallel()
+
+	// Set the clock to Monday, January 1st, 2024 at 8:00 AM UTC to keep the test deterministic
+	clock := quartz.NewMock(t)
+	clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
+
+	// Autostart schedule configuration set to weekly at 9:30 AM UTC
+	autostartSchedule, err := cron.Weekly("CRON_TZ=UTC 30 9 * * 1-5")
+	require.NoError(t, err)
+
+	// TTL configuration set to 8 hours
+	ttlMillis := ptr.Ref((8 * time.Hour).Milliseconds())
+
+	// Deadline configuration set to 10:00 AM UTC
+	deadline := clock.Now().Add(2 * time.Hour)
+
+	cases := []struct {
+		name         string
+		endpoint     func(*testing.T, context.Context, *codersdk.Client, uuid.UUID) error
+		apiErrorMsg  string
+		assertUpdate func(*testing.T, *quartz.Mock, *codersdk.Client, uuid.UUID)
+	}{
+		{
+			name: "AutostartUpdatePrebuildAfterClaim",
+			endpoint: func(t *testing.T, ctx context.Context, client *codersdk.Client, workspaceID uuid.UUID) error {
+				err = client.UpdateWorkspaceAutostart(ctx, workspaceID, codersdk.UpdateWorkspaceAutostartRequest{
+					Schedule: ptr.Ref(autostartSchedule.String()),
+				})
+				return err
+			},
+			apiErrorMsg: "Autostart is not supported for prebuilt workspaces",
+			assertUpdate: func(t *testing.T, clock *quartz.Mock, client *codersdk.Client, workspaceID uuid.UUID) {
+				// The workspace's autostart schedule should be updated to the given schedule,
+				// and its next start time should be set to 2024-01-01 09:30 AM UTC
+				updatedWorkspace := coderdtest.MustWorkspace(t, client, workspaceID)
+				require.Equal(t, autostartSchedule.String(), *updatedWorkspace.AutostartSchedule)
+				require.Equal(t, autostartSchedule.Next(clock.Now()), updatedWorkspace.NextStartAt.UTC())
+				expectedNext := time.Date(2024, 1, 1, 9, 30, 0, 0, time.UTC)
+				require.Equal(t, expectedNext, updatedWorkspace.NextStartAt.UTC())
+			},
+		},
+		{
+			name: "TTLUpdatePrebuildAfterClaim",
+			endpoint: func(t *testing.T, ctx context.Context, client *codersdk.Client, workspaceID uuid.UUID) error {
+				err := client.UpdateWorkspaceTTL(ctx, workspaceID, codersdk.UpdateWorkspaceTTLRequest{
+					TTLMillis: ttlMillis,
+				})
+				return err
+			},
+			apiErrorMsg: "TTL updates are not supported for prebuilt workspaces",
+			assertUpdate: func(t *testing.T, clock *quartz.Mock, client *codersdk.Client, workspaceID uuid.UUID) {
+				// The workspace's TTL should be updated accordingly
+				updatedWorkspace := coderdtest.MustWorkspace(t, client, workspaceID)
+				require.Equal(t, ttlMillis, updatedWorkspace.TTLMillis)
+			},
+		},
+		{
+			name: "DormantUpdatePrebuildAfterClaim",
+			endpoint: func(t *testing.T, ctx context.Context, client *codersdk.Client, workspaceID uuid.UUID) error {
+				err := client.UpdateWorkspaceDormancy(ctx, workspaceID, codersdk.UpdateWorkspaceDormancy{
+					Dormant: true,
+				})
+				return err
+			},
+			apiErrorMsg: "Dormancy updates are not supported for prebuilt workspaces",
+			assertUpdate: func(t *testing.T, clock *quartz.Mock, client *codersdk.Client, workspaceID uuid.UUID) {
+				// The workspace's dormantAt should be updated accordingly
+				updatedWorkspace := coderdtest.MustWorkspace(t, client, workspaceID)
+				require.Equal(t, clock.Now(), updatedWorkspace.DormantAt.UTC())
+			},
+		},
+		{
+			name: "DeadlineUpdatePrebuildAfterClaim",
+			endpoint: func(t *testing.T, ctx context.Context, client *codersdk.Client, workspaceID uuid.UUID) error {
+				err := client.PutExtendWorkspace(ctx, workspaceID, codersdk.PutExtendWorkspaceRequest{
+					Deadline: deadline,
+				})
+				return err
+			},
+			apiErrorMsg: "Deadline extension is not supported for prebuilt workspaces",
+			assertUpdate: func(t *testing.T, clock *quartz.Mock, client *codersdk.Client, workspaceID uuid.UUID) {
+				// The workspace build's deadline should be updated accordingly
+				updatedWorkspace := coderdtest.MustWorkspace(t, client, workspaceID)
+				require.Equal(t, deadline, updatedWorkspace.LatestBuild.Deadline.Time.UTC())
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Setup
+			client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					Clock:                    clock,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureWorkspacePrebuilds: 1,
+					},
+				},
+			})
+
+			// Given: a template and a template version with preset and a prebuilt workspace
+			presetID := uuid.New()
+			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+			dbgen.Preset(t, db, database.InsertPresetParams{
+				ID:                presetID,
+				TemplateVersionID: version.ID,
+				DesiredInstances:  sql.NullInt32{Int32: 1, Valid: true},
+			})
+			workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:    database.PrebuildsSystemUserID,
+				TemplateID: template.ID,
+			}).Seed(database.WorkspaceBuild{
+				TemplateVersionID: version.ID,
+				TemplateVersionPresetID: uuid.NullUUID{
+					UUID:  presetID,
+					Valid: true,
+				},
+			}).WithAgent(func(agent []*proto.Agent) []*proto.Agent {
+				return agent
+			}).Do()
+
+			// Mark the prebuilt workspace's agent as ready so the prebuild can be claimed
+			// nolint:gocritic
+			ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
+			agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, uuid.MustParse(workspaceBuild.AgentToken))
+			require.NoError(t, err)
+			err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+				ID:             agent.WorkspaceAgent.ID,
+				LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			})
+			require.NoError(t, err)
+
+			// Given: a prebuilt workspace
+			prebuild := coderdtest.MustWorkspace(t, client, workspaceBuild.Workspace.ID)
+
+			// When: the lifecycle-update endpoint is called for the prebuilt workspace
+			err = tc.endpoint(t, ctx, client, prebuild.ID)
+
+			// Then: a 409 Conflict should be returned, with an error message specific to the lifecycle parameter
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+			require.Equal(t, tc.apiErrorMsg, apiErr.Response.Message)
+
+			// Given: the prebuilt workspace is claimed by a user
+			user, err := client.User(ctx, "testUser")
+			require.NoError(t, err)
+			claimedWorkspace, err := client.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
+				TemplateVersionID:       version.ID,
+				TemplateVersionPresetID: presetID,
+				Name:                    coderdtest.RandomUsername(t),
+				// The 'extend' endpoint requires the workspace to have an existing deadline.
+				// To ensure this, we set the workspace's TTL to 1 hour.
+				TTLMillis: ptr.Ref[int64](time.Hour.Milliseconds()),
+			})
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, claimedWorkspace.LatestBuild.ID)
+			workspace := coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)
+			require.Equal(t, prebuild.ID, workspace.ID)
+
+			// When: the same lifecycle-update endpoint is called for the claimed workspace
+			err = tc.endpoint(t, ctx, client, workspace.ID)
+			require.NoError(t, err)
+
+			// Then: the workspace's lifecycle parameter should be updated accordingly
+			tc.assertUpdate(t, clock, client, claimedWorkspace.ID)
+		})
 	}
 }
 

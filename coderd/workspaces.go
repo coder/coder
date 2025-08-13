@@ -1126,12 +1126,20 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Use injected Clock to allow time mocking in tests
+	now := api.Clock.Now()
+
 	nextStartAt := sql.NullTime{}
 	if dbSched.Valid {
-		next, err := schedule.NextAllowedAutostart(dbtime.Now(), dbSched.String, templateSchedule)
-		if err == nil {
-			nextStartAt = sql.NullTime{Valid: true, Time: dbtime.Time(next.UTC())}
+		next, err := schedule.NextAllowedAutostart(now, dbSched.String, templateSchedule)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error calculating workspace autostart schedule.",
+				Detail:  err.Error(),
+			})
+			return
 		}
+		nextStartAt = sql.NullTime{Valid: true, Time: dbtime.Time(next.UTC())}
 	}
 
 	err = api.Database.UpdateWorkspaceAutostart(ctx, database.UpdateWorkspaceAutostartParams{
@@ -1220,6 +1228,9 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("update workspace time until shutdown: %w", err)
 		}
 
+		// Use injected Clock to allow time mocking in tests
+		now := api.Clock.Now()
+
 		// If autostop has been disabled, we want to remove the deadline from the
 		// existing workspace build (if there is one).
 		if !dbTTL.Valid {
@@ -1247,7 +1258,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 					// more information.
 					Deadline:    build.MaxDeadline,
 					MaxDeadline: build.MaxDeadline,
-					UpdatedAt:   dbtime.Time(api.Clock.Now()),
+					UpdatedAt:   dbtime.Time(now),
 				}); err != nil {
 					return xerrors.Errorf("update workspace build deadline: %w", err)
 				}
@@ -1315,7 +1326,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 	// Prebuilds are managed by the reconciliation loop and are not subject to dormancy.
 	if oldWorkspace.IsPrebuild() {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: "Dormancy configuration is not supported for prebuilt workspaces",
+			Message: "Dormancy updates are not supported for prebuilt workspaces",
 			Detail:  "Prebuilt workspaces are not subject to dormancy. Dormancy behavior is only applicable to regular workspaces",
 		})
 		return
@@ -1327,11 +1338,14 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Use injected Clock to allow time mocking in tests
+	now := api.Clock.Now()
+
 	dormantAt := sql.NullTime{
 		Valid: req.Dormant,
 	}
 	if req.Dormant {
-		dormantAt.Time = dbtime.Now()
+		dormantAt.Time = dbtime.Time(now)
 	}
 
 	newWorkspace, err := api.Database.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{
@@ -1371,7 +1385,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if initiatorErr == nil && tmplErr == nil {
-			dormantTime := dbtime.Now().Add(time.Duration(tmpl.TimeTilDormant))
+			dormantTime := dbtime.Time(now).Add(time.Duration(tmpl.TimeTilDormant))
 			_, err = api.NotificationsEnqueuer.Enqueue(
 				// nolint:gocritic // Need notifier actor to enqueue notifications
 				dbauthz.AsNotifier(ctx),
@@ -1512,8 +1526,11 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("workspace shutdown is manual")
 		}
 
+		// Use injected Clock to allow time mocking in tests
+		now := api.Clock.Now()
+
 		newDeadline := req.Deadline.UTC()
-		if err := validWorkspaceDeadline(job.CompletedAt.Time, newDeadline); err != nil {
+		if err := validWorkspaceDeadline(now, job.CompletedAt.Time, newDeadline); err != nil {
 			// NOTE(Cian): Putting the error in the Message field on request from the FE folks.
 			// Normally, we would put the validation error in Validations, but this endpoint is
 			// not tied to a form or specific named user input on the FE.
@@ -1529,7 +1546,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 		if err := s.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 			ID:          build.ID,
-			UpdatedAt:   dbtime.Now(),
+			UpdatedAt:   dbtime.Time(now),
 			Deadline:    newDeadline,
 			MaxDeadline: build.MaxDeadline,
 		}); err != nil {
@@ -2484,8 +2501,8 @@ func validWorkspaceAutomaticUpdates(updates codersdk.AutomaticUpdates) (database
 	return dbAU, nil
 }
 
-func validWorkspaceDeadline(startedAt, newDeadline time.Time) error {
-	soon := time.Now().Add(29 * time.Minute)
+func validWorkspaceDeadline(now, startedAt, newDeadline time.Time) error {
+	soon := now.Add(29 * time.Minute)
 	if newDeadline.Before(soon) {
 		return errDeadlineTooSoon
 	}
