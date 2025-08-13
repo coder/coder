@@ -33,7 +33,7 @@ const (
 	// failureReasonLimit is the maximum text length of an error to be cached to the
 	// database for a failed refresh token. In rare cases, the error could be a large
 	// HTML payload.
-	failureReasonLimit = 200
+	failureReasonLimit = 400
 )
 
 // Config is used for authentication for Git operations.
