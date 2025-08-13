@@ -15,20 +15,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/coder/coder/v2/coderd/database/dbgen"
-
-	"github.com/coder/coder/v2/coderd/files"
-	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
-	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
-
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
-
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -37,10 +29,13 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
+	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -52,6 +47,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/audit/backends"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -2524,10 +2520,6 @@ func templateWithFailedResponseAndPresetsWithPrebuilds(desiredInstances int32) *
 func TestPrebuildUpdateLifecycleParams(t *testing.T) {
 	t.Parallel()
 
-	// Set the clock to Monday, January 1st, 2024 at 8:00 AM UTC to keep the test deterministic
-	clock := quartz.NewMock(t)
-	clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
-
 	// Autostart schedule configuration set to weekly at 9:30 AM UTC
 	autostartSchedule, err := cron.Weekly("CRON_TZ=UTC 30 9 * * 1-5")
 	require.NoError(t, err)
@@ -2535,8 +2527,8 @@ func TestPrebuildUpdateLifecycleParams(t *testing.T) {
 	// TTL configuration set to 8 hours
 	ttlMillis := ptr.Ref((8 * time.Hour).Milliseconds())
 
-	// Deadline configuration set to 10:00 AM UTC
-	deadline := clock.Now().Add(2 * time.Hour)
+	// Deadline configuration set to January 1st, 2024 at 10:00 AM UTC
+	deadline := time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)
 
 	cases := []struct {
 		name         string
@@ -2614,6 +2606,10 @@ func TestPrebuildUpdateLifecycleParams(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
+			// Set the clock to Monday, January 1st, 2024 at 8:00 AM UTC to keep the test deterministic
+			clock := quartz.NewMock(t)
+			clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
 
 			// Setup
 			client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
