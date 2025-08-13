@@ -6009,10 +6009,10 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 
 	// Use raw database without dbauthz wrapper for this test
 	db, _ := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	t.Run("FullCRUDWorkflow", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		// Create a new user for this test
 		testUser := dbgen.User(t, db, database.User{})
@@ -6085,6 +6085,7 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 
 	t.Run("UniqueConstraints", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		// Create a new user for this test
 		testUser := dbgen.User(t, db, database.User{})
@@ -6156,7 +6157,6 @@ func TestUserSecretsAuthorization(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 	authDB := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
-	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	// Create test users
 	user1 := dbgen.User(t, db, database.User{})
@@ -6234,6 +6234,7 @@ func TestUserSecretsAuthorization(t *testing.T) {
 		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			authCtx := dbauthz.As(ctx, tc.subject)
 
