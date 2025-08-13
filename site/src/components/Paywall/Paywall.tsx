@@ -26,14 +26,15 @@ export const Paywall: FC<PaywallProps> = ({
 				</Stack>
 
 				{description && <p css={styles.description}>{description}</p>}
-				<Link
-					href={documentationLink}
-					target="_blank"
-					rel="noreferrer"
-					css={{ fontWeight: 600 }}
-				>
-					Read the documentation
-				</Link>
+				<div className="pt-3">
+					<Link
+						href={documentationLink}
+						target="_blank"
+						rel="noreferrer"
+						css={{ fontWeight: 600 }}
+					>
+						Read the documentation
+					</Link></div>
 			</div>
 			<div css={styles.separator} />
 			<Stack direction="column" alignItems="left" spacing={3}>
