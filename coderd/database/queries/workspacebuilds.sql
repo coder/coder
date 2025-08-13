@@ -127,7 +127,15 @@ SET
 	deadline = @deadline::timestamptz,
 	max_deadline = @max_deadline::timestamptz,
 	updated_at = @updated_at::timestamptz
-WHERE id = @id::uuid;
+FROM
+	workspaces
+WHERE
+	workspace_builds.id = @id::uuid
+	AND workspace_builds.workspace_id = workspaces.id
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- deadline and max_deadline
+	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID;
 
 -- name: UpdateWorkspaceBuildProvisionerStateByID :exec
 UPDATE
