@@ -40,13 +40,16 @@ UPDATE external_auth_links SET
     oauth_refresh_token = $6,
     oauth_refresh_token_key_id = $7,
     oauth_expiry = $8,
-	oauth_extra = $9
+	oauth_extra = $9,
+	-- Only 'UpdateExternalAuthLinkRefreshToken' supports updating the oauth_refresh_failure_reason
+	oauth_refresh_failure_reason = ''
 WHERE provider_id = $1 AND user_id = $2 RETURNING *;
 
 -- name: UpdateExternalAuthLinkRefreshToken :exec
 UPDATE
 	external_auth_links
 SET
+	oauth_refresh_failure_reason = @oauth_refresh_failure_reason,
 	oauth_refresh_token = @oauth_refresh_token,
 	updated_at = @updated_at
 WHERE

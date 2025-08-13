@@ -28,6 +28,10 @@ import (
 	"github.com/coder/retry"
 )
 
+const (
+	failureReasonLimit = 200
+)
+
 // Config is used for authentication for Git operations.
 type Config struct {
 	promoauth.InstrumentedOAuth2Config
@@ -130,6 +134,12 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		refreshToken = ""
 	}
 
+	if externalAuthLink.OauthRefreshFailureReason != "" {
+		// If the refresh token is invalid, do not try to keep using it. This will
+		// prevent spamming the IdP with refresh attempts that will fail.
+		refreshToken = ""
+	}
+
 	existingToken := &oauth2.Token{
 		AccessToken:  externalAuthLink.OAuthAccessToken,
 		RefreshToken: refreshToken,
@@ -143,12 +153,19 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		// get rid of it. Keeping it around will cause additional refresh
 		// attempts that will fail and cost us api rate limits.
 		if isFailedRefresh(existingToken, err) {
+			reason := err.Error()
+			if len(reason) > failureReasonLimit {
+				// Limit the length of the error message to prevent
+				// spamming the database with long error messages.
+				reason = reason[:failureReasonLimit]
+			}
 			dbExecErr := db.UpdateExternalAuthLinkRefreshToken(ctx, database.UpdateExternalAuthLinkRefreshTokenParams{
-				OAuthRefreshToken:      "", // It is better to clear the refresh token than to keep retrying.
-				OAuthRefreshTokenKeyID: externalAuthLink.OAuthRefreshTokenKeyID.String,
-				UpdatedAt:              dbtime.Now(),
-				ProviderID:             externalAuthLink.ProviderID,
-				UserID:                 externalAuthLink.UserID,
+				// Adding a reason will prevent further attempts to try and refresh the token.
+				OauthRefreshFailureReason: reason,
+				OAuthRefreshTokenKeyID:    externalAuthLink.OAuthRefreshTokenKeyID.String,
+				UpdatedAt:                 dbtime.Now(),
+				ProviderID:                externalAuthLink.ProviderID,
+				UserID:                    externalAuthLink.UserID,
 			})
 			if dbExecErr != nil {
 				// This error should be rare.
