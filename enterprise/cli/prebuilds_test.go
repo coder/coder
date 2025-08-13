@@ -365,22 +365,6 @@ func TestSchedulePrebuilds(t *testing.T) {
 		t.Skip("this test requires postgres")
 	}
 
-	// Setup
-	clock := quartz.NewMock(t)
-	clock.Set(dbtime.Now())
-	client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-		Options: &coderdtest.Options{
-			DeploymentValues:         coderdtest.DeploymentValues(t),
-			IncludeProvisionerDaemon: true,
-			Clock:                    clock,
-		},
-		LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureWorkspacePrebuilds: 1,
-			},
-		},
-	})
-
 	cases := []struct {
 		name        string
 		cliErrorMsg string
@@ -413,6 +397,21 @@ func TestSchedulePrebuilds(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
+			// Setup
+			clock := quartz.NewMock(t)
+			clock.Set(dbtime.Now())
+			client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					Clock:                    clock,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureWorkspacePrebuilds: 1,
+					},
+				},
+			})
 
 			// Given: a template and a template version with preset and a prebuilt workspace
 			presetID := uuid.New()
