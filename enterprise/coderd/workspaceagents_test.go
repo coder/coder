@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"context"
 	"crypto/tls"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"os"
@@ -364,6 +365,11 @@ func TestWorkspaceExternalAgentCredentials(t *testing.T) {
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
+		}).Seed(database.WorkspaceBuild{
+			HasExternalAgent: sql.NullBool{
+				Bool:  true,
+				Valid: true,
+			},
 		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
 			a[0].Name = "test-agent"
 			a[0].OperatingSystem = "linux"
@@ -387,6 +393,11 @@ func TestWorkspaceExternalAgentCredentials(t *testing.T) {
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
+		}).Seed(database.WorkspaceBuild{
+			HasExternalAgent: sql.NullBool{
+				Bool:  true,
+				Valid: true,
+			},
 		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
 			a[0].Name = "test-agent"
 			a[0].OperatingSystem = "windows"
@@ -410,6 +421,11 @@ func TestWorkspaceExternalAgentCredentials(t *testing.T) {
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
+		}).Seed(database.WorkspaceBuild{
+			HasExternalAgent: sql.NullBool{
+				Bool:  true,
+				Valid: true,
+			},
 		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
 			a[0].Name = "test-agent"
 			a[0].Auth = &proto.Agent_InstanceId{
