@@ -140,12 +140,21 @@ func (r *RootCmd) portForward() *serpent.Command {
 					// first, opportunistically try to listen on IPv6
 					spec6 := spec
 					spec6.ListenHost = portforward.IPv6Loopback
-					_, err := manager.Add(spec6)
+					forwarder6, err := manager.Add(spec6)
 					if err != nil {
-						logger.Info(ctx, "failed to opportunistically add IPv6 forwarder", slog.F("spec", spec), slog.Error(err))
+						logger.Info(ctx, "failed to opportunistically add IPv6 forwarder", slog.F("spec", spec6), slog.Error(err))
 					} else {
-						_, _ = fmt.Fprintf(inv.Stderr, "Forwarding '%s://[%s]:%d' locally to '%s://127.0.0.1:%d' in the workspace\n",
-							spec6.Network, spec6.ListenHost, spec6.ListenPort, spec6.Network, spec6.DialPort)
+						// Test if the IPv6 forwarder can actually start
+						if startErr := forwarder6.Start(ctx); startErr != nil {
+							logger.Info(ctx, "failed to opportunistically start IPv6 forwarder", slog.F("spec", spec6), slog.Error(startErr))
+							// Remove the IPv6 forwarder from the manager since it can't start
+							_ = manager.Remove(spec6)
+						} else {
+							// IPv6 forwarder started successfully, stop it for now (it will be restarted with all others)
+							_ = forwarder6.Stop()
+							_, _ = fmt.Fprintf(inv.Stderr, "Forwarding '%s://[%s]:%d' locally to '%s://127.0.0.1:%d' in the workspace\n",
+								spec6.Network, spec6.ListenHost, spec6.ListenPort, spec6.Network, spec6.DialPort)
+						}
 					}
 					spec.ListenHost = portforward.IPv4Loopback
 				}
