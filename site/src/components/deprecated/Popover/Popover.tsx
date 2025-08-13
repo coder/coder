@@ -109,8 +109,8 @@ type PopoverTriggerRenderProps = Readonly<{
 type PopoverTriggerProps = Readonly<
 	Omit<HTMLAttributes<HTMLElement>, "children"> & {
 		children:
-		| TriggerElement
-		| ((props: PopoverTriggerRenderProps) => TriggerElement);
+			| TriggerElement
+			| ((props: PopoverTriggerRenderProps) => TriggerElement);
 	}
 >;
 

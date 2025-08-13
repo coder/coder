@@ -594,7 +594,7 @@ export const MultiSelectCombobox = forwardRef<
 										disabled ||
 										selected.length < 1 ||
 										fixedOptions.length === selected.length) &&
-									"hidden",
+										"hidden",
 								)}
 							>
 								<X className="h-5 w-5" />
@@ -661,7 +661,7 @@ export const MultiSelectCombobox = forwardRef<
 															className={cn(
 																"cursor-pointer",
 																option.disable &&
-																"cursor-default text-content-disabled",
+																	"cursor-default text-content-disabled",
 															)}
 														>
 															<div className="flex items-center gap-2">
