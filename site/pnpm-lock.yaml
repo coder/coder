@@ -459,9 +459,6 @@ importers:
       vite-plugin-checker:
         specifier: 0.9.3
         version: 0.9.3(@biomejs/biome@1.9.4)(eslint@8.52.0)(optionator@0.9.3)(typescript@5.6.3)(vite@6.3.5(@types/node@20.17.16)(jiti@2.4.2)(yaml@2.7.0))
-      vite-plugin-turbosnap:
-        specifier: 1.0.3
-        version: 1.0.3
 
 packages:
 
@@ -6083,9 +6080,6 @@ packages:
         optional: true
       vue-tsc:
         optional: true
-
-  vite-plugin-turbosnap@1.0.3:
-    resolution: {integrity: sha512-p4D8CFVhZS412SyQX125qxyzOgIFouwOcvjZWk6bQbNPR1wtaEzFT6jZxAjf1dejlGqa6fqHcuCvQea6EWUkUA==, tarball: https://registry.npmjs.org/vite-plugin-turbosnap/-/vite-plugin-turbosnap-1.0.3.tgz}
 
   vite@6.3.5:
     resolution: {integrity: sha512-cZn6NDFE7wdTpINgs++ZJ4N49W2vRp8LCKrn3Ob1kYNtOo21vfDoaV5GzBfLU4MovSAB8uNRm4jgzVQZ+mBzPQ==, tarball: https://registry.npmjs.org/vite/-/vite-6.3.5.tgz}
@@ -12765,8 +12759,6 @@ snapshots:
       eslint: 8.52.0
       optionator: 0.9.3
       typescript: 5.6.3
-
-  vite-plugin-turbosnap@1.0.3: {}
 
   vite@6.3.5(@types/node@20.17.16)(jiti@2.4.2)(yaml@2.7.0):
     dependencies:

@@ -1,5 +1,3 @@
-import turbosnap from "vite-plugin-turbosnap";
-
 module.exports = {
 	stories: ["../src/**/*.stories.tsx"],
 
@@ -18,15 +16,7 @@ module.exports = {
 		options: {},
 	},
 
-	async viteFinal(config, { configType }) {
-		config.plugins = config.plugins || [];
-		if (configType === "PRODUCTION") {
-			config.plugins.push(
-				turbosnap({
-					rootDir: config.root || "",
-				}),
-			);
-		}
+	async viteFinal(config) {
 		config.server.allowedHosts = [".coder"];
 		return config;
 	},
