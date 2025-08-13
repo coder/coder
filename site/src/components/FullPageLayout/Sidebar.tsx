@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import type { ComponentProps, FC, HTMLAttributes } from "react";
 import { Link, type LinkProps } from "react-router";
 import { cn } from "utils/cn";
