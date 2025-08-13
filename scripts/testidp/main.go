@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -14,7 +13,6 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/oauth2"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -97,17 +95,6 @@ func RunIDP() func(t *testing.T) {
 				"email_verified":     true,
 				"groups":             []string{"testidp", "qa", "engineering"},
 				"roles":              []string{"testidp", "admin", "higher_power"},
-			}),
-			oidctest.WithRefresh(func(email string) error {
-				return &oauth2.RetrieveError{
-					Response: &http.Response{
-						StatusCode: http.StatusBadRequest,
-					},
-					Body:             nil,
-					ErrorCode:        "bad_refresh_token",
-					ErrorDescription: "refreshing is set to fail for testing purposes",
-					ErrorURI:         "",
-				}
 			}),
 			oidctest.WithDefaultIDClaims(jwt.MapClaims{}),
 			oidctest.WithDefaultExpire(*expiry),

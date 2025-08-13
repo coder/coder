@@ -129,21 +129,13 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		return externalAuthLink, InvalidTokenError("token expired, refreshing is either disabled or refreshing failed and will not be retried")
 	}
 
+	refreshToken := externalAuthLink.OAuthRefreshToken
+
 	// This is additional defensive programming. Because TokenSource is an interface,
 	// we cannot be sure that the implementation will treat an 'IsZero' time
 	// as "not-expired". The default implementation does, but a custom implementation
 	// might not. Removing the refreshToken will guarantee a refresh will fail.
-	refreshToken := externalAuthLink.OAuthRefreshToken
 	if c.NoRefresh {
-		refreshToken = ""
-	}
-
-	if externalAuthLink.OauthRefreshFailureReason != "" {
-		// If the refresh token is invalid, do not try to keep using it. This will
-		// prevent spamming the IdP with refresh attempts that will fail.
-		//
-		// An empty refresh token will cause `TokenSource(...).Token()` to fail
-		// without sending a request to the IdP if the token is expired.
 		refreshToken = ""
 	}
 
@@ -153,12 +145,17 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		Expiry:       externalAuthLink.OAuthExpiry,
 	}
 
+	// Note: The TokenSource(...) method will make no remote HTTP requests if the
+	// token is expired and no refresh token is set. This is important to prevent
+	// spamming the API, consuming rate limits, when the token is known to fail.
 	token, err := c.TokenSource(ctx, existingToken).Token()
 	if err != nil {
 		// TokenSource can fail for numerous reasons. If it fails because of
 		// a bad refresh token, then the refresh token is invalid, and we should
 		// get rid of it. Keeping it around will cause additional refresh
 		// attempts that will fail and cost us api rate limits.
+		//
+		// The error message is saved for debugging purposes.
 		if isFailedRefresh(existingToken, err) {
 			reason := err.Error()
 			if len(reason) > failureReasonLimit {
@@ -169,10 +166,13 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 			dbExecErr := db.UpdateExternalAuthLinkRefreshToken(ctx, database.UpdateExternalAuthLinkRefreshTokenParams{
 				// Adding a reason will prevent further attempts to try and refresh the token.
 				OauthRefreshFailureReason: reason,
-				OAuthRefreshTokenKeyID:    externalAuthLink.OAuthRefreshTokenKeyID.String,
-				UpdatedAt:                 dbtime.Now(),
-				ProviderID:                externalAuthLink.ProviderID,
-				UserID:                    externalAuthLink.UserID,
+				// Remove the invalid refresh token so it is never used again. The cached
+				// `reason` can be used to know why this field was zeroed out.
+				OAuthRefreshToken:      "",
+				OAuthRefreshTokenKeyID: externalAuthLink.OAuthRefreshTokenKeyID.String,
+				UpdatedAt:              dbtime.Now(),
+				ProviderID:             externalAuthLink.ProviderID,
+				UserID:                 externalAuthLink.UserID,
 			})
 			if dbExecErr != nil {
 				// This error should be rare.
@@ -189,10 +189,11 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		//
 		// This error messages comes from the oauth2 package on our client side.
 		// So this check is not against a server generated error message.
+		// Error source: https://github.com/golang/oauth2/blob/master/oauth2.go#L277
 		if err.Error() == "oauth2: token expired and refresh token is not set" {
 			if externalAuthLink.OauthRefreshFailureReason != "" {
-				// A cached refresh failure error exists. So the refresh token was set, but was invalid.
-				// Return this cached error for the original refresh attempt. This token will never again be valid.
+				// A cached refresh failure error exists. So the refresh token was set, but was invalid, and zeroed out.
+				// Return this cached error for the original refresh attempt.
 				return externalAuthLink, InvalidTokenError(fmt.Sprintf("token expired and refreshing failed %s with: %s",
 					// Do not return the exact time, because then we have to know what timezone the
 					// user is in. This approximate time is good enough.
