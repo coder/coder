@@ -41,6 +41,7 @@ func completeWithExternalAgent() *echo.Responses {
 								},
 							},
 						},
+						HasExternalAgents: true,
 					},
 				},
 			},

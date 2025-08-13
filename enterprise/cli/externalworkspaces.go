@@ -47,23 +47,11 @@ func (r *RootCmd) externalWorkspaces() *serpent.Command {
 func (r *RootCmd) externalWorkspaceCreate() *serpent.Command {
 	opts := agpl.CreateOptions{
 		BeforeCreate: func(ctx context.Context, client *codersdk.Client, _ codersdk.Template, templateVersionID uuid.UUID) error {
-			resources, err := client.TemplateVersionResources(ctx, templateVersionID)
+			version, err := client.TemplateVersion(ctx, templateVersionID)
 			if err != nil {
-				return xerrors.Errorf("get template version resources: %w", err)
+				return xerrors.Errorf("get template version: %w", err)
 			}
-			if len(resources) == 0 {
-				return xerrors.Errorf("no resources found for template version %q", templateVersionID)
-			}
-
-			var hasExternalAgent bool
-			for _, resource := range resources {
-				if resource.Type == "coder_external_agent" {
-					hasExternalAgent = true
-					break
-				}
-			}
-
-			if !hasExternalAgent {
+			if !version.HasExternalAgent {
 				return xerrors.Errorf("template version %q does not have an external agent. Only templates with external agents can be used for external workspace creation", templateVersionID)
 			}
 
@@ -190,9 +178,9 @@ func (r *RootCmd) externalWorkspaceList() *serpent.Command {
 			baseFilter := filter.Filter()
 
 			if baseFilter.FilterQuery == "" {
-				baseFilter.FilterQuery = "has-external-agent:true"
+				baseFilter.FilterQuery = "has_external_agent:true"
 			} else {
-				baseFilter.FilterQuery += " has-external-agent:true"
+				baseFilter.FilterQuery += " has_external_agent:true"
 			}
 
 			res, err := agpl.QueryConvertWorkspaces(inv.Context(), client, baseFilter, agpl.WorkspaceListRowFromWorkspace)
