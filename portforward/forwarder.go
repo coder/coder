@@ -204,6 +204,15 @@ func (m *manager) Add(spec Spec) (Forwarder, error) {
 		return nil, xerrors.Errorf("forwarder already exists for %s", key)
 	}
 
+	// Test if we can actually bind to the port before adding the forwarder
+	listenAddress := netip.AddrPortFrom(spec.ListenHost, spec.ListenPort)
+	testListener, err := m.opts.Listener.Listen(spec.Network, listenAddress.String())
+	if err != nil {
+		return nil, xerrors.Errorf("cannot bind to '%s://%s': %w", spec.Network, listenAddress.String(), err)
+	}
+	// Close the test listener immediately since we just wanted to verify we can bind
+	_ = testListener.Close()
+
 	forwarder := NewLocal(spec, m.opts)
 	m.forwarders[key] = forwarder
 	return forwarder, nil
