@@ -1,31 +1,11 @@
 import { render, screen } from "@testing-library/react";
-import { Abbr, type Pronunciation } from "./Abbr";
+import { Abbr } from "./Abbr";
 
 type AbbreviationData = {
 	abbreviation: string;
 	title: string;
 	expectedLabel: string;
 };
-
-type AssertionInput = AbbreviationData & {
-	pronunciation: Pronunciation;
-};
-
-function assertAccessibleLabel({
-	abbreviation,
-	title,
-	expectedLabel,
-	pronunciation,
-}: AssertionInput) {
-	const { unmount } = render(
-		<Abbr title={title} pronunciation={pronunciation}>
-			{abbreviation}
-		</Abbr>,
-	);
-
-	screen.getByLabelText(expectedLabel, { selector: "abbr" });
-	unmount();
-}
 
 describe(Abbr.name, () => {
 	it("Has an aria-label that equals the title if the abbreviation is shorthand", () => {
@@ -43,7 +23,18 @@ describe(Abbr.name, () => {
 		];
 
 		for (const shorthand of sampleShorthands) {
-			assertAccessibleLabel({ ...shorthand, pronunciation: "shorthand" });
+			const { unmount } = render(
+				<Abbr title={shorthand.title} pronunciation="shorthand">
+					{shorthand.abbreviation}
+				</Abbr>,
+			);
+
+			// The <abbr> element doesn't have any ARIA role semantics baked in,
+			// so we have to get a little bit more creative with making sure the
+			// expected content is on screen in an accessible way
+			const element = screen.getByTitle(shorthand.title);
+			expect(element).toHaveTextContent(shorthand.expectedLabel);
+			unmount();
 		}
 	});
 
@@ -67,7 +58,15 @@ describe(Abbr.name, () => {
 		];
 
 		for (const acronym of sampleAcronyms) {
-			assertAccessibleLabel({ ...acronym, pronunciation: "acronym" });
+			const { unmount } = render(
+				<Abbr title={acronym.title} pronunciation="acronym">
+					{acronym.abbreviation}
+				</Abbr>,
+			);
+
+			const element = screen.getByTitle(acronym.title);
+			expect(element).toHaveTextContent(acronym.expectedLabel);
+			unmount();
 		}
 	});
 
@@ -91,7 +90,15 @@ describe(Abbr.name, () => {
 		];
 
 		for (const initialism of sampleInitialisms) {
-			assertAccessibleLabel({ ...initialism, pronunciation: "initialism" });
+			const { unmount } = render(
+				<Abbr title={initialism.title} pronunciation="initialism">
+					{initialism.abbreviation}
+				</Abbr>,
+			);
+
+			const element = screen.getByTitle(initialism.title);
+			expect(element).toHaveTextContent(initialism.expectedLabel);
+			unmount();
 		}
 	});
 });
