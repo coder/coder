@@ -16,8 +16,8 @@ import (
 )
 
 type externalAgent struct {
-	WorkspaceName string `json:"-"`
-	AgentName     string `json:"-"`
+	WorkspaceName string `json:"workspace_name"`
+	AgentName     string `json:"agent_name"`
 	AuthType      string `json:"auth_type"`
 	AuthToken     string `json:"auth_token"`
 	InitScript    string `json:"init_script"`
