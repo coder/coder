@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
@@ -29,6 +30,9 @@ import (
 )
 
 const (
+	// failureReasonLimit is the maximum text length of an error to be cached to the
+	// database for a failed refresh token. In rare cases, the error could be a large
+	// HTML payload.
 	failureReasonLimit = 200
 )
 
@@ -137,6 +141,9 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 	if externalAuthLink.OauthRefreshFailureReason != "" {
 		// If the refresh token is invalid, do not try to keep using it. This will
 		// prevent spamming the IdP with refresh attempts that will fail.
+		//
+		// An empty refresh token will cause `TokenSource(...).Token()` to fail
+		// without sending a request to the IdP if the token is expired.
 		refreshToken = ""
 	}
 
@@ -173,12 +180,27 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 			}
 			// The refresh token was cleared
 			externalAuthLink.OAuthRefreshToken = ""
+			externalAuthLink.UpdatedAt = dbtime.Now()
 		}
 
 		// Unfortunately have to match exactly on the error message string.
 		// Improve the error message to account refresh tokens are deleted if
 		// invalid on our end.
+		//
+		// This error messages comes from the oauth2 package on our client side.
+		// So this check is not against a server generated error message.
 		if err.Error() == "oauth2: token expired and refresh token is not set" {
+			if externalAuthLink.OauthRefreshFailureReason != "" {
+				// A cached refresh failure error exists. So the refresh token was set, but was invalid.
+				// Return this cached error for the original refresh attempt. This token will never again be valid.
+				return externalAuthLink, InvalidTokenError(fmt.Sprintf("token expired and refreshing failed %s with: %s",
+					// Do not return the exact time, because then we have to know what timezone the
+					// user is in. This approximate time is good enough.
+					humanize.Time(externalAuthLink.UpdatedAt),
+					externalAuthLink.OauthRefreshFailureReason,
+				))
+			}
+
 			return externalAuthLink, InvalidTokenError("token expired, refreshing is either disabled or refreshing failed and will not be retried")
 		}
 
