@@ -1,7 +1,9 @@
 import { API } from "api/api";
+import { getErrorMessage } from "api/errors";
 import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
 import isChromatic from "chromatic/isChromatic";
 import { CodeExample } from "components/CodeExample/CodeExample";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { type FC, useEffect, useState } from "react";
 
 interface AgentExternalProps {
@@ -29,6 +31,8 @@ export const AgentExternal: FC<AgentExternalProps> = ({
 			API.getWorkspaceAgentCredentials(workspace.id, agent.name).then((res) => {
 				setExternalAgentToken(res.agent_token);
 				setCommand(res.command);
+			}).catch((err) => {
+				displayError(getErrorMessage(err, "Failed to get external agent credentials"));
 			});
 		}
 	}, [isExternalAgent, agent.status, workspace.id, agent.name]);
