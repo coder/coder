@@ -28,12 +28,16 @@ export const AgentExternal: FC<AgentExternalProps> = ({
 			isExternalAgent &&
 			(agent.status === "timeout" || agent.status === "connecting")
 		) {
-			API.getWorkspaceAgentCredentials(workspace.id, agent.name).then((res) => {
-				setExternalAgentToken(res.agent_token);
-				setCommand(res.command);
-			}).catch((err) => {
-				displayError(getErrorMessage(err, "Failed to get external agent credentials"));
-			});
+			API.getWorkspaceAgentCredentials(workspace.id, agent.name)
+				.then((res) => {
+					setExternalAgentToken(res.agent_token);
+					setCommand(res.command);
+				})
+				.catch((err) => {
+					displayError(
+						getErrorMessage(err, "Failed to get external agent credentials"),
+					);
+				});
 		}
 	}, [isExternalAgent, agent.status, workspace.id, agent.name]);
 
