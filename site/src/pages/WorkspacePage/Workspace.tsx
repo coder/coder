@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import { useTheme } from "@emotion/react";
 import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
 import HubOutlined from "@mui/icons-material/HubOutlined";

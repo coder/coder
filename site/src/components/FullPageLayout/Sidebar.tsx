@@ -4,20 +4,10 @@ import { Link, type LinkProps } from "react-router";
 import { TopbarIconButton } from "./Topbar";
 
 export const Sidebar: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
-	const theme = useTheme();
 	return (
 		<div
-			css={{
-				width: 260,
-				borderRight: `1px solid ${theme.palette.divider}`,
-				height: "100%",
-				overflow: "auto",
-				flexShrink: 0,
-				padding: "8px 0",
-				display: "flex",
-				flexDirection: "column",
-				gap: 1,
-			}}
+			// TODO: Remove extra border classes once MUI is removed
+			className="flex flex-col gap-px w-64 border-solid border-0 border-r border-r-border h-full py-2 shrink-0 overflow-y-auto"
 			{...props}
 		/>
 	);
