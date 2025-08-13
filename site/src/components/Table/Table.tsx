@@ -15,7 +15,7 @@ export const Table = React.forwardRef<
 		<table
 			ref={ref}
 			className={cn(
-				"w-full caption-bottom text-xs font-medium text-content-secondary border-separate border-spacing-0",
+				"w-full caption-bottom text-xs font-medium text-content-secondary border-separate border-border border-spacing-0",
 				className,
 			)}
 			{...props}
@@ -85,7 +85,7 @@ const tableRowVariants = cva(
 export const TableRow = React.forwardRef<
 	HTMLTableRowElement,
 	React.HTMLAttributes<HTMLTableRowElement> &
-		VariantProps<typeof tableRowVariants>
+	VariantProps<typeof tableRowVariants>
 >(({ className, hover, ...props }, ref) => (
 	<tr
 		ref={ref}
