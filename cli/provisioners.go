@@ -39,7 +39,8 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 			cliui.TableFormat([]provisionerDaemonRow{}, []string{"created at", "last seen at", "key name", "name", "version", "status", "tags"}),
 			cliui.JSONFormat(),
 		)
-		limit int64
+		limit   int64
+		offline bool
 	)
 
 	cmd := &serpent.Command{
@@ -59,7 +60,8 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 			}
 
 			daemons, err := client.OrganizationProvisionerDaemons(ctx, org.ID, &codersdk.OrganizationProvisionerDaemonsOptions{
-				Limit: int(limit),
+				Limit:   int(limit),
+				Offline: offline,
 			})
 			if err != nil {
 				return xerrors.Errorf("list provisioner daemons: %w", err)
@@ -97,6 +99,11 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 			Description:   "Limit the number of provisioners returned.",
 			Default:       "50",
 			Value:         serpent.Int64Of(&limit),
+		},
+		{
+			Flag:        "show-offline",
+			Description: "Show offline provisioners.",
+			Value:       serpent.BoolOf(&offline),
 		},
 	}...)
 

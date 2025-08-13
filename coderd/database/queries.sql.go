@@ -8281,10 +8281,16 @@ WHERE
 	pd.organization_id = $2::uuid
 	AND (COALESCE(array_length($3::uuid[], 1), 0) = 0 OR pd.id = ANY($3::uuid[]))
 	AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, $4::tagset))
+	-- Include offline daemons only if offline is set to true
+	AND (
+		COALESCE($5::bool, false) = true
+			OR
+		(pd.last_seen_at IS NOT NULL AND pd.last_seen_at >= (NOW() - ($1::bigint || ' ms')::interval))
+	)
 ORDER BY
 	pd.created_at DESC
 LIMIT
-	$5::int
+	$6::int
 `
 
 type GetProvisionerDaemonsWithStatusByOrganizationParams struct {
@@ -8292,6 +8298,7 @@ type GetProvisionerDaemonsWithStatusByOrganizationParams struct {
 	OrganizationID  uuid.UUID     `db:"organization_id" json:"organization_id"`
 	IDs             []uuid.UUID   `db:"ids" json:"ids"`
 	Tags            StringMap     `db:"tags" json:"tags"`
+	Offline         sql.NullBool  `db:"offline" json:"offline"`
 	Limit           sql.NullInt32 `db:"limit" json:"limit"`
 }
 
@@ -8319,6 +8326,7 @@ func (q *sqlQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.C
 		arg.OrganizationID,
 		pq.Array(arg.IDs),
 		arg.Tags,
+		arg.Offline,
 		arg.Limit,
 	)
 	if err != nil {

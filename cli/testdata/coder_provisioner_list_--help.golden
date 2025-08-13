@@ -20,5 +20,8 @@ OPTIONS:
   -o, --output table|json (default: table)
           Output format.
 
+      --show-offline bool
+          Show offline provisioners.
+
 ———
 Run `coder --help` for a list of global options.

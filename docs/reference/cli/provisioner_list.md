@@ -25,6 +25,14 @@ coder provisioner list [flags]
 
 Limit the number of provisioners returned.
 
+### --show-offline
+
+|      |                   |
+|------|-------------------|
+| Type | <code>bool</code> |
+
+Show offline provisioners.
+
 ### -O, --org
 
 |             |                                  |

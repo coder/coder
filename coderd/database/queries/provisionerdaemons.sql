@@ -110,6 +110,12 @@ WHERE
 	pd.organization_id = @organization_id::uuid
 	AND (COALESCE(array_length(@ids::uuid[], 1), 0) = 0 OR pd.id = ANY(@ids::uuid[]))
 	AND (@tags::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, @tags::tagset))
+	-- Include offline daemons only if offline is set to true
+	AND (
+		COALESCE(sqlc.narg('offline')::bool, false) = true
+			OR
+		(pd.last_seen_at IS NOT NULL AND pd.last_seen_at >= (NOW() - (@stale_interval_ms::bigint || ' ms')::interval))
+	)
 ORDER BY
 	pd.created_at DESC
 LIMIT

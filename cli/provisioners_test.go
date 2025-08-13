@@ -198,6 +198,23 @@ func TestProvisioners_Golden(t *testing.T) {
 		clitest.TestGoldenFile(t, t.Name(), got.Bytes(), replace)
 	})
 
+	t.Run("list with offline provisioners", func(t *testing.T) {
+		t.Parallel()
+
+		var got bytes.Buffer
+		inv, root := clitest.New(t,
+			"provisioners",
+			"list",
+			"--show-offline",
+		)
+		inv.Stdout = &got
+		clitest.SetupConfig(t, templateAdminClient, root)
+		err := inv.Run()
+		require.NoError(t, err)
+
+		clitest.TestGoldenFile(t, t.Name(), got.Bytes(), replace)
+	})
+
 	// Test jobs list with template admin as members are currently
 	// unable to access provisioner jobs. In the future (with RBAC
 	// changes), we may allow them to view _their_ jobs.

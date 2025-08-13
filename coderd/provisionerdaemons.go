@@ -45,6 +45,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	limit := p.PositiveInt32(qp, 50, "limit")
 	ids := p.UUIDs(qp, nil, "ids")
 	tags := p.JSONStringMap(qp, database.StringMap{}, "tags")
+	includeOffline := p.NullableBoolean(qp, sql.NullBool{}, "offline")
 	p.ErrorExcessParams(qp)
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -60,6 +61,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 			OrganizationID:  org.ID,
 			StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
 			Limit:           sql.NullInt32{Int32: limit, Valid: limit > 0},
+			Offline:         includeOffline,
 			IDs:             ids,
 			Tags:            tags,
 		},

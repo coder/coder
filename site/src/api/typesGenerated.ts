@@ -1833,6 +1833,7 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 // From codersdk/organizations.go
 export interface OrganizationProvisionerDaemonsOptions {
 	readonly Limit: number;
+	readonly Offline: boolean;
 	readonly IDs: readonly string[];
 	readonly Tags: Record<string, string>;
 }

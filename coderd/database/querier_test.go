@@ -397,6 +397,7 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
 			OrganizationID: org.ID,
 			IDs:            []uuid.UUID{matchingDaemon0.ID, matchingDaemon1.ID},
+			Offline:        sql.NullBool{Bool: true, Valid: true},
 		})
 		require.NoError(t, err)
 		require.Len(t, daemons, 2)
@@ -430,6 +431,7 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
 			OrganizationID: org.ID,
 			Tags:           database.StringMap{"foo": "bar"},
+			Offline:        sql.NullBool{Bool: true, Valid: true},
 		})
 		require.NoError(t, err)
 		require.Len(t, daemons, 1)
@@ -463,6 +465,7 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
 			OrganizationID:  org.ID,
 			StaleIntervalMS: 45 * time.Minute.Milliseconds(),
+			Offline:         sql.NullBool{Bool: true, Valid: true},
 		})
 		require.NoError(t, err)
 		require.Len(t, daemons, 2)
@@ -474,6 +477,89 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 		require.Equal(t, daemon2.ID, daemons[1].ProvisionerDaemon.ID)
 		require.Equal(t, database.ProvisionerDaemonStatusOffline, daemons[0].Status)
 		require.Equal(t, database.ProvisionerDaemonStatusIdle, daemons[1].Status)
+	})
+
+	t.Run("Excludes offline daemons", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		_ = dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "offline-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-time.Hour),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-time.Hour),
+			},
+		})
+		fooDaemon := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "foo-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-(30 * time.Minute)),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-(30 * time.Minute)),
+			},
+		})
+
+		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+			OrganizationID:  org.ID,
+			StaleIntervalMS: 45 * time.Minute.Milliseconds(),
+		})
+		require.NoError(t, err)
+		require.Len(t, daemons, 1)
+
+		require.Equal(t, fooDaemon.ID, daemons[0].ProvisionerDaemon.ID)
+		require.Equal(t, database.ProvisionerDaemonStatusIdle, daemons[0].Status)
+	})
+
+	t.Run("Includes offline daemons", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		_ = dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "offline-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-time.Hour),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-time.Hour),
+			},
+		})
+		_ = dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "foo-daemon",
+			OrganizationID: org.ID,
+			Tags: database.StringMap{
+				"foo": "bar",
+			},
+		})
+		_ = dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "bar-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-(30 * time.Minute)),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-(30 * time.Minute)),
+			},
+		})
+
+		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+			OrganizationID:  org.ID,
+			StaleIntervalMS: 45 * time.Minute.Milliseconds(),
+			Offline:         sql.NullBool{Bool: true, Valid: true},
+		})
+		require.NoError(t, err)
+		require.Len(t, daemons, 3)
+
+		statusCounts := make(map[database.ProvisionerDaemonStatus]int)
+		for _, daemon := range daemons {
+			statusCounts[daemon.Status]++
+		}
+
+		require.Equal(t, 2, statusCounts[database.ProvisionerDaemonStatusIdle])
+		require.Equal(t, 1, statusCounts[database.ProvisionerDaemonStatusOffline])
 	})
 }
 
