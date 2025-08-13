@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
+
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/prebuilds"

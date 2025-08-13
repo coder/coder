@@ -104,13 +104,14 @@ The workspace name **MUST** be prefixed with "task".`,
 		},
 	}
 
-	if anthropicClient := api.anthropicClient.Load(); anthropicClient != nil {
-		stream, err = anthropicDataStream(ctx, *anthropicClient, conversation)
-		if err != nil {
-			return "", xerrors.Errorf("create anthropic data stream: %w", err)
-		}
-	} else {
+	anthropicClient := api.anthropicClient.Load()
+	if anthropicClient == nil {
 		return fallback, nil
+	}
+
+	stream, err = anthropicDataStream(ctx, *anthropicClient, conversation)
+	if err != nil {
+		return "", xerrors.Errorf("create anthropic data stream: %w", err)
 	}
 
 	var acc aisdk.DataStreamAccumulator
