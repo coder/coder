@@ -158,7 +158,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 			circle at 1px 1px,
 			hsl(var(--surface-invert-secondary)) 0,
 			transparent 1px
-		) -2px -2px / 16px 16px;`,
+		) -2px -2px / 16px 16px`,
 					}}
 					className="p-8 overflow-y-auto relative w-full"
 				>
