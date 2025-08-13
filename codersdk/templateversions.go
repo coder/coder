@@ -33,6 +33,8 @@ type TemplateVersion struct {
 
 	Warnings            []TemplateVersionWarning `json:"warnings,omitempty" enums:"DEPRECATED_PARAMETERS"`
 	MatchedProvisioners *MatchedProvisioners     `json:"matched_provisioners,omitempty"`
+
+	HasExternalAgent bool `json:"has_external_agent"`
 }
 
 type TemplateVersionExternalAuth struct {

@@ -732,6 +732,7 @@ You can add instructions here
 [Some link info](https://coder.com)`,
 	created_by: MockUserOwner,
 	archived: false,
+	has_external_agent: false,
 };
 
 export const MockTemplateVersion2: TypesGen.TemplateVersion = {
@@ -751,6 +752,7 @@ You can add instructions here
 [Some link info](https://coder.com)`,
 	created_by: MockUserOwner,
 	archived: false,
+	has_external_agent: false,
 };
 
 export const MockTemplateVersionWithMarkdownMessage: TypesGen.TemplateVersion =
