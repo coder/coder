@@ -73,19 +73,11 @@ export const HealthLayout: FC = () => {
 			</Helmet>
 
 			<DashboardFullPage>
-				<div
-					className="flex basis-0 flex-1 overflow-hidden"
-				>
-					<div
-						className="w-64 shrink-0 text-sm border-0 border-solid border-r border-r-border"
-					>
-						<div
-							className="flex flex-col gap-4 p-6"
-						>
+				<div className="flex basis-0 flex-1 overflow-hidden">
+					<div className="w-64 shrink-0 text-sm border-0 border-solid border-r border-r-border">
+						<div className="flex flex-col gap-4 p-6">
 							<div>
-								<div
-									className="flex items-center justify-between"
-								>
+								<div className="flex items-center justify-between">
 									<HealthIcon size={32} severity={healthStatus.severity} />
 
 									<Tooltip title="Refresh health checks">
@@ -116,10 +108,10 @@ export const HealthLayout: FC = () => {
 								>
 									{healthStatus.healthy
 										? Object.keys(visibleSections).some((key) => {
-											const section =
-												healthStatus[key as keyof typeof visibleSections];
-											return section.warnings && section.warnings.length > 0;
-										})
+												const section =
+													healthStatus[key as keyof typeof visibleSections];
+												return section.warnings && section.warnings.length > 0;
+											})
 											? "All systems operational, but performance might be degraded"
 											: "All systems operational"
 										: "Some issues have been detected"}
