@@ -29,7 +29,12 @@ const PresetNone = "none"
 
 var ErrNoPresetFound = xerrors.New("no preset found")
 
-func (r *RootCmd) create() *serpent.Command {
+type CreateOptions struct {
+	BeforeCreate func(ctx context.Context, client *codersdk.Client, template codersdk.Template, templateVersionID uuid.UUID) error
+	AfterCreate  func(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace) error
+}
+
+func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 	var (
 		templateName    string
 		templateVersion string
@@ -305,6 +310,13 @@ func (r *RootCmd) create() *serpent.Command {
 				_, _ = fmt.Fprintf(inv.Stdout, "%s", cliui.Bold("No preset applied."))
 			}
 
+			if opts.BeforeCreate != nil {
+				err = opts.BeforeCreate(inv.Context(), client, template, templateVersionID)
+				if err != nil {
+					return xerrors.Errorf("before create: %w", err)
+				}
+			}
+
 			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
 				Action:            WorkspaceCreate,
 				TemplateVersionID: templateVersionID,
@@ -366,6 +378,14 @@ func (r *RootCmd) create() *serpent.Command {
 				cliui.Keyword(workspace.Name),
 				cliui.Timestamp(time.Now()),
 			)
+
+			if opts.AfterCreate != nil {
+				err = opts.AfterCreate(inv.Context(), inv, client, workspace)
+				if err != nil {
+					return err
+				}
+			}
+
 			return nil
 		},
 	}
