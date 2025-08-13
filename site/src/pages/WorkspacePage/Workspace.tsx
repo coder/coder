@@ -14,7 +14,6 @@ import type { WorkspacePermissions } from "../../modules/workspaces/permissions"
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";
-import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import {
 	ActiveTransition,
@@ -22,6 +21,7 @@ import {
 } from "./WorkspaceBuildProgress";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
+import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 
 interface WorkspaceProps {
 	workspace: TypesGen.Workspace;
