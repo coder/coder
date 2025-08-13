@@ -52,6 +52,29 @@ func (api *API) workspaceExternalAgentCredentials(rw http.ResponseWriter, r *htt
 		return
 	}
 
+	resources, err := api.Database.GetWorkspaceResourcesByJobID(ctx, build.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get workspace resources.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	found := false
+	for _, resource := range resources {
+		if resource.Type == "coder_external_agent" && resource.Name == agentName {
+			found = true
+			break
+		}
+	}
+	if !found {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: fmt.Sprintf("Agent '%s' does not have an external agent associated with it.", agentName),
+		})
+		return
+	}
+
 	agents, err := api.Database.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx, database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
 		WorkspaceID: workspace.ID,
 		BuildNumber: build.BuildNumber,
