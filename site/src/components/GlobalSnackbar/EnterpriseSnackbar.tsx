@@ -34,7 +34,6 @@ export const EnterpriseSnackbar: FC<EnterpriseSnackbarProps> = ({
 	action,
 	...snackbarProps
 }) => {
-
 	return (
 		<Snackbar
 			anchorOrigin={{
@@ -57,7 +56,7 @@ export const EnterpriseSnackbar: FC<EnterpriseSnackbarProps> = ({
 				className: cn(
 					"rounded-lg bg-surface-secondary text-content-primary shadow",
 					"py-2 pl-6 pr-4 items-[inherit] border-0 border-l-[4px]",
-					variantColor(variant)
+					variantColor(variant),
 				),
 			}}
 			onClose={onClose}
