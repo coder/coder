@@ -1,162 +1,264 @@
 package backedpipe
 
 import (
-	"fmt"
-	"sync"
+	"bytes"
+	"os"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
+
+	"github.com/coder/coder/v2/testutil"
 )
 
-func TestRingBuffer_ClearInternal(t *testing.T) {
-	t.Parallel()
-
-	rb := NewRingBufferWithCapacity(10)
-	rb.Write([]byte("hello"))
-	require.Equal(t, 5, rb.size)
-
-	rb.Clear()
-	require.Equal(t, 0, rb.size)
-	require.Equal(t, "", rb.String())
-}
-
-func TestRingBuffer_Available(t *testing.T) {
-	t.Parallel()
-
-	rb := NewRingBufferWithCapacity(10)
-	require.Equal(t, 10, rb.Available())
-
-	rb.Write([]byte("hello"))
-	require.Equal(t, 5, rb.Available())
-
-	rb.Write([]byte("world"))
-	require.Equal(t, 0, rb.Available())
-}
-
-func TestRingBuffer_StringInternal(t *testing.T) {
-	t.Parallel()
-
-	rb := NewRingBufferWithCapacity(10)
-	require.Equal(t, "", rb.String())
-
-	rb.Write([]byte("hello"))
-	require.Equal(t, "hello", rb.String())
-
-	rb.Write([]byte("world"))
-	require.Equal(t, "helloworld", rb.String())
-}
-
-func TestRingBuffer_StringWithWrapAround(t *testing.T) {
-	t.Parallel()
-
-	rb := NewRingBufferWithCapacity(5)
-	rb.Write([]byte("hello"))
-	require.Equal(t, "hello", rb.String())
-
-	rb.Write([]byte("world"))
-	require.Equal(t, "world", rb.String())
-}
-
-func TestRingBuffer_ConcurrentAccessWithString(t *testing.T) {
-	t.Parallel()
-
-	rb := NewRingBufferWithCapacity(1000)
-	var wg sync.WaitGroup
-
-	// Start multiple goroutines writing
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			data := fmt.Sprintf("data-%d", id)
-			for j := 0; j < 100; j++ {
-				rb.Write([]byte(data))
-			}
-		}(i)
+func TestMain(m *testing.M) {
+	if runtime.GOOS == "windows" {
+		// Don't run goleak on windows tests, they're super flaky right now.
+		// See: https://github.com/coder/coder/issues/8954
+		os.Exit(m.Run())
 	}
-
-	wg.Wait()
-
-	// Verify buffer is still in valid state
-	require.NotEmpty(t, rb.String())
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
-func TestRingBuffer_EdgeCaseEvictionWithString(t *testing.T) {
+func TestRingBuffer_NewRingBuffer(t *testing.T) {
 	t.Parallel()
 
-	rb := NewRingBufferWithCapacity(3)
+	rb := newRingBuffer(100)
+	// Test that we can write and read from the buffer
+	rb.Write([]byte("test"))
+
+	data, err := rb.ReadLast(4)
+	require.NoError(t, err)
+	require.Equal(t, []byte("test"), data)
+}
+
+func TestRingBuffer_WriteAndRead(t *testing.T) {
+	t.Parallel()
+
+	rb := newRingBuffer(10)
+
+	// Write some data
 	rb.Write([]byte("hello"))
+
+	// Read last 4 bytes
+	data, err := rb.ReadLast(4)
+	require.NoError(t, err)
+	require.Equal(t, "ello", string(data))
+
+	// Write more data
 	rb.Write([]byte("world"))
 
-	// Should evict "he" and keep "llo world"
-	require.Equal(t, "rld", rb.String())
+	// Read last 5 bytes
+	data, err = rb.ReadLast(5)
+	require.NoError(t, err)
+	require.Equal(t, "world", string(data))
 
-	// Write more data to cause more eviction
-	rb.Write([]byte("test"))
-	require.Equal(t, "est", rb.String())
+	// Read last 3 bytes
+	data, err = rb.ReadLast(3)
+	require.NoError(t, err)
+	require.Equal(t, "rld", string(data))
+
+	// Read more than available (should be 10 bytes total)
+	_, err = rb.ReadLast(15)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "requested 15 bytes but only")
 }
 
-// TestRingBuffer_ComplexWrapAroundScenarioWithString tests complex wrap-around with String
-func TestRingBuffer_ComplexWrapAroundScenarioWithString(t *testing.T) {
+func TestRingBuffer_OverflowEviction(t *testing.T) {
 	t.Parallel()
 
-	rb := NewRingBufferWithCapacity(5)
+	rb := newRingBuffer(5)
 
 	// Fill buffer
 	rb.Write([]byte("abcde"))
-	require.Equal(t, "abcde", rb.String())
+
+	// Overflow should evict oldest data
+	rb.Write([]byte("fg"))
+
+	// Should now contain "cdefg"
+	data, err := rb.ReadLast(5)
+	require.NoError(t, err)
+	require.Equal(t, []byte("cdefg"), data)
+}
+
+func TestRingBuffer_LargeWrite(t *testing.T) {
+	t.Parallel()
+
+	rb := newRingBuffer(5)
+
+	// Write data larger than capacity
+	rb.Write([]byte("abcdefghij"))
+
+	// Should contain last 5 bytes
+	data, err := rb.ReadLast(5)
+	require.NoError(t, err)
+	require.Equal(t, []byte("fghij"), data)
+}
+
+func TestRingBuffer_WrapAround(t *testing.T) {
+	t.Parallel()
+
+	rb := newRingBuffer(5)
+
+	// Fill buffer
+	rb.Write([]byte("abcde"))
 
 	// Write more to cause wrap-around
 	rb.Write([]byte("fgh"))
-	require.Equal(t, "defgh", rb.String())
 
-	// Write even more
-	rb.Write([]byte("ijklmn"))
-	require.Equal(t, "jklmn", rb.String())
+	// Should contain "defgh"
+	data, err := rb.ReadLast(5)
+	require.NoError(t, err)
+	require.Equal(t, []byte("defgh"), data)
+
+	// Test reading last 3 bytes after wrap
+	data, err = rb.ReadLast(3)
+	require.NoError(t, err)
+	require.Equal(t, []byte("fgh"), data)
 }
 
-// Helper function to get available space (for internal tests only)
-func (rb *RingBuffer) Available() int {
-	rb.mu.RLock()
-	defer rb.mu.RUnlock()
-	return rb.cap - rb.size
+func TestRingBuffer_ReadLastEdgeCases(t *testing.T) {
+	t.Parallel()
+
+	rb := newRingBuffer(3)
+
+	// Write some data (5 bytes to a 3-byte buffer, so only last 3 bytes remain)
+	rb.Write([]byte("hello"))
+
+	// Test reading negative count
+	data, err := rb.ReadLast(-1)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cannot read negative number of bytes")
+	require.Nil(t, data)
+
+	// Test reading zero bytes
+	data, err = rb.ReadLast(0)
+	require.NoError(t, err)
+	require.Nil(t, data)
+
+	// Test reading more than available (buffer has 3 bytes, try to read 10)
+	_, err = rb.ReadLast(10)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "requested 10 bytes but only 3 available")
+
+	// Test reading exact amount available
+	data, err = rb.ReadLast(3)
+	require.NoError(t, err)
+	require.Equal(t, []byte("llo"), data)
 }
 
-// Helper function to clear buffer (for internal tests only)
-func (rb *RingBuffer) Clear() {
-	rb.mu.Lock()
-	defer rb.mu.Unlock()
+func TestRingBuffer_EmptyWrite(t *testing.T) {
+	t.Parallel()
 
-	rb.start = 0
-	rb.end = 0
-	rb.size = 0
+	rb := newRingBuffer(10)
+
+	// Write empty data
+	rb.Write([]byte{})
+
+	// Buffer should still be empty
+	_, err := rb.ReadLast(5)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "requested 5 bytes but only 0 available")
 }
 
-// Helper function to get string representation (for internal tests only)
-func (rb *RingBuffer) String() string {
-	rb.mu.RLock()
-	defer rb.mu.RUnlock()
+// TestRingBuffer_ConcurrentAccess removed - the ring buffer is no longer thread-safe
+// by design, as it relies on external synchronization provided by BackedWriter.
 
-	if rb.size == 0 {
-		return ""
+func TestRingBuffer_MultipleWrites(t *testing.T) {
+	t.Parallel()
+
+	rb := newRingBuffer(10)
+
+	// Write data in chunks
+	rb.Write([]byte("ab"))
+	rb.Write([]byte("cd"))
+	rb.Write([]byte("ef"))
+
+	data, err := rb.ReadLast(6)
+	require.NoError(t, err)
+	require.Equal(t, []byte("abcdef"), data)
+
+	// Test partial reads
+	data, err = rb.ReadLast(4)
+	require.NoError(t, err)
+	require.Equal(t, []byte("cdef"), data)
+
+	data, err = rb.ReadLast(2)
+	require.NoError(t, err)
+	require.Equal(t, []byte("ef"), data)
+}
+
+func TestRingBuffer_EdgeCaseEviction(t *testing.T) {
+	t.Parallel()
+
+	rb := newRingBuffer(3)
+
+	// Write data that will cause eviction
+	rb.Write([]byte("abc"))
+
+	// Write more to cause eviction
+	rb.Write([]byte("d"))
+
+	// Should now contain "bcd"
+	data, err := rb.ReadLast(3)
+	require.NoError(t, err)
+	require.Equal(t, []byte("bcd"), data)
+}
+
+func TestRingBuffer_ComplexWrapAroundScenario(t *testing.T) {
+	t.Parallel()
+
+	rb := newRingBuffer(8)
+
+	// Fill buffer
+	rb.Write([]byte("12345678"))
+
+	// Evict some and add more to create complex wrap scenario
+	rb.Write([]byte("abcd"))
+	data, err := rb.ReadLast(8)
+	require.NoError(t, err)
+	require.Equal(t, []byte("5678abcd"), data)
+
+	// Add more
+	rb.Write([]byte("xyz"))
+	data, err = rb.ReadLast(8)
+	require.NoError(t, err)
+	require.Equal(t, []byte("8abcdxyz"), data)
+
+	// Test reading various amounts from the end
+	data, err = rb.ReadLast(7)
+	require.NoError(t, err)
+	require.Equal(t, []byte("abcdxyz"), data)
+
+	data, err = rb.ReadLast(4)
+	require.NoError(t, err)
+	require.Equal(t, []byte("dxyz"), data)
+}
+
+// Benchmark tests for performance validation
+func BenchmarkRingBuffer_Write(b *testing.B) {
+	rb := newRingBuffer(64 * 1024 * 1024)   // 64MB for benchmarks
+	data := bytes.Repeat([]byte("x"), 1024) // 1KB writes
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		rb.Write(data)
+	}
+}
+
+func BenchmarkRingBuffer_ReadLast(b *testing.B) {
+	rb := newRingBuffer(64 * 1024 * 1024) // 64MB for benchmarks
+	// Fill buffer with test data
+	for i := 0; i < 64; i++ {
+		rb.Write(bytes.Repeat([]byte("x"), 1024))
 	}
 
-	// readAllInternal equivalent for internal tests
-	if rb.size == 0 {
-		return ""
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := rb.ReadLast((i % 100) + 1)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
-
-	result := make([]byte, rb.size)
-
-	if rb.start+rb.size <= rb.cap {
-		// No wrap needed
-		copy(result, rb.buffer[rb.start:rb.start+rb.size])
-	} else {
-		// Need to wrap around
-		firstChunk := rb.cap - rb.start
-		copy(result[0:firstChunk], rb.buffer[rb.start:rb.cap])
-		copy(result[firstChunk:], rb.buffer[0:rb.size-firstChunk])
-	}
-
-	return string(result)
 }

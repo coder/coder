@@ -2,10 +2,10 @@ package backedpipe_test
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -29,7 +29,8 @@ func newMockWriter() *mockWriter {
 
 // newBackedWriterForTest creates a BackedWriter with a small buffer for testing eviction behavior
 func newBackedWriterForTest(bufferSize int) *backedpipe.BackedWriter {
-	return backedpipe.NewBackedWriterWithCapacity(bufferSize)
+	errorChan := make(chan error, 1)
+	return backedpipe.NewBackedWriter(bufferSize, errorChan)
 }
 
 func (mw *mockWriter) Write(p []byte) (int, error) {
@@ -73,30 +74,57 @@ func (mw *mockWriter) setError(err error) {
 func TestBackedWriter_NewBackedWriter(t *testing.T) {
 	t.Parallel()
 
-	bw := backedpipe.NewBackedWriter()
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 	require.NotNil(t, bw)
 	require.Equal(t, uint64(0), bw.SequenceNum())
 	require.False(t, bw.Connected())
 }
 
-func TestBackedWriter_WriteToBufferWhenDisconnected(t *testing.T) {
+func TestBackedWriter_WriteBlocksWhenDisconnected(t *testing.T) {
 	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
 
-	bw := backedpipe.NewBackedWriter()
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 
-	// Write should succeed even when disconnected
-	n, err := bw.Write([]byte("hello"))
+	// Write should block when disconnected
+	writeComplete := make(chan struct{})
+	var writeErr error
+	var n int
+
+	go func() {
+		defer close(writeComplete)
+		n, writeErr = bw.Write([]byte("hello"))
+	}()
+
+	// Verify write is blocked
+	select {
+	case <-writeComplete:
+		t.Fatal("Write should have blocked when disconnected")
+	case <-time.After(50 * time.Millisecond):
+		// Expected - write is blocked
+	}
+
+	// Connect and verify write completes
+	writer := newMockWriter()
+	err := bw.Reconnect(0, writer)
 	require.NoError(t, err)
+
+	// Write should now complete
+	testutil.TryReceive(ctx, t, writeComplete)
+
+	require.NoError(t, writeErr)
 	require.Equal(t, 5, n)
 	require.Equal(t, uint64(5), bw.SequenceNum())
-
-	// Data should be in buffer
+	require.Equal(t, []byte("hello"), writer.buffer.Bytes())
 }
 
 func TestBackedWriter_WriteToUnderlyingWhenConnected(t *testing.T) {
 	t.Parallel()
 
-	bw := backedpipe.NewBackedWriter()
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 	writer := newMockWriter()
 
 	// Connect
@@ -118,7 +146,8 @@ func TestBackedWriter_WriteToUnderlyingWhenConnected(t *testing.T) {
 func TestBackedWriter_DisconnectOnWriteFailure(t *testing.T) {
 	t.Parallel()
 
-	bw := backedpipe.NewBackedWriter()
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 	writer := newMockWriter()
 
 	// Connect
@@ -128,66 +157,104 @@ func TestBackedWriter_DisconnectOnWriteFailure(t *testing.T) {
 	// Cause write to fail
 	writer.setError(xerrors.New("write failed"))
 
-	// Write should still succeed to buffer but disconnect
+	// Write should fail and disconnect
 	n, err := bw.Write([]byte("hello"))
-	require.NoError(t, err) // Buffer write succeeds
-	require.Equal(t, 5, n)
+	require.Error(t, err) // Write should fail
+	require.Equal(t, 0, n)
 	require.False(t, bw.Connected()) // Should be disconnected
 
-	// Data should still be in buffer
+	// Error should be sent to error channel
+	select {
+	case receivedErr := <-errorChan:
+		require.Contains(t, receivedErr.Error(), "write failed")
+	default:
+		t.Fatal("Expected error to be sent to error channel")
+	}
 }
 
 func TestBackedWriter_ReplayOnReconnect(t *testing.T) {
 	t.Parallel()
 
-	bw := backedpipe.NewBackedWriter()
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 
-	// Write some data while disconnected
-	bw.Write([]byte("hello"))
-	bw.Write([]byte(" world"))
+	// Connect initially to write some data
+	writer1 := newMockWriter()
+	err := bw.Reconnect(0, writer1)
+	require.NoError(t, err)
+
+	// Write some data while connected
+	_, err = bw.Write([]byte("hello"))
+	require.NoError(t, err)
+	_, err = bw.Write([]byte(" world"))
+	require.NoError(t, err)
 
 	require.Equal(t, uint64(11), bw.SequenceNum())
 
-	// Reconnect and request replay from beginning
-	writer := newMockWriter()
-	err := bw.Reconnect(0, writer)
+	// Disconnect by causing a write failure
+	writer1.setError(xerrors.New("connection lost"))
+	_, err = bw.Write([]byte("test"))
+	require.Error(t, err)
+	require.False(t, bw.Connected())
+
+	// Reconnect with new writer and request replay from beginning
+	writer2 := newMockWriter()
+	err = bw.Reconnect(0, writer2)
 	require.NoError(t, err)
 
-	// Should have replayed all data
-	require.Equal(t, []byte("hello world"), writer.buffer.Bytes())
+	// Should have replayed all data including the failed write that was buffered
+	require.Equal(t, []byte("hello worldtest"), writer2.buffer.Bytes())
 
 	// Write new data should go to both
-	bw.Write([]byte("!"))
-	require.Equal(t, []byte("hello world!"), writer.buffer.Bytes())
+	_, err = bw.Write([]byte("!"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("hello worldtest!"), writer2.buffer.Bytes())
 }
 
 func TestBackedWriter_PartialReplay(t *testing.T) {
 	t.Parallel()
 
-	bw := backedpipe.NewBackedWriter()
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
+
+	// Connect initially to write some data
+	writer1 := newMockWriter()
+	err := bw.Reconnect(0, writer1)
+	require.NoError(t, err)
 
 	// Write some data
-	bw.Write([]byte("hello"))
-	bw.Write([]byte(" world"))
-	bw.Write([]byte("!"))
+	_, err = bw.Write([]byte("hello"))
+	require.NoError(t, err)
+	_, err = bw.Write([]byte(" world"))
+	require.NoError(t, err)
+	_, err = bw.Write([]byte("!"))
+	require.NoError(t, err)
 
-	// Reconnect and request replay from middle
-	writer := newMockWriter()
-	err := bw.Reconnect(5, writer) // From " world!"
+	// Reconnect with new writer and request replay from middle
+	writer2 := newMockWriter()
+	err = bw.Reconnect(5, writer2) // From " world!"
 	require.NoError(t, err)
 
 	// Should have replayed only the requested portion
-	require.Equal(t, []byte(" world!"), writer.buffer.Bytes())
+	require.Equal(t, []byte(" world!"), writer2.buffer.Bytes())
 }
 
 func TestBackedWriter_ReplayFromFutureSequence(t *testing.T) {
 	t.Parallel()
 
-	bw := backedpipe.NewBackedWriter()
-	bw.Write([]byte("hello"))
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 
-	writer := newMockWriter()
-	err := bw.Reconnect(10, writer) // Future sequence
+	// Connect initially to write some data
+	writer1 := newMockWriter()
+	err := bw.Reconnect(0, writer1)
+	require.NoError(t, err)
+
+	_, err = bw.Write([]byte("hello"))
+	require.NoError(t, err)
+
+	writer2 := newMockWriter()
+	err = bw.Reconnect(10, writer2) // Future sequence
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "future sequence")
 }
@@ -197,12 +264,19 @@ func TestBackedWriter_ReplayDataLoss(t *testing.T) {
 
 	bw := newBackedWriterForTest(10) // Small buffer for testing
 
-	// Fill buffer beyond capacity to cause eviction
-	bw.Write([]byte("0123456789")) // Fills buffer exactly
-	bw.Write([]byte("abcdef"))     // Should evict "012345"
+	// Connect initially to write some data
+	writer1 := newMockWriter()
+	err := bw.Reconnect(0, writer1)
+	require.NoError(t, err)
 
-	writer := newMockWriter()
-	err := bw.Reconnect(0, writer) // Try to replay from evicted data
+	// Fill buffer beyond capacity to cause eviction
+	_, err = bw.Write([]byte("0123456789")) // Fills buffer exactly
+	require.NoError(t, err)
+	_, err = bw.Write([]byte("abcdef")) // Should evict "012345"
+	require.NoError(t, err)
+
+	writer2 := newMockWriter()
+	err = bw.Reconnect(0, writer2) // Try to replay from evicted data
 	// With the new error handling, this should fail because we can't read all the data
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to read replay data")
@@ -212,6 +286,11 @@ func TestBackedWriter_BufferEviction(t *testing.T) {
 	t.Parallel()
 
 	bw := newBackedWriterForTest(5) // Very small buffer for testing
+
+	// Connect initially
+	writer := newMockWriter()
+	err := bw.Reconnect(0, writer)
+	require.NoError(t, err)
 
 	// Write data that will cause eviction
 	n, err := bw.Write([]byte("abcde"))
@@ -229,7 +308,8 @@ func TestBackedWriter_BufferEviction(t *testing.T) {
 func TestBackedWriter_Close(t *testing.T) {
 	t.Parallel()
 
-	bw := backedpipe.NewBackedWriter()
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 	writer := newMockWriter()
 
 	bw.Reconnect(0, writer)
@@ -250,7 +330,8 @@ func TestBackedWriter_Close(t *testing.T) {
 func TestBackedWriter_CloseIdempotent(t *testing.T) {
 	t.Parallel()
 
-	bw := backedpipe.NewBackedWriter()
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 
 	err := bw.Close()
 	require.NoError(t, err)
@@ -260,54 +341,11 @@ func TestBackedWriter_CloseIdempotent(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestBackedWriter_CanReplayFrom(t *testing.T) {
-	t.Parallel()
-
-	bw := newBackedWriterForTest(10) // Small buffer for testing eviction
-
-	// Empty buffer
-	require.True(t, bw.CanReplayFrom(0))
-	require.False(t, bw.CanReplayFrom(1))
-
-	// Write some data
-	bw.Write([]byte("hello"))
-	require.True(t, bw.CanReplayFrom(0))
-	require.True(t, bw.CanReplayFrom(3))
-	require.True(t, bw.CanReplayFrom(5))
-	require.False(t, bw.CanReplayFrom(6))
-
-	// Fill buffer and cause eviction
-	bw.Write([]byte("world!"))
-	require.True(t, bw.CanReplayFrom(0)) // Can replay from any sequence up to current
-	require.True(t, bw.CanReplayFrom(bw.SequenceNum()))
-}
-
-func TestBackedWriter_WaitForConnection(t *testing.T) {
-	t.Parallel()
-
-	bw := backedpipe.NewBackedWriter()
-
-	// Should timeout when not connected
-	// Use a shorter timeout for this test to speed up test runs
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperShort)
-	defer cancel()
-
-	err := bw.WaitForConnection(ctx)
-	require.Equal(t, context.DeadlineExceeded, err)
-
-	// Should succeed immediately when connected
-	writer := newMockWriter()
-	bw.Reconnect(0, writer)
-
-	ctx = context.Background()
-	err = bw.WaitForConnection(ctx)
-	require.NoError(t, err)
-}
-
 func TestBackedWriter_ConcurrentWrites(t *testing.T) {
 	t.Parallel()
 
-	bw := backedpipe.NewBackedWriter()
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 	writer := newMockWriter()
 	bw.Reconnect(0, writer)
 
@@ -339,17 +377,25 @@ func TestBackedWriter_ConcurrentWrites(t *testing.T) {
 func TestBackedWriter_ReconnectDuringReplay(t *testing.T) {
 	t.Parallel()
 
-	bw := backedpipe.NewBackedWriter()
-	bw.Write([]byte("hello world"))
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
+
+	// Connect initially to write some data
+	writer1 := newMockWriter()
+	err := bw.Reconnect(0, writer1)
+	require.NoError(t, err)
+
+	_, err = bw.Write([]byte("hello world"))
+	require.NoError(t, err)
 
 	// Create a writer that fails during replay
-	writer := &mockWriter{
+	writer2 := &mockWriter{
 		writeFunc: func(p []byte) (int, error) {
 			return 0, xerrors.New("replay failed")
 		},
 	}
 
-	err := bw.Reconnect(0, writer)
+	err = bw.Reconnect(0, writer2)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "replay failed")
 	require.False(t, bw.Connected())
@@ -358,7 +404,8 @@ func TestBackedWriter_ReconnectDuringReplay(t *testing.T) {
 func TestBackedWriter_PartialWriteToUnderlying(t *testing.T) {
 	t.Parallel()
 
-	bw := backedpipe.NewBackedWriter()
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 
 	// Create writer that does partial writes
 	writer := &mockWriter{
@@ -372,17 +419,137 @@ func TestBackedWriter_PartialWriteToUnderlying(t *testing.T) {
 
 	bw.Reconnect(0, writer)
 
-	// Write should succeed to buffer but disconnect due to partial write
+	// Write should fail due to partial write
 	n, err := bw.Write([]byte("hello"))
+	require.Error(t, err)
+	require.Equal(t, 0, n)
+	require.False(t, bw.Connected())
+	require.Contains(t, err.Error(), "short write")
+
+	// Error should be sent to error channel
+	select {
+	case receivedErr := <-errorChan:
+		require.Contains(t, receivedErr.Error(), "short write")
+	default:
+		t.Fatal("Expected error to be sent to error channel")
+	}
+}
+
+func TestBackedWriter_WriteUnblocksOnReconnect(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
+
+	// Start a single write that should block
+	writeResult := make(chan error, 1)
+	go func() {
+		_, err := bw.Write([]byte("test"))
+		writeResult <- err
+	}()
+
+	// Verify write is blocked
+	select {
+	case <-writeResult:
+		t.Fatal("Write should have blocked when disconnected")
+	case <-time.After(50 * time.Millisecond):
+		// Expected - write is blocked
+	}
+
+	// Connect and verify write completes
+	writer := newMockWriter()
+	err := bw.Reconnect(0, writer)
 	require.NoError(t, err)
-	require.Equal(t, 5, n)
+
+	// Write should now complete
+	err = testutil.RequireReceive(ctx, t, writeResult)
+	require.NoError(t, err)
+
+	// Write should have been written to the underlying writer
+	require.Equal(t, "test", writer.buffer.String())
+}
+
+func TestBackedWriter_CloseUnblocksWaitingWrites(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
+
+	// Start a write that should block
+	writeComplete := make(chan error, 1)
+	go func() {
+		_, err := bw.Write([]byte("test"))
+		writeComplete <- err
+	}()
+
+	// Verify write is blocked
+	select {
+	case <-writeComplete:
+		t.Fatal("Write should have blocked when disconnected")
+	case <-time.After(50 * time.Millisecond):
+		// Expected - write is blocked
+	}
+
+	// Close the writer
+	err := bw.Close()
+	require.NoError(t, err)
+
+	// Write should now complete with error
+	err = testutil.RequireReceive(ctx, t, writeComplete)
+	require.Equal(t, io.ErrClosedPipe, err)
+}
+
+func TestBackedWriter_WriteBlocksAfterDisconnection(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
+	writer := newMockWriter()
+
+	// Connect initially
+	err := bw.Reconnect(0, writer)
+	require.NoError(t, err)
+
+	// Write should succeed when connected
+	_, err = bw.Write([]byte("hello"))
+	require.NoError(t, err)
+
+	// Cause disconnection
+	writer.setError(xerrors.New("connection lost"))
+	_, err = bw.Write([]byte("world"))
+	require.Error(t, err)
 	require.False(t, bw.Connected())
 
-	// Buffer should have all data
+	// Subsequent write should block
+	writeComplete := make(chan error, 1)
+	go func() {
+		_, err := bw.Write([]byte("blocked"))
+		writeComplete <- err
+	}()
+
+	// Verify write is blocked
+	select {
+	case <-writeComplete:
+		t.Fatal("Write should have blocked after disconnection")
+	case <-time.After(50 * time.Millisecond):
+		// Expected - write is blocked
+	}
+
+	// Reconnect and verify write completes
+	writer2 := newMockWriter()
+	err = bw.Reconnect(5, writer2) // Replay from after "hello"
+	require.NoError(t, err)
+
+	err = testutil.RequireReceive(ctx, t, writeComplete)
+	require.NoError(t, err)
 }
 
 func BenchmarkBackedWriter_Write(b *testing.B) {
-	bw := backedpipe.NewBackedWriter() // 64KB buffer
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan) // 64KB buffer
 	writer := newMockWriter()
 	bw.Reconnect(0, writer)
 
@@ -395,7 +562,15 @@ func BenchmarkBackedWriter_Write(b *testing.B) {
 }
 
 func BenchmarkBackedWriter_Reconnect(b *testing.B) {
-	bw := backedpipe.NewBackedWriter()
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
+
+	// Connect initially to fill buffer with data
+	initialWriter := newMockWriter()
+	err := bw.Reconnect(0, initialWriter)
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	// Fill buffer with data
 	data := bytes.Repeat([]byte("x"), 1024)

@@ -1,8 +1,8 @@
 package backedpipe_test
 
 import (
+	"context"
 	"io"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/agent/immortalstreams/backedpipe"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // mockReader implements io.Reader with controllable behavior for testing
@@ -65,6 +66,7 @@ func TestBackedReader_NewBackedReader(t *testing.T) {
 
 func TestBackedReader_BasicReadOperation(t *testing.T) {
 	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
 
 	br := backedpipe.NewBackedReader()
 	reader := newMockReader("hello world")
@@ -76,11 +78,11 @@ func TestBackedReader_BasicReadOperation(t *testing.T) {
 	go br.Reconnect(seqNum, newR)
 
 	// Get sequence number from reader
-	seq := <-seqNum
+	seq := testutil.RequireReceive(ctx, t, seqNum)
 	assert.Equal(t, uint64(0), seq)
 
 	// Send new reader
-	newR <- reader
+	testutil.RequireSend(ctx, t, newR, io.Reader(reader))
 
 	// Read data
 	buf := make([]byte, 5)
@@ -100,26 +102,24 @@ func TestBackedReader_BasicReadOperation(t *testing.T) {
 
 func TestBackedReader_ReadBlocksWhenDisconnected(t *testing.T) {
 	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
 
 	br := backedpipe.NewBackedReader()
 
 	// Start a read operation that should block
 	readDone := make(chan struct{})
-	readStarted := make(chan struct{})
 	var readErr error
+	var readBuf []byte
+	var readN int
 
 	go func() {
 		defer close(readDone)
-		close(readStarted) // Signal that we're about to start the read
 		buf := make([]byte, 10)
-		_, readErr = br.Read(buf)
+		readN, readErr = br.Read(buf)
+		readBuf = buf[:readN]
 	}()
 
-	// Wait for the goroutine to start
-	<-readStarted
-
-	// Give a brief moment for the read to actually block on the condition variable
-	// This is much shorter and more deterministic than the previous approach
+	// Give a brief moment for the read to actually start and block on the condition variable
 	time.Sleep(time.Millisecond)
 
 	// Read should still be blocked
@@ -138,20 +138,18 @@ func TestBackedReader_ReadBlocksWhenDisconnected(t *testing.T) {
 	go br.Reconnect(seqNum, newR)
 
 	// Get sequence number and send new reader
-	<-seqNum
-	newR <- reader
+	testutil.RequireReceive(ctx, t, seqNum)
+	testutil.RequireSend(ctx, t, newR, io.Reader(reader))
 
 	// Wait for read to complete
-	select {
-	case <-readDone:
-		assert.NoError(t, readErr)
-	case <-time.After(time.Second):
-		t.Fatal("Read did not unblock after reconnection")
-	}
+	testutil.TryReceive(ctx, t, readDone)
+	assert.NoError(t, readErr)
+	assert.Equal(t, "test", string(readBuf))
 }
 
 func TestBackedReader_ReconnectionAfterFailure(t *testing.T) {
 	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
 
 	br := backedpipe.NewBackedReader()
 	reader1 := newMockReader("first")
@@ -163,8 +161,8 @@ func TestBackedReader_ReconnectionAfterFailure(t *testing.T) {
 	go br.Reconnect(seqNum, newR)
 
 	// Get sequence number and send new reader
-	<-seqNum
-	newR <- reader1
+	testutil.RequireReceive(ctx, t, seqNum)
+	testutil.RequireSend(ctx, t, newR, io.Reader(reader1))
 
 	// Read some data
 	buf := make([]byte, 5)
@@ -190,12 +188,16 @@ func TestBackedReader_ReconnectionAfterFailure(t *testing.T) {
 	}()
 
 	// Wait for the error to be reported via callback
+	receivedErr := testutil.RequireReceive(ctx, t, errorReceived)
+	assert.Error(t, receivedErr)
+	assert.Contains(t, receivedErr.Error(), "connection lost")
+
+	// Verify read is still blocked
 	select {
-	case receivedErr := <-errorReceived:
-		assert.Error(t, receivedErr)
-		assert.Contains(t, receivedErr.Error(), "connection lost")
-	case <-time.After(time.Second):
-		t.Fatal("Error callback was not invoked within timeout")
+	case err := <-readDone:
+		t.Fatalf("Read should still be blocked, but completed with: %v", err)
+	default:
+		// Good, still blocked
 	}
 
 	// Verify disconnection
@@ -209,21 +211,18 @@ func TestBackedReader_ReconnectionAfterFailure(t *testing.T) {
 	go br.Reconnect(seqNum2, newR2)
 
 	// Get sequence number and send new reader
-	seq := <-seqNum2
+	seq := testutil.RequireReceive(ctx, t, seqNum2)
 	assert.Equal(t, uint64(5), seq) // Should return current sequence number
-	newR2 <- reader2
+	testutil.RequireSend(ctx, t, newR2, io.Reader(reader2))
 
 	// Wait for read to unblock and succeed with new data
-	select {
-	case readErr := <-readDone:
-		assert.NoError(t, readErr) // Should succeed with new reader
-	case <-time.After(time.Second):
-		t.Fatal("Read did not unblock after reconnection")
-	}
+	readErr := testutil.RequireReceive(ctx, t, readDone)
+	assert.NoError(t, readErr) // Should succeed with new reader
 }
 
 func TestBackedReader_Close(t *testing.T) {
 	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
 
 	br := backedpipe.NewBackedReader()
 	reader := newMockReader("test")
@@ -235,8 +234,8 @@ func TestBackedReader_Close(t *testing.T) {
 	go br.Reconnect(seqNum, newR)
 
 	// Get sequence number and send new reader
-	<-seqNum
-	newR <- reader
+	testutil.RequireReceive(ctx, t, seqNum)
+	testutil.RequireSend(ctx, t, newR, io.Reader(reader))
 
 	// First, read all available data
 	buf := make([]byte, 10)
@@ -248,14 +247,14 @@ func TestBackedReader_Close(t *testing.T) {
 	err = br.Close()
 	require.NoError(t, err)
 
-	// After close, reads should return ErrClosedPipe
+	// After close, reads should return EOF
 	n, err = br.Read(buf)
 	assert.Equal(t, 0, n)
-	assert.Equal(t, io.ErrClosedPipe, err)
+	assert.Equal(t, io.EOF, err)
 
-	// Subsequent reads should return ErrClosedPipe
+	// Subsequent reads should return EOF
 	_, err = br.Read(buf)
-	assert.Equal(t, io.ErrClosedPipe, err)
+	assert.Equal(t, io.EOF, err)
 }
 
 func TestBackedReader_CloseIdempotent(t *testing.T) {
@@ -273,6 +272,7 @@ func TestBackedReader_CloseIdempotent(t *testing.T) {
 
 func TestBackedReader_ReconnectAfterClose(t *testing.T) {
 	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
 
 	br := backedpipe.NewBackedReader()
 
@@ -285,29 +285,30 @@ func TestBackedReader_ReconnectAfterClose(t *testing.T) {
 	go br.Reconnect(seqNum, newR)
 
 	// Should get 0 sequence number for closed reader
-	seq := <-seqNum
+	seq := testutil.TryReceive(ctx, t, seqNum)
 	assert.Equal(t, uint64(0), seq)
 }
 
 // Helper function to reconnect a reader using channels
-func reconnectReader(br *backedpipe.BackedReader, reader io.Reader) {
+func reconnectReader(ctx context.Context, t testing.TB, br *backedpipe.BackedReader, reader io.Reader) {
 	seqNum := make(chan uint64, 1)
 	newR := make(chan io.Reader, 1)
 
 	go br.Reconnect(seqNum, newR)
 
 	// Get sequence number and send new reader
-	<-seqNum
-	newR <- reader
+	testutil.RequireReceive(ctx, t, seqNum)
+	testutil.RequireSend(ctx, t, newR, reader)
 }
 
 func TestBackedReader_SequenceNumberTracking(t *testing.T) {
 	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
 
 	br := backedpipe.NewBackedReader()
 	reader := newMockReader("0123456789")
 
-	reconnectReader(br, reader)
+	reconnectReader(ctx, t, br, reader)
 
 	// Read in chunks and verify sequence number
 	buf := make([]byte, 3)
@@ -328,38 +329,9 @@ func TestBackedReader_SequenceNumberTracking(t *testing.T) {
 	assert.Equal(t, uint64(9), br.SequenceNum())
 }
 
-func TestBackedReader_ConcurrentReads(t *testing.T) {
-	t.Parallel()
-
-	br := backedpipe.NewBackedReader()
-	reader := newMockReader(strings.Repeat("a", 1000))
-
-	reconnectReader(br, reader)
-
-	var wg sync.WaitGroup
-	numReaders := 5
-	readsPerReader := 10
-
-	for i := 0; i < numReaders; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			buf := make([]byte, 10)
-			for j := 0; j < readsPerReader; j++ {
-				br.Read(buf)
-			}
-		}()
-	}
-
-	wg.Wait()
-
-	// Should have read some data (exact amount depends on scheduling)
-	assert.True(t, br.SequenceNum() > 0)
-	assert.True(t, br.SequenceNum() <= 1000)
-}
-
 func TestBackedReader_EOFHandling(t *testing.T) {
 	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
 
 	br := backedpipe.NewBackedReader()
 	reader := newMockReader("test")
@@ -370,7 +342,7 @@ func TestBackedReader_EOFHandling(t *testing.T) {
 		errorReceived <- err
 	})
 
-	reconnectReader(br, reader)
+	reconnectReader(ctx, t, br, reader)
 
 	// Read all data
 	buf := make([]byte, 10)
@@ -391,12 +363,8 @@ func TestBackedReader_EOFHandling(t *testing.T) {
 	}()
 
 	// Wait for EOF to be reported via error callback
-	select {
-	case receivedErr := <-errorReceived:
-		assert.Equal(t, io.EOF, receivedErr)
-	case <-time.After(time.Second):
-		t.Fatal("EOF was not reported via error callback within timeout")
-	}
+	receivedErr := testutil.RequireReceive(ctx, t, errorReceived)
+	assert.Equal(t, io.EOF, receivedErr)
 
 	// Reader should be disconnected after EOF
 	assert.False(t, br.Connected())
@@ -411,36 +379,43 @@ func TestBackedReader_EOFHandling(t *testing.T) {
 
 	// Reconnect with new data
 	reader2 := newMockReader("more")
-	reconnectReader(br, reader2)
+	reconnectReader(ctx, t, br, reader2)
 
 	// Wait for the blocked read to complete with new data
-	select {
-	case <-readDone:
-		require.NoError(t, readErr)
-		assert.Equal(t, 4, readN)
-		assert.Equal(t, "more", string(buf[:readN]))
-	case <-time.After(time.Second):
-		t.Fatal("Read did not unblock after reconnection")
-	}
+	testutil.TryReceive(ctx, t, readDone)
+	require.NoError(t, readErr)
+	assert.Equal(t, 4, readN)
+	assert.Equal(t, "more", string(buf[:readN]))
 }
 
 func BenchmarkBackedReader_Read(b *testing.B) {
 	br := backedpipe.NewBackedReader()
 	buf := make([]byte, 1024)
 
+	// Create a reader that never returns EOF by cycling through data
+	reader := &mockReader{
+		readFunc: func(p []byte) (int, error) {
+			// Fill buffer with 'x' characters - never EOF
+			for i := range p {
+				p[i] = 'x'
+			}
+			return len(p), nil
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+	reconnectReader(ctx, b, br, reader)
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		// Create fresh reader with data for each iteration
-		data := strings.Repeat("x", 1024) // 1KB of data per iteration
-		reader := newMockReader(data)
-		reconnectReader(br, reader)
-
 		br.Read(buf)
 	}
 }
 
 func TestBackedReader_PartialReads(t *testing.T) {
 	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
 
 	br := backedpipe.NewBackedReader()
 
@@ -456,7 +431,7 @@ func TestBackedReader_PartialReads(t *testing.T) {
 		},
 	}
 
-	reconnectReader(br, reader)
+	reconnectReader(ctx, t, br, reader)
 
 	// Read multiple times
 	buf := make([]byte, 10)
@@ -468,4 +443,162 @@ func TestBackedReader_PartialReads(t *testing.T) {
 	}
 
 	assert.Equal(t, uint64(5), br.SequenceNum())
+}
+
+func TestBackedReader_CloseWhileBlockedOnUnderlyingReader(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	br := backedpipe.NewBackedReader()
+
+	// Create a reader that blocks on Read calls but can be unblocked
+	readStarted := make(chan struct{}, 1)
+	readUnblocked := make(chan struct{})
+	blockingReader := &mockReader{
+		readFunc: func(p []byte) (int, error) {
+			select {
+			case readStarted <- struct{}{}:
+			default:
+			}
+			<-readUnblocked // Block until signaled
+			// After unblocking, return an error to simulate connection failure
+			return 0, xerrors.New("connection interrupted")
+		},
+	}
+
+	// Connect the blocking reader
+	seqNum := make(chan uint64, 1)
+	newR := make(chan io.Reader, 1)
+
+	go br.Reconnect(seqNum, newR)
+
+	// Get sequence number and send blocking reader
+	testutil.RequireReceive(ctx, t, seqNum)
+	testutil.RequireSend(ctx, t, newR, io.Reader(blockingReader))
+
+	// Start a read that will block on the underlying reader
+	readDone := make(chan struct{})
+	var readErr error
+	var readN int
+
+	go func() {
+		defer close(readDone)
+		buf := make([]byte, 10)
+		readN, readErr = br.Read(buf)
+	}()
+
+	// Wait for the read to start and block on the underlying reader
+	testutil.RequireReceive(ctx, t, readStarted)
+
+	// Give a brief moment for the read to actually block
+	time.Sleep(time.Millisecond)
+
+	// Verify read is blocked
+	select {
+	case <-readDone:
+		t.Fatal("Read should be blocked on underlying reader")
+	default:
+		// Good, still blocked
+	}
+
+	// Start Close() in a goroutine since it will block until the underlying read completes
+	closeDone := make(chan error, 1)
+	go func() {
+		closeDone <- br.Close()
+	}()
+
+	// Verify Close() is also blocked waiting for the underlying read
+	select {
+	case <-closeDone:
+		t.Fatal("Close should be blocked until underlying read completes")
+	case <-time.After(10 * time.Millisecond):
+		// Good, Close is blocked
+	}
+
+	// Unblock the underlying reader, which will cause both the read and close to complete
+	close(readUnblocked)
+
+	// Wait for both the read and close to complete
+	testutil.TryReceive(ctx, t, readDone)
+	closeErr := testutil.RequireReceive(ctx, t, closeDone)
+	require.NoError(t, closeErr)
+
+	// The read should return EOF because Close() was called while it was blocked,
+	// even though the underlying reader returned an error
+	assert.Equal(t, 0, readN)
+	assert.Equal(t, io.EOF, readErr)
+
+	// Subsequent reads should return EOF since the reader is now closed
+	buf := make([]byte, 10)
+	n, err := br.Read(buf)
+	assert.Equal(t, 0, n)
+	assert.Equal(t, io.EOF, err)
+}
+
+func TestBackedReader_CloseWhileBlockedWaitingForReconnect(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	br := backedpipe.NewBackedReader()
+	reader1 := newMockReader("initial")
+
+	// Initial connection
+	seqNum := make(chan uint64, 1)
+	newR := make(chan io.Reader, 1)
+
+	go br.Reconnect(seqNum, newR)
+
+	// Get sequence number and send initial reader
+	testutil.RequireReceive(ctx, t, seqNum)
+	testutil.RequireSend(ctx, t, newR, io.Reader(reader1))
+
+	// Read initial data
+	buf := make([]byte, 10)
+	n, err := br.Read(buf)
+	require.NoError(t, err)
+	assert.Equal(t, "initial", string(buf[:n]))
+
+	// Set up error callback to track connection failure
+	errorReceived := make(chan error, 1)
+	br.SetErrorCallback(func(err error) {
+		errorReceived <- err
+	})
+
+	// Simulate connection failure
+	reader1.setError(xerrors.New("connection lost"))
+
+	// Start a read that will block waiting for reconnection
+	readDone := make(chan struct{})
+	var readErr error
+	var readN int
+
+	go func() {
+		defer close(readDone)
+		readN, readErr = br.Read(buf)
+	}()
+
+	// Wait for the error to be reported (indicating disconnection)
+	receivedErr := testutil.RequireReceive(ctx, t, errorReceived)
+	assert.Error(t, receivedErr)
+	assert.Contains(t, receivedErr.Error(), "connection lost")
+
+	// Verify read is blocked waiting for reconnection
+	select {
+	case <-readDone:
+		t.Fatal("Read should be blocked waiting for reconnection")
+	default:
+		// Good, still blocked
+	}
+
+	// Verify reader is disconnected
+	assert.False(t, br.Connected())
+
+	// Close the BackedReader while read is blocked waiting for reconnection
+	err = br.Close()
+	require.NoError(t, err)
+
+	// The read should unblock and return EOF
+	testutil.TryReceive(ctx, t, readDone)
+	assert.Equal(t, 0, readN)
+	assert.Equal(t, io.EOF, readErr)
 }
