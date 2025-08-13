@@ -45,6 +45,12 @@ func (api *API) workspaceExternalAgentCredentials(rw http.ResponseWriter, r *htt
 		})
 		return
 	}
+	if !build.HasExternalAgent.Bool {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Workspace does not have an external agent.",
+		})
+		return
+	}
 
 	agents, err := api.Database.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx, database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
 		WorkspaceID: workspace.ID,

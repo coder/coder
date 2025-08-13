@@ -2058,14 +2058,14 @@ func TestTemplateFilterHasExternalAgent(t *testing.T) {
 	defer cancel()
 
 	templates, err := client.Templates(ctx, codersdk.TemplateFilter{
-		SearchQuery: "has-external-agent:true",
+		SearchQuery: "has_external_agent:true",
 	})
 	require.NoError(t, err)
 	require.Len(t, templates, 1)
 	require.Equal(t, templateWithExternalAgent.ID, templates[0].ID)
 
 	templates, err = client.Templates(ctx, codersdk.TemplateFilter{
-		SearchQuery: "has-external-agent:false",
+		SearchQuery: "has_external_agent:false",
 	})
 	require.NoError(t, err)
 	require.Len(t, templates, 1)

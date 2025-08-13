@@ -223,7 +223,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 		Valid: values.Has("outdated"),
 	}
 	filter.HasAITask = parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task")
-	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has-external-agent")
+	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 
 	type paramMatch struct {
@@ -287,7 +287,7 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 		HasAITask:        parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
 		AuthorID:         parser.UUID(values, uuid.Nil, "author_id"),
 		AuthorUsername:   parser.String(values, "", "author"),
-		HasExternalAgent: parser.NullableBoolean(values, sql.NullBool{}, "has-external-agent"),
+		HasExternalAgent: parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent"),
 	}
 
 	if filter.AuthorUsername == codersdk.Me {

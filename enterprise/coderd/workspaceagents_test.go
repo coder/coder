@@ -424,4 +424,20 @@ func TestWorkspaceExternalAgentCredentials(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, "External agent is authenticated with an instance ID.", apiErr.Message)
 	})
+
+	t.Run("No external agent - should return 404", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).Do()
+
+		_, err := client.WorkspaceExternalAgentCredentials(ctx, r.Workspace.ID, "test-agent")
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, "Workspace does not have an external agent.", apiErr.Message)
+	})
 }
