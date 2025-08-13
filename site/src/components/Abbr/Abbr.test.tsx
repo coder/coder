@@ -8,7 +8,7 @@ type AbbreviationData = {
 };
 
 describe(Abbr.name, () => {
-	it("Has an aria-label that equals the title if the abbreviation is shorthand", () => {
+	it("Omits abbreviation from screen-reader output if it is shorthand", () => {
 		const sampleShorthands: AbbreviationData[] = [
 			{
 				abbreviation: "ms",
@@ -38,7 +38,7 @@ describe(Abbr.name, () => {
 		}
 	});
 
-	it("Has an aria label with title and 'flattened' pronunciation if abbreviation is acronym", () => {
+	it("Adds title and 'flattened' pronunciation if abbreviation is acronym", () => {
 		const sampleAcronyms: AbbreviationData[] = [
 			{
 				abbreviation: "NASA",
@@ -70,7 +70,7 @@ describe(Abbr.name, () => {
 		}
 	});
 
-	it("Has an aria label with title and initialized pronunciation if abbreviation is initialism", () => {
+	it("Adds title and initialized pronunciation if abbreviation is initialism", () => {
 		const sampleInitialisms: AbbreviationData[] = [
 			{
 				abbreviation: "FBI",

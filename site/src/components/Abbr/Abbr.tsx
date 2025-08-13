@@ -33,10 +33,8 @@ export const Abbr: FC<AbbrProps> = ({
 			// to inject the actual text content inside the abbr itself
 			title={title}
 			className={cn(
-				"underline-none",
-				children === children.toUpperCase()
-					? "tracking-wide"
-					: "tracking-normal",
+				"no-underline tracking-normal",
+				children === children.toUpperCase() && "tracking-wide",
 				className,
 			)}
 			{...delegatedProps}
