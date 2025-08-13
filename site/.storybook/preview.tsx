@@ -1,28 +1,9 @@
-// @ts-check
-/**
- * @file Defines the main configuration file for all of our Storybook tests.
- * This file must be a JSX/JS file, but we can at least add some type safety via
- * the ts-check directive.
- * @see {@link https://storybook.js.org/docs/configure#configure-story-rendering}
- *
- * @typedef {import("react").ReactElement} ReactElement
- * @typedef {import("react").PropsWithChildren} PropsWithChildren
- * @typedef {import("react").FC<PropsWithChildren>} FC
- *
- * @typedef {import("@storybook/react-vite").StoryContext} StoryContext
- * @typedef {import("@storybook/react-vite").Preview} Preview
- *
- * @typedef {(Story: FC, Context: StoryContext) => React.JSX.Element} Decorator A
- * Storybook decorator function used to inject baseline data dependencies into
- * our React components during testing.
- */
 import "../src/index.css";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import CssBaseline from "@mui/material/CssBaseline";
 import {
 	ThemeProvider as MuiThemeProvider,
 	StyledEngineProvider,
-	// biome-ignore lint/nursery/noRestrictedImports: we extend the MUI theme
 } from "@mui/material/styles";
 import { DecoratorHelpers } from "@storybook/addon-themes";
 import isChromatic from "chromatic/isChromatic";
@@ -32,14 +13,11 @@ import { QueryClient, QueryClientProvider } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
 import "theme/globalFonts";
 import themes from "../src/theme";
+import type { Decorator, Loader, Parameters } from "@storybook/react-vite";
 
 DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
 
-/** @type {readonly Decorator[]} */
-export const decorators = [withRouter, withQuery, withHelmet, withTheme];
-
-/** @type {Preview["parameters"]} */
-export const parameters = {
+export const parameters: Parameters = {
 	options: {
 		storySort: {
 			method: "alphabetical",
@@ -83,26 +61,15 @@ export const parameters = {
 	},
 };
 
-/**
- * There's a mismatch on the React Helmet return type that causes issues when
- * mounting the component in JS files only. Have to do type assertion, which is
- * especially ugly in JSDoc
- */
-const SafeHelmetProvider = /** @type {FC} */ (
-	/** @type {unknown} */ (HelmetProvider)
-);
-
-/** @type {Decorator} */
-function withHelmet(Story) {
+const withHelmet: Decorator = (Story) => {
 	return (
-		<SafeHelmetProvider>
+		<HelmetProvider>
 			<Story />
-		</SafeHelmetProvider>
+		</HelmetProvider>
 	);
-}
+};
 
-/** @type {Decorator} */
-function withQuery(Story, { parameters }) {
+const withQuery: Decorator = (Story, { parameters }) => {
 	const queryClient = new QueryClient({
 		defaultOptions: {
 			queries: {
@@ -123,10 +90,9 @@ function withQuery(Story, { parameters }) {
 			<Story />
 		</QueryClientProvider>
 	);
-}
+};
 
-/** @type {Decorator} */
-function withTheme(Story, context) {
+const withTheme: Decorator = (Story, context) => {
 	const selectedTheme = DecoratorHelpers.pluckThemeFromContext(context);
 	const { themeOverride } = DecoratorHelpers.useThemeParameters();
 	const selected = themeOverride || selectedTheme || "dark";
@@ -149,7 +115,14 @@ function withTheme(Story, context) {
 			</StyledEngineProvider>
 		</StrictMode>
 	);
-}
+};
+
+export const decorators: Decorator[] = [
+	withRouter,
+	withQuery,
+	withHelmet,
+	withTheme,
+];
 
 // Try to fix storybook rendering fonts inconsistently
 // https://www.chromatic.com/docs/font-loading/#solution-c-check-fonts-have-loaded-in-a-loader
@@ -157,4 +130,5 @@ const fontLoader = async () => ({
 	fonts: await document.fonts.ready,
 });
 
-export const loaders = isChromatic() && document.fonts ? [fontLoader] : [];
+export const loaders: Loader[] =
+	isChromatic() && document.fonts ? [fontLoader] : [];

@@ -1,6 +1,6 @@
-import turbosnap from "vite-plugin-turbosnap";
+import type { StorybookConfig } from "@storybook/react-vite";
 
-module.exports = {
+const config: StorybookConfig = {
 	stories: ["../src/**/*.stories.tsx"],
 
 	addons: [
@@ -18,16 +18,13 @@ module.exports = {
 		options: {},
 	},
 
-	async viteFinal(config, { configType }) {
-		config.plugins = config.plugins || [];
-		if (configType === "PRODUCTION") {
-			config.plugins.push(
-				turbosnap({
-					rootDir: config.root || "",
-				}),
-			);
+	async viteFinal(config) {
+		if (config.server) {
+			config.server.allowedHosts = [".coder"];
 		}
-		config.server.allowedHosts = [".coder"];
+
 		return config;
 	},
 };
+
+export default config;
