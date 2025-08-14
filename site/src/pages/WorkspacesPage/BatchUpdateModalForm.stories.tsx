@@ -157,7 +157,7 @@ export const TransitioningWorkspaces: Story = {
 			1 + ACTIVE_BUILD_STATUSES.length,
 		);
 
-		for (const [i, status] of ACTIVE_BUILD_STATUSES.entries() ) {
+		for (const [i, status] of ACTIVE_BUILD_STATUSES.entries()) {
 			const mutable = workspaces[i] as MutableWorkspace;
 			mutable.latest_build.status = status;
 		}

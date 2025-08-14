@@ -142,8 +142,8 @@ const PanelListItem: FC<PropsWithChildren> = ({ children }) => {
 		<li className="[&:not(:last-child)]:border-b-border [&:not(:last-child)]:border-b [&:not(:last-child)]:border-solid border-0">
 			{children}
 		</li>
-	)
-}
+	);
+};
 
 type TemplateNameChangeProps = Readonly<{
 	oldTemplateVersionName: string;
@@ -624,5 +624,3 @@ type BatchUpdateModalFormProps = Readonly<{
 	onCancel: () => void;
 	onSubmit: () => void;
 }>;
-
-
