@@ -15,9 +15,4 @@ module.exports = {
 		name: "@storybook/react-vite",
 		options: {},
 	},
-
-	async viteFinal(config) {
-		config.server.allowedHosts = [".coder"];
-		return config;
-	},
 };
