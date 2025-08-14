@@ -144,9 +144,7 @@ To avoid system VPN configuration conflicts, only one copy of `Coder Desktop.app
 If the logged in Coder deployment requires a corporate VPN to connect, Coder Connect can't establish communication
 through the VPN, and will time out.
 
-This is due to known issues with [macOS](https://github.com/coder/coder-desktop-macos/issues/201) and
-[Windows](https://github.com/coder/coder-desktop-windows/issues/147) networking.
-A resolution is in progress.
+This issue has been fixed in Coder v2.24.3 and later. For macOS clients, Coder Desktop v0.8.0 or later is also required.
 
 ## Next Steps
 
