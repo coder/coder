@@ -359,7 +359,23 @@ func TestBackedWriter_BufferEviction(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, n)
 
-	// Buffer should contain "cdefg" (latest data)
+	// Verify that the buffer contains only the latest data after eviction
+	// Total sequence number should be 7 (5 + 2)
+	require.Equal(t, uint64(7), bw.SequenceNum())
+
+	// Try to reconnect from the beginning - this should fail because
+	// the early data was evicted from the buffer
+	writer2 := newMockWriter()
+	err = bw.Reconnect(0, writer2)
+	require.Error(t, err)
+	require.ErrorIs(t, err, backedpipe.ErrReplayDataUnavailable)
+
+	// However, reconnecting from a sequence that's still in the buffer should work
+	// The buffer should contain the last 5 bytes: "cdefg"
+	writer3 := newMockWriter()
+	err = bw.Reconnect(2, writer3) // From sequence 2, should replay "cdefg"
+	require.NoError(t, err)
+	require.Equal(t, []byte("cdefg"), writer3.buffer.Bytes())
 }
 
 func TestBackedWriter_Close(t *testing.T) {
