@@ -1711,7 +1711,7 @@ func (q *sqlQuerier) DeleteExternalAuthLink(ctx context.Context, arg DeleteExter
 }
 
 const getExternalAuthLink = `-- name: GetExternalAuthLink :one
-SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra FROM external_auth_links WHERE provider_id = $1 AND user_id = $2
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason FROM external_auth_links WHERE provider_id = $1 AND user_id = $2
 `
 
 type GetExternalAuthLinkParams struct {
@@ -1733,12 +1733,13 @@ func (q *sqlQuerier) GetExternalAuthLink(ctx context.Context, arg GetExternalAut
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
 		&i.OAuthExtra,
+		&i.OauthRefreshFailureReason,
 	)
 	return i, err
 }
 
 const getExternalAuthLinksByUserID = `-- name: GetExternalAuthLinksByUserID :many
-SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra FROM external_auth_links WHERE user_id = $1
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason FROM external_auth_links WHERE user_id = $1
 `
 
 func (q *sqlQuerier) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]ExternalAuthLink, error) {
@@ -1761,6 +1762,7 @@ func (q *sqlQuerier) GetExternalAuthLinksByUserID(ctx context.Context, userID uu
 			&i.OAuthAccessTokenKeyID,
 			&i.OAuthRefreshTokenKeyID,
 			&i.OAuthExtra,
+			&i.OauthRefreshFailureReason,
 		); err != nil {
 			return nil, err
 		}
@@ -1798,7 +1800,7 @@ INSERT INTO external_auth_links (
     $8,
     $9,
 	$10
-) RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra
+) RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason
 `
 
 type InsertExternalAuthLinkParams struct {
@@ -1839,6 +1841,7 @@ func (q *sqlQuerier) InsertExternalAuthLink(ctx context.Context, arg InsertExter
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
 		&i.OAuthExtra,
+		&i.OauthRefreshFailureReason,
 	)
 	return i, err
 }
@@ -1851,8 +1854,12 @@ UPDATE external_auth_links SET
     oauth_refresh_token = $6,
     oauth_refresh_token_key_id = $7,
     oauth_expiry = $8,
-	oauth_extra = $9
-WHERE provider_id = $1 AND user_id = $2 RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra
+	oauth_extra = $9,
+	-- Only 'UpdateExternalAuthLinkRefreshToken' supports updating the oauth_refresh_failure_reason.
+	-- Any updates to the external auth link, will be assumed to change the state and clear
+	-- any cached errors.
+	oauth_refresh_failure_reason = ''
+WHERE provider_id = $1 AND user_id = $2 RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason
 `
 
 type UpdateExternalAuthLinkParams struct {
@@ -1891,6 +1898,7 @@ func (q *sqlQuerier) UpdateExternalAuthLink(ctx context.Context, arg UpdateExter
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
 		&i.OAuthExtra,
+		&i.OauthRefreshFailureReason,
 	)
 	return i, err
 }
@@ -1899,27 +1907,32 @@ const updateExternalAuthLinkRefreshToken = `-- name: UpdateExternalAuthLinkRefre
 UPDATE
 	external_auth_links
 SET
-	oauth_refresh_token = $1,
-	updated_at = $2
+	-- oauth_refresh_failure_reason can be set to cache the failure reason
+	-- for subsequent refresh attempts.
+	oauth_refresh_failure_reason = $1,
+	oauth_refresh_token = $2,
+	updated_at = $3
 WHERE
-    provider_id = $3
+    provider_id = $4
 AND
-    user_id = $4
+    user_id = $5
 AND
     -- Required for sqlc to generate a parameter for the oauth_refresh_token_key_id
-    $5 :: text = $5 :: text
+    $6 :: text = $6 :: text
 `
 
 type UpdateExternalAuthLinkRefreshTokenParams struct {
-	OAuthRefreshToken      string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	UpdatedAt              time.Time `db:"updated_at" json:"updated_at"`
-	ProviderID             string    `db:"provider_id" json:"provider_id"`
-	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
-	OAuthRefreshTokenKeyID string    `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OauthRefreshFailureReason string    `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
+	OAuthRefreshToken         string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	UpdatedAt                 time.Time `db:"updated_at" json:"updated_at"`
+	ProviderID                string    `db:"provider_id" json:"provider_id"`
+	UserID                    uuid.UUID `db:"user_id" json:"user_id"`
+	OAuthRefreshTokenKeyID    string    `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 }
 
 func (q *sqlQuerier) UpdateExternalAuthLinkRefreshToken(ctx context.Context, arg UpdateExternalAuthLinkRefreshTokenParams) error {
 	_, err := q.db.ExecContext(ctx, updateExternalAuthLinkRefreshToken,
+		arg.OauthRefreshFailureReason,
 		arg.OAuthRefreshToken,
 		arg.UpdatedAt,
 		arg.ProviderID,
