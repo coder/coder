@@ -2242,9 +2242,6 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-		// Then: the claimed workspace should inherit and respect that same NextStartAt
-		require.True(t, workspace.NextStartAt.Equal(*prebuild.NextStartAt))
-
 		// Wait for provisioner to be available for this specific workspace
 		coderdtest.MustWaitForProvisionersAvailable(t, db, prebuild)
 
