@@ -4,23 +4,25 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/v2/coderd/taskname"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/stretchr/testify/require"
 )
 
 const (
-	anthropicApiKeyEnv = "ANTHROPIC_API_KEY"
+	anthropicEnvVar = "ANTHROPIC_API_KEY"
 )
 
+//nolint:paralleltest // test modifies env variables
 func TestGenerateTaskName(t *testing.T) {
 	t.Run("Fallback", func(t *testing.T) {
-		if apiKey := os.Getenv(anthropicApiKeyEnv); apiKey != "" {
-			os.Setenv(anthropicApiKeyEnv, "")
+		if apiKey := os.Getenv(anthropicEnvVar); apiKey != "" {
+			os.Setenv(anthropicEnvVar, "")
 
 			t.Cleanup(func() {
-				os.Setenv(anthropicApiKeyEnv, apiKey)
+				os.Setenv(anthropicEnvVar, apiKey)
 			})
 		}
 
@@ -32,8 +34,8 @@ func TestGenerateTaskName(t *testing.T) {
 	})
 
 	t.Run("Anthropic", func(t *testing.T) {
-		if apiKey := os.Getenv(anthropicApiKeyEnv); apiKey == "" {
-			t.Skipf("Skipping test as %s not set", anthropicApiKeyEnv)
+		if apiKey := os.Getenv(anthropicEnvVar); apiKey == "" {
+			t.Skipf("Skipping test as %s not set", anthropicEnvVar)
 		}
 
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -45,5 +47,4 @@ func TestGenerateTaskName(t *testing.T) {
 		err = codersdk.NameValid(name)
 		require.NoError(t, err, "name should be valid")
 	})
-
 }

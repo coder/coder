@@ -8,8 +8,9 @@ import (
 	"slices"
 	"strings"
 
-	"cdr.dev/slog"
 	"github.com/google/uuid"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"

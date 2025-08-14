@@ -6,9 +6,10 @@ import (
 	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
+	"golang.org/x/xerrors"
+
 	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/codersdk"
-	"golang.org/x/xerrors"
 )
 
 const systemPrompt = `Generate a short workspace name from this AI task prompt.
@@ -73,7 +74,7 @@ func Generate(ctx context.Context, prompt, fallback string) (string, error) {
 	generatedName := acc.Messages()[0].Content
 
 	if err := codersdk.NameValid(generatedName); err != nil {
-		return fallback, xerrors.Errorf("generated name %p not valid: %w", generatedName, err)
+		return fallback, xerrors.Errorf("generated name %v not valid: %w", generatedName, err)
 	}
 
 	if generatedName == "task-workspace" {
