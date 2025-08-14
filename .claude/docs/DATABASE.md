@@ -22,11 +22,11 @@
 
 ### Helper Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `./coderd/database/migrations/create_migration.sh "migration name"` | Creates new migration files |
-| `./coderd/database/migrations/fix_migration_numbers.sh` | Renumbers migrations to avoid conflicts |
-| `./coderd/database/migrations/create_fixture.sh "fixture name"` | Creates test fixtures for migrations |
+| Script                                                              | Purpose                                 |
+|---------------------------------------------------------------------|-----------------------------------------|
+| `./coderd/database/migrations/create_migration.sh "migration name"` | Creates new migration files             |
+| `./coderd/database/migrations/fix_migration_numbers.sh`             | Renumbers migrations to avoid conflicts |
+| `./coderd/database/migrations/create_fixture.sh "fixture name"`     | Creates test fixtures for migrations    |
 
 ### Database Query Organization
 
@@ -214,6 +214,5 @@ make lint
 - [ ] Migration files exist (both up and down)
 - [ ] `make gen` run after query changes
 - [ ] Audit table updated for new fields
-- [ ] In-memory database implementations updated
 - [ ] Nullable fields use `sql.Null*` types
 - [ ] Authorization context appropriate for endpoint type

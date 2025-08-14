@@ -61,6 +61,7 @@ type Template struct {
 	// template version.
 	RequireActiveVersion bool                         `json:"require_active_version"`
 	MaxPortShareLevel    WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
+	CORSBehavior         CORSBehavior                 `json:"cors_behavior"`
 
 	UseClassicParameterFlow bool `json:"use_classic_parameter_flow"`
 }
@@ -207,11 +208,11 @@ type ACLAvailable struct {
 }
 
 type UpdateTemplateMeta struct {
-	Name             string `json:"name,omitempty" validate:"omitempty,template_name"`
-	DisplayName      string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
-	Description      string `json:"description,omitempty"`
-	Icon             string `json:"icon,omitempty"`
-	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
+	Name             string  `json:"name,omitempty" validate:"omitempty,template_name"`
+	DisplayName      *string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
+	Description      *string `json:"description,omitempty"`
+	Icon             *string `json:"icon,omitempty"`
+	DefaultTTLMillis int64   `json:"default_ttl_ms,omitempty"`
 	// ActivityBumpMillis allows optionally specifying the activity bump
 	// duration for all workspaces created from this template. Defaults to 1h
 	// but can be set to 0 to disable activity bumping.
@@ -252,6 +253,7 @@ type UpdateTemplateMeta struct {
 	// of the template.
 	DisableEveryoneGroupAccess bool                          `json:"disable_everyone_group_access"`
 	MaxPortShareLevel          *WorkspaceAgentPortShareLevel `json:"max_port_share_level,omitempty"`
+	CORSBehavior               *CORSBehavior                 `json:"cors_behavior,omitempty"`
 	// UseClassicParameterFlow is a flag that switches the default behavior to use the classic
 	// parameter flow when creating a workspace. This only affects deployments with the experiment
 	// "dynamic-parameters" enabled. This setting will live for a period after the experiment is

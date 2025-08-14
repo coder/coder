@@ -1,4 +1,4 @@
-# DX Data Cloud
+# DX
 
 [DX](https://getdx.com) is a developer intelligence platform used by engineering
 leaders and platform engineers.

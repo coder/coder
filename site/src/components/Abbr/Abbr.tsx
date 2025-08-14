@@ -1,4 +1,5 @@
 import type { FC, HTMLAttributes } from "react";
+import { cn } from "utils/cn";
 
 export type Pronunciation = "shorthand" | "acronym" | "initialism";
 
@@ -29,10 +30,12 @@ export const Abbr: FC<AbbrProps> = ({
 			// always have to supplement with aria-label
 			title={title}
 			aria-label={getAccessibleLabel(children, title, pronunciation)}
-			css={{
-				textDecoration: "inherit",
-				letterSpacing: children === children.toUpperCase() ? "0.02em" : "0",
-			}}
+			className={cn(
+				"decoration-inherit",
+				children === children.toUpperCase()
+					? "tracking-wide"
+					: "tracking-normal",
+			)}
 			{...delegatedProps}
 		>
 			<span aria-hidden>{children}</span>

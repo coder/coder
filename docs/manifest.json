@@ -48,6 +48,18 @@
 							"icon_path": "./images/icons/document.svg"
 						},
 						{
+							"title": "Modules",
+							"description": "Learn how to contribute modules to Coder",
+							"path": "./about/contributing/modules.md",
+							"icon_path": "./images/icons/gear.svg"
+						},
+						{
+							"title": "Templates",
+							"description": "Learn how to contribute templates to Coder",
+							"path": "./about/contributing/templates.md",
+							"icon_path": "./images/icons/picture.svg"
+						},
+						{
 							"title": "Backend",
 							"description": "Our guide for backend development",
 							"path": "./about/contributing/backend.md",
@@ -240,6 +252,11 @@
 							"path": "./user-guides/workspace-access/web-ides.md"
 						},
 						{
+							"title": "code-server",
+							"description": "Access your workspace with code-server",
+							"path": "./user-guides/workspace-access/code-server.md"
+						},
+						{
 							"title": "Zed",
 							"description": "Access your workspace with Zed",
 							"path": "./user-guides/workspace-access/zed.md"
@@ -400,6 +417,11 @@
 							"path": "./admin/users/oidc-auth/index.md",
 							"children": [
 								{
+									"title": "Google",
+									"description": "Configure Google as an OIDC provider",
+									"path": "./admin/users/oidc-auth/google.md"
+								},
+								{
 									"title": "Configure OIDC refresh tokens",
 									"description": "How to configure OIDC refresh tokens",
 									"path": "./admin/users/oidc-auth/refresh-tokens.md"
@@ -530,8 +552,7 @@
 								{
 									"title": "Dynamic Parameters",
 									"description": "Conditional, identity-aware parameter syntax for advanced users.",
-									"path": "./admin/templates/extending-templates/dynamic-parameters.md",
-									"state": ["beta"]
+									"path": "./admin/templates/extending-templates/dynamic-parameters.md"
 								},
 								{
 									"title": "Prebuilt workspaces",
@@ -683,11 +704,6 @@
 							"path": "./admin/integrations/jfrog-artifactory.md"
 						},
 						{
-							"title": "JFrog Xray",
-							"description": "Integrate Coder with JFrog Xray",
-							"path": "./admin/integrations/jfrog-xray.md"
-						},
-						{
 							"title": "Island Secure Browser",
 							"description": "Integrate Coder with Island's Secure Browser",
 							"path": "./admin/integrations/island.md"
@@ -698,14 +714,19 @@
 							"path": "./admin/integrations/platformx.md"
 						},
 						{
-							"title": "DX Data Cloud",
-							"description": "Tag Coder Users with DX Data Cloud",
+							"title": "DX",
+							"description": "Tag Coder Users with DX",
 							"path": "./admin/integrations/dx-data-cloud.md"
 						},
 						{
 							"title": "Hashicorp Vault",
 							"description": "Integrate Coder with Hashicorp Vault",
 							"path": "./admin/integrations/vault.md"
+						},
+						{
+							"title": "OAuth2 Provider",
+							"description": "Use Coder as an OAuth2 provider",
+							"path": "./admin/integrations/oauth2-provider.md"
 						}
 					]
 				},
@@ -936,11 +957,6 @@
 					"title": "Deploy Coder on Azure with an Application Gateway",
 					"description": "Deploy Coder on Azure with an Application Gateway",
 					"path": "./install/kubernetes/kubernetes-azure-app-gateway.md"
-				},
-				{
-					"title": "Scanning Workspaces with JFrog Xray",
-					"description": "Integrate Coder with JFrog Xray",
-					"path": "./admin/integrations/jfrog-xray.md"
 				},
 				{
 					"title": "Cloning Git Repositories",
@@ -1638,6 +1654,16 @@
 							"title": "templates list",
 							"description": "List all the templates available for the organization",
 							"path": "reference/cli/templates_list.md"
+						},
+						{
+							"title": "templates presets",
+							"description": "Manage presets of the specified template",
+							"path": "reference/cli/templates_presets.md"
+						},
+						{
+							"title": "templates presets list",
+							"description": "List all presets of the specified template. Defaults to the active template version.",
+							"path": "reference/cli/templates_presets_list.md"
 						},
 						{
 							"title": "templates pull",

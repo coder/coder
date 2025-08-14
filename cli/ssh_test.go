@@ -2031,6 +2031,7 @@ func TestSSH_Container(t *testing.T) {
 		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
 			o.Devcontainers = true
 			o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
+				agentcontainers.WithProjectDiscovery(false),
 				agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
 			)
 		})
@@ -2072,6 +2073,7 @@ func TestSSH_Container(t *testing.T) {
 			o.Devcontainers = true
 			o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
 				agentcontainers.WithContainerCLI(mLister),
+				agentcontainers.WithProjectDiscovery(false),
 				agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
 			)
 		})

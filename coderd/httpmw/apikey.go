@@ -113,6 +113,10 @@ type ExtractAPIKeyConfig struct {
 	// a user is authenticated to prevent additional CLI invocations.
 	PostAuthAdditionalHeadersFunc func(a rbac.Subject, header http.Header)
 
+	// AccessURL is the configured access URL for this Coder deployment.
+	// Used for generating OAuth2 resource metadata URLs in WWW-Authenticate headers.
+	AccessURL *url.URL
+
 	// Logger is used for logging middleware operations.
 	Logger slog.Logger
 }
@@ -214,29 +218,9 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 			return nil, nil, false
 		}
 
-		// Add WWW-Authenticate header for 401/403 responses (RFC 6750)
+		// Add WWW-Authenticate header for 401/403 responses (RFC 6750 + RFC 9728)
 		if code == http.StatusUnauthorized || code == http.StatusForbidden {
-			var wwwAuth string
-
-			switch code {
-			case http.StatusUnauthorized:
-				// Map 401 to invalid_token with specific error descriptions
-				switch {
-				case strings.Contains(response.Message, "expired") || strings.Contains(response.Detail, "expired"):
-					wwwAuth = `Bearer realm="coder", error="invalid_token", error_description="The access token has expired"`
-				case strings.Contains(response.Message, "audience") || strings.Contains(response.Message, "mismatch"):
-					wwwAuth = `Bearer realm="coder", error="invalid_token", error_description="The access token audience does not match this resource"`
-				default:
-					wwwAuth = `Bearer realm="coder", error="invalid_token", error_description="The access token is invalid"`
-				}
-			case http.StatusForbidden:
-				// Map 403 to insufficient_scope per RFC 6750
-				wwwAuth = `Bearer realm="coder", error="insufficient_scope", error_description="The request requires higher privileges than provided by the access token"`
-			default:
-				wwwAuth = `Bearer realm="coder"`
-			}
-
-			rw.Header().Set("WWW-Authenticate", wwwAuth)
+			rw.Header().Set("WWW-Authenticate", buildWWWAuthenticateHeader(cfg.AccessURL, r, code, response))
 		}
 
 		httpapi.Write(ctx, rw, code, response)
@@ -272,7 +256,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 
 	// Validate OAuth2 provider app token audience (RFC 8707) if applicable
 	if key.LoginType == database.LoginTypeOAuth2ProviderApp {
-		if err := validateOAuth2ProviderAppTokenAudience(ctx, cfg.DB, *key, r); err != nil {
+		if err := validateOAuth2ProviderAppTokenAudience(ctx, cfg.DB, *key, cfg.AccessURL, r); err != nil {
 			// Log the detailed error for debugging but don't expose it to the client
 			cfg.Logger.Debug(ctx, "oauth2 token audience validation failed", slog.Error(err))
 			return optionalWrite(http.StatusForbidden, codersdk.Response{
@@ -489,7 +473,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 
 // validateOAuth2ProviderAppTokenAudience validates that an OAuth2 provider app token
 // is being used with the correct audience/resource server (RFC 8707).
-func validateOAuth2ProviderAppTokenAudience(ctx context.Context, db database.Store, key database.APIKey, r *http.Request) error {
+func validateOAuth2ProviderAppTokenAudience(ctx context.Context, db database.Store, key database.APIKey, accessURL *url.URL, r *http.Request) error {
 	// Get the OAuth2 provider app token to check its audience
 	//nolint:gocritic // System needs to access token for audience validation
 	token, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(dbauthz.AsSystemRestricted(ctx), key.ID)
@@ -502,8 +486,8 @@ func validateOAuth2ProviderAppTokenAudience(ctx context.Context, db database.Sto
 		return nil
 	}
 
-	// Extract the expected audience from the request
-	expectedAudience := extractExpectedAudience(r)
+	// Extract the expected audience from the access URL
+	expectedAudience := extractExpectedAudience(accessURL, r)
 
 	// Normalize both audience values for RFC 3986 compliant comparison
 	normalizedTokenAudience := normalizeAudienceURI(token.Audience.String)
@@ -624,18 +608,59 @@ func normalizePathSegments(path string) string {
 
 // Test export functions for testing package access
 
-// extractExpectedAudience determines the expected audience for the current request.
-// This should match the resource parameter used during authorization.
-func extractExpectedAudience(r *http.Request) string {
-	// For MCP compliance, the audience should be the canonical URI of the resource server
-	// This typically matches the access URL of the Coder deployment
-	scheme := "https"
-	if r.TLS == nil {
-		scheme = "http"
+// buildWWWAuthenticateHeader constructs RFC 6750 + RFC 9728 compliant WWW-Authenticate header
+func buildWWWAuthenticateHeader(accessURL *url.URL, r *http.Request, code int, response codersdk.Response) string {
+	// Use the configured access URL for resource metadata
+	if accessURL == nil {
+		scheme := "https"
+		if r.TLS == nil {
+			scheme = "http"
+		}
+
+		// Use the Host header to construct the canonical audience URI
+		accessURL = &url.URL{
+			Scheme: scheme,
+			Host:   r.Host,
+		}
 	}
 
-	// Use the Host header to construct the canonical audience URI
-	audience := fmt.Sprintf("%s://%s", scheme, r.Host)
+	resourceMetadata := accessURL.JoinPath("/.well-known/oauth-protected-resource").String()
+
+	switch code {
+	case http.StatusUnauthorized:
+		switch {
+		case strings.Contains(response.Message, "expired") || strings.Contains(response.Detail, "expired"):
+			return fmt.Sprintf(`Bearer realm="coder", error="invalid_token", error_description="The access token has expired", resource_metadata=%q`, resourceMetadata)
+		case strings.Contains(response.Message, "audience") || strings.Contains(response.Message, "mismatch"):
+			return fmt.Sprintf(`Bearer realm="coder", error="invalid_token", error_description="The access token audience does not match this resource", resource_metadata=%q`, resourceMetadata)
+		default:
+			return fmt.Sprintf(`Bearer realm="coder", error="invalid_token", error_description="The access token is invalid", resource_metadata=%q`, resourceMetadata)
+		}
+	case http.StatusForbidden:
+		return fmt.Sprintf(`Bearer realm="coder", error="insufficient_scope", error_description="The request requires higher privileges than provided by the access token", resource_metadata=%q`, resourceMetadata)
+	default:
+		return fmt.Sprintf(`Bearer realm="coder", resource_metadata=%q`, resourceMetadata)
+	}
+}
+
+// extractExpectedAudience determines the expected audience for the current request.
+// This should match the resource parameter used during authorization.
+func extractExpectedAudience(accessURL *url.URL, r *http.Request) string {
+	// For MCP compliance, the audience should be the canonical URI of the resource server
+	// This typically matches the access URL of the Coder deployment
+	var audience string
+
+	if accessURL != nil {
+		audience = accessURL.String()
+	} else {
+		scheme := "https"
+		if r.TLS == nil {
+			scheme = "http"
+		}
+
+		// Use the Host header to construct the canonical audience URI
+		audience = fmt.Sprintf("%s://%s", scheme, r.Host)
+	}
 
 	// Normalize the URI according to RFC 3986 for consistent comparison
 	return normalizeAudienceURI(audience)

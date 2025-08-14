@@ -11,12 +11,13 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
 var ErrInvalidDispatchTimeout = xerrors.New("dispatch timeout must be less than lease period")
@@ -145,7 +146,7 @@ func (m *Manager) Run(ctx context.Context) {
 
 	m.runOnce.Do(func() {
 		// Closes when Stop() is called or context is canceled.
-		go func() {
+		pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceNotifications), func(ctx context.Context) {
 			err := m.loop(ctx)
 			if err != nil {
 				if xerrors.Is(err, ErrManagerAlreadyClosed) {
@@ -154,7 +155,7 @@ func (m *Manager) Run(ctx context.Context) {
 					m.log.Error(ctx, "notification manager stopped with error", slog.Error(err))
 				}
 			}
-		}()
+		})
 	})
 }
 

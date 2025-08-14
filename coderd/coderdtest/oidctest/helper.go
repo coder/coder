@@ -132,14 +132,14 @@ func OAuth2GetCode(rawAuthURL string, doRequest func(req *http.Request) (*http.R
 		return "", xerrors.Errorf("failed to create auth request: %w", err)
 	}
 
-	expCode := http.StatusTemporaryRedirect
 	resp, err := doRequest(r)
 	if err != nil {
 		return "", xerrors.Errorf("request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != expCode {
+	// Accept both 302 (Found) and 307 (Temporary Redirect) as valid OAuth2 redirects
+	if resp.StatusCode != http.StatusFound && resp.StatusCode != http.StatusTemporaryRedirect {
 		return "", codersdk.ReadBodyAsError(resp)
 	}
 

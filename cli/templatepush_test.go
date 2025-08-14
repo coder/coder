@@ -509,6 +509,7 @@ func TestTemplatePush(t *testing.T) {
 								default = "1"
 							}
 							data "coder_parameter" "b" {
+								name = "b"
 								type = string
 								default = "2"
 							}

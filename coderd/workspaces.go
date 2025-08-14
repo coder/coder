@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
@@ -45,8 +46,8 @@ import (
 )
 
 var (
-	ttlMin = time.Minute //nolint:revive // min here means 'minimum' not 'minutes'
-	ttlMax = 30 * 24 * time.Hour
+	ttlMinimum = time.Minute
+	ttlMaximum = 30 * 24 * time.Hour
 
 	errTTLMin              = xerrors.New("time until shutdown must be at least one minute")
 	errTTLMax              = xerrors.New("time until shutdown must be less than 30 days")
@@ -634,10 +635,17 @@ func createWorkspace(
 			claimedWorkspace *database.Workspace
 		)
 
+		// Use injected Clock to allow time mocking in tests
+		now := api.Clock.Now()
+
 		// If a template preset was chosen, try claim a prebuilt workspace.
 		if req.TemplateVersionPresetID != uuid.Nil {
 			// Try and claim an eligible prebuild, if available.
-			claimedWorkspace, err = claimPrebuild(ctx, prebuildsClaimer, db, api.Logger, req, owner)
+			// On successful claim, initialize all lifecycle fields from template and workspace-level config
+			// so the newly claimed workspace is properly managed by the lifecycle executor.
+			claimedWorkspace, err = claimPrebuild(
+				ctx, prebuildsClaimer, db, api.Logger, now, req, owner,
+				dbAutostartSchedule, nextStartAt, dbTTL)
 			// If claiming fails with an expected error (no claimable prebuilds or AGPL does not support prebuilds),
 			// we fall back to creating a new workspace. Otherwise, propagate the unexpected error.
 			if err != nil {
@@ -665,7 +673,6 @@ func createWorkspace(
 
 		// No prebuild found; regular flow.
 		if claimedWorkspace == nil {
-			now := dbtime.Now()
 			// Workspaces are created without any versions.
 			minimumWorkspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
 				ID:                uuid.New(),
@@ -680,7 +687,7 @@ func createWorkspace(
 				Ttl:               dbTTL,
 				// The workspaces page will sort by last used at, and it's useful to
 				// have the newly created workspace at the top of the list!
-				LastUsedAt:       dbtime.Now(),
+				LastUsedAt:       now,
 				AutomaticUpdates: dbAU,
 			})
 			if err != nil {
@@ -701,7 +708,7 @@ func createWorkspace(
 			return xerrors.Errorf("get workspace by ID: %w", err)
 		}
 
-		builder := wsbuilder.New(workspace, database.WorkspaceTransitionStart).
+		builder := wsbuilder.New(workspace, database.WorkspaceTransitionStart, *api.BuildUsageChecker.Load()).
 			Reason(database.BuildReasonInitiator).
 			Initiator(initiatorID).
 			ActiveVersion().
@@ -871,8 +878,19 @@ func requestTemplate(ctx context.Context, rw http.ResponseWriter, req codersdk.C
 	return template, true
 }
 
-func claimPrebuild(ctx context.Context, claimer prebuilds.Claimer, db database.Store, logger slog.Logger, req codersdk.CreateWorkspaceRequest, owner workspaceOwner) (*database.Workspace, error) {
-	claimedID, err := claimer.Claim(ctx, owner.ID, req.Name, req.TemplateVersionPresetID)
+func claimPrebuild(
+	ctx context.Context,
+	claimer prebuilds.Claimer,
+	db database.Store,
+	logger slog.Logger,
+	now time.Time,
+	req codersdk.CreateWorkspaceRequest,
+	owner workspaceOwner,
+	autostartSchedule sql.NullString,
+	nextStartAt sql.NullTime,
+	ttl sql.NullInt64,
+) (*database.Workspace, error) {
+	claimedID, err := claimer.Claim(ctx, now, owner.ID, req.Name, req.TemplateVersionPresetID, autostartSchedule, nextStartAt, ttl)
 	if err != nil {
 		// TODO: enhance this by clarifying whether this *specific* prebuild failed or whether there are none to claim.
 		return nil, xerrors.Errorf("claim prebuild: %w", err)
@@ -1190,8 +1208,22 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 
 			if build.Transition == database.WorkspaceTransitionStart {
 				if err = s.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-					ID:          build.ID,
-					Deadline:    time.Time{},
+					ID: build.ID,
+					// Use the max_deadline as the new build deadline. It will
+					// either be zero (our target), or a non-zero value that we
+					// need to abide by anyway due to template policy.
+					//
+					// Previously, we would always set the deadline to zero,
+					// which was incorrect behavior. When max_deadline is
+					// non-zero, deadline must be set to a non-zero value that
+					// is less than max_deadline.
+					//
+					// Disabling TTL autostop (at a workspace or template level)
+					// does not trump the template's autostop requirement.
+					//
+					// Refer to the comments on schedule.CalculateAutostop for
+					// more information.
+					Deadline:    build.MaxDeadline,
 					MaxDeadline: build.MaxDeadline,
 					UpdatedAt:   dbtime.Time(api.Clock.Now()),
 				}); err != nil {
@@ -2041,6 +2073,97 @@ func (api *API) workspaceTimings(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, timings)
 }
 
+// @Summary Update workspace ACL
+// @ID update-workspace-acl
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param request body codersdk.UpdateWorkspaceACL true "Update workspace ACL request"
+// @Success 204
+// @Router /workspaces/{workspace}/acl [patch]
+func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		workspace         = httpmw.WorkspaceParam(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.WorkspaceTable](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: workspace.OrganizationID,
+		})
+	)
+	defer commitAudit()
+	aReq.Old = workspace.WorkspaceTable()
+
+	var req codersdk.UpdateWorkspaceACL
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	validErrs := acl.Validate(ctx, api.Database, WorkspaceACLUpdateValidator(req))
+	if len(validErrs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid request to update workspace ACL",
+			Validations: validErrs,
+		})
+		return
+	}
+
+	err := api.Database.InTx(func(tx database.Store) error {
+		var err error
+		workspace, err = tx.GetWorkspaceByID(ctx, workspace.ID)
+		if err != nil {
+			return xerrors.Errorf("get template by ID: %w", err)
+		}
+
+		for id, role := range req.UserRoles {
+			if role == codersdk.WorkspaceRoleDeleted {
+				delete(workspace.UserACL, id)
+				continue
+			}
+			workspace.UserACL[id] = database.WorkspaceACLEntry{
+				Permissions: db2sdk.WorkspaceRoleActions(role),
+			}
+		}
+
+		for id, role := range req.GroupRoles {
+			if role == codersdk.WorkspaceRoleDeleted {
+				delete(workspace.GroupACL, id)
+				continue
+			}
+			workspace.GroupACL[id] = database.WorkspaceACLEntry{
+				Permissions: db2sdk.WorkspaceRoleActions(role),
+			}
+		}
+
+		err = tx.UpdateWorkspaceACLByID(ctx, database.UpdateWorkspaceACLByIDParams{
+			ID:       workspace.ID,
+			UserACL:  workspace.UserACL,
+			GroupACL: workspace.GroupACL,
+		})
+		if err != nil {
+			return xerrors.Errorf("update workspace ACL by ID: %w", err)
+		}
+		workspace, err = tx.GetWorkspaceByID(ctx, workspace.ID)
+		if err != nil {
+			return xerrors.Errorf("get updated workspace by ID: %w", err)
+		}
+		return nil
+	}, nil)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	aReq.New = workspace.WorkspaceTable()
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 type workspaceData struct {
 	templates    []database.Template
 	builds       []codersdk.WorkspaceBuild
@@ -2293,11 +2416,11 @@ func validWorkspaceTTLMillis(millis *int64, templateDefault time.Duration) (sql.
 
 	dur := time.Duration(*millis) * time.Millisecond
 	truncated := dur.Truncate(time.Minute)
-	if truncated < ttlMin {
+	if truncated < ttlMinimum {
 		return sql.NullInt64{}, errTTLMin
 	}
 
-	if truncated > ttlMax {
+	if truncated > ttlMaximum {
 		return sql.NullInt64{}, errTTLMax
 	}
 
@@ -2379,3 +2502,42 @@ func (api *API) publishWorkspaceAgentLogsUpdate(ctx context.Context, workspaceAg
 		api.Logger.Warn(ctx, "failed to publish workspace agent logs update", slog.F("workspace_agent_id", workspaceAgentID), slog.Error(err))
 	}
 }
+
+type WorkspaceACLUpdateValidator codersdk.UpdateWorkspaceACL
+
+var (
+	workspaceACLUpdateUsersFieldName  = "user_roles"
+	workspaceACLUpdateGroupsFieldName = "group_roles"
+)
+
+// WorkspaceACLUpdateValidator implements acl.UpdateValidator[codersdk.WorkspaceRole]
+var _ acl.UpdateValidator[codersdk.WorkspaceRole] = WorkspaceACLUpdateValidator{}
+
+func (w WorkspaceACLUpdateValidator) Users() (map[string]codersdk.WorkspaceRole, string) {
+	return w.UserRoles, workspaceACLUpdateUsersFieldName
+}
+
+func (w WorkspaceACLUpdateValidator) Groups() (map[string]codersdk.WorkspaceRole, string) {
+	return w.GroupRoles, workspaceACLUpdateGroupsFieldName
+}
+
+func (WorkspaceACLUpdateValidator) ValidateRole(role codersdk.WorkspaceRole) error {
+	actions := db2sdk.WorkspaceRoleActions(role)
+	if len(actions) == 0 && role != codersdk.WorkspaceRoleDeleted {
+		return xerrors.Errorf("role %q is not a valid workspace role", role)
+	}
+
+	return nil
+}
+
+// TODO: This will go here
+// func convertToWorkspaceRole(actions []policy.Action) codersdk.TemplateRole {
+// 	switch {
+// 	case len(actions) == 2 && slice.SameElements(actions, []policy.Action{policy.ActionUse, policy.ActionRead}):
+// 		return codersdk.TemplateRoleUse
+// 	case len(actions) == 1 && actions[0] == policy.WildcardSymbol:
+// 		return codersdk.TemplateRoleAdmin
+// 	}
+
+// 	return ""
+// }

@@ -258,7 +258,7 @@ func TestExtractExpectedAudience(t *testing.T) {
 			}
 			req.Host = tc.host
 
-			result := extractExpectedAudience(req)
+			result := extractExpectedAudience(nil, req)
 			assert.Equal(t, tc.expected, result)
 		})
 	}

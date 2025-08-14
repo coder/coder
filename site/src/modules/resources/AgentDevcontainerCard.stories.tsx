@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { getPreferredProxy } from "contexts/ProxyContext";
 import { chromatic } from "testHelpers/chromatic";
 import {
@@ -86,6 +86,29 @@ export const Recreating: Story = {
 			dirty: true,
 			status: "starting",
 			container: undefined,
+		},
+		subAgents: [],
+	},
+};
+
+export const NoContainerOrSubAgent: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			container: undefined,
+			agent: undefined,
+		},
+		subAgents: [],
+	},
+};
+
+export const NoContainerOrAgentOrName: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			container: undefined,
+			agent: undefined,
+			name: "",
 		},
 		subAgents: [],
 	},

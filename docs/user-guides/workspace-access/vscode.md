@@ -1,13 +1,15 @@
 # Visual Studio Code
 
 You can develop in your Coder workspace remotely with
-[VSCode](https://code.visualstudio.com/download). We support connecting with the
-desktop client and VSCode in the browser with
+[VS Code](https://code.visualstudio.com/download).
+We support connecting with the desktop client and VS Code in the browser with
 [code-server](https://github.com/coder/code-server).
+Learn more about how VS Code Web and code-server compare in the
+[code-server doc](./code-server.md).
 
-## VSCode Desktop
+## VS Code Desktop
 
-VSCode desktop is a default app for workspaces.
+VS Code desktop is a default app for workspaces.
 
 Click `VS Code Desktop` in the dashboard to one-click enter a workspace. This
 automatically installs the [Coder Remote](https://github.com/coder/vscode-coder)
@@ -21,7 +23,7 @@ extension, authenticates with Coder, and connects to the workspace.
 
 ### Manual Installation
 
-You can install our extension manually in VSCode using the command palette.
+You can install our extension manually in VS Code using the command palette.
 Launch VS Code Quick Open (Ctrl+P), paste the following command, and press
 enter.
 

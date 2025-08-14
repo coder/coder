@@ -902,29 +902,93 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 		return nil, xerrors.Errorf("update job: %w", err)
 	}
 
-	if len(request.Logs) > 0 {
+	if len(request.Logs) > 0 && !job.LogsOverflowed {
 		//nolint:exhaustruct // We append to the additional fields below.
 		insertParams := database.InsertProvisionerJobLogsParams{
 			JobID: parsedID,
 		}
+
+		newLogSize := 0
+		overflowedErrorMsg := "Provisioner logs exceeded the max size of 1MB. Will not continue to write provisioner logs for workspace build."
+		lenErrMsg := len(overflowedErrorMsg)
+
+		var (
+			createdAt time.Time
+			level     database.LogLevel
+			stage     string
+			source    database.LogSource
+			output    string
+		)
+
 		for _, log := range request.Logs {
-			logLevel, err := convertLogLevel(log.Level)
+			// Build our log params
+			level, err = convertLogLevel(log.Level)
 			if err != nil {
 				return nil, xerrors.Errorf("convert log level: %w", err)
 			}
-			logSource, err := convertLogSource(log.Source)
+			source, err = convertLogSource(log.Source)
 			if err != nil {
 				return nil, xerrors.Errorf("convert log source: %w", err)
 			}
-			insertParams.CreatedAt = append(insertParams.CreatedAt, time.UnixMilli(log.CreatedAt))
-			insertParams.Level = append(insertParams.Level, logLevel)
-			insertParams.Stage = append(insertParams.Stage, log.Stage)
-			insertParams.Source = append(insertParams.Source, logSource)
-			insertParams.Output = append(insertParams.Output, log.Output)
+			createdAt = time.UnixMilli(log.CreatedAt)
+			stage = log.Stage
+			output = log.Output
+
+			// Check if we would overflow the job logs (not leaving enough room for the error message)
+			willOverflow := int64(job.LogsLength)+int64(newLogSize)+int64(lenErrMsg)+int64(len(output)) > 1048576
+			if willOverflow {
+				s.Logger.Debug(ctx, "provisioner job logs overflowed 1MB size limit in database", slog.F("job_id", parsedID))
+				err = s.Database.UpdateProvisionerJobLogsOverflowed(ctx, database.UpdateProvisionerJobLogsOverflowedParams{
+					ID:             parsedID,
+					LogsOverflowed: true,
+				})
+				if err != nil {
+					s.Logger.Error(ctx, "failed to set logs overflowed flag", slog.F("job_id", parsedID), slog.Error(err))
+				}
+
+				level = database.LogLevelWarn
+				output = overflowedErrorMsg
+			}
+
+			newLogSize += len(output)
+
+			insertParams.CreatedAt = append(insertParams.CreatedAt, createdAt)
+			insertParams.Level = append(insertParams.Level, level)
+			insertParams.Stage = append(insertParams.Stage, stage)
+			insertParams.Source = append(insertParams.Source, source)
+			insertParams.Output = append(insertParams.Output, output)
 			s.Logger.Debug(ctx, "job log",
 				slog.F("job_id", parsedID),
-				slog.F("stage", log.Stage),
-				slog.F("output", log.Output))
+				slog.F("stage", stage),
+				slog.F("output", output))
+
+			// Don't write any more logs because there's no room.
+			if willOverflow {
+				break
+			}
+		}
+
+		err = s.Database.UpdateProvisionerJobLogsLength(ctx, database.UpdateProvisionerJobLogsLengthParams{
+			ID:         parsedID,
+			LogsLength: int32(newLogSize), // #nosec G115 - Log output length is limited to 1MB (2^20) which fits in an int32.
+		})
+		if err != nil {
+			// Even though we do the runtime check for the overflow, we still check for the database error
+			// as well.
+			if database.IsProvisionerJobLogsLimitError(err) {
+				err = s.Database.UpdateProvisionerJobLogsOverflowed(ctx, database.UpdateProvisionerJobLogsOverflowedParams{
+					ID:             parsedID,
+					LogsOverflowed: true,
+				})
+				if err != nil {
+					s.Logger.Error(ctx, "failed to set logs overflowed flag", slog.F("job_id", parsedID), slog.Error(err))
+				}
+				return &proto.UpdateJobResponse{
+					Canceled: job.CanceledAt.Valid,
+				}, nil
+			}
+			s.Logger.Error(ctx, "failed to update logs length", slog.F("job_id", parsedID), slog.Error(err))
+			return nil, xerrors.Errorf("update logs length: %w", err)
 		}
 
 		logs, err := s.Database.InsertProvisionerJobLogs(ctx, insertParams)
@@ -932,6 +996,7 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 			s.Logger.Error(ctx, "failed to insert job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("insert job logs: %w", err)
 		}
+
 		// Publish by the lowest log ID inserted so the log stream will fetch
 		// everything from that point.
 		lowestID := logs[0].ID
@@ -1118,11 +1183,18 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 				if err != nil {
 					return xerrors.Errorf("update workspace build state: %w", err)
 				}
+
+				deadline := build.Deadline
+				maxDeadline := build.MaxDeadline
+				if workspace.IsPrebuild() {
+					deadline = time.Time{}
+					maxDeadline = time.Time{}
+				}
 				err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 					ID:          input.WorkspaceBuildID,
 					UpdatedAt:   s.timeNow(),
-					Deadline:    build.Deadline,
-					MaxDeadline: build.MaxDeadline,
+					Deadline:    deadline,
+					MaxDeadline: maxDeadline,
 				})
 				if err != nil {
 					return xerrors.Errorf("update workspace build deadline: %w", err)
@@ -1795,37 +1867,47 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			return getWorkspaceError
 		}
 
-		templateScheduleStore := *s.TemplateScheduleStore.Load()
+		// Prebuilt workspaces must not have Deadline or MaxDeadline set,
+		// as they are managed by the prebuild reconciliation loop, not the lifecycle executor
+		deadline := time.Time{}
+		maxDeadline := time.Time{}
 
-		autoStop, err := schedule.CalculateAutostop(ctx, schedule.CalculateAutostopParams{
-			Database:                    db,
-			TemplateScheduleStore:       templateScheduleStore,
-			UserQuietHoursScheduleStore: *s.UserQuietHoursScheduleStore.Load(),
-			Now:                         now,
-			Workspace:                   workspace.WorkspaceTable(),
-			// Allowed to be the empty string.
-			WorkspaceAutostart: workspace.AutostartSchedule.String,
-		})
-		if err != nil {
-			return xerrors.Errorf("calculate auto stop: %w", err)
-		}
+		if !workspace.IsPrebuild() {
+			templateScheduleStore := *s.TemplateScheduleStore.Load()
 
-		if workspace.AutostartSchedule.Valid {
-			templateScheduleOptions, err := templateScheduleStore.Get(ctx, db, workspace.TemplateID)
+			autoStop, err := schedule.CalculateAutostop(ctx, schedule.CalculateAutostopParams{
+				Database:                    db,
+				TemplateScheduleStore:       templateScheduleStore,
+				UserQuietHoursScheduleStore: *s.UserQuietHoursScheduleStore.Load(),
+				// `now` is used below to set the build completion time.
+				WorkspaceBuildCompletedAt: now,
+				Workspace:                 workspace.WorkspaceTable(),
+				// Allowed to be the empty string.
+				WorkspaceAutostart: workspace.AutostartSchedule.String,
+			})
 			if err != nil {
-				return xerrors.Errorf("get template schedule options: %w", err)
+				return xerrors.Errorf("calculate auto stop: %w", err)
 			}
 
-			nextStartAt, err := schedule.NextAllowedAutostart(now, workspace.AutostartSchedule.String, templateScheduleOptions)
-			if err == nil {
-				err = db.UpdateWorkspaceNextStartAt(ctx, database.UpdateWorkspaceNextStartAtParams{
-					ID:          workspace.ID,
-					NextStartAt: sql.NullTime{Valid: true, Time: nextStartAt.UTC()},
-				})
+			if workspace.AutostartSchedule.Valid {
+				templateScheduleOptions, err := templateScheduleStore.Get(ctx, db, workspace.TemplateID)
 				if err != nil {
-					return xerrors.Errorf("update workspace next start at: %w", err)
+					return xerrors.Errorf("get template schedule options: %w", err)
+				}
+
+				nextStartAt, err := schedule.NextAllowedAutostart(now, workspace.AutostartSchedule.String, templateScheduleOptions)
+				if err == nil {
+					err = db.UpdateWorkspaceNextStartAt(ctx, database.UpdateWorkspaceNextStartAtParams{
+						ID:          workspace.ID,
+						NextStartAt: sql.NullTime{Valid: true, Time: nextStartAt.UTC()},
+					})
+					if err != nil {
+						return xerrors.Errorf("update workspace next start at: %w", err)
+					}
 				}
 			}
+			deadline = autoStop.Deadline
+			maxDeadline = autoStop.MaxDeadline
 		}
 
 		err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
@@ -1851,20 +1933,24 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		}
 		err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 			ID:          workspaceBuild.ID,
-			Deadline:    autoStop.Deadline,
-			MaxDeadline: autoStop.MaxDeadline,
+			Deadline:    deadline,
+			MaxDeadline: maxDeadline,
 			UpdatedAt:   now,
 		})
 		if err != nil {
 			return xerrors.Errorf("update workspace build deadline: %w", err)
 		}
 
+		appIDs := make([]string, 0)
 		agentTimeouts := make(map[time.Duration]bool) // A set of agent timeouts.
 		// This could be a bulk insert to improve performance.
 		for _, protoResource := range jobType.WorkspaceBuild.Resources {
 			for _, protoAgent := range protoResource.Agents {
 				dur := time.Duration(protoAgent.GetConnectionTimeoutSeconds()) * time.Second
 				agentTimeouts[dur] = true
+				for _, app := range protoAgent.GetApps() {
+					appIDs = append(appIDs, app.GetId())
+				}
 			}
 
 			err = InsertWorkspaceResource(ctx, db, job.ID, workspaceBuild.Transition, protoResource, telemetrySnapshot)
@@ -1879,14 +1965,21 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		}
 
 		var sidebarAppID uuid.NullUUID
-		hasAITask := len(jobType.WorkspaceBuild.AiTasks) == 1
-		if hasAITask {
-			task := jobType.WorkspaceBuild.AiTasks[0]
-			if task.SidebarApp == nil {
-				return xerrors.Errorf("update ai task: sidebar app is nil")
+		var hasAITask bool
+		var warnUnknownSidebarAppID bool
+		if tasks := jobType.WorkspaceBuild.GetAiTasks(); len(tasks) > 0 {
+			hasAITask = true
+			task := tasks[0]
+			if task == nil || task.GetSidebarApp() == nil || len(task.GetSidebarApp().GetId()) == 0 {
+				return xerrors.Errorf("update ai task: sidebar app is nil or empty")
 			}
 
-			id, err := uuid.Parse(task.SidebarApp.Id)
+			sidebarTaskID := task.GetSidebarApp().GetId()
+			if !slices.Contains(appIDs, sidebarTaskID) {
+				warnUnknownSidebarAppID = true
+			}
+
+			id, err := uuid.Parse(task.GetSidebarApp().GetId())
 			if err != nil {
 				return xerrors.Errorf("parse sidebar app id: %w", err)
 			}
@@ -1894,9 +1987,48 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			sidebarAppID = uuid.NullUUID{UUID: id, Valid: true}
 		}
 
+		if warnUnknownSidebarAppID {
+			// Ref: https://github.com/coder/coder/issues/18776
+			// This can happen for a number of reasons:
+			// 1. Misconfigured template
+			// 2. Count=0 on the agent due to stop transition, meaning the associated coder_app was not inserted.
+			// Failing the build at this point is not ideal, so log a warning instead.
+			s.Logger.Warn(ctx, "unknown ai_task_sidebar_app_id",
+				slog.F("ai_task_sidebar_app_id", sidebarAppID.UUID.String()),
+				slog.F("job_id", job.ID.String()),
+				slog.F("workspace_id", workspace.ID),
+				slog.F("workspace_build_id", workspaceBuild.ID),
+				slog.F("transition", string(workspaceBuild.Transition)),
+			)
+			// In order to surface this to the user, we will also insert a warning into the build logs.
+			if _, err := db.InsertProvisionerJobLogs(ctx, database.InsertProvisionerJobLogsParams{
+				JobID:     jobID,
+				CreatedAt: []time.Time{now, now, now, now},
+				Source:    []database.LogSource{database.LogSourceProvisionerDaemon, database.LogSourceProvisionerDaemon, database.LogSourceProvisionerDaemon, database.LogSourceProvisionerDaemon},
+				Level:     []database.LogLevel{database.LogLevelWarn, database.LogLevelWarn, database.LogLevelWarn, database.LogLevelWarn},
+				Stage:     []string{"Cleaning Up", "Cleaning Up", "Cleaning Up", "Cleaning Up"},
+				Output: []string{
+					fmt.Sprintf("Unknown ai_task_sidebar_app_id %q. This workspace will be unable to run AI tasks. This may be due to a template configuration issue, please check with the template author.", sidebarAppID.UUID.String()),
+					"Template author: double-check the following:",
+					"  - You have associated the coder_ai_task with a valid coder_app in your template (ref: https://registry.terraform.io/providers/coder/coder/latest/docs/resources/ai_task).",
+					"  - You have associated the coder_agent with at least one other compute resource. Agents with no other associated resources are not inserted into the database.",
+				},
+			}); err != nil {
+				s.Logger.Error(ctx, "insert provisioner job log for ai task sidebar app id warning",
+					slog.F("job_id", jobID),
+					slog.F("workspace_id", workspace.ID),
+					slog.F("workspace_build_id", workspaceBuild.ID),
+					slog.F("transition", string(workspaceBuild.Transition)),
+				)
+			}
+			// Important: reset hasAITask and sidebarAppID so that we don't run into a fk constraint violation.
+			hasAITask = false
+			sidebarAppID = uuid.NullUUID{}
+		}
+
 		// Regardless of whether there is an AI task or not, update the field to indicate one way or the other since it
 		// always defaults to nil. ONLY if has_ai_task=true MUST ai_task_sidebar_app_id be set.
-		err = db.UpdateWorkspaceBuildAITaskByID(ctx, database.UpdateWorkspaceBuildAITaskByIDParams{
+		if err := db.UpdateWorkspaceBuildAITaskByID(ctx, database.UpdateWorkspaceBuildAITaskByIDParams{
 			ID: workspaceBuild.ID,
 			HasAITask: sql.NullBool{
 				Bool:  hasAITask,
@@ -1904,8 +2036,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			},
 			SidebarAppID: sidebarAppID,
 			UpdatedAt:    now,
-		})
-		if err != nil {
+		}); err != nil {
 			return xerrors.Errorf("update workspace build ai tasks flag: %w", err)
 		}
 
@@ -2264,6 +2395,7 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 				prebuildSchedules = protoPreset.Prebuild.Scheduling.Schedule
 			}
 		}
+
 		dbPreset, err := tx.InsertPreset(ctx, database.InsertPresetParams{
 			ID:                  uuid.New(),
 			TemplateVersionID:   templateVersionID,
@@ -2273,6 +2405,8 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 			InvalidateAfterSecs: ttl,
 			SchedulingTimezone:  schedulingTimezone,
 			IsDefault:           protoPreset.GetDefault(),
+			Description:         protoPreset.Description,
+			Icon:                protoPreset.Icon,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert preset: %w", err)

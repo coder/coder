@@ -20,7 +20,7 @@ import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 

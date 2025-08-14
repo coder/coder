@@ -32,13 +32,40 @@ env:
   CODER_RELEASE_NOTES: ${{ inputs.release_notes }}
 
 jobs:
+  # Only allow maintainers/admins to release.
+  check-perms:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    steps:
+      - name: Allow only maintainers/admins
+        uses: actions/github-script@v7.0.1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const {data} = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor
+            });
+            const role = data.role_name || data.user?.role_name || data.permission;
+            const perms = data.user?.permissions || {};
+            core.info(`Actor ${context.actor} permission=${data.permission}, role_name=${role}`);
+
+            const allowed =
+              role === 'admin' ||
+              role === 'maintain' ||
+              perms.admin === true ||
+              perms.maintain === true;
+
+            if (!allowed) core.setFailed('Denied: requires maintain or admin');
+
   # build-dylib is a separate job to build the dylib on macOS.
   build-dylib:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-macos-latest' || 'macos-latest' }}
+    needs: check-perms
     steps:
       # Harden Runner doesn't work on macOS.
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
 
@@ -60,7 +87,7 @@ jobs:
       - name: Switch XCode Version
         uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
         with:
-          xcode-version: "16.0.0"
+          xcode-version: "16.1.0"
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -114,7 +141,7 @@ jobs:
 
   release:
     name: Build and publish
-    needs: build-dylib
+    needs: [build-dylib, check-perms]
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     permissions:
       # Required to publish a release
@@ -134,12 +161,12 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
 
@@ -208,7 +235,7 @@ jobs:
           cat "$CODER_RELEASE_NOTES_FILE"
 
       - name: Docker Login
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -286,17 +313,17 @@ jobs:
       # Setup GCloud for signing Windows binaries.
       - name: Authenticate to Google Cloud
         id: gcloud_auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: google-github-actions/auth@b7593ed2efd1c1617e1b0254da33b86225adb2a5 # v2.1.12
         with:
-          workload_identity_provider: ${{ secrets.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
-          service_account: ${{ secrets.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ vars.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ vars.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
           token_format: "access_token"
 
       - name: Setup GCloud SDK
-        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
+        uses: google-github-actions/setup-gcloud@cb1e50a9932213ecece00a606661ae9ca44f3397 # v2.2.0
 
       - name: Download dylibs
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           name: dylibs
           path: ./build
@@ -635,27 +662,28 @@ jobs:
         run: ls -lh build
 
       - name: Publish Coder CLI binaries and detached signatures to GCS
-        if: ${{ !inputs.dry_run && github.ref == 'refs/heads/main' && github.repository_owner == 'coder'}}
+        if: ${{ !inputs.dry_run }}
         run: |
           set -euxo pipefail
 
           version="$(./scripts/version.sh)"
 
-          binaries=(
-              "coder-darwin-amd64"
-              "coder-darwin-arm64"
-              "coder-linux-amd64"
-              "coder-linux-arm64"
-              "coder-linux-armv7"
-              "coder-windows-amd64.exe"
-              "coder-windows-arm64.exe"
-          )
+          # Source array of slim binaries
+          declare -A binaries
+          binaries["coder-darwin-amd64"]="coder-slim_${version}_darwin_amd64"
+          binaries["coder-darwin-arm64"]="coder-slim_${version}_darwin_arm64"
+          binaries["coder-linux-amd64"]="coder-slim_${version}_linux_amd64"
+          binaries["coder-linux-arm64"]="coder-slim_${version}_linux_arm64"
+          binaries["coder-linux-armv7"]="coder-slim_${version}_linux_armv7"
+          binaries["coder-windows-amd64.exe"]="coder-slim_${version}_windows_amd64.exe"
+          binaries["coder-windows-arm64.exe"]="coder-slim_${version}_windows_arm64.exe"
 
-          for binary in "${binaries[@]}"; do
-            detached_signature="${binary}.asc"
-            gcloud storage cp "./site/out/bin/${binary}" "gs://releases.coder.com/coder-cli/${version}/${binary}"
-            gcloud storage cp "./site/out/bin/${detached_signature}" "gs://releases.coder.com/coder-cli/${version}/${detached_signature}"
-          done  
+          for cli_name in "${!binaries[@]}"; do
+            slim_binary="${binaries[$cli_name]}"
+            detached_signature="${slim_binary}.asc"
+            gcloud storage cp "./build/${slim_binary}" "gs://releases.coder.com/coder-cli/${version}/${cli_name}"
+            gcloud storage cp "./build/${detached_signature}" "gs://releases.coder.com/coder-cli/${version}/${cli_name}.asc"
+          done
 
       - name: Publish release
         run: |
@@ -696,13 +724,13 @@ jobs:
           CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: google-github-actions/auth@b7593ed2efd1c1617e1b0254da33b86225adb2a5 # v2.1.12
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_ID_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
 
       - name: Setup GCloud SDK
-        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # 2.1.4
+        uses: google-github-actions/setup-gcloud@cb1e50a9932213ecece00a606661ae9ca44f3397 # 2.2.0
 
       - name: Publish Helm Chart
         if: ${{ !inputs.dry_run }}
@@ -764,7 +792,7 @@ jobs:
       # TODO: skip this if it's not a new release (i.e. a backport). This is
       #       fine right now because it just makes a PR that we can close.
       - name: Harden Runner
-        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -840,7 +868,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -850,7 +878,7 @@ jobs:
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
 
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
 
@@ -930,12 +958,12 @@ jobs:
     if: ${{ !inputs.dry_run }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 1
 

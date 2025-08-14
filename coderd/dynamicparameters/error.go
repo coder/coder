@@ -26,6 +26,14 @@ func tagValidationError(diags hcl.Diagnostics) *DiagnosticError {
 	}
 }
 
+func presetValidationError(diags hcl.Diagnostics) *DiagnosticError {
+	return &DiagnosticError{
+		Message:          "Unable to validate presets",
+		Diagnostics:      diags,
+		KeyedDiagnostics: make(map[string]hcl.Diagnostics),
+	}
+}
+
 type DiagnosticError struct {
 	// Message is the human-readable message that will be returned to the user.
 	Message string

@@ -14,13 +14,16 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"runtime/pprof"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/coder/coder/v2/coderd/oauth2provider"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
@@ -559,6 +562,13 @@ func New(options *Options) *API {
 	// bugs that may only occur when a key isn't precached in tests and the latency cost is minimal.
 	cryptokeys.StartRotator(ctx, options.Logger, options.Database)
 
+	// AGPL uses a no-op build usage checker as there are no license
+	// entitlements to enforce. This is swapped out in
+	// enterprise/coderd/coderd.go.
+	var buildUsageChecker atomic.Pointer[wsbuilder.UsageChecker]
+	var noopUsageChecker wsbuilder.UsageChecker = wsbuilder.NoopUsageChecker{}
+	buildUsageChecker.Store(&noopUsageChecker)
+
 	api := &API{
 		ctx:          ctx,
 		cancel:       cancel,
@@ -579,6 +589,7 @@ func New(options *Options) *API {
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
+		BuildUsageChecker:           &buildUsageChecker,
 		FileCache:                   files.New(options.PrometheusRegistry, options.Authorizer),
 		Experiments:                 experiments,
 		WebpushDispatcher:           options.WebPushDispatcher,
@@ -790,6 +801,7 @@ func New(options *Options) *API {
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 		Logger:                        options.Logger,
+		AccessURL:                     options.AccessURL,
 	})
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -801,6 +813,7 @@ func New(options *Options) *API {
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 		Logger:                        options.Logger,
+		AccessURL:                     options.AccessURL,
 	})
 	// Same as the first but it's optional.
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -812,6 +825,7 @@ func New(options *Options) *API {
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 		Logger:                        options.Logger,
+		AccessURL:                     options.AccessURL,
 	})
 
 	workspaceAgentInfo := httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
@@ -840,6 +854,7 @@ func New(options *Options) *API {
 
 	r.Use(
 		httpmw.Recover(api.Logger),
+		httpmw.WithProfilingLabels,
 		tracing.StatusWriterMiddleware,
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
@@ -979,6 +994,15 @@ func New(options *Options) *API {
 		r.Use(apiKeyMiddleware)
 		r.Route("/aitasks", func(r chi.Router) {
 			r.Get("/prompts", api.aiTasksPrompts)
+		})
+		r.Route("/tasks", func(r chi.Router) {
+			r.Use(apiRateLimiter)
+
+			r.Route("/{user}", func(r chi.Router) {
+				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+
+				r.Post("/", api.tasksCreate)
+			})
 		})
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(
@@ -1327,7 +1351,13 @@ func New(options *Options) *API {
 			).Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(workspaceAgentInfo)
-				r.Get("/rpc", api.workspaceAgentRPC)
+				r.Group(func(r chi.Router) {
+					r.Use(
+						// Override the request_type for agent rpc traffic.
+						httpmw.WithStaticProfilingLabels(pprof.Labels(pproflabel.RequestTypeTag, "agent-rpc")),
+					)
+					r.Get("/rpc", api.workspaceAgentRPC)
+				})
 				r.Patch("/logs", api.patchWorkspaceAgentLogs)
 				r.Patch("/app-status", api.patchWorkspaceAgentAppStatus)
 				// Deprecated: Required to support legacy agents
@@ -1401,6 +1431,13 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteWorkspaceAgentPortShare)
 				})
 				r.Get("/timings", api.workspaceTimings)
+				r.Route("/acl", func(r chi.Router) {
+					r.Use(
+						httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentWorkspaceSharing),
+					)
+
+					r.Patch("/", api.patchWorkspaceACL)
+				})
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
@@ -1647,6 +1684,9 @@ type API struct {
 	FileCache           *files.Cache
 	PrebuildsClaimer    atomic.Pointer[prebuilds.Claimer]
 	PrebuildsReconciler atomic.Pointer[prebuilds.ReconciliationOrchestrator]
+	// BuildUsageChecker is a pointer as it's passed around to multiple
+	// components.
+	BuildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker]
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 

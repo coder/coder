@@ -5289,7 +5289,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Update template request",
+                        "description": "Update template ACL request",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -9942,6 +9942,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaces/{workspace}/acl": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Update workspace ACL",
+                "operationId": "update-workspace-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update workspace ACL request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceACL"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/workspaces/{workspace}/autostart": {
             "put": {
                 "security": [
@@ -11448,13 +11492,34 @@ const docTemplate = `{
                 "initiator",
                 "autostart",
                 "autostop",
-                "dormancy"
+                "dormancy",
+                "dashboard",
+                "cli",
+                "ssh_connection",
+                "vscode_connection",
+                "jetbrains_connection"
             ],
             "x-enum-varnames": [
                 "BuildReasonInitiator",
                 "BuildReasonAutostart",
                 "BuildReasonAutostop",
-                "BuildReasonDormancy"
+                "BuildReasonDormancy",
+                "BuildReasonDashboard",
+                "BuildReasonCLI",
+                "BuildReasonSSHConnection",
+                "BuildReasonVSCodeConnection",
+                "BuildReasonJetbrainsConnection"
+            ]
+        },
+        "codersdk.CORSBehavior": {
+            "type": "string",
+            "enum": [
+                "simple",
+                "passthru"
+            ],
+            "x-enum-varnames": [
+                "CORSBehaviorSimple",
+                "CORSBehaviorPassthru"
             ]
         },
         "codersdk.ChangePasswordWithOneTimePasscodeRequest": {
@@ -11798,6 +11863,14 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "cors_behavior": {
+                    "description": "CORSBehavior allows optionally specifying the CORS behavior for all shared ports.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.CORSBehavior"
+                        }
+                    ]
+                },
                 "default_ttl_ms": {
                     "description": "DefaultTTLMillis allows optionally specifying the default TTL\nfor all workspaces created from this template.",
                     "type": "integer"
@@ -12070,6 +12143,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateWorkspaceBuildReason": {
+            "type": "string",
+            "enum": [
+                "dashboard",
+                "cli",
+                "ssh_connection",
+                "vscode_connection",
+                "jetbrains_connection"
+            ],
+            "x-enum-varnames": [
+                "CreateWorkspaceBuildReasonDashboard",
+                "CreateWorkspaceBuildReasonCLI",
+                "CreateWorkspaceBuildReasonSSHConnection",
+                "CreateWorkspaceBuildReasonVSCodeConnection",
+                "CreateWorkspaceBuildReasonJetbrainsConnection"
+            ]
+        },
         "codersdk.CreateWorkspaceBuildRequest": {
             "type": "object",
             "required": [
@@ -12093,6 +12183,21 @@ const docTemplate = `{
                 "orphan": {
                     "description": "Orphan may be set for the Destroy transition.",
                     "type": "boolean"
+                },
+                "reason": {
+                    "description": "Reason sets the reason for the workspace build.",
+                    "enum": [
+                        "dashboard",
+                        "cli",
+                        "ssh_connection",
+                        "vscode_connection",
+                        "jetbrains_connection"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.CreateWorkspaceBuildReason"
+                        }
+                    ]
                 },
                 "rich_parameter_values": {
                     "description": "ParameterValues are optional. It will write params to the 'workspace' scope.\nThis will overwrite any existing parameters with the same name.\nThis will not delete old params not included in this list.",
@@ -12772,7 +12877,8 @@ const docTemplate = `{
                 "workspace-usage",
                 "web-push",
                 "oauth2",
-                "mcp-server-http"
+                "mcp-server-http",
+                "workspace-sharing"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
@@ -12781,6 +12887,7 @@ const docTemplate = `{
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
+                "ExperimentWorkspaceSharing": "Enables updating workspace ACLs for sharing with users and groups.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-varnames": [
@@ -12790,7 +12897,8 @@ const docTemplate = `{
                 "ExperimentWorkspaceUsage",
                 "ExperimentWebPush",
                 "ExperimentOAuth2",
-                "ExperimentMCPServerHTTP"
+                "ExperimentMCPServerHTTP",
+                "ExperimentWorkspaceSharing"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -12985,6 +13093,18 @@ const docTemplate = `{
                 },
                 "limit": {
                     "type": "integer"
+                },
+                "soft_limit": {
+                    "description": "SoftLimit is the soft limit of the feature, and is only used for showing\nincluded limits in the dashboard. No license validation or warnings are\ngenerated from this value.",
+                    "type": "integer"
+                },
+                "usage_period": {
+                    "description": "UsagePeriod denotes that the usage is a counter that accumulates over\nthis period (and most likely resets with the issuance of the next\nlicense).\n\nThese dates are determined from the license that this entitlement comes\nfrom, see enterprise/coderd/license/license.go.\n\nOnly certain features set these fields:\n- FeatureManagedAgentLimit",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.UsagePeriod"
+                        }
+                    ]
                 }
             }
         },
@@ -14826,6 +14946,15 @@ const docTemplate = `{
                 "default": {
                     "type": "boolean"
                 },
+                "description": {
+                    "type": "string"
+                },
+                "desiredPrebuildInstances": {
+                    "type": "integer"
+                },
+                "icon": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -15178,6 +15307,9 @@ const docTemplate = `{
                 },
                 "input": {
                     "$ref": "#/definitions/codersdk.ProvisionerJobInput"
+                },
+                "logs_overflowed": {
+                    "type": "boolean"
                 },
                 "metadata": {
                     "$ref": "#/definitions/codersdk.ProvisionerJobMetadata"
@@ -15570,6 +15702,7 @@ const docTemplate = `{
                 "tailnet_coordinator",
                 "template",
                 "user",
+                "user_secret",
                 "webpush_subscription",
                 "workspace",
                 "workspace_agent_devcontainers",
@@ -15610,6 +15743,7 @@ const docTemplate = `{
                 "ResourceTailnetCoordinator",
                 "ResourceTemplate",
                 "ResourceUser",
+                "ResourceUserSecret",
                 "ResourceWebpushSubscription",
                 "ResourceWorkspace",
                 "ResourceWorkspaceAgentDevcontainers",
@@ -16151,6 +16285,9 @@ const docTemplate = `{
                 },
                 "build_time_stats": {
                     "$ref": "#/definitions/codersdk.TemplateBuildTimeStats"
+                },
+                "cors_behavior": {
+                    "$ref": "#/definitions/codersdk.CORSBehavior"
                 },
                 "created_at": {
                     "type": "string",
@@ -17142,6 +17279,24 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateWorkspaceACL": {
+            "type": "object",
+            "properties": {
+                "group_roles": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.WorkspaceRole"
+                    }
+                },
+                "user_roles": {
+                    "description": "Keys must be valid UUIDs. To remove a user/group from the ACL use \"\" as the\nrole name (available as a constant named ` + "`" + `codersdk.WorkspaceRoleDeleted` + "`" + `)",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.WorkspaceRole"
+                    }
+                }
+            }
+        },
         "codersdk.UpdateWorkspaceAutomaticUpdatesRequest": {
             "type": "object",
             "properties": {
@@ -17241,6 +17396,23 @@ const docTemplate = `{
                 "UsageAppNameReconnectingPty",
                 "UsageAppNameSSH"
             ]
+        },
+        "codersdk.UsagePeriod": {
+            "type": "object",
+            "properties": {
+                "end": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "issued_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "start": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
         },
         "codersdk.User": {
             "type": "object",
@@ -18856,6 +19028,19 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.WorkspaceRole": {
+            "type": "string",
+            "enum": [
+                "admin",
+                "use",
+                ""
+            ],
+            "x-enum-varnames": [
+                "WorkspaceRoleAdmin",
+                "WorkspaceRoleUse",
+                "WorkspaceRoleDeleted"
+            ]
         },
         "codersdk.WorkspaceStatus": {
             "type": "string",

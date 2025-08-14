@@ -79,7 +79,7 @@ module "jetbrains_gateway" {
 # See https://registry.terraform.io/modules/terraform-google-modules/container-vm
 module "gce-container" {
   source  = "terraform-google-modules/container-vm/google"
-  version = "3.0.0"
+  version = "3.2.0"
 
   container = {
     image   = "codercom/enterprise-base:ubuntu"
