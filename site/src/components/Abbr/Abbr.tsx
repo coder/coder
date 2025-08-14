@@ -1,7 +1,7 @@
 import type { FC, HTMLAttributes } from "react";
 import { cn } from "utils/cn";
 
-export type Pronunciation = "shorthand" | "acronym" | "initialism";
+type Pronunciation = "shorthand" | "acronym" | "initialism";
 
 type AbbrProps = HTMLAttributes<HTMLElement> & {
 	children: string;
