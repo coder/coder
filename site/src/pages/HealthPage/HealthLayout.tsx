@@ -102,15 +102,13 @@ export const HealthLayout: FC = () => {
 								<div className="font-medium mt-4">
 									{healthStatus.healthy ? "Healthy" : "Unhealthy"}
 								</div>
-								<div
-									className="text-content-secondary line-height-[150%]"
-								>
+								<div className="text-content-secondary line-height-[150%]">
 									{healthStatus.healthy
 										? Object.keys(visibleSections).some((key) => {
-											const section =
-												healthStatus[key as keyof typeof visibleSections];
-											return section.warnings && section.warnings.length > 0;
-										})
+												const section =
+													healthStatus[key as keyof typeof visibleSections];
+												return section.warnings && section.warnings.length > 0;
+											})
 											? "All systems operational, but performance might be degraded"
 											: "All systems operational"
 										: "Some issues have been detected"}
