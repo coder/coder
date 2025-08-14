@@ -51,12 +51,16 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 					</div>
 
 					<Stack spacing={0.5}>
-						<span  className="font-semibold text-content-primary">Agent version</span>
+						<span className="font-semibold text-content-primary">
+							Agent version
+						</span>
 						<span>{agent.version}</span>
 					</Stack>
 
 					<Stack spacing={0.5}>
-						<span className="font-semibold text-content-primary">Server version</span>
+						<span className="font-semibold text-content-primary">
+							Server version
+						</span>
 						<span>{serverVersion}</span>
 					</Stack>
 
