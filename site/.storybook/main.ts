@@ -1,4 +1,4 @@
-module.exports = {
+export default {
 	stories: ["../src/**/*.stories.tsx"],
 
 	addons: [
@@ -15,4 +15,12 @@ module.exports = {
 		name: "@storybook/react-vite",
 		options: {},
 	},
-};
+
+	async viteFinal(config) {
+		config.server = {
+			...config.server,
+			allowedHosts: [".coder", ".dev.coder.com"],
+		}
+		return config;
+	},
+} satisfies import("@storybook/react-vite").StorybookConfig;
