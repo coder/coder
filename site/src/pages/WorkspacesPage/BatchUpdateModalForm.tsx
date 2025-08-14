@@ -28,6 +28,34 @@ import { useQueries } from "react-query";
 import { cn } from "utils/cn";
 import { ACTIVE_BUILD_STATUSES } from "./WorkspacesPage";
 
+export const BatchUpdateModalForm: FC<BatchUpdateModalFormProps> = ({
+	open,
+	isProcessing,
+	workspacesToUpdate,
+	onCancel,
+	onSubmit,
+}) => {
+	return (
+		<Dialog
+			open={open}
+			onOpenChange={() => {
+				if (open) {
+					onCancel();
+				}
+			}}
+		>
+			<DialogContent className="max-w-screen-md">
+				<ReviewForm
+					workspacesToUpdate={workspacesToUpdate}
+					isProcessing={isProcessing}
+					onCancel={onCancel}
+					onSubmit={onSubmit}
+				/>
+			</DialogContent>
+		</Dialog>
+	);
+};
+
 type WorkspacePartitionByUpdateType = Readonly<{
 	dormant: readonly Workspace[];
 	noUpdateNeeded: readonly Workspace[];
@@ -108,6 +136,14 @@ const ReviewPanel: FC<ReviewPanelProps> = ({
 		</div>
 	);
 };
+
+const PanelListItem: FC<PropsWithChildren> = ({ children }) => {
+	return (
+		<li className="[&:not(:last-child)]:border-b-border [&:not(:last-child)]:border-b [&:not(:last-child)]:border-solid border-0">
+			{children}
+		</li>
+	)
+}
 
 type TemplateNameChangeProps = Readonly<{
 	oldTemplateVersionName: string;
@@ -460,10 +496,7 @@ const ReviewForm: FC<ReviewFormProps> = ({
 									const newTemplateName = matchedQuery?.data?.name;
 
 									return (
-										<li
-											key={ws.id}
-											className="[&:not(:last-child)]:border-b-border [&:not(:last-child)]:border-b [&:not(:last-child)]:border-solid border-0"
-										>
+										<PanelListItem key={ws.id}>
 											<ReviewPanel
 												className="border-none"
 												running={runningIds.has(ws.id)}
@@ -481,7 +514,7 @@ const ReviewForm: FC<ReviewFormProps> = ({
 													)
 												}
 											/>
-										</li>
+										</PanelListItem>
 									);
 								})}
 							</WorkspacesListSection>
@@ -493,10 +526,7 @@ const ReviewForm: FC<ReviewFormProps> = ({
 								description="These workspaces are already updated and will be skipped."
 							>
 								{noUpdateNeeded.map((ws) => (
-									<li
-										key={ws.id}
-										className="[&:not(:last-child)]:border-b-border [&:not(:last-child)]:border-b [&:not(:last-child)]:border-solid border-0"
-									>
+									<PanelListItem key={ws.id}>
 										<ReviewPanel
 											className="border-none"
 											running={false}
@@ -504,7 +534,7 @@ const ReviewForm: FC<ReviewFormProps> = ({
 											workspaceName={ws.name}
 											workspaceIconUrl={ws.template_icon}
 										/>
-									</li>
+									</PanelListItem>
 								))}
 							</WorkspacesListSection>
 						)}
@@ -595,40 +625,4 @@ type BatchUpdateModalFormProps = Readonly<{
 	onSubmit: () => void;
 }>;
 
-export const BatchUpdateModalForm: FC<BatchUpdateModalFormProps> = ({
-	open,
-	isProcessing,
-	workspacesToUpdate,
-	onCancel,
-	onSubmit,
-}) => {
-	return (
-		<Dialog
-			open={open}
-			onOpenChange={() => {
-				if (open) {
-					onCancel();
-				}
-			}}
-		>
-			<DialogContent className="max-w-screen-md">
-				{/*
-				 * Because of how the Dialog component works, we need to make
-				 * sure that at least the parent stays mounted at all times. But
-				 * if we move all the state into ReviewForm, that means that its
-				 * state only mounts when the user actually opens up the batch
-				 * update form. That saves us from mounting a bunch of extra
-				 * state and firing extra queries, when realistically, the form
-				 * will stay closed 99% of the time while the user is on the
-				 * workspaces page.
-				 */}
-				<ReviewForm
-					workspacesToUpdate={workspacesToUpdate}
-					isProcessing={isProcessing}
-					onCancel={onCancel}
-					onSubmit={onSubmit}
-				/>
-			</DialogContent>
-		</Dialog>
-	);
-};
+
