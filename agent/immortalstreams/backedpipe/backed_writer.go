@@ -40,8 +40,21 @@ func NewBackedWriter(capacity int, errorChan chan<- error) *BackedWriter {
 	return bw
 }
 
+// blockUntilConnectedOrClosed blocks until either a writer is available or the BackedWriter is closed.
+// Returns io.EOF if closed while waiting, nil if connected.
+func (bw *BackedWriter) blockUntilConnectedOrClosed() error {
+	for bw.writer == nil && !bw.closed {
+		bw.cond.Wait()
+	}
+	if bw.closed {
+		return io.EOF
+	}
+	return nil
+}
+
 // Write implements io.Writer.
-// When connected, it writes to both the ring buffer and the underlying writer.
+// When connected, it writes to both the ring buffer (to preserve data in case we need to replay it)
+// and the underlying writer.
 // If the underlying write fails, the writer is marked as disconnected and the write blocks
 // until reconnection occurs.
 func (bw *BackedWriter) Write(p []byte) (int, error) {
@@ -53,25 +66,19 @@ func (bw *BackedWriter) Write(p []byte) (int, error) {
 	defer bw.mu.Unlock()
 
 	if bw.closed {
-		return 0, io.ErrClosedPipe
+		return 0, io.EOF
 	}
 
 	// Block until connected
-	for bw.writer == nil && !bw.closed {
-		bw.cond.Wait()
+	if err := bw.blockUntilConnectedOrClosed(); err != nil {
+		return 0, err
 	}
 
-	// Check if we were closed while waiting
-	if bw.closed {
-		return 0, io.ErrClosedPipe
-	}
-
-	// Always write to buffer first
+	// Write to buffer
 	bw.buffer.Write(p)
-	// Always advance sequence number by the full length
 	bw.sequenceNum += uint64(len(p))
 
-	// Write to underlying writer
+	// Try to write to underlying writer
 	n, err := bw.writer.Write(p)
 	if err != nil {
 		// Connection failed, mark as disconnected
@@ -82,19 +89,35 @@ func (bw *BackedWriter) Write(p []byte) (int, error) {
 		case bw.errorChan <- err:
 		default:
 		}
-		return 0, err
+
+		// Block until reconnected - reconnection will replay this data
+		if err := bw.blockUntilConnectedOrClosed(); err != nil {
+			return 0, err
+		}
+
+		// Don't retry - reconnection replay handled it
+		return len(p), nil
 	}
 
 	if n != len(p) {
+		// Partial write - treat as failure
 		bw.writer = nil
 		err = xerrors.Errorf("short write: %d bytes written, %d expected", n, len(p))
 		select {
 		case bw.errorChan <- err:
 		default:
 		}
-		return 0, err
+
+		// Block until reconnected - reconnection will replay this data
+		if err := bw.blockUntilConnectedOrClosed(); err != nil {
+			return 0, err
+		}
+
+		// Don't retry - reconnection replay handled it
+		return len(p), nil
 	}
 
+	// Write succeeded
 	return len(p), nil
 }
 
@@ -169,7 +192,7 @@ func (bw *BackedWriter) Reconnect(replayFromSeq uint64, newWriter io.Writer) err
 }
 
 // Close closes the writer and prevents further writes.
-// After closing, all Write calls will return io.ErrClosedPipe.
+// After closing, all Write calls will return io.EOF.
 // This code keeps the Close() signature consistent with io.Closer,
 // but it never actually returns an error.
 func (bw *BackedWriter) Close() error {
