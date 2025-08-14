@@ -29,13 +29,6 @@ interface AppProvidersProps {
 	queryClient?: QueryClient;
 }
 
-// extending the global window interface so we can conditionally
-// show our react query devtools
-declare global {
-	interface Window {
-		toggleDevtools: () => void;
-	}
-}
 
 export const AppProviders: FC<AppProvidersProps> = ({
 	children,
@@ -45,20 +38,16 @@ export const AppProviders: FC<AppProvidersProps> = ({
 	const [showDevtools, setShowDevtools] = useState(false);
 
 	useEffect(() => {
-		// Storing key in variable to avoid accidental typos; we're working with the
-		// window object, so there's basically zero type-checking available
-		const toggleKey = "toggleDevtools";
-
 		// Don't want to throw away the previous devtools value if some other
 		// extension added something already
-		const devtoolsBeforeSync = window[toggleKey];
-		window[toggleKey] = () => {
+		const devtoolsBeforeSync = window.toggleDevtools;
+		window.toggleDevtools = () => {
 			devtoolsBeforeSync?.();
 			setShowDevtools((current) => !current);
 		};
 
 		return () => {
-			window[toggleKey] = devtoolsBeforeSync;
+			window.toggleDevtools = devtoolsBeforeSync;
 		};
 	}, []);
 

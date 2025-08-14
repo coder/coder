@@ -35,9 +35,6 @@ importers:
       '@emotion/styled':
         specifier: 11.14.0
         version: 11.14.0(@emotion/react@11.14.0(@types/react@18.3.12)(react@18.3.1))(@types/react@18.3.12)(react@18.3.1)
-      '@fastly/performance-observer-polyfill':
-        specifier: 2.0.0
-        version: 2.0.0
       '@fontsource-variable/inter':
         specifier: 5.1.1
         version: 5.1.1
@@ -1065,9 +1062,6 @@ packages:
   '@eslint/js@8.52.0':
     resolution: {integrity: sha512-mjZVbpaeMZludF2fsWLD0Z9gCref1Tk4i9+wddjRvpUNqqcndPkBD09N/Mapey0b3jaXbLm2kICwFv2E64QinA==, tarball: https://registry.npmjs.org/@eslint/js/-/js-8.52.0.tgz}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
-
-  '@fastly/performance-observer-polyfill@2.0.0':
-    resolution: {integrity: sha512-cQC4E6ReYY4Vud+eCJSCr1N0dSz+fk7xJlLiSgPFDHbnFLZo5DenazoersMt9D8JkEhl9Z5ZwJ/8apcjSrdb8Q==, tarball: https://registry.npmjs.org/@fastly/performance-observer-polyfill/-/performance-observer-polyfill-2.0.0.tgz}
 
   '@floating-ui/core@1.6.9':
     resolution: {integrity: sha512-uMXCuQ3BItDUbAMhIXw7UPXRfAlOAvZzdK9BWpE60MCn+Svt3aLn9jsPTi/WNGlRUu2uI0v5S7JiIUsbsvh3fw==, tarball: https://registry.npmjs.org/@floating-ui/core/-/core-1.6.9.tgz}
@@ -5852,9 +5846,6 @@ packages:
     resolution: {integrity: sha512-NoZ4roiN7LnbKn9QqE1amc9DJfzvZXxF4xDavcOWt1BPkdx+m+0gJuPM+S0vCe7zTJMYUP0R8pO2XMr+Y8oLIg==, tarball: https://registry.npmjs.org/tsconfig-paths/-/tsconfig-paths-4.2.0.tgz}
     engines: {node: '>=6'}
 
-  tslib@2.6.1:
-    resolution: {integrity: sha512-t0hLfiEKfMUoqhG+U1oid7Pva4bbDPHYfJNiB7BiIjRkj1pyC++4N3huJfqY6aRH6VTB0rvtzQwjM4K6qpfOig==, tarball: https://registry.npmjs.org/tslib/-/tslib-2.6.1.tgz}
-
   tslib@2.6.2:
     resolution: {integrity: sha512-AEYxH93jGFPn/a2iVAwW87VuUIkR1FVUKB77NwMF7nBTDkDrrT/Hpt/IrCJ0QXhW27jTBDcf5ZY7w6RiqTMw2Q==, tarball: https://registry.npmjs.org/tslib/-/tslib-2.6.2.tgz}
 
@@ -6958,10 +6949,6 @@ snapshots:
 
   '@eslint/js@8.52.0':
     optional: true
-
-  '@fastly/performance-observer-polyfill@2.0.0':
-    dependencies:
-      tslib: 2.6.1
 
   '@floating-ui/core@1.6.9':
     dependencies:
@@ -12596,8 +12583,6 @@ snapshots:
       json5: 2.2.3
       minimist: 1.2.8
       strip-bom: 3.0.0
-
-  tslib@2.6.1: {}
 
   tslib@2.6.2: {}
 

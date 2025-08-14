@@ -41,7 +41,6 @@
 		"@emotion/css": "11.13.5",
 		"@emotion/react": "11.14.0",
 		"@emotion/styled": "11.14.0",
-		"@fastly/performance-observer-polyfill": "2.0.0",
 		"@fontsource-variable/inter": "5.1.1",
 		"@fontsource/fira-code": "5.2.5",
 		"@fontsource/ibm-plex-mono": "5.1.1",
@@ -186,7 +185,11 @@
 		"vite-plugin-checker": "0.10.2",
 		"vite-plugin-turbosnap": "1.0.3"
 	},
-	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
+	"browserslist": [
+		"chrome 110",
+		"firefox 111",
+		"safari 16.0"
+	],
 	"resolutions": {
 		"optionator": "0.9.3",
 		"semver": "7.6.2"
@@ -203,6 +206,8 @@
 			"form-data": "4.0.4",
 			"prismjs": "1.30.0"
 		},
-		"ignoredBuiltDependencies": ["storybook-addon-remix-react-router"]
+		"ignoredBuiltDependencies": [
+			"storybook-addon-remix-react-router"
+		]
 	}
 }
