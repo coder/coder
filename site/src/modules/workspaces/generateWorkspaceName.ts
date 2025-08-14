@@ -1,3 +1,4 @@
+import isChromatic from "chromatic/*";
 import {
 	animals,
 	colors,
@@ -6,6 +7,9 @@ import {
 } from "unique-names-generator";
 
 export const generateWorkspaceName = () => {
+	if (isChromatic()) {
+		return "chromatic-workspace";
+	}
 	const numberDictionary = NumberDictionary.generate({ min: 0, max: 99 });
 	return uniqueNamesGenerator({
 		dictionaries: [colors, animals, numberDictionary],
