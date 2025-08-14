@@ -79,8 +79,8 @@ const withQuery: Decorator = (Story, { parameters }) => {
 		},
 	});
 
-	if (parameters.queries) {
-		for (const query of parameters.queries) {
+	if (parameters.query) {
+		for (const query of parameters.query) {
 			queryClient.setQueryData(query.key, query.data);
 		}
 	}

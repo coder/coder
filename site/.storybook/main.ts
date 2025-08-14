@@ -1,6 +1,6 @@
 import type { StorybookConfig } from "@storybook/react-vite";
 
-const config: StorybookConfig = {
+export default {
 	stories: ["../src/**/*.stories.tsx"],
 
 	addons: [
@@ -17,14 +17,4 @@ const config: StorybookConfig = {
 		name: "@storybook/react-vite",
 		options: {},
 	},
-
-	async viteFinal(config) {
-		if (config.server) {
-			config.server.allowedHosts = [".coder"];
-		}
-
-		return config;
-	},
-};
-
-export default config;
+} satisfies StorybookConfig;
