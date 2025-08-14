@@ -1267,7 +1267,10 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(tv.ID).Asserts(t1, policy.ActionRead).Returns(tv)
 	}))
 	s.Run("Orphaned/GetTemplateVersionByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{Valid: false}})
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{})
+		// uuid.NullUUID{Valid: false} is a zero value. faker overwrites zero values
+		// with random data, so we need to set TemplateID after faker is done with it.
+		tv.TemplateID = uuid.NullUUID{Valid: false}
 		dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), tv.ID).Return(tv, nil).AnyTimes()
 		check.Args(tv.ID).Asserts(tv.RBACObjectNoTemplate(), policy.ActionRead).Returns(tv)
 	}))
