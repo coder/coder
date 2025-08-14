@@ -2394,9 +2394,14 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.NotNil(t, workspace.DormantAt)
 		require.NotNil(t, workspace.DeletingAt)
 
+		tickTime := workspace.DeletingAt.Add(time.Minute)
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
+		require.NoError(t, err)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+
 		// When: the autobuild executor ticks *after* the deletion TTL
 		go func() {
-			tickCh <- workspace.DeletingAt.Add(time.Minute)
+			tickCh <- tickTime
 		}()
 
 		// Then: the workspace should be deleted
