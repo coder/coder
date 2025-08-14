@@ -19,6 +19,15 @@ import { createDayString } from "utils/createDayString";
 import { pageTitle } from "utils/page";
 import { HealthIcon } from "./Content";
 
+const linkStyles = {
+	normal: `
+		text-content-secondary border-none text-sm w-full flex items-center gap-3
+		text-left h-9 px-6 cursor-pointer no-underline transition-colors
+		hover:bg-surface-secondary hover:text-content-primary
+	`
+	active: "bg-surface-secondary text-content-primary",
+};
+
 export const HealthLayout: FC = () => {
 	const theme = useTheme();
 	const queryClient = useQueryClient();
@@ -42,13 +51,6 @@ export const HealthLayout: FC = () => {
 		provisioner_daemons: "Provisioner Daemons",
 	} as const;
 	const visibleSections = filterVisibleSections(sections);
-
-	const link = `
-		text-content-secondary border-none text-sm w-full flex items-center gap-3
-		text-left h-9 px-6 cursor-pointer no-underline transition-colors
-		hover:bg-surface-secondary hover:text-content-primary
-	`;
-	const activeLink = "bg-surface-secondary text-content-primary";
 
 	if (isLoading) {
 		return (
@@ -101,10 +103,7 @@ export const HealthLayout: FC = () => {
 									{healthStatus.healthy ? "Healthy" : "Unhealthy"}
 								</div>
 								<div
-									css={{
-										color: theme.palette.text.secondary,
-										lineHeight: "150%",
-									}}
+									className="text-content-secondary line-height-[150%]"
 								>
 									{healthStatus.healthy
 										? Object.keys(visibleSections).some((key) => {
@@ -128,7 +127,7 @@ export const HealthLayout: FC = () => {
 								</span>
 							</div>
 
-							<div css={{ display: "flex", flexDirection: "column" }}>
+							<div className="flex flex-col">
 								<span className="font-medium">Version</span>
 								<span
 									data-chromatic="ignore"
@@ -152,7 +151,7 @@ export const HealthLayout: FC = () => {
 											key={key}
 											to={`/health/${kebabCase(key)}`}
 											className={({ isActive }) =>
-												cn(link, isActive && activeLink)
+												cn(linkStyles.normal, isActive && linkStyles.active)
 											}
 										>
 											<HealthIcon
