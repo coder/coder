@@ -22,3 +22,7 @@ indent_size = 4
 [coderd/database/queries/*.sql]
 indent_style = tab
 indent_size = 4
+
+[coderd/database/migrations/*.sql]
+indent_style = tab
+indent_size = 4
