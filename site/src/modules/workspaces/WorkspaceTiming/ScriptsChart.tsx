@@ -11,6 +11,14 @@ import {
 	ChartToolbar,
 } from "./Chart/Chart";
 import { Tooltip, TooltipTitle } from "./Chart/Tooltip";
+import {
+	calcDuration,
+	calcOffset,
+	formatTime,
+	makeTicks,
+	mergeTimeRanges,
+	type TimeRange,
+} from "./Chart/utils";
 import { XAxis, XAxisRow, XAxisSection } from "./Chart/XAxis";
 import {
 	YAxis,
@@ -19,14 +27,6 @@ import {
 	YAxisLabels,
 	YAxisSection,
 } from "./Chart/YAxis";
-import {
-	type TimeRange,
-	calcDuration,
-	calcOffset,
-	formatTime,
-	makeTicks,
-	mergeTimeRanges,
-} from "./Chart/utils";
 import type { Stage } from "./StagesChart";
 
 type ScriptTiming = {

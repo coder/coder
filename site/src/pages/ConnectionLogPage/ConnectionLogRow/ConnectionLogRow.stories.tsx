@@ -1,11 +1,11 @@
-import TableContainer from "@mui/material/TableContainer";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Table, TableBody } from "components/Table/Table";
 import {
 	MockConnectedSSHConnectionLog,
 	MockDisconnectedSSHConnectionLog,
 	MockWebConnectionLog,
 } from "testHelpers/entities";
+import TableContainer from "@mui/material/TableContainer";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Table, TableBody } from "components/Table/Table";
 import { ConnectionLogRow } from "./ConnectionLogRow";
 
 const meta: Meta<typeof ConnectionLogRow> = {

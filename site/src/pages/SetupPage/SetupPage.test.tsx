@@ -1,14 +1,14 @@
-import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import type { Response, User } from "api/typesGenerated";
-import { http, HttpResponse } from "msw";
-import { createMemoryRouter } from "react-router";
 import { MockBuildInfo, MockUserOwner } from "testHelpers/entities";
 import {
 	renderWithRouter,
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { Response, User } from "api/typesGenerated";
+import { HttpResponse, http } from "msw";
+import { createMemoryRouter } from "react-router";
 import { SetupPage } from "./SetupPage";
 import { Language as PageViewLanguage } from "./SetupPageView";
 
