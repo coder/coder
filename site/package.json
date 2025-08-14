@@ -206,7 +206,15 @@
 			"prismjs": "1.30.0"
 		},
 		"ignoredBuiltDependencies": [
+			"cpu-features",
+			"msw",
+			"protobufjs",
 			"storybook-addon-remix-react-router"
+		],
+		"onlyBuiltDependencies": [
+			"@swc/core",
+			"esbuild",
+			"ssh2"
 		]
 	}
 }
