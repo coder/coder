@@ -18,7 +18,7 @@ INSERT INTO external_auth_links (
     oauth_refresh_token,
     oauth_refresh_token_key_id,
     oauth_expiry,
-    oauth_extra
+	oauth_extra
 ) VALUES (
     $1,
     $2,
@@ -29,7 +29,7 @@ INSERT INTO external_auth_links (
     $7,
     $8,
     $9,
-    $10
+	$10
 ) RETURNING *;
 
 -- name: UpdateExternalAuthLink :one
@@ -40,15 +40,15 @@ UPDATE external_auth_links SET
     oauth_refresh_token = $6,
     oauth_refresh_token_key_id = $7,
     oauth_expiry = $8,
-    oauth_extra = $9
+	oauth_extra = $9
 WHERE provider_id = $1 AND user_id = $2 RETURNING *;
 
 -- name: UpdateExternalAuthLinkRefreshToken :exec
 UPDATE
-    external_auth_links
+	external_auth_links
 SET
-    oauth_refresh_token = @oauth_refresh_token,
-    updated_at = @updated_at
+	oauth_refresh_token = @oauth_refresh_token,
+	updated_at = @updated_at
 WHERE
     provider_id = @provider_id
 AND

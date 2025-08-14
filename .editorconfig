@@ -15,6 +15,10 @@ indent_size = 2
 indent_style = space
 indent_size = 2
 
-[*.sql]
+[coderd/database/dump.sql]
 indent_style = space
+indent_size = 4
+
+[coderd/database/queries/*.sql]
+indent_style = tab
 indent_size = 4
