@@ -7,7 +7,7 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { PopoverTrigger } from "components/Popover/Popover";
+import { PopoverTrigger } from "components/deprecated/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
 import { RotateCcwIcon } from "lucide-react";
 import type { FC } from "react";
