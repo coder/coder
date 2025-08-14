@@ -1,8 +1,6 @@
 package backedpipe
 
-import (
-	"golang.org/x/xerrors"
-)
+import "golang.org/x/xerrors"
 
 // ringBuffer implements an efficient circular buffer with a fixed-size allocation.
 // This implementation is not thread-safe and relies on external synchronization.
