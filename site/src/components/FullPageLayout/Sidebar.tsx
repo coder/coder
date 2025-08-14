@@ -1,6 +1,6 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import type { ComponentProps, FC, HTMLAttributes } from "react";
-import { Link, type LinkProps } from "react-router-dom";
+import { Link, type LinkProps } from "react-router";
 import { TopbarIconButton } from "./Topbar";
 
 export const Sidebar: FC<HTMLAttributes<HTMLDivElement>> = (props) => {

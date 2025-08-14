@@ -689,6 +689,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
 		template_version_name: "test-version",
 		workspace_name: "test-workspace",
 	},
+	logs_overflowed: false,
 };
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
@@ -826,7 +827,8 @@ export const MockTemplate: TypesGen.Template = {
 	deprecated: false,
 	deprecation_message: "",
 	max_port_share_level: "public",
-	use_classic_parameter_flow: true,
+	use_classic_parameter_flow: false,
+	cors_behavior: "simple",
 };
 
 const MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -3109,19 +3111,196 @@ export const MockPreviewParameter: TypesGen.PreviewParameter = {
 	display_name: "Parameter 1",
 	description: "This is a parameter",
 	type: "string",
-	mutable: true,
 	form_type: "input",
-	validations: [],
-	value: { valid: true, value: "" },
-	diagnostics: [],
-	options: [],
+	mutable: true,
 	ephemeral: false,
 	required: true,
+	value: { valid: true, value: "" },
+	default_value: { valid: true, value: "" },
+	options: [],
+	validations: [],
+	diagnostics: [],
 	icon: "",
 	styling: {},
-	default_value: { valid: true, value: "" },
 	order: 0,
 };
+
+export const MockDropdownParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: "instance_type",
+	display_name: "Instance Type",
+	description: "The type of instance to create",
+	form_type: "dropdown",
+	default_value: { value: "t3.micro", valid: true },
+	options: [
+		{
+			name: "t3.micro",
+			description: "Micro instance",
+			value: { value: "t3.micro", valid: true },
+			icon: "",
+		},
+		{
+			name: "t3.small",
+			description: "Small instance",
+			value: { value: "t3.small", valid: true },
+			icon: "",
+		},
+		{
+			name: "t3.medium",
+			description: "Medium instance",
+			value: { value: "t3.medium", valid: true },
+			icon: "",
+		},
+	],
+	styling: {
+		placeholder: "",
+		disabled: false,
+		label: "",
+	},
+	order: 1,
+};
+
+const MockTagSelectParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: "tags",
+	display_name: "Tags",
+	description: "Resource tags",
+	type: "list(string)",
+	form_type: "tag-select",
+	required: false,
+	value: { value: "[]", valid: true },
+	default_value: { value: "[]", valid: true },
+	styling: {
+		placeholder: "",
+		disabled: false,
+		label: "",
+	},
+	order: 4,
+};
+
+const MockSwitchParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: "enable_monitoring",
+	display_name: "Enable Monitoring",
+	description: "Enable system monitoring",
+	type: "bool",
+	form_type: "switch",
+	required: false,
+	value: { value: "true", valid: true },
+	default_value: { value: "true", valid: true },
+	styling: {
+		placeholder: "",
+		disabled: false,
+		label: "",
+	},
+	order: 3,
+};
+
+export const MockSliderParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: "cpu_count",
+	display_name: "CPU Count",
+	description: "Number of CPU cores",
+	type: "number",
+	form_type: "slider",
+	value: { value: "2", valid: true },
+	default_value: { value: "2", valid: true },
+	styling: {
+		placeholder: "",
+		disabled: false,
+		label: "",
+	},
+	order: 2,
+};
+
+const MockMultiSelectParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: "ides",
+	display_name: "IDEs",
+	description: "Enabled IDEs",
+	type: "list(string)",
+	form_type: "multi-select",
+	required: false,
+	value: { value: "[]", valid: true },
+	default_value: { value: "[]", valid: true },
+	options: [
+		{
+			name: "vscode",
+			description: "Visual Studio Code",
+			value: { value: "vscode", valid: true },
+			icon: "",
+		},
+		{
+			name: "cursor",
+			description: "Cursor",
+			value: { value: "cursor", valid: true },
+			icon: "",
+		},
+		{
+			name: "goland",
+			description: "Goland",
+			value: { value: "goland", valid: true },
+			icon: "",
+		},
+		{
+			name: "windsurf",
+			description: "Windsurf",
+			value: { value: "windsurf", valid: true },
+			icon: "",
+		},
+	],
+	order: 5,
+};
+
+export const MockValidationParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: "invalid_number",
+	display_name: "Invalid Parameter",
+	description: "Number parameter with validation error",
+	type: "number",
+	form_type: "input",
+	value: { value: "50", valid: true },
+	default_value: { value: "50", valid: true },
+	validations: [
+		{
+			validation_error: "Number must be between 0 and 100",
+			validation_regex: null,
+			validation_min: 0,
+			validation_max: 100,
+			validation_monotonic: null,
+		},
+	],
+	order: 1,
+};
+
+export const MockDynamicParametersResponse: TypesGen.DynamicParametersResponse =
+	{
+		id: 1,
+		parameters: [
+			MockDropdownParameter,
+			MockSliderParameter,
+			MockSwitchParameter,
+			MockTagSelectParameter,
+			MockMultiSelectParameter,
+		],
+		diagnostics: [],
+	};
+
+export const MockDynamicParametersResponseWithError: TypesGen.DynamicParametersResponse =
+	{
+		id: 2,
+		parameters: [MockDropdownParameter],
+		diagnostics: [
+			{
+				severity: "error",
+				summary: "Validation failed",
+				detail: "The selected instance type is not available in this region",
+				extra: {
+					code: "",
+				},
+			},
+		],
+	};
 
 export const MockTemplateVersionExternalAuthGithub: TypesGen.TemplateVersionExternalAuth =
 	{
@@ -4402,6 +4581,32 @@ export const MockNotificationTemplates: TypesGen.NotificationTemplate[] = [
 		kind: "system",
 		enabled_by_default: true,
 	},
+	{
+		id: "template-event-1",
+		name: "Template Version Created",
+		title_template: 'Template version "{{.Labels.version_name}}" created',
+		body_template:
+			'Hi {{.UserName}}\nA new version of template "{{.Labels.template_name}}" has been created.',
+		actions:
+			'[{"url": "{{ base_url }}/templates/{{.Labels.template_name}}", "label": "View template"}]',
+		group: "Template Events",
+		method: "smtp",
+		kind: "system",
+		enabled_by_default: true,
+	},
+	{
+		id: "template-event-2",
+		name: "Template Updated",
+		title_template: 'Template "{{.Labels.template_name}}" updated',
+		body_template:
+			'Hi {{.UserName}}\nTemplate "{{.Labels.template_name}}" has been updated.',
+		actions:
+			'[{"url": "{{ base_url }}/templates/{{.Labels.template_name}}", "label": "View template"}]',
+		group: "Template Events",
+		method: "webhook",
+		kind: "system",
+		enabled_by_default: true,
+	},
 ];
 
 export const MockNotificationMethodsResponse: TypesGen.NotificationMethodsResponse =
@@ -4571,3 +4776,116 @@ export function createTimestamp(minuteOffset: number, secondOffset: number) {
 	baseDate.setSeconds(baseDate.getSeconds() + secondOffset);
 	return baseDate.toISOString();
 }
+
+// Mock Presets for AI Tasks
+export const MockPresets: TypesGen.Preset[] = [
+	{
+		ID: "preset-1",
+		Name: "Development",
+		Description: "",
+		Icon: "",
+		Parameters: [
+			{ Name: "cpu", Value: "4" },
+			{ Name: "memory", Value: "8GB" },
+		],
+		Default: true,
+		DesiredPrebuildInstances: 0,
+	},
+	{
+		ID: "preset-2",
+		Name: "Testing",
+		Description: "",
+		Icon: "",
+		Parameters: [
+			{ Name: "cpu", Value: "2" },
+			{ Name: "memory", Value: "4GB" },
+		],
+		Default: false,
+		DesiredPrebuildInstances: 0,
+	},
+	{
+		ID: "preset-3",
+		Name: "Production",
+		Description: "",
+		Icon: "",
+		Parameters: [
+			{ Name: "cpu", Value: "8" },
+			{ Name: "memory", Value: "16GB" },
+		],
+		Default: false,
+		DesiredPrebuildInstances: 0,
+	},
+];
+
+export const MockAIPromptPresets: TypesGen.Preset[] = [
+	{
+		ID: "ai-preset-1",
+		Name: "Code Review",
+		Description: "",
+		Icon: "",
+		Parameters: [
+			{ Name: "AI Prompt", Value: "Review the code for best practices" },
+			{ Name: "cpu", Value: "4" },
+			{ Name: "memory", Value: "8GB" },
+		],
+		Default: true,
+		DesiredPrebuildInstances: 0,
+	},
+	{
+		ID: "ai-preset-2",
+		Name: "Custom Prompt",
+		Description: "",
+		Icon: "",
+		Parameters: [
+			{ Name: "cpu", Value: "4" },
+			{ Name: "memory", Value: "8GB" },
+		],
+		Default: false,
+		DesiredPrebuildInstances: 0,
+	},
+];
+
+// Mock Tasks for AI Tasks page
+export const MockTasks = [
+	{
+		workspace: {
+			...MockWorkspace,
+			latest_app_status: MockWorkspaceAppStatus,
+		},
+		prompt: "Create competitors page",
+	},
+	{
+		workspace: {
+			...MockWorkspace,
+			id: "workspace-2",
+			latest_app_status: {
+				...MockWorkspaceAppStatus,
+				message: "Avatar size fixed!",
+			},
+		},
+		prompt: "Fix user avatar size",
+	},
+	{
+		workspace: {
+			...MockWorkspace,
+			id: "workspace-3",
+			latest_app_status: {
+				...MockWorkspaceAppStatus,
+				message: "Accessibility issues fixed!",
+			},
+		},
+		prompt: "Fix accessibility issues",
+	},
+];
+
+export const MockNewTaskData = {
+	prompt: "Create a new task",
+	workspace: {
+		...MockWorkspace,
+		id: "workspace-4",
+		latest_app_status: {
+			...MockWorkspaceAppStatus,
+			message: "Task created successfully!",
+		},
+	},
+};

@@ -1322,6 +1322,101 @@ func TestQueuePosition(t *testing.T) {
 	}
 }
 
+func TestAcquireProvisionerJob(t *testing.T) {
+	t.Parallel()
+
+	t.Run("HumanInitiatedJobsFirst", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _       = dbtestutil.NewDB(t)
+			ctx         = testutil.Context(t, testutil.WaitMedium)
+			org         = dbgen.Organization(t, db, database.Organization{})
+			_           = dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{}) // Required for queue position
+			now         = dbtime.Now()
+			numJobs     = 10
+			humanIDs    = make([]uuid.UUID, 0, numJobs/2)
+			prebuildIDs = make([]uuid.UUID, 0, numJobs/2)
+		)
+
+		// Given: a number of jobs in the queue, with prebuilds and non-prebuilds interleaved
+		for idx := range numJobs {
+			var initiator uuid.UUID
+			if idx%2 == 0 {
+				initiator = database.PrebuildsSystemUserID
+			} else {
+				initiator = uuid.MustParse("c0dec0de-c0de-c0de-c0de-c0dec0dec0de")
+			}
+			pj, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+				ID:             uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-00000000000%x", idx+1)),
+				CreatedAt:      time.Now().Add(-time.Second * time.Duration(idx)),
+				UpdatedAt:      time.Now().Add(-time.Second * time.Duration(idx)),
+				InitiatorID:    initiator,
+				OrganizationID: org.ID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				FileID:         uuid.New(),
+				Input:          json.RawMessage(`{}`),
+				Tags:           database.StringMap{},
+				TraceMetadata:  pqtype.NullRawMessage{},
+			})
+			require.NoError(t, err)
+			// We expected prebuilds to be acquired after human-initiated jobs.
+			if initiator == database.PrebuildsSystemUserID {
+				prebuildIDs = append([]uuid.UUID{pj.ID}, prebuildIDs...)
+			} else {
+				humanIDs = append([]uuid.UUID{pj.ID}, humanIDs...)
+			}
+			t.Logf("created job id=%q initiator=%q created_at=%q", pj.ID.String(), pj.InitiatorID.String(), pj.CreatedAt.String())
+		}
+
+		expectedIDs := append(humanIDs, prebuildIDs...) //nolint:gocritic // not the same slice
+
+		// When: we query the queue positions for the jobs
+		qjs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+			IDs:             expectedIDs,
+			StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+		})
+		require.NoError(t, err)
+		require.Len(t, qjs, numJobs)
+		// Ensure the jobs are sorted by queue position.
+		sort.Slice(qjs, func(i, j int) bool {
+			return qjs[i].QueuePosition < qjs[j].QueuePosition
+		})
+
+		// Then: the queue positions for the jobs should indicate the order in which
+		// they will be acquired, with human-initiated jobs first.
+		for idx, qj := range qjs {
+			t.Logf("queued job %d/%d id=%q initiator=%q created_at=%q queue_position=%d", idx+1, numJobs, qj.ProvisionerJob.ID.String(), qj.ProvisionerJob.InitiatorID.String(), qj.ProvisionerJob.CreatedAt.String(), qj.QueuePosition)
+			require.Equal(t, expectedIDs[idx].String(), qj.ProvisionerJob.ID.String(), "job %d/%d should match expected id", idx+1, numJobs)
+			require.Equal(t, int64(idx+1), qj.QueuePosition, "job %d/%d should have queue position %d", idx+1, numJobs, idx+1)
+		}
+
+		// When: the jobs are acquired
+		// Then: human-initiated jobs are prioritized first.
+		for idx := range numJobs {
+			acquired, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+				OrganizationID:  org.ID,
+				StartedAt:       sql.NullTime{Time: time.Now(), Valid: true},
+				WorkerID:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
+				Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+				ProvisionerTags: json.RawMessage(`{}`),
+			})
+			require.NoError(t, err)
+			require.Equal(t, expectedIDs[idx].String(), acquired.ID.String(), "acquired job %d/%d with initiator %q", idx+1, numJobs, acquired.InitiatorID.String())
+			t.Logf("acquired job id=%q initiator=%q created_at=%q", acquired.ID.String(), acquired.InitiatorID.String(), acquired.CreatedAt.String())
+			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+				ID:          acquired.ID,
+				UpdatedAt:   now,
+				CompletedAt: sql.NullTime{Time: now, Valid: true},
+				Error:       sql.NullString{},
+				ErrorCode:   sql.NullString{},
+			})
+			require.NoError(t, err, "mark job %d/%d as complete", idx+1, numJobs)
+		}
+	})
+}
+
 func TestUserLastSeenFilter(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -1942,7 +2037,6 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 	}
 
 	// Now fetch all the logs
-	ctx := testutil.Context(t, testutil.WaitLong)
 	auditorRole, err := rbac.RoleByName(rbac.RoleAuditor())
 	require.NoError(t, err)
 
@@ -1959,6 +2053,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 
 	t.Run("NoAccess", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A user who is a member of 0 organizations
 		memberCtx := dbauthz.As(ctx, rbac.Subject{
@@ -1981,6 +2076,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 
 	t.Run("SiteWideAuditor", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A site wide auditor
 		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
@@ -2003,6 +2099,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 
 	t.Run("SingleOrgAuditor", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := orgIDs[0]
 		// Given: An organization scoped auditor
@@ -2026,6 +2123,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 
 	t.Run("TwoOrgAuditors", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		first := orgIDs[0]
 		second := orgIDs[1]
@@ -2052,6 +2150,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 
 	t.Run("ErroneousOrg", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A user who is an auditor for an organization that has 0 logs
 		userCtx := dbauthz.As(ctx, rbac.Subject{
@@ -2137,7 +2236,6 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 	}
 
 	// Now fetch all the logs
-	ctx := testutil.Context(t, testutil.WaitLong)
 	auditorRole, err := rbac.RoleByName(rbac.RoleAuditor())
 	require.NoError(t, err)
 
@@ -2154,6 +2252,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 
 	t.Run("NoAccess", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A user who is a member of 0 organizations
 		memberCtx := dbauthz.As(ctx, rbac.Subject{
@@ -2176,6 +2275,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 
 	t.Run("SiteWideAuditor", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A site wide auditor
 		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
@@ -2198,6 +2298,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 
 	t.Run("SingleOrgAuditor", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := orgIDs[0]
 		// Given: An organization scoped auditor
@@ -2221,6 +2322,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 
 	t.Run("TwoOrgAuditors", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		first := orgIDs[0]
 		second := orgIDs[1]
@@ -2245,6 +2347,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 
 	t.Run("ErroneousOrg", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A user who is an auditor for an organization that has 0 logs
 		userCtx := dbauthz.As(ctx, rbac.Subject{
@@ -2326,7 +2429,6 @@ func TestCountConnectionLogs(t *testing.T) {
 
 func TestConnectionLogsOffsetFilters(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
 
 	db, _ := dbtestutil.NewDB(t)
 
@@ -2557,9 +2659,9 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
 			logs, err := db.GetConnectionLogsOffset(ctx, tc.params)
 			require.NoError(t, err)
 			count, err := db.CountConnectionLogs(ctx, database.CountConnectionLogsParams{
@@ -5900,4 +6002,350 @@ func TestGetRunningPrebuiltWorkspaces(t *testing.T) {
 	// Then: only the running prebuild workspace should be returned.
 	require.Len(t, runningPrebuilds, 1, "expected only one running prebuilt workspace")
 	require.Equal(t, runningPrebuild.ID, runningPrebuilds[0].ID, "expected the running prebuilt workspace to be returned")
+}
+
+func TestUserSecretsCRUDOperations(t *testing.T) {
+	t.Parallel()
+
+	// Use raw database without dbauthz wrapper for this test
+	db, _ := dbtestutil.NewDB(t)
+
+	t.Run("FullCRUDWorkflow", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Create a new user for this test
+		testUser := dbgen.User(t, db, database.User{})
+
+		// 1. CREATE
+		secretID := uuid.New()
+		createParams := database.CreateUserSecretParams{
+			ID:          secretID,
+			UserID:      testUser.ID,
+			Name:        "workflow-secret",
+			Description: "Secret for full CRUD workflow",
+			Value:       "workflow-value",
+			EnvName:     "WORKFLOW_ENV",
+			FilePath:    "/workflow/path",
+		}
+
+		createdSecret, err := db.CreateUserSecret(ctx, createParams)
+		require.NoError(t, err)
+		assert.Equal(t, secretID, createdSecret.ID)
+
+		// 2. READ by ID
+		readSecret, err := db.GetUserSecret(ctx, createdSecret.ID)
+		require.NoError(t, err)
+		assert.Equal(t, createdSecret.ID, readSecret.ID)
+		assert.Equal(t, "workflow-secret", readSecret.Name)
+
+		// 3. READ by UserID and Name
+		readByNameParams := database.GetUserSecretByUserIDAndNameParams{
+			UserID: testUser.ID,
+			Name:   "workflow-secret",
+		}
+		readByNameSecret, err := db.GetUserSecretByUserIDAndName(ctx, readByNameParams)
+		require.NoError(t, err)
+		assert.Equal(t, createdSecret.ID, readByNameSecret.ID)
+
+		// 4. LIST
+		secrets, err := db.ListUserSecrets(ctx, testUser.ID)
+		require.NoError(t, err)
+		require.Len(t, secrets, 1)
+		assert.Equal(t, createdSecret.ID, secrets[0].ID)
+
+		// 5. UPDATE
+		updateParams := database.UpdateUserSecretParams{
+			ID:          createdSecret.ID,
+			Description: "Updated workflow description",
+			Value:       "updated-workflow-value",
+			EnvName:     "UPDATED_WORKFLOW_ENV",
+			FilePath:    "/updated/workflow/path",
+		}
+
+		updatedSecret, err := db.UpdateUserSecret(ctx, updateParams)
+		require.NoError(t, err)
+		assert.Equal(t, "Updated workflow description", updatedSecret.Description)
+		assert.Equal(t, "updated-workflow-value", updatedSecret.Value)
+
+		// 6. DELETE
+		err = db.DeleteUserSecret(ctx, createdSecret.ID)
+		require.NoError(t, err)
+
+		// Verify deletion
+		_, err = db.GetUserSecret(ctx, createdSecret.ID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no rows in result set")
+
+		// Verify list is empty
+		secrets, err = db.ListUserSecrets(ctx, testUser.ID)
+		require.NoError(t, err)
+		assert.Len(t, secrets, 0)
+	})
+
+	t.Run("UniqueConstraints", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Create a new user for this test
+		testUser := dbgen.User(t, db, database.User{})
+
+		// Create first secret
+		secret1 := dbgen.UserSecret(t, db, database.UserSecret{
+			UserID:      testUser.ID,
+			Name:        "unique-test",
+			Description: "First secret",
+			Value:       "value1",
+			EnvName:     "UNIQUE_ENV",
+			FilePath:    "/unique/path",
+		})
+
+		// Try to create another secret with the same name (should fail)
+		_, err := db.CreateUserSecret(ctx, database.CreateUserSecretParams{
+			UserID:      testUser.ID,
+			Name:        "unique-test", // Same name
+			Description: "Second secret",
+			Value:       "value2",
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "duplicate key value")
+
+		// Try to create another secret with the same env_name (should fail)
+		_, err = db.CreateUserSecret(ctx, database.CreateUserSecretParams{
+			UserID:      testUser.ID,
+			Name:        "unique-test-2",
+			Description: "Second secret",
+			Value:       "value2",
+			EnvName:     "UNIQUE_ENV", // Same env_name
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "duplicate key value")
+
+		// Try to create another secret with the same file_path (should fail)
+		_, err = db.CreateUserSecret(ctx, database.CreateUserSecretParams{
+			UserID:      testUser.ID,
+			Name:        "unique-test-3",
+			Description: "Second secret",
+			Value:       "value2",
+			FilePath:    "/unique/path", // Same file_path
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "duplicate key value")
+
+		// Create secret with empty env_name and file_path (should succeed)
+		secret2 := dbgen.UserSecret(t, db, database.UserSecret{
+			UserID:      testUser.ID,
+			Name:        "unique-test-4",
+			Description: "Second secret",
+			Value:       "value2",
+			EnvName:     "", // Empty env_name
+			FilePath:    "", // Empty file_path
+		})
+
+		// Verify both secrets exist
+		_, err = db.GetUserSecret(ctx, secret1.ID)
+		require.NoError(t, err)
+		_, err = db.GetUserSecret(ctx, secret2.ID)
+		require.NoError(t, err)
+	})
+}
+
+func TestUserSecretsAuthorization(t *testing.T) {
+	t.Parallel()
+
+	// Use raw database and wrap with dbauthz for authorization testing
+	db, _ := dbtestutil.NewDB(t)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+	authDB := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+
+	// Create test users
+	user1 := dbgen.User(t, db, database.User{})
+	user2 := dbgen.User(t, db, database.User{})
+	owner := dbgen.User(t, db, database.User{})
+	orgAdmin := dbgen.User(t, db, database.User{})
+
+	// Create organization for org-scoped roles
+	org := dbgen.Organization(t, db, database.Organization{})
+
+	// Create secrets for users
+	user1Secret := dbgen.UserSecret(t, db, database.UserSecret{
+		UserID:      user1.ID,
+		Name:        "user1-secret",
+		Description: "User 1's secret",
+		Value:       "user1-value",
+	})
+
+	user2Secret := dbgen.UserSecret(t, db, database.UserSecret{
+		UserID:      user2.ID,
+		Name:        "user2-secret",
+		Description: "User 2's secret",
+		Value:       "user2-value",
+	})
+
+	testCases := []struct {
+		name           string
+		subject        rbac.Subject
+		secretID       uuid.UUID
+		expectedAccess bool
+	}{
+		{
+			name: "UserCanAccessOwnSecrets",
+			subject: rbac.Subject{
+				ID:    user1.ID.String(),
+				Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
+				Scope: rbac.ScopeAll,
+			},
+			secretID:       user1Secret.ID,
+			expectedAccess: true,
+		},
+		{
+			name: "UserCannotAccessOtherUserSecrets",
+			subject: rbac.Subject{
+				ID:    user1.ID.String(),
+				Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
+				Scope: rbac.ScopeAll,
+			},
+			secretID:       user2Secret.ID,
+			expectedAccess: false,
+		},
+		{
+			name: "OwnerCannotAccessUserSecrets",
+			subject: rbac.Subject{
+				ID:    owner.ID.String(),
+				Roles: rbac.RoleIdentifiers{rbac.RoleOwner()},
+				Scope: rbac.ScopeAll,
+			},
+			secretID:       user1Secret.ID,
+			expectedAccess: false,
+		},
+		{
+			name: "OrgAdminCannotAccessUserSecrets",
+			subject: rbac.Subject{
+				ID:    orgAdmin.ID.String(),
+				Roles: rbac.RoleIdentifiers{rbac.ScopedRoleOrgAdmin(org.ID)},
+				Scope: rbac.ScopeAll,
+			},
+			secretID:       user1Secret.ID,
+			expectedAccess: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc // capture range variable
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+
+			authCtx := dbauthz.As(ctx, tc.subject)
+
+			// Test GetUserSecret
+			_, err := authDB.GetUserSecret(authCtx, tc.secretID)
+
+			if tc.expectedAccess {
+				require.NoError(t, err, "expected access to be granted")
+			} else {
+				require.Error(t, err, "expected access to be denied")
+				assert.True(t, dbauthz.IsNotAuthorizedError(err), "expected authorization error")
+			}
+		})
+	}
+}
+
+func TestWorkspaceBuildDeadlineConstraint(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:    user.ID,
+		TemplateID: template.ID,
+		Name:       "test-workspace",
+		Deleted:    false,
+	})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		InitiatorID:    database.PrebuildsSystemUserID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		StartedAt:      sql.NullTime{Time: time.Now().Add(-time.Minute), Valid: true},
+		CompletedAt:    sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	workspaceBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: templateVersion.ID,
+		JobID:             job.ID,
+		BuildNumber:       1,
+	})
+
+	cases := []struct {
+		name        string
+		deadline    time.Time
+		maxDeadline time.Time
+		expectOK    bool
+	}{
+		{
+			name:        "no deadline or max_deadline",
+			deadline:    time.Time{},
+			maxDeadline: time.Time{},
+			expectOK:    true,
+		},
+		{
+			name:        "deadline set when max_deadline is not set",
+			deadline:    time.Now().Add(time.Hour),
+			maxDeadline: time.Time{},
+			expectOK:    true,
+		},
+		{
+			name:        "deadline before max_deadline",
+			deadline:    time.Now().Add(-time.Hour),
+			maxDeadline: time.Now().Add(time.Hour),
+			expectOK:    true,
+		},
+		{
+			name:        "deadline is max_deadline",
+			deadline:    time.Now().Add(time.Hour),
+			maxDeadline: time.Now().Add(time.Hour),
+			expectOK:    true,
+		},
+
+		{
+			name:        "deadline after max_deadline",
+			deadline:    time.Now().Add(time.Hour),
+			maxDeadline: time.Now().Add(-time.Hour),
+			expectOK:    false,
+		},
+		{
+			name:        "deadline is not set when max_deadline is set",
+			deadline:    time.Time{},
+			maxDeadline: time.Now().Add(time.Hour),
+			expectOK:    false,
+		},
+	}
+
+	for _, c := range cases {
+		err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+			ID:          workspaceBuild.ID,
+			Deadline:    c.deadline,
+			MaxDeadline: c.maxDeadline,
+			UpdatedAt:   time.Now(),
+		})
+		if c.expectOK {
+			require.NoError(t, err)
+		} else {
+			require.Error(t, err)
+			require.True(t, database.IsCheckViolation(err, database.CheckWorkspaceBuildsDeadlineBelowMaxDeadline))
+		}
+	}
 }

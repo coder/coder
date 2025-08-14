@@ -10,7 +10,7 @@ import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
 import type { WorkspaceActivityStatus } from "modules/workspaces/activity";
 import type { ReactNode } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { isWorkspaceOn } from "./workspace";
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're

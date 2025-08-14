@@ -4,23 +4,19 @@ import type { WorkspaceAgentListContainersResponse } from "api/typesGenerated";
 import * as GlobalSnackbar from "components/GlobalSnackbar/utils";
 import { http, HttpResponse } from "msw";
 import type { FC, PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
+import { act } from "react";
+import { QueryClientProvider } from "react-query";
 import {
 	MockWorkspaceAgent,
 	MockWorkspaceAgentDevcontainer,
 } from "testHelpers/entities";
+import { createTestQueryClient } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 import { useAgentContainers } from "./useAgentContainers";
 
 const createWrapper = (): FC<PropsWithChildren> => {
-	const queryClient = new QueryClient({
-		defaultOptions: {
-			queries: {
-				retry: false,
-			},
-		},
-	});
+	const queryClient = createTestQueryClient();
 	return ({ children }) => (
 		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 	);
@@ -111,22 +107,29 @@ describe("useAgentContainers", () => {
 			),
 		);
 
-		const { unmount } = renderHook(
+		const { result, unmount } = renderHook(
 			() => useAgentContainers(MockWorkspaceAgent),
 			{
 				wrapper: createWrapper(),
 			},
 		);
 
-		// Simulate message event with parsing error
+		// Wait for initial query to complete
+		await waitFor(() => {
+			expect(result.current).toEqual([MockWorkspaceAgentDevcontainer]);
+		});
+
+		// Now simulate message event with parsing error
 		const messageHandler = mockSocket.addEventListener.mock.calls.find(
 			(call) => call[0] === "message",
 		)?.[1];
 
 		if (messageHandler) {
-			messageHandler({
-				parseError: new Error("Parse error"),
-				parsedMessage: null,
+			act(() => {
+				messageHandler({
+					parseError: new Error("Parse error"),
+					parsedMessage: null,
+				});
 			});
 		}
 
@@ -166,20 +169,27 @@ describe("useAgentContainers", () => {
 			),
 		);
 
-		const { unmount } = renderHook(
+		const { result, unmount } = renderHook(
 			() => useAgentContainers(MockWorkspaceAgent),
 			{
 				wrapper: createWrapper(),
 			},
 		);
 
-		// Simulate error event
+		// Wait for initial query to complete
+		await waitFor(() => {
+			expect(result.current).toEqual([MockWorkspaceAgentDevcontainer]);
+		});
+
+		// Now simulate error event
 		const errorHandler = mockSocket.addEventListener.mock.calls.find(
 			(call) => call[0] === "error",
 		)?.[1];
 
 		if (errorHandler) {
-			errorHandler(new Error("WebSocket error"));
+			act(() => {
+				errorHandler(new Error("WebSocket error"));
+			});
 		}
 
 		await waitFor(() => {
@@ -208,6 +218,38 @@ describe("useAgentContainers", () => {
 
 		expect(watchAgentContainersSpy).not.toHaveBeenCalled();
 		expect(result.current).toBeUndefined();
+
+		watchAgentContainersSpy.mockRestore();
+	});
+
+	it("does not establish WebSocket connection when dev container feature is not enabled", async () => {
+		const watchAgentContainersSpy = jest.spyOn(API, "watchAgentContainers");
+
+		server.use(
+			http.get(
+				`/api/v2/workspaceagents/${MockWorkspaceAgent.id}/containers`,
+				() => {
+					return HttpResponse.json(
+						{ message: "Dev Container feature not enabled." },
+						{ status: 403 },
+					);
+				},
+			),
+		);
+
+		const { result } = renderHook(
+			() => useAgentContainers(MockWorkspaceAgent),
+			{
+				wrapper: createWrapper(),
+			},
+		);
+
+		// Wait for the query to complete and error to be processed
+		await waitFor(() => {
+			expect(result.current).toBeUndefined();
+		});
+
+		expect(watchAgentContainersSpy).not.toHaveBeenCalled();
 
 		watchAgentContainersSpy.mockRestore();
 	});

@@ -55,6 +55,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/archive"
 	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd"
@@ -364,6 +365,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 	connectionLogger.Store(&options.ConnectionLogger)
 
+	var buildUsageChecker atomic.Pointer[wsbuilder.UsageChecker]
+	var noopUsageChecker wsbuilder.UsageChecker = wsbuilder.NoopUsageChecker{}
+	buildUsageChecker.Store(&noopUsageChecker)
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	experiments := coderd.ReadExperiments(*options.Logger, options.DeploymentValues.Experiments)
 	lifecycleExecutor := autobuild.NewExecutor(
@@ -375,6 +380,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		&templateScheduleStore,
 		&auditor,
 		accessControlStore,
+		&buildUsageChecker,
 		*options.Logger,
 		options.AutobuildTicker,
 		options.NotificationsEnqueuer,

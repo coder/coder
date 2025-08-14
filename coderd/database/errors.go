@@ -59,6 +59,28 @@ func IsForeignKeyViolation(err error, foreignKeyConstraints ...ForeignKeyConstra
 	return false
 }
 
+// IsCheckViolation checks if the error is due to a check violation. If one or
+// more specific check constraints are given as arguments, the error must be
+// caused by one of them. If no constraints are given, this function returns
+// true for any check violation.
+func IsCheckViolation(err error, checkConstraints ...CheckConstraint) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		if pqErr.Code.Name() == "check_violation" {
+			if len(checkConstraints) == 0 {
+				return true
+			}
+			for _, cc := range checkConstraints {
+				if pqErr.Constraint == string(cc) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
 // IsQueryCanceledError checks if the error is due to a query being canceled.
 func IsQueryCanceledError(err error) bool {
 	var pqErr *pq.Error
@@ -77,5 +99,13 @@ func IsWorkspaceAgentLogsLimitError(err error) bool {
 		return pqErr.Constraint == "max_logs_length" && pqErr.Table == "workspace_agents"
 	}
 
+	return false
+}
+
+func IsProvisionerJobLogsLimitError(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return pqErr.Constraint == "max_provisioner_logs_length" && pqErr.Table == "provisioner_jobs"
+	}
 	return false
 }

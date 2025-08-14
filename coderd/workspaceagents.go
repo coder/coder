@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
+	strutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -383,6 +384,9 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// Treat the message as untrusted input.
+	cleaned := strutil.UISanitize(req.Message)
+
 	// nolint:gocritic // This is a system restricted operation.
 	_, err = api.Database.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
 		ID:          uuid.New(),
@@ -391,7 +395,7 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 		AgentID:     workspaceAgent.ID,
 		AppID:       app.ID,
 		State:       database.WorkspaceAppStatusState(req.State),
-		Message:     req.Message,
+		Message:     cleaned,
 		Uri: sql.NullString{
 			String: req.URI,
 			Valid:  req.URI != "",

@@ -1,4 +1,4 @@
-import { MissingBuildParameters } from "api/api";
+import { MissingBuildParameters, ParameterValidationError } from "api/api";
 import { isApiError } from "api/errors";
 import { type ApiError, getErrorMessage } from "api/errors";
 import {
@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { WorkspaceErrorDialog } from "../ErrorDialog/WorkspaceErrorDialog";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
@@ -192,20 +192,20 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				/>
 			) : (
 				<UpdateBuildParametersDialogExperimental
-					missedParameters={
-						changeVersionMutation.error instanceof MissingBuildParameters
-							? changeVersionMutation.error.parameters
+					validations={
+						changeVersionMutation.error instanceof ParameterValidationError
+							? changeVersionMutation.error.validations
 							: []
 					}
-					open={changeVersionMutation.error instanceof MissingBuildParameters}
+					open={changeVersionMutation.error instanceof ParameterValidationError}
 					onClose={() => {
 						changeVersionMutation.reset();
 					}}
 					workspaceOwnerName={workspace.owner_name}
 					workspaceName={workspace.name}
 					templateVersionId={
-						changeVersionMutation.error instanceof MissingBuildParameters
-							? changeVersionMutation.error?.versionId
+						changeVersionMutation.error instanceof ParameterValidationError
+							? changeVersionMutation.error.versionId
 							: undefined
 					}
 				/>

@@ -1,5 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	type Workspace,
 	type WorkspaceStatus,
@@ -12,6 +11,7 @@ import {
 import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
 import dayjs from "dayjs";
 import uniqueId from "lodash/uniqueId";
+import { expect, within } from "storybook/test";
 import {
 	MockBuildInfo,
 	MockOrganization,

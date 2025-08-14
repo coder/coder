@@ -151,7 +151,6 @@ Before completing OAuth2 or authentication feature work:
 - [ ] Update RBAC permissions for new resources
 - [ ] Add audit logging support if applicable
 - [ ] Create database migrations with proper defaults
-- [ ] Update in-memory database implementations
 - [ ] Add comprehensive test coverage including edge cases
 - [ ] Verify linting compliance
 - [ ] Test both positive and negative scenarios

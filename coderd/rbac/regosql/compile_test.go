@@ -193,9 +193,29 @@ func TestRegoQueries(t *testing.T) {
 				`"read" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
 				`"*" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
 			},
-			ExpectedSQL: "((user_acl->'d5389ccc-57a4-4b13-8c3f-31747bcdc9f1' ? 'read') OR " +
-				"(user_acl->'d5389ccc-57a4-4b13-8c3f-31747bcdc9f1' ? '*'))",
+			ExpectedSQL: "((user_acl->'d5389ccc-57a4-4b13-8c3f-31747bcdc9f1' ? 'read')" +
+				" OR (user_acl->'d5389ccc-57a4-4b13-8c3f-31747bcdc9f1' ? '*'))",
 			VariableConverter: regosql.DefaultVariableConverter(),
+		},
+		{
+			Name: "UserWorkspaceACLAllow",
+			Queries: []string{
+				`"read" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
+				`"*" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
+			},
+			ExpectedSQL: "((workspaces.user_acl#>array['d5389ccc-57a4-4b13-8c3f-31747bcdc9f1', 'permissions'] ? 'read')" +
+				" OR (workspaces.user_acl#>array['d5389ccc-57a4-4b13-8c3f-31747bcdc9f1', 'permissions'] ? '*'))",
+			VariableConverter: regosql.WorkspaceConverter(),
+		},
+		{
+			Name: "GroupWorkspaceACLAllow",
+			Queries: []string{
+				`"read" in input.object.acl_group_list["96c55a0e-73b4-44fc-abac-70d53c35c04c"]`,
+				`"*" in input.object.acl_group_list["96c55a0e-73b4-44fc-abac-70d53c35c04c"]`,
+			},
+			ExpectedSQL: "((workspaces.group_acl#>array['96c55a0e-73b4-44fc-abac-70d53c35c04c', 'permissions'] ? 'read')" +
+				" OR (workspaces.group_acl#>array['96c55a0e-73b4-44fc-abac-70d53c35c04c', 'permissions'] ? '*'))",
+			VariableConverter: regosql.WorkspaceConverter(),
 		},
 		{
 			Name: "NoACLConfig",

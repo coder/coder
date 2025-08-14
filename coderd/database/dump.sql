@@ -51,7 +51,12 @@ CREATE TYPE build_reason AS ENUM (
     'autostop',
     'dormancy',
     'failedstop',
-    'autodelete'
+    'autodelete',
+    'dashboard',
+    'cli',
+    'ssh_connection',
+    'vscode_connection',
+    'jetbrains_connection'
 );
 
 CREATE TYPE connection_status AS ENUM (
@@ -66,6 +71,11 @@ CREATE TYPE connection_type AS ENUM (
     'reconnecting_pty',
     'workspace_app',
     'port_forwarding'
+);
+
+CREATE TYPE cors_behavior AS ENUM (
+    'simple',
+    'passthru'
 );
 
 CREATE TYPE crypto_key_feature AS ENUM (
@@ -1409,10 +1419,17 @@ CASE
         WHEN (started_at IS NULL) THEN 'pending'::provisioner_job_status
         ELSE 'running'::provisioner_job_status
     END
-END) STORED NOT NULL
+END) STORED NOT NULL,
+    logs_length integer DEFAULT 0 NOT NULL,
+    logs_overflowed boolean DEFAULT false NOT NULL,
+    CONSTRAINT max_provisioner_logs_length CHECK ((logs_length <= 1048576))
 );
 
 COMMENT ON COLUMN provisioner_jobs.job_status IS 'Computed column to track the status of the job.';
+
+COMMENT ON COLUMN provisioner_jobs.logs_length IS 'Total length of provisioner logs';
+
+COMMENT ON COLUMN provisioner_jobs.logs_overflowed IS 'Whether the provisioner logs overflowed in length';
 
 CREATE TABLE provisioner_keys (
     id uuid NOT NULL,
@@ -1613,8 +1630,14 @@ CREATE TABLE template_version_presets (
     invalidate_after_secs integer DEFAULT 0,
     prebuild_status prebuild_status DEFAULT 'healthy'::prebuild_status NOT NULL,
     scheduling_timezone text DEFAULT ''::text NOT NULL,
-    is_default boolean DEFAULT false NOT NULL
+    is_default boolean DEFAULT false NOT NULL,
+    description character varying(128) DEFAULT ''::character varying NOT NULL,
+    icon character varying(256) DEFAULT ''::character varying NOT NULL
 );
+
+COMMENT ON COLUMN template_version_presets.description IS 'Short text describing the preset (max 128 characters).';
+
+COMMENT ON COLUMN template_version_presets.icon IS 'URL or path to an icon representing the preset (max 256 characters).';
 
 CREATE TABLE template_version_terraform_values (
     template_version_id uuid NOT NULL,
@@ -1739,7 +1762,8 @@ CREATE TABLE templates (
     deprecated text DEFAULT ''::text NOT NULL,
     activity_bump bigint DEFAULT '3600000000000'::bigint NOT NULL,
     max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
-    use_classic_parameter_flow boolean DEFAULT true NOT NULL
+    use_classic_parameter_flow boolean DEFAULT false NOT NULL,
+    cors_behavior cors_behavior DEFAULT 'simple'::cors_behavior NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -1792,6 +1816,7 @@ CREATE VIEW template_with_names AS
     templates.activity_bump,
     templates.max_port_sharing_level,
     templates.use_classic_parameter_flow,
+    templates.cors_behavior,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name,
@@ -1835,6 +1860,18 @@ COMMENT ON COLUMN user_links.oauth_access_token_key_id IS 'The ID of the key use
 COMMENT ON COLUMN user_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
 
 COMMENT ON COLUMN user_links.claims IS 'Claims from the IDP for the linked user. Includes both id_token and userinfo claims. ';
+
+CREATE TABLE user_secrets (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    name text NOT NULL,
+    description text NOT NULL,
+    value text NOT NULL,
+    env_name text DEFAULT ''::text NOT NULL,
+    file_path text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
 
 CREATE TABLE user_status_changes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2199,7 +2236,8 @@ CREATE TABLE workspace_builds (
     template_version_preset_id uuid,
     has_ai_task boolean,
     ai_task_sidebar_app_id uuid,
-    CONSTRAINT workspace_builds_ai_task_sidebar_app_id_required CHECK (((((has_ai_task IS NULL) OR (has_ai_task = false)) AND (ai_task_sidebar_app_id IS NULL)) OR ((has_ai_task = true) AND (ai_task_sidebar_app_id IS NOT NULL))))
+    CONSTRAINT workspace_builds_ai_task_sidebar_app_id_required CHECK (((((has_ai_task IS NULL) OR (has_ai_task = false)) AND (ai_task_sidebar_app_id IS NULL)) OR ((has_ai_task = true) AND (ai_task_sidebar_app_id IS NOT NULL)))),
+    CONSTRAINT workspace_builds_deadline_below_max_deadline CHECK ((((deadline <> '0001-01-01 00:00:00+00'::timestamp with time zone) AND (deadline <= max_deadline)) OR (max_deadline = '0001-01-01 00:00:00+00'::timestamp with time zone)))
 );
 
 CREATE VIEW workspace_build_with_user AS
@@ -2244,7 +2282,9 @@ CREATE TABLE workspaces (
     deleting_at timestamp with time zone,
     automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
     favorite boolean DEFAULT false NOT NULL,
-    next_start_at timestamp with time zone
+    next_start_at timestamp with time zone,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
@@ -2423,6 +2463,8 @@ CREATE VIEW workspaces_expanded AS
     workspaces.automatic_updates,
     workspaces.favorite,
     workspaces.next_start_at,
+    workspaces.group_acl,
+    workspaces.user_acl,
     visible_users.avatar_url AS owner_avatar_url,
     visible_users.username AS owner_username,
     visible_users.name AS owner_name,
@@ -2645,6 +2687,9 @@ ALTER TABLE ONLY user_deleted
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_pkey PRIMARY KEY (user_id, login_type);
 
+ALTER TABLE ONLY user_secrets
+    ADD CONSTRAINT user_secrets_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY user_status_changes
     ADD CONSTRAINT user_status_changes_pkey PRIMARY KEY (id);
 
@@ -2832,6 +2877,12 @@ COMMENT ON INDEX template_usage_stats_start_time_template_id_user_id_idx IS 'Ind
 CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, lower((name)::text)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX user_links_linked_id_login_type_idx ON user_links USING btree (linked_id, login_type) WHERE (linked_id <> ''::text);
+
+CREATE UNIQUE INDEX user_secrets_user_env_name_idx ON user_secrets USING btree (user_id, env_name) WHERE (env_name <> ''::text);
+
+CREATE UNIQUE INDEX user_secrets_user_file_path_idx ON user_secrets USING btree (user_id, file_path) WHERE (file_path <> ''::text);
+
+CREATE UNIQUE INDEX user_secrets_user_name_idx ON user_secrets USING btree (user_id, name);
 
 CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE (deleted = false);
 
@@ -3137,6 +3188,9 @@ ALTER TABLE ONLY user_links
 
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY user_secrets
+    ADD CONSTRAINT user_secrets_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY user_status_changes
     ADD CONSTRAINT user_status_changes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);

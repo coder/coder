@@ -77,6 +77,39 @@ func (t TemplateACL) Value() (driver.Value, error) {
 	return json.Marshal(t)
 }
 
+type WorkspaceACL map[string]WorkspaceACLEntry
+
+func (t *WorkspaceACL) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case string:
+		return json.Unmarshal([]byte(v), &t)
+	case []byte, json.RawMessage:
+		//nolint
+		return json.Unmarshal(v.([]byte), &t)
+	}
+
+	return xerrors.Errorf("unexpected type %T", src)
+}
+
+//nolint:revive
+func (w WorkspaceACL) RBACACL() map[string][]policy.Action {
+	// Convert WorkspaceACL to a map of string to []policy.Action.
+	// This is used for RBAC checks.
+	rbacACL := make(map[string][]policy.Action, len(w))
+	for id, entry := range w {
+		rbacACL[id] = entry.Permissions
+	}
+	return rbacACL
+}
+
+func (t WorkspaceACL) Value() (driver.Value, error) {
+	return json.Marshal(t)
+}
+
+type WorkspaceACLEntry struct {
+	Permissions []policy.Action `json:"permissions"`
+}
+
 type ExternalAuthProvider struct {
 	ID       string `json:"id"`
 	Optional bool   `json:"optional,omitempty"`

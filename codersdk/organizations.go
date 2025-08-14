@@ -206,6 +206,9 @@ type CreateTemplateRequest struct {
 	// true, and is why `*bool` is used here. When dynamic parameters becomes
 	// the default, this will default to false.
 	UseClassicParameterFlow *bool `json:"template_use_classic_parameter_flow,omitempty"`
+
+	// CORSBehavior allows optionally specifying the CORS behavior for all shared ports.
+	CORSBehavior *CORSBehavior `json:"cors_behavior"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
@@ -538,6 +541,7 @@ type TemplateFilter struct {
 	OrganizationID uuid.UUID `typescript:"-"`
 	ExactName      string    `typescript:"-"`
 	FuzzyName      string    `typescript:"-"`
+	AuthorUsername string    `typescript:"-"`
 	SearchQuery    string    `json:"q,omitempty"`
 }
 
@@ -559,6 +563,11 @@ func (f TemplateFilter) asRequestOption() RequestOption {
 		if f.FuzzyName != "" {
 			params = append(params, fmt.Sprintf("name:%q", f.FuzzyName))
 		}
+
+		if f.AuthorUsername != "" {
+			params = append(params, fmt.Sprintf("author:%q", f.AuthorUsername))
+		}
+
 		if f.SearchQuery != "" {
 			params = append(params, f.SearchQuery)
 		}

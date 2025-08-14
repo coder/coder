@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Abbr } from "./Abbr";
 
 const meta: Meta<typeof Abbr> = {
@@ -6,10 +6,10 @@ const meta: Meta<typeof Abbr> = {
 	component: Abbr,
 	decorators: [
 		(Story) => (
-			<>
+			<div className="max-w-prose text-base">
 				<p>Try the following text out in a screen reader!</p>
 				<Story />
-			</>
+			</div>
 		),
 	],
 };
@@ -25,10 +25,10 @@ export const InlinedShorthand: Story = {
 	},
 	decorators: [
 		(Story) => (
-			<p css={{ maxWidth: "40em" }}>
+			<p>
 				The physical pain of getting bonked on the head with a cartoon mallet
-				lasts precisely 593{" "}
-				<span css={styles.underlined}>
+				lasts precisely 593
+				<span className="underline decoration-dotted">
 					<Story />
 				</span>
 				. The emotional turmoil and complete embarrassment lasts forever.
@@ -45,7 +45,7 @@ export const Acronym: Story = {
 	},
 	decorators: [
 		(Story) => (
-			<span css={styles.underlined}>
+			<span className="underline decoration-dotted">
 				<Story />
 			</span>
 		),
@@ -60,16 +60,9 @@ export const Initialism: Story = {
 	},
 	decorators: [
 		(Story) => (
-			<span css={styles.underlined}>
+			<span className="underline decoration-dotted">
 				<Story />
 			</span>
 		),
 	],
-};
-
-const styles = {
-	// Just here to make the abbreviated part more obvious in the component library
-	underlined: {
-		textDecoration: "underline dotted",
-	},
 };

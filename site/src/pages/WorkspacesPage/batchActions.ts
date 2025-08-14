@@ -84,7 +84,7 @@ export function useBatchActions(
 	// mutation function return its own void promise
 
 	const favoriteAllMutation = useMutation({
-		mutationFn: async (workspaces: readonly Workspace[]) => {
+		mutationFn: async (workspaces: readonly Workspace[]): Promise<void> => {
 			await Promise.all(
 				workspaces
 					.filter((w) => !w.favorite)
@@ -98,7 +98,7 @@ export function useBatchActions(
 	});
 
 	const unfavoriteAllMutation = useMutation({
-		mutationFn: async (workspaces: readonly Workspace[]) => {
+		mutationFn: async (workspaces: readonly Workspace[]): Promise<void> => {
 			await Promise.all(
 				workspaces
 					.filter((w) => w.favorite)

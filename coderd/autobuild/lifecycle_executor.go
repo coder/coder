@@ -20,6 +20,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -42,6 +43,7 @@ type Executor struct {
 	templateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 	accessControlStore    *atomic.Pointer[dbauthz.AccessControlStore]
 	auditor               *atomic.Pointer[audit.Auditor]
+	buildUsageChecker     *atomic.Pointer[wsbuilder.UsageChecker]
 	log                   slog.Logger
 	tick                  <-chan time.Time
 	statsCh               chan<- Stats
@@ -65,7 +67,7 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments) *Executor {
 	factory := promauto.With(reg)
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
@@ -78,6 +80,7 @@ func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *f
 		log:                   log.Named("autobuild"),
 		auditor:               auditor,
 		accessControlStore:    acs,
+		buildUsageChecker:     buildUsageChecker,
 		notificationsEnqueuer: enqueuer,
 		reg:                   reg,
 		experiments:           exp,
@@ -105,10 +108,10 @@ func (e *Executor) WithStatsChannel(ch chan<- Stats) *Executor {
 // tick from its channel. It will stop when its context is Done, or when
 // its channel is closed.
 func (e *Executor) Run() {
-	go func() {
+	pproflabel.Go(e.ctx, pproflabel.Service(pproflabel.ServiceLifecycles), func(ctx context.Context) {
 		for {
 			select {
-			case <-e.ctx.Done():
+			case <-ctx.Done():
 				return
 			case t, ok := <-e.tick:
 				if !ok {
@@ -118,15 +121,15 @@ func (e *Executor) Run() {
 				e.metrics.autobuildExecutionDuration.Observe(stats.Elapsed.Seconds())
 				if e.statsCh != nil {
 					select {
-					case <-e.ctx.Done():
+					case <-ctx.Done():
 						return
 					case e.statsCh <- stats:
 					}
 				}
-				e.log.Debug(e.ctx, "run stats", slog.F("elapsed", stats.Elapsed), slog.F("transitions", stats.Transitions))
+				e.log.Debug(ctx, "run stats", slog.F("elapsed", stats.Elapsed), slog.F("transitions", stats.Transitions))
 			}
 		}
-	}()
+	})
 }
 
 func (e *Executor) runOnce(t time.Time) Stats {
@@ -279,7 +282,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 
 					if nextTransition != "" {
-						builder := wsbuilder.New(ws, nextTransition).
+						builder := wsbuilder.New(ws, nextTransition, *e.buildUsageChecker.Load()).
 							SetLastWorkspaceBuildInTx(&latestBuild).
 							SetLastWorkspaceBuildJobInTx(&latestJob).
 							Experiments(e.experiments).

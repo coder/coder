@@ -28,13 +28,15 @@ export function usePagination(
 		offset: Math.max(0, (page - 1) * limit),
 		goToPage: (newPage) => {
 			const abortNavigation =
-				page === newPage || !Number.isFinite(page) || !Number.isInteger(page);
+				page === newPage ||
+				!Number.isFinite(newPage) ||
+				!Number.isInteger(newPage);
 			if (abortNavigation) {
 				return;
 			}
 
 			const copy = new URLSearchParams(searchParams);
-			copy.set("page", page.toString());
+			copy.set("page", newPage.toString());
 			onSearchParamsChange(copy);
 		},
 	};

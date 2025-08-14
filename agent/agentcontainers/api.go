@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"net/http"
 	"os"
@@ -20,10 +21,13 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/google/uuid"
+	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/agent/agentcontainers/ignore"
 	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/usershell"
@@ -56,10 +60,12 @@ type API struct {
 	cancel                      context.CancelFunc
 	watcherDone                 chan struct{}
 	updaterDone                 chan struct{}
+	discoverDone                chan struct{}
 	updateTrigger               chan chan error // Channel to trigger manual refresh.
 	updateInterval              time.Duration   // Interval for periodic container updates.
 	logger                      slog.Logger
 	watcher                     watcher.Watcher
+	fs                          afero.Fs
 	execer                      agentexec.Execer
 	commandEnv                  CommandEnv
 	ccli                        ContainerCLI
@@ -71,9 +77,13 @@ type API struct {
 	subAgentURL                 string
 	subAgentEnv                 []string
 
-	ownerName     string
-	workspaceName string
-	parentAgent   string
+	projectDiscovery   bool // If we should perform project discovery or not.
+	discoveryAutostart bool // If we should autostart discovered projects.
+
+	ownerName      string
+	workspaceName  string
+	parentAgent    string
+	agentDirectory string
 
 	mu                       sync.RWMutex  // Protects the following fields.
 	initDone                 chan struct{} // Closed by Init.
@@ -134,7 +144,9 @@ func WithCommandEnv(ce CommandEnv) Option {
 					strings.HasPrefix(s, "CODER_WORKSPACE_AGENT_URL=") ||
 					strings.HasPrefix(s, "CODER_AGENT_TOKEN=") ||
 					strings.HasPrefix(s, "CODER_AGENT_AUTH=") ||
-					strings.HasPrefix(s, "CODER_AGENT_DEVCONTAINERS_ENABLE=")
+					strings.HasPrefix(s, "CODER_AGENT_DEVCONTAINERS_ENABLE=") ||
+					strings.HasPrefix(s, "CODER_AGENT_DEVCONTAINERS_PROJECT_DISCOVERY_ENABLE=") ||
+					strings.HasPrefix(s, "CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE=")
 			})
 			return shell, dir, env, nil
 		}
@@ -151,8 +163,8 @@ func WithContainerCLI(ccli ContainerCLI) Option {
 
 // WithContainerLabelIncludeFilter sets a label filter for containers.
 // This option can be given multiple times to filter by multiple labels.
-// The behavior is such that only containers matching one or more of the
-// provided labels will be included.
+// The behavior is such that only containers matching all of the provided
+// labels will be included.
 func WithContainerLabelIncludeFilter(label, value string) Option {
 	return func(api *API) {
 		api.containerLabelIncludeFilter[label] = value
@@ -192,11 +204,12 @@ func WithSubAgentEnv(env ...string) Option {
 
 // WithManifestInfo sets the owner name, and workspace name
 // for the sub-agent.
-func WithManifestInfo(owner, workspace, parentAgent string) Option {
+func WithManifestInfo(owner, workspace, parentAgent, agentDirectory string) Option {
 	return func(api *API) {
 		api.ownerName = owner
 		api.workspaceName = workspace
 		api.parentAgent = parentAgent
+		api.agentDirectory = agentDirectory
 	}
 }
 
@@ -258,6 +271,29 @@ func WithDevcontainers(devcontainers []codersdk.WorkspaceAgentDevcontainer, scri
 func WithWatcher(w watcher.Watcher) Option {
 	return func(api *API) {
 		api.watcher = w
+	}
+}
+
+// WithFileSystem sets the file system used for discovering projects.
+func WithFileSystem(fileSystem afero.Fs) Option {
+	return func(api *API) {
+		api.fs = fileSystem
+	}
+}
+
+// WithProjectDiscovery sets if the API should attempt to discover
+// projects on the filesystem.
+func WithProjectDiscovery(projectDiscovery bool) Option {
+	return func(api *API) {
+		api.projectDiscovery = projectDiscovery
+	}
+}
+
+// WithDiscoveryAutostart sets if the API should attempt to autostart
+// projects that have been discovered
+func WithDiscoveryAutostart(discoveryAutostart bool) Option {
+	return func(api *API) {
+		api.discoveryAutostart = discoveryAutostart
 	}
 }
 
@@ -331,6 +367,9 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 			api.watcher = watcher.NewNoop()
 		}
 	}
+	if api.fs == nil {
+		api.fs = afero.NewOsFs()
+	}
 	if api.subAgentClient.Load() == nil {
 		var c SubAgentClient = noopSubAgentClient{}
 		api.subAgentClient.Store(&c)
@@ -372,11 +411,173 @@ func (api *API) Start() {
 		return
 	}
 
+	if api.projectDiscovery && api.agentDirectory != "" {
+		api.discoverDone = make(chan struct{})
+
+		go api.discover()
+	}
+
 	api.watcherDone = make(chan struct{})
 	api.updaterDone = make(chan struct{})
 
 	go api.watcherLoop()
 	go api.updaterLoop()
+}
+
+func (api *API) discover() {
+	defer close(api.discoverDone)
+	defer api.logger.Debug(api.ctx, "project discovery finished")
+	api.logger.Debug(api.ctx, "project discovery started")
+
+	if err := api.discoverDevcontainerProjects(); err != nil {
+		api.logger.Error(api.ctx, "discovering dev container projects", slog.Error(err))
+	}
+
+	if err := api.RefreshContainers(api.ctx); err != nil {
+		api.logger.Error(api.ctx, "refreshing containers after discovery", slog.Error(err))
+	}
+}
+
+func (api *API) discoverDevcontainerProjects() error {
+	isGitProject, err := afero.DirExists(api.fs, filepath.Join(api.agentDirectory, ".git"))
+	if err != nil {
+		return xerrors.Errorf(".git dir exists: %w", err)
+	}
+
+	// If the agent directory is a git project, we'll search
+	// the project for any `.devcontainer/devcontainer.json`
+	// files.
+	if isGitProject {
+		return api.discoverDevcontainersInProject(api.agentDirectory)
+	}
+
+	// The agent directory is _not_ a git project, so we'll
+	// search the top level of the agent directory for any
+	// git projects, and search those.
+	entries, err := afero.ReadDir(api.fs, api.agentDirectory)
+	if err != nil {
+		return xerrors.Errorf("read agent directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		isGitProject, err = afero.DirExists(api.fs, filepath.Join(api.agentDirectory, entry.Name(), ".git"))
+		if err != nil {
+			return xerrors.Errorf(".git dir exists: %w", err)
+		}
+
+		// If this directory is a git project, we'll search
+		// it for any `.devcontainer/devcontainer.json` files.
+		if isGitProject {
+			if err := api.discoverDevcontainersInProject(filepath.Join(api.agentDirectory, entry.Name())); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (api *API) discoverDevcontainersInProject(projectPath string) error {
+	logger := api.logger.
+		Named("project-discovery").
+		With(slog.F("project_path", projectPath))
+
+	globalPatterns, err := ignore.LoadGlobalPatterns(api.fs)
+	if err != nil {
+		return xerrors.Errorf("read global git ignore patterns: %w", err)
+	}
+
+	patterns, err := ignore.ReadPatterns(api.ctx, logger, api.fs, projectPath)
+	if err != nil {
+		return xerrors.Errorf("read git ignore patterns: %w", err)
+	}
+
+	matcher := gitignore.NewMatcher(append(globalPatterns, patterns...))
+
+	devcontainerConfigPaths := []string{
+		"/.devcontainer/devcontainer.json",
+		"/.devcontainer.json",
+	}
+
+	return afero.Walk(api.fs, projectPath, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			logger.Error(api.ctx, "encountered error while walking for dev container projects",
+				slog.F("path", path),
+				slog.Error(err))
+			return nil
+		}
+
+		pathParts := ignore.FilePathToParts(path)
+
+		// We know that a directory entry cannot be a `devcontainer.json` file, so we
+		// always skip processing directories. If the directory happens to be ignored
+		// by git then we'll make sure to ignore all of the children of that directory.
+		if info.IsDir() {
+			if matcher.Match(pathParts, true) {
+				return fs.SkipDir
+			}
+
+			return nil
+		}
+
+		if matcher.Match(pathParts, false) {
+			return nil
+		}
+
+		for _, relativeConfigPath := range devcontainerConfigPaths {
+			if !strings.HasSuffix(path, relativeConfigPath) {
+				continue
+			}
+
+			workspaceFolder := strings.TrimSuffix(path, relativeConfigPath)
+
+			logger := logger.With(slog.F("workspace_folder", workspaceFolder))
+			logger.Debug(api.ctx, "discovered dev container project")
+
+			api.mu.Lock()
+			if _, found := api.knownDevcontainers[workspaceFolder]; !found {
+				logger.Debug(api.ctx, "adding dev container project")
+
+				dc := codersdk.WorkspaceAgentDevcontainer{
+					ID:              uuid.New(),
+					Name:            "", // Updated later based on container state.
+					WorkspaceFolder: workspaceFolder,
+					ConfigPath:      path,
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+					Dirty:           false, // Updated later based on config file changes.
+					Container:       nil,
+				}
+
+				if api.discoveryAutostart {
+					config, err := api.dccli.ReadConfig(api.ctx, workspaceFolder, path, []string{})
+					if err != nil {
+						logger.Error(api.ctx, "read project configuration", slog.Error(err))
+					} else if config.Configuration.Customizations.Coder.AutoStart {
+						dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
+					}
+				}
+
+				api.knownDevcontainers[workspaceFolder] = dc
+				api.broadcastUpdatesLocked()
+
+				if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting {
+					api.asyncWg.Add(1)
+					go func() {
+						defer api.asyncWg.Done()
+
+						_ = api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath)
+					}()
+				}
+			}
+			api.mu.Unlock()
+		}
+
+		return nil
+	})
 }
 
 func (api *API) watcherLoop() {
@@ -738,17 +939,22 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 			slog.F("config_file", configFile),
 		)
 
+		// If we haven't set any include filters, we should explicitly ignore test devcontainers.
+		if len(api.containerLabelIncludeFilter) == 0 && container.Labels[DevcontainerIsTestRunLabel] == "true" {
+			continue
+		}
+
 		// Filter out devcontainer tests, unless explicitly set in include filters.
-		if len(api.containerLabelIncludeFilter) > 0 || container.Labels[DevcontainerIsTestRunLabel] == "true" {
-			var ok bool
+		if len(api.containerLabelIncludeFilter) > 0 {
+			includeContainer := true
 			for label, value := range api.containerLabelIncludeFilter {
-				if v, found := container.Labels[label]; found && v == value {
-					ok = true
-				}
+				v, found := container.Labels[label]
+
+				includeContainer = includeContainer && (found && v == value)
 			}
 			// Verbose debug logging is fine here since typically filters
 			// are only used in development or testing environments.
-			if !ok {
+			if !includeContainer {
 				logger.Debug(ctx, "container does not match include filter, ignoring devcontainer", slog.F("container_labels", container.Labels), slog.F("include_filter", api.containerLabelIncludeFilter))
 				continue
 			}
@@ -1807,6 +2013,9 @@ func (api *API) Close() error {
 	}
 	if api.updaterDone != nil {
 		<-api.updaterDone
+	}
+	if api.discoverDone != nil {
+		<-api.discoverDone
 	}
 
 	// Wait for all async tasks to complete.

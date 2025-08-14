@@ -6,7 +6,7 @@ import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
-import { SelectFilter } from "components/Filter/SelectFilter";
+import { Combobox } from "components/Combobox/Combobox";
 import {
 	FormFields,
 	FormFooter,
@@ -27,8 +27,12 @@ import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
+import { ExternalLinkIcon } from "lucide-react";
+import { linkToTemplate, useLinks } from "modules/navigation";
+import { ClassicParameterFlowDeprecationWarning } from "modules/workspaces/ClassicParameterFlowDeprecationWarning/ClassicParameterFlowDeprecationWarning";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { type FC, useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router";
 import {
 	getFormHelpers,
 	nameValidator,
@@ -66,7 +70,9 @@ interface CreateWorkspacePageViewProps {
 	autofillParameters: AutofillBuildParameter[];
 	presets: TypesGen.Preset[];
 	permissions: CreateWorkspacePermissions;
+	templatePermissions: { canUpdateTemplate: boolean };
 	creatingWorkspace: boolean;
+	canUpdateTemplate?: boolean;
 	onCancel: () => void;
 	onSubmit: (
 		req: TypesGen.CreateWorkspaceRequest,
@@ -91,10 +97,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	autofillParameters,
 	presets = [],
 	permissions,
+	templatePermissions,
 	creatingWorkspace,
+	canUpdateTemplate,
 	onSubmit,
 	onCancel,
 }) => {
+	const getLink = useLinks();
 	const [owner, setOwner] = useState(defaultOwner);
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
@@ -149,16 +158,18 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	);
 
 	const [presetOptions, setPresetOptions] = useState([
-		{ label: "None", value: "" },
+		{ displayName: "None", value: "undefined", icon: "", description: "" },
 	]);
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
 	// Build options and keep default label/value in sync
 	useEffect(() => {
 		const options = [
-			{ label: "None", value: "" },
-			...presets.map((p) => ({
-				label: p.Default ? `${p.Name} (Default)` : p.Name,
-				value: p.ID,
+			{ displayName: "None", value: "undefined", icon: "", description: "" },
+			...presets.map((preset) => ({
+				displayName: preset.Default ? `${preset.Name} (Default)` : preset.Name,
+				value: preset.ID,
+				icon: preset.Icon,
+				description: preset.Description,
 			})),
 		];
 		setPresetOptions(options);
@@ -218,9 +229,21 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		<Margins size="medium">
 			<PageHeader
 				actions={
-					<Button size="sm" variant="outline" onClick={onCancel}>
-						Cancel
-					</Button>
+					<Stack direction="row" spacing={2}>
+						{canUpdateTemplate && (
+							<Button asChild size="sm" variant="outline">
+								<Link
+									to={`/templates/${template.organization_name}/${template.name}/versions/${versionId}/edit`}
+								>
+									<ExternalLinkIcon />
+									View source
+								</Link>
+							</Button>
+						)}
+						<Button size="sm" variant="outline" onClick={onCancel}>
+							Cancel
+						</Button>
+					</Stack>
 				}
 			>
 				<Stack direction="row">
@@ -244,6 +267,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					{template.deprecated && <Pill type="warning">Deprecated</Pill>}
 				</Stack>
 			</PageHeader>
+
+			<ClassicParameterFlowDeprecationWarning
+				templateSettingsLink={`${getLink(
+					linkToTemplate(template.organization_name, template.name),
+				)}/settings`}
+				isEnabled={templatePermissions.canUpdateTemplate}
+			/>
 
 			<HorizontalForm
 				name="create-workspace-form"
@@ -364,12 +394,15 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 									</Stack>
 									<Stack direction="column" spacing={2}>
 										<Stack direction="row" spacing={2}>
-											<SelectFilter
-												label="Preset"
+											<Combobox
+												value={
+													presetOptions[selectedPresetIndex]?.displayName || ""
+												}
 												options={presetOptions}
-												onSelect={(option) => {
+												placeholder="Select a preset"
+												onSelect={(value) => {
 													const index = presetOptions.findIndex(
-														(preset) => preset.value === option?.value,
+														(preset) => preset.value === value,
 													);
 													if (index === -1) {
 														return;
@@ -377,12 +410,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 													setSelectedPresetIndex(index);
 													form.setFieldValue(
 														"template_version_preset_id",
-														// Empty string is equivalent to using None
-														option?.value === "" ? undefined : option?.value,
+														// "undefined" string is equivalent to using None option
+														// Combobox requires a value in order to correctly highlight the None option
+														presetOptions[index].value === "undefined"
+															? undefined
+															: presetOptions[index].value,
 													);
 												}}
-												placeholder="Select a preset"
-												selectedOption={presetOptions[selectedPresetIndex]}
 											/>
 										</Stack>
 										{/* Only show the preset parameter visibility toggle if preset parameters are actually being modified, otherwise it has no effect. */}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/apiversion"
@@ -41,9 +42,10 @@ type loader struct {
 	templateVersionID uuid.UUID
 
 	// cache of objects
-	templateVersion *database.TemplateVersion
-	job             *database.ProvisionerJob
-	terraformValues *database.TemplateVersionTerraformValue
+	templateVersion        *database.TemplateVersion
+	job                    *database.ProvisionerJob
+	terraformValues        *database.TemplateVersionTerraformValue
+	templateVariableValues *[]database.TemplateVersionVariable
 }
 
 // Prepare is the entrypoint for this package. It loads the necessary objects &
@@ -59,6 +61,12 @@ func Prepare(ctx context.Context, db database.Store, cache files.FileAcquirer, v
 	}
 
 	return l.Renderer(ctx, db, cache)
+}
+
+func WithTemplateVariableValues(vals []database.TemplateVersionVariable) func(r *loader) {
+	return func(r *loader) {
+		r.templateVariableValues = &vals
+	}
 }
 
 func WithTemplateVersion(tv database.TemplateVersion) func(r *loader) {
@@ -127,6 +135,14 @@ func (r *loader) loadData(ctx context.Context, db database.Store) error {
 		r.terraformValues = &values
 	}
 
+	if r.templateVariableValues == nil {
+		vals, err := db.GetTemplateVersionVariables(ctx, r.templateVersion.ID)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("template version variables: %w", err)
+		}
+		r.templateVariableValues = &vals
+	}
+
 	return nil
 }
 
@@ -160,13 +176,17 @@ func (r *loader) dynamicRenderer(ctx context.Context, db database.Store, cache *
 		}
 	}()
 
+	tfVarValues, err := VariableValues(*r.templateVariableValues)
+	if err != nil {
+		return nil, xerrors.Errorf("parse variable values: %w", err)
+	}
+
 	// If they can read the template version, then they can read the file for
 	// parameter loading purposes.
 	//nolint:gocritic
 	fileCtx := dbauthz.AsFileReader(ctx)
 
 	var templateFS fs.FS
-	var err error
 
 	templateFS, err = cache.Acquire(fileCtx, db, r.job.FileID)
 	if err != nil {
@@ -189,6 +209,7 @@ func (r *loader) dynamicRenderer(ctx context.Context, db database.Store, cache *
 		db:          db,
 		ownerErrors: make(map[uuid.UUID]error),
 		close:       cache.Close,
+		tfvarValues: tfVarValues,
 	}, nil
 }
 
@@ -199,6 +220,7 @@ type dynamicRenderer struct {
 
 	ownerErrors  map[uuid.UUID]error
 	currentOwner *previewtypes.WorkspaceOwner
+	tfvarValues  map[string]cty.Value
 
 	once  sync.Once
 	close func()
@@ -229,6 +251,7 @@ func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values 
 		PlanJSON:        r.data.terraformValues.CachedPlan,
 		ParameterValues: values,
 		Owner:           *r.currentOwner,
+		TFVars:          r.tfvarValues,
 		// Do not emit parser logs to coderd output logs.
 		// TODO: Returning this logs in the output would benefit the caller.
 		//  Unsure how large the logs can be, so for now we just discard them.

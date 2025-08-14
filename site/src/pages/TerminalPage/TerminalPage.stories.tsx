@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { getAuthorizationKey } from "api/queries/authCheck";
 import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
 import type { Workspace, WorkspaceAgentLifecycle } from "api/typesGenerated";
