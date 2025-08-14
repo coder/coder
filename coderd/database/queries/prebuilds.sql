@@ -2,7 +2,20 @@
 UPDATE workspaces w
 SET owner_id   = @new_user_id::uuid,
 	name       = @new_name::text,
-	updated_at = NOW()
+	updated_at = @now::timestamptz,
+	-- Update autostart_schedule, next_start_at and ttl according to template and workspace-level
+	-- configurations, allowing the workspace to be managed by the lifecycle executor as expected.
+	autostart_schedule = @autostart_schedule,
+	next_start_at = @next_start_at,
+	ttl = @workspace_ttl,
+	-- Update last_used_at during claim to ensure the claimed workspace is treated as recently used.
+	-- This avoids unintended dormancy caused by prebuilds having stale usage timestamps.
+	last_used_at = @now::timestamptz,
+	-- Clear dormant and deletion timestamps as a safeguard to ensure a clean lifecycle state after claim.
+	-- These fields should not be set on prebuilds, but we defensively reset them here to prevent
+	-- accidental dormancy or deletion by the lifecycle executor.
+	dormant_at = NULL,
+	deleting_at = NULL
 WHERE w.id IN (
 	SELECT p.id
 	FROM workspace_prebuilds p

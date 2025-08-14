@@ -453,6 +453,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 		case "dropdown": {
 			return (
 				<Combobox
+					id={id}
 					value={value ?? ""}
 					onSelect={(value) => onChange(value)}
 					options={parameter.options.map((option) => ({
@@ -497,7 +498,10 @@ const ParameterField: FC<ParameterFieldProps> = ({
 
 			return (
 				<MultiSelectCombobox
-					inputProps={{ id }}
+					inputProps={{
+						id: id,
+					}}
+					data-testid={`multiselect-${parameter.name}`}
 					options={options}
 					defaultOptions={selectedOptions}
 					onChange={(newValues) => {

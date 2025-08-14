@@ -6,7 +6,7 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
 
@@ -14,10 +14,11 @@ const TemplatesPage: FC = () => {
 	const { permissions, user: me } = useAuthenticated();
 	const { showOrganizations } = useDashboard();
 
-	const searchParamsResult = useSearchParams();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const filter = useFilter({
 		fallbackFilter: "deprecated:false",
-		searchParamsResult,
+		searchParams,
+		onSearchParamsChange: setSearchParams,
 		onUpdate: () => {}, // reset pagination
 	});
 

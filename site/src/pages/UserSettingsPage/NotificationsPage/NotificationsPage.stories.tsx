@@ -1,5 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, spyOn, userEvent, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import {
 	notificationDispatchMethodsKey,
@@ -7,6 +6,7 @@ import {
 	userNotificationPreferencesKey,
 } from "api/queries/notifications";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { expect, spyOn, userEvent, within } from "storybook/test";
 import {
 	MockNotificationMethodsResponse,
 	MockNotificationPreferences,

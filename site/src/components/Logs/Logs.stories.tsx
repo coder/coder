@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { chromatic } from "testHelpers/chromatic";
 import { MockWorkspaceBuildLogs } from "testHelpers/entities";
 import type { Line } from "./LogLine";

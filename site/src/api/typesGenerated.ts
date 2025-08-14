@@ -476,6 +476,14 @@ export interface CreateProvisionerKeyResponse {
 	readonly key: string;
 }
 
+// From codersdk/aitasks.go
+export interface CreateTaskRequest {
+	readonly name: string;
+	readonly template_version_id: string;
+	readonly template_version_preset_id?: string;
+	readonly prompt: string;
+}
+
 // From codersdk/organizations.go
 export interface CreateTemplateRequest {
 	readonly name: string;
@@ -2386,6 +2394,7 @@ export type RBACResource =
 	| "tailnet_coordinator"
 	| "template"
 	| "user"
+	| "user_secret"
 	| "webpush_subscription"
 	| "*"
 	| "workspace"
@@ -2426,6 +2435,7 @@ export const RBACResources: RBACResource[] = [
 	"tailnet_coordinator",
 	"template",
 	"user",
+	"user_secret",
 	"webpush_subscription",
 	"*",
 	"workspace",

@@ -1317,7 +1317,7 @@ func TestExecutorPrebuilds(t *testing.T) {
 		}()
 
 		// Then: the prebuilt workspace should remain in a start transition
-		prebuildStats := <-statsCh
+		prebuildStats := testutil.RequireReceive(ctx, t, statsCh)
 		require.Len(t, prebuildStats.Errors, 0)
 		require.Len(t, prebuildStats.Transitions, 0)
 		require.Equal(t, codersdk.WorkspaceTransitionStart, prebuild.LatestBuild.Transition)
@@ -1325,7 +1325,15 @@ func TestExecutorPrebuilds(t *testing.T) {
 		require.Equal(t, codersdk.BuildReasonInitiator, prebuild.LatestBuild.Reason)
 
 		// Given: a user claims the prebuilt workspace
-		dbWorkspace := dbgen.ClaimPrebuild(t, db, user.ID, "claimedWorkspace-autostop", preset.ID)
+		dbWorkspace := dbgen.ClaimPrebuild(
+			t, db,
+			clock.Now(),
+			user.ID,
+			"claimedWorkspace-autostop",
+			preset.ID,
+			sql.NullString{},
+			sql.NullTime{},
+			sql.NullInt64{})
 		workspace := coderdtest.MustWorkspace(t, client, dbWorkspace.ID)
 
 		// When: the autobuild executor ticks *after* the deadline:
@@ -1337,7 +1345,7 @@ func TestExecutorPrebuilds(t *testing.T) {
 		}()
 
 		// Then: the workspace should be stopped
-		workspaceStats := <-statsCh
+		workspaceStats := testutil.RequireReceive(ctx, t, statsCh)
 		require.Len(t, workspaceStats.Errors, 0)
 		require.Len(t, workspaceStats.Transitions, 1)
 		require.Contains(t, workspaceStats.Transitions, workspace.ID)
@@ -1404,7 +1412,7 @@ func TestExecutorPrebuilds(t *testing.T) {
 		}()
 
 		// Then: the prebuilt workspace should remain in a stop transition
-		prebuildStats := <-statsCh
+		prebuildStats := testutil.RequireReceive(ctx, t, statsCh)
 		require.Len(t, prebuildStats.Errors, 0)
 		require.Len(t, prebuildStats.Transitions, 0)
 		require.Equal(t, codersdk.WorkspaceTransitionStop, prebuild.LatestBuild.Transition)
@@ -1421,7 +1429,15 @@ func TestExecutorPrebuilds(t *testing.T) {
 			database.WorkspaceTransitionStart)
 
 		// Given: a user claims the prebuilt workspace
-		dbWorkspace := dbgen.ClaimPrebuild(t, db, user.ID, "claimedWorkspace-autostart", preset.ID)
+		dbWorkspace := dbgen.ClaimPrebuild(
+			t, db,
+			clock.Now(),
+			user.ID,
+			"claimedWorkspace-autostart",
+			preset.ID,
+			autostartSched,
+			sql.NullTime{},
+			sql.NullInt64{})
 		workspace := coderdtest.MustWorkspace(t, client, dbWorkspace.ID)
 
 		// Given: the prebuilt workspace goes to a stop status
@@ -1442,7 +1458,7 @@ func TestExecutorPrebuilds(t *testing.T) {
 		}()
 
 		// Then: the workspace should eventually be started
-		workspaceStats := <-statsCh
+		workspaceStats := testutil.RequireReceive(ctx, t, statsCh)
 		require.Len(t, workspaceStats.Errors, 0)
 		require.Len(t, workspaceStats.Transitions, 1)
 		require.Contains(t, workspaceStats.Transitions, workspace.ID)
@@ -1554,8 +1570,8 @@ func setupTestDBWorkspaceBuild(
 		Architecture:    "i386",
 		OperatingSystem: "linux",
 		LifecycleState:  database.WorkspaceAgentLifecycleStateReady,
-		StartedAt:       sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
-		ReadyAt:         sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
+		StartedAt:       sql.NullTime{Time: clock.Now().Add(time.Hour), Valid: true},
+		ReadyAt:         sql.NullTime{Time: clock.Now().Add(-1 * time.Hour), Valid: true},
 		APIKeyScope:     database.AgentKeyScopeEnumAll,
 	})
 
@@ -1592,8 +1608,9 @@ func setupTestDBPrebuiltWorkspace(
 		OrganizationID:    orgID,
 		OwnerID:           database.PrebuildsSystemUserID,
 		Deleted:           false,
-		CreatedAt:         time.Now().Add(-time.Hour * 2),
+		CreatedAt:         clock.Now().Add(-time.Hour * 2),
 		AutostartSchedule: options.AutostartSchedule,
+		LastUsedAt:        clock.Now(),
 	})
 	setupTestDBWorkspaceBuild(ctx, t, clock, db, ps, orgID, workspace.ID, templateVersionID, presetID, buildTransition)
 

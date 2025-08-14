@@ -9,8 +9,8 @@
  * @typedef {import("react").PropsWithChildren} PropsWithChildren
  * @typedef {import("react").FC<PropsWithChildren>} FC
  *
- * @typedef {import("@storybook/react").StoryContext} StoryContext
- * @typedef {import("@storybook/react").Preview} Preview
+ * @typedef {import("@storybook/react-vite").StoryContext} StoryContext
+ * @typedef {import("@storybook/react-vite").Preview} Preview
  *
  * @typedef {(Story: FC, Context: StoryContext) => React.JSX.Element} Decorator A
  * Storybook decorator function used to inject baseline data dependencies into
@@ -101,6 +101,13 @@ function withHelmet(Story) {
 	);
 }
 
+/**
+ * This JSX file isn't part of the main project, so it doesn't get to use the
+ * ambient types defined in `storybook.d.ts` to provide extra type-safety.
+ * Extracting main key to avoid typos.
+ */
+const queryParametersKey = "queries";
+
 /** @type {Decorator} */
 function withQuery(Story, { parameters }) {
 	const queryClient = new QueryClient({
@@ -112,8 +119,8 @@ function withQuery(Story, { parameters }) {
 		},
 	});
 
-	if (parameters.queries) {
-		for (const query of parameters.queries) {
+	if (parameters[queryParametersKey]) {
+		for (const query of parameters[queryParametersKey]) {
 			queryClient.setQueryData(query.key, query.data);
 		}
 	}

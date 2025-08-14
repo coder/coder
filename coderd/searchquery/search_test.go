@@ -640,6 +640,7 @@ func TestSearchUsers(t *testing.T) {
 
 func TestSearchTemplates(t *testing.T) {
 	t.Parallel()
+	userID := uuid.New()
 	testCases := []struct {
 		Name                  string
 		Query                 string
@@ -688,6 +689,14 @@ func TestSearchTemplates(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name:  "MyTemplates",
+			Query: "author:me",
+			Expected: database.GetTemplatesWithFilterParams{
+				AuthorUsername: "",
+				AuthorID:       userID,
+			},
+		},
 	}
 
 	for _, c := range testCases {
@@ -696,7 +705,7 @@ func TestSearchTemplates(t *testing.T) {
 			// Do not use a real database, this is only used for an
 			// organization lookup.
 			db, _ := dbtestutil.NewDB(t)
-			values, errs := searchquery.Templates(context.Background(), db, c.Query)
+			values, errs := searchquery.Templates(context.Background(), db, userID, c.Query)
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
