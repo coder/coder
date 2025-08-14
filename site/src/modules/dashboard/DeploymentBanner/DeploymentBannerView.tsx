@@ -105,6 +105,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 
 	return (
 		<div
+			className="w-full"
 			css={{
 				position: "sticky",
 				lineHeight: 1,
