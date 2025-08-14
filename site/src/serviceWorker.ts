@@ -2,7 +2,6 @@
 
 import type { WebpushMessage } from "api/typesGenerated";
 
-// @ts-expect-error
 declare const self: ServiceWorkerGlobalScope;
 
 self.addEventListener("install", (_event) => {
