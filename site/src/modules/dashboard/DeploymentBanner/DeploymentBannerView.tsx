@@ -1,5 +1,5 @@
 import type { CSSInterpolation } from "@emotion/css/dist/declarations/src/create-instance";
-import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
+import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
@@ -16,13 +16,16 @@ import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import { type ClassName, useClassName } from "hooks/useClassName";
-import { CloudDownloadIcon } from "lucide-react";
-import { CloudUploadIcon } from "lucide-react";
-import { GitCompareArrowsIcon } from "lucide-react";
-import { GaugeIcon } from "lucide-react";
-import { AppWindowIcon } from "lucide-react";
-import { RotateCwIcon, WrenchIcon } from "lucide-react";
-import { CircleAlertIcon } from "lucide-react";
+import {
+	AppWindowIcon,
+	CircleAlertIcon,
+	CloudDownloadIcon,
+	CloudUploadIcon,
+	GaugeIcon,
+	GitCompareArrowsIcon,
+	RotateCwIcon,
+	WrenchIcon,
+} from "lucide-react";
 import prettyBytes from "pretty-bytes";
 import {
 	type FC,
@@ -139,7 +142,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 							</Stack>
 						</>
 					) : (
-						<>Status of your Coder deployment. Only visible for admins!</>
+						"Status of your Coder deployment. Only visible for admins!"
 					)
 				}
 				open={process.env.STORYBOOK === "true" ? true : undefined}

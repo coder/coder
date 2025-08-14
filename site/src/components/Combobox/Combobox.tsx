@@ -18,8 +18,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { Check, ChevronDown, CornerDownLeft } from "lucide-react";
-import { Info } from "lucide-react";
+import { Check, ChevronDown, CornerDownLeft, Info } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useState } from "react";
 import { cn } from "utils/cn";
 import { ExternalImage } from "../ExternalImage/ExternalImage";

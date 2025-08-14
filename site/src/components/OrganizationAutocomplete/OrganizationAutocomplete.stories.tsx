@@ -1,11 +1,11 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { action } from "storybook/actions";
-import { userEvent, within } from "storybook/test";
 import {
 	MockOrganization,
 	MockOrganization2,
 	MockUserOwner,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { action } from "storybook/actions";
+import { userEvent, within } from "storybook/test";
 import { OrganizationAutocomplete } from "./OrganizationAutocomplete";
 
 const meta: Meta<typeof OrganizationAutocomplete> = {

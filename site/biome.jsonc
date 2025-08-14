@@ -1,36 +1,44 @@
 {
 	"vcs": {
 		"enabled": true,
-		"useIgnoreFile": true,
 		"clientKind": "git",
 		"root": ".."
 	},
 	"files": {
-		"ignore": ["e2e/**/*Generated.ts", "pnpm-lock.yaml"],
+		"includes": ["**", "!**/e2e/**/*Generated.ts", "!**/pnpm-lock.yaml"],
 		"ignoreUnknown": true
 	},
 	"linter": {
 		"rules": {
 			"a11y": {
-				"noSvgWithoutTitle": { "level": "off" },
-				"useButtonType": { "level": "off" },
-				"useSemanticElements": { "level": "off" }
+				"noSvgWithoutTitle": "off",
+				"useButtonType": "off",
+				"useSemanticElements": "off",
+				"noStaticElementInteractions": "off"
 			},
 			"correctness": {
-				"noUnusedImports": "warn"
+				"noUnusedImports": "warn",
+				"useUniqueElementIds": "off", // TODO: This is new but we want to fix it
+				"noNestedComponentDefinitions": "off", // TODO: Investigate, since it is used by shadcn components
+				"noUnusedVariables": {
+					"level": "warn",
+					"options": {
+						"ignoreRestSiblings": true
+					}
+				}
 			},
 			"style": {
-				"noNonNullAssertion": { "level": "off" },
-				"noParameterAssign": { "level": "off" },
-				"useDefaultParameterLast": { "level": "off" },
-				"useSelfClosingElements": { "level": "off" }
-			},
-			"suspicious": {
-				"noArrayIndexKey": { "level": "off" },
-				"noConsoleLog": { "level": "error" },
-				"noThenProperty": { "level": "off" }
-			},
-			"nursery": {
+				"noNonNullAssertion": "off",
+				"noParameterAssign": "off",
+				"useDefaultParameterLast": "off",
+				"useSelfClosingElements": "off",
+				"useAsConstAssertion": "error",
+				"useEnumInitializers": "error",
+				"useSingleVarDeclarator": "error",
+				"noUnusedTemplateLiteral": "error",
+				"useNumberNamespace": "error",
+				"noInferrableTypes": "error",
+				"noUselessElse": "error",
 				"noRestrictedImports": {
 					"level": "error",
 					"options": {
@@ -47,8 +55,22 @@
 						}
 					}
 				}
+			},
+			"suspicious": {
+				"noArrayIndexKey": "off",
+				"noThenProperty": "off",
+				"noTemplateCurlyInString": "off",
+				"useIterableCallbackReturn": "off",
+				"noUnknownAtRules": "off", // Allow Tailwind directives
+				"noConsole": {
+					"level": "error",
+					"options": { "allow": ["error", "info", "warn"] }
+				}
+			},
+			"complexity": {
+				"noImportantStyles": "off" // TODO: check and fix !important styles
 			}
 		}
 	},
-	"$schema": "https://biomejs.dev/schemas/1.9.4/schema.json"
+	"$schema": "https://biomejs.dev/schemas/2.2.0/schema.json"
 }

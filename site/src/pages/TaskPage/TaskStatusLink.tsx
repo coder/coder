@@ -50,7 +50,7 @@ export const TaskStatusLink: FC<TaskStatusLinkProps> = ({ uri }) => {
 				}
 				break;
 		}
-	} catch (error) {
+	} catch (_error) {
 		// Invalid URL, probably.
 	}
 

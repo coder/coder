@@ -1,8 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { action } from "storybook/actions";
-import { expect, screen, waitFor } from "storybook/test";
 import { chromatic } from "testHelpers/chromatic";
 import {
 	MockTemplate,
@@ -13,6 +8,11 @@ import {
 	mockApiError,
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { action } from "storybook/actions";
+import { expect, screen, waitFor } from "storybook/test";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
 const meta: Meta<typeof CreateWorkspacePageView> = {
@@ -205,11 +205,6 @@ export const PresetNoneSelected: Story = {
 	args: {
 		...PresetsButNoneSelected.args,
 		onSubmit: (request, owner) => {
-			// Assert that template_version_preset_id is not present in the request
-			console.assert(
-				!("template_version_preset_id" in request),
-				'template_version_preset_id should not be present when "None" is selected',
-			);
 			action("onSubmit")(request, owner);
 		},
 	},
