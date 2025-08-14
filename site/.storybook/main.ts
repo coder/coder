@@ -17,6 +17,9 @@ export default {
 	},
 
 	async viteFinal(config) {
+		// Storybook seems to strip this setting out of our Vite config. We need to
+		// put it back in order to be able to access Storybook with Coder Desktop or
+		// port sharing.
 		config.server = {
 			...config.server,
 			allowedHosts: [".coder", ".dev.coder.com"],
