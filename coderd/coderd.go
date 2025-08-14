@@ -20,8 +20,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ammario/tlru"
-
 	aibridgeproto "github.com/coder/aibridge/proto"
 	"github.com/coder/coder/v2/aibridged"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
@@ -47,7 +45,6 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
-	"github.com/coder/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridgedserver"
 	provisionerdproto "github.com/coder/coder/v2/provisionerd/proto"
 
@@ -1739,8 +1736,7 @@ type API struct {
 	dbRolluper *dbrollup.Rolluper
 
 	AIBridgeDaemons []*aibridged.Server
-	AIBridges       *tlru.Cache[string, *aibridge.Bridge]
-	AIBridgesMu     sync.RWMutex
+	AIBridgeManager *AIBridgeManager
 }
 
 // Close waits for all WebSocket connections to drain before returning.

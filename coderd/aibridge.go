@@ -4,42 +4,34 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
 
+	"github.com/ammario/tlru"
 	"github.com/google/uuid"
 
 	"github.com/coder/aibridge"
 	"github.com/coder/coder/v2/aibridged"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
 )
 
-type rt struct {
-	http.RoundTripper
-
-	server *aibridged.Server
-}
-
-func (r *rt) RoundTrip(req *http.Request) (*http.Response, error) {
-	start := time.Now()
-	defer func() {
-		fmt.Printf("req to %q started %v completed\n", req.URL.String(), start.Local().Format(time.RFC3339Nano))
-	}()
-
-	resp, err := r.RoundTripper.RoundTrip(req)
-
-	return resp, err
-}
-
 func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
+	if api.AIBridgeManager == nil {
+		http.Error(rw, "not ready", http.StatusBadGateway)
+		return
+	}
+
 	ctx := r.Context()
 
 	if len(api.AIBridgeDaemons) == 0 {
-		http.Error(rw, "no AI bridge daemons running", http.StatusInternalServerError)
+		http.Error(rw, "no AI bridge daemons running", http.StatusBadGateway)
 		return
 	}
 
@@ -52,73 +44,62 @@ func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key, ok := r.Context().Value(aibridged.ContextKeyBridgeAPIKey{}).(string)
-	if key == "" || !ok {
+	sessionKey, ok := r.Context().Value(aibridged.ContextKeyBridgeAPIKey{}).(string)
+	if sessionKey == "" || !ok {
 		http.Error(rw, "unable to retrieve request session key", http.StatusBadRequest)
 		return
 	}
 
-	userID, ok := r.Context().Value(aibridged.ContextKeyBridgeUserID{}).(uuid.UUID)
+	initiatorID, ok := r.Context().Value(aibridged.ContextKeyBridgeUserID{}).(uuid.UUID)
 	if !ok {
 		api.Logger.Error(r.Context(), "missing initiator ID in context")
-		http.Error(rw, "unable to retrieve initiator", http.StatusInternalServerError)
+		http.Error(rw, "unable to retrieve initiator", http.StatusBadRequest)
 		return
 	}
 
-	r.Header.Set(aibridge.InitiatorHeaderKey, userID.String())
+	r.Header.Set(aibridge.InitiatorHeaderKey, initiatorID.String())
 
-	bridge, err := api.createOrLoadBridgeForAPIKey(ctx, key, server.Client)
+	bridge, err := api.AIBridgeManager.acquire(ctx, api, sessionKey, initiatorID.String(), server.Client)
 	if err != nil {
-		api.Logger.Error(ctx, "failed to create ai bridge", slog.Error(err))
-		http.Error(rw, "failed to create ai bridge", http.StatusInternalServerError)
+		api.Logger.Error(ctx, "failed to acquire aibridge", slog.Error(err))
+		http.Error(rw, "failed to acquire aibridge", http.StatusInternalServerError)
 		return
 	}
 	http.StripPrefix("/api/v2/aibridge", bridge.Handler()).ServeHTTP(rw, r)
 }
 
-func (api *API) createOrLoadBridgeForAPIKey(ctx context.Context, key string, apiClientFn func() (aibridge.APIClient, error)) (*aibridge.Bridge, error) {
-	if api.AIBridges == nil {
-		return nil, xerrors.New("bridge cache storage is not configured")
-	}
+const (
+	bridgeCacheTTL = time.Minute // TODO: configurable.
+)
 
-	api.AIBridgesMu.RLock()
-	val, _, ok := api.AIBridges.Get(key)
-	api.AIBridgesMu.RUnlock()
+type AIBridgeManager struct {
+	cache     *tlru.Cache[string, *aibridge.Bridge]
+	providers []aibridge.Provider
 
-	// TODO: TOCTOU potential here
-	// TODO: track startup time since it adds latency to first request (histogram count will also help us see how often this occurs)
-	if !ok {
-		api.AIBridgesMu.Lock()
-		defer api.AIBridgesMu.Unlock()
-
-		tools, err := api.fetchTools(ctx, api.Logger, key)
-		if err != nil {
-			api.Logger.Warn(ctx, "failed to load tools", slog.Error(err))
-		}
-
-		// TODO: only instantiate once.
-		registry := aibridge.ProviderRegistry{
-			aibridge.ProviderOpenAI:    aibridge.NewOpenAIProvider(api.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(), api.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String()),
-			aibridge.ProviderAnthropic: aibridge.NewAnthropicMessagesProvider(api.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(), api.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String()),
-		}
-		bridge, err := aibridge.NewBridge(registry, api.Logger.Named("ai_bridge"), apiClientFn, tools)
-		if err != nil {
-			return nil, xerrors.Errorf("create new bridge server: %w", err)
-		}
-
-		api.Logger.Info(ctx, "created bridge") // TODO: improve usefulness; log user ID?
-
-		api.AIBridges.Set(key, bridge, time.Minute) // TODO: configurable.
-		val = bridge
-	}
-
-	return val, nil
+	retrieval *singleflight.Group[string, *aibridge.Bridge]
 }
 
-func (api *API) fetchTools(ctx context.Context, logger slog.Logger, key string) (map[string][]*aibridge.MCPTool, error) {
-	url := api.DeploymentValues.AccessURL.String() + "/api/experimental/mcp/http"
+func NewAIBridgeManager(cfg codersdk.AIBridgeConfig, instances int) *AIBridgeManager {
+	return &AIBridgeManager{
+		cache: tlru.New[string](tlru.ConstantCost[*aibridge.Bridge], instances),
+		providers: []aibridge.Provider{
+			aibridge.NewOpenAIProvider(cfg.OpenAI.BaseURL.String(), cfg.OpenAI.Key.String()),
+			aibridge.NewAnthropicProvider(cfg.Anthropic.BaseURL.String(), cfg.Anthropic.Key.String()),
+		},
+		retrieval: &singleflight.Group[string, *aibridge.Bridge]{},
+	}
+}
+
+// TODO: expand to support more MCP servers.
+// TODO: can this move into coder/aibridge?
+func (m *AIBridgeManager) fetchTools(ctx context.Context, logger slog.Logger, accessURL, key string) (aibridge.ToolRegistry, error) {
+	url, err := url.JoinPath(accessURL, "/api/experimental/mcp/http")
+	if err != nil {
+		return nil, xerrors.Errorf("failed to build coder MCP url: %w", err)
+	}
+
 	coderMCP, err := aibridge.NewMCPToolBridge("coder", url, map[string]string{
-		"Coder-Session-Token": key,
+		codersdk.SessionTokenHeader: key,
 	}, logger.Named("mcp-bridge-coder"))
 	if err != nil {
 		return nil, xerrors.Errorf("coder MCP bridge setup: %w", err)
@@ -142,7 +123,47 @@ func (api *API) fetchTools(ctx context.Context, logger slog.Logger, key string) 
 		return nil, xerrors.Errorf("MCP proxy init: %w", err)
 	}
 
-	return map[string][]*aibridge.MCPTool{
+	return aibridge.ToolRegistry{
 		"coder": coderMCP.ListTools(),
 	}, nil
+}
+
+// acquire retrieves or creates a Bridge instance per given session key; Bridge is safe for concurrent use.
+// Each Bridge is stateful in that it has MCP tools which are scoped to the initiator.
+func (m *AIBridgeManager) acquire(ctx context.Context, api *API, sessionKey, initiatorID string, apiClientFn func() (aibridge.APIClient, error)) (*aibridge.Bridge, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	logger := api.Logger.Named("aibridge").With(slog.F("initiator_id", initiatorID))
+
+	// Fast path.
+	bridge, _, ok := m.cache.Get(sessionKey)
+	if ok && bridge != nil {
+		// TODO: remove.
+		logger.Debug(ctx, "reusing existing bridge", slog.F("ptr", fmt.Sprintf("%p", bridge)))
+		return bridge, nil
+	}
+
+	// Slow path.
+	// Creating an *aibridge.Bridge may take some time, so gate all subsequent callers behind the initial request and return the resulting value.
+	instance, err, _ := m.retrieval.Do(sessionKey, func() (*aibridge.Bridge, error) {
+		// TODO: track startup time since it adds latency to first request (histogram count will also help us see how often this occurs).
+		tools, err := m.fetchTools(ctx, logger, api.DeploymentValues.AccessURL.String(), sessionKey)
+		if err != nil {
+			logger.Warn(ctx, "failed to load tools", slog.Error(err))
+		}
+
+		bridge, err = aibridge.NewBridge(m.providers, logger, apiClientFn, aibridge.NewInjectedToolManager(tools))
+		if err != nil {
+			return nil, xerrors.Errorf("create new bridge server: %w", err)
+		}
+		// TODO: remove.
+		logger.Debug(ctx, "created new bridge", slog.F("ptr", fmt.Sprintf("%p", bridge)))
+
+		m.cache.Set(sessionKey, bridge, bridgeCacheTTL)
+		return bridge, nil
+	})
+
+	return instance, err
 }

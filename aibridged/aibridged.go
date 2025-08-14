@@ -80,7 +80,7 @@ func New(rpcDialer Dialer, logger slog.Logger) (*Server, error) {
 func (s *Server) connect() {
 	defer s.logger.Debug(s.closeContext, "connect loop exited")
 	defer s.wg.Done()
-	logConnect := s.logger.Debug
+	logConnect := s.logger.With(slog.F("context", "aibridged.server")).Debug
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
 connectLoop:

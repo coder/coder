@@ -31,7 +31,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ammario/tlru"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-systemd/daemon"
@@ -1102,7 +1101,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}()
 
-			// TODO: this shouldn't block.
 			aiBridgeDaemons := make([]*aibridged.Server, 0)
 			defer func() {
 				// We have no graceful shutdown of aiBridgeDaemons
@@ -1127,7 +1125,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				aiBridgeDaemons = append(aiBridgeDaemons, daemon)
 			}
 			coderAPI.AIBridgeDaemons = aiBridgeDaemons
-			coderAPI.AIBridges = tlru.New[string](tlru.ConstantCost[*aibridge.Bridge], 100) // TODO: configurable.
+			coderAPI.AIBridgeManager = coderd.NewAIBridgeManager(coderAPI.DeploymentValues.AI.BridgeConfig, 100) // TODO: configurable size.
 
 			// Updates the systemd status from activating to activated.
 			_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
