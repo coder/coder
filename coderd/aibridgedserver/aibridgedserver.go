@@ -11,11 +11,12 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/aibridge"
 	proto "github.com/coder/aibridge/proto"
 	"github.com/coder/coder/v2/coderd/database"
 )
 
-var _ proto.DRPCStoreServer = &Server{}
+var _ aibridge.RecorderServer = &Server{}
 
 type Server struct {
 	// lifecycleCtx must be tied to the API server's lifecycle
@@ -34,8 +35,8 @@ func NewServer(lifecycleCtx context.Context, store database.Store, logger slog.L
 	}, nil
 }
 
-// StoreSession implements proto.DRPCStoreServer.
-func (s *Server) StoreSession(ctx context.Context, in *proto.StoreSessionRequest) (*proto.StoreSessionResponse, error) {
+// RecordSession implements proto.DRPCStoreServer.
+func (s *Server) RecordSession(ctx context.Context, in *proto.RecordSessionRequest) (*proto.RecordSessionResponse, error) {
 	sessID, err := uuid.Parse(in.GetSessionId())
 	if err != nil {
 		return nil, xerrors.Errorf("invalid session ID %q: %w", in.GetSessionId(), err)
@@ -55,10 +56,10 @@ func (s *Server) StoreSession(ctx context.Context, in *proto.StoreSessionRequest
 		return nil, xerrors.Errorf("start session: %w", err)
 	}
 
-	return &proto.StoreSessionResponse{}, nil
+	return &proto.RecordSessionResponse{}, nil
 }
 
-func (s *Server) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageRequest) (*proto.TrackTokenUsageResponse, error) {
+func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsageRequest) (*proto.RecordTokenUsageResponse, error) {
 	sessID, err := uuid.Parse(in.GetSessionId())
 	if err != nil {
 		return nil, xerrors.Errorf("failed to parse session_id %q: %w", in.GetSessionId(), err)
@@ -75,10 +76,10 @@ func (s *Server) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageR
 	if err != nil {
 		return nil, xerrors.Errorf("insert token usage: %w", err)
 	}
-	return &proto.TrackTokenUsageResponse{}, nil
+	return &proto.RecordTokenUsageResponse{}, nil
 }
 
-func (s *Server) TrackUserPrompt(ctx context.Context, in *proto.TrackUserPromptRequest) (*proto.TrackUserPromptResponse, error) {
+func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUsageRequest) (*proto.RecordPromptUsageResponse, error) {
 	sessID, err := uuid.Parse(in.GetSessionId())
 	if err != nil {
 		return nil, xerrors.Errorf("failed to parse session_id %q: %w", in.GetSessionId(), err)
@@ -94,10 +95,10 @@ func (s *Server) TrackUserPrompt(ctx context.Context, in *proto.TrackUserPromptR
 	if err != nil {
 		return nil, xerrors.Errorf("insert user prompt: %w", err)
 	}
-	return &proto.TrackUserPromptResponse{}, nil
+	return &proto.RecordPromptUsageResponse{}, nil
 }
 
-func (s *Server) TrackToolUsage(ctx context.Context, in *proto.TrackToolUsageRequest) (*proto.TrackToolUsageResponse, error) {
+func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageRequest) (*proto.RecordToolUsageResponse, error) {
 	sessID, err := uuid.Parse(in.GetSessionId())
 	if err != nil {
 		return nil, xerrors.Errorf("failed to parse session_id %q: %w", in.GetSessionId(), err)
@@ -115,7 +116,7 @@ func (s *Server) TrackToolUsage(ctx context.Context, in *proto.TrackToolUsageReq
 	if err != nil {
 		return nil, xerrors.Errorf("insert tool usage: %w", err)
 	}
-	return &proto.TrackToolUsageResponse{}, nil
+	return &proto.RecordToolUsageResponse{}, nil
 }
 
 func (s *Server) marshalMetadata(in map[string]*anypb.Any) []byte {

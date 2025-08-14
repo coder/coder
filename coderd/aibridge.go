@@ -130,7 +130,7 @@ func (m *AIBridgeManager) fetchTools(ctx context.Context, logger slog.Logger, ac
 
 // acquire retrieves or creates a Bridge instance per given session key; Bridge is safe for concurrent use.
 // Each Bridge is stateful in that it has MCP tools which are scoped to the initiator.
-func (m *AIBridgeManager) acquire(ctx context.Context, api *API, sessionKey, initiatorID string, apiClientFn func() (aibridge.APIClient, error)) (*aibridge.Bridge, error) {
+func (m *AIBridgeManager) acquire(ctx context.Context, api *API, sessionKey, initiatorID string, apiClientFn func() (aibridge.RecorderClient, error)) (*aibridge.Bridge, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
