@@ -80,8 +80,8 @@ const withQuery: Decorator = (Story, { parameters }) => {
 		},
 	});
 
-	if (parameters.query) {
-		for (const query of parameters.query) {
+	if (parameters.queries) {
+		for (const query of parameters.queries) {
 			queryClient.setQueryData(query.key, query.data);
 		}
 	}
