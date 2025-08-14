@@ -382,10 +382,10 @@ func TestBackedPipe_Close(t *testing.T) {
 
 	// Operations after close should fail
 	_, err = bp.Read(make([]byte, 10))
-	require.Equal(t, io.ErrClosedPipe, err)
+	require.Equal(t, io.EOF, err)
 
 	_, err = bp.Write([]byte("test"))
-	require.Equal(t, io.ErrClosedPipe, err)
+	require.Equal(t, io.EOF, err)
 }
 
 func TestBackedPipe_CloseIdempotent(t *testing.T) {
@@ -567,7 +567,7 @@ func TestBackedPipe_ForceReconnectWhenClosed(t *testing.T) {
 	// Try to force reconnect when closed
 	err = bp.ForceReconnect()
 	require.Error(t, err)
-	require.Equal(t, io.ErrClosedPipe, err)
+	require.Equal(t, io.EOF, err)
 }
 
 func TestBackedPipe_ForceReconnectWhenDisconnected(t *testing.T) {
