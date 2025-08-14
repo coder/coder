@@ -126,8 +126,7 @@ export default defineConfig({
 			hooks: path.resolve(__dirname, "./src/hooks"),
 			modules: path.resolve(__dirname, "./src/modules"),
 			pages: path.resolve(__dirname, "./src/pages"),
-			// testHelpers is intentionally omitted, to help prevent importing them
-			// into production builds.
+			testHelpers: path.resolve(__dirname, "./src/testHelpers"),
 			theme: path.resolve(__dirname, "./src/theme"),
 			utils: path.resolve(__dirname, "./src/utils"),
 		},
