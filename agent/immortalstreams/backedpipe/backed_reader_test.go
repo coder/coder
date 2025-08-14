@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -59,9 +58,9 @@ func TestBackedReader_NewBackedReader(t *testing.T) {
 	t.Parallel()
 
 	br := backedpipe.NewBackedReader()
-	assert.NotNil(t, br)
-	assert.Equal(t, uint64(0), br.SequenceNum())
-	assert.False(t, br.Connected())
+	require.NotNil(t, br)
+	require.Equal(t, uint64(0), br.SequenceNum())
+	require.False(t, br.Connected())
 }
 
 func TestBackedReader_BasicReadOperation(t *testing.T) {
@@ -79,7 +78,7 @@ func TestBackedReader_BasicReadOperation(t *testing.T) {
 
 	// Get sequence number from reader
 	seq := testutil.RequireReceive(ctx, t, seqNum)
-	assert.Equal(t, uint64(0), seq)
+	require.Equal(t, uint64(0), seq)
 
 	// Send new reader
 	testutil.RequireSend(ctx, t, newR, io.Reader(reader))
@@ -88,16 +87,16 @@ func TestBackedReader_BasicReadOperation(t *testing.T) {
 	buf := make([]byte, 5)
 	n, err := br.Read(buf)
 	require.NoError(t, err)
-	assert.Equal(t, 5, n)
-	assert.Equal(t, "hello", string(buf))
-	assert.Equal(t, uint64(5), br.SequenceNum())
+	require.Equal(t, 5, n)
+	require.Equal(t, "hello", string(buf))
+	require.Equal(t, uint64(5), br.SequenceNum())
 
 	// Read more data
 	n, err = br.Read(buf)
 	require.NoError(t, err)
-	assert.Equal(t, 5, n)
-	assert.Equal(t, " worl", string(buf))
-	assert.Equal(t, uint64(10), br.SequenceNum())
+	require.Equal(t, 5, n)
+	require.Equal(t, " worl", string(buf))
+	require.Equal(t, uint64(10), br.SequenceNum())
 }
 
 func TestBackedReader_ReadBlocksWhenDisconnected(t *testing.T) {
@@ -143,8 +142,8 @@ func TestBackedReader_ReadBlocksWhenDisconnected(t *testing.T) {
 
 	// Wait for read to complete
 	testutil.TryReceive(ctx, t, readDone)
-	assert.NoError(t, readErr)
-	assert.Equal(t, "test", string(readBuf))
+	require.NoError(t, readErr)
+	require.Equal(t, "test", string(readBuf))
 }
 
 func TestBackedReader_ReconnectionAfterFailure(t *testing.T) {
@@ -168,8 +167,8 @@ func TestBackedReader_ReconnectionAfterFailure(t *testing.T) {
 	buf := make([]byte, 5)
 	n, err := br.Read(buf)
 	require.NoError(t, err)
-	assert.Equal(t, "first", string(buf[:n]))
-	assert.Equal(t, uint64(5), br.SequenceNum())
+	require.Equal(t, "first", string(buf[:n]))
+	require.Equal(t, uint64(5), br.SequenceNum())
 
 	// Set up error callback to verify error notification
 	errorReceived := make(chan error, 1)
@@ -189,8 +188,8 @@ func TestBackedReader_ReconnectionAfterFailure(t *testing.T) {
 
 	// Wait for the error to be reported via callback
 	receivedErr := testutil.RequireReceive(ctx, t, errorReceived)
-	assert.Error(t, receivedErr)
-	assert.Contains(t, receivedErr.Error(), "connection lost")
+	require.Error(t, receivedErr)
+	require.Contains(t, receivedErr.Error(), "connection lost")
 
 	// Verify read is still blocked
 	select {
@@ -201,7 +200,7 @@ func TestBackedReader_ReconnectionAfterFailure(t *testing.T) {
 	}
 
 	// Verify disconnection
-	assert.False(t, br.Connected())
+	require.False(t, br.Connected())
 
 	// Reconnect with new reader
 	reader2 := newMockReader("second")
@@ -212,12 +211,12 @@ func TestBackedReader_ReconnectionAfterFailure(t *testing.T) {
 
 	// Get sequence number and send new reader
 	seq := testutil.RequireReceive(ctx, t, seqNum2)
-	assert.Equal(t, uint64(5), seq) // Should return current sequence number
+	require.Equal(t, uint64(5), seq) // Should return current sequence number
 	testutil.RequireSend(ctx, t, newR2, io.Reader(reader2))
 
 	// Wait for read to unblock and succeed with new data
 	readErr := testutil.RequireReceive(ctx, t, readDone)
-	assert.NoError(t, readErr) // Should succeed with new reader
+	require.NoError(t, readErr) // Should succeed with new reader
 }
 
 func TestBackedReader_Close(t *testing.T) {
@@ -241,7 +240,7 @@ func TestBackedReader_Close(t *testing.T) {
 	buf := make([]byte, 10)
 	n, err := br.Read(buf)
 	require.NoError(t, err)
-	assert.Equal(t, 4, n) // "test" is 4 bytes
+	require.Equal(t, 4, n) // "test" is 4 bytes
 
 	// Close the reader before EOF triggers reconnection
 	err = br.Close()
@@ -249,12 +248,12 @@ func TestBackedReader_Close(t *testing.T) {
 
 	// After close, reads should return EOF
 	n, err = br.Read(buf)
-	assert.Equal(t, 0, n)
-	assert.Equal(t, io.EOF, err)
+	require.Equal(t, 0, n)
+	require.Equal(t, io.EOF, err)
 
 	// Subsequent reads should return EOF
 	_, err = br.Read(buf)
-	assert.Equal(t, io.EOF, err)
+	require.Equal(t, io.EOF, err)
 }
 
 func TestBackedReader_CloseIdempotent(t *testing.T) {
@@ -263,11 +262,11 @@ func TestBackedReader_CloseIdempotent(t *testing.T) {
 	br := backedpipe.NewBackedReader()
 
 	err := br.Close()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Second close should be no-op
 	err = br.Close()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestBackedReader_ReconnectAfterClose(t *testing.T) {
@@ -286,7 +285,7 @@ func TestBackedReader_ReconnectAfterClose(t *testing.T) {
 
 	// Should get 0 sequence number for closed reader
 	seq := testutil.TryReceive(ctx, t, seqNum)
-	assert.Equal(t, uint64(0), seq)
+	require.Equal(t, uint64(0), seq)
 }
 
 // Helper function to reconnect a reader using channels
@@ -315,18 +314,18 @@ func TestBackedReader_SequenceNumberTracking(t *testing.T) {
 
 	n, err := br.Read(buf)
 	require.NoError(t, err)
-	assert.Equal(t, 3, n)
-	assert.Equal(t, uint64(3), br.SequenceNum())
+	require.Equal(t, 3, n)
+	require.Equal(t, uint64(3), br.SequenceNum())
 
 	n, err = br.Read(buf)
 	require.NoError(t, err)
-	assert.Equal(t, 3, n)
-	assert.Equal(t, uint64(6), br.SequenceNum())
+	require.Equal(t, 3, n)
+	require.Equal(t, uint64(6), br.SequenceNum())
 
 	n, err = br.Read(buf)
 	require.NoError(t, err)
-	assert.Equal(t, 3, n)
-	assert.Equal(t, uint64(9), br.SequenceNum())
+	require.Equal(t, 3, n)
+	require.Equal(t, uint64(9), br.SequenceNum())
 }
 
 func TestBackedReader_EOFHandling(t *testing.T) {
@@ -348,8 +347,8 @@ func TestBackedReader_EOFHandling(t *testing.T) {
 	buf := make([]byte, 10)
 	n, err := br.Read(buf)
 	require.NoError(t, err)
-	assert.Equal(t, 4, n)
-	assert.Equal(t, "test", string(buf[:n]))
+	require.Equal(t, 4, n)
+	require.Equal(t, "test", string(buf[:n]))
 
 	// Next read should encounter EOF, which triggers disconnection
 	// The read should block waiting for reconnection
@@ -364,10 +363,10 @@ func TestBackedReader_EOFHandling(t *testing.T) {
 
 	// Wait for EOF to be reported via error callback
 	receivedErr := testutil.RequireReceive(ctx, t, errorReceived)
-	assert.Equal(t, io.EOF, receivedErr)
+	require.Equal(t, io.EOF, receivedErr)
 
 	// Reader should be disconnected after EOF
-	assert.False(t, br.Connected())
+	require.False(t, br.Connected())
 
 	// Read should still be blocked
 	select {
@@ -384,8 +383,8 @@ func TestBackedReader_EOFHandling(t *testing.T) {
 	// Wait for the blocked read to complete with new data
 	testutil.TryReceive(ctx, t, readDone)
 	require.NoError(t, readErr)
-	assert.Equal(t, 4, readN)
-	assert.Equal(t, "more", string(buf[:readN]))
+	require.Equal(t, 4, readN)
+	require.Equal(t, "more", string(buf[:readN]))
 }
 
 func BenchmarkBackedReader_Read(b *testing.B) {
@@ -438,11 +437,11 @@ func TestBackedReader_PartialReads(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		n, err := br.Read(buf)
 		require.NoError(t, err)
-		assert.Equal(t, 1, n)
-		assert.Equal(t, byte('A'), buf[0])
+		require.Equal(t, 1, n)
+		require.Equal(t, byte('A'), buf[0])
 	}
 
-	assert.Equal(t, uint64(5), br.SequenceNum())
+	require.Equal(t, uint64(5), br.SequenceNum())
 }
 
 func TestBackedReader_CloseWhileBlockedOnUnderlyingReader(t *testing.T) {
@@ -525,14 +524,14 @@ func TestBackedReader_CloseWhileBlockedOnUnderlyingReader(t *testing.T) {
 
 	// The read should return EOF because Close() was called while it was blocked,
 	// even though the underlying reader returned an error
-	assert.Equal(t, 0, readN)
-	assert.Equal(t, io.EOF, readErr)
+	require.Equal(t, 0, readN)
+	require.Equal(t, io.EOF, readErr)
 
 	// Subsequent reads should return EOF since the reader is now closed
 	buf := make([]byte, 10)
 	n, err := br.Read(buf)
-	assert.Equal(t, 0, n)
-	assert.Equal(t, io.EOF, err)
+	require.Equal(t, 0, n)
+	require.Equal(t, io.EOF, err)
 }
 
 func TestBackedReader_CloseWhileBlockedWaitingForReconnect(t *testing.T) {
@@ -556,7 +555,7 @@ func TestBackedReader_CloseWhileBlockedWaitingForReconnect(t *testing.T) {
 	buf := make([]byte, 10)
 	n, err := br.Read(buf)
 	require.NoError(t, err)
-	assert.Equal(t, "initial", string(buf[:n]))
+	require.Equal(t, "initial", string(buf[:n]))
 
 	// Set up error callback to track connection failure
 	errorReceived := make(chan error, 1)
@@ -579,8 +578,8 @@ func TestBackedReader_CloseWhileBlockedWaitingForReconnect(t *testing.T) {
 
 	// Wait for the error to be reported (indicating disconnection)
 	receivedErr := testutil.RequireReceive(ctx, t, errorReceived)
-	assert.Error(t, receivedErr)
-	assert.Contains(t, receivedErr.Error(), "connection lost")
+	require.Error(t, receivedErr)
+	require.Contains(t, receivedErr.Error(), "connection lost")
 
 	// Verify read is blocked waiting for reconnection
 	select {
@@ -591,7 +590,7 @@ func TestBackedReader_CloseWhileBlockedWaitingForReconnect(t *testing.T) {
 	}
 
 	// Verify reader is disconnected
-	assert.False(t, br.Connected())
+	require.False(t, br.Connected())
 
 	// Close the BackedReader while read is blocked waiting for reconnection
 	err = br.Close()
@@ -599,6 +598,6 @@ func TestBackedReader_CloseWhileBlockedWaitingForReconnect(t *testing.T) {
 
 	// The read should unblock and return EOF
 	testutil.TryReceive(ctx, t, readDone)
-	assert.Equal(t, 0, readN)
-	assert.Equal(t, io.EOF, readErr)
+	require.Equal(t, 0, readN)
+	require.Equal(t, io.EOF, readErr)
 }
