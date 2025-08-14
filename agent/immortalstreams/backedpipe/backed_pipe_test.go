@@ -189,7 +189,7 @@ func TestBackedPipe_ConnectAlreadyConnected(t *testing.T) {
 	// Second connect should fail
 	err = bp.Connect(ctx)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "already connected")
+	require.ErrorIs(t, err, backedpipe.ErrPipeAlreadyConnected)
 }
 
 func TestBackedPipe_ConnectAfterClose(t *testing.T) {
@@ -206,7 +206,7 @@ func TestBackedPipe_ConnectAfterClose(t *testing.T) {
 
 	err = bp.Connect(ctx)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "closed")
+	require.ErrorIs(t, err, backedpipe.ErrPipeClosed)
 }
 
 func TestBackedPipe_BasicReadWrite(t *testing.T) {
@@ -501,7 +501,7 @@ func TestBackedPipe_ReconnectFunctionFailure(t *testing.T) {
 
 	err := bp.Connect(ctx)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "reconnect failed")
+	require.ErrorIs(t, err, backedpipe.ErrReconnectFailed)
 	require.False(t, bp.Connected())
 }
 
