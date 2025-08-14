@@ -1,8 +1,8 @@
+import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { agentLogsKey } from "api/queries/workspaces";
 import type { WorkspaceAgentLog } from "api/typesGenerated";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
 import { DownloadAgentLogsButton } from "./DownloadAgentLogsButton";
 
 const meta: Meta<typeof DownloadAgentLogsButton> = {

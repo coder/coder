@@ -12,18 +12,18 @@ import uniqBy from "lodash/uniqBy";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import {
-	type TimeRange,
 	calcDuration,
 	formatTime,
 	mergeTimeRanges,
+	type TimeRange,
 } from "./Chart/utils";
-import { ResourcesChart, isCoderResource } from "./ResourcesChart";
+import { isCoderResource, ResourcesChart } from "./ResourcesChart";
 import { ScriptsChart } from "./ScriptsChart";
 import {
-	type Stage,
-	StagesChart,
 	agentStages,
 	provisioningStages,
+	type Stage,
+	StagesChart,
 } from "./StagesChart";
 
 type TimingView =

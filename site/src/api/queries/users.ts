@@ -12,8 +12,8 @@ import type {
 	UsersRequest,
 } from "api/typesGenerated";
 import {
-	type MetadataState,
 	defaultMetadataManager,
+	type MetadataState,
 } from "hooks/useEmbeddedMetadata";
 import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import type {

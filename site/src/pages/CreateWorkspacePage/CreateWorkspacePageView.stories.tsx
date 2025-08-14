@@ -1,8 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { action } from "storybook/actions";
-import { expect, screen, waitFor } from "storybook/test";
 import { chromatic } from "testHelpers/chromatic";
 import {
 	MockTemplate,
@@ -13,6 +8,11 @@ import {
 	mockApiError,
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { action } from "storybook/actions";
+import { expect, screen, waitFor } from "storybook/test";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
 const meta: Meta<typeof CreateWorkspacePageView> = {

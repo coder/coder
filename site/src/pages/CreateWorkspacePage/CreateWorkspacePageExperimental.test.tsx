@@ -1,7 +1,3 @@
-import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
-import type { DynamicParametersResponse } from "api/typesGenerated";
 import {
 	MockDropdownParameter,
 	MockDynamicParametersResponse,
@@ -20,6 +16,10 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { createMockWebSocket } from "testHelpers/websockets";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { API } from "api/api";
+import type { DynamicParametersResponse } from "api/typesGenerated";
 import CreateWorkspacePageExperimental from "./CreateWorkspacePageExperimental";
 
 describe("CreateWorkspacePageExperimental", () => {

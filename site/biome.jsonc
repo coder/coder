@@ -6,7 +6,7 @@
 		"root": ".."
 	},
 	"files": {
-		"ignore": ["e2e/**/*Generated.ts", "pnpm-lock.yaml"],
+		"includes": ["**", "!**/e2e/**/*Generated.ts", "!**/pnpm-lock.yaml"],
 		"ignoreUnknown": true
 	},
 	"linter": {
@@ -23,14 +23,14 @@
 				"noNonNullAssertion": { "level": "off" },
 				"noParameterAssign": { "level": "off" },
 				"useDefaultParameterLast": { "level": "off" },
-				"useSelfClosingElements": { "level": "off" }
-			},
-			"suspicious": {
-				"noArrayIndexKey": { "level": "off" },
-				"noConsoleLog": { "level": "error" },
-				"noThenProperty": { "level": "off" }
-			},
-			"nursery": {
+				"useSelfClosingElements": { "level": "off" },
+				"useAsConstAssertion": "error",
+				"useEnumInitializers": "error",
+				"useSingleVarDeclarator": "error",
+				"noUnusedTemplateLiteral": "error",
+				"useNumberNamespace": "error",
+				"noInferrableTypes": "error",
+				"noUselessElse": "error",
 				"noRestrictedImports": {
 					"level": "error",
 					"options": {
@@ -47,8 +47,14 @@
 						}
 					}
 				}
-			}
+			},
+			"suspicious": {
+				"noArrayIndexKey": { "level": "off" },
+				"noThenProperty": { "level": "off" },
+				"noConsole": { "level": "error", "options": { "allow": ["log"] } }
+			},
+			"nursery": {}
 		}
 	},
-	"$schema": "https://biomejs.dev/schemas/1.9.4/schema.json"
+	"$schema": "https://biomejs.dev/schemas/2.0.6/schema.json"
 }

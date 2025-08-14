@@ -1,11 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import type {
-	Workspace,
-	WorkspaceApp,
-	WorkspaceResource,
-} from "api/typesGenerated";
-import { expect, spyOn, within } from "storybook/test";
 import {
 	MockFailedWorkspace,
 	MockStartingWorkspace,
@@ -19,6 +11,14 @@ import {
 	mockApiError,
 } from "testHelpers/entities";
 import { withProxyProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { API } from "api/api";
+import type {
+	Workspace,
+	WorkspaceApp,
+	WorkspaceResource,
+} from "api/typesGenerated";
+import { expect, spyOn, within } from "storybook/test";
 import TaskPage, { data, WorkspaceDoesNotHaveAITaskError } from "./TaskPage";
 
 const meta: Meta<typeof TaskPage> = {

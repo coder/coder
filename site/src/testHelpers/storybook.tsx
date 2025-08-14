@@ -4,12 +4,12 @@ import { getAuthorizationKey } from "api/queries/authCheck";
 import { hasFirstUserKey, meKey } from "api/queries/users";
 import type { Entitlements } from "api/typesGenerated";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
+import { AuthProvider } from "contexts/auth/AuthProvider";
 import {
+	getPreferredProxy,
 	ProxyContext,
 	type ProxyContextValue,
-	getPreferredProxy,
 } from "contexts/ProxyContext";
-import { AuthProvider } from "contexts/auth/AuthProvider";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import { DeploymentConfigContext } from "modules/management/DeploymentConfigProvider";
 import { OrganizationSettingsContext } from "modules/management/OrganizationSettingsLayout";

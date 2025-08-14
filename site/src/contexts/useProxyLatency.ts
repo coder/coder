@@ -163,7 +163,7 @@ export const useProxyLatency = (
 			// https://developer.mozilla.org/en-US/docs/Web/API/Performance_API/Resource_timing
 			let latencyMS = 0;
 			let accurate = false;
-			let nextHopProtocol: string | undefined = undefined;
+			let nextHopProtocol: string | undefined;
 			if (
 				"requestStart" in entry &&
 				(entry as PerformanceResourceTiming).requestStart !== 0

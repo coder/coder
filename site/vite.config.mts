@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import react from "@vitejs/plugin-react";
 import { visualizer } from "rollup-plugin-visualizer";
-import { type PluginOption, defineConfig } from "vite";
+import { defineConfig, type PluginOption } from "vite";
 import checker from "vite-plugin-checker";
 
 const plugins: PluginOption[] = [

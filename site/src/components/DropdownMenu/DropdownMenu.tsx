@@ -11,8 +11,8 @@ import { Check, ChevronRight, Circle } from "lucide-react";
 import {
 	type ComponentPropsWithoutRef,
 	type ElementRef,
-	type HTMLAttributes,
 	forwardRef,
+	type HTMLAttributes,
 } from "react";
 import { cn } from "utils/cn";
 

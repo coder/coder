@@ -1,5 +1,7 @@
-import { updateAppearanceSettings } from "api/queries/users";
-import { appearanceSettings } from "api/queries/users";
+import {
+	appearanceSettings,
+	updateAppearanceSettings,
+} from "api/queries/users";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";

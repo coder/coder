@@ -4,6 +4,11 @@ import type { SlimRole } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { CollapsibleSummary } from "components/CollapsibleSummary/CollapsibleSummary";
 import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/deprecated/Popover/Popover";
+import {
 	HelpTooltip,
 	HelpTooltipContent,
 	HelpTooltipText,
@@ -11,11 +16,6 @@ import {
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { EditSquare } from "components/Icons/EditSquare";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
 import { UserIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 

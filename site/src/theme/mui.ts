@@ -1,6 +1,6 @@
-// biome-ignore lint/nursery/noRestrictedImports: we use the classes for customization
+// biome-ignore lint/style/noRestrictedImports: we use the classes for customization
 import { alertClasses } from "@mui/material/Alert";
-// biome-ignore lint/nursery/noRestrictedImports: we use the MUI theme as a base
+// biome-ignore lint/style/noRestrictedImports: we use the MUI theme as a base
 import type { ThemeOptions } from "@mui/material/styles";
 import {
 	BODY_FONT_FAMILY,

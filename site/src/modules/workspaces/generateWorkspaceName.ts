@@ -1,7 +1,7 @@
 import {
-	NumberDictionary,
 	animals,
 	colors,
+	NumberDictionary,
 	uniqueNamesGenerator,
 } from "unique-names-generator";
 

@@ -10,8 +10,8 @@ import {
 } from "components/GitDeviceAuth/GitDeviceAuth";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
-import { useEffect, useMemo } from "react";
 import type { FC } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import LoginOAuthDevicePageView from "./LoginOAuthDevicePageView";

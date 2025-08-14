@@ -12,8 +12,7 @@ import type { ReactNode } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { useParams } from "react-router";
-import { Link as RouterLink } from "react-router";
+import { Link as RouterLink, useParams } from "react-router";
 import { ellipsizeText } from "utils/ellipsizeText";
 import { pageTitle } from "utils/page";
 import {

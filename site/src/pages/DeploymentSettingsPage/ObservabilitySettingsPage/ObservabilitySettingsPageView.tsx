@@ -4,6 +4,11 @@ import {
 	EnterpriseBadge,
 	PremiumBadge,
 } from "components/Badges/Badges";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/deprecated/Popover/Popover";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
 import {
 	SettingsHeader,
@@ -12,11 +17,6 @@ import {
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
 import type { FC } from "react";
 import { deploymentGroupHasParent } from "utils/deployOptions";
 import { docs } from "utils/docs";

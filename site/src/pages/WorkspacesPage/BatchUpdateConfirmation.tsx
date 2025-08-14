@@ -8,8 +8,12 @@ import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { MonitorDownIcon } from "lucide-react";
-import { ClockIcon, SettingsIcon, UserIcon } from "lucide-react";
+import {
+	ClockIcon,
+	MonitorDownIcon,
+	SettingsIcon,
+	UserIcon,
+} from "lucide-react";
 import { type FC, type ReactNode, useEffect, useMemo, useState } from "react";
 import { useQueries } from "react-query";
 

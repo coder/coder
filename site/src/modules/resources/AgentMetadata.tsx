@@ -63,7 +63,7 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 			return;
 		}
 
-		let timeoutId: number | undefined = undefined;
+		let timeoutId: number | undefined;
 		let activeSocket: OneWayWebSocket<ServerSentEvent> | null = null;
 		let retries = 0;
 
