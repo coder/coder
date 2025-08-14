@@ -183,8 +183,7 @@
 		"ts-proto": "1.164.0",
 		"typescript": "5.6.3",
 		"vite": "6.3.5",
-		"vite-plugin-checker": "0.9.3",
-		"vite-plugin-turbosnap": "1.0.3"
+		"vite-plugin-checker": "0.9.3"
 	},
 	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
 	"resolutions": {
