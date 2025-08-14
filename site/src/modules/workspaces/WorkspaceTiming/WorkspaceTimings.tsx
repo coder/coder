@@ -218,7 +218,7 @@ const toTimeRange = (timing: {
 	};
 };
 
-const humanizeDuration = (durationMs: number): string => {
+const _humanizeDuration = (durationMs: number): string => {
 	const seconds = Math.floor(durationMs / 1000);
 	const minutes = Math.floor(seconds / 60);
 	const hours = Math.floor(minutes / 60);

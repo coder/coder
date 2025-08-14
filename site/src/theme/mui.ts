@@ -12,18 +12,6 @@ import {
 } from "./constants";
 import tw from "./tailwindColors";
 
-type PaletteIndex =
-	| "primary"
-	| "secondary"
-	| "background"
-	| "text"
-	| "error"
-	| "warning"
-	| "info"
-	| "success"
-	| "action"
-	| "neutral";
-
 // biome-ignore lint/suspicious/noExplicitAny: needed for MUI overrides
 type MuiStyle = any;
 

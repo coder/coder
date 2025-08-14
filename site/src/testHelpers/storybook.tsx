@@ -106,7 +106,7 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 			}, 0);
 		}
 
-		removeEventListener(type: string, callback: CallbackFn) {}
+		removeEventListener(_type: string, _callback: CallbackFn) {}
 
 		close() {}
 	} as unknown as typeof window.WebSocket;

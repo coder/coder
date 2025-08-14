@@ -58,7 +58,7 @@ export const createOrganizationMember = async ({
 	password = defaultPassword,
 	orgRoles,
 }: CreateOrganizationMemberOptions): Promise<LoginOptions> => {
-	const name = randomName();
+	const _name = randomName();
 	const user = await API.createUser({
 		email,
 		username,

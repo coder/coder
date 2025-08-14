@@ -47,7 +47,7 @@ export const TableBody = React.forwardRef<
 	/>
 ));
 
-const TableFooter = React.forwardRef<
+const _TableFooter = React.forwardRef<
 	HTMLTableSectionElement,
 	React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
@@ -129,7 +129,7 @@ export const TableCell = React.forwardRef<
 	/>
 ));
 
-const TableCaption = React.forwardRef<
+const _TableCaption = React.forwardRef<
 	HTMLTableCaptionElement,
 	React.HTMLAttributes<HTMLTableCaptionElement>
 >(({ className, ...props }, ref) => (

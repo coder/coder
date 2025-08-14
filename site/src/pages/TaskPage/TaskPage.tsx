@@ -95,7 +95,7 @@ const TaskPage = () => {
 	}
 
 	let content: ReactNode = null;
-	const terminatedStatuses: WorkspaceStatus[] = [
+	const _terminatedStatuses: WorkspaceStatus[] = [
 		"canceled",
 		"canceling",
 		"deleted",

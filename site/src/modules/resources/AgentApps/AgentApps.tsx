@@ -42,11 +42,9 @@ export const AgentApps: FC<AgentAppsProps> = ({
 			</DropdownMenuContent>
 		</DropdownMenu>
 	) : (
-		<>
-			{section.apps.map((app) => (
-				<AppLink key={app.slug} app={app} agent={agent} workspace={workspace} />
-			))}
-		</>
+		section.apps.map((app) => (
+			<AppLink key={app.slug} app={app} agent={agent} workspace={workspace} />
+		))
 	);
 };
 

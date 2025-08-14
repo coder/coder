@@ -211,7 +211,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				hasEphemeral: ephemeralParameters.length > 0,
 				ephemeralParameters,
 			};
-		} catch (error) {
+		} catch (_error) {
 			return { hasEphemeral: false, ephemeralParameters: [] };
 		}
 	};

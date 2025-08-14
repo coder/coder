@@ -31,6 +31,10 @@ const LoginOAuthDevicePage: FC = () => {
 		);
 	}
 
+	return <LoginOauthDevicePageWithState state={state} />;
+};
+
+const LoginOauthDevicePageWithState: FC<{ state: string }> = ({ state }) => {
 	const externalAuthDeviceQuery = useQuery({
 		...getGitHubDevice(),
 		refetchOnMount: false,

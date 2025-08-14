@@ -36,7 +36,7 @@ type Story = StoryObj<typeof TaskPage>;
 export const Loading: Story = {
 	beforeEach: () => {
 		spyOn(data, "fetchTask").mockImplementation(
-			() => new Promise((res) => 1000 * 60 * 60),
+			() => new Promise((_res) => 1000 * 60 * 60),
 		);
 	},
 };

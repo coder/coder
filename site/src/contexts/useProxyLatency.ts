@@ -75,7 +75,7 @@ export const useProxyLatency = (
 	const [latestFetchRequest, setLatestFetchRequest] = useState(
 		// The initial state is the current time minus the interval. Any proxies that have a latency after this
 		// in the cache are still valid.
-		new Date(new Date().getTime() - proxyIntervalSeconds * 1000).toISOString(),
+		new Date(Date.now() - proxyIntervalSeconds * 1000).toISOString(),
 	);
 
 	const [loaded, setLoaded] = useState(false);

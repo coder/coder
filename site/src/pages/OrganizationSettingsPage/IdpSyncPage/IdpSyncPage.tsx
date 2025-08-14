@@ -74,6 +74,13 @@ const IdpSyncPage: FC = () => {
 		enabled: !!field,
 	});
 
+	const patchGroupSyncSettingsMutation = useMutation(
+		patchGroupSyncSettings(organizationName, queryClient),
+	);
+	const patchRoleSyncSettingsMutation = useMutation(
+		patchRoleSyncSettings(organizationName, queryClient),
+	);
+
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
 	}
@@ -94,13 +101,6 @@ const IdpSyncPage: FC = () => {
 			</>
 		);
 	}
-
-	const patchGroupSyncSettingsMutation = useMutation(
-		patchGroupSyncSettings(organizationName, queryClient),
-	);
-	const patchRoleSyncSettingsMutation = useMutation(
-		patchRoleSyncSettings(organizationName, queryClient),
-	);
 
 	const error =
 		patchGroupSyncSettingsMutation.error ||

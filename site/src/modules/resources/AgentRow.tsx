@@ -335,7 +335,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 							Logs
 						</Button>
 						<Divider orientation="vertical" variant="middle" flexItem />
-						<DownloadAgentLogsButton workspaceId={workspace.id} agent={agent} />
+						<DownloadAgentLogsButton agent={agent} />
 					</Stack>
 				</section>
 			)}

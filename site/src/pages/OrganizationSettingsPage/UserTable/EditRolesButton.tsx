@@ -75,25 +75,8 @@ interface EditRolesButtonProps {
 	userLoginType?: string;
 }
 
-export const EditRolesButton: FC<EditRolesButtonProps> = ({
-	roles,
-	selectedRoleNames,
-	onChange,
-	isLoading,
-	userLoginType,
-	oidcRoleSync,
-}) => {
-	const handleChange = (roleName: string) => {
-		if (selectedRoleNames.has(roleName)) {
-			const serialized = [...selectedRoleNames];
-			onChange(serialized.filter((role) => role !== roleName));
-			return;
-		}
-
-		onChange([...selectedRoleNames, roleName]);
-	};
-	const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
-
+export const EditRolesButton: FC<EditRolesButtonProps> = (props) => {
+	const { userLoginType, oidcRoleSync } = props;
 	const canSetRoles =
 		userLoginType !== "oidc" || (userLoginType === "oidc" && !oidcRoleSync);
 
@@ -110,6 +93,26 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 			</HelpTooltip>
 		);
 	}
+
+	return <EnabledEditRolesButton {...props} />;
+};
+
+const EnabledEditRolesButton: FC<EditRolesButtonProps> = ({
+	roles,
+	selectedRoleNames,
+	onChange,
+	isLoading,
+}) => {
+	const handleChange = (roleName: string) => {
+		if (selectedRoleNames.has(roleName)) {
+			const serialized = [...selectedRoleNames];
+			onChange(serialized.filter((role) => role !== roleName));
+			return;
+		}
+
+		onChange([...selectedRoleNames, roleName]);
+	};
+	const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
 	const filteredRoles = roles.filter(
 		(role) => role.name !== "organization-workspace-creation-ban",

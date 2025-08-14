@@ -141,7 +141,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 							</Stack>
 						</>
 					) : (
-						<>Status of your Coder deployment. Only visible for admins!</>
+						"Status of your Coder deployment. Only visible for admins!"
 					)
 				}
 				open={process.env.STORYBOOK === "true" ? true : undefined}

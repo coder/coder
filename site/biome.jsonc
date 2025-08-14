@@ -1,7 +1,6 @@
 {
 	"vcs": {
 		"enabled": true,
-		"useIgnoreFile": true,
 		"clientKind": "git",
 		"root": ".."
 	},
@@ -12,18 +11,27 @@
 	"linter": {
 		"rules": {
 			"a11y": {
-				"noSvgWithoutTitle": { "level": "off" },
-				"useButtonType": { "level": "off" },
-				"useSemanticElements": { "level": "off" }
+				"noSvgWithoutTitle": "off",
+				"useButtonType": "off",
+				"useSemanticElements": "off",
+				"noStaticElementInteractions": "off"
 			},
 			"correctness": {
-				"noUnusedImports": "warn"
+				"noUnusedImports": "warn",
+				"useUniqueElementIds": "off", // TODO: This is new but we want to fix it
+				"noNestedComponentDefinitions": "off", // TODO: Investigate, since it is used by shadcn components
+				"noUnusedVariables": {
+					"level": "warn",
+					"options": {
+						"ignoreRestSiblings": true
+					}
+				}
 			},
 			"style": {
-				"noNonNullAssertion": { "level": "off" },
-				"noParameterAssign": { "level": "off" },
-				"useDefaultParameterLast": { "level": "off" },
-				"useSelfClosingElements": { "level": "off" },
+				"noNonNullAssertion": "off",
+				"noParameterAssign": "off",
+				"useDefaultParameterLast": "off",
+				"useSelfClosingElements": "off",
 				"useAsConstAssertion": "error",
 				"useEnumInitializers": "error",
 				"useSingleVarDeclarator": "error",
@@ -49,12 +57,20 @@
 				}
 			},
 			"suspicious": {
-				"noArrayIndexKey": { "level": "off" },
-				"noThenProperty": { "level": "off" },
-				"noConsole": { "level": "error", "options": { "allow": ["log"] } }
+				"noArrayIndexKey": "off",
+				"noThenProperty": "off",
+				"noTemplateCurlyInString": "off",
+				"useIterableCallbackReturn": "off",
+				"noUnknownAtRules": "off", // Allow Tailwind directives
+				"noConsole": {
+					"level": "error",
+					"options": { "allow": ["error", "info", "warn"] }
+				}
 			},
-			"nursery": {}
+			"complexity": {
+				"noImportantStyles": "off" // TODO: check and fix !important styles
+			}
 		}
 	},
-	"$schema": "https://biomejs.dev/schemas/2.0.6/schema.json"
+	"$schema": "https://biomejs.dev/schemas/2.2.0/schema.json"
 }

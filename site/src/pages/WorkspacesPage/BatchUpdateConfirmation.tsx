@@ -264,17 +264,9 @@ const DormantWorkspaces: FC<DormantWorkspacesProps> = ({ workspaces }) => {
 	return (
 		<>
 			<p>
-				{workspaces.length === 1 ? (
-					<>
-						This selected workspace is dormant, and must be activated before it
-						can be updated.
-					</>
-				) : (
-					<>
-						These selected workspaces are dormant, and must be activated before
-						they can be updated.
-					</>
-				)}
+				{workspaces.length === 1
+					? "This selected workspace is dormant, and must be activated before it can be updated."
+					: "These selected workspaces are dormant, and must be activated before they can be updated."}
 			</p>
 			<ul css={styles.workspacesList}>
 				{workspaces.map((workspace) => (

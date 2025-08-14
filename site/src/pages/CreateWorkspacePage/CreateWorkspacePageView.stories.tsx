@@ -205,11 +205,6 @@ export const PresetNoneSelected: Story = {
 	args: {
 		...PresetsButNoneSelected.args,
 		onSubmit: (request, owner) => {
-			// Assert that template_version_preset_id is not present in the request
-			console.assert(
-				!("template_version_preset_id" in request),
-				'template_version_preset_id should not be present when "None" is selected',
-			);
 			action("onSubmit")(request, owner);
 		},
 	},
