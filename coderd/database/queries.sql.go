@@ -109,9 +109,9 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
 DELETE FROM
-    api_keys
+	api_keys
 WHERE
-    id = $1
+	id = $1
 `
 
 func (q *sqlQuerier) DeleteAPIKeyByID(ctx context.Context, id string) error {
@@ -121,9 +121,9 @@ func (q *sqlQuerier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 
 const deleteAPIKeysByUserID = `-- name: DeleteAPIKeysByUserID :exec
 DELETE FROM
-    api_keys
+	api_keys
 WHERE
-    user_id = $1
+	user_id = $1
 `
 
 func (q *sqlQuerier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
@@ -133,10 +133,10 @@ func (q *sqlQuerier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID
 
 const deleteApplicationConnectAPIKeysByUserID = `-- name: DeleteApplicationConnectAPIKeysByUserID :exec
 DELETE FROM
-    api_keys
+	api_keys
 WHERE
-    user_id = $1 AND
-    scope = 'application_connect'::api_key_scope
+	user_id = $1 AND
+	scope = 'application_connect'::api_key_scope
 `
 
 func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
@@ -146,13 +146,13 @@ func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
-    id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
 FROM
-    api_keys
+	api_keys
 WHERE
-    id = $1
+	id = $1
 LIMIT
-    1
+	1
 `
 
 func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, error) {
@@ -177,15 +177,15 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 
 const getAPIKeyByName = `-- name: GetAPIKeyByName :one
 SELECT
-    id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
 FROM
-    api_keys
+	api_keys
 WHERE
-    user_id = $1 AND
-    token_name = $2 AND
-    token_name != ''
+	user_id = $1 AND
+	token_name = $2 AND
+	token_name != ''
 LIMIT
-    1
+	1
 `
 
 type GetAPIKeyByNameParams struct {
@@ -341,28 +341,28 @@ func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.
 
 const insertAPIKey = `-- name: InsertAPIKey :one
 INSERT INTO
-    api_keys (
-        id,
-        lifetime_seconds,
-        hashed_secret,
-        ip_address,
-        user_id,
-        last_used,
-        expires_at,
-        created_at,
-        updated_at,
-        login_type,
-        scope,
-        token_name
-    )
+	api_keys (
+		id,
+		lifetime_seconds,
+		hashed_secret,
+		ip_address,
+		user_id,
+		last_used,
+		expires_at,
+		created_at,
+		updated_at,
+		login_type,
+		scope,
+		token_name
+	)
 VALUES
-    ($1,
-     -- If the lifetime is set to 0, default to 24hrs
-     CASE $2::bigint
-        WHEN 0 THEN 86400
-        ELSE $2::bigint
-     END
-     , $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
+	($1,
+	 -- If the lifetime is set to 0, default to 24hrs
+	 CASE $2::bigint
+	     WHEN 0 THEN 86400
+		 ELSE $2::bigint
+	 END
+	 , $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
 `
 
 type InsertAPIKeyParams struct {
@@ -415,13 +415,13 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 
 const updateAPIKeyByID = `-- name: UpdateAPIKeyByID :exec
 UPDATE
-    api_keys
+	api_keys
 SET
-    last_used = $2,
-    expires_at = $3,
-    ip_address = $4
+	last_used = $2,
+	expires_at = $3,
+	ip_address = $4
 WHERE
-    id = $1
+	id = $1
 `
 
 type UpdateAPIKeyByIDParams struct {
@@ -444,91 +444,91 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 const countAuditLogs = `-- name: CountAuditLogs :one
 SELECT COUNT(*)
 FROM audit_logs
-    LEFT JOIN users ON audit_logs.user_id = users.id
-    LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
-    -- First join on workspaces to get the initial workspace create
-    -- to workspace build 1 id. This is because the first create is
-    -- is a different audit log than subsequent starts.
-    LEFT JOIN workspaces ON audit_logs.resource_type = 'workspace'
-    AND audit_logs.resource_id = workspaces.id
-    -- Get the reason from the build if the resource type
-    -- is a workspace_build
-    LEFT JOIN workspace_builds wb_build ON audit_logs.resource_type = 'workspace_build'
-    AND audit_logs.resource_id = wb_build.id
-    -- Get the reason from the build #1 if this is the first
-    -- workspace create.
-    LEFT JOIN workspace_builds wb_workspace ON audit_logs.resource_type = 'workspace'
-    AND audit_logs.action = 'create'
-    AND workspaces.id = wb_workspace.workspace_id
-    AND wb_workspace.build_number = 1
+	LEFT JOIN users ON audit_logs.user_id = users.id
+	LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
+	-- First join on workspaces to get the initial workspace create
+	-- to workspace build 1 id. This is because the first create is
+	-- is a different audit log than subsequent starts.
+	LEFT JOIN workspaces ON audit_logs.resource_type = 'workspace'
+	AND audit_logs.resource_id = workspaces.id
+	-- Get the reason from the build if the resource type
+	-- is a workspace_build
+	LEFT JOIN workspace_builds wb_build ON audit_logs.resource_type = 'workspace_build'
+	AND audit_logs.resource_id = wb_build.id
+	-- Get the reason from the build #1 if this is the first
+	-- workspace create.
+	LEFT JOIN workspace_builds wb_workspace ON audit_logs.resource_type = 'workspace'
+	AND audit_logs.action = 'create'
+	AND workspaces.id = wb_workspace.workspace_id
+	AND wb_workspace.build_number = 1
 WHERE
-    -- Filter resource_type
-    CASE
-        WHEN $1::text != '' THEN resource_type = $1::resource_type
-        ELSE true
-    END
-    -- Filter resource_id
-    AND CASE
-        WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN resource_id = $2
-        ELSE true
-    END
-    -- Filter organization_id
-    AND CASE
-        WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.organization_id = $3
-        ELSE true
-    END
-    -- Filter by resource_target
-    AND CASE
-        WHEN $4::text != '' THEN resource_target = $4
-        ELSE true
-    END
-    -- Filter action
-    AND CASE
-        WHEN $5::text != '' THEN action = $5::audit_action
-        ELSE true
-    END
-    -- Filter by user_id
-    AND CASE
-        WHEN $6::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN user_id = $6
-        ELSE true
-    END
-    -- Filter by username
-    AND CASE
-        WHEN $7::text != '' THEN user_id = (
-            SELECT id
-            FROM users
-            WHERE lower(username) = lower($7)
-                AND deleted = false
-        )
-        ELSE true
-    END
-    -- Filter by user_email
-    AND CASE
-        WHEN $8::text != '' THEN users.email = $8
-        ELSE true
-    END
-    -- Filter by date_from
-    AND CASE
-        WHEN $9::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" >= $9
-        ELSE true
-    END
-    -- Filter by date_to
-    AND CASE
-        WHEN $10::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" <= $10
-        ELSE true
-    END
-    -- Filter by build_reason
-    AND CASE
-        WHEN $11::text != '' THEN COALESCE(wb_build.reason::text, wb_workspace.reason::text) = $11
-        ELSE true
-    END
-    -- Filter request_id
-    AND CASE
-        WHEN $12::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.request_id = $12
-        ELSE true
-    END
-    -- Authorize Filter clause will be injected below in CountAuthorizedAuditLogs
-    -- @authorize_filter
+	-- Filter resource_type
+	CASE
+		WHEN $1::text != '' THEN resource_type = $1::resource_type
+		ELSE true
+	END
+	-- Filter resource_id
+	AND CASE
+		WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN resource_id = $2
+		ELSE true
+	END
+	-- Filter organization_id
+	AND CASE
+		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.organization_id = $3
+		ELSE true
+	END
+	-- Filter by resource_target
+	AND CASE
+		WHEN $4::text != '' THEN resource_target = $4
+		ELSE true
+	END
+	-- Filter action
+	AND CASE
+		WHEN $5::text != '' THEN action = $5::audit_action
+		ELSE true
+	END
+	-- Filter by user_id
+	AND CASE
+		WHEN $6::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN user_id = $6
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN $7::text != '' THEN user_id = (
+			SELECT id
+			FROM users
+			WHERE lower(username) = lower($7)
+				AND deleted = false
+		)
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN $8::text != '' THEN users.email = $8
+		ELSE true
+	END
+	-- Filter by date_from
+	AND CASE
+		WHEN $9::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" >= $9
+		ELSE true
+	END
+	-- Filter by date_to
+	AND CASE
+		WHEN $10::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" <= $10
+		ELSE true
+	END
+	-- Filter by build_reason
+	AND CASE
+		WHEN $11::text != '' THEN COALESCE(wb_build.reason::text, wb_workspace.reason::text) = $11
+		ELSE true
+	END
+	-- Filter request_id
+	AND CASE
+		WHEN $12::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.request_id = $12
+		ELSE true
+	END
+	-- Authorize Filter clause will be injected below in CountAuthorizedAuditLogs
+	-- @authorize_filter
 `
 
 type CountAuditLogsParams struct {
@@ -595,114 +595,114 @@ func (q *sqlQuerier) DeleteOldAuditLogConnectionEvents(ctx context.Context, arg 
 
 const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many
 SELECT audit_logs.id, audit_logs.time, audit_logs.user_id, audit_logs.organization_id, audit_logs.ip, audit_logs.user_agent, audit_logs.resource_type, audit_logs.resource_id, audit_logs.resource_target, audit_logs.action, audit_logs.diff, audit_logs.status_code, audit_logs.additional_fields, audit_logs.request_id, audit_logs.resource_icon,
-    -- sqlc.embed(users) would be nice but it does not seem to play well with
-    -- left joins.
-    users.username AS user_username,
-    users.name AS user_name,
-    users.email AS user_email,
-    users.created_at AS user_created_at,
-    users.updated_at AS user_updated_at,
-    users.last_seen_at AS user_last_seen_at,
-    users.status AS user_status,
-    users.login_type AS user_login_type,
-    users.rbac_roles AS user_roles,
-    users.avatar_url AS user_avatar_url,
-    users.deleted AS user_deleted,
-    users.quiet_hours_schedule AS user_quiet_hours_schedule,
-    COALESCE(organizations.name, '') AS organization_name,
-    COALESCE(organizations.display_name, '') AS organization_display_name,
-    COALESCE(organizations.icon, '') AS organization_icon
+	-- sqlc.embed(users) would be nice but it does not seem to play well with
+	-- left joins.
+	users.username AS user_username,
+	users.name AS user_name,
+	users.email AS user_email,
+	users.created_at AS user_created_at,
+	users.updated_at AS user_updated_at,
+	users.last_seen_at AS user_last_seen_at,
+	users.status AS user_status,
+	users.login_type AS user_login_type,
+	users.rbac_roles AS user_roles,
+	users.avatar_url AS user_avatar_url,
+	users.deleted AS user_deleted,
+	users.quiet_hours_schedule AS user_quiet_hours_schedule,
+	COALESCE(organizations.name, '') AS organization_name,
+	COALESCE(organizations.display_name, '') AS organization_display_name,
+	COALESCE(organizations.icon, '') AS organization_icon
 FROM audit_logs
-    LEFT JOIN users ON audit_logs.user_id = users.id
-    LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
-    -- First join on workspaces to get the initial workspace create
-    -- to workspace build 1 id. This is because the first create is
-    -- is a different audit log than subsequent starts.
-    LEFT JOIN workspaces ON audit_logs.resource_type = 'workspace'
-    AND audit_logs.resource_id = workspaces.id
-    -- Get the reason from the build if the resource type
-    -- is a workspace_build
-    LEFT JOIN workspace_builds wb_build ON audit_logs.resource_type = 'workspace_build'
-    AND audit_logs.resource_id = wb_build.id
-    -- Get the reason from the build #1 if this is the first
-    -- workspace create.
-    LEFT JOIN workspace_builds wb_workspace ON audit_logs.resource_type = 'workspace'
-    AND audit_logs.action = 'create'
-    AND workspaces.id = wb_workspace.workspace_id
-    AND wb_workspace.build_number = 1
+	LEFT JOIN users ON audit_logs.user_id = users.id
+	LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
+	-- First join on workspaces to get the initial workspace create
+	-- to workspace build 1 id. This is because the first create is
+	-- is a different audit log than subsequent starts.
+	LEFT JOIN workspaces ON audit_logs.resource_type = 'workspace'
+	AND audit_logs.resource_id = workspaces.id
+	-- Get the reason from the build if the resource type
+	-- is a workspace_build
+	LEFT JOIN workspace_builds wb_build ON audit_logs.resource_type = 'workspace_build'
+	AND audit_logs.resource_id = wb_build.id
+	-- Get the reason from the build #1 if this is the first
+	-- workspace create.
+	LEFT JOIN workspace_builds wb_workspace ON audit_logs.resource_type = 'workspace'
+	AND audit_logs.action = 'create'
+	AND workspaces.id = wb_workspace.workspace_id
+	AND wb_workspace.build_number = 1
 WHERE
-    -- Filter resource_type
-    CASE
-        WHEN $1::text != '' THEN resource_type = $1::resource_type
-        ELSE true
-    END
-    -- Filter resource_id
-    AND CASE
-        WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN resource_id = $2
-        ELSE true
-    END
-    -- Filter organization_id
-    AND CASE
-        WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.organization_id = $3
-        ELSE true
-    END
-    -- Filter by resource_target
-    AND CASE
-        WHEN $4::text != '' THEN resource_target = $4
-        ELSE true
-    END
-    -- Filter action
-    AND CASE
-        WHEN $5::text != '' THEN action = $5::audit_action
-        ELSE true
-    END
-    -- Filter by user_id
-    AND CASE
-        WHEN $6::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN user_id = $6
-        ELSE true
-    END
-    -- Filter by username
-    AND CASE
-        WHEN $7::text != '' THEN user_id = (
-            SELECT id
-            FROM users
-            WHERE lower(username) = lower($7)
-                AND deleted = false
-        )
-        ELSE true
-    END
-    -- Filter by user_email
-    AND CASE
-        WHEN $8::text != '' THEN users.email = $8
-        ELSE true
-    END
-    -- Filter by date_from
-    AND CASE
-        WHEN $9::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" >= $9
-        ELSE true
-    END
-    -- Filter by date_to
-    AND CASE
-        WHEN $10::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" <= $10
-        ELSE true
-    END
-    -- Filter by build_reason
-    AND CASE
-        WHEN $11::text != '' THEN COALESCE(wb_build.reason::text, wb_workspace.reason::text) = $11
-        ELSE true
-    END
-    -- Filter request_id
-    AND CASE
-        WHEN $12::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.request_id = $12
-        ELSE true
-    END
-    -- Authorize Filter clause will be injected below in GetAuthorizedAuditLogsOffset
-    -- @authorize_filter
+	-- Filter resource_type
+	CASE
+		WHEN $1::text != '' THEN resource_type = $1::resource_type
+		ELSE true
+	END
+	-- Filter resource_id
+	AND CASE
+		WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN resource_id = $2
+		ELSE true
+	END
+	-- Filter organization_id
+	AND CASE
+		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.organization_id = $3
+		ELSE true
+	END
+	-- Filter by resource_target
+	AND CASE
+		WHEN $4::text != '' THEN resource_target = $4
+		ELSE true
+	END
+	-- Filter action
+	AND CASE
+		WHEN $5::text != '' THEN action = $5::audit_action
+		ELSE true
+	END
+	-- Filter by user_id
+	AND CASE
+		WHEN $6::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN user_id = $6
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN $7::text != '' THEN user_id = (
+			SELECT id
+			FROM users
+			WHERE lower(username) = lower($7)
+				AND deleted = false
+		)
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN $8::text != '' THEN users.email = $8
+		ELSE true
+	END
+	-- Filter by date_from
+	AND CASE
+		WHEN $9::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" >= $9
+		ELSE true
+	END
+	-- Filter by date_to
+	AND CASE
+		WHEN $10::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" <= $10
+		ELSE true
+	END
+	-- Filter by build_reason
+	AND CASE
+		WHEN $11::text != '' THEN COALESCE(wb_build.reason::text, wb_workspace.reason::text) = $11
+		ELSE true
+	END
+	-- Filter request_id
+	AND CASE
+		WHEN $12::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.request_id = $12
+		ELSE true
+	END
+	-- Authorize Filter clause will be injected below in GetAuthorizedAuditLogsOffset
+	-- @authorize_filter
 ORDER BY "time" DESC
 LIMIT -- a limit of 0 means "no limit". The audit log table is unbounded
-    -- in size, and is expected to be quite large. Implement a default
-    -- limit of 100 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($14::int, 0), 100) OFFSET $13
+	-- in size, and is expected to be quite large. Implement a default
+	-- limit of 100 to prevent accidental excessively large queries.
+	COALESCE(NULLIF($14::int, 0), 100) OFFSET $13
 `
 
 type GetAuditLogsOffsetParams struct {
@@ -814,39 +814,39 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 
 const insertAuditLog = `-- name: InsertAuditLog :one
 INSERT INTO audit_logs (
-        id,
-        "time",
-        user_id,
-        organization_id,
-        ip,
-        user_agent,
-        resource_type,
-        resource_id,
-        resource_target,
-        action,
-        diff,
-        status_code,
-        additional_fields,
-        request_id,
-        resource_icon
-    )
+		id,
+		"time",
+		user_id,
+		organization_id,
+		ip,
+		user_agent,
+		resource_type,
+		resource_id,
+		resource_target,
+		action,
+		diff,
+		status_code,
+		additional_fields,
+		request_id,
+		resource_icon
+	)
 VALUES (
-        $1,
-        $2,
-        $3,
-        $4,
-        $5,
-        $6,
-        $7,
-        $8,
-        $9,
-        $10,
-        $11,
-        $12,
-        $13,
-        $14,
-        $15
-    )
+		$1,
+		$2,
+		$3,
+		$4,
+		$5,
+		$6,
+		$7,
+		$8,
+		$9,
+		$10,
+		$11,
+		$12,
+		$13,
+		$14,
+		$15
+	)
 RETURNING id, time, user_id, organization_id, ip, user_agent, resource_type, resource_id, resource_target, action, diff, status_code, additional_fields, request_id, resource_icon
 `
 
@@ -909,109 +909,109 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 
 const countConnectionLogs = `-- name: CountConnectionLogs :one
 SELECT
-    COUNT(*) AS count
+	COUNT(*) AS count
 FROM
-    connection_logs
+	connection_logs
 JOIN users AS workspace_owner ON
-    connection_logs.workspace_owner_id = workspace_owner.id
+	connection_logs.workspace_owner_id = workspace_owner.id
 LEFT JOIN users ON
-    connection_logs.user_id = users.id
+	connection_logs.user_id = users.id
 JOIN organizations ON
-    connection_logs.organization_id = organizations.id
+	connection_logs.organization_id = organizations.id
 WHERE
-    -- Filter organization_id
-    CASE
-        WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-            connection_logs.organization_id = $1
-        ELSE true
-    END
-    -- Filter by workspace owner username
-    AND CASE
-        WHEN $2 :: text != '' THEN
-            workspace_owner_id = (
-                SELECT id FROM users
-                WHERE lower(username) = lower($2) AND deleted = false
-            )
-        ELSE true
-    END
-    -- Filter by workspace_owner_id
-    AND CASE
-        WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-            workspace_owner_id = $3
-        ELSE true
-    END
-    -- Filter by workspace_owner_email
-    AND CASE
-        WHEN $4 :: text != '' THEN
-            workspace_owner_id = (
-                SELECT id FROM users
-                WHERE email = $4 AND deleted = false
-            )
-        ELSE true
-    END
-    -- Filter by type
-    AND CASE
-        WHEN $5 :: text != '' THEN
-            type = $5 :: connection_type
-        ELSE true
-    END
-    -- Filter by user_id
-    AND CASE
-        WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-            user_id = $6
-        ELSE true
-    END
-    -- Filter by username
-    AND CASE
-        WHEN $7 :: text != '' THEN
-            user_id = (
-                SELECT id FROM users
-                WHERE lower(username) = lower($7) AND deleted = false
-            )
-        ELSE true
-    END
-    -- Filter by user_email
-    AND CASE
-        WHEN $8 :: text != '' THEN
-            users.email = $8
-        ELSE true
-    END
-    -- Filter by connected_after
-    AND CASE
-        WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-            connect_time >= $9
-        ELSE true
-    END
-    -- Filter by connected_before
-    AND CASE
-        WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-            connect_time <= $10
-        ELSE true
-    END
-    -- Filter by workspace_id
-    AND CASE
-        WHEN $11 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-            connection_logs.workspace_id = $11
-        ELSE true
-    END
-    -- Filter by connection_id
-    AND CASE
-        WHEN $12 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-            connection_logs.connection_id = $12
-        ELSE true
-    END
-    -- Filter by whether the session has a disconnect_time
-    AND CASE
-        WHEN $13 :: text != '' THEN
-            (($13 = 'ongoing' AND disconnect_time IS NULL) OR
-            ($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
-            -- Exclude web events, since we don't know their close time.
-            "type" NOT IN ('workspace_app', 'port_forwarding')
-        ELSE true
-    END
-    -- Authorize Filter clause will be injected below in
-    -- CountAuthorizedConnectionLogs
-    -- @authorize_filter
+	-- Filter organization_id
+	CASE
+		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.organization_id = $1
+		ELSE true
+	END
+	-- Filter by workspace owner username
+	AND CASE
+		WHEN $2 :: text != '' THEN
+			workspace_owner_id = (
+				SELECT id FROM users
+				WHERE lower(username) = lower($2) AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by workspace_owner_id
+	AND CASE
+		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspace_owner_id = $3
+		ELSE true
+	END
+	-- Filter by workspace_owner_email
+	AND CASE
+		WHEN $4 :: text != '' THEN
+			workspace_owner_id = (
+				SELECT id FROM users
+				WHERE email = $4 AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by type
+	AND CASE
+		WHEN $5 :: text != '' THEN
+			type = $5 :: connection_type
+		ELSE true
+	END
+	-- Filter by user_id
+	AND CASE
+		WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = $6
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN $7 :: text != '' THEN
+			user_id = (
+				SELECT id FROM users
+				WHERE lower(username) = lower($7) AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN $8 :: text != '' THEN
+			users.email = $8
+		ELSE true
+	END
+	-- Filter by connected_after
+	AND CASE
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			connect_time >= $9
+		ELSE true
+	END
+	-- Filter by connected_before
+	AND CASE
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			connect_time <= $10
+		ELSE true
+	END
+	-- Filter by workspace_id
+	AND CASE
+		WHEN $11 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.workspace_id = $11
+		ELSE true
+	END
+	-- Filter by connection_id
+	AND CASE
+		WHEN $12 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.connection_id = $12
+		ELSE true
+	END
+	-- Filter by whether the session has a disconnect_time
+	AND CASE
+		WHEN $13 :: text != '' THEN
+			(($13 = 'ongoing' AND disconnect_time IS NULL) OR
+			($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
+			-- Exclude web events, since we don't know their close time.
+			"type" NOT IN ('workspace_app', 'port_forwarding')
+		ELSE true
+	END
+	-- Authorize Filter clause will be injected below in
+	-- CountAuthorizedConnectionLogs
+	-- @authorize_filter
 `
 
 type CountConnectionLogsParams struct {
@@ -1053,137 +1053,137 @@ func (q *sqlQuerier) CountConnectionLogs(ctx context.Context, arg CountConnectio
 
 const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
 SELECT
-    connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason,
-    -- sqlc.embed(users) would be nice but it does not seem to play well with
-    -- left joins. This user metadata is necessary for parity with the audit logs
-    -- API.
-    users.username AS user_username,
-    users.name AS user_name,
-    users.email AS user_email,
-    users.created_at AS user_created_at,
-    users.updated_at AS user_updated_at,
-    users.last_seen_at AS user_last_seen_at,
-    users.status AS user_status,
-    users.login_type AS user_login_type,
-    users.rbac_roles AS user_roles,
-    users.avatar_url AS user_avatar_url,
-    users.deleted AS user_deleted,
-    users.quiet_hours_schedule AS user_quiet_hours_schedule,
-    workspace_owner.username AS workspace_owner_username,
-    organizations.name AS organization_name,
-    organizations.display_name AS organization_display_name,
-    organizations.icon AS organization_icon
+	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason,
+	-- sqlc.embed(users) would be nice but it does not seem to play well with
+	-- left joins. This user metadata is necessary for parity with the audit logs
+	-- API.
+	users.username AS user_username,
+	users.name AS user_name,
+	users.email AS user_email,
+	users.created_at AS user_created_at,
+	users.updated_at AS user_updated_at,
+	users.last_seen_at AS user_last_seen_at,
+	users.status AS user_status,
+	users.login_type AS user_login_type,
+	users.rbac_roles AS user_roles,
+	users.avatar_url AS user_avatar_url,
+	users.deleted AS user_deleted,
+	users.quiet_hours_schedule AS user_quiet_hours_schedule,
+	workspace_owner.username AS workspace_owner_username,
+	organizations.name AS organization_name,
+	organizations.display_name AS organization_display_name,
+	organizations.icon AS organization_icon
 FROM
-    connection_logs
+	connection_logs
 JOIN users AS workspace_owner ON
-    connection_logs.workspace_owner_id = workspace_owner.id
+	connection_logs.workspace_owner_id = workspace_owner.id
 LEFT JOIN users ON
-    connection_logs.user_id = users.id
+	connection_logs.user_id = users.id
 JOIN organizations ON
-    connection_logs.organization_id = organizations.id
+	connection_logs.organization_id = organizations.id
 WHERE
-    -- Filter organization_id
-    CASE
-        WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-            connection_logs.organization_id = $1
-        ELSE true
-    END
-    -- Filter by workspace owner username
-    AND CASE
-        WHEN $2 :: text != '' THEN
-            workspace_owner_id = (
-                SELECT id FROM users
-                WHERE lower(username) = lower($2) AND deleted = false
-            )
-        ELSE true
-    END
-    -- Filter by workspace_owner_id
-    AND CASE
-        WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-            workspace_owner_id = $3
-        ELSE true
-    END
-    -- Filter by workspace_owner_email
-    AND CASE
-        WHEN $4 :: text != '' THEN
-            workspace_owner_id = (
-                SELECT id FROM users
-                WHERE email = $4 AND deleted = false
-            )
-        ELSE true
-    END
-    -- Filter by type
-    AND CASE
-        WHEN $5 :: text != '' THEN
-            type = $5 :: connection_type
-        ELSE true
-    END
-    -- Filter by user_id
-    AND CASE
-        WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-            user_id = $6
-        ELSE true
-    END
-    -- Filter by username
-    AND CASE
-        WHEN $7 :: text != '' THEN
-            user_id = (
-                SELECT id FROM users
-                WHERE lower(username) = lower($7) AND deleted = false
-            )
-        ELSE true
-    END
-    -- Filter by user_email
-    AND CASE
-        WHEN $8 :: text != '' THEN
-            users.email = $8
-        ELSE true
-    END
-    -- Filter by connected_after
-    AND CASE
-        WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-            connect_time >= $9
-        ELSE true
-    END
-    -- Filter by connected_before
-    AND CASE
-        WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-            connect_time <= $10
-        ELSE true
-    END
-    -- Filter by workspace_id
-    AND CASE
-        WHEN $11 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-            connection_logs.workspace_id = $11
-        ELSE true
-    END
-    -- Filter by connection_id
-    AND CASE
-        WHEN $12 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-            connection_logs.connection_id = $12
-        ELSE true
-    END
-    -- Filter by whether the session has a disconnect_time
-    AND CASE
-        WHEN $13 :: text != '' THEN
-            (($13 = 'ongoing' AND disconnect_time IS NULL) OR
-            ($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
-            -- Exclude web events, since we don't know their close time.
-            "type" NOT IN ('workspace_app', 'port_forwarding')
-        ELSE true
-    END
-    -- Authorize Filter clause will be injected below in
-    -- GetAuthorizedConnectionLogsOffset
-    -- @authorize_filter
+	-- Filter organization_id
+	CASE
+		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.organization_id = $1
+		ELSE true
+	END
+	-- Filter by workspace owner username
+	AND CASE
+		WHEN $2 :: text != '' THEN
+			workspace_owner_id = (
+				SELECT id FROM users
+				WHERE lower(username) = lower($2) AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by workspace_owner_id
+	AND CASE
+		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspace_owner_id = $3
+		ELSE true
+	END
+	-- Filter by workspace_owner_email
+	AND CASE
+		WHEN $4 :: text != '' THEN
+			workspace_owner_id = (
+				SELECT id FROM users
+				WHERE email = $4 AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by type
+	AND CASE
+		WHEN $5 :: text != '' THEN
+			type = $5 :: connection_type
+		ELSE true
+	END
+	-- Filter by user_id
+	AND CASE
+		WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = $6
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN $7 :: text != '' THEN
+			user_id = (
+				SELECT id FROM users
+				WHERE lower(username) = lower($7) AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN $8 :: text != '' THEN
+			users.email = $8
+		ELSE true
+	END
+	-- Filter by connected_after
+	AND CASE
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			connect_time >= $9
+		ELSE true
+	END
+	-- Filter by connected_before
+	AND CASE
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			connect_time <= $10
+		ELSE true
+	END
+	-- Filter by workspace_id
+	AND CASE
+		WHEN $11 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.workspace_id = $11
+		ELSE true
+	END
+	-- Filter by connection_id
+	AND CASE
+		WHEN $12 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.connection_id = $12
+		ELSE true
+	END
+	-- Filter by whether the session has a disconnect_time
+	AND CASE
+		WHEN $13 :: text != '' THEN
+			(($13 = 'ongoing' AND disconnect_time IS NULL) OR
+			($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
+			-- Exclude web events, since we don't know their close time.
+			"type" NOT IN ('workspace_app', 'port_forwarding')
+		ELSE true
+	END
+	-- Authorize Filter clause will be injected below in
+	-- GetAuthorizedConnectionLogsOffset
+	-- @authorize_filter
 ORDER BY
-    connect_time DESC
+	connect_time DESC
 LIMIT
-    -- a limit of 0 means "no limit". The connection log table is unbounded
-    -- in size, and is expected to be quite large. Implement a default
-    -- limit of 100 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($15 :: int, 0), 100)
+	-- a limit of 0 means "no limit". The connection log table is unbounded
+	-- in size, and is expected to be quite large. Implement a default
+	-- limit of 100 to prevent accidental excessively large queries.
+	COALESCE(NULLIF($15 :: int, 0), 100)
 OFFSET
-    $14
+	$14
 `
 
 type GetConnectionLogsOffsetParams struct {
@@ -1298,55 +1298,55 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 
 const upsertConnectionLog = `-- name: UpsertConnectionLog :one
 INSERT INTO connection_logs (
-    id,
-    connect_time,
-    organization_id,
-    workspace_owner_id,
-    workspace_id,
-    workspace_name,
-    agent_name,
-    type,
-    code,
-    ip,
-    user_agent,
-    user_id,
-    slug_or_port,
-    connection_id,
-    disconnect_reason,
-    disconnect_time
+	id,
+	connect_time,
+	organization_id,
+	workspace_owner_id,
+	workspace_id,
+	workspace_name,
+	agent_name,
+	type,
+	code,
+	ip,
+	user_agent,
+	user_id,
+	slug_or_port,
+	connection_id,
+	disconnect_reason,
+	disconnect_time
 ) VALUES
-    ($1, $15, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-    -- If we've only received a disconnect event, mark the event as immediately
-    -- closed.
-    CASE
-        WHEN $16::connection_status = 'disconnected'
-        THEN $15 :: timestamp with time zone
-        ELSE NULL
-    END)
+	($1, $15, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+	-- If we've only received a disconnect event, mark the event as immediately
+	-- closed.
+	 CASE
+		 WHEN $16::connection_status = 'disconnected'
+		 THEN $15 :: timestamp with time zone
+		 ELSE NULL
+	 END)
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
-    -- No-op if the connection is still open.
-    disconnect_time = CASE
-        WHEN $16::connection_status = 'disconnected'
-        -- Can only be set once
-        AND connection_logs.disconnect_time IS NULL
-        THEN EXCLUDED.connect_time
-        ELSE connection_logs.disconnect_time
-    END,
-    disconnect_reason = CASE
-        WHEN $16::connection_status = 'disconnected'
-        -- Can only be set once
-        AND connection_logs.disconnect_reason IS NULL
-        THEN EXCLUDED.disconnect_reason
-        ELSE connection_logs.disconnect_reason
-    END,
-    code = CASE
-        WHEN $16::connection_status = 'disconnected'
-        -- Can only be set once
-        AND connection_logs.code IS NULL
-        THEN EXCLUDED.code
-        ELSE connection_logs.code
-    END
+	-- No-op if the connection is still open.
+	disconnect_time = CASE
+		WHEN $16::connection_status = 'disconnected'
+		-- Can only be set once
+		AND connection_logs.disconnect_time IS NULL
+		THEN EXCLUDED.connect_time
+		ELSE connection_logs.disconnect_time
+	END,
+	disconnect_reason = CASE
+		WHEN $16::connection_status = 'disconnected'
+		-- Can only be set once
+		AND connection_logs.disconnect_reason IS NULL
+		THEN EXCLUDED.disconnect_reason
+		ELSE connection_logs.disconnect_reason
+	END,
+	code = CASE
+		WHEN $16::connection_status = 'disconnected'
+		-- Can only be set once
+		AND connection_logs.code IS NULL
+		THEN EXCLUDED.code
+		ELSE connection_logs.code
+	END
 RETURNING id, connect_time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, ip, code, user_agent, user_id, slug_or_port, connection_id, disconnect_time, disconnect_reason
 `
 
@@ -1786,7 +1786,7 @@ INSERT INTO external_auth_links (
     oauth_refresh_token,
     oauth_refresh_token_key_id,
     oauth_expiry,
-    oauth_extra
+	oauth_extra
 ) VALUES (
     $1,
     $2,
@@ -1797,7 +1797,7 @@ INSERT INTO external_auth_links (
     $7,
     $8,
     $9,
-    $10
+	$10
 ) RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra
 `
 
@@ -1851,7 +1851,7 @@ UPDATE external_auth_links SET
     oauth_refresh_token = $6,
     oauth_refresh_token_key_id = $7,
     oauth_expiry = $8,
-    oauth_extra = $9
+	oauth_extra = $9
 WHERE provider_id = $1 AND user_id = $2 RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra
 `
 
@@ -1897,10 +1897,10 @@ func (q *sqlQuerier) UpdateExternalAuthLink(ctx context.Context, arg UpdateExter
 
 const updateExternalAuthLinkRefreshToken = `-- name: UpdateExternalAuthLinkRefreshToken :exec
 UPDATE
-    external_auth_links
+	external_auth_links
 SET
-    oauth_refresh_token = $1,
-    updated_at = $2
+	oauth_refresh_token = $1,
+	updated_at = $2
 WHERE
     provider_id = $3
 AND
