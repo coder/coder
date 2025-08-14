@@ -9,6 +9,15 @@ import (
 	"golang.org/x/xerrors"
 )
 
+var (
+	ErrPipeClosed             = xerrors.New("pipe is closed")
+	ErrPipeAlreadyConnected   = xerrors.New("pipe is already connected")
+	ErrReconnectionInProgress = xerrors.New("reconnection already in progress")
+	ErrReconnectFailed        = xerrors.New("reconnect failed")
+	ErrInvalidSequenceNumber  = xerrors.New("remote sequence number exceeds local sequence")
+	ErrReconnectWriterFailed  = xerrors.New("reconnect writer failed")
+)
+
 const (
 	// Default buffer capacity used by the writer - 64MB
 	DefaultBufferSize = 64 * 1024 * 1024
@@ -90,11 +99,11 @@ func (bp *BackedPipe) Connect(_ context.Context) error { // external ctx ignored
 	defer bp.mu.Unlock()
 
 	if bp.closed {
-		return xerrors.New("pipe is closed")
+		return ErrPipeClosed
 	}
 
 	if bp.connected {
-		return xerrors.New("pipe is already connected")
+		return ErrPipeAlreadyConnected
 	}
 
 	// Use internal context for the actual reconnect operation to ensure
@@ -190,7 +199,7 @@ func (bp *BackedPipe) signalConnectionChange() {
 // reconnectLocked handles the reconnection logic. Must be called with write lock held.
 func (bp *BackedPipe) reconnectLocked() error {
 	if bp.reconnecting {
-		return xerrors.New("reconnection already in progress")
+		return ErrReconnectionInProgress
 	}
 
 	bp.reconnecting = true
@@ -216,14 +225,13 @@ func (bp *BackedPipe) reconnectLocked() error {
 	bp.mu.Lock()
 
 	if err != nil {
-		return xerrors.Errorf("reconnect failed: %w", err)
+		return ErrReconnectFailed
 	}
 
 	// Validate sequence numbers
 	if readerSeqNum > writerSeqNum {
 		_ = conn.Close()
-		return xerrors.Errorf("remote sequence number %d exceeds local sequence %d, cannot replay",
-			readerSeqNum, writerSeqNum)
+		return ErrInvalidSequenceNumber
 	}
 
 	// Reconnect reader and writer
@@ -239,7 +247,7 @@ func (bp *BackedPipe) reconnectLocked() error {
 	err = bp.writer.Reconnect(readerSeqNum, conn)
 	if err != nil {
 		_ = conn.Close()
-		return xerrors.Errorf("reconnect writer: %w", err)
+		return ErrReconnectWriterFailed
 	}
 
 	// Success - update state

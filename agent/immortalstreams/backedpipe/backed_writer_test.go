@@ -313,7 +313,7 @@ func TestBackedWriter_ReplayFromFutureSequence(t *testing.T) {
 	writer2 := newMockWriter()
 	err = bw.Reconnect(10, writer2) // Future sequence
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "future sequence")
+	require.ErrorIs(t, err, backedpipe.ErrFutureSequence)
 }
 
 func TestBackedWriter_ReplayDataLoss(t *testing.T) {
@@ -336,7 +336,7 @@ func TestBackedWriter_ReplayDataLoss(t *testing.T) {
 	err = bw.Reconnect(0, writer2) // Try to replay from evicted data
 	// With the new error handling, this should fail because we can't read all the data
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to read replay data")
+	require.ErrorIs(t, err, backedpipe.ErrReplayDataUnavailable)
 }
 
 func TestBackedWriter_BufferEviction(t *testing.T) {
@@ -381,7 +381,7 @@ func TestBackedWriter_Close(t *testing.T) {
 	// Reconnect after close should fail
 	err = bw.Reconnect(0, newMockWriter())
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "closed")
+	require.ErrorIs(t, err, backedpipe.ErrWriterClosed)
 }
 
 func TestBackedWriter_CloseIdempotent(t *testing.T) {
@@ -454,7 +454,7 @@ func TestBackedWriter_ReconnectDuringReplay(t *testing.T) {
 
 	err = bw.Reconnect(0, writer2)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "replay failed")
+	require.ErrorIs(t, err, backedpipe.ErrReplayFailed)
 	require.False(t, bw.Connected())
 }
 

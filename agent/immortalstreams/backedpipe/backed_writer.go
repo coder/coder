@@ -7,6 +7,15 @@ import (
 	"golang.org/x/xerrors"
 )
 
+var (
+	ErrWriterClosed          = xerrors.New("cannot reconnect closed writer")
+	ErrNilWriter             = xerrors.New("new writer cannot be nil")
+	ErrFutureSequence        = xerrors.New("cannot replay from future sequence")
+	ErrReplayDataUnavailable = xerrors.New("failed to read replay data")
+	ErrReplayFailed          = xerrors.New("replay failed")
+	ErrPartialReplay         = xerrors.New("partial replay")
+)
+
 // BackedWriter wraps an unreliable io.Writer and makes it resilient to disconnections.
 // It maintains a ring buffer of recent writes for replay during reconnection.
 type BackedWriter struct {
@@ -129,16 +138,16 @@ func (bw *BackedWriter) Reconnect(replayFromSeq uint64, newWriter io.Writer) err
 	defer bw.mu.Unlock()
 
 	if bw.closed {
-		return xerrors.New("cannot reconnect closed writer")
+		return ErrWriterClosed
 	}
 
 	if newWriter == nil {
-		return xerrors.New("new writer cannot be nil")
+		return ErrNilWriter
 	}
 
 	// Check if we can replay from the requested sequence number
 	if replayFromSeq > bw.sequenceNum {
-		return xerrors.Errorf("cannot replay from future sequence %d: current sequence is %d", replayFromSeq, bw.sequenceNum)
+		return ErrFutureSequence
 	}
 
 	// Calculate how many bytes we need to replay
@@ -156,7 +165,7 @@ func (bw *BackedWriter) Reconnect(replayFromSeq uint64, newWriter io.Writer) err
 		//nolint:gosec // Safe conversion: replayBytes is calculated from uint64 subtraction
 		replayData, err = bw.buffer.ReadLast(int(replayBytes))
 		if err != nil {
-			return xerrors.Errorf("failed to read replay data: %w", err)
+			return ErrReplayDataUnavailable
 		}
 	}
 
@@ -172,12 +181,12 @@ func (bw *BackedWriter) Reconnect(replayFromSeq uint64, newWriter io.Writer) err
 
 		if err != nil {
 			// Reconnect failed, writer remains nil
-			return xerrors.Errorf("replay failed: %w", err)
+			return ErrReplayFailed
 		}
 
 		if n != len(replayData) {
 			// Reconnect failed, writer remains nil
-			return xerrors.Errorf("partial replay: wrote %d of %d bytes", n, len(replayData))
+			return ErrPartialReplay
 		}
 	}
 
