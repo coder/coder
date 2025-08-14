@@ -2,6 +2,7 @@ import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
 import { useClickable } from "hooks/useClickable";
 import { useClipboard } from "hooks/useClipboard";
 import type { FC, HTMLAttributes } from "react";
+import { cn } from "utils/cn";
 
 interface CopyableValueProps extends HTMLAttributes<HTMLSpanElement> {
 	value: string;
@@ -14,6 +15,7 @@ export const CopyableValue: FC<CopyableValueProps> = ({
 	placement = "bottom-start",
 	PopperProps,
 	children,
+	className,
 	...attrs
 }) => {
 	const { showCopiedSuccess, copyToClipboard } = useClipboard({
@@ -27,7 +29,14 @@ export const CopyableValue: FC<CopyableValueProps> = ({
 			placement={placement}
 			PopperProps={PopperProps}
 		>
-			<span {...attrs} {...clickableProps} css={{ cursor: "pointer" }}>
+			<span
+				{...attrs}
+				{...clickableProps}
+				className={cn(
+					"flex flex-row gap-1 items-center cursor-pointer",
+					className,
+				)}
+			>
 				{children}
 			</span>
 		</Tooltip>

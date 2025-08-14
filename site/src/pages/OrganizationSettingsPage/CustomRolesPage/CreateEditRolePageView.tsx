@@ -354,7 +354,7 @@ const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
 						}
 					/>
 					{resourceKey}
-					<ul css={styles.checkBoxes}>
+					<ul css={[styles.checkBoxes, styles.innerCheckBoxes]}>
 						{Object.entries(value).map(([actionKey, value]) => (
 							<li key={actionKey} css={styles.actionItem}>
 								<span css={styles.actionText}>
@@ -416,6 +416,9 @@ const styles = {
 	checkBoxes: {
 		margin: 0,
 		listStyleType: "none",
+	},
+	innerCheckBoxes: {
+		paddingLeft: 16,
 	},
 	actionText: (theme) => ({
 		color: theme.palette.text.primary,

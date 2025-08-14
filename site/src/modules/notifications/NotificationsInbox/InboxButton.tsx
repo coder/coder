@@ -24,7 +24,7 @@ export const InboxButton = forwardRef<HTMLButtonElement, InboxButtonProps>(
 						count={unreadCount}
 						className={cn([
 							"[--offset:calc(var(--unread-badge-size)/2)]",
-							"absolute top-0 right-0 -mr-[--offset] -mt-[--offset]",
+							"absolute top-0 right-0 -mr-(--offset) -mt-(--offset)",
 							"animate-in fade-in zoom-in duration-200",
 						])}
 					/>

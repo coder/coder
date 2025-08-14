@@ -106,6 +106,7 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 											input: {
 												color: "white",
 												backgroundColor: theme.palette.background.default,
+												padding: "1px 8px",
 											},
 											body: {
 												backgroundColor: "transparent",

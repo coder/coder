@@ -56,9 +56,6 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	// We might not be logged in yet, or the `theme_preference` could be an empty string.
 	const themePreference =
 		appearanceSettingsQuery.data?.theme_preference || DEFAULT_THEME;
-	// The janky casting here is find because of the much more type safe fallback
-	// We need to support `themePreference` being wrong anyway because the database
-	// value could be anything, like an empty string.
 
 	useEffect(() => {
 		const root = document.documentElement;
@@ -73,6 +70,9 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 		};
 	}, [themePreference, preferredColorScheme]);
 
+	// The janky casting here is fine because of the much more type safe fallback
+	// We need to support `themePreference` being wrong anyway because the
+	// database value could be anything, like an empty string.
 	const theme =
 		themes[themePreference as keyof typeof themes] ??
 		themes[preferredColorScheme];
