@@ -1,5 +1,4 @@
 import type { Meta, Parameters, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, within } from "storybook/test";
 import { templateVersionRoot } from "api/queries/templates";
 import type {
 	TemplateVersion,
@@ -7,10 +6,11 @@ import type {
 	WorkspaceBuild,
 } from "api/typesGenerated";
 import { useQueryClient } from "react-query";
+import { action } from "storybook/internal/actions";
+import { expect, screen, userEvent, within } from "storybook/test";
 import { MockTemplateVersion, MockWorkspace } from "testHelpers/entities";
 import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
 import { ACTIVE_BUILD_STATUSES } from "./WorkspacesPage";
-import { action } from "storybook/internal/actions";
 
 type Writeable<T> = { -readonly [Key in keyof T]: T[Key] };
 type MutableWorkspace = Writeable<Omit<Workspace, "latest_build">> & {
@@ -81,20 +81,19 @@ export const OnlyReadyToUpdate: Story = {
 	beforeEach: (ctx) => {
 		const { workspaces, queries } = createPatchedDependencies(3);
 		ctx.args = { ...ctx.args, workspacesToUpdate: workspaces };
-		ctx.parameters = { ...ctx.parameters, queries };
+		ctx.parameters.queries = queries;
 	},
 };
 
 export const NoWorkspacesToUpdate: Story = {
 	beforeEach: (ctx) => {
 		const { workspaces, queries } = createPatchedDependencies(3);
-		for (const ws of workspaces) {
-			const writable = ws as MutableWorkspace;
-			writable.outdated = false;
-		}
+		const notOutdated = workspaces.map<Workspace>((ws) => {
+			return { ...ws, outdated: false };
+		});
 
-		ctx.args = { ...ctx.args, workspacesToUpdate: workspaces };
-		ctx.parameters = { ...ctx.parameters, queries };
+		ctx.args = { ...ctx.args, workspacesToUpdate: notOutdated };
+		ctx.parameters.queries = queries;
 	},
 };
 
@@ -103,7 +102,7 @@ export const CurrentlyProcessing: Story = {
 	beforeEach: (ctx) => {
 		const { workspaces, queries } = createPatchedDependencies(3);
 		ctx.args = { ...ctx.args, workspacesToUpdate: workspaces };
-		ctx.parameters = { ...ctx.parameters, queries };
+		ctx.parameters.queries = queries;
 	},
 };
 
@@ -120,7 +119,7 @@ export const OnlyDormantWorkspaces: Story = {
 			writable.dormant_at = new Date().toISOString();
 		}
 		ctx.args = { ...ctx.args, workspacesToUpdate: workspaces };
-		ctx.parameters = { ...ctx.parameters, queries };
+		ctx.parameters.queries = queries;
 	},
 };
 
@@ -128,7 +127,7 @@ export const FetchError: Story = {
 	beforeEach: (ctx) => {
 		const { workspaces, queries } = createPatchedDependencies(3);
 		ctx.args = { ...ctx.args, workspacesToUpdate: workspaces };
-		ctx.parameters = { ...ctx.parameters, queries };
+		ctx.parameters.queries = queries;
 	},
 	decorators: [
 		(Story, ctx) => {
@@ -155,39 +154,45 @@ export const TransitioningWorkspaces: Story = {
 		const { workspaces, queries } = createPatchedDependencies(
 			2 * ACTIVE_BUILD_STATUSES.length,
 		);
-		for (const [i, ws] of workspaces.entries()) {
+		const withUpdatedStatuses = workspaces.map<Workspace>((ws, i) => {
 			if (i % 2 === 0) {
-				continue;
+				return ws;
 			}
-			const writable = ws.latest_build as Writeable<WorkspaceBuild>;
-			writable.status = ACTIVE_BUILD_STATUSES[i % ACTIVE_BUILD_STATUSES.length];
-		}
-		ctx.args = { ...ctx.args, workspacesToUpdate: workspaces };
-		ctx.parameters = { ...ctx.parameters, queries };
+			return {
+				...ws,
+				latest_build: {
+					...ws.latest_build,
+					status: ACTIVE_BUILD_STATUSES[i % ACTIVE_BUILD_STATUSES.length],
+				},
+			};
+		});
+
+		ctx.args = { ...ctx.args, workspacesToUpdate: withUpdatedStatuses };
+		ctx.parameters.queries = queries;
 	},
 };
 
 export const RunningWorkspaces: Story = {
 	beforeEach: (ctx) => {
 		const { workspaces, queries } = createPatchedDependencies(3);
-		for (const ws of workspaces) {
-			const writable = ws.latest_build as Writeable<WorkspaceBuild>;
-			writable.status = "running";
-		}
-		ctx.args = { ...ctx.args, workspacesToUpdate: workspaces };
-		ctx.parameters = { ...ctx.parameters, queries };
+		const allRunning = workspaces.map<Workspace>((ws) => {
+			return { ...ws, status: "running" };
+		});
+
+		ctx.args = { ...ctx.args, workspacesToUpdate: allRunning };
+		ctx.parameters.queries = queries;
 	},
 };
 
 export const RunningWorkspacesFailedValidation: Story = {
 	beforeEach: (ctx) => {
 		const { workspaces, queries } = createPatchedDependencies(3);
-		for (const ws of workspaces) {
-			const writable = ws.latest_build as Writeable<WorkspaceBuild>;
-			writable.status = "running";
-		}
-		ctx.args = { ...ctx.args, workspacesToUpdate: workspaces };
-		ctx.parameters = { ...ctx.parameters, queries };
+		const allRunning = workspaces.map<Workspace>((ws) => {
+			return { ...ws, status: "running" };
+		});
+
+		ctx.args = { ...ctx.args, workspacesToUpdate: allRunning };
+		ctx.parameters.queries = queries;
 	},
 	play: async () => {
 		// Can't use canvasElement from the play function's context because the
@@ -270,6 +275,6 @@ export const MixOfWorkspaces: Story = {
 		noUpdatesNeededTransitioning.latest_build.status = "starting";
 
 		ctx.args = { ...ctx.args, workspacesToUpdate: workspaces };
-		ctx.parameters = { ...ctx.parameters, queries };
+		ctx.parameters.queries = queries;
 	},
 };
