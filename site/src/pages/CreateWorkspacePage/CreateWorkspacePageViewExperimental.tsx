@@ -118,14 +118,8 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 	// Only touched fields are sent to the websocket
 	// Autofilled parameters are marked as touched since they have been modified
-	const initialTouched = parameters.reduce<Record<string, boolean>>(
-		(touched, parameter) => {
-			if (autofillByName[parameter.name] !== undefined) {
-				touched[parameter.name] = true;
-			}
-			return touched;
-		},
-		{},
+	const initialTouched = Object.fromEntries(
+		parameters.filter((p) => autofillByName[p.name]).map((p) => [p, true]),
 	);
 
 	// The form parameters values hold the working state of the parameters that will be submitted when creating a workspace

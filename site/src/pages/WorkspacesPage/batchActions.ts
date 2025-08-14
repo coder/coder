@@ -78,13 +78,8 @@ export function useBatchActions(
 		},
 	});
 
-	// Not a great idea to return the promises from the Promise.all calls below
-	// because that then gives you a void array, which doesn't make sense with
-	// TypeScript's type system. Best to await them, and then have the wrapper
-	// mutation function return its own void promise
-
 	const favoriteAllMutation = useMutation({
-		mutationFn: async (workspaces: readonly Workspace[]) => {
+		mutationFn: async (workspaces: readonly Workspace[]): Promise<void> => {
 			await Promise.all(
 				workspaces
 					.filter((w) => !w.favorite)
@@ -98,7 +93,7 @@ export function useBatchActions(
 	});
 
 	const unfavoriteAllMutation = useMutation({
-		mutationFn: async (workspaces: readonly Workspace[]) => {
+		mutationFn: async (workspaces: readonly Workspace[]): Promise<void> => {
 			await Promise.all(
 				workspaces
 					.filter((w) => w.favorite)
