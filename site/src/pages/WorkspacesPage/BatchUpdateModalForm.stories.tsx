@@ -152,22 +152,17 @@ export const TransitioningWorkspaces: Story = {
 	args: { isProcessing: true },
 	beforeEach: (ctx) => {
 		const { workspaces, queries } = createPatchedDependencies(
-			2 * ACTIVE_BUILD_STATUSES.length,
+			// Adding one extra so that we still have a stopped workspace at the
+			// end of the list
+			1 + ACTIVE_BUILD_STATUSES.length,
 		);
-		const withUpdatedStatuses = workspaces.map<Workspace>((ws, i) => {
-			if (i % 2 === 0) {
-				return ws;
-			}
-			return {
-				...ws,
-				latest_build: {
-					...ws.latest_build,
-					status: ACTIVE_BUILD_STATUSES[i % ACTIVE_BUILD_STATUSES.length],
-				},
-			};
-		});
 
-		ctx.args = { ...ctx.args, workspacesToUpdate: withUpdatedStatuses };
+		for (const [i, status] of ACTIVE_BUILD_STATUSES.entries() ) {
+			const mutable = workspaces[i] as MutableWorkspace;
+			mutable.latest_build.status = status;
+		}
+
+		ctx.args = { ...ctx.args, workspacesToUpdate: workspaces };
 		ctx.parameters.queries = queries;
 	},
 };
