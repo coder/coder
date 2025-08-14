@@ -1,5 +1,5 @@
-import type { Meta, Parameters, StoryObj } from "@storybook/react";
-import { expect, screen, userEvent, within } from "@storybook/test";
+import type { Meta, Parameters, StoryObj } from "@storybook/react-vite";
+import { expect, screen, userEvent, within } from "storybook/test";
 import { templateVersionRoot } from "api/queries/templates";
 import type {
 	TemplateVersion,
@@ -10,6 +10,7 @@ import { useQueryClient } from "react-query";
 import { MockTemplateVersion, MockWorkspace } from "testHelpers/entities";
 import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
 import { ACTIVE_BUILD_STATUSES } from "./WorkspacesPage";
+import { action } from "storybook/internal/actions";
 
 type Writeable<T> = { -readonly [Key in keyof T]: T[Key] };
 type MutableWorkspace = Writeable<Omit<Workspace, "latest_build">> & {
@@ -22,11 +23,8 @@ const meta: Meta<typeof BatchUpdateModalForm> = {
 	args: {
 		open: true,
 		isProcessing: false,
-		onSubmit: () => window.alert("Hooray! Everything has been submitted"),
-		// Since we're using Radix, any cancel functionality is also going to
-		// trigger when you click outside the component bounds, which would make
-		// doing an alert really annoying in the Storybook web UI
-		onCancel: () => console.log("Canceled"),
+		onSubmit: action("All selected workspaces have been updated"),
+		onCancel: action("Update canceled"),
 	},
 };
 
