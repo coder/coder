@@ -97,7 +97,7 @@ export const HealthLayout: FC = () => {
 										</IconButton>
 									</Tooltip>
 								</div>
-								<div className="text-medium mt-4">
+								<div className="font-medium mt-4">
 									{healthStatus.healthy ? "Healthy" : "Unhealthy"}
 								</div>
 								<div
@@ -108,10 +108,10 @@ export const HealthLayout: FC = () => {
 								>
 									{healthStatus.healthy
 										? Object.keys(visibleSections).some((key) => {
-												const section =
-													healthStatus[key as keyof typeof visibleSections];
-												return section.warnings && section.warnings.length > 0;
-											})
+											const section =
+												healthStatus[key as keyof typeof visibleSections];
+											return section.warnings && section.warnings.length > 0;
+										})
 											? "All systems operational, but performance might be degraded"
 											: "All systems operational"
 										: "Some issues have been detected"}
@@ -119,7 +119,7 @@ export const HealthLayout: FC = () => {
 							</div>
 
 							<div className="flex flex-col">
-								<span className="text-medium">Last check</span>
+								<span className="font-medium">Last check</span>
 								<span
 									data-chromatic="ignore"
 									className="text-content-secondary line-height-[150%]"
@@ -129,7 +129,7 @@ export const HealthLayout: FC = () => {
 							</div>
 
 							<div css={{ display: "flex", flexDirection: "column" }}>
-								<span className="text-medium">Version</span>
+								<span className="font-medium">Version</span>
 								<span
 									data-chromatic="ignore"
 									className="text-content-secondary line-height-[150%]"
