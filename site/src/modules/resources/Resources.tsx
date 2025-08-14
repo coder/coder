@@ -26,11 +26,7 @@ export const Resources: FC<ResourcesProps> = ({ resources, agentRow }) => {
 	const hasHideResources = resources.some((r) => r.hide);
 
 	return (
-		<Stack
-			direction="column"
-			spacing={0}
-			className="bg-surface-primary"
-		>
+		<Stack direction="column" spacing={0} className="bg-surface-primary">
 			{displayResources.map((resource) => (
 				<ResourceCard
 					key={resource.id}
