@@ -17,8 +17,8 @@ import {
 	useRef,
 	useState,
 } from "react";
-import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 import { cn } from "utils/cn";
+import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 
 type ItemStatus = "stale" | "valid" | "loading";
 
