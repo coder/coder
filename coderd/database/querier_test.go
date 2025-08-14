@@ -479,12 +479,12 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 		require.Equal(t, database.ProvisionerDaemonStatusIdle, daemons[1].Status)
 	})
 
-	t.Run("Excludes offline daemons", func(t *testing.T) {
+	t.Run("ExcludeOffline", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		org := dbgen.Organization(t, db, database.Organization{})
 
-		_ = dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
 			Name:           "offline-daemon",
 			OrganizationID: org.ID,
 			CreatedAt:      dbtime.Now().Add(-time.Hour),
@@ -514,12 +514,12 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 		require.Equal(t, database.ProvisionerDaemonStatusIdle, daemons[0].Status)
 	})
 
-	t.Run("Includes offline daemons", func(t *testing.T) {
+	t.Run("IncludeOffline", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		org := dbgen.Organization(t, db, database.Organization{})
 
-		_ = dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
 			Name:           "offline-daemon",
 			OrganizationID: org.ID,
 			CreatedAt:      dbtime.Now().Add(-time.Hour),
@@ -528,14 +528,14 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 				Time:  dbtime.Now().Add(-time.Hour),
 			},
 		})
-		_ = dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
 			Name:           "foo-daemon",
 			OrganizationID: org.ID,
 			Tags: database.StringMap{
 				"foo": "bar",
 			},
 		})
-		_ = dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
 			Name:           "bar-daemon",
 			OrganizationID: org.ID,
 			CreatedAt:      dbtime.Now().Add(-(30 * time.Minute)),
@@ -560,6 +560,80 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 
 		require.Equal(t, 2, statusCounts[database.ProvisionerDaemonStatusIdle])
 		require.Equal(t, 1, statusCounts[database.ProvisionerDaemonStatusOffline])
+	})
+
+	t.Run("MatchesStatuses", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "offline-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-time.Hour),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-time.Hour),
+			},
+		})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "foo-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-(30 * time.Minute)),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-(30 * time.Minute)),
+			},
+		})
+
+		type testCase struct {
+			name        string
+			statuses    []database.ProvisionerDaemonStatus
+			expectedNum int
+		}
+
+		tests := []testCase{
+			{
+				name: "Get idle and offline",
+				statuses: []database.ProvisionerDaemonStatus{
+					database.ProvisionerDaemonStatusOffline,
+					database.ProvisionerDaemonStatusIdle,
+				},
+				expectedNum: 2,
+			},
+			{
+				name: "Get offline",
+				statuses: []database.ProvisionerDaemonStatus{
+					database.ProvisionerDaemonStatusOffline,
+				},
+				expectedNum: 1,
+			},
+			{
+				name:        "Get all - empty statuses",
+				statuses:    []database.ProvisionerDaemonStatus{},
+				expectedNum: 2,
+			},
+			{
+				name:        "Get all - nil statuses",
+				statuses:    nil,
+				expectedNum: 2,
+			},
+		}
+
+		for _, tc := range tests {
+			//nolint:tparallel,paralleltest
+			t.Run(tc.name, func(t *testing.T) {
+				daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+					OrganizationID:  org.ID,
+					StaleIntervalMS: 45 * time.Minute.Milliseconds(),
+					Offline:         sql.NullBool{Bool: true, Valid: true},
+					Statuses:        tc.statuses,
+				})
+				require.NoError(t, err)
+				require.Len(t, daemons, tc.expectedNum)
+			})
+		}
 	})
 }
 

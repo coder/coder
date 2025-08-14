@@ -6,6 +6,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -41,6 +42,7 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 		)
 		limit   int64
 		offline bool
+		status  []string
 	)
 
 	cmd := &serpent.Command{
@@ -62,6 +64,7 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 			daemons, err := client.OrganizationProvisionerDaemons(ctx, org.ID, &codersdk.OrganizationProvisionerDaemonsOptions{
 				Limit:   int(limit),
 				Offline: offline,
+				Status:  slice.StringEnums[codersdk.ProvisionerDaemonStatus](status),
 			})
 			if err != nil {
 				return xerrors.Errorf("list provisioner daemons: %w", err)
@@ -102,8 +105,16 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 		},
 		{
 			Flag:        "show-offline",
+			Env:         "CODER_PROVISIONER_SHOW_OFFLINE",
 			Description: "Show offline provisioners.",
 			Value:       serpent.BoolOf(&offline),
+		},
+		{
+			Flag:          "status",
+			FlagShorthand: "s",
+			Env:           "CODER_PROVISIONER_LIST_STATUS",
+			Description:   "Filter by provisioner status.",
+			Value:         serpent.EnumArrayOf(&status, slice.ToStrings(codersdk.ProvisionerDaemonStatusEnums())...),
 		},
 	}...)
 

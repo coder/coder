@@ -287,6 +287,12 @@ func (p *QueryParamParser) JSONStringMap(vals url.Values, def map[string]string,
 	return v
 }
 
+func (p *QueryParamParser) ProvisionerDaemonStatuses(vals url.Values, def []codersdk.ProvisionerDaemonStatus, queryParam string) []codersdk.ProvisionerDaemonStatus {
+	return ParseCustomList(p, vals, def, queryParam, func(v string) (codersdk.ProvisionerDaemonStatus, error) {
+		return codersdk.ProvisionerDaemonStatus(v), nil
+	})
+}
+
 // ValidEnum represents an enum that can be parsed and validated.
 type ValidEnum interface {
 	// Add more types as needed (avoid importing large dependency trees).

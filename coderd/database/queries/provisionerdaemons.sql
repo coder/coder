@@ -110,6 +110,16 @@ WHERE
 	pd.organization_id = @organization_id::uuid
 	AND (COALESCE(array_length(@ids::uuid[], 1), 0) = 0 OR pd.id = ANY(@ids::uuid[]))
 	AND (@tags::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, @tags::tagset))
+	-- Filter by status array if any status values are provided
+	AND (COALESCE(array_length(@statuses::provisioner_daemon_status[], 1), 0) = 0 OR 
+		(CASE
+			WHEN pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - (@stale_interval_ms::bigint || ' ms')::interval)
+			THEN 'offline'::provisioner_daemon_status
+			ELSE CASE
+				WHEN current_job.id IS NOT NULL THEN 'busy'::provisioner_daemon_status
+				ELSE 'idle'::provisioner_daemon_status
+			END
+		END) = ANY(@statuses::provisioner_daemon_status[]))
 	-- Include offline daemons only if offline is set to true
 	AND (
 		COALESCE(sqlc.narg('offline')::bool, false) = true

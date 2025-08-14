@@ -1834,6 +1834,7 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 export interface OrganizationProvisionerDaemonsOptions {
 	readonly Limit: number;
 	readonly Offline: boolean;
+	readonly Status: readonly ProvisionerDaemonStatus[];
 	readonly IDs: readonly string[];
 	readonly Tags: Record<string, string>;
 }
