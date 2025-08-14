@@ -3,6 +3,7 @@ package taskname
 import (
 	"context"
 	"io"
+	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/coder/aisdk-go"
@@ -15,16 +16,19 @@ const systemPrompt = `Generate a short workspace name from this AI task prompt.
 Requirements:
 - Only lowercase letters, numbers, and hyphens
 - Start with "task-"
+- End with a random number between 0-99
 - Maximum 32 characters total
 - Descriptive of the main task
 
 Examples:
-- "Help me debug a Python script" → "task-python-debug"
-- "Create a React dashboard component" → "task-react-dashboard"
-- "Analyze sales data from Q3" → "task-analyze-q3-sales"
-- "Set up CI/CD pipeline" → "task-setup-cicd"
+- "Help me debug a Python script" → "task-python-debug-12"
+- "Create a React dashboard component" → "task-react-dashboard-93"
+- "Analyze sales data from Q3" → "task-analyze-q3-sales-37"
+- "Set up CI/CD pipeline" → "task-setup-cicd-44"
 
-If you cannot create a suitable name, respond with just "task-workspace".`
+If you cannot create a suitable name:
+- Respond with "task-workspace"
+- Do not end with a random number`
 
 func Generate(ctx context.Context, prompt, fallback string) (string, error) {
 	conversation := []aisdk.Message{
@@ -42,6 +46,10 @@ func Generate(ctx context.Context, prompt, fallback string) (string, error) {
 				Text: prompt,
 			}},
 		},
+	}
+
+	if apiKey := os.Getenv("ANTHROPIC_API_KEY"); apiKey == "" {
+		return fallback, nil
 	}
 
 	anthropicClient := anthropic.NewClient(anthropic.DefaultClientOptions()...)
@@ -66,6 +74,10 @@ func Generate(ctx context.Context, prompt, fallback string) (string, error) {
 
 	if err := codersdk.NameValid(generatedName); err != nil {
 		return fallback, xerrors.Errorf("generated name %p not valid: %w", generatedName, err)
+	}
+
+	if generatedName == "task-workspace" {
+		return fallback, nil
 	}
 
 	return generatedName, nil

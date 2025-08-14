@@ -111,10 +111,6 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		api.Logger.Error(ctx, "unable to generate task name", slog.Error(err))
 	}
 
-	if taskName == "" {
-		taskName = req.Name
-	}
-
 	createReq := codersdk.CreateWorkspaceRequest{
 		Name:                    taskName,
 		TemplateVersionID:       req.TemplateVersionID,
