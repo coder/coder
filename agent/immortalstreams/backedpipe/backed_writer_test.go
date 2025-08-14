@@ -143,8 +143,9 @@ func TestBackedWriter_WriteToUnderlyingWhenConnected(t *testing.T) {
 	require.Equal(t, []byte("hello"), writer.buffer.Bytes())
 }
 
-func TestBackedWriter_DisconnectOnWriteFailure(t *testing.T) {
+func TestBackedWriter_BlockOnWriteFailure(t *testing.T) {
 	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
 
 	errorChan := make(chan error, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
@@ -157,11 +158,26 @@ func TestBackedWriter_DisconnectOnWriteFailure(t *testing.T) {
 	// Cause write to fail
 	writer.setError(xerrors.New("write failed"))
 
-	// Write should fail and disconnect
-	n, err := bw.Write([]byte("hello"))
-	require.Error(t, err) // Write should fail
-	require.Equal(t, 0, n)
-	require.False(t, bw.Connected()) // Should be disconnected
+	// Write should block when underlying writer fails
+	writeComplete := make(chan struct{})
+	var writeErr error
+	var n int
+
+	go func() {
+		defer close(writeComplete)
+		n, writeErr = bw.Write([]byte("hello"))
+	}()
+
+	// Verify write is blocked
+	select {
+	case <-writeComplete:
+		t.Fatal("Write should have blocked when underlying writer fails")
+	case <-time.After(50 * time.Millisecond):
+		// Expected - write is blocked
+	}
+
+	// Should be disconnected
+	require.False(t, bw.Connected())
 
 	// Error should be sent to error channel
 	select {
@@ -170,6 +186,19 @@ func TestBackedWriter_DisconnectOnWriteFailure(t *testing.T) {
 	default:
 		t.Fatal("Expected error to be sent to error channel")
 	}
+
+	// Reconnect with working writer and verify write completes
+	writer2 := newMockWriter()
+	err = bw.Reconnect(0, writer2) // Replay from beginning
+	require.NoError(t, err)
+
+	// Write should now complete
+	testutil.TryReceive(ctx, t, writeComplete)
+
+	require.NoError(t, writeErr)
+	require.Equal(t, 5, n)
+	require.Equal(t, uint64(5), bw.SequenceNum())
+	require.Equal(t, []byte("hello"), writer2.buffer.Bytes())
 }
 
 func TestBackedWriter_ReplayOnReconnect(t *testing.T) {
@@ -193,14 +222,42 @@ func TestBackedWriter_ReplayOnReconnect(t *testing.T) {
 
 	// Disconnect by causing a write failure
 	writer1.setError(xerrors.New("connection lost"))
-	_, err = bw.Write([]byte("test"))
-	require.Error(t, err)
+
+	// Write should block when underlying writer fails
+	writeComplete := make(chan struct{})
+	var writeErr error
+	var n int
+
+	go func() {
+		defer close(writeComplete)
+		n, writeErr = bw.Write([]byte("test"))
+	}()
+
+	// Verify write is blocked
+	select {
+	case <-writeComplete:
+		t.Fatal("Write should have blocked when underlying writer fails")
+	case <-time.After(50 * time.Millisecond):
+		// Expected - write is blocked
+	}
+
 	require.False(t, bw.Connected())
 
 	// Reconnect with new writer and request replay from beginning
 	writer2 := newMockWriter()
 	err = bw.Reconnect(0, writer2)
 	require.NoError(t, err)
+
+	// Write should now complete
+	select {
+	case <-writeComplete:
+		// Expected - write completed
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Write should have completed after reconnection")
+	}
+
+	require.NoError(t, writeErr)
+	require.Equal(t, 4, n)
 
 	// Should have replayed all data including the failed write that was buffered
 	require.Equal(t, []byte("hello worldtest"), writer2.buffer.Bytes())
@@ -319,7 +376,7 @@ func TestBackedWriter_Close(t *testing.T) {
 
 	// Writes after close should fail
 	_, err = bw.Write([]byte("test"))
-	require.Equal(t, io.ErrClosedPipe, err)
+	require.Equal(t, io.EOF, err)
 
 	// Reconnect after close should fail
 	err = bw.Reconnect(0, newMockWriter())
@@ -401,8 +458,9 @@ func TestBackedWriter_ReconnectDuringReplay(t *testing.T) {
 	require.False(t, bw.Connected())
 }
 
-func TestBackedWriter_PartialWriteToUnderlying(t *testing.T) {
+func TestBackedWriter_BlockOnPartialWrite(t *testing.T) {
 	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
 
 	errorChan := make(chan error, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
@@ -419,12 +477,26 @@ func TestBackedWriter_PartialWriteToUnderlying(t *testing.T) {
 
 	bw.Reconnect(0, writer)
 
-	// Write should fail due to partial write
-	n, err := bw.Write([]byte("hello"))
-	require.Error(t, err)
-	require.Equal(t, 0, n)
+	// Write should block due to partial write
+	writeComplete := make(chan struct{})
+	var writeErr error
+	var n int
+
+	go func() {
+		defer close(writeComplete)
+		n, writeErr = bw.Write([]byte("hello"))
+	}()
+
+	// Verify write is blocked
+	select {
+	case <-writeComplete:
+		t.Fatal("Write should have blocked when underlying writer does partial write")
+	case <-time.After(50 * time.Millisecond):
+		// Expected - write is blocked
+	}
+
+	// Should be disconnected
 	require.False(t, bw.Connected())
-	require.Contains(t, err.Error(), "short write")
 
 	// Error should be sent to error channel
 	select {
@@ -433,6 +505,19 @@ func TestBackedWriter_PartialWriteToUnderlying(t *testing.T) {
 	default:
 		t.Fatal("Expected error to be sent to error channel")
 	}
+
+	// Reconnect with working writer and verify write completes
+	writer2 := newMockWriter()
+	err := bw.Reconnect(0, writer2) // Replay from beginning
+	require.NoError(t, err)
+
+	// Write should now complete
+	testutil.TryReceive(ctx, t, writeComplete)
+
+	require.NoError(t, writeErr)
+	require.Equal(t, 5, n)
+	require.Equal(t, uint64(5), bw.SequenceNum())
+	require.Equal(t, []byte("hello"), writer2.buffer.Bytes())
 }
 
 func TestBackedWriter_WriteUnblocksOnReconnect(t *testing.T) {
@@ -498,7 +583,7 @@ func TestBackedWriter_CloseUnblocksWaitingWrites(t *testing.T) {
 
 	// Write should now complete with error
 	err = testutil.RequireReceive(ctx, t, writeComplete)
-	require.Equal(t, io.ErrClosedPipe, err)
+	require.Equal(t, io.EOF, err)
 }
 
 func TestBackedWriter_WriteBlocksAfterDisconnection(t *testing.T) {
@@ -517,16 +602,13 @@ func TestBackedWriter_WriteBlocksAfterDisconnection(t *testing.T) {
 	_, err = bw.Write([]byte("hello"))
 	require.NoError(t, err)
 
-	// Cause disconnection
+	// Cause disconnection - the write should now block instead of returning an error
 	writer.setError(xerrors.New("connection lost"))
-	_, err = bw.Write([]byte("world"))
-	require.Error(t, err)
-	require.False(t, bw.Connected())
 
-	// Subsequent write should block
+	// This write should block
 	writeComplete := make(chan error, 1)
 	go func() {
-		_, err := bw.Write([]byte("blocked"))
+		_, err := bw.Write([]byte("world"))
 		writeComplete <- err
 	}()
 
@@ -538,6 +620,9 @@ func TestBackedWriter_WriteBlocksAfterDisconnection(t *testing.T) {
 		// Expected - write is blocked
 	}
 
+	// Should be disconnected
+	require.False(t, bw.Connected())
+
 	// Reconnect and verify write completes
 	writer2 := newMockWriter()
 	err = bw.Reconnect(5, writer2) // Replay from after "hello"
@@ -545,6 +630,9 @@ func TestBackedWriter_WriteBlocksAfterDisconnection(t *testing.T) {
 
 	err = testutil.RequireReceive(ctx, t, writeComplete)
 	require.NoError(t, err)
+
+	// Check that only "world" was written during replay (not duplicated)
+	require.Equal(t, []byte("world"), writer2.buffer.Bytes()) // Only "world" since we replayed from sequence 5
 }
 
 func BenchmarkBackedWriter_Write(b *testing.B) {

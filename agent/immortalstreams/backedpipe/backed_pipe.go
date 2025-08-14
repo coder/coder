@@ -110,7 +110,7 @@ func (bp *BackedPipe) Read(p []byte) (int, error) {
 	bp.mu.RUnlock()
 
 	if closed {
-		return 0, io.ErrClosedPipe
+		return 0, io.EOF
 	}
 
 	return reader.Read(p)
@@ -124,7 +124,7 @@ func (bp *BackedPipe) Write(p []byte) (int, error) {
 	bp.mu.RUnlock()
 
 	if closed {
-		return 0, io.ErrClosedPipe
+		return 0, io.EOF
 	}
 
 	return writer.Write(p)
@@ -294,7 +294,7 @@ func (bp *BackedPipe) ForceReconnect() error {
 		defer bp.mu.Unlock()
 
 		if bp.closed {
-			return nil, io.ErrClosedPipe
+			return nil, io.EOF
 		}
 
 		return nil, bp.reconnectLocked()
