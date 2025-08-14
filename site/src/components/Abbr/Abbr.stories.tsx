@@ -6,10 +6,10 @@ const meta: Meta<typeof Abbr> = {
 	component: Abbr,
 	decorators: [
 		(Story) => (
-			<>
+			<div className="max-w-prose text-base">
 				<p>Try the following text out in a screen reader!</p>
 				<Story />
-			</>
+			</div>
 		),
 	],
 };
@@ -25,9 +25,9 @@ export const InlinedShorthand: Story = {
 	},
 	decorators: [
 		(Story) => (
-			<p className="max-w-2xl">
+			<p>
 				The physical pain of getting bonked on the head with a cartoon mallet
-				lasts precisely 593{" "}
+				lasts precisely 593
 				<span className="underline decoration-dotted">
 					<Story />
 				</span>
