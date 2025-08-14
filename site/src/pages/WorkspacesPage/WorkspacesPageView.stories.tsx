@@ -1,17 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-	type Workspace,
-	type WorkspaceStatus,
-	WorkspaceStatuses,
-} from "api/typesGenerated";
-import {
-	MockMenu,
-	getDefaultFilterProps,
-} from "components/Filter/storyHelpers";
-import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
-import dayjs from "dayjs";
-import uniqueId from "lodash/uniqueId";
-import { expect, within } from "storybook/test";
 import {
 	MockBuildInfo,
 	MockOrganization,
@@ -29,8 +15,22 @@ import {
 	withDashboardProvider,
 	withProxyProvider,
 } from "testHelpers/storybook";
-import { WorkspacesPageView } from "./WorkspacesPageView";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import {
+	type Workspace,
+	type WorkspaceStatus,
+	WorkspaceStatuses,
+} from "api/typesGenerated";
+import {
+	getDefaultFilterProps,
+	MockMenu,
+} from "components/Filter/storyHelpers";
+import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
+import dayjs from "dayjs";
+import uniqueId from "lodash/uniqueId";
+import { expect, within } from "storybook/test";
 import type { WorkspaceFilterState } from "./filter/WorkspacesFilter";
+import { WorkspacesPageView } from "./WorkspacesPageView";
 
 const createWorkspace = (
 	name: string,

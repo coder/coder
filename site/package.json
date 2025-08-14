@@ -125,7 +125,7 @@
 		"yup": "1.6.1"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "1.9.4",
+		"@biomejs/biome": "2.2.0",
 		"@chromatic-com/storybook": "4.0.1",
 		"@octokit/types": "12.3.0",
 		"@playwright/test": "1.47.0",
@@ -185,7 +185,11 @@
 		"vite": "6.3.5",
 		"vite-plugin-checker": "0.9.3"
 	},
-	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
+	"browserslist": [
+		"chrome 110",
+		"firefox 111",
+		"safari 16.0"
+	],
 	"resolutions": {
 		"optionator": "0.9.3",
 		"semver": "7.6.2"
@@ -202,6 +206,8 @@
 			"form-data": "4.0.4",
 			"prismjs": "1.30.0"
 		},
-		"ignoredBuiltDependencies": ["storybook-addon-remix-react-router"]
+		"ignoredBuiltDependencies": [
+			"storybook-addon-remix-react-router"
+		]
 	}
 }

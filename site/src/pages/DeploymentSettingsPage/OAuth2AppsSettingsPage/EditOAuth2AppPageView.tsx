@@ -23,8 +23,7 @@ import {
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
-import { CopyIcon } from "lucide-react";
-import { ChevronLeftIcon } from "lucide-react";
+import { ChevronLeftIcon, CopyIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink, useSearchParams } from "react-router";
 import { createDayString } from "utils/createDayString";

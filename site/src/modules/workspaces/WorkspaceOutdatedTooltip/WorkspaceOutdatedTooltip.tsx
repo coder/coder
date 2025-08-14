@@ -4,6 +4,7 @@ import Skeleton from "@mui/material/Skeleton";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { templateVersion } from "api/queries/templates";
 import type { Workspace } from "api/typesGenerated";
+import { usePopover } from "components/deprecated/Popover/Popover";
 import { displayError } from "components/GlobalSnackbar/utils";
 import {
 	HelpTooltip,
@@ -14,15 +15,13 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import { usePopover } from "components/deprecated/Popover/Popover";
-import { InfoIcon } from "lucide-react";
-import { RotateCcwIcon } from "lucide-react";
+import { InfoIcon, RotateCcwIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import {
-	WorkspaceUpdateDialogs,
 	useWorkspaceUpdate,
+	WorkspaceUpdateDialogs,
 } from "../WorkspaceUpdateDialogs";
 
 interface TooltipProps {

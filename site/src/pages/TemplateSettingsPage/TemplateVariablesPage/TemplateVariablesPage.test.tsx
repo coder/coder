@@ -1,6 +1,3 @@
-import { screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
 import {
 	MockTemplate,
 	MockTemplateVersion,
@@ -12,6 +9,9 @@ import {
 	renderWithTemplateSettingsLayout,
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { API } from "api/api";
 import { delay } from "utils/delay";
 import TemplateVariablesPage from "./TemplateVariablesPage";
 

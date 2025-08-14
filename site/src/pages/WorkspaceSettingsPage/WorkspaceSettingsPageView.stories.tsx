@@ -1,6 +1,6 @@
+import { MockWorkspace } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
-import { MockWorkspace } from "testHelpers/entities";
 import { WorkspaceSettingsPageView } from "./WorkspaceSettingsPageView";
 
 const meta: Meta<typeof WorkspaceSettingsPageView> = {

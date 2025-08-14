@@ -1,5 +1,3 @@
-import type { StorybookConfig } from "@storybook/react-vite";
-
 export default {
 	stories: ["../src/**/*.stories.tsx"],
 
@@ -17,4 +15,15 @@ export default {
 		name: "@storybook/react-vite",
 		options: {},
 	},
-} satisfies StorybookConfig;
+
+	async viteFinal(config) {
+		// Storybook seems to strip this setting out of our Vite config. We need to
+		// put it back in order to be able to access Storybook with Coder Desktop or
+		// port sharing.
+		config.server = {
+			...config.server,
+			allowedHosts: [".coder", ".dev.coder.com"],
+		};
+		return config;
+	},
+} satisfies import("@storybook/react-vite").StorybookConfig;

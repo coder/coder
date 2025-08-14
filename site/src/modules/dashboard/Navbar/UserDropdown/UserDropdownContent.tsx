@@ -1,8 +1,8 @@
 import {
 	type CSSObject,
+	css,
 	type Interpolation,
 	type Theme,
-	css,
 } from "@emotion/react";
 import Divider from "@mui/material/Divider";
 import MenuItem from "@mui/material/MenuItem";
@@ -10,15 +10,18 @@ import type { SvgIconProps } from "@mui/material/SvgIcon";
 import Tooltip from "@mui/material/Tooltip";
 import type * as TypesGen from "api/typesGenerated";
 import { CopyButton } from "components/CopyButton/CopyButton";
+import { usePopover } from "components/deprecated/Popover/Popover";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Stack } from "components/Stack/Stack";
-import { usePopover } from "components/deprecated/Popover/Popover";
-import { BookOpenTextIcon } from "lucide-react";
-import { BugIcon } from "lucide-react";
-import { CircleUserIcon } from "lucide-react";
-import { LogOutIcon } from "lucide-react";
-import { MessageSquareIcon } from "lucide-react";
-import { MonitorDownIcon, SquareArrowOutUpRightIcon } from "lucide-react";
+import {
+	BookOpenTextIcon,
+	BugIcon,
+	CircleUserIcon,
+	LogOutIcon,
+	MessageSquareIcon,
+	MonitorDownIcon,
+	SquareArrowOutUpRightIcon,
+} from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router";
 
