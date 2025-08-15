@@ -10,16 +10,20 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
 	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/usage"
@@ -40,6 +44,7 @@ func TestIntegration(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	log := slogtest.Make(t, nil)
 	db, _ := dbtestutil.NewDB(t)
+
 	clock := quartz.NewMock(t)
 	deploymentID, licenseJWT := configureDeployment(ctx, t, db)
 	now := time.Now()
@@ -60,7 +65,7 @@ func TestIntegration(t *testing.T) {
 		return handler(req)
 	}))
 
-	inserter := usage.NewInserter(
+	inserter := usage.NewDBInserter(
 		usage.InserterWithClock(clock),
 	)
 	// Insert an old event that should never be published.
@@ -80,10 +85,12 @@ func TestIntegration(t *testing.T) {
 		require.NoErrorf(t, err, "collecting event %d", i)
 	}
 
-	publisher := usage.NewTallymanPublisher(ctx, log, db,
+	// Wrap the publisher's DB in a dbauthz to ensure that the publisher has
+	// enough permissions.
+	authzDB := dbauthz.New(db, rbac.NewAuthorizer(prometheus.NewRegistry()), log, coderdtest.AccessControlStorePointer())
+	publisher := usage.NewTallymanPublisher(ctx, log, authzDB, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
-		usage.PublisherWithLicenseKeys(coderdenttest.Keys),
 	)
 	defer publisher.Close()
 
@@ -212,10 +219,9 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 		}
 	}))
 
-	publisher := usage.NewTallymanPublisher(ctx, log, db,
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
-		usage.PublisherWithLicenseKeys(coderdenttest.Keys),
 	)
 	defer publisher.Close()
 
@@ -283,14 +289,13 @@ func TestPublisherClaimExpiry(t *testing.T) {
 		return tallymanAcceptAllHandler(req)
 	}))
 
-	inserter := usage.NewInserter(
+	inserter := usage.NewDBInserter(
 		usage.InserterWithClock(clock),
 	)
 
-	publisher := usage.NewTallymanPublisher(ctx, log, db,
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
-		usage.PublisherWithLicenseKeys(coderdenttest.Keys),
 		usage.PublisherWithInitialDelay(17*time.Minute),
 	)
 	defer publisher.Close()
@@ -367,10 +372,9 @@ func TestPublisherMissingEvents(t *testing.T) {
 		}
 	}))
 
-	publisher := usage.NewTallymanPublisher(ctx, log, db,
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
-		usage.PublisherWithLicenseKeys(coderdenttest.Keys),
 	)
 
 	// Expect the publisher to call SelectUsageEventsForPublishing, followed by
@@ -510,10 +514,9 @@ func TestPublisherLicenseSelection(t *testing.T) {
 		return tallymanAcceptAllHandler(req)
 	}))
 
-	publisher := usage.NewTallymanPublisher(ctx, log, db,
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
-		usage.PublisherWithLicenseKeys(coderdenttest.Keys),
 	)
 	defer publisher.Close()
 
@@ -579,10 +582,9 @@ func TestPublisherTallymanError(t *testing.T) {
 		}
 	}))
 
-	publisher := usage.NewTallymanPublisher(ctx, log, db,
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
-		usage.PublisherWithLicenseKeys(coderdenttest.Keys),
 	)
 	defer publisher.Close()
 

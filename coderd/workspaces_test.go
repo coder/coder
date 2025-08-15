@@ -1427,7 +1427,6 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	t.Parallel()
 
 	// For this test, we do not care about permissions.
-	// nolint:gocritic // unit testing
 	ctx := dbauthz.AsSystemRestricted(context.Background())
 	db, pubsub := dbtestutil.NewDB(t)
 	client := coderdtest.New(t, &coderdtest.Options{
@@ -2215,15 +2214,12 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		after := coderdtest.CreateWorkspace(t, client, template.ID)
 		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, after.LatestBuild.ID)
 
-		//nolint:gocritic // Unit testing context
 		err := api.Database.UpdateWorkspaceLastUsedAt(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceLastUsedAtParams{
 			ID:         before.ID,
 			LastUsedAt: now.UTC().Add(time.Hour * -1),
 		})
 		require.NoError(t, err)
 
-		// Unit testing context
-		//nolint:gocritic // Unit testing context
 		err = api.Database.UpdateWorkspaceLastUsedAt(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceLastUsedAtParams{
 			ID:         after.ID,
 			LastUsedAt: now.UTC().Add(time.Hour * 1),
@@ -2916,14 +2912,14 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 
 		// This is a hack, but the max_deadline isn't precisely configurable
 		// without a lot of unnecessary hassle.
-		dbBuild, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), build.ID) //nolint:gocritic // test
+		dbBuild, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), build.ID)
 		require.NoError(t, err)
-		dbJob, err := db.GetProvisionerJobByID(dbauthz.AsSystemRestricted(ctx), dbBuild.JobID) //nolint:gocritic // test
+		dbJob, err := db.GetProvisionerJobByID(dbauthz.AsSystemRestricted(ctx), dbBuild.JobID)
 		require.NoError(t, err)
 		require.True(t, dbJob.CompletedAt.Valid)
 		initialDeadline := dbJob.CompletedAt.Time.Add(deadline)
 		expectedMaxDeadline := dbJob.CompletedAt.Time.Add(maxDeadline)
-		err = db.UpdateWorkspaceBuildDeadlineByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildDeadlineByIDParams{ //nolint:gocritic // test
+		err = db.UpdateWorkspaceBuildDeadlineByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildDeadlineByIDParams{
 			ID:          build.ID,
 			Deadline:    initialDeadline,
 			MaxDeadline: expectedMaxDeadline,
@@ -4507,14 +4503,12 @@ func TestOIDCRemoved(t *testing.T) {
 	user, userData := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.ScopedRoleOrgAdmin(first.OrganizationID))
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
-	//nolint:gocritic // unit test
 	_, err := db.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
 		NewLoginType: database.LoginTypeOIDC,
 		UserID:       userData.ID,
 	})
 	require.NoError(t, err)
 
-	//nolint:gocritic // unit test
 	_, err = db.InsertUserLink(dbauthz.AsSystemRestricted(ctx), database.InsertUserLinkParams{
 		UserID:                 userData.ID,
 		LoginType:              database.LoginTypeOIDC,
@@ -4603,7 +4597,6 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 		})
 
 		if aiTaskPrompt != nil {
-			//nolint:gocritic // unit test
 			err := db.InsertWorkspaceBuildParameters(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceBuildParametersParams{
 				WorkspaceBuildID: build.ID,
 				Name:             []string{provider.TaskPromptParameterName},
@@ -4806,7 +4799,6 @@ func TestMultipleAITasksDisallowed(t *testing.T) {
 	ws := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
-	//nolint: gocritic // testing
 	ctx := dbauthz.AsSystemRestricted(t.Context())
 	pj, err := db.GetProvisionerJobByID(ctx, ws.LatestBuild.Job.ID)
 	require.NoError(t, err)

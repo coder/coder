@@ -154,7 +154,6 @@ func TestEntitlements(t *testing.T) {
 		entitlements, err := anotherClient.Entitlements(context.Background())
 		require.NoError(t, err)
 		require.False(t, entitlements.HasLicense)
-		//nolint:gocritic // unit test
 		ctx := testDBAuthzRole(context.Background())
 		_, err = api.Database.InsertLicense(ctx, database.InsertLicenseParams{
 			UploadedAt: dbtime.Now(),
@@ -186,7 +185,6 @@ func TestEntitlements(t *testing.T) {
 		require.False(t, entitlements.HasLicense)
 		// Valid
 		ctx := context.Background()
-		//nolint:gocritic // unit test
 		_, err = api.Database.InsertLicense(testDBAuthzRole(ctx), database.InsertLicenseParams{
 			UploadedAt: dbtime.Now(),
 			Exp:        dbtime.Now().AddDate(1, 0, 0),
@@ -198,7 +196,6 @@ func TestEntitlements(t *testing.T) {
 		})
 		require.NoError(t, err)
 		// Expired
-		//nolint:gocritic // unit test
 		_, err = api.Database.InsertLicense(testDBAuthzRole(ctx), database.InsertLicenseParams{
 			UploadedAt: dbtime.Now(),
 			Exp:        dbtime.Now().AddDate(-1, 0, 0),
@@ -208,7 +205,6 @@ func TestEntitlements(t *testing.T) {
 		})
 		require.NoError(t, err)
 		// Invalid
-		//nolint:gocritic // unit test
 		_, err = api.Database.InsertLicense(testDBAuthzRole(ctx), database.InsertLicenseParams{
 			UploadedAt: dbtime.Now(),
 			Exp:        dbtime.Now().AddDate(1, 0, 0),

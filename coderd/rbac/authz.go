@@ -76,7 +76,7 @@ const (
 	SubjectTypeNotifier                     SubjectType = "notifier"
 	SubjectTypeSubAgentAPI                  SubjectType = "sub_agent_api"
 	SubjectTypeFileReader                   SubjectType = "file_reader"
-	SubjectTypeUsageTracker                 SubjectType = "usage_tracker"
+	SubjectTypeUsagePublisher               SubjectType = "usage_publisher"
 )
 
 const (

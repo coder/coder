@@ -111,7 +111,6 @@ func TestDelete(t *testing.T) {
 		// The API checks if the user has any workspaces, so we cannot delete a user
 		// this way.
 		ctx := testutil.Context(t, testutil.WaitShort)
-		// nolint:gocritic // Unit test
 		err := api.Database.UpdateUserDeletedByID(dbauthz.AsSystemRestricted(ctx), deleteMeUser.ID)
 		require.NoError(t, err)
 
