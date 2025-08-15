@@ -1,4 +1,5 @@
 import type { WorkspaceAgent } from "api/typesGenerated";
+import { PopoverTrigger } from "components/deprecated/Popover/Popover";
 import {
 	HelpTooltip,
 	HelpTooltipAction,
@@ -7,7 +8,6 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { PopoverTrigger } from "components/deprecated/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
 import { RotateCcwIcon } from "lucide-react";
 import type { FC } from "react";
