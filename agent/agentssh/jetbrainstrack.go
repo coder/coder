@@ -53,7 +53,8 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, reportConne
 
 	// If this is not JetBrains, then we do not need to do anything special.  We
 	// attempt to match on something that appears unique to JetBrains software.
-	if !strings.Contains(strings.ToLower(cmdline), strings.ToLower(MagicProcessCmdlineJetBrains)) {
+	isJetbrains := strings.Contains(strings.ToLower(cmdline), strings.ToLower(MagicProcessCmdlineJetBrains)) || strings.Contains(strings.ToLower(cmdline), strings.ToLower(MagicProcessCmdlineToolbox))
+	if !isJetbrains {
 		return newChannel
 	}
 
