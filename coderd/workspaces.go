@@ -2149,18 +2149,22 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 	)
 
 	// Fetch the ACL data
-	acl, err := api.Database.GetWorkspaceACLByID(ctx, workspace.ID)
+	workspaceACL, err := api.Database.GetWorkspaceACLByID(ctx, workspace.ID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 
 	// Fetch all of the users and their organization memberships
-	userIDs := make([]uuid.UUID, 0, len(acl.Users))
-	for userID, _ := range acl.Users {
+	userIDs := make([]uuid.UUID, 0, len(workspaceACL.Users))
+	for userID := range workspaceACL.Users {
 		userIDs = append(userIDs, uuid.MustParse(userID))
 	}
 	dbUsers, err := api.Database.GetUsersByIDs(ctx, userIDs)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
 
 	orgIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(r.Context(), userIDs)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
@@ -2177,16 +2181,20 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 	for _, it := range dbUsers {
 		users = append(users, codersdk.WorkspaceUser{
 			User: db2sdk.User(it, organizationIDsByUserID[it.ID]),
-			Role: convertToWorkspaceRole(acl.Users[it.ID.String()].Permissions),
+			Role: convertToWorkspaceRole(workspaceACL.Users[it.ID.String()].Permissions),
 		})
 	}
 
 	// Fetch all of the groups
-	groupIDs := make([]uuid.UUID, 0, len(acl.Groups))
-	for groupID, _ := range acl.Groups {
+	groupIDs := make([]uuid.UUID, 0, len(workspaceACL.Groups))
+	for groupID := range workspaceACL.Groups {
 		groupIDs = append(groupIDs, uuid.MustParse(groupID))
 	}
 	dbGroups, err := api.Database.GetGroups(ctx, database.GetGroupsParams{GroupIds: groupIDs})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
 
 	groups := make([]codersdk.WorkspaceGroup, 0, len(dbGroups))
 	for _, it := range dbGroups {
@@ -2215,7 +2223,7 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 				OrganizationName:        it.OrganizationName,
 				OrganizationDisplayName: it.OrganizationDisplayName,
 			}, members, len(members)),
-			Role: convertToWorkspaceRole(acl.Groups[it.Group.ID.String()].Permissions),
+			Role: convertToWorkspaceRole(workspaceACL.Groups[it.Group.ID.String()].Permissions),
 		})
 	}
 
