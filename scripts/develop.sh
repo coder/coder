@@ -14,6 +14,7 @@ source "${SCRIPT_DIR}/lib.sh"
 set -euo pipefail
 
 CODER_DEV_ACCESS_URL="${CODER_DEV_ACCESS_URL:-http://127.0.0.1:3000}"
+CODER_DEV_LICENSE="${CODER_DEV_LICENSE:-""}"
 DEVELOP_IN_CODER="${DEVELOP_IN_CODER:-0}"
 debug=0
 DEFAULT_PASSWORD="SomeSecurePassword!"
@@ -198,6 +199,18 @@ fatal() {
 		# Try to create a regular user.
 		"${CODER_DEV_SHIM}" users create --email=member@coder.com --username=member --full-name "Regular User" --password="${password}" ||
 			echo 'Failed to create regular user. To troubleshoot, try running this command manually.'
+	fi
+
+	# Add a license if one is provided and we are not operating in AGPL mode.
+	if [ "${CODER_BUILD_AGPL:-0}" -gt "0" ]; then
+		if [ -n "${CODER_DEV_LICENSE}" ]; then
+			NUM_LICENSES=$("${CODER_DEV_SHIM}" licenses list -o json | jq -r '. | length')
+			if [ "${NUM_LICENSES}" -eq "0" ]; then
+				echo -n "${CODER_DEV_LICENSE}" | "${CODER_DEV_SHIM}" licenses add -f - || echo "ERROR: failed to add license. Try adding one manually."
+			else
+				echo "At least one license already exists."
+			fi
+		fi
 	fi
 
 	# Create a new organization and add the member user to it.
