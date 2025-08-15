@@ -162,6 +162,7 @@ func WithLogDSN(logDSN bool) OpenOption {
 // TBSubset is a subset of the testing.TB interface.
 // It allows to use dbtestutil.Open outside of tests.
 type TBSubset interface {
+	Name() string
 	Cleanup(func())
 	Helper()
 	Logf(format string, args ...any)
@@ -239,7 +240,7 @@ func Open(t TBSubset, opts ...OpenOption) (string, error) {
 
 	// Optionally log the DSN to help connect to the test database.
 	if openOptions.LogDSN {
-		_, _ = fmt.Fprintf(os.Stderr, "Connect to this test database using: psql '%s'\n", dsn)
+		_, _ = fmt.Fprintf(os.Stderr, "Connect to the database for %s using: psql '%s'\n", t.Name(), dsn)
 	}
 	return dsn, nil
 }
