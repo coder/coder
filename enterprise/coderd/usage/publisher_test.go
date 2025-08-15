@@ -630,6 +630,9 @@ func TestPublisherTallymanError(t *testing.T) {
 
 func jsoninate(t *testing.T, v any) string {
 	t.Helper()
+	if e, ok := v.(agplusage.Event); ok {
+		v = e.Fields()
+	}
 	buf, err := json.Marshal(v)
 	require.NoError(t, err)
 	return string(buf)

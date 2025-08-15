@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd"
@@ -127,7 +128,8 @@ func PublisherWithInitialDelay(initialDelay time.Duration) TallymanPublisherOpti
 
 // Start implements Publisher.
 func (p *tallymanPublisher) Start() error {
-	deploymentID, err := p.db.GetDeploymentID(p.ctx)
+	ctx := p.ctx
+	deploymentID, err := p.db.GetDeploymentID(ctx)
 	if err != nil {
 		return xerrors.Errorf("get deployment ID: %w", err)
 	}
@@ -147,7 +149,9 @@ func (p *tallymanPublisher) Start() error {
 		p.initialDelay = tallymanPublishInitialMinimumDelay + time.Duration(plusDelay)
 	}
 
-	go p.publishLoop(p.ctx, deploymentUUID)
+	pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceTallymanPublisher), func(ctx context.Context) {
+		p.publishLoop(ctx, deploymentUUID)
+	})
 	return nil
 }
 
