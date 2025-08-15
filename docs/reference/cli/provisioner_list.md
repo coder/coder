@@ -25,6 +25,33 @@ coder provisioner list [flags]
 
 Limit the number of provisioners returned.
 
+### -f, --show-offline
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>bool</code>                            |
+| Environment | <code>$CODER_PROVISIONER_SHOW_OFFLINE</code> |
+
+Show offline provisioners.
+
+### -s, --status
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>[offline\|idle\|busy]</code>          |
+| Environment | <code>$CODER_PROVISIONER_LIST_STATUS</code> |
+
+Filter by provisioner status.
+
+### -m, --max-age
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>duration</code>                        |
+| Environment | <code>$CODER_PROVISIONER_LIST_MAX_AGE</code> |
+
+Filter provisioners by maximum age.
+
 ### -O, --org
 
 |             |                                  |
