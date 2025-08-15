@@ -665,6 +665,10 @@ func TestMain(m *testing.M) {
 	var untested []string
 	for _, tool := range toolsdk.All {
 		if tested, ok := testedTools.Load(tool.Name); !ok || !tested.(bool) {
+			// Test is skipped on Windows
+			if runtime.GOOS == "windows" && tool.Name == "coder_workspace_bash" {
+				continue
+			}
 			untested = append(untested, tool.Name)
 		}
 	}

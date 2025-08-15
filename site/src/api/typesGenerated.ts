@@ -2396,6 +2396,7 @@ export type RBACResource =
 	| "system"
 	| "tailnet_coordinator"
 	| "template"
+	| "usage_event"
 	| "user"
 	| "user_secret"
 	| "webpush_subscription"
@@ -2437,6 +2438,7 @@ export const RBACResources: RBACResource[] = [
 	"system",
 	"tailnet_coordinator",
 	"template",
+	"usage_event",
 	"user",
 	"user_secret",
 	"webpush_subscription",

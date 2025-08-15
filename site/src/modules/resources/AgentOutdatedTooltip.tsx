@@ -1,5 +1,6 @@
 import { useTheme } from "@emotion/react";
 import type { WorkspaceAgent } from "api/typesGenerated";
+import { PopoverTrigger } from "components/deprecated/Popover/Popover";
 import {
 	HelpTooltip,
 	HelpTooltipAction,
@@ -9,7 +10,6 @@ import {
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
-import { PopoverTrigger } from "components/deprecated/Popover/Popover";
 import { RotateCcwIcon } from "lucide-react";
 import type { FC } from "react";
 import { agentVersionStatus } from "../../utils/workspace";

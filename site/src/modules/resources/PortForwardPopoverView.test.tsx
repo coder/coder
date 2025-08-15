@@ -1,5 +1,3 @@
-import { screen } from "@testing-library/react";
-import { QueryClientProvider } from "react-query";
 import {
 	MockListeningPortsResponse,
 	MockTemplate,
@@ -10,6 +8,8 @@ import {
 	createTestQueryClient,
 	renderComponent,
 } from "testHelpers/renderHelpers";
+import { screen } from "@testing-library/react";
+import { QueryClientProvider } from "react-query";
 import { PortForwardPopoverView } from "./PortForwardButton";
 
 describe("Port Forward Popover View", () => {
