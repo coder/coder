@@ -1,5 +1,6 @@
 import MuiTooltip from "@mui/material/Tooltip";
 import type { WorkspaceAgentLogSource } from "api/typesGenerated";
+import { Badge } from "components/Badge/Badge";
 import type { Line } from "components/Logs/LogLine";
 import {
 	Tooltip,
@@ -11,8 +12,6 @@ import { type ComponentProps, forwardRef } from "react";
 import { FixedSizeList as List } from "react-window";
 import { cn } from "utils/cn";
 import { AGENT_LOG_LINE_HEIGHT, AgentLogLine } from "./AgentLogLine";
-import { Info } from "lucide-react";
-import { Badge } from "components/Badge/Badge";
 
 const fallbackLog: WorkspaceAgentLogSource = {
 	created_at: "",
@@ -59,12 +58,15 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 									<Badge variant="warning">Logs overflowed</Badge>
 								</span>
 							</TooltipTrigger>
-							<TooltipContent asChild className="w-full text-sm text-blue-500 text-content-secondary bg-surface-primary max-w-prose leading-relaxed m-0 p-4">
+							<TooltipContent
+								asChild
+								className="w-full text-sm text-blue-500 text-content-secondary bg-surface-primary max-w-prose leading-relaxed m-0 p-4"
+							>
 								<p>
 									Startup logs exceeded the max size of{" "}
-									<span className="tracking-wide font-mono">1MB</span>, and
-									will not continue to be written to the database! Logs will
-									continue to be written to the{" "}
+									<span className="tracking-wide font-mono">1MB</span>, and will
+									not continue to be written to the database! Logs will continue
+									to be written to the{" "}
 									<span className="font-mono bg-surface-tertiary rounded-md px-1.5 py-0.5">
 										/tmp/coder-startup-script.log
 									</span>{" "}
