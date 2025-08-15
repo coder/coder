@@ -101,30 +101,36 @@ fi
 # Get the file extension to determine the appropriate formatter
 file_ext="${file_path##*.}"
 
+# Helper function to run formatter and handle errors
+run_formatter() {
+	local target="$1"
+	local file_type="$2"
+
+	if ! make FILE="$file_path" "$target"; then
+		echo "Error: Failed to format $file_type file: $file_path" >&2
+		exit 2
+	fi
+	echo "✓ Formatted $file_type file: $file_path"
+}
 # Change to the project root directory (where the Makefile is located)
 cd "$(dirname "$0")/../.."
 
 # Call the appropriate Makefile target based on file extension
 case "$file_ext" in
 go)
-	make fmt/go FILE="$file_path"
-	echo "✓ Formatted Go file: $file_path"
+	run_formatter "fmt/go" "Go"
 	;;
 js | jsx | ts | tsx)
-	make fmt/ts FILE="$file_path"
-	echo "✓ Formatted TypeScript/JavaScript file: $file_path"
+	run_formatter "fmt/ts" "TypeScript/JavaScript"
 	;;
 tf | tfvars)
-	make fmt/terraform FILE="$file_path"
-	echo "✓ Formatted Terraform file: $file_path"
+	run_formatter "fmt/terraform" "Terraform"
 	;;
 sh)
-	make fmt/shfmt FILE="$file_path"
-	echo "✓ Formatted shell script: $file_path"
+	run_formatter "fmt/shfmt" "shell script"
 	;;
 md)
-	make fmt/markdown FILE="$file_path"
-	echo "✓ Formatted Markdown file: $file_path"
+	run_formatter "fmt/markdown" "Markdown"
 	;;
 *)
 	echo "No formatter available for file extension: $file_ext"
