@@ -387,6 +387,9 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 		}),
 		withBuild,
 	)
+	mDB.EXPECT().FindMatchingPresetID(gomock.Any(), gomock.Any()).
+		Times(1).
+		Return(uuid.Nil, sql.ErrNoRows)
 	fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
@@ -471,6 +474,9 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			}),
 			withBuild,
 		)
+		mDB.EXPECT().FindMatchingPresetID(gomock.Any(), gomock.Any()).
+			Times(1).
+			Return(uuid.Nil, sql.ErrNoRows)
 		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
@@ -520,6 +526,9 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			}),
 			withBuild,
 		)
+		mDB.EXPECT().FindMatchingPresetID(gomock.Any(), gomock.Any()).
+			Times(1).
+			Return(uuid.Nil, sql.ErrNoRows)
 		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
@@ -662,6 +671,9 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			}),
 			withBuild,
 		)
+		mDB.EXPECT().FindMatchingPresetID(gomock.Any(), gomock.Any()).
+			Times(1).
+			Return(uuid.Nil, sql.ErrNoRows)
 		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
@@ -726,6 +738,9 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			}),
 			withBuild,
 		)
+		mDB.EXPECT().FindMatchingPresetID(gomock.Any(), gomock.Any()).
+			Times(1).
+			Return(uuid.Nil, sql.ErrNoRows)
 		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}

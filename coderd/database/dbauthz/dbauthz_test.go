@@ -4959,6 +4959,13 @@ func (s *MethodTestSuite) TestPrebuilds() {
 			template, policy.ActionUse,
 		).Errors(sql.ErrNoRows)
 	}))
+	s.Run("FindMatchingPresetID", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.FindMatchingPresetIDParams{
+			TemplateVersionID: uuid.New(),
+			ParameterNames:    []string{"test"},
+			ParameterValues:   []string{"test"},
+		}).Asserts(rbac.ResourceTemplate, policy.ActionRead)
+	}))
 	s.Run("GetPrebuildMetrics", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
 			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)

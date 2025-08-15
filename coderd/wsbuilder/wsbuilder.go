@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
@@ -449,48 +450,11 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		}
 
 		if b.templateVersionPresetID == uuid.Nil {
-			parameterMap := make(map[string]string)
-			for i, name := range names {
-				parameterMap[name] = values[i]
-			}
-
-			presetParameters, err := b.store.GetPresetParametersByTemplateVersionID(b.ctx, templateVersionID)
+			presetID, err := prebuilds.FindMatchingPresetID(b.ctx, b.store, templateVersionID, names, values)
 			if err != nil {
-				return BuildError{http.StatusInternalServerError, "get preset parameters", err}
+				return BuildError{http.StatusInternalServerError, "find matching preset", err}
 			}
-
-			presetMap := make(map[uuid.UUID]map[string]string)
-			for _, presetParameter := range presetParameters {
-				if _, ok := presetMap[presetParameter.TemplateVersionPresetID]; !ok {
-					presetMap[presetParameter.TemplateVersionPresetID] = make(map[string]string)
-				}
-				presetMap[presetParameter.TemplateVersionPresetID][presetParameter.Name] = presetParameter.Value
-			}
-
-			// Compare each preset's parameters to the provided parameters to find any matches
-			for presetID, presetParams := range presetMap {
-				isMatch := true
-				// Check that all preset parameters match the provided parameters
-				for paramName, presetValue := range presetParams {
-					if providedValue, exists := parameterMap[paramName]; !exists || providedValue != presetValue {
-						isMatch = false
-						break
-					}
-				}
-				// Check that all provided parameters match the preset parameters
-				if isMatch {
-					for paramName, providedValue := range parameterMap {
-						if presetValue, exists := presetParams[paramName]; !exists || providedValue != presetValue {
-							isMatch = false
-							break
-						}
-					}
-				}
-				if isMatch {
-					b.templateVersionPresetID = presetID
-					break
-				}
-			}
+			b.templateVersionPresetID = presetID
 		}
 
 		err = store.InsertWorkspaceBuild(b.ctx, database.InsertWorkspaceBuildParams{
