@@ -1,4 +1,3 @@
-import { css, useTheme } from "@emotion/react";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import type { FC } from "react";
@@ -9,25 +8,10 @@ export interface TimelineDateRow {
 }
 
 export const TimelineDateRow: FC<TimelineDateRow> = ({ date }) => {
-	const theme = useTheme();
-
 	return (
-		<TableRow
-			css={css`
-        &:not(:first-of-type) td {
-          border-top: 1px solid ${theme.palette.divider};
-        }
-      `}
-		>
+		<TableRow className="[&:not:first-of-type_td]:border-t [&:not:first-of-type_td]:border-solid">
 			<TableCell
-				css={{
-					padding: "8px 32px !important",
-					background: `${theme.palette.background.paper} !important`,
-					fontSize: 12,
-					position: "relative",
-					color: theme.palette.text.secondary,
-					textTransform: "capitalize",
-				}}
+				className="px-2! py-8! text-xs relative text-content-secondary bg-surface-secondary capitalize"
 				title={date.toLocaleDateString()}
 			>
 				{createDisplayDate(date)}
