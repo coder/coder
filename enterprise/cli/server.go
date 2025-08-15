@@ -121,14 +121,14 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			o.LicenseKeys = coderd.Keys
 		}
 
-		multiCloser := &multiCloser{}
+		closers := &multiCloser{}
 
 		// Create the enterprise API.
 		api, err := coderd.New(ctx, o)
 		if err != nil {
 			return nil, nil, err
 		}
-		multiCloser.Add(api)
+		closers.Add(api)
 
 		// Start the enterprise usage publisher routine. This won't do anything
 		// unless the deployment is licensed and one of the licenses has usage
@@ -138,12 +138,12 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		)
 		err = publisher.Start()
 		if err != nil {
-			_ = multiCloser.Close()
+			_ = closers.Close()
 			return nil, nil, xerrors.Errorf("start usage publisher: %w", err)
 		}
-		multiCloser.Add(publisher)
+		closers.Add(publisher)
 
-		return api.AGPL, multiCloser, nil
+		return api.AGPL, closers, nil
 	})
 
 	cmd.AddSubcommands(

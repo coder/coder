@@ -2037,7 +2037,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			sidebarAppID = uuid.NullUUID{}
 		}
 
-		if hasAITask {
+		if hasAITask && workspaceBuild.Transition == database.WorkspaceTransitionStart {
 			// Insert usage event for managed agents.
 			usageInserter := s.UsageInserter.Load()
 			if usageInserter != nil {

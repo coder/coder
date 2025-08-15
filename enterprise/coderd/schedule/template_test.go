@@ -719,7 +719,6 @@ func TestNotifications(t *testing.T) {
 
 		// Lower the dormancy TTL to ensure the schedule recalculates deadlines and
 		// triggers notifications.
-		// nolint:gocritic // Need an actor in the context.
 		_, err = templateScheduleStore.Set(dbauthz.AsNotifier(ctx), db, template, agplschedule.TemplateScheduleOptions{
 			TimeTilDormant:           timeTilDormant / 2,
 			TimeTilDormantAutoDelete: timeTilDormant / 2,

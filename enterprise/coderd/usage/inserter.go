@@ -8,7 +8,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/quartz"
@@ -58,7 +57,7 @@ func (i *dbCollector) InsertDiscreteUsageEvent(ctx context.Context, tx database.
 
 	// Duplicate events are ignored by the query, so we don't need to check the
 	// error.
-	return tx.InsertUsageEvent(dbauthz.AsUsageTracker(ctx), database.InsertUsageEventParams{ //nolint:gocritic // intentionally want to insert usage events
+	return tx.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 		// Always generate a new UUID for discrete events.
 		ID:        uuid.New().String(),
 		EventType: string(event.EventType()),

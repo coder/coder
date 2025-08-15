@@ -10,6 +10,8 @@ import (
 type Inserter interface {
 	// InsertDiscreteUsageEvent writes a discrete usage event to the database
 	// within the given transaction.
+	// The caller context must be authorized to create usage events in the
+	// database.
 	InsertDiscreteUsageEvent(ctx context.Context, tx database.Store, event DiscreteEvent) error
 }
 

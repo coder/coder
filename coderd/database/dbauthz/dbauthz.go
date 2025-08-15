@@ -213,6 +213,8 @@ var (
 					// Provisionerd creates workspaces resources monitor
 					rbac.ResourceWorkspaceAgentResourceMonitor.Type: {policy.ActionCreate},
 					rbac.ResourceWorkspaceAgentDevcontainers.Type:   {policy.ActionCreate},
+					// Provisionerd creates usage events
+					rbac.ResourceUsageEvent.Type: {policy.ActionCreate},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -510,17 +512,19 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
-	subjectUsageTracker = rbac.Subject{
-		Type:         rbac.SubjectTypeUsageTracker,
-		FriendlyName: "Usage Tracker",
+	subjectUsagePublisher = rbac.Subject{
+		Type:         rbac.SubjectTypeUsagePublisher,
+		FriendlyName: "Usage Publisher",
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
-				Identifier:  rbac.RoleIdentifier{Name: "usage-tracker"},
-				DisplayName: "Usage Tracker",
+				Identifier:  rbac.RoleIdentifier{Name: "usage-publisher"},
+				DisplayName: "Usage Publisher",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceLicense.Type:    {policy.ActionRead},
-					rbac.ResourceUsageEvent.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceLicense.Type: {policy.ActionRead},
+					// The usage publisher doesn't create events, just
+					// reads/processes them.
+					rbac.ResourceUsageEvent.Type: {policy.ActionRead, policy.ActionUpdate},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -604,10 +608,10 @@ func AsFileReader(ctx context.Context) context.Context {
 	return As(ctx, subjectFileReader)
 }
 
-// AsUsageTracker returns a context with an actor that has permissions required
-// for creating, reading, and updating usage events.
-func AsUsageTracker(ctx context.Context) context.Context {
-	return As(ctx, subjectUsageTracker)
+// AsUsagePublisher returns a context with an actor that has permissions
+// required for creating, reading, and updating usage events.
+func AsUsagePublisher(ctx context.Context) context.Context {
+	return As(ctx, subjectUsagePublisher)
 }
 
 var AsRemoveActor = rbac.Subject{
@@ -3038,10 +3042,10 @@ func (q *querier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTe
 }
 
 func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
+	fetch := func(ctx context.Context, _ interface{}) ([]database.License, error) {
+		return q.db.GetUnexpiredLicenses(ctx)
 	}
-	return q.db.GetUnexpiredLicenses(ctx)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
 }
 
 func (q *querier) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {

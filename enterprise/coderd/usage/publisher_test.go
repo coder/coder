@@ -10,16 +10,20 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
 	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/usage"
@@ -40,6 +44,7 @@ func TestIntegration(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	log := slogtest.Make(t, nil)
 	db, _ := dbtestutil.NewDB(t)
+
 	clock := quartz.NewMock(t)
 	deploymentID, licenseJWT := configureDeployment(ctx, t, db)
 	now := time.Now()
@@ -80,7 +85,10 @@ func TestIntegration(t *testing.T) {
 		require.NoErrorf(t, err, "collecting event %d", i)
 	}
 
-	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
+	// Wrap the publisher's DB in a dbauthz to ensure that the publisher has
+	// enough permissions.
+	authzDB := dbauthz.New(db, rbac.NewAuthorizer(prometheus.NewRegistry()), log, coderdtest.AccessControlStorePointer())
+	publisher := usage.NewTallymanPublisher(ctx, log, authzDB, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
 	)
