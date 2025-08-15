@@ -4959,13 +4959,44 @@ func (s *MethodTestSuite) TestPrebuilds() {
 			template, policy.ActionUse,
 		).Errors(sql.ErrNoRows)
 	}))
-	s.Run("FindMatchingPresetID", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.FindMatchingPresetIDParams{
-			TemplateVersionID: uuid.New(),
+	s.Run("FindMatchingPresetID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}})
+		dbm.EXPECT().FindMatchingPresetID(gomock.Any(), database.FindMatchingPresetIDParams{
+			TemplateVersionID: tv.ID,
 			ParameterNames:    []string{"test"},
 			ParameterValues:   []string{"test"},
-		}).Asserts(rbac.ResourceTemplate, policy.ActionRead)
+		}).Return(uuid.Nil, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), tv.ID).Return(tv, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		check.Args(database.FindMatchingPresetIDParams{
+			TemplateVersionID: tv.ID,
+			ParameterNames:    []string{"test"},
+			ParameterValues:   []string{"test"},
+		}).Asserts(tv.RBACObject(t1), policy.ActionRead).Returns(uuid.Nil)
 	}))
+	// s.Run("FindMatchingPresetID", s.Subtest(func(db database.Store, check *expects) {
+	// 	org := dbgen.Organization(s.T(), db, database.Organization{})
+	// 	user := dbgen.User(s.T(), db, database.User{})
+	// 	templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+	// 		OrganizationID: org.ID,
+	// 		CreatedBy:      user.ID,
+	// 	})
+	// 	template := dbgen.Template(s.T(), db, database.Template{
+	// 		OrganizationID:  org.ID,
+	// 		CreatedBy:       user.ID,
+	// 		ActiveVersionID: templateVersion.ID,
+	// 	})
+	// 	db.UpdateTemplateActiveVersionByID(context.Background(), database.UpdateTemplateActiveVersionByIDParams{
+	// 		ID:              template.ID,
+	// 		ActiveVersionID: templateVersion.ID,
+	// 	})
+	// 	check.Args(database.FindMatchingPresetIDParams{
+	// 		TemplateVersionID: templateVersion.ID,
+	// 		ParameterNames:    []string{"test"},
+	// 		ParameterValues:   []string{"test"},
+	// 	}).Asserts(templateVersion.RBACObject(template), policy.ActionRead)
+	// }))
 	s.Run("GetPrebuildMetrics", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
 			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
