@@ -908,12 +908,12 @@ func claimPrebuild(
 	now time.Time,
 	name string,
 	owner workspaceOwner,
-	templateVersionPresetID uuid.UUID
+	templateVersionPresetID uuid.UUID,
 	autostartSchedule sql.NullString,
 	nextStartAt sql.NullTime,
 	ttl sql.NullInt64,
 ) (*database.Workspace, error) {
-	claimedID, err := claimer.Claim(ctx, now, owner.ID, req.Name, req.TemplateVersionPresetID, autostartSchedule, nextStartAt, ttl)
+	claimedID, err := claimer.Claim(ctx, now, owner.ID, name, templateVersionPresetID, autostartSchedule, nextStartAt, ttl)
 	if err != nil {
 		// TODO: enhance this by clarifying whether this *specific* prebuild failed or whether there are none to claim.
 		return nil, xerrors.Errorf("claim prebuild: %w", err)
