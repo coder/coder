@@ -55,7 +55,6 @@ func TestWorkspaceBuild(t *testing.T) {
 		Auditor:                  auditor,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
-	//nolint:gocritic // testing
 	up, err := db.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
 		ID:        user.UserID,
 		Email:     coderdtest.FirstUserParams.Email,
@@ -518,7 +517,6 @@ func TestWorkspaceBuildsProvisionerState(t *testing.T) {
 				OrganizationID: first.OrganizationID,
 			}).Do()
 
-			// nolint:gocritic // For testing
 			daemons, err := store.GetProvisionerDaemons(dbauthz.AsSystemReadProvisionerDaemons(ctx))
 			require.NoError(t, err)
 			require.Empty(t, daemons, "Provisioner daemons should be empty for this test")

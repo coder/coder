@@ -39,7 +39,6 @@ func TestGetGroupSyncSettings(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		dbresv := runtimeconfig.OrganizationResolver(user.OrganizationID, runtimeconfig.NewStoreResolver(db))
 		entry := runtimeconfig.MustNew[*idpsync.GroupSyncSettings]("group-sync-settings")
-		//nolint:gocritic // Requires system context to set runtime config
 		err := entry.SetRuntimeValue(dbauthz.AsSystemRestricted(ctx), dbresv, &idpsync.GroupSyncSettings{Field: "august"})
 		require.NoError(t, err)
 

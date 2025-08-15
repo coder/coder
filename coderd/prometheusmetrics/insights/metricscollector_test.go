@@ -128,7 +128,6 @@ func TestCollectInsights(t *testing.T) {
 		AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
 	})
 	refTime := time.Now().Add(-3 * time.Minute).Truncate(time.Minute)
-	//nolint:gocritic // This is a test.
 	err = reporter.ReportAppStats(dbauthz.AsSystemRestricted(context.Background()), []workspaceapps.StatsReport{
 		{
 			UserID:           user.ID,

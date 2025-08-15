@@ -335,7 +335,6 @@ func TestUserOAuth2Github(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// nolint:gocritic // Unit test
 		count, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 		require.NoError(t, err)
 		require.Equal(t, int64(1), count)
@@ -897,7 +896,6 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Empty(t, links)
 
 		// Make sure a user_link cannot be created with a deleted user.
-		// nolint:gocritic // Unit test
 		_, err = db.InsertUserLink(dbauthz.AsSystemRestricted(ctx), database.InsertUserLinkParams{
 			UserID:            deleted.ID,
 			LoginType:         "github",

@@ -31,7 +31,6 @@ func TestProvisioners_Golden(t *testing.T) {
 	// Replace UUIDs with predictable values for golden files.
 	replace := make(map[string]string)
 	updateReplaceUUIDs := func(coderdAPI *coderd.API) {
-		//nolint:gocritic // This is a test.
 		systemCtx := dbauthz.AsSystemRestricted(context.Background())
 		provisioners, err := coderdAPI.Database.GetProvisionerDaemons(systemCtx)
 		require.NoError(t, err)

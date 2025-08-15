@@ -231,7 +231,6 @@ func TestMetricsCollector(t *testing.T) {
 									}
 
 									// Force an update to the metrics state to allow the collector to collect fresh metrics.
-									// nolint:gocritic // Authz context needed to retrieve state.
 									require.NoError(t, collector.UpdateState(dbauthz.AsPrebuildsOrchestrator(ctx), testutil.WaitLong))
 
 									metricsFamilies, err := registry.Gather()
@@ -367,7 +366,6 @@ func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 		"organization_name": defaultOrg.Name,
 	}
 
-	// nolint:gocritic // Authz context needed to retrieve state.
 	ctx = dbauthz.AsPrebuildsOrchestrator(ctx)
 
 	// Then: metrics collect successfully.
