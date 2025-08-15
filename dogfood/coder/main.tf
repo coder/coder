@@ -836,6 +836,7 @@ resource "coder_script" "develop_sh" {
   agent_id           = coder_agent.dev.id
   run_on_start       = true
   start_blocks_login = false
+  icon               = "${data.coder_workspace.me.access_url}/emojis/1f4bb.png" // 💻
   script             = <<-EOT
     #!/usr/bin/env bash
     set -eux -o pipefail
