@@ -136,7 +136,6 @@ const TaskPromptEmpty: FC = () => {
 
 type CreateTaskMutationFnProps = {
 	prompt: string;
-
 };
 
 type CreateTaskFormProps = {
@@ -188,10 +187,13 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		: true;
 
 	const createTaskMutation = useMutation({
-		mutationFn: async ({
-			prompt,
-		}: CreateTaskMutationFnProps) =>
-			data.createTask(prompt, user.id, selectedTemplate.active_version_id, selectedPresetId),
+		mutationFn: async ({ prompt }: CreateTaskMutationFnProps) =>
+			data.createTask(
+				prompt,
+				user.id,
+				selectedTemplate.active_version_id,
+				selectedPresetId,
+			),
 		onSuccess: async (task) => {
 			await queryClient.invalidateQueries({
 				queryKey: ["tasks"],

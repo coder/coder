@@ -1,20 +1,21 @@
 import { API, type TasksFilter } from "api/api";
+import { templates } from "api/queries/templates";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Margins } from "components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
-import { templates } from "api/queries/templates";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { useAuthenticated } from "hooks";
-import { type FC, useState } from "react";
+import { useSearchParamsKey } from "hooks/useSearchParamsKey";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
-import { type UserOption, UsersCombobox } from "./UsersCombobox";
-import { TasksTable } from "./TasksTable";
 import { TaskPrompt } from "./TaskPrompt";
+import { TasksTable } from "./TasksTable";
+import { UsersCombobox } from "./UsersCombobox";
 
 const TasksPage: FC = () => {
 	const AITemplatesQuery = useQuery(
@@ -25,13 +26,12 @@ const TasksPage: FC = () => {
 
 	// Tasks
 	const { user, permissions } = useAuthenticated();
-	const [userOption, setUserOption] = useState<UserOption | undefined>({
-		value: user.username,
-		label: user.name || user.username,
-		avatarUrl: user.avatar_url,
+	const userFilter = useSearchParamsKey({
+		key: "username",
+		defaultValue: user.username,
 	});
 	const filter: TasksFilter = {
-		username: userOption?.value,
+		username: userFilter.value,
 	};
 	const tasksQuery = useQuery({
 		queryKey: ["tasks", filter],
@@ -63,8 +63,13 @@ const TasksPage: FC = () => {
 						<section>
 							{permissions.viewDeploymentConfig && (
 								<TasksControls
-									userOption={userOption}
-									onUserOptionChange={setUserOption}
+									username={userFilter.value}
+									onUsernameChange={(username) =>
+										// When selecting a selected user, clear the filter
+										userFilter.setValue(
+											username === userFilter.value ? "" : username,
+										)
+									}
 								/>
 							)}
 							<TasksTable
@@ -81,23 +86,20 @@ const TasksPage: FC = () => {
 };
 
 type TasksControlsProps = {
-	userOption: UserOption | undefined;
-	onUserOptionChange: (userOption: UserOption | undefined) => void;
+	username: string;
+	onUsernameChange: (username: string) => void;
 };
 
 const TasksControls: FC<TasksControlsProps> = ({
-	userOption,
-	onUserOptionChange,
+	username,
+	onUsernameChange,
 }) => {
 	return (
 		<section className="mt-6" aria-labelledby="filters-title">
 			<h3 id="filters-title" className="sr-only">
 				Filters
 			</h3>
-			<UsersCombobox
-				selectedOption={userOption}
-				onSelect={onUserOptionChange}
-			/>
+			<UsersCombobox value={username} onValueChange={onUsernameChange} />
 		</section>
 	);
 };
