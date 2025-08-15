@@ -159,6 +159,11 @@ export const RBACResourceActions: Partial<
 		use: "use the template to initially create a workspace, then workspace lifecycle permissions take over",
 		view_insights: "view insights",
 	},
+	usage_event: {
+		create: "create a usage event",
+		read: "read usage events",
+		update: "update usage events",
+	},
 	user: {
 		create: "create a new user",
 		delete: "delete an existing user",

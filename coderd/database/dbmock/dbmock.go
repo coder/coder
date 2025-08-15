@@ -5107,6 +5107,20 @@ func (mr *MockStoreMockRecorder) InsertTemplateVersionWorkspaceTag(ctx, arg any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTemplateVersionWorkspaceTag", reflect.TypeOf((*MockStore)(nil).InsertTemplateVersionWorkspaceTag), ctx, arg)
 }
 
+// InsertUsageEvent mocks base method.
+func (m *MockStore) InsertUsageEvent(ctx context.Context, arg database.InsertUsageEventParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertUsageEvent", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertUsageEvent indicates an expected call of InsertUsageEvent.
+func (mr *MockStoreMockRecorder) InsertUsageEvent(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertUsageEvent", reflect.TypeOf((*MockStore)(nil).InsertUsageEvent), ctx, arg)
+}
+
 // InsertUser mocks base method.
 func (m *MockStore) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
 	m.ctrl.T.Helper()
@@ -5680,6 +5694,21 @@ func (m *MockStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string
 func (mr *MockStoreMockRecorder) RevokeDBCryptKey(ctx, activeKeyDigest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeDBCryptKey", reflect.TypeOf((*MockStore)(nil).RevokeDBCryptKey), ctx, activeKeyDigest)
+}
+
+// SelectUsageEventsForPublishing mocks base method.
+func (m *MockStore) SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]database.UsageEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectUsageEventsForPublishing", ctx, now)
+	ret0, _ := ret[0].([]database.UsageEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectUsageEventsForPublishing indicates an expected call of SelectUsageEventsForPublishing.
+func (mr *MockStoreMockRecorder) SelectUsageEventsForPublishing(ctx, now any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectUsageEventsForPublishing", reflect.TypeOf((*MockStore)(nil).SelectUsageEventsForPublishing), ctx, now)
 }
 
 // TryAcquireLock mocks base method.
@@ -6268,6 +6297,20 @@ func (m *MockStore) UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg 
 func (mr *MockStoreMockRecorder) UpdateTemplateWorkspacesLastUsedAt(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateWorkspacesLastUsedAt", reflect.TypeOf((*MockStore)(nil).UpdateTemplateWorkspacesLastUsedAt), ctx, arg)
+}
+
+// UpdateUsageEventsPostPublish mocks base method.
+func (m *MockStore) UpdateUsageEventsPostPublish(ctx context.Context, arg database.UpdateUsageEventsPostPublishParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUsageEventsPostPublish", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateUsageEventsPostPublish indicates an expected call of UpdateUsageEventsPostPublish.
+func (mr *MockStoreMockRecorder) UpdateUsageEventsPostPublish(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUsageEventsPostPublish", reflect.TypeOf((*MockStore)(nil).UpdateUsageEventsPostPublish), ctx, arg)
 }
 
 // UpdateUserDeletedByID mocks base method.
