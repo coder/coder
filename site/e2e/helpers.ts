@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import net from "node:net";
 import path from "node:path";
 import { Duplex } from "node:stream";
-import { type BrowserContext, type Page, expect, test } from "@playwright/test";
+import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { API } from "api/api";
 import type {
 	UpdateTemplateMeta,
@@ -29,8 +29,8 @@ import { expectUrl } from "./expectUrl";
 import {
 	Agent,
 	type App,
-	AppSharingLevel,
 	type ApplyComplete,
+	AppSharingLevel,
 	type ExternalAuthProviderResource,
 	type ParseComplete,
 	type PlanComplete,

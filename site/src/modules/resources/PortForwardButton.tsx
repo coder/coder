@@ -27,6 +27,11 @@ import {
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/deprecated/Popover/Popover";
+import {
 	HelpTooltipLink,
 	HelpTooltipText,
 	HelpTooltipTitle,
@@ -38,11 +43,6 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
 import { useFormik } from "formik";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import {

@@ -1,6 +1,3 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
 import {
 	MockTemplate,
 	MockTemplateVersionExternalAuthGithub,
@@ -18,6 +15,9 @@ import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { API } from "api/api";
 import CreateWorkspacePage from "./CreateWorkspacePage";
 import { Language } from "./CreateWorkspacePageView";
 

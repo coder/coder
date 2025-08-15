@@ -46,7 +46,7 @@ export const SidebarHeader: FC<SidebarHeaderProps> = ({
 				) : (
 					<span className={titleStyles.normal}>{title}</span>
 				)}
-				<span className="text-content-secondary font-size-sm overflow-hidden overflow-ellipsis">
+				<span className="text-content-secondary text-sm overflow-hidden overflow-ellipsis">
 					{subtitle}
 				</span>
 			</div>

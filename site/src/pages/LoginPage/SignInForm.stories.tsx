@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
 import { mockApiError } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { SignInForm } from "./SignInForm";
 
 const meta: Meta<typeof SignInForm> = {

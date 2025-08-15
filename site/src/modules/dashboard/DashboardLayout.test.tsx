@@ -1,7 +1,7 @@
-import { screen } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import { screen } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
 import { DashboardLayout } from "./DashboardLayout";
 
 test("Show the new Coder version notification", async () => {

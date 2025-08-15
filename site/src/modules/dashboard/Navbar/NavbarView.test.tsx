@@ -1,8 +1,8 @@
+import { MockPrimaryWorkspaceProxy, MockUserOwner } from "testHelpers/entities";
+import { renderWithAuth } from "testHelpers/renderHelpers";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ProxyContextValue } from "contexts/ProxyContext";
-import { MockPrimaryWorkspaceProxy, MockUserOwner } from "testHelpers/entities";
-import { renderWithAuth } from "testHelpers/renderHelpers";
 import { NavbarView } from "./NavbarView";
 
 const proxyContextValue: ProxyContextValue = {

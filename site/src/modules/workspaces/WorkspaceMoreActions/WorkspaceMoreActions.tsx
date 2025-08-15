@@ -1,6 +1,5 @@
 import { MissingBuildParameters, ParameterValidationError } from "api/api";
-import { isApiError } from "api/errors";
-import { type ApiError, getErrorMessage } from "api/errors";
+import { type ApiError, getErrorMessage, isApiError } from "api/errors";
 import {
 	changeVersion,
 	deleteWorkspace,
@@ -32,8 +31,8 @@ import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { UpdateBuildParametersDialogExperimental } from "./UpdateBuildParametersDialogExperimental";
-import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
+import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 
 type WorkspaceMoreActionsProps = {
 	workspace: Workspace;

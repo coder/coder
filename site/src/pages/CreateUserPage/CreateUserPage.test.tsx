@@ -1,9 +1,9 @@
-import { fireEvent, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
+import { fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import CreateUserPage from "./CreateUserPage";
 import { Language as FormLanguage } from "./Language";
 

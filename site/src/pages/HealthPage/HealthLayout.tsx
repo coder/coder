@@ -19,6 +19,15 @@ import { createDayString } from "utils/createDayString";
 import { pageTitle } from "utils/page";
 import { HealthIcon } from "./Content";
 
+const linkStyles = {
+	normal: `
+		text-content-secondary border-none text-sm w-full flex items-center gap-3
+		text-left h-9 px-6 cursor-pointer no-underline transition-colors
+		hover:bg-surface-secondary hover:text-content-primary
+	`,
+	active: "bg-surface-secondary text-content-primary",
+};
+
 export const HealthLayout: FC = () => {
 	const theme = useTheme();
 	const queryClient = useQueryClient();
@@ -42,13 +51,6 @@ export const HealthLayout: FC = () => {
 		provisioner_daemons: "Provisioner Daemons",
 	} as const;
 	const visibleSections = filterVisibleSections(sections);
-
-	const link = `
-		text-content-secondary border-none text-sm w-full flex items-center gap-3
-		text-left h-9 px-6 cursor-pointer no-underline transition-colors
-		hover:bg-surface-secondary hover:text-content-primary
-	`;
-	const activeLink = "bg-surface-secondary text-content-primary";
 
 	if (isLoading) {
 		return (
@@ -97,15 +99,10 @@ export const HealthLayout: FC = () => {
 										</IconButton>
 									</Tooltip>
 								</div>
-								<div className="text-medium mt-4">
+								<div className="font-medium mt-4">
 									{healthStatus.healthy ? "Healthy" : "Unhealthy"}
 								</div>
-								<div
-									css={{
-										color: theme.palette.text.secondary,
-										lineHeight: "150%",
-									}}
-								>
+								<div className="text-content-secondary line-height-[150%]">
 									{healthStatus.healthy
 										? Object.keys(visibleSections).some((key) => {
 												const section =
@@ -119,7 +116,7 @@ export const HealthLayout: FC = () => {
 							</div>
 
 							<div className="flex flex-col">
-								<span className="text-medium">Last check</span>
+								<span className="font-medium">Last check</span>
 								<span
 									data-chromatic="ignore"
 									className="text-content-secondary line-height-[150%]"
@@ -128,8 +125,8 @@ export const HealthLayout: FC = () => {
 								</span>
 							</div>
 
-							<div css={{ display: "flex", flexDirection: "column" }}>
-								<span className="text-medium">Version</span>
+							<div className="flex flex-col">
+								<span className="font-medium">Version</span>
 								<span
 									data-chromatic="ignore"
 									className="text-content-secondary line-height-[150%]"
@@ -152,7 +149,7 @@ export const HealthLayout: FC = () => {
 											key={key}
 											to={`/health/${kebabCase(key)}`}
 											className={({ isActive }) =>
-												cn(link, isActive && activeLink)
+												cn(linkStyles.normal, isActive && linkStyles.active)
 											}
 										>
 											<HealthIcon

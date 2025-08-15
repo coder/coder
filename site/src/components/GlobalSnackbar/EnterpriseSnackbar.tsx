@@ -70,7 +70,7 @@ export const EnterpriseSnackbar: FC<EnterpriseSnackbarProps> = ({
 const variantColor = (variant: EnterpriseSnackbarVariant) => {
 	switch (variant) {
 		case "error":
-			return "border-highlight-red";
+			return "border-border-destructive";
 		case "info":
 			return "border-highlight-sky";
 		case "success":
