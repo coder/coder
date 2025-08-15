@@ -112,14 +112,9 @@ export const SelectMenuIcon: FC<HTMLProps<HTMLDivElement>> = (props) => {
 
 export const SelectMenuItem: FC<MenuItemProps> = (props) => {
 	return (
-		<MenuItem
-			className="text-sm gap-0 leading-none py-3 px-4"
-			{...props}
-		>
+		<MenuItem className="text-sm gap-0 leading-none py-3 px-4" {...props}>
 			{props.children}
-			{props.selected && (
-				<CheckIcon className="size-icon-xs ml-auto" />
-			)}
+			{props.selected && <CheckIcon className="size-icon-xs ml-auto" />}
 		</MenuItem>
 	);
 };

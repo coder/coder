@@ -25,7 +25,9 @@ export const Paywall: FC<PaywallProps> = ({
 					<PremiumBadge />
 				</Stack>
 
-				{description && <p className="font-inherit max-w-md text-sm">{description}</p>}
+				{description && (
+					<p className="font-inherit max-w-md text-sm">{description}</p>
+				)}
 				<Link
 					href={documentationLink}
 					target="_blank"

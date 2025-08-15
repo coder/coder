@@ -31,7 +31,7 @@ const meta: Meta<typeof SelectMenu> = {
 					</SelectMenuButton>
 				</SelectMenuTrigger>
 				<SelectMenuContent>
-					<SelectMenuSearch onChange={() => { }} />
+					<SelectMenuSearch onChange={() => {}} />
 					<SelectMenuList>
 						{opts.map((o) => (
 							<SelectMenuItem key={o} selected={o === selectedOpt}>
@@ -83,7 +83,7 @@ export const LongButtonText: Story = {
 					</SelectMenuButton>
 				</SelectMenuTrigger>
 				<SelectMenuContent>
-					<SelectMenuSearch onChange={() => { }} />
+					<SelectMenuSearch onChange={() => {}} />
 					<SelectMenuList>
 						{opts.map((o) => (
 							<SelectMenuItem key={o} selected={o === selectedOpt}>

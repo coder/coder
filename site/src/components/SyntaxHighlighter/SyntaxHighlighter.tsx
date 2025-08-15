@@ -10,7 +10,7 @@ interface SyntaxHighlighterProps {
 	value: string;
 	language?: string;
 	editorProps?: ComponentProps<typeof Editor> &
-	ComponentProps<typeof DiffEditor>;
+		ComponentProps<typeof DiffEditor>;
 	compareWith?: string;
 }
 
