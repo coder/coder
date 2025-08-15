@@ -14,18 +14,18 @@ import {
 	withGlobalSnackbar,
 	withProxyProvider,
 } from "testHelpers/storybook";
-import TasksPage from "./TasksPage";
-import { data } from "./data";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { data } from "./data";
+import TasksPage from "./TasksPage";
 
 const meta: Meta<typeof TasksPage> = {
 	title: "pages/TasksPage",
 	component: TasksPage,
-	decorators: [withAuthProvider],
+	decorators: [withAuthProvider, withProxyProvider()],
 	parameters: {
 		user: MockUserOwner,
 		permissions: {
@@ -117,7 +117,6 @@ export const EmptyTasks: Story = {
 };
 
 export const LoadedTasks: Story = {
-	decorators: [withProxyProvider()],
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
 		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
@@ -125,7 +124,6 @@ export const LoadedTasks: Story = {
 };
 
 export const LoadedTasksWithPresets: Story = {
-	decorators: [withProxyProvider()],
 	beforeEach: () => {
 		const mockTemplateWithPresets = {
 			...MockTemplate,
@@ -152,7 +150,6 @@ export const LoadedTasksWithPresets: Story = {
 };
 
 export const LoadedTasksWithAIPromptPresets: Story = {
-	decorators: [withProxyProvider()],
 	beforeEach: () => {
 		const mockTemplateWithPresets = {
 			...MockTemplate,
@@ -178,28 +175,57 @@ export const LoadedTasksWithAIPromptPresets: Story = {
 	},
 };
 
-export const LoadedTasksEdgeCases: Story = {
-	decorators: [withProxyProvider()],
+export const LoadedTasksWaitingForInput: Story = {
 	beforeEach: () => {
+		const [firstTask, ...otherTasks] = MockTasks;
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
-
-		// Test various edge cases for presets
-		spyOn(API, "getTemplateVersionPresets").mockImplementation(async () => {
-			return [
-				{
-					ID: "malformed",
-					Name: "Malformed Preset",
-					Default: true,
+		spyOn(API.experimental, "getTasks").mockResolvedValue([
+			{
+				...firstTask,
+				workspace: {
+					...firstTask.workspace,
+					latest_app_status: {
+						...firstTask.workspace.latest_app_status,
+						state: "idle" as const,
+					},
 				},
-				// biome-ignore lint/suspicious/noExplicitAny: Testing malformed data edge cases
-			] as any;
+			},
+			...otherTasks,
+		]);
+	},
+};
+
+export const LoadedTasksWaitingForInputTab: Story = {
+	beforeEach: () => {
+		const [firstTask, ...otherTasks] = MockTasks;
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API.experimental, "getTasks").mockResolvedValue([
+			{
+				...firstTask,
+				workspace: {
+					...firstTask.workspace,
+					latest_app_status: {
+						...firstTask.workspace.latest_app_status,
+						state: "idle" as const,
+					},
+				},
+			},
+			...otherTasks,
+		]);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Switch to 'Waiting for input' tab", async () => {
+			const waitingForInputTab = await canvas.findByRole("button", {
+				name: /waiting for input/i,
+			});
+			await userEvent.click(waitingForInputTab);
 		});
 	},
 };
 
 export const CreateTaskSuccessfully: Story = {
-	decorators: [withProxyProvider()],
 	parameters: {
 		reactRouter: reactRouterParameters({
 			location: {
@@ -242,7 +268,7 @@ export const CreateTaskSuccessfully: Story = {
 };
 
 export const CreateTaskError: Story = {
-	decorators: [withProxyProvider(), withGlobalSnackbar],
+	decorators: [withGlobalSnackbar],
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
 		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
@@ -271,7 +297,6 @@ export const CreateTaskError: Story = {
 };
 
 export const WithAuthenticatedExternalAuth: Story = {
-	decorators: [withProxyProvider()],
 	beforeEach: () => {
 		spyOn(API.experimental, "getTasks")
 			.mockResolvedValueOnce(MockTasks)
@@ -298,7 +323,6 @@ export const WithAuthenticatedExternalAuth: Story = {
 };
 
 export const MissingExternalAuth: Story = {
-	decorators: [withProxyProvider()],
 	beforeEach: () => {
 		spyOn(API.experimental, "getTasks")
 			.mockResolvedValueOnce(MockTasks)
@@ -325,7 +349,6 @@ export const MissingExternalAuth: Story = {
 };
 
 export const ExternalAuthError: Story = {
-	decorators: [withProxyProvider()],
 	beforeEach: () => {
 		spyOn(API.experimental, "getTasks")
 			.mockResolvedValueOnce(MockTasks)
@@ -354,7 +377,6 @@ export const ExternalAuthError: Story = {
 };
 
 export const NonAdmin: Story = {
-	decorators: [withProxyProvider()],
 	parameters: {
 		permissions: {
 			viewDeploymentConfig: false,
