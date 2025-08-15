@@ -6378,6 +6378,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `system`                           |
 | `tailnet_coordinator`              |
 | `template`                         |
+| `usage_event`                      |
 | `user`                             |
 | `user_secret`                      |
 | `webpush_subscription`             |
