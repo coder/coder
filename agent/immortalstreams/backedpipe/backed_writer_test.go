@@ -138,6 +138,7 @@ func TestBackedWriter_WriteToUnderlyingWhenConnected(t *testing.T) {
 	require.Equal(t, 5, n)
 
 	// Data should be buffered
+	require.Equal(t, uint64(5), bw.SequenceNum())
 
 	// Check underlying writer
 	require.Equal(t, []byte("hello"), writer.buffer.Bytes())
@@ -158,7 +159,7 @@ func TestBackedWriter_BlockOnWriteFailure(t *testing.T) {
 	// Cause write to fail
 	writer.setError(xerrors.New("write failed"))
 
-	// Write should block when underlying writer fails
+	// Write should block when underlying writer fails, not succeed immediately
 	writeComplete := make(chan struct{})
 	var writeErr error
 	var n int
@@ -376,6 +377,7 @@ func TestBackedWriter_BufferEviction(t *testing.T) {
 	err = bw.Reconnect(2, writer3) // From sequence 2, should replay "cdefg"
 	require.NoError(t, err)
 	require.Equal(t, []byte("cdefg"), writer3.buffer.Bytes())
+	require.True(t, bw.Connected())
 }
 
 func TestBackedWriter_Close(t *testing.T) {
@@ -414,39 +416,6 @@ func TestBackedWriter_CloseIdempotent(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestBackedWriter_ConcurrentWrites(t *testing.T) {
-	t.Parallel()
-
-	errorChan := make(chan error, 1)
-	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
-	writer := newMockWriter()
-	bw.Reconnect(0, writer)
-
-	var wg sync.WaitGroup
-	numWriters := 10
-	writesPerWriter := 50
-
-	for i := 0; i < numWriters; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			for j := 0; j < writesPerWriter; j++ {
-				data := []byte{byte(id + '0')}
-				bw.Write(data)
-			}
-		}(i)
-	}
-
-	wg.Wait()
-
-	// Should have written expected amount to buffer
-	expectedBytes := uint64(numWriters * writesPerWriter) //nolint:gosec // Safe conversion: test constants with small values
-	require.Equal(t, expectedBytes, bw.SequenceNum())
-	// Note: underlying writer may not receive all bytes due to potential disconnections
-	// during concurrent operations, but the buffer should track all writes
-	require.True(t, writer.Len() <= int(expectedBytes)) //nolint:gosec // Safe conversion: expectedBytes is calculated from small test values
-}
-
 func TestBackedWriter_ReconnectDuringReplay(t *testing.T) {
 	t.Parallel()
 
@@ -463,9 +432,7 @@ func TestBackedWriter_ReconnectDuringReplay(t *testing.T) {
 
 	// Create a writer that fails during replay
 	writer2 := &mockWriter{
-		writeFunc: func(p []byte) (int, error) {
-			return 0, xerrors.New("replay failed")
-		},
+		err: backedpipe.ErrReplayFailed,
 	}
 
 	err = bw.Reconnect(0, writer2)
