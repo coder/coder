@@ -3811,13 +3811,22 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		err := client.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
 			UserRoles: map[string]codersdk.WorkspaceRole{
-				friend.ID.String(): codersdk.WorkspaceRoleAdmin,
+				friend.ID.String(): codersdk.WorkspaceRoleUse,
 			},
 			GroupRoles: map[string]codersdk.WorkspaceRole{
 				group.ID.String(): codersdk.WorkspaceRoleAdmin,
 			},
 		})
 		require.NoError(t, err)
+
+		workspaceACL, err := client.WorkspaceACL(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Len(t, workspaceACL.Users, 1)
+		require.Equal(t, workspaceACL.Users[0].ID, friend.ID)
+		require.Equal(t, workspaceACL.Users[0].Role, codersdk.WorkspaceRoleUse)
+		require.Len(t, workspaceACL.Groups, 1)
+		require.Equal(t, workspaceACL.Groups[0].ID, group.ID)
+		require.Equal(t, workspaceACL.Groups[0].Role, codersdk.WorkspaceRoleAdmin)
 	})
 
 	t.Run("UnknownIDs", func(t *testing.T) {

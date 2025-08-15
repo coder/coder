@@ -2148,7 +2148,7 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		workspace = httpmw.WorkspaceParam(r)
 	)
 
-	// Fetch the ACL data
+	// Fetch the ACL data.
 	workspaceACL, err := api.Database.GetWorkspaceACLByID(ctx, workspace.ID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -2167,7 +2167,12 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 	// Fetch all of the users and their organization memberships
 	userIDs := make([]uuid.UUID, 0, len(workspaceACL.Users))
 	for userID := range workspaceACL.Users {
-		userIDs = append(userIDs, uuid.MustParse(userID))
+		id, err := uuid.Parse(userID)
+		if err != nil {
+			api.Logger.Warn(ctx, "found invalid user uuid in workspace acl", slog.Error(err), slog.F("workspace", workspace.ID))
+			continue
+		}
+		userIDs = append(userIDs, id)
 	}
 	// For context see https://github.com/coder/coder/pull/19375
 	// nolint:gocritic
@@ -2201,9 +2206,16 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 	// Fetch all of the groups
 	groupIDs := make([]uuid.UUID, 0, len(workspaceACL.Groups))
 	for groupID := range workspaceACL.Groups {
-		groupIDs = append(groupIDs, uuid.MustParse(groupID))
+		id, err := uuid.Parse(groupID)
+		if err != nil {
+			api.Logger.Warn(ctx, "found invalid group uuid in workspace acl", slog.Error(err), slog.F("workspace", workspace.ID))
+			continue
+		}
+		groupIDs = append(groupIDs, id)
 	}
-	dbGroups, err := api.Database.GetGroups(ctx, database.GetGroupsParams{GroupIds: groupIDs})
+	// For context see https://github.com/coder/coder/pull/19375
+	// nolint:gocritic
+	dbGroups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
 		return
