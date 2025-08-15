@@ -10,25 +10,13 @@ import type { ComponentProps, FC } from "react";
  */
 
 export const StackLabel: FC<ComponentProps<typeof Stack>> = (props) => {
-	return (
-		<Stack
-			spacing={0.5}
-			css={{ paddingLeft: 12, fontWeight: 500 }}
-			{...props}
-		/>
-	);
+	return <Stack spacing={0.5} className="pl-3 font-medium" {...props} />;
 };
 
 export const StackLabelHelperText: FC<FormHelperTextProps> = (props) => {
 	return (
 		<FormHelperText
-			css={(theme) => ({
-				marginTop: 0,
-
-				"& strong": {
-					color: theme.palette.text.primary,
-				},
-			})}
+			className="m-0 [&_strong]:text-content-primary"
 			{...props}
 		/>
 	);
