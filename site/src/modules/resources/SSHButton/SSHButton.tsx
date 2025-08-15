@@ -33,7 +33,7 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 
 	return (
 		<Popover>
-			<PopoverTrigger asChild={true}>
+			<PopoverTrigger>
 				<Button size="sm" variant="subtle">
 					Connect via SSH
 					<ChevronDownIcon />
