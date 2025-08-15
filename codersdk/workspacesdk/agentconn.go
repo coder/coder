@@ -400,6 +400,10 @@ func (c *AgentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-
 
 	conn, res, err := websocket.Dial(ctx, url, &websocket.DialOptions{
 		HTTPClient: c.apiClient(),
+
+		// We want `NoContextTakeover` compression to balance improving
+		// bandwidth cost/latency with minimal memory usage overhead.
+		CompressionMode: websocket.CompressionNoContextTakeover,
 	})
 	if err != nil {
 		if res == nil {
@@ -410,6 +414,12 @@ func (c *AgentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-
 	if res != nil && res.Body != nil {
 		defer res.Body.Close()
 	}
+
+	// When a workspace has a few devcontainers running, or a single devcontainer
+	// has a large amount of apps, then each payload can easily exceed 32KiB.
+	// We up the limit to 4MiB to give us plenty of headroom for workspaces that
+	// have lots of dev containers with lots of apps.
+	conn.SetReadLimit(1 << 22) // 4MiB
 
 	d := wsjson.NewDecoder[codersdk.WorkspaceAgentListContainersResponse](conn, websocket.MessageText, logger)
 	return d.Chan(), d, nil
