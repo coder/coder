@@ -400,7 +400,7 @@ func (c *AgentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-
 
 	conn, res, err := websocket.Dial(ctx, url, &websocket.DialOptions{
 		HTTPClient:      c.apiClient(),
-		CompressionMode: websocket.CompressionContextTakeover,
+		CompressionMode: websocket.CompressionNoContextTakeover,
 	})
 	if err != nil {
 		if res == nil {
