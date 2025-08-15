@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -9,6 +10,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
@@ -18,6 +21,7 @@ import (
 
 	"github.com/coder/aibridge"
 	"github.com/coder/coder/v2/aibridged"
+	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -130,7 +134,7 @@ func (m *AIBridgeManager) fetchTools(ctx context.Context, logger slog.Logger, ac
 
 // acquire retrieves or creates a Bridge instance per given session key; Bridge is safe for concurrent use.
 // Each Bridge is stateful in that it has MCP tools which are scoped to the initiator.
-func (m *AIBridgeManager) acquire(ctx context.Context, api *API, sessionKey, initiatorID string, apiClientFn func() (aibridge.RecorderClient, error)) (*aibridge.Bridge, error) {
+func (m *AIBridgeManager) acquire(ctx context.Context, api *API, sessionKey, initiatorID string, apiClientFn func() (proto.DRPCRecorderClient, error)) (*aibridge.Bridge, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -154,7 +158,14 @@ func (m *AIBridgeManager) acquire(ctx context.Context, api *API, sessionKey, ini
 			logger.Warn(ctx, "failed to load tools", slog.Error(err))
 		}
 
-		bridge, err = aibridge.NewBridge(m.providers, logger, apiClientFn, aibridge.NewInjectedToolManager(tools))
+		bridge, err = aibridge.NewBridge(m.providers, logger, func() (aibridge.RecorderClient, error) {
+			client, err := apiClientFn()
+			if err != nil {
+				return nil, xerrors.Errorf("acquire client: %w", err)
+			}
+
+			return &translator{client: client}, nil
+		}, aibridge.NewInjectedToolManager(tools))
 		if err != nil {
 			return nil, xerrors.Errorf("create new bridge server: %w", err)
 		}
@@ -166,4 +177,74 @@ func (m *AIBridgeManager) acquire(ctx context.Context, api *API, sessionKey, ini
 	})
 
 	return instance, err
+}
+
+var _ aibridge.RecorderClient = &translator{}
+
+// translator satisfies the aibridge.RecorderClient interface and translates calls into dRPC calls to aibridgedserver.
+type translator struct {
+    client proto.DRPCRecorderClient
+}
+
+func (t *translator) RecordSession(ctx context.Context, req *aibridge.SessionRequest) error {
+    _, err := t.client.RecordSession(ctx, &proto.RecordSessionRequest{
+        SessionId:   req.SessionID,
+        InitiatorId: req.InitiatorID,
+        Provider:    req.Provider,
+        Model:       req.Model,
+    })
+    return err
+}
+
+func (t *translator) RecordPromptUsage(ctx context.Context, req *aibridge.PromptUsageRequest) error {
+    _, err := t.client.RecordPromptUsage(ctx, &proto.RecordPromptUsageRequest{
+        SessionId: req.SessionID,
+        MsgId:     req.MsgID,
+        Prompt:    req.Prompt,
+        Metadata:  MarshalForProto(req.Metadata),
+    })
+    return err
+}
+
+func (t *translator) RecordTokenUsage(ctx context.Context, req *aibridge.TokenUsageRequest) error {
+    _, err := t.client.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+        SessionId:    req.SessionID,
+        MsgId:        req.MsgID,
+        InputTokens:  req.Input,
+        OutputTokens: req.Output,
+        Metadata:     MarshalForProto(req.Metadata),
+    })
+    return err
+}
+
+func (t *translator) RecordToolUsage(ctx context.Context, req *aibridge.ToolUsageRequest) error {
+    serialized, err := json.Marshal(req.Args)
+    if err != nil {
+        return xerrors.Errorf("serialize tool %q args: %w", req.Name, err)
+    }
+
+    _, err = t.client.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
+        SessionId: req.SessionID,
+        MsgId:     req.MsgID,
+        Tool:      req.Name,
+        Input:     string(serialized),
+        Injected:  req.Injected,
+        Metadata:  MarshalForProto(req.Metadata),
+    })
+    return err
+}
+
+func MarshalForProto(in aibridge.Metadata) map[string]*anypb.Any {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]*anypb.Any, len(in))
+	for k, v := range in {
+		if sv, err := structpb.NewValue(v); err == nil {
+			if av, err := anypb.New(sv); err == nil {
+				out[k] = av
+			}
+		}
+	}
+	return out
 }

@@ -11,12 +11,11 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/aibridge"
-	proto "github.com/coder/aibridge/proto"
+	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
 )
 
-var _ aibridge.RecorderServer = &Server{}
+var _ proto.DRPCRecorderServer = &Server{}
 
 type Server struct {
 	// lifecycleCtx must be tied to the API server's lifecycle

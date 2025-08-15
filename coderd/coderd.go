@@ -20,9 +20,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/aibridge"
-	"github.com/coder/aibridge/transport"
 	"github.com/coder/coder/v2/aibridged"
+	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/prebuilds"
@@ -1967,7 +1966,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	return provisionerdproto.NewDRPCProvisionerDaemonClient(clientSession), nil
 }
 
-func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context, name string) (client aibridge.RecorderClient, err error) {
+func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context, name string) (client proto.DRPCRecorderClient, err error) {
 	// TODO(dannyk): implement options.
 	// TODO(dannyk): implement tracing.
 
@@ -1989,8 +1988,7 @@ func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context, name strin
 	if err != nil {
 		return nil, err
 	}
-	t := transport.NewDRPCTransport(mux)
-	err = t.RegisterRecorderServer(srv)
+	err = proto.DRPCRegisterRecorder(mux, srv)
 	if err != nil {
 		return nil, err
 	}
@@ -2023,7 +2021,7 @@ func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context, name strin
 		_ = serverSession.Close()
 	}()
 
-	return t.CreateRecorderClient(clientSession), nil
+	return proto.NewDRPCRecorderClient(clientSession), nil
 }
 
 func (api *API) DERPMap() *tailcfg.DERPMap {

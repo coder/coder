@@ -490,7 +490,7 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 )
 
-// aibridge-related deps and directives.
+// aibridge-related deps and directives. // TODO: remove.
 replace github.com/coder/aibridge v0.0.0 => /home/coder/aibridge
 
 require (

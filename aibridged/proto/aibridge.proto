@@ -1,0 +1,58 @@
+syntax = "proto3";
+option go_package = "github.com/coder/coder/v2/aibridged/proto";
+
+package proto;
+
+import "google/protobuf/any.proto";
+
+message RecordSessionRequest {
+  string session_id = 1;
+  string initiator_id = 2;
+  string provider = 3;
+  string model = 4;
+}
+
+message RecordSessionResponse {}
+
+message RecordTokenUsageRequest {
+  string session_id = 1;
+  string msg_id = 2;
+  int64 input_tokens = 3;
+  int64 output_tokens = 4;
+  map<string, google.protobuf.Any> metadata = 5;
+}
+message RecordTokenUsageResponse {}
+
+message RecordPromptUsageRequest {
+  string session_id = 1;
+  string msg_id = 2;
+  string prompt = 3;
+  map<string, google.protobuf.Any> metadata = 4;
+}
+message RecordPromptUsageResponse {}
+
+message RecordToolUsageRequest {
+  string session_id = 1;
+  string msg_id = 2;
+  string tool = 3;
+  string input = 4;
+  bool injected = 5;
+  map<string, google.protobuf.Any> metadata = 6;
+}
+message RecordToolUsageResponse {}
+
+service Recorder {
+  rpc RecordSession(RecordSessionRequest) returns (RecordSessionResponse);
+  rpc RecordTokenUsage(RecordTokenUsageRequest) returns (RecordTokenUsageResponse);
+  rpc RecordPromptUsage(RecordPromptUsageRequest) returns (RecordPromptUsageResponse);
+  rpc RecordToolUsage(RecordToolUsageRequest) returns (RecordToolUsageResponse);
+}
+
+// TODO: flesh this out; just leaving some ideas here.
+// The point is that this will be a *separate* service from Recorder, not to be accepted by Bridge but by some other component.
+//
+// service Stats {
+//   rpc AggregateTokenUsageByUser(TokenAggregationRequest) returns (TokenAggregationResponse);
+//   rpc AggregateToolUsageByUser(ToolAggregationRequest) returns (ToolAggregationResponse);
+//   rpc CategorizePromptsByUser(PromptCategorizationRequest) returns (PromptCategorizationResponse);
+// }

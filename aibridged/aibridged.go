@@ -15,18 +15,17 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/retry"
 
-	"github.com/coder/aibridge"
-	"github.com/coder/aibridge/proto"
+	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-type Dialer func(ctx context.Context) (aibridge.RecorderClient, error)
+type Dialer func(ctx context.Context) (proto.DRPCRecorderClient, error)
 
-// Server is the implementation which fulfills the aibridge.RecorderServer interface.
+// Server is the implementation which fulfills the proto.DRPCRecorderServer interface.
 // It is responsible for communication with the
 type Server struct {
 	clientDialer Dialer
-	clientCh     chan aibridge.RecorderClient
+	clientCh     chan proto.DRPCRecorderClient
 
 	logger slog.Logger
 	wg     sync.WaitGroup
@@ -53,7 +52,7 @@ type Server struct {
 	shuttingDownCh chan struct{}
 }
 
-var _ aibridge.RecorderServer = &Server{}
+var _ proto.DRPCRecorderServer = &Server{}
 
 func New(rpcDialer Dialer, logger slog.Logger) (*Server, error) {
 	if rpcDialer == nil {
@@ -64,7 +63,7 @@ func New(rpcDialer Dialer, logger slog.Logger) (*Server, error) {
 	daemon := &Server{
 		logger:           logger,
 		clientDialer:     rpcDialer,
-		clientCh:         make(chan aibridge.RecorderClient),
+		clientCh:         make(chan proto.DRPCRecorderClient),
 		closeContext:     ctx,
 		closeCancel:      cancel,
 		closedCh:         make(chan struct{}),
@@ -140,7 +139,7 @@ connectLoop:
 	}
 }
 
-func (s *Server) Client() (aibridge.RecorderClient, error) {
+func (s *Server) Client() (proto.DRPCRecorderClient, error) {
 	select {
 	case <-s.closeContext.Done():
 		return nil, xerrors.New("context closed")
@@ -153,7 +152,7 @@ func (s *Server) Client() (aibridge.RecorderClient, error) {
 }
 
 func (s *Server) RecordSession(ctx context.Context, in *proto.RecordSessionRequest) (*proto.RecordSessionResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client aibridge.RecorderClient) (*proto.RecordSessionResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCRecorderClient) (*proto.RecordSessionResponse, error) {
 		return client.RecordSession(ctx, in)
 	})
 	if err != nil {
@@ -163,7 +162,7 @@ func (s *Server) RecordSession(ctx context.Context, in *proto.RecordSessionReque
 }
 
 func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsageRequest) (*proto.RecordTokenUsageResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client aibridge.RecorderClient) (*proto.RecordTokenUsageResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCRecorderClient) (*proto.RecordTokenUsageResponse, error) {
 		return client.RecordTokenUsage(ctx, in)
 	})
 	if err != nil {
@@ -173,7 +172,7 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 }
 
 func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUsageRequest) (*proto.RecordPromptUsageResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client aibridge.RecorderClient) (*proto.RecordPromptUsageResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCRecorderClient) (*proto.RecordPromptUsageResponse, error) {
 		return client.RecordPromptUsage(ctx, in)
 	})
 	if err != nil {
@@ -183,7 +182,7 @@ func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUs
 }
 
 func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageRequest) (*proto.RecordToolUsageResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client aibridge.RecorderClient) (*proto.RecordToolUsageResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCRecorderClient) (*proto.RecordToolUsageResponse, error) {
 		return client.RecordToolUsage(ctx, in)
 	})
 	if err != nil {
@@ -205,8 +204,8 @@ func retryable(err error) bool {
 // expires.
 // NOTE: mostly copypasta from provisionerd; might be work abstracting.
 func clientDoWithRetries[T any](ctx context.Context,
-	getClient func() (aibridge.RecorderClient, error),
-	f func(context.Context, aibridge.RecorderClient) (T, error),
+	getClient func() (proto.DRPCRecorderClient, error),
+	f func(context.Context, proto.DRPCRecorderClient) (T, error),
 ) (ret T, _ error) {
 	for retrier := retry.New(25*time.Millisecond, 5*time.Second); retrier.Wait(ctx); {
 		var empty T

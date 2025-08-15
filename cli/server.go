@@ -62,8 +62,8 @@ import (
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
 
-	"github.com/coder/aibridge"
 	"github.com/coder/coder/v2/aibridged"
+	aibridgedproto "github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -1571,7 +1571,7 @@ func newProvisionerDaemon(
 }
 
 func newAIBridgeDaemon(ctx context.Context, coderAPI *coderd.API, name string, bridgeCfg codersdk.AIBridgeConfig) (*aibridged.Server, error) {
-	return aibridged.New(func(dialCtx context.Context) (aibridge.RecorderClient, error) {
+	return aibridged.New(func(dialCtx context.Context) (aibridgedproto.DRPCRecorderClient, error) {
 		// This debounces calls to listen every second.
 		// TODO: is this true / necessary?
 		return coderAPI.CreateInMemoryAIBridgeDaemon(dialCtx, name)
