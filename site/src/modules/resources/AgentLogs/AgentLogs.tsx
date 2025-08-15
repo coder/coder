@@ -1,10 +1,18 @@
-import Tooltip from "@mui/material/Tooltip";
+import MuiTooltip from "@mui/material/Tooltip";
 import type { WorkspaceAgentLogSource } from "api/typesGenerated";
 import type { Line } from "components/Logs/LogLine";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { type ComponentProps, forwardRef } from "react";
 import { FixedSizeList as List } from "react-window";
 import { cn } from "utils/cn";
 import { AGENT_LOG_LINE_HEIGHT, AgentLogLine } from "./AgentLogLine";
+import { Info } from "lucide-react";
+import { Badge } from "components/Badge/Badge";
 
 const fallbackLog: WorkspaceAgentLogSource = {
 	created_at: "",
@@ -42,18 +50,29 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 		const getLogSource = (id: string) => logSourceByID[id] || fallbackLog;
 
 		return (
-			<div className="flex flex-col gap-2">
+			<div className="flex flex-col bg-surface-secondary">
 				{overflowed && (
-					<p className="text-sm w-full text-content-secondary bg-content-tertiary max-w-prose pl-4 m-0 pt-2.5 pb-1">
-						Startup logs exceeded the max size of{" "}
-						<span className="tracking-wide font-mono">1MB</span>, and will not
-						continue to be written to the database! Logs will continue to be
-						written to the
-						<span className="font-mono bg-surface-tertiary rounded-md px-1.5 py-0.5">
-							/tmp/coder-startup-script.log
-						</span>{" "}
-						file in the workspace.
-					</p>
+					<TooltipProvider delayDuration={100}>
+						<Tooltip>
+							<TooltipTrigger asChild className="max-w-fit pt-4 px-4">
+								<span>
+									<Badge variant="warning">Logs overflowed</Badge>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent asChild className="w-full text-sm text-blue-500 text-content-secondary bg-surface-primary max-w-prose leading-relaxed m-0 p-4">
+								<p>
+									Startup logs exceeded the max size of{" "}
+									<span className="tracking-wide font-mono">1MB</span>, and
+									will not continue to be written to the database! Logs will
+									continue to be written to the{" "}
+									<span className="font-mono bg-surface-tertiary rounded-md px-1.5 py-0.5">
+										/tmp/coder-startup-script.log
+									</span>{" "}
+									file in the workspace.
+								</p>
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 				)}
 
 				<List
@@ -136,7 +155,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 								maxLineNumber={logs.length}
 								style={style}
 								sourceIcon={
-									<Tooltip
+									<MuiTooltip
 										title={
 											<>
 												{logSource.display_name}
@@ -150,7 +169,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 										}
 									>
 										{icon}
-									</Tooltip>
+									</MuiTooltip>
 								}
 							/>
 						);
