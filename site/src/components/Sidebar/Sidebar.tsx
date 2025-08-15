@@ -106,7 +106,7 @@ export const SidebarNavItem: FC<SidebarNavItemProps> = ({
 			}
 		>
 			<Stack alignItems="center" spacing={1.5} direction="row">
-				<Icon css={{ width: 16, height: 16 }} />
+				<Icon className="size-4" />
 				{children}
 			</Stack>
 		</NavLink>

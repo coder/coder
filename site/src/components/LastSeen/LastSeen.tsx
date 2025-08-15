@@ -40,7 +40,7 @@ export const LastSeen: FC<LastSeenProps> = ({ at, className, ...attrs }) => {
 	return (
 		<span
 			data-chromatic="ignore"
-			css={{ color }}
+			style={{ color }}
 			{...attrs}
 			className={cn(["whitespace-nowrap", className])}
 		>
