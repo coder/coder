@@ -3227,7 +3227,7 @@ func (q *querier) GetWebpushVAPIDKeys(ctx context.Context) (database.GetWebpushV
 func (q *querier) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceACLByIDRow, error) {
 	workspace, err := q.db.GetWorkspaceByID(ctx, id)
 	if err != nil {
-		return database.GetWorkspaceACLByIDRow{}, nil
+		return database.GetWorkspaceACLByIDRow{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionCreate, workspace); err != nil {
 		return database.GetWorkspaceACLByIDRow{}, err
