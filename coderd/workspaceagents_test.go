@@ -1579,8 +1579,10 @@ func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
 		t.Parallel()
 
 		var (
-			ctx    = testutil.Context(t, testutil.WaitShort)
+			ctx    = testutil.Context(t, testutil.WaitLong)
 			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			mClock            = quartz.NewMock(t)
+			updaterTickerTrap = mClock.Trap().TickerFunc("updaterLoop")
 			mCtrl  = gomock.NewController(t)
 			mCCLI  = acmock.NewMockContainerCLI(mCtrl)
 
@@ -1621,6 +1623,7 @@ func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
 			o.Logger = logger.Named("agent")
 			o.Devcontainers = true
 			o.DevcontainerAPIOptions = []agentcontainers.Option{
+				agentcontainers.WithClock(mClock),
 				agentcontainers.WithContainerCLI(mCCLI),
 				agentcontainers.WithWatcher(watcher.NewNoop()),
 			}
@@ -1630,6 +1633,9 @@ func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
 		require.Len(t, resources, 1, "expected one resource")
 		require.Len(t, resources[0].Agents, 1, "expected one agent")
 		agentID := resources[0].Agents[0].ID
+
+		updaterTickerTrap.MustWait(ctx).MustRelease(ctx)
+		defer updaterTickerTrap.Close()
 
 		containers, closer, err := client.WatchWorkspaceAgentContainers(ctx, agentID)
 		require.NoError(t, err)
