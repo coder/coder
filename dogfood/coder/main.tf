@@ -22,19 +22,6 @@ module "large-5mb-module" {
 }
 
 locals {
-  // These are cluster service addresses mapped to Tailscale nodes. Ask Dean or
-  // Kyle for help.
-  docker_host = {
-    ""              = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
-    "us-pittsburgh" = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
-    // For legacy reasons, this host is labelled `eu-helsinki` but it's
-    // actually in Germany now.
-    "eu-helsinki" = "tcp://katerose-fsn-cdr-dev.tailscale.svc.cluster.local:2375"
-    "ap-sydney"   = "tcp://wolfgang-syd-cdr-dev.tailscale.svc.cluster.local:2375"
-    "sa-saopaulo" = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
-    "za-cpt"      = "tcp://schonkopf-cpt-cdr-dev.tailscale.svc.cluster.local:2375"
-  }
-
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
   repo_dir       = replace(try(module.git-clone[0].repo_dir, ""), "/^~\\//", "/home/coder/")
   container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
@@ -167,7 +154,6 @@ locals {
   ], ["us-pittsburgh"])[0]
 }
 
-
 data "coder_parameter" "region" {
   type    = "string"
   name    = "Region"
@@ -242,8 +228,12 @@ data "coder_parameter" "devcontainer_autostart" {
   mutable     = true
 }
 
+module "dogfood-regions" {
+  source = "./modules/dogfood-regions"
+}
+
 provider "docker" {
-  host = lookup(local.docker_host, data.coder_parameter.region.value)
+  host = lookup(module.dogfood-regions.docker_host, data.coder_parameter.region.value)
 }
 
 provider "coder" {}
