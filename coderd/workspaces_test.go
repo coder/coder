@@ -4844,6 +4844,12 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+
+		workspaceACL, err := client.WorkspaceACL(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Len(t, workspaceACL.Users, 1)
+		require.Equal(t, workspaceACL.Users[0].ID, friend.ID)
+		require.Equal(t, workspaceACL.Users[0].Role, codersdk.WorkspaceRoleAdmin)
 	})
 
 	t.Run("UnknownUserID", func(t *testing.T) {
@@ -4870,6 +4876,42 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		err := client.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
 			UserRoles: map[string]codersdk.WorkspaceRole{
 				uuid.NewString(): codersdk.WorkspaceRoleAdmin,
+			},
+		})
+		require.Error(t, err)
+		cerr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Len(t, cerr.Validations, 1)
+		require.Equal(t, cerr.Validations[0].Field, "user_roles")
+	})
+
+	t.Run("DeletedUser", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+		adminClient := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			DeploymentValues:         dv,
+		})
+		adminUser := coderdtest.CreateFirstUser(t, adminClient)
+		orgID := adminUser.OrganizationID
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		_, mike := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+
+		tv := coderdtest.CreateTemplateVersion(t, adminClient, orgID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, tv.ID)
+		template := coderdtest.CreateTemplate(t, adminClient, orgID, tv.ID)
+
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := adminClient.DeleteUser(ctx, mike.ID)
+		require.NoError(t, err)
+		err = client.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				mike.ID.String(): codersdk.WorkspaceRoleAdmin,
 			},
 		})
 		require.Error(t, err)

@@ -2155,18 +2155,31 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// This is largely based on the template ACL implementation, and is far from
+	// ideal. Usually, when we use the System context it's because we need to
+	// run some query that won't actually be exposed to the user. That is not
+	// the case here. This data goes directly to an unauthorized user. We are
+	// just straight up breaking security promises.
+	//
+	// Fine for now while behind the shared-workspaces experiment, but needs to
+	// be fixed before GA.
+
 	// Fetch all of the users and their organization memberships
 	userIDs := make([]uuid.UUID, 0, len(workspaceACL.Users))
 	for userID := range workspaceACL.Users {
 		userIDs = append(userIDs, uuid.MustParse(userID))
 	}
-	dbUsers, err := api.Database.GetUsersByIDs(ctx, userIDs)
+	// For context see https://github.com/coder/coder/pull/19375
+	// nolint:gocritic
+	dbUsers, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 
-	orgIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(r.Context(), userIDs)
+	// For context see https://github.com/coder/coder/pull/19375
+	// nolint:gocritic
+	orgIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -2199,14 +2212,6 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 	groups := make([]codersdk.WorkspaceGroup, 0, len(dbGroups))
 	for _, it := range dbGroups {
 		var members []database.GroupMember
-		// This is taken from the template ACL implementation, and is far from
-		// ideal. Usually, when we use the System context it's because we need to
-		// run some query that won't actually be exposed to the user. That is not
-		// the case here. This data goes directly to an unauthorized user. We are
-		// just straight up breaking security promises.
-		//
-		// Fine for now while behind the shared-workspaces experiment, but needs to
-		// be fixed before GA.
 		// For context see https://github.com/coder/coder/pull/19375
 		// nolint:gocritic
 		members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{

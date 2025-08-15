@@ -692,7 +692,7 @@ func (c *Client) WorkspaceACL(ctx context.Context, workspaceID uuid.UUID) (Works
 		return WorkspaceACL{}, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
+	if res.StatusCode != http.StatusOK {
 		return WorkspaceACL{}, ReadBodyAsError(res)
 	}
 	var acl WorkspaceACL
