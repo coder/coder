@@ -264,7 +264,7 @@ export const watchWorkspaceAgentLogs = (
 	});
 };
 
-export type WatchWorkspaceAgentLogsParams = {
+type WatchWorkspaceAgentLogsParams = {
 	after?: number;
 };
 
