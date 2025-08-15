@@ -20012,7 +20012,7 @@ func (q *sqlQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploy
 const getWorkspaceACLByID = `-- name: GetWorkspaceACLByID :one
 SELECT
 	group_acl as groups,
-	user_acl as user
+	user_acl as users
 FROM
 	workspaces
 WHERE
@@ -20021,13 +20021,13 @@ WHERE
 
 type GetWorkspaceACLByIDRow struct {
 	Groups WorkspaceACL `db:"groups" json:"groups"`
-	User   WorkspaceACL `db:"user" json:"user"`
+	Users  WorkspaceACL `db:"users" json:"users"`
 }
 
 func (q *sqlQuerier) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (GetWorkspaceACLByIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceACLByID, id)
 	var i GetWorkspaceACLByIDRow
-	err := row.Scan(&i.Groups, &i.User)
+	err := row.Scan(&i.Groups, &i.Users)
 	return i, err
 }
 

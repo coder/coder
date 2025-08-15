@@ -2148,70 +2148,81 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		workspace = httpmw.WorkspaceParam(r)
 	)
 
-	_, err := api.Database.GetWorkspaceACLByID(ctx, workspace.ID)
+	// Fetch the ACL data
+	acl, err := api.Database.GetWorkspaceACLByID(ctx, workspace.ID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 
-	// userIDs := make([]uuid.UUID, 0, len(users))
-	// for _, user := range users {
-	// 	userIDs = append(userIDs, user.ID)
-	// }
+	// Fetch all of the users and their organization memberships
+	userIDs := make([]uuid.UUID, 0, len(acl.Users))
+	for userID, _ := range acl.Users {
+		userIDs = append(userIDs, uuid.MustParse(userID))
+	}
+	dbUsers, err := api.Database.GetUsersByIDs(ctx, userIDs)
 
-	// orgIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(r.Context(), userIDs)
-	// if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-	// 	httpapi.InternalServerError(rw, err)
-	// 	return
-	// }
+	orgIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(r.Context(), userIDs)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	organizationIDsByUserID := map[uuid.UUID][]uuid.UUID{}
+	for _, organizationIDsByMemberIDsRow := range orgIDsByMemberIDsRows {
+		organizationIDsByUserID[organizationIDsByMemberIDsRow.UserID] = organizationIDsByMemberIDsRow.OrganizationIDs
+	}
 
-	// organizationIDsByUserID := map[uuid.UUID][]uuid.UUID{}
-	// for _, organizationIDsByMemberIDsRow := range orgIDsByMemberIDsRows {
-	// 	organizationIDsByUserID[organizationIDsByMemberIDsRow.UserID] = organizationIDsByMemberIDsRow.OrganizationIDs
-	// }
+	// Convert the db types to the codersdk.WorkspaceUser type
+	users := make([]codersdk.WorkspaceUser, 0, len(dbUsers))
+	for _, it := range dbUsers {
+		users = append(users, codersdk.WorkspaceUser{
+			User: db2sdk.User(it, organizationIDsByUserID[it.ID]),
+			Role: convertToWorkspaceRole(acl.Users[it.ID.String()].Permissions),
+		})
+	}
 
-	// groups := make([]codersdk.TemplateGroup, 0, len(dbGroups))
-	// for _, group := range dbGroups {
-	// 	var members []database.GroupMember
+	// Fetch all of the groups
+	groupIDs := make([]uuid.UUID, 0, len(acl.Groups))
+	for groupID, _ := range acl.Groups {
+		groupIDs = append(groupIDs, uuid.MustParse(groupID))
+	}
+	dbGroups, err := api.Database.GetGroups(ctx, database.GetGroupsParams{GroupIds: groupIDs})
 
-	// 	// This is a bit of a hack. The caller might not have permission to do this,
-	// 	// but they can read the acl list if the function got this far. So we let
-	// 	// them read the group members.
-	// 	// We should probably at least return more truncated user data here.
-	// 	// nolint:gocritic
-	// 	members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
-	// 		GroupID:       group.Group.ID,
-	// 		IncludeSystem: false,
-	// 	})
-	// 	if err != nil {
-	// 		httpapi.InternalServerError(rw, err)
-	// 		return
-	// 	}
-	// 	// nolint:gocritic
-	// 	memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
-	// 		GroupID:       group.Group.ID,
-	// 		IncludeSystem: false,
-	// 	})
-	// 	if err != nil {
-	// 		httpapi.InternalServerError(rw, err)
-	// 		return
-	// 	}
-	// 	groups = append(groups, codersdk.TemplateGroup{
-	// 		Group: db2sdk.Group(database.GetGroupsRow{
-	// 			Group:                   group.Group,
-	// 			OrganizationName:        template.OrganizationName,
-	// 			OrganizationDisplayName: template.OrganizationDisplayName,
-	// 		}, members, int(memberCount)),
-	// 		Role: convertToTemplateRole(group.Actions),
-	// 	})
-	// }
+	groups := make([]codersdk.WorkspaceGroup, 0, len(dbGroups))
+	for _, it := range dbGroups {
+		var members []database.GroupMember
+		// This is taken from the template ACL implementation, and is far from
+		// ideal. Usually, when we use the System context it's because we need to
+		// run some query that won't actually be exposed to the user. That is not
+		// the case here. This data goes directly to an unauthorized user. We are
+		// just straight up breaking security promises.
+		//
+		// Fine for now while behind the shared-workspaces experiment, but needs to
+		// be fixed before GA.
+		// For context see https://github.com/coder/coder/pull/19375
+		// nolint:gocritic
+		members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
+			GroupID:       it.Group.ID,
+			IncludeSystem: false,
+		})
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		groups = append(groups, codersdk.WorkspaceGroup{
+			Group: db2sdk.Group(database.GetGroupsRow{
+				Group:                   it.Group,
+				OrganizationName:        it.OrganizationName,
+				OrganizationDisplayName: it.OrganizationDisplayName,
+			}, members, len(members)),
+			Role: convertToWorkspaceRole(acl.Groups[it.Group.ID.String()].Permissions),
+		})
+	}
 
-	// httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateACL{
-	// 	Users:  convertTemplateUsers(users, organizationIDsByUserID),
-	// 	Groups: groups,
-	// })
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceACL{})
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceACL{
+		Users:  users,
+		Groups: groups,
+	})
 }
 
 // @Summary Update workspace ACL

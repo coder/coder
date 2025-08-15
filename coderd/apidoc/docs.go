@@ -9953,7 +9953,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Enterprise"
+                    "Workspaces"
                 ],
                 "summary": "Get workspace ACLs",
                 "operationId": "get-workspace-acls",

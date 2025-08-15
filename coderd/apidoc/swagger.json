@@ -8800,7 +8800,7 @@
 					}
 				],
 				"produces": ["application/json"],
-				"tags": ["Enterprise"],
+				"tags": ["Workspaces"],
 				"summary": "Get workspace ACLs",
 				"operationId": "get-workspace-acls",
 				"parameters": [
