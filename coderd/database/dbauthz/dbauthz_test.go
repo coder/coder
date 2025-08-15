@@ -4975,28 +4975,6 @@ func (s *MethodTestSuite) TestPrebuilds() {
 			ParameterValues:   []string{"test"},
 		}).Asserts(tv.RBACObject(t1), policy.ActionRead).Returns(uuid.Nil)
 	}))
-	// s.Run("FindMatchingPresetID", s.Subtest(func(db database.Store, check *expects) {
-	// 	org := dbgen.Organization(s.T(), db, database.Organization{})
-	// 	user := dbgen.User(s.T(), db, database.User{})
-	// 	templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-	// 		OrganizationID: org.ID,
-	// 		CreatedBy:      user.ID,
-	// 	})
-	// 	template := dbgen.Template(s.T(), db, database.Template{
-	// 		OrganizationID:  org.ID,
-	// 		CreatedBy:       user.ID,
-	// 		ActiveVersionID: templateVersion.ID,
-	// 	})
-	// 	db.UpdateTemplateActiveVersionByID(context.Background(), database.UpdateTemplateActiveVersionByIDParams{
-	// 		ID:              template.ID,
-	// 		ActiveVersionID: templateVersion.ID,
-	// 	})
-	// 	check.Args(database.FindMatchingPresetIDParams{
-	// 		TemplateVersionID: templateVersion.ID,
-	// 		ParameterNames:    []string{"test"},
-	// 		ParameterValues:   []string{"test"},
-	// 	}).Asserts(templateVersion.RBACObject(template), policy.ActionRead)
-	// }))
 	s.Run("GetPrebuildMetrics", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
 			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
