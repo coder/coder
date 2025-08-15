@@ -1,13 +1,13 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { organizationsKey } from "api/queries/organizations";
-import type { Organization } from "api/typesGenerated";
-import { action } from "storybook/actions";
-import { userEvent, within } from "storybook/test";
 import {
 	MockOrganization,
 	MockOrganization2,
 	mockApiError,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { organizationsKey } from "api/queries/organizations";
+import type { Organization } from "api/typesGenerated";
+import { action } from "storybook/actions";
+import { userEvent, within } from "storybook/test";
 import { CreateUserForm } from "./CreateUserForm";
 
 const meta: Meta<typeof CreateUserForm> = {

@@ -1,12 +1,12 @@
 import { GlobalErrorBoundary } from "components/ErrorBoundary/GlobalErrorBoundary";
 import { TemplateRedirectController } from "pages/TemplatePage/TemplateRedirectController";
-import { Suspense, lazy } from "react";
+import { lazy, Suspense } from "react";
 import {
+	createBrowserRouter,
+	createRoutesFromChildren,
 	Navigate,
 	Outlet,
 	Route,
-	createBrowserRouter,
-	createRoutesFromChildren,
 } from "react-router";
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";

@@ -1,10 +1,10 @@
 import { useTheme } from "@emotion/react";
-import { Pill } from "components/Pill/Pill";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
+import { Pill } from "components/Pill/Pill";
 import type { FC } from "react";
 import { cn } from "utils/cn";
 import { isUUID } from "utils/uuid";

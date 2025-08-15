@@ -57,7 +57,7 @@
         formatter = pkgs.nixfmt-rfc-style;
 
         nodejs = pkgs.nodejs_20;
-        pnpm = pkgs.pnpm_9.override {
+        pnpm = pkgs.pnpm_10.override {
           inherit nodejs; # Ensure it points to the above nodejs version
         };
 
