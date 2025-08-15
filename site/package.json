@@ -157,7 +157,7 @@
 		"@types/ssh2": "1.15.1",
 		"@types/ua-parser-js": "0.7.36",
 		"@types/uuid": "9.0.2",
-		"@vitejs/plugin-react": "5.0.0",
+		"@vitejs/plugin-react": "4.5.0",
 		"autoprefixer": "10.4.20",
 		"chromatic": "11.25.2",
 		"dpdm": "3.14.0",

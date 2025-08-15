@@ -29,7 +29,6 @@ interface AppProvidersProps {
 	queryClient?: QueryClient;
 }
 
-
 export const AppProviders: FC<AppProvidersProps> = ({
 	children,
 	queryClient = defaultQueryClient,
