@@ -60,7 +60,5 @@
 	"typos.config": ".github/workflows/typos.toml",
 	"[markdown]": {
 		"editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
-	},
-	"biome.configurationPath": "./site/biome.jsonc",
-	"biome.lsp.bin": "./site/node_modules/.bin/biome"
+	}
 }

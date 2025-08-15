@@ -1,5 +1,6 @@
 import Skeleton from "@mui/material/Skeleton";
 import { users } from "api/queries/users";
+import type { User } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import {
@@ -15,44 +16,33 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
+import { useAuthenticated } from "hooks";
 import { useDebouncedValue } from "hooks/debounce";
 import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { cn } from "utils/cn";
 
-export type UserOption = {
+type UserOption = {
 	label: string;
-	value: string; // Username
+	value: string; // username
 	avatarUrl?: string;
 };
 
 type UsersComboboxProps = {
-	selectedOption: UserOption | undefined;
-	onSelect: (option: UserOption | undefined) => void;
+	value: string;
+	onValueChange: (value: string) => void;
 };
 
 export const UsersCombobox: FC<UsersComboboxProps> = ({
-	selectedOption,
-	onSelect,
+	value,
+	onValueChange,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
 	const debouncedSearch = useDebouncedValue(search, 250);
-	const usersQuery = useQuery({
-		...users({ q: debouncedSearch }),
-		select: (data) =>
-			data.users.toSorted((a, _b) => {
-				return selectedOption && a.username === selectedOption.value ? -1 : 0;
-			}),
-		placeholderData: keepPreviousData,
-	});
-
-	const options = usersQuery.data?.map((user) => ({
-		label: user.name || user.username,
-		value: user.username,
-		avatarUrl: user.avatar_url,
-	}));
+	const options = useUsersOptions({ query: debouncedSearch, value });
+	const selectedOption = options?.find((o) => o.value === value);
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -91,11 +81,7 @@ export const UsersCombobox: FC<UsersComboboxProps> = ({
 									key={option.value}
 									value={option.value}
 									onSelect={() => {
-										onSelect(
-											option.value === selectedOption?.value
-												? undefined
-												: option,
-										);
+										onValueChange(option.value);
 										setOpen(false);
 									}}
 								>
@@ -131,3 +117,39 @@ const UserItem: FC<UserItemProps> = ({ option, className }) => {
 		</div>
 	);
 };
+
+type UseUsersOptionsOptions = {
+	query: string;
+	value?: string;
+};
+
+function useUsersOptions({ query, value }: UseUsersOptionsOptions) {
+	const { user } = useAuthenticated();
+
+	const includeAuthenticatedUser = (users: readonly User[]) => {
+		const hasAuthenticatedUser = users.some(
+			(u) => u.username === user?.username,
+		);
+		if (hasAuthenticatedUser) {
+			return users;
+		}
+		return [user, ...users];
+	};
+
+	const sortSelectedFirst = (a: User) =>
+		value && a.username === value ? -1 : 0;
+
+	const usersQuery = useQuery({
+		...users({ q: query }),
+		select: (data) => {
+			return includeAuthenticatedUser(data.users).toSorted(sortSelectedFirst);
+		},
+		placeholderData: keepPreviousData,
+	});
+
+	return usersQuery.data?.map((user) => ({
+		label: user.name || user.username,
+		value: user.username,
+		avatarUrl: user.avatar_url,
+	}));
+}

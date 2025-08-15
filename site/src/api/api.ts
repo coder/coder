@@ -21,6 +21,7 @@
  */
 import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
 import type dayjs from "dayjs";
+import type { Task } from "modules/tasks/tasks";
 import userAgentParser from "ua-parser-js";
 import { delay } from "../utils/delay";
 import { OneWayWebSocket } from "../utils/OneWayWebSocket";
@@ -420,6 +421,10 @@ export type GetProvisionerDaemonsParams = {
 	// Stringified JSON Object
 	tags?: string;
 	limit?: number;
+};
+
+export type TasksFilter = {
+	username?: string;
 };
 
 /**
@@ -2676,6 +2681,34 @@ class ExperimentalApiMethods {
 		);
 
 		return response.data;
+	};
+
+	getTasks = async (filter: TasksFilter) => {
+		const queryExpressions = ["has-ai-task:true"];
+
+		if (filter.username) {
+			queryExpressions.push(`owner:${filter.username}`);
+		}
+
+		const workspaces = await API.getWorkspaces({
+			q: queryExpressions.join(" "),
+		});
+		const prompts = await API.experimental.getAITasksPrompts(
+			workspaces.workspaces.map((workspace) => workspace.latest_build.id),
+		);
+
+		return workspaces.workspaces.map((workspace) => {
+			let prompt = prompts.prompts[workspace.latest_build.id];
+
+			if (prompt === "") {
+				prompt = "Empty prompt";
+			}
+
+			return {
+				workspace,
+				prompt,
+			} satisfies Task;
+		});
 	};
 }
 
