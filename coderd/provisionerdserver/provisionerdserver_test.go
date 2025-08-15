@@ -48,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/usage"
+	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -3044,7 +3045,7 @@ func TestCompleteJob(t *testing.T) {
 					if tc.expectUsageEvent {
 						// Check that a usage event was collected.
 						require.Len(t, fakeUsageInserter.collectedEvents, 1)
-						require.Equal(t, usage.DCManagedAgentsV1{
+						require.Equal(t, usagetypes.DCManagedAgentsV1{
 							Count: 1,
 						}, fakeUsageInserter.collectedEvents[0])
 					} else {
@@ -4226,7 +4227,7 @@ func (s *fakeStream) cancel() {
 }
 
 type fakeUsageInserter struct {
-	collectedEvents []usage.Event
+	collectedEvents []usagetypes.Event
 }
 
 var _ usage.Inserter = &fakeUsageInserter{}
@@ -4239,7 +4240,7 @@ func newFakeUsageInserter() (*fakeUsageInserter, *atomic.Pointer[usage.Inserter]
 	return fake, ptr
 }
 
-func (f *fakeUsageInserter) InsertDiscreteUsageEvent(_ context.Context, _ database.Store, event usage.DiscreteEvent) error {
+func (f *fakeUsageInserter) InsertDiscreteUsageEvent(_ context.Context, _ database.Store, event usagetypes.DiscreteEvent) error {
 	f.collectedEvents = append(f.collectedEvents, event)
 	return nil
 }

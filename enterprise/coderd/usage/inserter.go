@@ -10,20 +10,21 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	agplusage "github.com/coder/coder/v2/coderd/usage"
+	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/quartz"
 )
 
-// dbCollector collects usage events and stores them in the database for
+// dbInserter collects usage events and stores them in the database for
 // publishing.
-type dbCollector struct {
+type dbInserter struct {
 	clock quartz.Clock
 }
 
-var _ agplusage.Inserter = &dbCollector{}
+var _ agplusage.Inserter = &dbInserter{}
 
 // NewDBInserter creates a new database-backed usage event inserter.
 func NewDBInserter(opts ...InserterOption) agplusage.Inserter {
-	c := &dbCollector{
+	c := &dbInserter{
 		clock: quartz.NewReal(),
 	}
 	for _, opt := range opts {
@@ -32,17 +33,17 @@ func NewDBInserter(opts ...InserterOption) agplusage.Inserter {
 	return c
 }
 
-type InserterOption func(*dbCollector)
+type InserterOption func(*dbInserter)
 
 // InserterWithClock sets the quartz clock to use for the inserter.
 func InserterWithClock(clock quartz.Clock) InserterOption {
-	return func(c *dbCollector) {
+	return func(c *dbInserter) {
 		c.clock = clock
 	}
 }
 
 // InsertDiscreteUsageEvent implements agplusage.Inserter.
-func (i *dbCollector) InsertDiscreteUsageEvent(ctx context.Context, tx database.Store, event agplusage.DiscreteEvent) error {
+func (i *dbInserter) InsertDiscreteUsageEvent(ctx context.Context, tx database.Store, event usagetypes.DiscreteEvent) error {
 	if !event.EventType().IsDiscrete() {
 		return xerrors.Errorf("event type %q is not a discrete event", event.EventType())
 	}
