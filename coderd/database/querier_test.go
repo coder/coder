@@ -609,15 +609,16 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 				},
 				expectedNum: 1,
 			},
+			// Offline daemons should not be included without Offline param
 			{
-				name:        "Get all - empty statuses",
+				name:        "Get idle - empty statuses",
 				statuses:    []database.ProvisionerDaemonStatus{},
-				expectedNum: 2,
+				expectedNum: 1,
 			},
 			{
-				name:        "Get all - nil statuses",
+				name:        "Get idle - nil statuses",
 				statuses:    nil,
-				expectedNum: 2,
+				expectedNum: 1,
 			},
 		}
 
@@ -627,7 +628,6 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 				daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
 					OrganizationID:  org.ID,
 					StaleIntervalMS: 45 * time.Minute.Milliseconds(),
-					Offline:         sql.NullBool{Bool: true, Valid: true},
 					Statuses:        tc.statuses,
 				})
 				require.NoError(t, err)

@@ -32,13 +32,13 @@ WHERE
 SELECT
 	sqlc.embed(pd),
 	CASE
-		WHEN pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - (@stale_interval_ms::bigint || ' ms')::interval)
-		THEN 'offline'
-		ELSE CASE
-			WHEN current_job.id IS NOT NULL THEN 'busy'
-			ELSE 'idle'
-		END
-	END::provisioner_daemon_status AS status,
+		WHEN current_job.id IS NOT NULL THEN 'busy'::provisioner_daemon_status
+		WHEN (COALESCE(sqlc.narg('offline')::bool, false) = true
+		      OR 'offline'::provisioner_daemon_status = ANY(@statuses::provisioner_daemon_status[]))
+		     AND (pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - (@stale_interval_ms::bigint || ' ms')::interval))
+		THEN 'offline'::provisioner_daemon_status
+		ELSE 'idle'::provisioner_daemon_status
+	END AS status,
 	pk.name AS key_name,
 	-- NOTE(mafredri): sqlc.embed doesn't support nullable tables nor renaming them.
 	current_job.id AS current_job_id,
@@ -110,21 +110,29 @@ WHERE
 	pd.organization_id = @organization_id::uuid
 	AND (COALESCE(array_length(@ids::uuid[], 1), 0) = 0 OR pd.id = ANY(@ids::uuid[]))
 	AND (@tags::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, @tags::tagset))
-	-- Filter by status array if any status values are provided
-	AND (COALESCE(array_length(@statuses::provisioner_daemon_status[], 1), 0) = 0 OR 
-		(CASE
-			WHEN pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - (@stale_interval_ms::bigint || ' ms')::interval)
-			THEN 'offline'::provisioner_daemon_status
-			ELSE CASE
-				WHEN current_job.id IS NOT NULL THEN 'busy'::provisioner_daemon_status
-				ELSE 'idle'::provisioner_daemon_status
-			END
-		END) = ANY(@statuses::provisioner_daemon_status[]))
-	-- Include offline daemons only if offline is set to true
 	AND (
-		COALESCE(sqlc.narg('offline')::bool, false) = true
-			OR
+		-- Include daemons that have been seen recently
 		(pd.last_seen_at IS NOT NULL AND pd.last_seen_at >= (NOW() - (@stale_interval_ms::bigint || ' ms')::interval))
+		-- Include offline daemons only when offline param is set OR 'offline' is in the list of statuses
+		OR (
+			(pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - (@stale_interval_ms::bigint || ' ms')::interval))
+			AND (
+				COALESCE(sqlc.narg('offline')::bool, false) = true
+				OR 'offline'::provisioner_daemon_status = ANY(@statuses::provisioner_daemon_status[])
+			)
+		)
+	)
+	-- Filter daemons by their current status if statuses are provided
+	AND (
+		COALESCE(array_length(@statuses::provisioner_daemon_status[], 1), 0) = 0
+		OR (
+		    (current_job.id IS NOT NULL AND 'busy'::provisioner_daemon_status = ANY(@statuses::provisioner_daemon_status[]))
+		    OR (current_job.id IS NULL AND 'idle'::provisioner_daemon_status = ANY(@statuses::provisioner_daemon_status[]))
+		)
+		OR (
+		    (COALESCE(sqlc.narg('offline')::bool, false) = true OR 'offline'::provisioner_daemon_status = ANY(@statuses::provisioner_daemon_status[]))
+		    AND (pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - (@stale_interval_ms::bigint || ' ms')::interval))
+		)
 	)
 ORDER BY
 	pd.created_at DESC
