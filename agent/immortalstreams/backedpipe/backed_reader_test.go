@@ -217,6 +217,7 @@ func TestBackedReader_ReconnectionAfterFailure(t *testing.T) {
 	// Wait for read to unblock and succeed with new data
 	readErr := testutil.RequireReceive(ctx, t, readDone)
 	require.NoError(t, readErr) // Should succeed with new reader
+	require.True(t, br.Connected())
 }
 
 func TestBackedReader_Close(t *testing.T) {
