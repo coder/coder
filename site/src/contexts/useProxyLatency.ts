@@ -1,4 +1,3 @@
-import PerformanceObserver from "@fastly/performance-observer-polyfill";
 import { API } from "api/api";
 import type { Region } from "api/typesGenerated";
 import { useEffect, useReducer, useState } from "react";
