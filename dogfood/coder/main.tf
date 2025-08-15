@@ -151,7 +151,7 @@ data "coder_parameter" "image_type" {
   }
 }
 
-variable "anthropic_api_key" {
+variable "coder_dogfood_anthropic_api_key" {
   type        = string
   description = "The API key used to authenticate with the Anthropic API."
   default     = ""
@@ -814,7 +814,7 @@ resource "coder_env" "anthropic_api_key" {
   count    = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
   agent_id = coder_agent.dev.id
   name     = "ANTHROPIC_API_KEY"
-  value    = var.anthropic_api_key
+  value    = var.coder_dogfood_anthropic_api_key
 }
 
 resource "coder_app" "develop_sh" {
