@@ -172,12 +172,10 @@ func (bw *BackedWriter) Reconnect(replayFromSeq uint64, newWriter io.Writer) err
 	// Clear the current writer first in case replay fails
 	bw.writer = nil
 
-	// Replay data if needed. We keep the writer as nil during replay to ensure
-	// no concurrent writes can happen, then set it only after successful replay.
+	// Replay data if needed. We keep the mutex held during replay to ensure
+	// no concurrent operations can interfere with the reconnection process.
 	if len(replayData) > 0 {
-		bw.mu.Unlock()
 		n, err := newWriter.Write(replayData)
-		bw.mu.Lock()
 
 		if err != nil {
 			// Reconnect failed, writer remains nil
