@@ -21,8 +21,6 @@ import {
 	useMemo,
 } from "react";
 
-const SIDE_PADDING = 16;
-
 export const SelectMenu = Popover;
 
 export const SelectMenuTrigger = PopoverTrigger;
@@ -54,22 +52,7 @@ export const SelectMenuSearch: FC<SearchFieldProps> = (props) => {
 		<SearchField
 			fullWidth
 			size="medium"
-			css={(theme) => ({
-				borderBottom: `1px solid ${theme.palette.divider}`,
-				"& input": {
-					fontSize: 14,
-				},
-				"& fieldset": {
-					border: 0,
-					borderRadius: 0,
-				},
-				"& .MuiInputBase-root": {
-					padding: `12px ${SIDE_PADDING}px`,
-				},
-				"& .MuiInputAdornment-positionStart": {
-					marginRight: SIDE_PADDING,
-				},
-			})}
+			className="border-solid border-b-px [&_input]:font-sm [&_fieldset]:border-none [&_fieldset]:rounded-none [&.MuiInputBase-root]:py-3 [&.MuiInputBase-root]:px-4 [&.MuiInputAdornment-positionStart]:mr-4"
 			{...props}
 			inputProps={{ autoFocus: true, ...props.inputProps }}
 		/>
@@ -112,19 +95,9 @@ export const SelectMenuIcon: FC<HTMLProps<HTMLDivElement>> = (props) => {
 
 export const SelectMenuItem: FC<MenuItemProps> = (props) => {
 	return (
-		<MenuItem
-			css={{
-				fontSize: 14,
-				gap: 0,
-				lineHeight: 1,
-				padding: `12px ${SIDE_PADDING}px`,
-			}}
-			{...props}
-		>
+		<MenuItem className="text-sm gap-0 leading-none py-3 px-4" {...props}>
 			{props.children}
-			{props.selected && (
-				<CheckIcon className="size-icon-xs" css={{ marginLeft: "auto" }} />
-			)}
+			{props.selected && <CheckIcon className="size-icon-xs ml-auto" />}
 		</MenuItem>
 	);
 };
