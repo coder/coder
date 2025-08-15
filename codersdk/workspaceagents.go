@@ -563,6 +563,8 @@ func (c *Client) WatchWorkspaceAgentContainers(ctx context.Context, agentID uuid
 		return nil, nil, ReadBodyAsError(res)
 	}
 
+	conn.SetReadLimit(1 << 22) // 4MiB
+
 	d := wsjson.NewDecoder[WorkspaceAgentListContainersResponse](conn, websocket.MessageText, c.logger)
 	return d.Chan(), d, nil
 }
