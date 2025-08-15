@@ -1579,12 +1579,12 @@ func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
 		t.Parallel()
 
 		var (
-			ctx    = testutil.Context(t, testutil.WaitLong)
-			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			ctx               = testutil.Context(t, testutil.WaitLong)
+			logger            = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 			mClock            = quartz.NewMock(t)
 			updaterTickerTrap = mClock.Trap().TickerFunc("updaterLoop")
-			mCtrl  = gomock.NewController(t)
-			mCCLI  = acmock.NewMockContainerCLI(mCtrl)
+			mCtrl             = gomock.NewController(t)
+			mCCLI             = acmock.NewMockContainerCLI(mCtrl)
 
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{Logger: &logger})
 			user       = coderdtest.CreateFirstUser(t, client)
