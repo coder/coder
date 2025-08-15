@@ -40,14 +40,6 @@ func (p ConnectionParams) DSN() string {
 	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", p.Username, p.Password, p.Host, p.Port, p.DBName)
 }
 
-// WillLogDSN returns true if the DSN should be shown during testing.
-// Set the CODER_TEST_LOG_PG_DSN environment variable to show the DSN.
-// This provides an ergonomic way to connect to test databases during
-// debugging without the need to spin up postgres manually.
-func WillLogDSN() bool {
-	return os.Getenv("CODER_TEST_LOG_PG_DSN") != ""
-}
-
 // These variables are global because all tests share them.
 var (
 	connectionParamsInitOnce       sync.Once
@@ -146,6 +138,7 @@ func initDefaultConnection(t TBSubset) error {
 
 type OpenOptions struct {
 	DBFrom *string
+	LogDSN bool
 }
 
 type OpenOption func(*OpenOptions)
@@ -155,6 +148,16 @@ type OpenOption func(*OpenOptions)
 func WithDBFrom(dbFrom string) OpenOption {
 	return func(o *OpenOptions) {
 		o.DBFrom = &dbFrom
+	}
+}
+
+// WithLogDSN sets whether the DSN should be logged during testing.
+// Set the CODER_TEST_LOG_PG_DSN environment variable to show the DSN.
+// This provides an ergonomic way to connect to test databases during
+// debugging without the need to spin up postgres manually.
+func WithLogDSN(logDSN bool) OpenOption {
+	return func(o *OpenOptions) {
+		o.LogDSN = logDSN
 	}
 }
 
@@ -237,9 +240,8 @@ func Open(t TBSubset, opts ...OpenOption) (string, error) {
 	}.DSN()
 
 	// Optionally log the DSN to help connect to the test database.
-	if WillLogDSN() {
-		t.Logf("Postgres test DSN: %s", dsn)
-		_, _ = fmt.Fprintln(os.Stderr, "Postgres test DSN:", dsn)
+	if openOptions.LogDSN {
+		_, _ = fmt.Fprintf(os.Stderr, "Connect to this test database using: psql '%s'\n", dsn)
 	}
 	return dsn, nil
 }
