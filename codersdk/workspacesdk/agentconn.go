@@ -399,7 +399,8 @@ func (c *AgentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-
 	url := fmt.Sprintf("http://%s%s", host, "/api/v0/containers/watch")
 
 	conn, res, err := websocket.Dial(ctx, url, &websocket.DialOptions{
-		HTTPClient: c.apiClient(),
+		HTTPClient:      c.apiClient(),
+		CompressionMode: websocket.CompressionContextTakeover,
 	})
 	if err != nil {
 		if res == nil {
@@ -410,6 +411,8 @@ func (c *AgentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-
 	if res != nil && res.Body != nil {
 		defer res.Body.Close()
 	}
+
+	conn.SetReadLimit(1 << 22) // 4MiB
 
 	d := wsjson.NewDecoder[codersdk.WorkspaceAgentListContainersResponse](conn, websocket.MessageText, logger)
 	return d.Chan(), d, nil
