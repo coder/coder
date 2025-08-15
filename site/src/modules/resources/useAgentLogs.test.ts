@@ -1,13 +1,15 @@
 import { MockWorkspaceAgent } from "testHelpers/entities";
-import { renderHook, waitFor } from "@testing-library/react";
-import type { WorkspaceAgentLog } from "api/typesGenerated";
-import { act } from "react";
 import {
-	type MockWebSocketServer,
 	createMockWebSocket,
+	type MockWebSocketServer,
 } from "testHelpers/websockets";
+import { renderHook, waitFor } from "@testing-library/react";
+import * as apiModule from "api/api";
+import type { WorkspaceAgentLog } from "api/typesGenerated";
+import * as snackbarUtils from "components/GlobalSnackbar/utils";
+import { act } from "react";
 import { OneWayWebSocket } from "utils/OneWayWebSocket";
-import { CreateUseAgentLogsOptions, createUseAgentLogs } from "./useAgentLogs";
+import { useAgentLogs } from "./useAgentLogs";
 
 const millisecondsInOneMinute = 60_000;
 
@@ -38,12 +40,12 @@ type ServerResult = { current: MockWebSocketServer | undefined };
 type MountHookOptions = Readonly<{
 	initialAgentId: string;
 	enabled?: boolean;
-	onError?: CreateUseAgentLogsOptions["onError"];
 }>;
 
 type MountHookResult = Readonly<{
-	rerender: (props: { agentId: string; enabled: boolean }) => void;
 	serverResult: ServerResult;
+	rerender: (props: { agentId: string; enabled: boolean }) => void;
+	displayError: jest.SpyInstance<void, [s1: string, s2?: string], unknown>;
 
 	// Note: the `current` property is only "halfway" readonly; the value is
 	// readonly, but the key is still mutable
@@ -51,12 +53,12 @@ type MountHookResult = Readonly<{
 }>;
 
 function mountHook(options: MountHookOptions): MountHookResult {
-	const { initialAgentId, enabled = true, onError = jest.fn() } = options;
-
+	const { initialAgentId, enabled = true } = options;
 	const serverResult: ServerResult = { current: undefined };
-	const useAgentLogs = createUseAgentLogs({
-		onError,
-		createSocket: (agentId, params) => {
+
+	jest
+		.spyOn(apiModule, "watchWorkspaceAgentLogs")
+		.mockImplementation((agentId, params) => {
 			return new OneWayWebSocket({
 				apiRoute: `/api/v2/workspaceagents/${agentId}/logs`,
 				searchParams: new URLSearchParams({
@@ -69,15 +71,17 @@ function mountHook(options: MountHookOptions): MountHookResult {
 					return mockSocket;
 				},
 			});
-		},
-	});
+		});
+
+	void jest.spyOn(console, "error").mockImplementation(() => {});
+	const displayError = jest.spyOn(snackbarUtils, "displayError");
 
 	const { result: hookResult, rerender } = renderHook(
 		(props) => useAgentLogs(props),
-		{ initialProps: { agentId: initialAgentId, enabled: enabled } },
+		{ initialProps: { enabled, agentId: initialAgentId } },
 	);
 
-	return { rerender, serverResult, hookResult };
+	return { rerender, serverResult, hookResult, displayError };
 }
 
 describe("useAgentLogs", () => {
@@ -140,26 +144,24 @@ describe("useAgentLogs", () => {
 	});
 
 	it("Calls error callback when error is received (but only while hook is enabled)", async () => {
-		const onError = jest.fn();
-		const { serverResult, rerender } = mountHook({
+		const { serverResult, rerender, displayError } = mountHook({
 			initialAgentId: MockWorkspaceAgent.id,
 			// Start off disabled so that we can check that the callback is
 			// never called when there is no connection
 			enabled: false,
-			onError,
 		});
 
 		const errorEvent = new Event("error");
 		await act(async () => serverResult.current?.publishError(errorEvent));
-		expect(onError).not.toHaveBeenCalled();
+		expect(displayError).not.toHaveBeenCalled();
 
 		rerender({ agentId: MockWorkspaceAgent.id, enabled: true });
 		await act(async () => serverResult.current?.publishError(errorEvent));
-		expect(onError).toHaveBeenCalledTimes(1);
+		expect(displayError).toHaveBeenCalledTimes(1);
 	});
 
-	// This is a protection to avoid duplicate logs when the hook goes back to
-	// being re-enabled
+	// // This is a protection to avoid duplicate logs when the hook goes back to
+	// // being re-enabled
 	it("Clears logs when hook becomes disabled", async () => {
 		const { hookResult, serverResult, rerender } = mountHook({
 			initialAgentId: MockWorkspaceAgent.id,
