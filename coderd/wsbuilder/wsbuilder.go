@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
@@ -442,6 +443,20 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 
 	var workspaceBuild database.WorkspaceBuild
 	err = b.store.InTx(func(store database.Store) error {
+		names, values, err := b.getParameters()
+		if err != nil {
+			// getParameters already wraps errors in BuildError
+			return err
+		}
+
+		if b.templateVersionPresetID == uuid.Nil {
+			presetID, err := prebuilds.FindMatchingPresetID(b.ctx, b.store, templateVersionID, names, values)
+			if err != nil {
+				return BuildError{http.StatusInternalServerError, "find matching preset", err}
+			}
+			b.templateVersionPresetID = presetID
+		}
+
 		err = store.InsertWorkspaceBuild(b.ctx, database.InsertWorkspaceBuildParams{
 			ID:                workspaceBuildID,
 			CreatedAt:         now,
@@ -471,12 +486,6 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 				code = http.StatusConflict
 			}
 			return BuildError{code, "insert workspace build", err}
-		}
-
-		names, values, err := b.getParameters()
-		if err != nil {
-			// getParameters already wraps errors in BuildError
-			return err
 		}
 
 		err = store.InsertWorkspaceBuildParameters(b.ctx, database.InsertWorkspaceBuildParametersParams{

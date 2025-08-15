@@ -4915,3 +4915,285 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		require.Equal(t, cerr.Validations[0].Field, "user_roles")
 	})
 }
+
+func TestWorkspaceCreateWithImplicitPreset(t *testing.T) {
+	t.Parallel()
+
+	// Helper function to create template with presets
+	createTemplateWithPresets := func(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, presets []*proto.Preset) (codersdk.Template, codersdk.TemplateVersion) {
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{
+				{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Presets: presets,
+						},
+					},
+				},
+			},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		return template, version
+	}
+
+	// Helper function to create workspace and verify preset usage
+	createWorkspaceAndVerifyPreset := func(t *testing.T, client *codersdk.Client, template codersdk.Template, expectedPresetID *uuid.UUID, params []codersdk.WorkspaceBuildParameter) codersdk.Workspace {
+		wsName := testutil.GetRandomNameHyphenated(t)
+		var ws codersdk.Workspace
+		if len(params) > 0 {
+			ws = coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+				cwr.Name = wsName
+				cwr.RichParameterValues = params
+			})
+		} else {
+			ws = coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+				cwr.Name = wsName
+			})
+		}
+		require.Equal(t, wsName, ws.Name)
+
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		// Verify the preset was used if expected
+		if expectedPresetID != nil {
+			require.NotNil(t, ws.LatestBuild.TemplateVersionPresetID)
+			require.Equal(t, *expectedPresetID, *ws.LatestBuild.TemplateVersionPresetID)
+		} else {
+			require.Nil(t, ws.LatestBuild.TemplateVersionPresetID)
+		}
+
+		return ws
+	}
+
+	t.Run("NoPresets", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create template with no presets
+		template, _ := createTemplateWithPresets(t, client, user, []*proto.Preset{})
+
+		// Test workspace creation with no parameters
+		createWorkspaceAndVerifyPreset(t, client, template, nil, nil)
+
+		// Test workspace creation with parameters (should still work, no preset matching)
+		createWorkspaceAndVerifyPreset(t, client, template, nil, []codersdk.WorkspaceBuildParameter{
+			{Name: "param1", Value: "value1"},
+		})
+	})
+
+	t.Run("SinglePresetNoParameters", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create template with single preset that has no parameters
+		preset := &proto.Preset{
+			Name:        "empty-preset",
+			Description: "A preset with no parameters",
+			Parameters:  []*proto.PresetParameter{},
+		}
+		template, version := createTemplateWithPresets(t, client, user, []*proto.Preset{preset})
+
+		// Get the preset ID from the database
+		ctx := context.Background()
+		presets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, presets, 1)
+		presetID := presets[0].ID
+
+		// Test workspace creation with no parameters - should match the preset
+		createWorkspaceAndVerifyPreset(t, client, template, &presetID, nil)
+
+		// Test workspace creation with parameters - should not match the preset
+		createWorkspaceAndVerifyPreset(t, client, template, &presetID, []codersdk.WorkspaceBuildParameter{
+			{Name: "param1", Value: "value1"},
+		})
+	})
+
+	t.Run("SinglePresetWithParameters", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create template with single preset that has parameters
+		preset := &proto.Preset{
+			Name:        "param-preset",
+			Description: "A preset with parameters",
+			Parameters: []*proto.PresetParameter{
+				{Name: "param1", Value: "value1"},
+				{Name: "param2", Value: "value2"},
+			},
+		}
+		template, version := createTemplateWithPresets(t, client, user, []*proto.Preset{preset})
+
+		// Get the preset ID from the database
+		ctx := context.Background()
+		presets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, presets, 1)
+		presetID := presets[0].ID
+
+		// Test workspace creation with no parameters - should not match the preset
+		createWorkspaceAndVerifyPreset(t, client, template, nil, nil)
+
+		// Test workspace creation with exact matching parameters - should match the preset
+		createWorkspaceAndVerifyPreset(t, client, template, &presetID, []codersdk.WorkspaceBuildParameter{
+			{Name: "param1", Value: "value1"},
+			{Name: "param2", Value: "value2"},
+		})
+
+		// Test workspace creation with partial matching parameters - should not match the preset
+		createWorkspaceAndVerifyPreset(t, client, template, nil, []codersdk.WorkspaceBuildParameter{
+			{Name: "param1", Value: "value1"},
+		})
+
+		// Test workspace creation with different parameter values - should not match the preset
+		createWorkspaceAndVerifyPreset(t, client, template, nil, []codersdk.WorkspaceBuildParameter{
+			{Name: "param1", Value: "value1"},
+			{Name: "param2", Value: "different"},
+		})
+
+		// Test workspace creation with extra parameters - should match the preset
+		createWorkspaceAndVerifyPreset(t, client, template, &presetID, []codersdk.WorkspaceBuildParameter{
+			{Name: "param1", Value: "value1"},
+			{Name: "param2", Value: "value2"},
+			{Name: "param3", Value: "value3"},
+		})
+	})
+
+	t.Run("MultiplePresets", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create template with multiple presets
+		preset1 := &proto.Preset{
+			Name:        "empty-preset",
+			Description: "A preset with no parameters",
+			Parameters:  []*proto.PresetParameter{},
+		}
+		preset2 := &proto.Preset{
+			Name:        "single-param-preset",
+			Description: "A preset with one parameter",
+			Parameters: []*proto.PresetParameter{
+				{Name: "param1", Value: "value1"},
+			},
+		}
+		preset3 := &proto.Preset{
+			Name:        "multi-param-preset",
+			Description: "A preset with multiple parameters",
+			Parameters: []*proto.PresetParameter{
+				{Name: "param1", Value: "value1"},
+				{Name: "param2", Value: "value2"},
+			},
+		}
+		template, version := createTemplateWithPresets(t, client, user, []*proto.Preset{preset1, preset2, preset3})
+
+		// Get the preset IDs from the database
+		ctx := context.Background()
+		presets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, presets, 3)
+
+		// Sort presets by name to get consistent ordering
+		var emptyPresetID, singleParamPresetID, multiParamPresetID uuid.UUID
+		for _, p := range presets {
+			switch p.Name {
+			case "empty-preset":
+				emptyPresetID = p.ID
+			case "single-param-preset":
+				singleParamPresetID = p.ID
+			case "multi-param-preset":
+				multiParamPresetID = p.ID
+			}
+		}
+
+		// Test workspace creation with no parameters - should match empty preset
+		createWorkspaceAndVerifyPreset(t, client, template, &emptyPresetID, nil)
+
+		// Test workspace creation with single parameter - should match single param preset
+		createWorkspaceAndVerifyPreset(t, client, template, &singleParamPresetID, []codersdk.WorkspaceBuildParameter{
+			{Name: "param1", Value: "value1"},
+		})
+
+		// Test workspace creation with multiple parameters - should match multi param preset
+		createWorkspaceAndVerifyPreset(t, client, template, &multiParamPresetID, []codersdk.WorkspaceBuildParameter{
+			{Name: "param1", Value: "value1"},
+			{Name: "param2", Value: "value2"},
+		})
+
+		// Test workspace creation with non-matching parameters - should not match any preset
+		createWorkspaceAndVerifyPreset(t, client, template, &emptyPresetID, []codersdk.WorkspaceBuildParameter{
+			{Name: "param1", Value: "different"},
+		})
+	})
+
+	t.Run("PresetSpecifiedExplicitly", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create template with multiple presets
+		preset1 := &proto.Preset{
+			Name:        "preset1",
+			Description: "First preset",
+			Parameters: []*proto.PresetParameter{
+				{Name: "param1", Value: "value1"},
+			},
+		}
+		preset2 := &proto.Preset{
+			Name:        "preset2",
+			Description: "Second preset",
+			Parameters: []*proto.PresetParameter{
+				{Name: "param1", Value: "value2"},
+			},
+		}
+		template, version := createTemplateWithPresets(t, client, user, []*proto.Preset{preset1, preset2})
+
+		// Get the preset IDs from the database
+		ctx := context.Background()
+		presets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, presets, 2)
+
+		var preset1ID, preset2ID uuid.UUID
+		for _, p := range presets {
+			switch p.Name {
+			case "preset1":
+				preset1ID = p.ID
+			case "preset2":
+				preset2ID = p.ID
+			}
+		}
+
+		// Test workspace creation with preset1 specified explicitly - should use preset1 regardless of parameters
+		ws := coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.TemplateVersionPresetID = preset1ID
+			cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{Name: "param1", Value: "value2"}, // This would normally match preset2
+			}
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+		require.NotNil(t, ws.LatestBuild.TemplateVersionPresetID)
+		require.Equal(t, preset1ID, *ws.LatestBuild.TemplateVersionPresetID)
+
+		// Test workspace creation with preset2 specified explicitly - should use preset2 regardless of parameters
+		ws2 := coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.TemplateVersionPresetID = preset2ID
+			cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{Name: "param1", Value: "value1"}, // This would normally match preset1
+			}
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws2.LatestBuild.ID)
+		require.NotNil(t, ws2.LatestBuild.TemplateVersionPresetID)
+		require.Equal(t, preset2ID, *ws2.LatestBuild.TemplateVersionPresetID)
+	})
+}

@@ -82,6 +82,7 @@ func TestBuilder_NoOptions(t *testing.T) {
 		}),
 
 		withInTx,
+		expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 		expectBuild(func(bld database.InsertWorkspaceBuildParams) {
 			asrt.Equal(inactiveVersionID, bld.TemplateVersionID)
 			asrt.Equal(workspaceID, bld.WorkspaceID)
@@ -132,6 +133,7 @@ func TestBuilder_Initiator(t *testing.T) {
 			asrt.Equal(otherUserID, job.InitiatorID)
 		}),
 		withInTx,
+		expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 		expectBuild(func(bld database.InsertWorkspaceBuildParams) {
 			asrt.Equal(otherUserID, bld.InitiatorID)
 		}),
@@ -180,6 +182,7 @@ func TestBuilder_Baggage(t *testing.T) {
 			asrt.Contains(string(job.TraceMetadata.RawMessage), "ip=127.0.0.1")
 		}),
 		withInTx,
+		expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 		expectBuild(func(bld database.InsertWorkspaceBuildParams) {
 		}),
 		expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
@@ -219,6 +222,7 @@ func TestBuilder_Reason(t *testing.T) {
 		expectProvisionerJob(func(_ database.InsertProvisionerJobParams) {
 		}),
 		withInTx,
+		expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 		expectBuild(func(bld database.InsertWorkspaceBuildParams) {
 			asrt.Equal(database.BuildReasonAutostart, bld.Reason)
 		}),
@@ -261,6 +265,7 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 		}),
 
 		withInTx,
+		expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 		expectBuild(func(bld database.InsertWorkspaceBuildParams) {
 			asrt.Equal(activeVersionID, bld.TemplateVersionID)
 			// no previous build...
@@ -386,6 +391,7 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 		expectBuildParameters(func(_ database.InsertWorkspaceBuildParametersParams) {
 		}),
 		withBuild,
+		expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 	)
 	fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
@@ -470,6 +476,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 				}
 			}),
 			withBuild,
+			expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 		)
 		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
@@ -519,6 +526,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 				}
 			}),
 			withBuild,
+			expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 		)
 		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
@@ -661,6 +669,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 				}
 			}),
 			withBuild,
+			expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 		)
 		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
@@ -713,6 +722,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
 
 			// Outputs
+			expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
 			withInTx,
 			expectBuild(func(bld database.InsertWorkspaceBuildParams) {}),
@@ -775,6 +785,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
 
 			// Outputs
+			expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
 			withInTx,
 			expectBuild(func(bld database.InsertWorkspaceBuildParams) {}),
@@ -906,6 +917,7 @@ func TestWorkspaceBuildDeleteOrphan(t *testing.T) {
 			}),
 
 			withInTx,
+			expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 			expectBuild(func(bld database.InsertWorkspaceBuildParams) {
 				asrt.Equal(inactiveVersionID, bld.TemplateVersionID)
 				asrt.Equal(workspaceID, bld.WorkspaceID)
@@ -968,6 +980,7 @@ func TestWorkspaceBuildDeleteOrphan(t *testing.T) {
 			}),
 
 			withInTx,
+			expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 			expectBuild(func(bld database.InsertWorkspaceBuildParams) {
 				asrt.Equal(inactiveVersionID, bld.TemplateVersionID)
 				asrt.Equal(workspaceID, bld.WorkspaceID)
@@ -1041,6 +1054,7 @@ func TestWorkspaceBuildUsageChecker(t *testing.T) {
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
 			withInTx,
+			expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 			expectBuild(func(bld database.InsertWorkspaceBuildParams) {}),
 			withBuild,
 			expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {}),
@@ -1482,6 +1496,14 @@ func expectBuildParameters(
 func withProvisionerDaemons(provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow) func(mTx *dbmock.MockStore) {
 	return func(mTx *dbmock.MockStore) {
 		mTx.EXPECT().GetEligibleProvisionerDaemonsByProvisionerJobIDs(gomock.Any(), gomock.Any()).Return(provisionerDaemons, nil)
+	}
+}
+
+func expectFindMatchingPresetID(id uuid.UUID, err error) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
+		mTx.EXPECT().FindMatchingPresetID(gomock.Any(), gomock.Any()).
+			Times(1).
+			Return(id, err)
 	}
 }
 
