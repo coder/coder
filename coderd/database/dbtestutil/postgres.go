@@ -152,9 +152,7 @@ func WithDBFrom(dbFrom string) OpenOption {
 }
 
 // WithLogDSN sets whether the DSN should be logged during testing.
-// Set the CODER_TEST_LOG_PG_DSN environment variable to show the DSN.
-// This provides an ergonomic way to connect to test databases during
-// debugging without the need to spin up postgres manually.
+// This provides an ergonomic way to connect to test databases during debugging.
 func WithLogDSN(logDSN bool) OpenOption {
 	return func(o *OpenOptions) {
 		o.LogDSN = logDSN
