@@ -1,3 +1,10 @@
+import {
+	MockPrebuiltWorkspace,
+	MockTemplate,
+	MockUserOwner,
+	MockWorkspace,
+} from "testHelpers/entities";
+import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { getAuthorizationKey } from "api/queries/authCheck";
 import { templateByNameKey } from "api/queries/templates";
@@ -7,13 +14,6 @@ import {
 	reactRouterNestedAncestors,
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
-import {
-	MockPrebuiltWorkspace,
-	MockTemplate,
-	MockUserOwner,
-	MockWorkspace,
-} from "testHelpers/entities";
-import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import { WorkspaceSettingsLayout } from "../WorkspaceSettingsLayout";
 import WorkspaceSchedulePage from "./WorkspaceSchedulePage";
 

@@ -2,15 +2,15 @@ import { deploymentSSHConfig } from "api/queries/deployment";
 import { Button } from "components/Button/Button";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/deprecated/Popover/Popover";
+import {
 	HelpTooltipLink,
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 } from "components/HelpTooltip/HelpTooltip";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
 import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
