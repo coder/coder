@@ -40,14 +40,6 @@ func (p ConnectionParams) DSN() string {
 	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", p.Username, p.Password, p.Host, p.Port, p.DBName)
 }
 
-// WillLogDSN returns true if the DSN should be shown during testing.
-// Set the CODER_TEST_LOG_PG_DSN environment variable to show the DSN.
-// This provides an ergonomic way to connect to test databases during
-// debugging without the need to spin up postgres manually.
-func WillLogDSN() bool {
-	return os.Getenv("CODER_TEST_LOG_PG_DSN") != ""
-}
-
 // These variables are global because all tests share them.
 var (
 	connectionParamsInitOnce       sync.Once
