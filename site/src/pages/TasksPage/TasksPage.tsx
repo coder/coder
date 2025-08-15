@@ -1,6 +1,7 @@
 import Skeleton from "@mui/material/Skeleton";
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
+import { templateVersionPresets } from "api/queries/templates";
 import { disabledRefetchOptions } from "api/queries/util";
 import type {
 	Preset,
@@ -12,6 +13,8 @@ import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Link } from "components/Link/Link";
 import { Margins } from "components/Margins/Margins";
@@ -40,10 +43,6 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-
-import { templateVersionPresets } from "api/queries/templates";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	Tooltip,
 	TooltipContent,
@@ -54,8 +53,8 @@ import { useAuthenticated } from "hooks";
 import { useExternalAuth } from "hooks/useExternalAuth";
 import { RedoIcon, RotateCcwIcon, SendIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
-import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
+import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { type FC, type ReactNode, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -741,13 +740,11 @@ export const data = {
 			}
 		}
 
-		const workspace = await API.createWorkspace(userId, {
+		const workspace = await API.experimental.createTask(userId, {
 			name: `task-${generateWorkspaceName()}`,
 			template_version_id: templateVersionId,
 			template_version_preset_id: preset_id || undefined,
-			rich_parameter_values: [
-				{ name: AI_PROMPT_PARAMETER_NAME, value: prompt },
-			],
+			prompt,
 		});
 
 		return {

@@ -29,7 +29,8 @@ const ConnectionLogPage: FC = () => {
 		paginatedConnectionLogs(searchParams),
 	);
 	const filter = useFilter({
-		searchParamsResult: [searchParams, setSearchParams],
+		searchParams,
+		onSearchParamsChange: setSearchParams,
 		onUpdate: connectionlogsQuery.goToFirstPage,
 	});
 

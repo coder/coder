@@ -59,43 +59,41 @@ export const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 	}
 
 	return (
-		<>
-			<TableContainer>
-				<Table>
-					<TableHead>
-						<TableRow>
-							<TableCell>Application</TableCell>
-							<TableCell>
-								<span aria-hidden css={{ ...visuallyHidden }}>
-									Link to connect
-								</span>
-							</TableCell>
-							<TableCell width="1%" />
-						</TableRow>
-					</TableHead>
-					<TableBody>
-						{auths.providers === null || auths.providers?.length === 0 ? (
-							<TableEmpty message="No providers have been configured" />
-						) : (
-							auths.providers?.map((app) => (
-								<ExternalAuthRow
-									key={app.id}
-									app={app}
-									unlinked={unlinked}
-									link={auths.links.find((l) => l.provider_id === app.id)}
-									onUnlinkExternalAuth={() => {
-										onUnlinkExternalAuth(app.id);
-									}}
-									onValidateExternalAuth={() => {
-										onValidateExternalAuth(app.id);
-									}}
-								/>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</TableContainer>
-		</>
+		<TableContainer>
+			<Table>
+				<TableHead>
+					<TableRow>
+						<TableCell>Application</TableCell>
+						<TableCell>
+							<span aria-hidden css={{ ...visuallyHidden }}>
+								Link to connect
+							</span>
+						</TableCell>
+						<TableCell width="1%" />
+					</TableRow>
+				</TableHead>
+				<TableBody>
+					{auths.providers === null || auths.providers?.length === 0 ? (
+						<TableEmpty message="No providers have been configured" />
+					) : (
+						auths.providers?.map((app) => (
+							<ExternalAuthRow
+								key={app.id}
+								app={app}
+								unlinked={unlinked}
+								link={auths.links.find((l) => l.provider_id === app.id)}
+								onUnlinkExternalAuth={() => {
+									onUnlinkExternalAuth(app.id);
+								}}
+								onValidateExternalAuth={() => {
+									onValidateExternalAuth(app.id);
+								}}
+							/>
+						))
+					)}
+				</TableBody>
+			</Table>
+		</TableContainer>
 	);
 };
 

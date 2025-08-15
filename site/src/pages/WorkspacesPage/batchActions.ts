@@ -1,13 +1,32 @@
 import { API } from "api/api";
-import type { Workspace } from "api/typesGenerated";
+import type { Workspace, WorkspaceBuild } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useMutation } from "react-query";
 
-interface UseBatchActionsProps {
+interface UseBatchActionsOptions {
 	onSuccess: () => Promise<void>;
 }
 
-export function useBatchActions(options: UseBatchActionsProps) {
+type UpdateAllPayload = Readonly<{
+	workspaces: readonly Workspace[];
+	isDynamicParametersEnabled: boolean;
+}>;
+
+type UseBatchActionsResult = Readonly<{
+	isProcessing: boolean;
+	start: (workspaces: readonly Workspace[]) => Promise<WorkspaceBuild[]>;
+	stop: (workspaces: readonly Workspace[]) => Promise<WorkspaceBuild[]>;
+	delete: (workspaces: readonly Workspace[]) => Promise<WorkspaceBuild[]>;
+	updateTemplateVersions: (
+		payload: UpdateAllPayload,
+	) => Promise<WorkspaceBuild[]>;
+	favorite: (payload: readonly Workspace[]) => Promise<void>;
+	unfavorite: (payload: readonly Workspace[]) => Promise<void>;
+}>;
+
+export function useBatchActions(
+	options: UseBatchActionsOptions,
+): UseBatchActionsResult {
 	const { onSuccess } = options;
 
 	const startAllMutation = useMutation({
@@ -45,10 +64,7 @@ export function useBatchActions(options: UseBatchActionsProps) {
 	});
 
 	const updateAllMutation = useMutation({
-		mutationFn: (payload: {
-			workspaces: readonly Workspace[];
-			isDynamicParametersEnabled: boolean;
-		}) => {
+		mutationFn: (payload: UpdateAllPayload) => {
 			const { workspaces, isDynamicParametersEnabled } = payload;
 			return Promise.all(
 				workspaces
@@ -63,8 +79,8 @@ export function useBatchActions(options: UseBatchActionsProps) {
 	});
 
 	const favoriteAllMutation = useMutation({
-		mutationFn: (workspaces: readonly Workspace[]) => {
-			return Promise.all(
+		mutationFn: async (workspaces: readonly Workspace[]): Promise<void> => {
+			await Promise.all(
 				workspaces
 					.filter((w) => !w.favorite)
 					.map((w) => API.putFavoriteWorkspace(w.id)),
@@ -77,8 +93,8 @@ export function useBatchActions(options: UseBatchActionsProps) {
 	});
 
 	const unfavoriteAllMutation = useMutation({
-		mutationFn: (workspaces: readonly Workspace[]) => {
-			return Promise.all(
+		mutationFn: async (workspaces: readonly Workspace[]): Promise<void> => {
+			await Promise.all(
 				workspaces
 					.filter((w) => w.favorite)
 					.map((w) => API.deleteFavoriteWorkspace(w.id)),
@@ -91,13 +107,13 @@ export function useBatchActions(options: UseBatchActionsProps) {
 	});
 
 	return {
-		favoriteAll: favoriteAllMutation.mutateAsync,
-		unfavoriteAll: unfavoriteAllMutation.mutateAsync,
-		startAll: startAllMutation.mutateAsync,
-		stopAll: stopAllMutation.mutateAsync,
-		deleteAll: deleteAllMutation.mutateAsync,
-		updateAll: updateAllMutation.mutateAsync,
-		isLoading:
+		favorite: favoriteAllMutation.mutateAsync,
+		unfavorite: unfavoriteAllMutation.mutateAsync,
+		start: startAllMutation.mutateAsync,
+		stop: stopAllMutation.mutateAsync,
+		delete: deleteAllMutation.mutateAsync,
+		updateTemplateVersions: updateAllMutation.mutateAsync,
+		isProcessing:
 			favoriteAllMutation.isPending ||
 			unfavoriteAllMutation.isPending ||
 			startAllMutation.isPending ||

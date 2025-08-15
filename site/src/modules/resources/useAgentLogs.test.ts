@@ -1,16 +1,13 @@
+import { MockWorkspaceAgent } from "testHelpers/entities";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { WorkspaceAgentLog } from "api/typesGenerated";
 import { act } from "react";
-import { MockWorkspaceAgent } from "testHelpers/entities";
 import {
 	type MockWebSocketServer,
 	createMockWebSocket,
 } from "testHelpers/websockets";
 import { OneWayWebSocket } from "utils/OneWayWebSocket";
-import {
-	type CreateUseAgentLogsOptions,
-	createUseAgentLogs,
-} from "./useAgentLogs";
+import { CreateUseAgentLogsOptions, createUseAgentLogs } from "./useAgentLogs";
 
 const millisecondsInOneMinute = 60_000;
 
