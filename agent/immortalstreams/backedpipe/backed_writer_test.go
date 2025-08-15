@@ -651,6 +651,204 @@ func TestBackedWriter_WriteBlocksAfterDisconnection(t *testing.T) {
 	require.Equal(t, []byte("world"), writer2.buffer.Bytes()) // Only "world" since we replayed from sequence 5
 }
 
+func TestBackedWriter_ConcurrentWriteAndClose(t *testing.T) {
+	t.Parallel()
+
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
+	writer := newMockWriter()
+	bw.Reconnect(0, writer)
+
+	// Start a write operation that will be interrupted by close
+	writeComplete := make(chan struct{})
+	var writeErr error
+	var n int
+
+	go func() {
+		defer close(writeComplete)
+		// Write some data that should succeed
+		n, writeErr = bw.Write([]byte("hello"))
+	}()
+
+	// Give write a chance to start
+	time.Sleep(10 * time.Millisecond)
+
+	// Close the writer
+	closeErr := bw.Close()
+	require.NoError(t, closeErr)
+
+	// Wait for write to complete
+	<-writeComplete
+
+	// Write should have either succeeded (if it completed before close)
+	// or failed with EOF (if close interrupted it)
+	if writeErr == nil {
+		require.Equal(t, 5, n)
+	} else {
+		require.ErrorIs(t, writeErr, io.EOF)
+	}
+
+	// Subsequent writes should fail
+	n, err := bw.Write([]byte("world"))
+	require.Equal(t, 0, n)
+	require.ErrorIs(t, err, io.EOF)
+}
+
+func TestBackedWriter_ConcurrentWriteAndReconnect(t *testing.T) {
+	t.Parallel()
+
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
+
+	// Initial connection
+	writer1 := newMockWriter()
+	err := bw.Reconnect(0, writer1)
+	require.NoError(t, err)
+
+	// Write some initial data
+	_, err = bw.Write([]byte("initial"))
+	require.NoError(t, err)
+
+	// Start a write operation that will be blocked by reconnect
+	writeComplete := make(chan struct{})
+	var writeErr error
+	var n int
+
+	go func() {
+		defer close(writeComplete)
+		// This write should be blocked during reconnect
+		n, writeErr = bw.Write([]byte("blocked"))
+	}()
+
+	// Give write a chance to start
+	time.Sleep(10 * time.Millisecond)
+
+	// Start reconnection which will cause the write to wait
+	writer2 := &mockWriter{
+		writeFunc: func(p []byte) (int, error) {
+			// Simulate slow replay
+			time.Sleep(50 * time.Millisecond)
+			return len(p), nil
+		},
+	}
+
+	reconnectErr := bw.Reconnect(0, writer2)
+	require.NoError(t, reconnectErr)
+
+	// Wait for write to complete
+	<-writeComplete
+
+	// Write should succeed after reconnection completes
+	require.NoError(t, writeErr)
+	require.Equal(t, 7, n) // "blocked" is 7 bytes
+
+	// Verify the writer is connected
+	require.True(t, bw.Connected())
+}
+
+func TestBackedWriter_ConcurrentReconnectAndClose(t *testing.T) {
+	t.Parallel()
+
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
+
+	// Initial connection and write some data
+	writer1 := newMockWriter()
+	err := bw.Reconnect(0, writer1)
+	require.NoError(t, err)
+	_, err = bw.Write([]byte("test data"))
+	require.NoError(t, err)
+
+	// Start reconnection with slow replay
+	reconnectComplete := make(chan struct{})
+	var reconnectErr error
+
+	go func() {
+		defer close(reconnectComplete)
+		writer2 := &mockWriter{
+			writeFunc: func(p []byte) (int, error) {
+				// Simulate slow replay - this should be interrupted by close
+				time.Sleep(100 * time.Millisecond)
+				return len(p), nil
+			},
+		}
+		reconnectErr = bw.Reconnect(0, writer2)
+	}()
+
+	// Give reconnect a chance to start
+	time.Sleep(10 * time.Millisecond)
+
+	// Close while reconnection is in progress
+	closeErr := bw.Close()
+	require.NoError(t, closeErr)
+
+	// Wait for reconnect to complete
+	<-reconnectComplete
+
+	// With mutex held during replay, Close() waits for Reconnect() to finish.
+	// So Reconnect() should succeed, then Close() runs and closes the writer.
+	require.NoError(t, reconnectErr)
+
+	// Verify writer is closed (Close() ran after Reconnect() completed)
+	require.False(t, bw.Connected())
+}
+
+func TestBackedWriter_MultipleWritesDuringReconnect(t *testing.T) {
+	t.Parallel()
+
+	errorChan := make(chan error, 1)
+	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
+
+	// Initial connection
+	writer1 := newMockWriter()
+	err := bw.Reconnect(0, writer1)
+	require.NoError(t, err)
+
+	// Write some initial data
+	_, err = bw.Write([]byte("initial"))
+	require.NoError(t, err)
+
+	// Start multiple write operations
+	numWriters := 5
+	var wg sync.WaitGroup
+	writeResults := make([]error, numWriters)
+
+	for i := 0; i < numWriters; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			data := []byte{byte('A' + id)}
+			_, writeResults[id] = bw.Write(data)
+		}(i)
+	}
+
+	// Give writes a chance to start
+	time.Sleep(10 * time.Millisecond)
+
+	// Start reconnection with slow replay
+	writer2 := &mockWriter{
+		writeFunc: func(p []byte) (int, error) {
+			// Simulate slow replay
+			time.Sleep(50 * time.Millisecond)
+			return len(p), nil
+		},
+	}
+
+	reconnectErr := bw.Reconnect(0, writer2)
+	require.NoError(t, reconnectErr)
+
+	// Wait for all writes to complete
+	wg.Wait()
+
+	// All writes should succeed
+	for i, err := range writeResults {
+		require.NoError(t, err, "Write %d should succeed", i)
+	}
+
+	// Verify the writer is connected
+	require.True(t, bw.Connected())
+}
+
 func BenchmarkBackedWriter_Write(b *testing.B) {
 	errorChan := make(chan error, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan) // 64KB buffer
