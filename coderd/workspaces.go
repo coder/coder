@@ -2169,7 +2169,7 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 	for userID := range workspaceACL.Users {
 		id, err := uuid.Parse(userID)
 		if err != nil {
-			api.Logger.Warn(ctx, "found invalid user uuid in workspace acl", slog.Error(err), slog.F("workspace", workspace.ID))
+			api.Logger.Warn(ctx, "found invalid user uuid in workspace acl", slog.Error(err), slog.F("workspace_id", workspace.ID))
 			continue
 		}
 		userIDs = append(userIDs, id)
@@ -2208,7 +2208,7 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 	for groupID := range workspaceACL.Groups {
 		id, err := uuid.Parse(groupID)
 		if err != nil {
-			api.Logger.Warn(ctx, "found invalid group uuid in workspace acl", slog.Error(err), slog.F("workspace", workspace.ID))
+			api.Logger.Warn(ctx, "found invalid group uuid in workspace acl", slog.Error(err), slog.F("workspace_id", workspace.ID))
 			continue
 		}
 		groupIDs = append(groupIDs, id)
