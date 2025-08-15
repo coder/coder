@@ -20009,6 +20009,28 @@ func (q *sqlQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploy
 	return i, err
 }
 
+const getWorkspaceACLByID = `-- name: GetWorkspaceACLByID :one
+SELECT
+	group_acl as groups,
+	user_acl as user
+FROM
+	workspaces
+WHERE
+	id = $1
+`
+
+type GetWorkspaceACLByIDRow struct {
+	Groups WorkspaceACL `db:"groups" json:"groups"`
+	User   WorkspaceACL `db:"user" json:"user"`
+}
+
+func (q *sqlQuerier) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (GetWorkspaceACLByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceACLByID, id)
+	var i GetWorkspaceACLByIDRow
+	err := row.Scan(&i.Groups, &i.User)
+	return i, err
+}
+
 const getWorkspaceByAgentID = `-- name: GetWorkspaceByAgentID :one
 SELECT
 	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description

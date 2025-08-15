@@ -39,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -2133,6 +2134,86 @@ func (api *API) workspaceTimings(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, timings)
 }
 
+// @Summary Get workspace ACLs
+// @ID get-workspace-acls
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Success 200 {object} codersdk.WorkspaceACL
+// @Router /workspaces/{workspace}/acl [get]
+func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx       = r.Context()
+		workspace = httpmw.WorkspaceParam(r)
+	)
+
+	_, err := api.Database.GetWorkspaceACLByID(ctx, workspace.ID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	// userIDs := make([]uuid.UUID, 0, len(users))
+	// for _, user := range users {
+	// 	userIDs = append(userIDs, user.ID)
+	// }
+
+	// orgIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(r.Context(), userIDs)
+	// if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	// 	httpapi.InternalServerError(rw, err)
+	// 	return
+	// }
+
+	// organizationIDsByUserID := map[uuid.UUID][]uuid.UUID{}
+	// for _, organizationIDsByMemberIDsRow := range orgIDsByMemberIDsRows {
+	// 	organizationIDsByUserID[organizationIDsByMemberIDsRow.UserID] = organizationIDsByMemberIDsRow.OrganizationIDs
+	// }
+
+	// groups := make([]codersdk.TemplateGroup, 0, len(dbGroups))
+	// for _, group := range dbGroups {
+	// 	var members []database.GroupMember
+
+	// 	// This is a bit of a hack. The caller might not have permission to do this,
+	// 	// but they can read the acl list if the function got this far. So we let
+	// 	// them read the group members.
+	// 	// We should probably at least return more truncated user data here.
+	// 	// nolint:gocritic
+	// 	members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
+	// 		GroupID:       group.Group.ID,
+	// 		IncludeSystem: false,
+	// 	})
+	// 	if err != nil {
+	// 		httpapi.InternalServerError(rw, err)
+	// 		return
+	// 	}
+	// 	// nolint:gocritic
+	// 	memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
+	// 		GroupID:       group.Group.ID,
+	// 		IncludeSystem: false,
+	// 	})
+	// 	if err != nil {
+	// 		httpapi.InternalServerError(rw, err)
+	// 		return
+	// 	}
+	// 	groups = append(groups, codersdk.TemplateGroup{
+	// 		Group: db2sdk.Group(database.GetGroupsRow{
+	// 			Group:                   group.Group,
+	// 			OrganizationName:        template.OrganizationName,
+	// 			OrganizationDisplayName: template.OrganizationDisplayName,
+	// 		}, members, int(memberCount)),
+	// 		Role: convertToTemplateRole(group.Actions),
+	// 	})
+	// }
+
+	// httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateACL{
+	// 	Users:  convertTemplateUsers(users, organizationIDsByUserID),
+	// 	Groups: groups,
+	// })
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceACL{})
+}
+
 // @Summary Update workspace ACL
 // @ID update-workspace-acl
 // @Security CoderSessionToken
@@ -2590,14 +2671,13 @@ func (WorkspaceACLUpdateValidator) ValidateRole(role codersdk.WorkspaceRole) err
 	return nil
 }
 
-// TODO: This will go here
-// func convertToWorkspaceRole(actions []policy.Action) codersdk.TemplateRole {
-// 	switch {
-// 	case len(actions) == 2 && slice.SameElements(actions, []policy.Action{policy.ActionUse, policy.ActionRead}):
-// 		return codersdk.TemplateRoleUse
-// 	case len(actions) == 1 && actions[0] == policy.WildcardSymbol:
-// 		return codersdk.TemplateRoleAdmin
-// 	}
+func convertToWorkspaceRole(actions []policy.Action) codersdk.WorkspaceRole {
+	switch {
+	case slice.SameElements(actions, db2sdk.WorkspaceRoleActions(codersdk.WorkspaceRoleAdmin)):
+		return codersdk.WorkspaceRoleAdmin
+	case slice.SameElements(actions, db2sdk.WorkspaceRoleActions(codersdk.WorkspaceRoleUse)):
+		return codersdk.WorkspaceRoleUse
+	}
 
-// 	return ""
-// }
+	return codersdk.WorkspaceRoleDeleted
+}

@@ -890,6 +890,15 @@ GROUP BY workspaces.id, workspaces.name, latest_build.job_status, latest_build.j
 -- name: GetWorkspacesByTemplateID :many
 SELECT * FROM workspaces WHERE template_id = $1 AND deleted = false;
 
+-- name: GetWorkspaceACLByID :one
+SELECT
+	group_acl as groups,
+	user_acl as user
+FROM
+	workspaces
+WHERE
+	id = @id;
+
 -- name: UpdateWorkspaceACLByID :exec
 UPDATE
 	workspaces
