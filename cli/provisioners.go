@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -43,6 +44,7 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 		limit   int64
 		offline bool
 		status  []string
+		maxAge  time.Duration
 	)
 
 	cmd := &serpent.Command{
@@ -65,6 +67,7 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 				Limit:   int(limit),
 				Offline: offline,
 				Status:  slice.StringEnums[codersdk.ProvisionerDaemonStatus](status),
+				MaxAge:  maxAge,
 			})
 			if err != nil {
 				return xerrors.Errorf("list provisioner daemons: %w", err)
@@ -104,10 +107,11 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 			Value:         serpent.Int64Of(&limit),
 		},
 		{
-			Flag:        "show-offline",
-			Env:         "CODER_PROVISIONER_SHOW_OFFLINE",
-			Description: "Show offline provisioners.",
-			Value:       serpent.BoolOf(&offline),
+			Flag:          "show-offline",
+			FlagShorthand: "f",
+			Env:           "CODER_PROVISIONER_SHOW_OFFLINE",
+			Description:   "Show offline provisioners.",
+			Value:         serpent.BoolOf(&offline),
 		},
 		{
 			Flag:          "status",
@@ -115,6 +119,13 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 			Env:           "CODER_PROVISIONER_LIST_STATUS",
 			Description:   "Filter by provisioner status.",
 			Value:         serpent.EnumArrayOf(&status, slice.ToStrings(codersdk.ProvisionerDaemonStatusEnums())...),
+		},
+		{
+			Flag:          "max-age",
+			FlagShorthand: "m",
+			Env:           "CODER_PROVISIONER_LIST_MAX_AGE",
+			Description:   "Filter provisioners by maximum age.",
+			Value:         serpent.DurationOf(&maxAge),
 		},
 	}...)
 

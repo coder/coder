@@ -48,6 +48,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	tags := p.JSONStringMap(qp, database.StringMap{}, "tags")
 	includeOffline := p.NullableBoolean(qp, sql.NullBool{}, "offline")
 	statuses := p.ProvisionerDaemonStatuses(qp, []codersdk.ProvisionerDaemonStatus{}, "status")
+	maxAge := p.Duration(qp, 0, "max_age")
 	p.ErrorExcessParams(qp)
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -67,6 +68,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 			Limit:           sql.NullInt32{Int32: limit, Valid: limit > 0},
 			Offline:         includeOffline,
 			Statuses:        dbStatuses,
+			MaxAgeMs:        sql.NullInt64{Int64: maxAge.Milliseconds(), Valid: maxAge > 0},
 			IDs:             ids,
 			Tags:            tags,
 		},

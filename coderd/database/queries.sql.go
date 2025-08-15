@@ -8281,10 +8281,16 @@ WHERE
 	pd.organization_id = $4::uuid
 	AND (COALESCE(array_length($5::uuid[], 1), 0) = 0 OR pd.id = ANY($5::uuid[]))
 	AND ($6::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, $6::tagset))
+	-- Filter by max age if provided
 	AND (
-		-- Include daemons that have been seen recently
+		$7::bigint IS NULL
+		OR pd.last_seen_at IS NULL 
+		OR pd.last_seen_at >= (NOW() - ($7::bigint || ' ms')::interval)
+	)
+	AND (
+		-- Always include online daemons
 		(pd.last_seen_at IS NOT NULL AND pd.last_seen_at >= (NOW() - ($3::bigint || ' ms')::interval))
-		-- Include offline daemons only when offline param is set OR 'offline' is in the list of statuses
+		-- Include offline daemons if offline param is true or 'offline' status is requested
 		OR (
 			(pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - ($3::bigint || ' ms')::interval))
 			AND (
@@ -8293,22 +8299,24 @@ WHERE
 			)
 		)
 	)
-	-- Filter daemons by their current status if statuses are provided
 	AND (
+		-- Filter daemons by any statuses if provided
 		COALESCE(array_length($2::provisioner_daemon_status[], 1), 0) = 0
+		OR (current_job.id IS NOT NULL AND 'busy'::provisioner_daemon_status = ANY($2::provisioner_daemon_status[]))
+		OR (current_job.id IS NULL AND 'idle'::provisioner_daemon_status = ANY($2::provisioner_daemon_status[]))
 		OR (
-		    (current_job.id IS NOT NULL AND 'busy'::provisioner_daemon_status = ANY($2::provisioner_daemon_status[]))
-		    OR (current_job.id IS NULL AND 'idle'::provisioner_daemon_status = ANY($2::provisioner_daemon_status[]))
+		    'offline'::provisioner_daemon_status = ANY($2::provisioner_daemon_status[])
+		    AND (pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - ($3::bigint || ' ms')::interval))
 		)
 		OR (
-		    (COALESCE($1::bool, false) = true OR 'offline'::provisioner_daemon_status = ANY($2::provisioner_daemon_status[]))
+		    COALESCE($1::bool, false) = true
 		    AND (pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - ($3::bigint || ' ms')::interval))
 		)
 	)
 ORDER BY
 	pd.created_at DESC
 LIMIT
-	$7::int
+	$8::int
 `
 
 type GetProvisionerDaemonsWithStatusByOrganizationParams struct {
@@ -8318,6 +8326,7 @@ type GetProvisionerDaemonsWithStatusByOrganizationParams struct {
 	OrganizationID  uuid.UUID                 `db:"organization_id" json:"organization_id"`
 	IDs             []uuid.UUID               `db:"ids" json:"ids"`
 	Tags            StringMap                 `db:"tags" json:"tags"`
+	MaxAgeMs        sql.NullInt64             `db:"max_age_ms" json:"max_age_ms"`
 	Limit           sql.NullInt32             `db:"limit" json:"limit"`
 }
 
@@ -8347,6 +8356,7 @@ func (q *sqlQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.C
 		arg.OrganizationID,
 		pq.Array(arg.IDs),
 		arg.Tags,
+		arg.MaxAgeMs,
 		arg.Limit,
 	)
 	if err != nil {

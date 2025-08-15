@@ -1835,6 +1835,7 @@ export interface OrganizationProvisionerDaemonsOptions {
 	readonly Limit: number;
 	readonly Offline: boolean;
 	readonly Status: readonly ProvisionerDaemonStatus[];
+	readonly MaxAge: number;
 	readonly IDs: readonly string[];
 	readonly Tags: Record<string, string>;
 }

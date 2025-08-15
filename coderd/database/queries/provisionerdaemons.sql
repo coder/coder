@@ -110,10 +110,16 @@ WHERE
 	pd.organization_id = @organization_id::uuid
 	AND (COALESCE(array_length(@ids::uuid[], 1), 0) = 0 OR pd.id = ANY(@ids::uuid[]))
 	AND (@tags::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, @tags::tagset))
+	-- Filter by max age if provided
 	AND (
-		-- Include daemons that have been seen recently
+		sqlc.narg('max_age_ms')::bigint IS NULL
+		OR pd.last_seen_at IS NULL 
+		OR pd.last_seen_at >= (NOW() - (sqlc.narg('max_age_ms')::bigint || ' ms')::interval)
+	)
+	AND (
+		-- Always include online daemons
 		(pd.last_seen_at IS NOT NULL AND pd.last_seen_at >= (NOW() - (@stale_interval_ms::bigint || ' ms')::interval))
-		-- Include offline daemons only when offline param is set OR 'offline' is in the list of statuses
+		-- Include offline daemons if offline param is true or 'offline' status is requested
 		OR (
 			(pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - (@stale_interval_ms::bigint || ' ms')::interval))
 			AND (
@@ -122,15 +128,17 @@ WHERE
 			)
 		)
 	)
-	-- Filter daemons by their current status if statuses are provided
 	AND (
+		-- Filter daemons by any statuses if provided
 		COALESCE(array_length(@statuses::provisioner_daemon_status[], 1), 0) = 0
+		OR (current_job.id IS NOT NULL AND 'busy'::provisioner_daemon_status = ANY(@statuses::provisioner_daemon_status[]))
+		OR (current_job.id IS NULL AND 'idle'::provisioner_daemon_status = ANY(@statuses::provisioner_daemon_status[]))
 		OR (
-		    (current_job.id IS NOT NULL AND 'busy'::provisioner_daemon_status = ANY(@statuses::provisioner_daemon_status[]))
-		    OR (current_job.id IS NULL AND 'idle'::provisioner_daemon_status = ANY(@statuses::provisioner_daemon_status[]))
+		    'offline'::provisioner_daemon_status = ANY(@statuses::provisioner_daemon_status[])
+		    AND (pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - (@stale_interval_ms::bigint || ' ms')::interval))
 		)
 		OR (
-		    (COALESCE(sqlc.narg('offline')::bool, false) = true OR 'offline'::provisioner_daemon_status = ANY(@statuses::provisioner_daemon_status[]))
+		    COALESCE(sqlc.narg('offline')::bool, false) = true
 		    AND (pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - (@stale_interval_ms::bigint || ' ms')::interval))
 		)
 	)

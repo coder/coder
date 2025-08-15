@@ -635,6 +635,73 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("FilterByMaxAge", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "foo-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-(45 * time.Minute)),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-(45 * time.Minute)),
+			},
+		})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "bar-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-(25 * time.Minute)),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-(25 * time.Minute)),
+			},
+		})
+
+		type testCase struct {
+			name        string
+			maxAge      sql.NullInt64
+			expectedNum int
+		}
+
+		tests := []testCase{
+			{
+				name:        "Max age 1 hour",
+				maxAge:      sql.NullInt64{Int64: time.Hour.Milliseconds(), Valid: true},
+				expectedNum: 2,
+			},
+			{
+				name:        "Max age 30 minutes",
+				maxAge:      sql.NullInt64{Int64: (30 * time.Minute).Milliseconds(), Valid: true},
+				expectedNum: 1,
+			},
+			{
+				name:        "Max age 15 minutes",
+				maxAge:      sql.NullInt64{Int64: (15 * time.Minute).Milliseconds(), Valid: true},
+				expectedNum: 0,
+			},
+			{
+				name:        "No max age",
+				maxAge:      sql.NullInt64{Valid: false},
+				expectedNum: 2,
+			},
+		}
+		for _, tc := range tests {
+			//nolint:tparallel,paralleltest
+			t.Run(tc.name, func(t *testing.T) {
+				daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+					OrganizationID:  org.ID,
+					StaleIntervalMS: 60 * time.Minute.Milliseconds(),
+					MaxAgeMs:        tc.maxAge,
+				})
+				require.NoError(t, err)
+				require.Len(t, daemons, tc.expectedNum)
+			})
+		}
+	})
 }
 
 func TestGetWorkspaceAgentUsageStats(t *testing.T) {
