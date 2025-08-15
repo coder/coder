@@ -1,7 +1,9 @@
-import { getErrorMessage, getErrorDetail } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
+import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { Button } from "components/Button/Button";
+import { Skeleton } from "components/Skeleton/Skeleton";
 import {
 	Table,
 	TableBody,
@@ -18,10 +20,8 @@ import { RotateCcwIcon } from "lucide-react";
 import type { Task } from "modules/tasks/tasks";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import type { FC, ReactNode } from "react";
-import { relativeTime } from "utils/time";
 import { Link as RouterLink } from "react-router";
-import { Avatar } from "components/Avatar/Avatar";
-import { Skeleton } from "components/Skeleton/Skeleton";
+import { relativeTime } from "utils/time";
 
 type TasksTableProps = {
 	tasks: Task[] | undefined;

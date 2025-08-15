@@ -5,21 +5,11 @@ import type {
 	Template,
 	TemplateVersionExternalAuth,
 } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { Link } from "components/Link/Link";
-import { Skeleton } from "components/Skeleton/Skeleton";
-import { useAuthenticated } from "hooks/useAuthenticated";
-import { useExternalAuth } from "hooks/useExternalAuth";
-import { RedoIcon, RotateCcwIcon, SendIcon } from "lucide-react";
-import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
-import { useEffect, useState, type FC } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
-import TextareaAutosize from "react-textarea-autosize";
-import { docs } from "utils/docs";
-import { data } from "./data";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { displayError } from "components/GlobalSnackbar/utils";
+import { Link } from "components/Link/Link";
 import {
 	Select,
 	SelectContent,
@@ -27,14 +17,24 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "components/Select/Select";
+import { Skeleton } from "components/Skeleton/Skeleton";
 import { Spinner } from "components/Spinner/Spinner";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { useAuthenticated } from "hooks/useAuthenticated";
+import { useExternalAuth } from "hooks/useExternalAuth";
+import { RedoIcon, RotateCcwIcon, SendIcon } from "lucide-react";
+import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
+import { type FC, useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate } from "react-router";
+import TextareaAutosize from "react-textarea-autosize";
+import { docs } from "utils/docs";
+import { data } from "./data";
 
 const textareaPlaceholder = "Prompt your AI agent to start a task...";
 
@@ -170,7 +170,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 	// Handle preset selection when data changes
 	useEffect(() => {
 		setSelectedPresetId(defaultPreset?.ID);
-	}, [presets]);
+	}, [defaultPreset?.ID]);
 
 	// Extract AI prompt from selected preset
 	const selectedPreset = presets?.find((p) => p.ID === selectedPresetId);
