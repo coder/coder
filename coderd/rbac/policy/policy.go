@@ -351,4 +351,11 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionDelete: "delete a user secret",
 		},
 	},
+	"usage_event": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create a usage event",
+			ActionRead:   "read usage events",
+			ActionUpdate: "update usage events",
+		},
+	},
 }

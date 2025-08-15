@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -32,7 +31,7 @@ func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
-// TestIntegration tests the collector and publisher by running them with a real
+// TestIntegration tests the inserter and publisher by running them with a real
 // database.
 func TestIntegration(t *testing.T) {
 	t.Parallel()
@@ -46,12 +45,12 @@ func TestIntegration(t *testing.T) {
 	now := time.Now()
 
 	var (
-		calls   int64
+		calls   int
 		handler func(req usage.TallymanIngestRequestV1) any
 	)
 	ingestURL := fakeServer(t, tallymanHandler(t, licenseJWT, func(req usage.TallymanIngestRequestV1) any {
-		callCount := atomic.AddInt64(&calls, 1)
-		t.Logf("tallyman backend received call %d", callCount)
+		calls++
+		t.Logf("tallyman backend received call %d", calls)
 		assert.Equal(t, deploymentID, req.DeploymentID)
 
 		if handler == nil {
@@ -61,12 +60,12 @@ func TestIntegration(t *testing.T) {
 		return handler(req)
 	}))
 
-	collector := usage.NewCollector(
-		usage.CollectorWithClock(clock),
+	inserter := usage.NewInserter(
+		usage.InserterWithClock(clock),
 	)
 	// Insert an old event that should never be published.
 	clock.Set(now.Add(-31 * 24 * time.Hour))
-	err := collector.CollectDiscreteUsageEvent(ctx, db, agplusage.DCManagedAgentsV1{
+	err := inserter.InsertDiscreteUsageEvent(ctx, db, agplusage.DCManagedAgentsV1{
 		Count: 31,
 	})
 	require.NoError(t, err)
@@ -75,7 +74,7 @@ func TestIntegration(t *testing.T) {
 	clock.Set(now.Add(1 * time.Second))
 	for i := 0; i < eventCount; i++ {
 		clock.Advance(time.Second)
-		err := collector.CollectDiscreteUsageEvent(ctx, db, agplusage.DCManagedAgentsV1{
+		err := inserter.InsertDiscreteUsageEvent(ctx, db, agplusage.DCManagedAgentsV1{
 			Count: uint64(i + 1), // nolint:gosec // these numbers are tiny and will not overflow
 		})
 		require.NoErrorf(t, err, "collecting event %d", i)
@@ -94,7 +93,7 @@ func TestIntegration(t *testing.T) {
 	startErr := make(chan error)
 	go func() {
 		err := publisher.Start()
-		testutil.RequireSend(ctx, t, startErr, err)
+		testutil.AssertSend(ctx, t, startErr, err)
 	}()
 	tickerCall := tickerTrap.MustWait(ctx)
 	tickerCall.MustRelease(ctx)
@@ -152,7 +151,7 @@ func TestIntegration(t *testing.T) {
 	tickerResetCall.MustRelease(ctx)
 
 	// The publisher should have published the events once.
-	require.Equal(t, int64(1), atomic.LoadInt64(&calls))
+	require.Equal(t, 1, calls)
 
 	// Set the handler for the next publish call. This call should only include
 	// the temporarily rejected event from earlier. This time we'll accept it.
@@ -175,7 +174,7 @@ func TestIntegration(t *testing.T) {
 	tickerResetCall.MustRelease(ctx)
 
 	// The publisher should have published the events again.
-	require.Equal(t, int64(2), atomic.LoadInt64(&calls))
+	require.Equal(t, 2, calls)
 
 	// There should be no more publish calls after this, so set the handler to
 	// nil.
@@ -187,7 +186,7 @@ func TestIntegration(t *testing.T) {
 
 	// No publish should have taken place since there are no more events to
 	// publish.
-	require.Equal(t, int64(2), atomic.LoadInt64(&calls))
+	require.Equal(t, 2, calls)
 
 	require.NoError(t, publisher.Close())
 }
@@ -204,9 +203,9 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 	deploymentID := uuid.New()
 	db.EXPECT().GetDeploymentID(gomock.Any()).Return(deploymentID.String(), nil).Times(1)
 
-	var calls int64
+	var calls int
 	ingestURL := fakeServer(t, tallymanHandler(t, "", func(req usage.TallymanIngestRequestV1) any {
-		atomic.AddInt64(&calls, 1)
+		calls++
 		return usage.TallymanIngestResponseV1{
 			AcceptedEvents: []usage.TallymanIngestAcceptedEventV1{},
 			RejectedEvents: []usage.TallymanIngestRejectedEventV1{},
@@ -243,7 +242,7 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 	tickerResetCall.MustRelease(ctx)
 
 	// The publisher should not have published the events.
-	require.Equal(t, int64(0), atomic.LoadInt64(&calls))
+	require.Equal(t, 0, calls)
 
 	// Mock a single license with usage publishing disabled.
 	licenseJWT := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
@@ -264,7 +263,7 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 	tickerResetTrap.MustWait(ctx).MustRelease(ctx)
 
 	// The publisher should still not have published the events.
-	require.Equal(t, int64(0), atomic.LoadInt64(&calls))
+	require.Equal(t, 0, calls)
 }
 
 // TestPublisherClaimExpiry tests the claim query to ensure that events are not
@@ -278,14 +277,14 @@ func TestPublisherClaimExpiry(t *testing.T) {
 	_, licenseJWT := configureDeployment(ctx, t, db)
 	now := time.Now()
 
-	var calls int64
+	var calls int
 	ingestURL := fakeServer(t, tallymanHandler(t, licenseJWT, func(req usage.TallymanIngestRequestV1) any {
-		atomic.AddInt64(&calls, 1)
+		calls++
 		return tallymanAcceptAllHandler(req)
 	}))
 
-	collector := usage.NewCollector(
-		usage.CollectorWithClock(clock),
+	inserter := usage.NewInserter(
+		usage.InserterWithClock(clock),
 	)
 
 	publisher := usage.NewTallymanPublisher(ctx, log, db,
@@ -299,7 +298,7 @@ func TestPublisherClaimExpiry(t *testing.T) {
 	// Create an event that was claimed 1h-18m ago. The ticker has a forced
 	// delay of 17m in this test.
 	clock.Set(now)
-	err := collector.CollectDiscreteUsageEvent(ctx, db, agplusage.DCManagedAgentsV1{
+	err := inserter.InsertDiscreteUsageEvent(ctx, db, agplusage.DCManagedAgentsV1{
 		Count: 1,
 	})
 	require.NoError(t, err)
@@ -335,7 +334,7 @@ func TestPublisherClaimExpiry(t *testing.T) {
 	tickerResetCall.MustRelease(ctx)
 
 	// No events should have been published since none are eligible.
-	require.Equal(t, int64(0), atomic.LoadInt64(&calls))
+	require.Equal(t, 0, calls)
 
 	// Advance the clock to the next tick and wait for the reset call.
 	clock.Advance(tickerResetCall.Duration)
@@ -343,7 +342,7 @@ func TestPublisherClaimExpiry(t *testing.T) {
 	tickerResetCall.MustRelease(ctx)
 
 	// The publisher should have published the event, as it's now eligible.
-	require.Equal(t, int64(1), atomic.LoadInt64(&calls))
+	require.Equal(t, 1, calls)
 }
 
 // TestPublisherMissingEvents tests that the publisher notices events that are
@@ -359,9 +358,9 @@ func TestPublisherMissingEvents(t *testing.T) {
 	now := time.Now()
 	clock.Set(now)
 
-	var calls int64
+	var calls int
 	ingestURL := fakeServer(t, tallymanHandler(t, licenseJWT, func(req usage.TallymanIngestRequestV1) any {
-		atomic.AddInt64(&calls, 1)
+		calls++
 		return usage.TallymanIngestResponseV1{
 			AcceptedEvents: []usage.TallymanIngestAcceptedEventV1{},
 			RejectedEvents: []usage.TallymanIngestRejectedEventV1{},
@@ -379,7 +378,7 @@ func TestPublisherMissingEvents(t *testing.T) {
 	events := []database.UsageEvent{
 		{
 			ID:        uuid.New().String(),
-			EventType: database.UsageEventTypeDcManagedAgentsV1,
+			EventType: string(agplusage.UsageEventTypeDCManagedAgentsV1),
 			EventData: []byte(jsoninate(t, agplusage.DCManagedAgentsV1{
 				Count: 1,
 			})),
@@ -418,7 +417,7 @@ func TestPublisherMissingEvents(t *testing.T) {
 	tickerResetTrap.MustWait(ctx).MustRelease(ctx)
 
 	// The publisher should have published the events once.
-	require.Equal(t, int64(1), atomic.LoadInt64(&calls))
+	require.Equal(t, 1, calls)
 
 	require.NoError(t, publisher.Close())
 }
@@ -437,21 +436,32 @@ func TestPublisherLicenseSelection(t *testing.T) {
 	db.EXPECT().GetDeploymentID(gomock.Any()).Return(deploymentID.String(), nil).Times(1)
 
 	// Insert multiple licenses:
-	// 1. PublishUsageData false, iat 30m ago (ineligible, publish not enabled)
-	// 2. PublishUsageData true, iat 1h ago (eligible)
-	// 3. PublishUsageData true, iat 30m ago, exp 10m ago (ineligible, expired)
+	// 1. PublishUsageData false, type=salesforce, iat 30m ago              (ineligible, publish not enabled)
+	// 2. PublishUsageData true,  type=trial,      iat 1h ago               (ineligible, not salesforce)
+	// 3. PublishUsageData true,  type=salesforce, iat 30m ago, exp 10m ago (ineligible, expired)
+	// 4. PublishUsageData true,  type=salesforce, iat 1h ago               (eligible)
+	// 5. PublishUsageData true,  type=salesforce, iat 30m ago              (eligible, and newer!)
 	badLicense1 := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 		PublishUsageData: false,
 		IssuedAt:         now.Add(-30 * time.Minute),
 	})
-	expectedLicense := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+	badLicense2 := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 		PublishUsageData: true,
 		IssuedAt:         now.Add(-1 * time.Hour),
+		AccountType:      "trial",
 	})
-	badLicense2 := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+	badLicense3 := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 		PublishUsageData: true,
 		IssuedAt:         now.Add(-30 * time.Minute),
 		ExpiresAt:        now.Add(-10 * time.Minute),
+	})
+	badLicense4 := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+		PublishUsageData: true,
+		IssuedAt:         now.Add(-1 * time.Hour),
+	})
+	expectedLicense := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+		PublishUsageData: true,
+		IssuedAt:         now.Add(-30 * time.Minute),
 	})
 	// GetUnexpiredLicenses is not supposed to return expired licenses, but for
 	// the purposes of this test we're going to do it anyway.
@@ -459,29 +469,43 @@ func TestPublisherLicenseSelection(t *testing.T) {
 		{
 			ID:         1,
 			JWT:        badLicense1,
-			Exp:        now.Add(48 * time.Hour), // fake, should be ignored by publisher code anyway
+			Exp:        now.Add(48 * time.Hour), // fake times, the JWT should be checked
 			UUID:       uuid.New(),
 			UploadedAt: now,
 		},
 		{
 			ID:         2,
-			JWT:        expectedLicense,
-			Exp:        now.Add(48 * time.Hour), // fake
+			JWT:        badLicense2,
+			Exp:        now.Add(48 * time.Hour),
 			UUID:       uuid.New(),
 			UploadedAt: now,
 		},
 		{
 			ID:         3,
-			JWT:        badLicense2,
-			Exp:        now.Add(48 * time.Hour), // fake
+			JWT:        badLicense3,
+			Exp:        now.Add(48 * time.Hour),
+			UUID:       uuid.New(),
+			UploadedAt: now,
+		},
+		{
+			ID:         4,
+			JWT:        badLicense4,
+			Exp:        now.Add(48 * time.Hour),
+			UUID:       uuid.New(),
+			UploadedAt: now,
+		},
+		{
+			ID:         5,
+			JWT:        expectedLicense,
+			Exp:        now.Add(48 * time.Hour),
 			UUID:       uuid.New(),
 			UploadedAt: now,
 		},
 	}, nil)
 
-	var calls int64
+	called := false
 	ingestURL := fakeServer(t, tallymanHandler(t, expectedLicense, func(req usage.TallymanIngestRequestV1) any {
-		atomic.AddInt64(&calls, 1)
+		called = true
 		assert.Equal(t, deploymentID, req.DeploymentID)
 		return tallymanAcceptAllHandler(req)
 	}))
@@ -509,7 +533,7 @@ func TestPublisherLicenseSelection(t *testing.T) {
 	events := []database.UsageEvent{
 		{
 			ID:        uuid.New().String(),
-			EventType: database.UsageEventTypeDcManagedAgentsV1,
+			EventType: string(agplusage.UsageEventTypeDCManagedAgentsV1),
 			EventData: []byte(jsoninate(t, agplusage.DCManagedAgentsV1{
 				Count: 1,
 			})),
@@ -532,7 +556,7 @@ func TestPublisherLicenseSelection(t *testing.T) {
 	tickerResetTrap.MustWait(ctx).MustRelease(ctx)
 
 	// The publisher should have published the events once.
-	require.Equal(t, int64(1), atomic.LoadInt64(&calls))
+	require.True(t, called)
 }
 
 func TestPublisherTallymanError(t *testing.T) {
@@ -547,9 +571,9 @@ func TestPublisherTallymanError(t *testing.T) {
 
 	_, licenseJWT := configureMockDeployment(t, db)
 	const errorMessage = "tallyman error"
-	var calls int64
+	var calls int
 	ingestURL := fakeServer(t, tallymanHandler(t, licenseJWT, func(req usage.TallymanIngestRequestV1) any {
-		atomic.AddInt64(&calls, 1)
+		calls++
 		return usage.TallymanErrorV1{
 			Message: errorMessage,
 		}
@@ -578,7 +602,7 @@ func TestPublisherTallymanError(t *testing.T) {
 	events := []database.UsageEvent{
 		{
 			ID:        uuid.New().String(),
-			EventType: database.UsageEventTypeDcManagedAgentsV1,
+			EventType: string(agplusage.UsageEventTypeDCManagedAgentsV1),
 			EventData: []byte(jsoninate(t, agplusage.DCManagedAgentsV1{
 				Count: 1,
 			})),
@@ -601,7 +625,7 @@ func TestPublisherTallymanError(t *testing.T) {
 	tickerResetTrap.MustWait(ctx).MustRelease(ctx)
 
 	// The publisher should have published the events once.
-	require.Equal(t, int64(1), atomic.LoadInt64(&calls))
+	require.Equal(t, 1, calls)
 }
 
 func jsoninate(t *testing.T, v any) string {

@@ -12,7 +12,7 @@ INSERT INTO
         failure_message
     )
 VALUES
-    (@id, @event_type::usage_event_type, @event_data, @created_at, NULL, NULL, NULL)
+    (@id, @event_type, @event_data, @created_at, NULL, NULL, NULL)
 ON CONFLICT (id) DO NOTHING;
 
 -- name: SelectUsageEventsForPublishing :many
@@ -28,21 +28,27 @@ WITH usage_events AS (
             FROM
                 usage_events potential_event
             WHERE
-                -- We do not publish events older than 30 days. Tallyman will
-                -- always permanently reject these events anyways.
-                -- The parenthesis around @now::timestamptz are necessary to
-                -- avoid sqlc from generating an extra argument.
-                potential_event.created_at > (@now::timestamptz) - INTERVAL '30 days'
-                AND potential_event.published_at IS NULL
+                -- Do not publish events that have already been published or
+                -- have permanently failed to publish.
+                potential_event.published_at IS NULL
+                -- Do not publish events that are already being published by
+                -- another replica.
                 AND (
                     potential_event.publish_started_at IS NULL
                     -- If the event has publish_started_at set, it must be older
                     -- than an hour ago. This is so we can retry publishing
                     -- events where the replica exited or couldn't update the
                     -- row.
-                    -- Also, same parenthesis thing here:
+                    -- The parenthesis around @now::timestamptz are necessary to
+                    -- avoid sqlc from generating an extra argument.
                     OR potential_event.publish_started_at < (@now::timestamptz) - INTERVAL '1 hour'
                 )
+                -- Do not publish events older than 30 days. Tallyman will
+                -- always permanently reject these events anyways. This is to
+                -- avoid duplicate events being billed to customers, as
+                -- Metronome will only deduplicate events within 34 days.
+                -- Also, the same parenthesis thing here as above.
+                AND potential_event.created_at > (@now::timestamptz) - INTERVAL '30 days'
             ORDER BY potential_event.created_at ASC
             FOR UPDATE SKIP LOCKED
             LIMIT 100
@@ -72,5 +78,9 @@ FROM (
 ) input
 WHERE
     input.id = usage_events.id
+    -- If the number of ids, failure messages, and set published ats are not the
+    -- same, do not do anything. Unfortunately you can't really throw from a
+    -- query without writing a function or doing some jank like dividing by
+    -- zero, so this is the best we can do.
     AND cardinality(@ids::text[]) = cardinality(@failure_messages::text[])
     AND cardinality(@ids::text[]) = cardinality(@set_published_ats::boolean[]);

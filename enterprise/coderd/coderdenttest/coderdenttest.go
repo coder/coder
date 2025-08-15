@@ -272,6 +272,13 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		issuedAt = time.Now().Add(-time.Minute)
 	}
 
+	if options.AccountType == "" {
+		options.AccountType = license.AccountTypeSalesforce
+	}
+	if options.AccountID == "" {
+		options.AccountID = "test-account-id"
+	}
+
 	c := &license.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        uuid.NewString(),

@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -25,8 +26,8 @@ import (
 const (
 	CoderLicenseJWTHeader = "Coder-License-JWT"
 
-	tallymanURL         = "https://tallyman-ingress.coder.com"
-	tallymanIngestURLV1 = tallymanURL + "/api/v1/ingest"
+	tallymanURL         = "https://tallyman-prod.coder.com"
+	tallymanIngestURLV1 = tallymanURL + "/api/v1/events/ingest"
 
 	tallymanPublishInitialMinimumDelay = 5 * time.Minute
 	// Chosen to be a prime number and not a multiple of 5 like many other
@@ -218,9 +219,15 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 	)
 	for _, event := range events {
 		eventIDs[event.ID] = struct{}{}
+		eventType := agplusage.EventType(event.EventType)
+		if !eventType.Valid() {
+			// This should never happen due to the check constraint in the
+			// database.
+			return 0, xerrors.Errorf("event %q has an invalid event type %q", event.ID, event.EventType)
+		}
 		tallymanReq.Events = append(tallymanReq.Events, TallymanIngestEventV1{
 			ID:        event.ID,
-			EventType: event.EventType,
+			EventType: eventType,
 			EventData: event.EventData,
 			CreatedAt: event.CreatedAt,
 		})
@@ -255,10 +262,8 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 		p.log.Warn(ctx, "tallyman returned a different number of events than we sent", slog.F("sent", len(events)), slog.F("accepted", len(resp.AcceptedEvents)), slog.F("rejected", len(resp.RejectedEvents)))
 	}
 
-	var (
-		acceptedEvents = make(map[string]*TallymanIngestAcceptedEventV1)
-		rejectedEvents = make(map[string]*TallymanIngestRejectedEventV1)
-	)
+	acceptedEvents := make(map[string]*TallymanIngestAcceptedEventV1)
+	rejectedEvents := make(map[string]*TallymanIngestRejectedEventV1)
 	for _, event := range resp.AcceptedEvents {
 		acceptedEvents[event.ID] = &event
 	}
@@ -277,20 +282,37 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 		if _, ok := acceptedEvents[event.ID]; ok {
 			dbUpdate.FailureMessages[i] = ""
 			dbUpdate.SetPublishedAts[i] = true
-		} else if rejectedEvent, ok := rejectedEvents[event.ID]; ok {
-			if !allFailed {
-				// These are all going to have the same message, so don't log
-				// them. We already logged the overall error above.
-				p.log.Warn(ctx, "tallyman rejected usage event", slog.F("id", event.ID), slog.F("message", rejectedEvent.Message), slog.F("permanent", rejectedEvent.Permanent))
-			}
+			continue
+		}
+		if rejectedEvent, ok := rejectedEvents[event.ID]; ok {
 			dbUpdate.FailureMessages[i] = rejectedEvent.Message
 			dbUpdate.SetPublishedAts[i] = rejectedEvent.Permanent
-		} else {
-			// It's not good if this path gets hit, but we'll handle it as if it
-			// was a temporary rejection.
-			p.log.Warn(ctx, "tallyman did not include a usage event in the response, considering it temporarily rejected", slog.F("id", event.ID))
-			dbUpdate.FailureMessages[i] = "tallyman did not include the event in the response"
-			dbUpdate.SetPublishedAts[i] = false
+			continue
+		}
+		// It's not good if this path gets hit, but we'll handle it as if it
+		// was a temporary rejection.
+		dbUpdate.FailureMessages[i] = "tallyman did not include the event in the response"
+		dbUpdate.SetPublishedAts[i] = false
+	}
+
+	// Collate rejected events into a single map of ID to failure message for
+	// logging. We only want to log once.
+	// If all events failed, we'll log the overall error above.
+	if !allFailed {
+		rejectionReasonsForLog := make(map[string]string)
+		for i, id := range dbUpdate.IDs {
+			failureMessage := dbUpdate.FailureMessages[i]
+			if failureMessage == "" {
+				continue
+			}
+			setPublishedAt := dbUpdate.SetPublishedAts[i]
+			if setPublishedAt {
+				failureMessage = "permanently rejected: " + failureMessage
+			}
+			rejectionReasonsForLog[id] = failureMessage
+		}
+		if len(rejectionReasonsForLog) > 0 {
+			p.log.Warn(ctx, "tallyman rejected usage events", slog.F("count", len(rejectionReasonsForLog)), slog.F("event_failure_reasons", rejectionReasonsForLog))
 		}
 	}
 
@@ -335,9 +357,19 @@ func (p *tallymanPublisher) getBestLicenseJWT(ctx context.Context) (string, erro
 			p.log.Warn(ctx, "failed to parse license claims", slog.F("license_id", dbLicense.ID), slog.Error(err))
 			continue
 		}
+		if claims.AccountType != license.AccountTypeSalesforce {
+			// Non-Salesforce accounts cannot be tracked as they do not have a
+			// trusted Salesforce opportunity ID encoded in the license.
+			continue
+		}
+		if !claims.PublishUsageData {
+			// Publishing is disabled.
+			continue
+		}
 
+		// Otherwise, if it's issued more recently, it's the best license.
 		// IssuedAt is verified to be non-nil in license.ParseClaims.
-		if claims.PublishUsageData && (bestLicense.Claims == nil || claims.IssuedAt.Time.After(bestLicense.Claims.IssuedAt.Time)) {
+		if bestLicense.Claims == nil || claims.IssuedAt.Time.After(bestLicense.Claims.IssuedAt.Time) {
 			bestLicense = licenseJWTWithClaims{
 				Claims: claims,
 				Raw:    dbLicense.JWT,
@@ -405,10 +437,10 @@ type TallymanIngestRequestV1 struct {
 }
 
 type TallymanIngestEventV1 struct {
-	ID        string                  `json:"id"`
-	EventType database.UsageEventType `json:"event_type"`
-	EventData json.RawMessage         `json:"event_data"`
-	CreatedAt time.Time               `json:"created_at"`
+	ID        string              `json:"id"`
+	EventType agplusage.EventType `json:"event_type"`
+	EventData json.RawMessage     `json:"event_data"`
+	CreatedAt time.Time           `json:"created_at"`
 }
 
 type TallymanIngestResponseV1 struct {

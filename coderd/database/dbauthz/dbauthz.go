@@ -509,6 +509,24 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	subjectUsageTracker = rbac.Subject{
+		Type:         rbac.SubjectTypeUsageTracker,
+		FriendlyName: "Usage Tracker",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "usage-tracker"},
+				DisplayName: "Usage Tracker",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceUsageEvent.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -579,8 +597,16 @@ func AsPrebuildsOrchestrator(ctx context.Context) context.Context {
 	return As(ctx, subjectPrebuildsOrchestrator)
 }
 
+// AsFileReader returns a context with an actor that has permissions required
+// for reading all files.
 func AsFileReader(ctx context.Context) context.Context {
 	return As(ctx, subjectFileReader)
+}
+
+// AsUsageTracker returns a context with an actor that has permissions required
+// for creating, reading, and updating usage events.
+func AsUsageTracker(ctx context.Context) context.Context {
+	return As(ctx, subjectUsageTracker)
 }
 
 var AsRemoveActor = rbac.Subject{
@@ -3952,7 +3978,7 @@ func (q *querier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg dat
 }
 
 func (q *querier) InsertUsageEvent(ctx context.Context, arg database.InsertUsageEventParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceUsageEvent); err != nil {
 		return err
 	}
 	return q.db.InsertUsageEvent(ctx, arg)
@@ -4315,7 +4341,7 @@ func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) 
 
 func (q *querier) SelectUsageEventsForPublishing(ctx context.Context, arg time.Time) ([]database.UsageEvent, error) {
 	// ActionUpdate because we're updating the publish_started_at column.
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceUsageEvent); err != nil {
 		return nil, err
 	}
 	return q.db.SelectUsageEventsForPublishing(ctx, arg)
@@ -4803,7 +4829,7 @@ func (q *querier) UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg da
 }
 
 func (q *querier) UpdateUsageEventsPostPublish(ctx context.Context, arg database.UpdateUsageEventsPostPublishParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceUsageEvent); err != nil {
 		return err
 	}
 	return q.db.UpdateUsageEventsPostPublish(ctx, arg)

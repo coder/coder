@@ -286,12 +286,6 @@ CREATE TYPE tailnet_status AS ENUM (
     'lost'
 );
 
-CREATE TYPE usage_event_type AS ENUM (
-    'dc_managed_agents_v1'
-);
-
-COMMENT ON TYPE usage_event_type IS 'The usage event type with version. "dc" means "discrete" (e.g. a single event, for counters), "hb" means "heartbeat" (e.g. a recurring event that contains a total count of usage generated from the database, for gauges).';
-
 CREATE TYPE user_status AS ENUM (
     'active',
     'suspended',
@@ -1840,17 +1834,20 @@ COMMENT ON VIEW template_with_names IS 'Joins in the display name information su
 
 CREATE TABLE usage_events (
     id text NOT NULL,
-    event_type usage_event_type NOT NULL,
+    event_type text NOT NULL,
     event_data jsonb NOT NULL,
     created_at timestamp with time zone NOT NULL,
     publish_started_at timestamp with time zone,
     published_at timestamp with time zone,
-    failure_message text
+    failure_message text,
+    CONSTRAINT usage_event_type_check CHECK ((event_type = 'dc_managed_agents_v1'::text))
 );
 
 COMMENT ON TABLE usage_events IS 'usage_events contains usage data that is collected from the product and potentially shipped to the usage collector service.';
 
 COMMENT ON COLUMN usage_events.id IS 'For "discrete" event types, this is a random UUID. For "heartbeat" event types, this is a combination of the event type and a truncated timestamp.';
+
+COMMENT ON COLUMN usage_events.event_type IS 'The usage event type with version. "dc" means "discrete" (e.g. a single event, for counters), "hb" means "heartbeat" (e.g. a recurring event that contains a total count of usage generated from the database, for gauges).';
 
 COMMENT ON COLUMN usage_events.event_data IS 'Event payload. Determined by the matching usage struct for this event type.';
 
@@ -2880,11 +2877,7 @@ CREATE INDEX idx_template_versions_has_ai_task ON template_versions USING btree 
 
 CREATE UNIQUE INDEX idx_unique_preset_name ON template_version_presets USING btree (name, template_version_id);
 
-CREATE INDEX idx_usage_events_created_at ON usage_events USING btree (created_at);
-
-CREATE INDEX idx_usage_events_publish_started_at ON usage_events USING btree (publish_started_at);
-
-CREATE INDEX idx_usage_events_published_at ON usage_events USING btree (published_at);
+CREATE INDEX idx_usage_events_select_for_publishing ON usage_events USING btree (published_at, publish_started_at, created_at);
 
 CREATE INDEX idx_user_deleted_deleted_at ON user_deleted USING btree (deleted_at);
 

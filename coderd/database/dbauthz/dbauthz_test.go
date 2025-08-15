@@ -5668,25 +5668,32 @@ func (s *MethodTestSuite) TestUserSecrets() {
 }
 
 func (s *MethodTestSuite) TestUsageEvents() {
-	s.Run("InsertUsageEvent", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.InsertUsageEventParams{
+	s.Run("InsertUsageEvent", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.InsertUsageEventParams{
 			ID:        "1",
-			EventType: database.UsageEventTypeDcManagedAgentsV1,
+			EventType: "dc_managed_agents_v1",
 			EventData: []byte("{}"),
 			CreatedAt: dbtime.Now(),
-		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+		}
+		db.EXPECT().InsertUsageEvent(gomock.Any(), params).Return(nil)
+		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionCreate)
 	}))
 
-	s.Run("SelectUsageEventsForPublishing", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(dbtime.Now()).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	s.Run("SelectUsageEventsForPublishing", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		now := dbtime.Now()
+		db.EXPECT().SelectUsageEventsForPublishing(gomock.Any(), now).Return([]database.UsageEvent{}, nil)
+		check.Args(now).Asserts(rbac.ResourceUsageEvent, policy.ActionUpdate)
 	}))
 
-	s.Run("UpdateUsageEventsPostPublish", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.UpdateUsageEventsPostPublishParams{
-			Now:             dbtime.Now(),
+	s.Run("UpdateUsageEventsPostPublish", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		now := dbtime.Now()
+		params := database.UpdateUsageEventsPostPublishParams{
+			Now:             now,
 			IDs:             []string{"1", "2"},
 			FailureMessages: []string{"error", "error"},
 			SetPublishedAts: []bool{false, false},
-		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+		}
+		db.EXPECT().UpdateUsageEventsPostPublish(gomock.Any(), params).Return(nil)
+		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionUpdate)
 	}))
 }

@@ -1,19 +1,48 @@
 package usage
 
 import (
-	"golang.org/x/xerrors"
+	"strings"
 
-	"github.com/coder/coder/v2/coderd/database"
+	"golang.org/x/xerrors"
 )
+
+// EventType is an enum of all usage event types. It mirrors the check
+// constraint on the `event_type` column in the `usage_events` table.
+type EventType string //nolint:revive
+
+const (
+	UsageEventTypeDCManagedAgentsV1 EventType = "dc_managed_agents_v1"
+)
+
+func (e EventType) Valid() bool {
+	switch e {
+	case UsageEventTypeDCManagedAgentsV1:
+		return true
+	default:
+		return false
+	}
+}
+
+func (e EventType) IsDiscrete() bool {
+	return e.Valid() && strings.HasPrefix(string(e), "dc_")
+}
+
+func (e EventType) IsHeartbeat() bool {
+	return e.Valid() && strings.HasPrefix(string(e), "hb_")
+}
 
 // Event is a usage event that can be collected by the usage collector.
 //
 // Note that the following event types should not be updated once they are
 // merged into the product. Please consult Dean before making any changes.
+//
+// Event types cannot be implemented outside of this package, as they are
+// imported by the coder/tallyman repository.
 type Event interface {
 	usageEvent() // to prevent external types from implementing this interface
-	EventType() database.UsageEventType
+	EventType() EventType
 	Valid() error
+	Fields() map[string]any // fields to be marshaled and sent to tallyman/Metronome
 }
 
 // DiscreteEvent is a usage event that is collected as a discrete event.
@@ -35,8 +64,8 @@ var _ DiscreteEvent = DCManagedAgentsV1{}
 
 func (DCManagedAgentsV1) usageEvent()         {}
 func (DCManagedAgentsV1) discreteUsageEvent() {}
-func (DCManagedAgentsV1) EventType() database.UsageEventType {
-	return database.UsageEventTypeDcManagedAgentsV1
+func (DCManagedAgentsV1) EventType() EventType {
+	return UsageEventTypeDCManagedAgentsV1
 }
 
 func (e DCManagedAgentsV1) Valid() error {
@@ -44,4 +73,10 @@ func (e DCManagedAgentsV1) Valid() error {
 		return xerrors.New("count must be greater than 0")
 	}
 	return nil
+}
+
+func (e DCManagedAgentsV1) Fields() map[string]any {
+	return map[string]any{
+		"count": e.Count,
+	}
 }

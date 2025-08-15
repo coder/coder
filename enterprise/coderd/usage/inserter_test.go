@@ -18,7 +18,7 @@ import (
 	"github.com/coder/quartz"
 )
 
-func TestCollector(t *testing.T) {
+func TestInserter(t *testing.T) {
 	t.Parallel()
 
 	t.Run("OK", func(t *testing.T) {
@@ -28,7 +28,7 @@ func TestCollector(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		clock := quartz.NewMock(t)
-		collector := usage.NewCollector(usage.CollectorWithClock(clock))
+		inserter := usage.NewInserter(usage.InserterWithClock(clock))
 
 		now := dbtime.Now()
 		events := []struct {
@@ -55,7 +55,7 @@ func TestCollector(t *testing.T) {
 				func(ctx interface{}, params database.InsertUsageEventParams) error {
 					_, err := uuid.Parse(params.ID)
 					assert.NoError(t, err)
-					assert.Equal(t, event.event.EventType(), params.EventType)
+					assert.Equal(t, string(event.event.EventType()), params.EventType)
 					assert.JSONEq(t, eventJSON, string(params.EventData))
 					assert.Equal(t, event.time, params.CreatedAt)
 					return nil
@@ -63,7 +63,7 @@ func TestCollector(t *testing.T) {
 			).Times(1)
 
 			clock.Set(event.time)
-			err := collector.CollectDiscreteUsageEvent(ctx, db, event.event)
+			err := inserter.InsertDiscreteUsageEvent(ctx, db, event.event)
 			require.NoError(t, err)
 		}
 	})
@@ -76,8 +76,8 @@ func TestCollector(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 
 		// We should get an error if the event is invalid.
-		collector := usage.NewCollector()
-		err := collector.CollectDiscreteUsageEvent(ctx, db, agplusage.DCManagedAgentsV1{
+		inserter := usage.NewInserter()
+		err := inserter.InsertDiscreteUsageEvent(ctx, db, agplusage.DCManagedAgentsV1{
 			Count: 0, // invalid
 		})
 		assert.ErrorContains(t, err, `invalid "dc_managed_agents_v1" event: count must be greater than 0`)

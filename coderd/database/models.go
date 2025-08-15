@@ -2312,62 +2312,6 @@ func AllTailnetStatusValues() []TailnetStatus {
 	}
 }
 
-// The usage event type with version. "dc" means "discrete" (e.g. a single event, for counters), "hb" means "heartbeat" (e.g. a recurring event that contains a total count of usage generated from the database, for gauges).
-type UsageEventType string
-
-const (
-	UsageEventTypeDcManagedAgentsV1 UsageEventType = "dc_managed_agents_v1"
-)
-
-func (e *UsageEventType) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = UsageEventType(s)
-	case string:
-		*e = UsageEventType(s)
-	default:
-		return fmt.Errorf("unsupported scan type for UsageEventType: %T", src)
-	}
-	return nil
-}
-
-type NullUsageEventType struct {
-	UsageEventType UsageEventType `json:"usage_event_type"`
-	Valid          bool           `json:"valid"` // Valid is true if UsageEventType is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullUsageEventType) Scan(value interface{}) error {
-	if value == nil {
-		ns.UsageEventType, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.UsageEventType.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullUsageEventType) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.UsageEventType), nil
-}
-
-func (e UsageEventType) Valid() bool {
-	switch e {
-	case UsageEventTypeDcManagedAgentsV1:
-		return true
-	}
-	return false
-}
-
-func AllUsageEventTypeValues() []UsageEventType {
-	return []UsageEventType{
-		UsageEventTypeDcManagedAgentsV1,
-	}
-}
-
 // Defines the users status: active, dormant, or suspended.
 type UserStatus string
 
@@ -3818,8 +3762,9 @@ type TemplateVersionWorkspaceTag struct {
 // usage_events contains usage data that is collected from the product and potentially shipped to the usage collector service.
 type UsageEvent struct {
 	// For "discrete" event types, this is a random UUID. For "heartbeat" event types, this is a combination of the event type and a truncated timestamp.
-	ID        string         `db:"id" json:"id"`
-	EventType UsageEventType `db:"event_type" json:"event_type"`
+	ID string `db:"id" json:"id"`
+	// The usage event type with version. "dc" means "discrete" (e.g. a single event, for counters), "hb" means "heartbeat" (e.g. a recurring event that contains a total count of usage generated from the database, for gauges).
+	EventType string `db:"event_type" json:"event_type"`
 	// Event payload. Determined by the matching usage struct for this event type.
 	EventData json.RawMessage `db:"event_data" json:"event_data"`
 	CreatedAt time.Time       `db:"created_at" json:"created_at"`
