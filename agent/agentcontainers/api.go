@@ -763,7 +763,11 @@ func (api *API) broadcastUpdatesLocked() {
 func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{CompressionMode: websocket.CompressionNoContextTakeover})
+	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+		// We want `NoContextTakeover` compression to balance improving
+		// bandwidth cost/latency with minimal memory usage overhead.
+		CompressionMode: websocket.CompressionNoContextTakeover,
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to upgrade connection to websocket.",
