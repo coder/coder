@@ -10,11 +10,14 @@ import (
 
 	"github.com/google/uuid"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/taskname"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -104,8 +107,13 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	taskName, err := taskname.Generate(ctx, req.Prompt, req.Name)
+	if err != nil {
+		api.Logger.Error(ctx, "unable to generate task name", slog.Error(err))
+	}
+
 	createReq := codersdk.CreateWorkspaceRequest{
-		Name:                    req.Name,
+		Name:                    taskName,
 		TemplateVersionID:       req.TemplateVersionID,
 		TemplateVersionPresetID: req.TemplateVersionPresetID,
 		RichParameterValues: []codersdk.WorkspaceBuildParameter{
