@@ -519,6 +519,7 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "usage-tracker"},
 				DisplayName: "Usage Tracker",
 				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceLicense.Type:    {policy.ActionRead},
 					rbac.ResourceUsageEvent.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 				}),
 				Org:  map[string][]rbac.Permission{},
