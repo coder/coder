@@ -1,8 +1,8 @@
+import { chromatic } from "testHelpers/chromatic";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
-import { chromatic } from "testHelpers/chromatic";
-import { WorkspaceTimings } from "./WorkspaceTimings";
 import { WorkspaceTimingsResponse } from "./storybookData";
+import { WorkspaceTimings } from "./WorkspaceTimings";
 
 const meta: Meta<typeof WorkspaceTimings> = {
 	title: "modules/workspaces/WorkspaceTimings",

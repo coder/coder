@@ -54,7 +54,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 }) => {
 	const theme = useTheme();
 
-	const processedLogs = useMemo(() => {
+	const _processedLogs = useMemo(() => {
 		const allLogs = logs || [];
 
 		// Add synthetic overflow message if needed

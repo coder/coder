@@ -161,7 +161,7 @@ const selectInitialUserVariableValues = (
 };
 
 const ValidationSchemaForTemplateVariables = (
-	ns: string,
+	_ns: string,
 	templateVariables: TemplateVersionVariable[],
 ): Yup.AnySchema => {
 	return Yup.array()

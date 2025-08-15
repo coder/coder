@@ -1,6 +1,6 @@
+import { MockOrganization, MockOrganization2 } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
-import { MockOrganization, MockOrganization2 } from "testHelpers/entities";
 import { MultiSelectCombobox } from "./MultiSelectCombobox";
 
 const organizations = [MockOrganization, MockOrganization2];

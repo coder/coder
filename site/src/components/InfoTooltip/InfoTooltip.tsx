@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
+import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import {
 	HelpTooltip,
 	HelpTooltipContent,

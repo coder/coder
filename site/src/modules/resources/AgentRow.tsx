@@ -37,9 +37,9 @@ import { DownloadAgentLogsButton } from "./DownloadAgentLogsButton";
 import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
-import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { useAgentContainers } from "./useAgentContainers";
 import { useAgentLogs } from "./useAgentLogs";
+import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 
 interface AgentRowProps {
 	agent: WorkspaceAgent;
@@ -335,7 +335,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 							Logs
 						</Button>
 						<Divider orientation="vertical" variant="middle" flexItem />
-						<DownloadAgentLogsButton workspaceId={workspace.id} agent={agent} />
+						<DownloadAgentLogsButton agent={agent} />
 					</Stack>
 				</section>
 			)}

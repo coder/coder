@@ -1,11 +1,11 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Stack from "@mui/material/Stack";
-import { Pill } from "components/Pill/Pill";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
+import { Pill } from "components/Pill/Pill";
 import type { FC } from "react";
 import { isUUID } from "utils/uuid";
 

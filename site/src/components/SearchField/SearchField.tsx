@@ -22,11 +22,12 @@ export const SearchField: FC<SearchFieldProps> = ({
 	const theme = useTheme();
 	const inputRef = useRef<HTMLInputElement>(null);
 
-	if (autoFocus) {
-		useEffect(() => {
+	useEffect(() => {
+		if (autoFocus) {
 			inputRef.current?.focus();
-		});
-	}
+		}
+	});
+
 	return (
 		<TextField
 			// Specifying `minWidth` so that the text box can't shrink so much

@@ -6,13 +6,13 @@ import type {
 	WorkspaceAgentDevcontainer,
 } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { PopoverTrigger } from "components/deprecated/Popover/Popover";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { PopoverTrigger } from "components/deprecated/Popover/Popover";
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 

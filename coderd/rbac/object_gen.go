@@ -289,6 +289,15 @@ var (
 		Type: "template",
 	}
 
+	// ResourceUsageEvent
+	// Valid Actions
+	//  - "ActionCreate" :: create a usage event
+	//  - "ActionRead" :: read usage events
+	//  - "ActionUpdate" :: update usage events
+	ResourceUsageEvent = Object{
+		Type: "usage_event",
+	}
+
 	// ResourceUser
 	// Valid Actions
 	//  - "ActionCreate" :: create a new user
@@ -412,6 +421,7 @@ func AllResources() []Objecter {
 		ResourceSystem,
 		ResourceTailnetCoordinator,
 		ResourceTemplate,
+		ResourceUsageEvent,
 		ResourceUser,
 		ResourceUserSecret,
 		ResourceWebpushSubscription,

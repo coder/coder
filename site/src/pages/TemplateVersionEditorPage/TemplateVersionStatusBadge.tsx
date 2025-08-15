@@ -1,7 +1,6 @@
 import type { TemplateVersion } from "api/typesGenerated";
 import { Pill, PillSpinner } from "components/Pill/Pill";
-import { HourglassIcon } from "lucide-react";
-import { CheckIcon, CircleAlertIcon } from "lucide-react";
+import { CheckIcon, CircleAlertIcon, HourglassIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import type { ThemeRole } from "theme/roles";
 import { getPendingStatusLabel } from "utils/provisionerJob";

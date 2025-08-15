@@ -1,7 +1,13 @@
+import { chromaticWithTablet } from "testHelpers/chromatic";
+import {
+	MockConnectedSSHConnectionLog,
+	MockDisconnectedSSHConnectionLog,
+	MockUserOwner,
+} from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
-	MockMenu,
 	getDefaultFilterProps,
+	MockMenu,
 } from "components/Filter/storyHelpers";
 import {
 	mockInitialRenderResult,
@@ -9,12 +15,6 @@ import {
 } from "components/PaginationWidget/PaginationContainer.mocks";
 import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
 import type { ComponentProps } from "react";
-import { chromaticWithTablet } from "testHelpers/chromatic";
-import {
-	MockConnectedSSHConnectionLog,
-	MockDisconnectedSSHConnectionLog,
-	MockUserOwner,
-} from "testHelpers/entities";
 import { ConnectionLogPageView } from "./ConnectionLogPageView";
 
 type FilterProps = ComponentProps<typeof ConnectionLogPageView>["filterProps"];

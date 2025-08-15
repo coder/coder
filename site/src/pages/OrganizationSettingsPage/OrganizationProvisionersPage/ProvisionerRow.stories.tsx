@@ -1,7 +1,7 @@
+import { MockBuildInfo, MockProvisioner } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Table, TableBody } from "components/Table/Table";
 import { expect, userEvent, within } from "storybook/test";
-import { MockBuildInfo, MockProvisioner } from "testHelpers/entities";
 import { ProvisionerRow } from "./ProvisionerRow";
 
 const meta: Meta<typeof ProvisionerRow> = {

@@ -1,8 +1,7 @@
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { Button } from "components/Button/Button";
-import { ChevronDownIcon } from "lucide-react";
-import { CheckIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
 
 const insightsIntervals = {

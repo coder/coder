@@ -5,10 +5,10 @@ import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import { ChevronDownIcon } from "lucide-react";
 import { type FC, useEffect, useReducer } from "react";
 import {
-	type TimeUnit,
 	durationInDays,
 	durationInHours,
 	suggestedTimeUnit,
+	type TimeUnit,
 } from "utils/time";
 
 type DurationFieldProps = Omit<TextFieldProps, "value" | "onChange"> & {

@@ -12,11 +12,11 @@ import {
 import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
-	type OrganizationPermissions,
 	canViewOrganization,
+	type OrganizationPermissions,
 } from "modules/permissions/organizations";
 import NotFoundPage from "pages/404Page/404Page";
-import { type FC, Suspense, createContext, useContext } from "react";
+import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router";
 

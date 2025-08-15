@@ -1,6 +1,5 @@
 import { API } from "api/api";
-import { type ApiError, getErrorMessage } from "api/errors";
-import { isApiError } from "api/errors";
+import { type ApiError, getErrorMessage, isApiError } from "api/errors";
 import { templateVersion } from "api/queries/templates";
 import { workspaceBuildTimings } from "api/queries/workspaceBuilds";
 import {
@@ -20,12 +19,12 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { EphemeralParametersDialog } from "modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
 import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import { WorkspaceBuildCancelDialog } from "modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
 import {
-	WorkspaceUpdateDialogs,
 	useWorkspaceUpdate,
+	WorkspaceUpdateDialogs,
 } from "modules/workspaces/WorkspaceUpdateDialogs";
-import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -212,7 +211,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				hasEphemeral: ephemeralParameters.length > 0,
 				ephemeralParameters,
 			};
-		} catch (error) {
+		} catch (_error) {
 			return { hasEphemeral: false, ephemeralParameters: [] };
 		}
 	};

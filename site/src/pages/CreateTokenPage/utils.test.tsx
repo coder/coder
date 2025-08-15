@@ -1,9 +1,9 @@
 import {
-	type LifetimeDay,
-	NANO_HOUR,
 	determineDefaultLtValue,
 	filterByMaxTokenLifetime,
+	type LifetimeDay,
 	lifetimeDayPresets,
+	NANO_HOUR,
 } from "./utils";
 
 describe("unit/CreateTokenForm", () => {

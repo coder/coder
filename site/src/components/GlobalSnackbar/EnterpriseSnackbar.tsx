@@ -1,11 +1,10 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
 import Snackbar, {
 	type SnackbarProps as MuiSnackbarProps,
 } from "@mui/material/Snackbar";
-import { type ClassName, useClassName } from "hooks/useClassName";
 import { X as XIcon } from "lucide-react";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 
 type EnterpriseSnackbarVariant = "error" | "info" | "success";
 
@@ -35,8 +34,6 @@ export const EnterpriseSnackbar: FC<EnterpriseSnackbarProps> = ({
 	action,
 	...snackbarProps
 }) => {
-	const content = useClassName(classNames.content(variant), [variant]);
-
 	return (
 		<Snackbar
 			anchorOrigin={{
@@ -44,20 +41,23 @@ export const EnterpriseSnackbar: FC<EnterpriseSnackbarProps> = ({
 				horizontal: "right",
 			}}
 			action={
-				<div css={styles.actionWrapper}>
+				<div className="flex items-center">
 					{action}
-					<IconButton onClick={onClose} css={{ padding: 0 }}>
+					<IconButton onClick={onClose} className="p-0">
 						<XIcon
-							css={styles.closeIcon}
 							aria-label="close"
-							className="size-icon-sm"
+							className="size-icon-sm text-content-primary"
 						/>
 					</IconButton>
 				</div>
 			}
 			ContentProps={{
 				...ContentProps,
-				className: content,
+				className: cn(
+					"rounded-lg bg-surface-secondary text-content-primary shadow",
+					"py-2 pl-6 pr-4 items-[inherit] border-0 border-l-[4px]",
+					variantColor(variant),
+				),
 			}}
 			onClose={onClose}
 			{...snackbarProps}
@@ -67,39 +67,13 @@ export const EnterpriseSnackbar: FC<EnterpriseSnackbarProps> = ({
 	);
 };
 
-const variantColor = (variant: EnterpriseSnackbarVariant, theme: Theme) => {
+const variantColor = (variant: EnterpriseSnackbarVariant) => {
 	switch (variant) {
 		case "error":
-			return theme.palette.error.main;
+			return "border-border-destructive";
 		case "info":
-			return theme.palette.info.main;
+			return "border-highlight-sky";
 		case "success":
-			return theme.palette.success.main;
+			return "border-border-success";
 	}
 };
-
-const classNames = {
-	content:
-		(variant: EnterpriseSnackbarVariant): ClassName =>
-		(css, theme) =>
-			css`
-      border: 1px solid ${theme.palette.divider};
-      border-left: 4px solid ${variantColor(variant, theme)};
-      border-radius: 8px;
-      padding: 8px 24px 8px 16px;
-      box-shadow: ${theme.shadows[6]};
-      align-items: inherit;
-      background-color: ${theme.palette.background.paper};
-      color: ${theme.palette.text.secondary};
-    `,
-};
-
-const styles = {
-	actionWrapper: {
-		display: "flex",
-		alignItems: "center",
-	},
-	closeIcon: (theme) => ({
-		color: theme.palette.primary.contrastText,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

@@ -3,8 +3,8 @@ import FormHelperText from "@mui/material/FormHelperText";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
 import {
-	type TemplateAutostartRequirementDaysValue,
 	sortedDays,
+	type TemplateAutostartRequirementDaysValue,
 } from "utils/schedule";
 
 interface TemplateScheduleAutostartProps {

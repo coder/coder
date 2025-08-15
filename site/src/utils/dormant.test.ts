@@ -1,5 +1,5 @@
-import type * as TypesGen from "api/typesGenerated";
 import * as Mocks from "testHelpers/entities";
+import type * as TypesGen from "api/typesGenerated";
 import { displayDormantDeletion } from "./dormant";
 
 describe("displayDormantDeletion", () => {

@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import react from "@vitejs/plugin-react";
 import { visualizer } from "rollup-plugin-visualizer";
-import { type PluginOption, defineConfig } from "vite";
+import { defineConfig, type PluginOption } from "vite";
 import checker from "vite-plugin-checker";
 
 const plugins: PluginOption[] = [
@@ -89,7 +89,7 @@ export default defineConfig({
 					// Vite does not catch socket errors, and stops the webserver.
 					// As /logs endpoint can return HTTP 4xx status, we need to embrace
 					// Vite with a custom error handler to prevent from quitting.
-					proxy.on("proxyReqWs", (proxyReq, req, socket) => {
+					proxy.on("proxyReqWs", (proxyReq, _req, socket) => {
 						if (process.env.NODE_ENV === "development") {
 							proxyReq.setHeader(
 								"origin",

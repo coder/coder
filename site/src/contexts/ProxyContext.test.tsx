@@ -1,8 +1,4 @@
 import "testHelpers/localStorage";
-import { screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import type { Region } from "api/typesGenerated";
-import { http, HttpResponse } from "msw";
 import {
 	MockHealthyWildWorkspaceProxy,
 	MockPrimaryWorkspaceProxy,
@@ -14,9 +10,13 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { Region } from "api/typesGenerated";
+import { HttpResponse, http } from "msw";
 import {
-	ProxyProvider,
 	getPreferredProxy,
+	ProxyProvider,
 	saveUserSelectedProxy,
 	useProxy,
 } from "./ProxyContext";

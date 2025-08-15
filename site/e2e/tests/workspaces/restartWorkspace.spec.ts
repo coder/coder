@@ -6,9 +6,9 @@ import {
 	createWorkspace,
 	disableDynamicParameters,
 	echoResponsesWithParameters,
+	login,
 	verifyParameters,
 } from "../../helpers";
-import { login } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 import { firstBuildOption, secondBuildOption } from "../../parameters";
 import type { RichParameter } from "../../provisionerGenerated";

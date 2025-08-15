@@ -1,5 +1,5 @@
-import { act, waitFor } from "@testing-library/react";
 import { renderHookWithAuth } from "testHelpers/hooks";
+import { act, waitFor } from "@testing-library/react";
 import { useSearchParamsKey } from "./useSearchParamsKey";
 
 /**

@@ -2,22 +2,22 @@ import MenuItem, { type MenuItemProps } from "@mui/material/MenuItem";
 import MenuList, { type MenuListProps } from "@mui/material/MenuList";
 import { Button, type ButtonProps } from "components/Button/Button";
 import {
-	SearchField,
-	type SearchFieldProps,
-} from "components/SearchField/SearchField";
-import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
+import {
+	SearchField,
+	type SearchFieldProps,
+} from "components/SearchField/SearchField";
 import { CheckIcon, ChevronDownIcon } from "lucide-react";
 import {
 	Children,
 	type FC,
-	type HTMLProps,
-	type ReactElement,
 	forwardRef,
+	type HTMLProps,
 	isValidElement,
+	type ReactElement,
 	useMemo,
 } from "react";
 

@@ -1,5 +1,3 @@
-import { act, renderHook } from "@testing-library/react";
-import type { Region, User } from "api/typesGenerated";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
@@ -9,13 +7,15 @@ import {
 	MockUserAppearanceSettings,
 	MockUserOwner,
 } from "testHelpers/entities";
+import { act, renderHook } from "@testing-library/react";
+import type { Region, User } from "api/typesGenerated";
 import {
 	DEFAULT_METADATA_KEY,
 	type MetadataKey,
 	MetadataManager,
 	type MetadataValue,
-	type RuntimeHtmlMetadata,
 	makeUseEmbeddedMetadata,
+	type RuntimeHtmlMetadata,
 	useEmbeddedMetadata,
 } from "./useEmbeddedMetadata";
 

@@ -1,10 +1,10 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import type { UpdateUserQuietHoursScheduleRequest } from "api/typesGenerated";
-import { http, HttpResponse } from "msw";
 import { MockUserOwner } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { UpdateUserQuietHoursScheduleRequest } from "api/typesGenerated";
+import { HttpResponse, http } from "msw";
 import SchedulePage from "./SchedulePage";
 
 const fillForm = async ({

@@ -2,15 +2,18 @@ import { css } from "@emotion/css";
 import { useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import type { HealthCode, HealthSeverity } from "api/typesGenerated";
-import { CircleAlertIcon } from "lucide-react";
-import { CircleCheckIcon, CircleMinusIcon } from "lucide-react";
+import {
+	CircleAlertIcon,
+	CircleCheckIcon,
+	CircleMinusIcon,
+} from "lucide-react";
 import {
 	type ComponentProps,
+	cloneElement,
 	type FC,
+	forwardRef,
 	type HTMLAttributes,
 	type ReactElement,
-	cloneElement,
-	forwardRef,
 } from "react";
 import { docs } from "utils/docs";
 import { healthyColor } from "./healthyColor";

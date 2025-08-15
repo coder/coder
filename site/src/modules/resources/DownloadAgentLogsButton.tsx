@@ -8,13 +8,11 @@ import { type FC, useState } from "react";
 import { useQueryClient } from "react-query";
 
 type DownloadAgentLogsButtonProps = {
-	workspaceId: string;
 	agent: Pick<WorkspaceAgent, "id" | "name" | "status" | "lifecycle_state">;
 	download?: (file: Blob, filename: string) => void;
 };
 
 export const DownloadAgentLogsButton: FC<DownloadAgentLogsButtonProps> = ({
-	workspaceId,
 	agent,
 	download = saveAs,
 }) => {

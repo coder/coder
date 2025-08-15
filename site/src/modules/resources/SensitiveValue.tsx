@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme, css } from "@emotion/react";
+import { css, type Interpolation, type Theme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";

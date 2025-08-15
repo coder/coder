@@ -93,10 +93,8 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 							{/* We display all modules returned in agent.apps */}
 							{agent.apps.map((app) => (
 								<AppPreview key={app.slug}>
-									<>
-										<BaseIcon app={app} />
-										{app.display_name}
-									</>
+									<BaseIcon app={app} />
+									{app.display_name}
 								</AppPreview>
 							))}
 							{/* Additionally, we display any apps that are visible, e.g.

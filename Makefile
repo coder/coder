@@ -576,6 +576,7 @@ lint/go:
 	./scripts/check_codersdk_imports.sh
 	linter_ver=$(shell egrep -o 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/Dockerfile | cut -d '=' -f 2)
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver run
+	go run github.com/coder/paralleltestctx/cmd/paralleltestctx@v0.0.1 -custom-funcs="testutil.Context" ./...
 .PHONY: lint/go
 
 lint/examples:

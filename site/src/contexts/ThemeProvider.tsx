@@ -1,11 +1,13 @@
 import createCache from "@emotion/cache";
-import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
-import { CacheProvider } from "@emotion/react";
+import {
+	CacheProvider,
+	ThemeProvider as EmotionThemeProvider,
+} from "@emotion/react";
 import CssBaseline from "@mui/material/CssBaseline";
 import {
 	ThemeProvider as MuiThemeProvider,
 	StyledEngineProvider,
-	// biome-ignore lint/nursery/noRestrictedImports: we extend the MUI theme
+	// biome-ignore lint/style/noRestrictedImports: we extend the MUI theme
 } from "@mui/material/styles";
 import { appearanceSettings } from "api/queries/users";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";

@@ -1,7 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import type { TimingStage } from "api/typesGenerated";
-import { CircleAlertIcon } from "lucide-react";
-import { InfoIcon } from "lucide-react";
+import { CircleAlertIcon, InfoIcon } from "lucide-react";
 import type { FC } from "react";
 import { Bar, ClickableBar } from "./Chart/Bar";
 import { Blocks } from "./Chart/Blocks";
@@ -12,6 +11,14 @@ import {
 	TooltipShortDescription,
 	TooltipTitle,
 } from "./Chart/Tooltip";
+import {
+	calcDuration,
+	calcOffset,
+	formatTime,
+	makeTicks,
+	mergeTimeRanges,
+	type TimeRange,
+} from "./Chart/utils";
 import { XAxis, XAxisRow, XAxisSection } from "./Chart/XAxis";
 import {
 	YAxis,
@@ -20,14 +27,6 @@ import {
 	YAxisLabels,
 	YAxisSection,
 } from "./Chart/YAxis";
-import {
-	type TimeRange,
-	calcDuration,
-	calcOffset,
-	formatTime,
-	makeTicks,
-	mergeTimeRanges,
-} from "./Chart/utils";
 
 export type Stage = {
 	/**

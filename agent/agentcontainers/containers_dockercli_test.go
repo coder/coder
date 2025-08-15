@@ -55,11 +55,11 @@ func TestIntegrationDockerCLI(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalSlow, "Container did not start in time")
 
 	dcli := agentcontainers.NewDockerCLI(agentexec.DefaultExecer)
-	ctx := testutil.Context(t, testutil.WaitMedium) // Longer timeout for multiple subtests
 	containerName := strings.TrimPrefix(ct.Container.Name, "/")
 
 	t.Run("DetectArchitecture", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		arch, err := dcli.DetectArchitecture(ctx, containerName)
 		require.NoError(t, err, "DetectArchitecture failed")
@@ -71,6 +71,7 @@ func TestIntegrationDockerCLI(t *testing.T) {
 
 	t.Run("Copy", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		want := "Help, I'm trapped!"
 		tempFile := filepath.Join(t.TempDir(), "test-file.txt")
@@ -90,6 +91,7 @@ func TestIntegrationDockerCLI(t *testing.T) {
 
 	t.Run("ExecAs", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Test ExecAs without specifying user (should use container's default).
 		want := "root"

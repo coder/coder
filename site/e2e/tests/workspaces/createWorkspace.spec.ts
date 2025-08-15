@@ -1,7 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { users } from "../../constants";
 import {
-	StarterTemplates,
 	createTemplate,
 	createWorkspace,
 	disableDynamicParameters,
@@ -9,6 +8,7 @@ import {
 	login,
 	openTerminalWindow,
 	requireTerraformProvisioner,
+	StarterTemplates,
 	verifyParameters,
 } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";

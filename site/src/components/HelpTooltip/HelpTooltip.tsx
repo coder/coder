@@ -1,12 +1,11 @@
 import {
 	type CSSObject,
+	css,
 	type Interpolation,
 	type Theme,
-	css,
 	useTheme,
 } from "@emotion/react";
 import Link from "@mui/material/Link";
-import { Stack } from "components/Stack/Stack";
 import {
 	Popover,
 	PopoverContent,
@@ -15,14 +14,14 @@ import {
 	PopoverTrigger,
 	usePopover,
 } from "components/deprecated/Popover/Popover";
-import { ExternalLinkIcon } from "lucide-react";
-import { CircleHelpIcon } from "lucide-react";
+import { Stack } from "components/Stack/Stack";
+import { CircleHelpIcon, ExternalLinkIcon } from "lucide-react";
 import {
 	type FC,
+	forwardRef,
 	type HTMLAttributes,
 	type PropsWithChildren,
 	type ReactNode,
-	forwardRef,
 } from "react";
 
 type Icon = typeof CircleHelpIcon;

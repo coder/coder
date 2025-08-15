@@ -1,16 +1,16 @@
+import { MockTemplate } from "testHelpers/entities";
+import { render } from "testHelpers/renderHelpers";
 import { screen } from "@testing-library/react";
 import { API } from "api/api";
 import { defaultSchedule } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
-import { MockTemplate } from "testHelpers/entities";
-import { render } from "testHelpers/renderHelpers";
 import { timeZones } from "utils/timeZones";
 import {
 	Language,
+	ttlShutdownAt,
+	validationSchema,
 	WorkspaceScheduleForm,
 	type WorkspaceScheduleFormProps,
 	type WorkspaceScheduleFormValues,
-	ttlShutdownAt,
-	validationSchema,
 } from "./WorkspaceScheduleForm";
 
 const valid: WorkspaceScheduleFormValues = {

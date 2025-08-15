@@ -28,10 +28,7 @@ export const isNotificationTextPrefixed = (
 	msg: AdditionalMessage | null,
 ): msg is NotificationTextPrefixed => {
 	if (msg) {
-		return (
-			typeof msg !== "string" &&
-			Object.prototype.hasOwnProperty.call(msg, "prefix")
-		);
+		return typeof msg !== "string" && Object.hasOwn(msg, "prefix");
 	}
 	return false;
 };

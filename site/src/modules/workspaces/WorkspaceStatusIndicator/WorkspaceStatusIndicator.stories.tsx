@@ -1,6 +1,6 @@
+import { MockWorkspace } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { Workspace, WorkspaceStatus } from "api/typesGenerated";
-import { MockWorkspace } from "testHelpers/entities";
 import { WorkspaceStatusIndicator } from "./WorkspaceStatusIndicator";
 
 const meta: Meta<typeof WorkspaceStatusIndicator> = {

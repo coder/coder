@@ -28,6 +28,7 @@ HELO = "HELO"
 LKE = "LKE"
 byt = "byt"
 typ = "typ"
+Inferrable = "Inferrable"
 
 [files]
 extend-exclude = [
@@ -47,5 +48,5 @@ extend-exclude = [
 	"provisioner/terraform/testdata/**",
 	# notifications' golden files confuse the detector because of quoted-printable encoding
 	"coderd/notifications/testdata/**",
-	"agent/agentcontainers/testdata/devcontainercli/**"
+	"agent/agentcontainers/testdata/devcontainercli/**",
 ]

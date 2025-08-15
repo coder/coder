@@ -5,12 +5,12 @@ import {
 	createWorkspace,
 	disableDynamicParameters,
 	echoResponsesWithParameters,
+	login,
 	updateTemplate,
 	updateWorkspace,
 	updateWorkspaceParameters,
 	verifyParameters,
 } from "../../helpers";
-import { login } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 import {
 	fifthParameter,

@@ -310,7 +310,7 @@ const waitBuildToBeFinished = async (
 	onRequest?: (data: TemplateVersion) => void,
 ) => {
 	let data: TemplateVersion;
-	let jobStatus: ProvisionerJobStatus | undefined = undefined;
+	let jobStatus: ProvisionerJobStatus | undefined;
 	do {
 		// When pending we want to poll more frequently
 		await delay(jobStatus === "pending" ? 250 : 1000);

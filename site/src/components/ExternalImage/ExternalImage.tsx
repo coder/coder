@@ -1,5 +1,5 @@
 import { useTheme } from "@emotion/react";
-import { type ImgHTMLAttributes, forwardRef } from "react";
+import { forwardRef, type ImgHTMLAttributes } from "react";
 import { getExternalImageStylesFromUrl } from "theme/externalImages";
 
 export const ExternalImage = forwardRef<

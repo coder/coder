@@ -255,6 +255,7 @@ func Test_ResolveRequest(t *testing.T) {
 		for _, c := range cases {
 			t.Run(c.name, func(t *testing.T) {
 				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitShort)
 
 				// Try resolving a request for each app as the owner, without a
 				// token, then use the token to resolve each app.
@@ -589,6 +590,7 @@ func Test_ResolveRequest(t *testing.T) {
 
 	t.Run("TokenDoesNotMatchRequest", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		badToken := workspaceapps.SignedToken{
 			Request: (workspaceapps.Request{

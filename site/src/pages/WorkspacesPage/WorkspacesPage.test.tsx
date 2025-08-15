@@ -1,8 +1,3 @@
-import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
-import type { Workspace, WorkspacesResponse } from "api/typesGenerated";
-import { http, HttpResponse } from "msw";
 import {
 	MockDormantOutdatedWorkspace,
 	MockDormantWorkspace,
@@ -17,6 +12,11 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { API } from "api/api";
+import type { Workspace, WorkspacesResponse } from "api/typesGenerated";
+import { HttpResponse, http } from "msw";
 import * as CreateDayString from "utils/createDayString";
 import WorkspacesPage from "./WorkspacesPage";
 

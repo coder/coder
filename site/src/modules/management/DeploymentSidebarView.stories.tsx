@@ -1,10 +1,10 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	MockBuildInfo,
 	MockNoPermissions,
 	MockPermissions,
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { DeploymentSidebarView } from "./DeploymentSidebarView";
 
 const meta: Meta<typeof DeploymentSidebarView> = {

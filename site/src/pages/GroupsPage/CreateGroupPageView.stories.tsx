@@ -1,6 +1,6 @@
+import { mockApiError } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
-import { mockApiError } from "testHelpers/entities";
 import { CreateGroupPageView } from "./CreateGroupPageView";
 
 const meta: Meta<typeof CreateGroupPageView> = {

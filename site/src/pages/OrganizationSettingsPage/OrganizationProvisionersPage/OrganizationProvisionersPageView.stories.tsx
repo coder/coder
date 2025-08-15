@@ -1,4 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	MockBuildInfo,
 	MockProvisioner,
@@ -6,6 +5,7 @@ import {
 	MockUserProvisioner,
 	mockApiError,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { OrganizationProvisionersPageView } from "./OrganizationProvisionersPageView";
 
 const meta: Meta<typeof OrganizationProvisionersPageView> = {

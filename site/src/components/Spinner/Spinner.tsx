@@ -5,7 +5,7 @@
  */
 
 import isChromatic from "chromatic/isChromatic";
-import { type VariantProps, cva } from "class-variance-authority";
+import { cva, type VariantProps } from "class-variance-authority";
 import type { ReactNode } from "react";
 import { cn } from "utils/cn";
 

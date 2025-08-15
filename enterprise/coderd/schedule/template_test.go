@@ -222,6 +222,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
 
 			user := quietUser
 			if c.noQuietHours {

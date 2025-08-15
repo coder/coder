@@ -117,7 +117,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 	// HACK: the codersdk type generator doesn't support null values, but this
 	// can be null when the template is new.
 	if ((transitionStats.P50 as number | null) === null) {
-		return <></>;
+		return null;
 	}
 	return (
 		<div css={styles.stack}>

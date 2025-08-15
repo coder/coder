@@ -1,6 +1,3 @@
-import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
 import {
 	MockEntitlementsWithScheduling,
 	MockTemplate,
@@ -9,11 +6,14 @@ import {
 	renderWithTemplateSettingsLayout,
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
-import TemplateSchedulePage from "./TemplateSchedulePage";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { API } from "api/api";
 import {
-	type TemplateScheduleFormValues,
 	getValidationSchema,
+	type TemplateScheduleFormValues,
 } from "./formHelpers";
+import TemplateSchedulePage from "./TemplateSchedulePage";
 
 const validFormValues: TemplateScheduleFormValues = {
 	default_ttl_ms: 1,

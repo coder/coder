@@ -5666,3 +5666,34 @@ func (s *MethodTestSuite) TestUserSecrets() {
 			Asserts(userSecret, policy.ActionRead, userSecret, policy.ActionDelete)
 	}))
 }
+
+func (s *MethodTestSuite) TestUsageEvents() {
+	s.Run("InsertUsageEvent", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.InsertUsageEventParams{
+			ID:        "1",
+			EventType: "dc_managed_agents_v1",
+			EventData: []byte("{}"),
+			CreatedAt: dbtime.Now(),
+		}
+		db.EXPECT().InsertUsageEvent(gomock.Any(), params).Return(nil)
+		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionCreate)
+	}))
+
+	s.Run("SelectUsageEventsForPublishing", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		now := dbtime.Now()
+		db.EXPECT().SelectUsageEventsForPublishing(gomock.Any(), now).Return([]database.UsageEvent{}, nil)
+		check.Args(now).Asserts(rbac.ResourceUsageEvent, policy.ActionUpdate)
+	}))
+
+	s.Run("UpdateUsageEventsPostPublish", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		now := dbtime.Now()
+		params := database.UpdateUsageEventsPostPublishParams{
+			Now:             now,
+			IDs:             []string{"1", "2"},
+			FailureMessages: []string{"error", "error"},
+			SetPublishedAts: []bool{false, false},
+		}
+		db.EXPECT().UpdateUsageEventsPostPublish(gomock.Any(), params).Return(nil)
+		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionUpdate)
+	}))
+}

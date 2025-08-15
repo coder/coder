@@ -12,18 +12,18 @@ import uniqBy from "lodash/uniqBy";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import {
-	type TimeRange,
 	calcDuration,
 	formatTime,
 	mergeTimeRanges,
+	type TimeRange,
 } from "./Chart/utils";
-import { ResourcesChart, isCoderResource } from "./ResourcesChart";
+import { isCoderResource, ResourcesChart } from "./ResourcesChart";
 import { ScriptsChart } from "./ScriptsChart";
 import {
-	type Stage,
-	StagesChart,
 	agentStages,
 	provisioningStages,
+	type Stage,
+	StagesChart,
 } from "./StagesChart";
 
 type TimingView =
@@ -218,7 +218,7 @@ const toTimeRange = (timing: {
 	};
 };
 
-const humanizeDuration = (durationMs: number): string => {
+const _humanizeDuration = (durationMs: number): string => {
 	const seconds = Math.floor(durationMs / 1000);
 	const minutes = Math.floor(seconds / 60);
 	const hours = Math.floor(minutes / 60);

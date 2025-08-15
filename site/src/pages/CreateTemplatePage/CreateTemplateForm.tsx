@@ -38,9 +38,9 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import {
+	sortedDays,
 	type TemplateAutostartRequirementDaysValue,
 	type TemplateAutostopRequirementDaysValue,
-	sortedDays,
 } from "utils/schedule";
 import * as Yup from "yup";
 import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";

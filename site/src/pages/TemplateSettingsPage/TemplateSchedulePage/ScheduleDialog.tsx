@@ -62,71 +62,66 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 		>
 			<div css={styles.dialogContent}>
 				<h3 css={styles.dialogTitle}>{title}</h3>
-				<>
-					{showDormancyWarning && (
-						<>
-							<h4>Dormancy Threshold</h4>
-							<p css={styles.dialogDescription}>
-								This change will result in{" "}
-								<strong>{inactiveWorkspacesToGoDormant}</strong>{" "}
-								{inactiveWorkspacesToGoDormant === 1
-									? "workspace"
-									: "workspaces"}{" "}
-								being immediately transitioned to the dormant state and{" "}
-								<strong>{inactiveWorkspacesToGoDormantInWeek}</strong>{" "}
-								{inactiveWorkspacesToGoDormantInWeek === 1
-									? "workspace"
-									: "workspaces"}{" "}
-								over the next 7 days. To prevent this, do you want to reset the
-								inactivity period for all template workspaces?
-							</p>
-							<FormControlLabel
-								css={{ marginTop: 16 }}
-								control={
-									<Checkbox
-										size="small"
-										onChange={(e) => {
-											updateInactiveWorkspaces(e.target.checked);
-										}}
-									/>
-								}
-								label="Prevent Dormancy - Reset all workspace inactivity periods"
-							/>
-						</>
-					)}
 
-					{showDeletionWarning && (
-						<>
-							<h4>Dormancy Auto-Deletion</h4>
-							<p css={styles.dialogDescription}>
-								This change will result in{" "}
-								<strong>{dormantWorkspacesToBeDeleted}</strong>{" "}
-								{dormantWorkspacesToBeDeleted === 1
-									? "workspace"
-									: "workspaces"}{" "}
-								being immediately deleted and{" "}
-								<strong>{dormantWorkspacesToBeDeletedInWeek}</strong>{" "}
-								{dormantWorkspacesToBeDeletedInWeek === 1
-									? "workspace"
-									: "workspaces"}{" "}
-								over the next 7 days. To prevent this, do you want to reset the
-								dormancy period for all template workspaces?
-							</p>
-							<FormControlLabel
-								css={{ marginTop: 16 }}
-								control={
-									<Checkbox
-										size="small"
-										onChange={(e) => {
-											updateDormantWorkspaces(e.target.checked);
-										}}
-									/>
-								}
-								label="Prevent Deletion - Reset all workspace dormancy periods"
-							/>
-						</>
-					)}
-				</>
+				{showDormancyWarning && (
+					<>
+						<h4>Dormancy Threshold</h4>
+						<p css={styles.dialogDescription}>
+							This change will result in{" "}
+							<strong>{inactiveWorkspacesToGoDormant}</strong>{" "}
+							{inactiveWorkspacesToGoDormant === 1 ? "workspace" : "workspaces"}{" "}
+							being immediately transitioned to the dormant state and{" "}
+							<strong>{inactiveWorkspacesToGoDormantInWeek}</strong>{" "}
+							{inactiveWorkspacesToGoDormantInWeek === 1
+								? "workspace"
+								: "workspaces"}{" "}
+							over the next 7 days. To prevent this, do you want to reset the
+							inactivity period for all template workspaces?
+						</p>
+						<FormControlLabel
+							css={{ marginTop: 16 }}
+							control={
+								<Checkbox
+									size="small"
+									onChange={(e) => {
+										updateInactiveWorkspaces(e.target.checked);
+									}}
+								/>
+							}
+							label="Prevent Dormancy - Reset all workspace inactivity periods"
+						/>
+					</>
+				)}
+
+				{showDeletionWarning && (
+					<>
+						<h4>Dormancy Auto-Deletion</h4>
+						<p css={styles.dialogDescription}>
+							This change will result in{" "}
+							<strong>{dormantWorkspacesToBeDeleted}</strong>{" "}
+							{dormantWorkspacesToBeDeleted === 1 ? "workspace" : "workspaces"}{" "}
+							being immediately deleted and{" "}
+							<strong>{dormantWorkspacesToBeDeletedInWeek}</strong>{" "}
+							{dormantWorkspacesToBeDeletedInWeek === 1
+								? "workspace"
+								: "workspaces"}{" "}
+							over the next 7 days. To prevent this, do you want to reset the
+							dormancy period for all template workspaces?
+						</p>
+						<FormControlLabel
+							css={{ marginTop: 16 }}
+							control={
+								<Checkbox
+									size="small"
+									onChange={(e) => {
+										updateDormantWorkspaces(e.target.checked);
+									}}
+								/>
+							}
+							label="Prevent Deletion - Reset all workspace dormancy periods"
+						/>
+					</>
+				)}
 			</div>
 
 			<DialogActions>

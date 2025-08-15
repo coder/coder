@@ -12,7 +12,7 @@ interface LastSeenProps
 
 export const LastSeen: FC<LastSeenProps> = ({ at, className, ...attrs }) => {
 	const theme = useTheme();
-	const t = dayjs(at);
+	const _t = dayjs(at);
 	const now = new Date();
 	const oneHourAgo = subtractTime(now, 1, "hour");
 	const threeDaysAgo = subtractTime(now, 3, "day");

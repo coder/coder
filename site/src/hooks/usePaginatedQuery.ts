@@ -1,11 +1,11 @@
 import clamp from "lodash/clamp";
 import { useEffect } from "react";
 import {
+	keepPreviousData,
 	type QueryFunctionContext,
 	type QueryKey,
 	type UseQueryOptions,
 	type UseQueryResult,
-	keepPreviousData,
 	useQuery,
 	useQueryClient,
 } from "react-query";

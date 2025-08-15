@@ -1,7 +1,7 @@
+import { MockTemplate } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { action } from "storybook/actions";
-import { MockTemplate } from "testHelpers/entities";
 import { TemplateSchedulePageView } from "./TemplateSchedulePageView";
 
 const queryClient = new QueryClient({

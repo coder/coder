@@ -1,8 +1,10 @@
 import MuiPopover, {
 	type PopoverProps as MuiPopoverProps,
-	// biome-ignore lint/nursery/noRestrictedImports: This is the base component that our custom popover is based on
+	// biome-ignore lint/style/noRestrictedImports: This is the base component that our custom popover is based on
 } from "@mui/material/Popover";
 import {
+	cloneElement,
+	createContext,
 	type FC,
 	type HTMLAttributes,
 	type PointerEvent,
@@ -10,8 +12,6 @@ import {
 	type ReactElement,
 	type ReactNode,
 	type RefObject,
-	cloneElement,
-	createContext,
 	useContext,
 	useEffect,
 	useId,

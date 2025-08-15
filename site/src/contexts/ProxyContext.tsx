@@ -4,9 +4,9 @@ import type { Region, WorkspaceProxy } from "api/typesGenerated";
 import { useAuthenticated } from "hooks";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import {
+	createContext,
 	type FC,
 	type PropsWithChildren,
-	createContext,
 	useCallback,
 	useContext,
 	useEffect,

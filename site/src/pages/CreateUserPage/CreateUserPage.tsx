@@ -9,7 +9,7 @@ import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";
 import { CreateUserForm } from "./CreateUserForm";
 
-const Language = {
+const _Language = {
 	unknownError: "Oops, an unknown error occurred.",
 };
 

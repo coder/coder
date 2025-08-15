@@ -1,6 +1,6 @@
 import TableCell from "@mui/material/TableCell";
 import TableRow, { type TableRowProps } from "@mui/material/TableRow";
-import { type FC, type ReactNode, cloneElement, isValidElement } from "react";
+import { cloneElement, type FC, isValidElement, type ReactNode } from "react";
 import { Loader } from "../Loader/Loader";
 
 export const TableLoader: FC = () => {

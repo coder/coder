@@ -1,6 +1,3 @@
-import { screen, waitFor } from "@testing-library/react";
-import { API } from "api/api";
-import WS from "jest-websocket-mock";
 import {
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -8,6 +5,9 @@ import {
 	MockWorkspaceBuild,
 } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
+import { screen, waitFor } from "@testing-library/react";
+import { API } from "api/api";
+import WS from "jest-websocket-mock";
 import WorkspaceBuildPage from "./WorkspaceBuildPage";
 import { LOGS_TAB_KEY } from "./WorkspaceBuildPageView";
 

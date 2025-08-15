@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
+import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import BuildCircleOutlinedIcon from "@mui/icons-material/BuildCircleOutlined";
 import { DisabledBadge, EnabledBadge } from "components/Badges/Badges";
 import type { FC, HTMLAttributes, PropsWithChildren } from "react";

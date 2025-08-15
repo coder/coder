@@ -8,6 +8,7 @@ import type {
 } from "api/typesGenerated";
 import type { Permissions } from "modules/permissions";
 import type { QueryKey } from "react-query";
+import type { ReactRouterAddonStoryParameters } from "storybook-addon-remix-react-router";
 
 declare module "@storybook/react-vite" {
 	type WebSocketEvent =
@@ -24,5 +25,6 @@ declare module "@storybook/react-vite" {
 		permissions?: Partial<Permissions>;
 		deploymentValues?: DeploymentValues;
 		deploymentOptions?: SerpentOption[];
+		reactRouter?: ReactRouterAddonStoryParameters;
 	}
 }

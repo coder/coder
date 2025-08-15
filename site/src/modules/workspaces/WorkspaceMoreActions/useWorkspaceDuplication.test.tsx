@@ -1,10 +1,10 @@
-import { act, waitFor } from "@testing-library/react";
-import type { Workspace } from "api/typesGenerated";
 import * as M from "testHelpers/entities";
 import {
 	type GetLocationSnapshot,
 	renderHookWithAuth,
 } from "testHelpers/hooks";
+import { act, waitFor } from "@testing-library/react";
+import type { Workspace } from "api/typesGenerated";
 import CreateWorkspacePage from "../../../pages/CreateWorkspacePage/CreateWorkspacePage";
 import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 

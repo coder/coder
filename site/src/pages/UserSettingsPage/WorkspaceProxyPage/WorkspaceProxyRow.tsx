@@ -33,7 +33,6 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 			case "http/1.0":
 			case "http/1.1":
 				extraWarnings.push(
-					// biome-ignore lint/style/useTemplate: easier to read short lines
 					`Requests to the proxy from current browser are using "${latency.nextHopProtocol}". ` +
 						"The proxy server might not support HTTP/2. " +
 						"For usability reasons, HTTP/2 or above is recommended. " +
@@ -141,7 +140,7 @@ const ProxyMessagesList: FC<ProxyMessagesListProps> = ({ title, messages }) => {
 	const theme = useTheme();
 
 	if (!messages) {
-		return <></>;
+		return null;
 	}
 
 	return (

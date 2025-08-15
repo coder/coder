@@ -1,9 +1,5 @@
 export type ThemeRole = keyof Roles;
 
-type InteractiveThemeRole = keyof {
-	[K in keyof Roles as Roles[K] extends InteractiveRole ? K : never]: unknown;
-};
-
 export interface Roles {
 	/** Something is wrong; either unexpectedly, or in a meaningful way. */
 	error: Role;

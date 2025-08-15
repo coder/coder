@@ -1800,6 +1800,7 @@ func TestWorkspaceFilter(t *testing.T) {
 	for _, c := range testCases {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
 			workspaces, err := client.Workspaces(ctx, c.Filter)
 			require.NoError(t, err, "fetch workspaces")
 

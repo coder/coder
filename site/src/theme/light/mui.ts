@@ -1,4 +1,4 @@
-// biome-ignore lint/nursery/noRestrictedImports: createTheme
+// biome-ignore lint/style/noRestrictedImports: createTheme
 import { createTheme } from "@mui/material/styles";
 import { BODY_FONT_FAMILY, borderRadius } from "../constants";
 import { components } from "../mui";

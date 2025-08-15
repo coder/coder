@@ -5,12 +5,12 @@ import { ErrorIcon } from "../Icons/ErrorIcon";
 import { EnterpriseSnackbar } from "./EnterpriseSnackbar";
 import {
 	type AdditionalMessage,
-	MsgType,
-	type NotificationMsg,
-	SnackbarEventType,
 	isNotificationList,
 	isNotificationText,
 	isNotificationTextPrefixed,
+	MsgType,
+	type NotificationMsg,
+	SnackbarEventType,
 } from "./utils";
 
 const variantFromMsgType = (type: MsgType) => {

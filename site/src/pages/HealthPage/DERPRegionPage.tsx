@@ -3,9 +3,9 @@ import Tooltip from "@mui/material/Tooltip";
 import type {
 	DERPNodeReport,
 	DERPRegionReport,
+	HealthcheckReport,
 	HealthMessage,
 	HealthSeverity,
-	HealthcheckReport,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ChevronLeftIcon, CodeIcon, HashIcon } from "lucide-react";

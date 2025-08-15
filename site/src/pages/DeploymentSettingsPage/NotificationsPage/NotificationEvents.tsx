@@ -18,10 +18,10 @@ import { Alert } from "components/Alert/Alert";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import {
-	type NotificationMethod,
 	castNotificationMethod,
 	methodIcons,
 	methodLabels,
+	type NotificationMethod,
 } from "modules/notifications/utils";
 import { type FC, Fragment } from "react";
 import { useMutation, useQueryClient } from "react-query";

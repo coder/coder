@@ -1,6 +1,6 @@
+import { MockOrganizationSyncSettings } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import { MockOrganizationSyncSettings } from "testHelpers/entities";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 
 const meta: Meta<typeof ExportPolicyButton> = {

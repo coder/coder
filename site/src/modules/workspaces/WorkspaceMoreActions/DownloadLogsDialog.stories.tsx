@@ -1,8 +1,8 @@
+import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
+import { withDesktopViewport } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { agentLogsKey, buildLogsKey } from "api/queries/workspaces";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
-import { withDesktopViewport } from "testHelpers/storybook";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
 
 const meta: Meta<typeof DownloadLogsDialog> = {

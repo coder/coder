@@ -3,11 +3,11 @@ import { test } from "@playwright/test";
 import {
 	createTemplate,
 	createWorkspace,
+	login,
 	openTerminalWindow,
 	startAgent,
 	stopAgent,
 } from "../helpers";
-import { login } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
 test.beforeEach(async ({ page }) => {

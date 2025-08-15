@@ -8,9 +8,10 @@ import relativeTime from "dayjs/plugin/relativeTime";
 
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
+
 import { humanDuration } from "utils/time";
 import { coderPort, defaultPassword } from "./constants";
-import { type LoginOptions, findSessionToken, randomName } from "./helpers";
+import { findSessionToken, type LoginOptions, randomName } from "./helpers";
 
 let currentOrgId: string;
 
@@ -57,7 +58,7 @@ export const createOrganizationMember = async ({
 	password = defaultPassword,
 	orgRoles,
 }: CreateOrganizationMemberOptions): Promise<LoginOptions> => {
-	const name = randomName();
+	const _name = randomName();
 	const user = await API.createUser({
 		email,
 		username,

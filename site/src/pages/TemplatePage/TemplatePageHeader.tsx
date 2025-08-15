@@ -27,8 +27,9 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
-import { CopyIcon, DownloadIcon } from "lucide-react";
 import {
+	CopyIcon,
+	DownloadIcon,
 	EllipsisVertical,
 	PlusIcon,
 	SettingsIcon,

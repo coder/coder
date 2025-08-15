@@ -1,3 +1,9 @@
+import { MockAuthMethodsAll, MockUserOwner } from "testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withGlobalSnackbar,
+} from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import { deploymentConfigQueryKey } from "api/queries/deployment";
@@ -9,12 +15,6 @@ import { MockGroups } from "pages/UsersPage/storybookData/groups";
 import { MockRoles } from "pages/UsersPage/storybookData/roles";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { screen, spyOn, userEvent, within } from "storybook/test";
-import { MockAuthMethodsAll, MockUserOwner } from "testHelpers/entities";
-import {
-	withAuthProvider,
-	withDashboardProvider,
-	withGlobalSnackbar,
-} from "testHelpers/storybook";
 import UsersPage from "./UsersPage";
 
 const parameters = {

@@ -1,7 +1,7 @@
+import { createTestQueryClient } from "testHelpers/renderHelpers";
 import { renderHook } from "@testing-library/react";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
-import { createTestQueryClient } from "testHelpers/renderHelpers";
 import { AuthProvider, useAuthContext } from "./AuthProvider";
 
 const Wrapper: FC<PropsWithChildren> = ({ children }) => {

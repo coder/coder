@@ -290,6 +290,7 @@ resourceLoop:
 
 			t.Run(r.RegionName, func(t *testing.T) {
 				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitShort)
 
 				derpMap := &tailcfg.DERPMap{
 					Regions: map[int]*tailcfg.DERPRegion{

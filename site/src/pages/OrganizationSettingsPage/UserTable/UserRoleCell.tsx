@@ -16,13 +16,13 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Tooltip from "@mui/material/Tooltip";
 import type { LoginType, SlimRole } from "api/typesGenerated";
-import { Pill } from "components/Pill/Pill";
-import { TableCell } from "components/Table/Table";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
+import { Pill } from "components/Pill/Pill";
+import { TableCell } from "components/Table/Table";
 import type { FC } from "react";
 import { EditRolesButton } from "./EditRolesButton";
 
