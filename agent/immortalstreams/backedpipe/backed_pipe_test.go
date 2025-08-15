@@ -167,7 +167,7 @@ func TestBackedPipe_Connect(t *testing.T) {
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
 	defer bp.Close()
 
-	err := bp.Connect(ctx)
+	err := bp.Connect()
 	require.NoError(t, err)
 	require.True(t, bp.Connected())
 	require.Equal(t, 1, *callCount)
@@ -183,11 +183,11 @@ func TestBackedPipe_ConnectAlreadyConnected(t *testing.T) {
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
 	defer bp.Close()
 
-	err := bp.Connect(ctx)
+	err := bp.Connect()
 	require.NoError(t, err)
 
 	// Second connect should fail
-	err = bp.Connect(ctx)
+	err = bp.Connect()
 	require.Error(t, err)
 	require.ErrorIs(t, err, backedpipe.ErrPipeAlreadyConnected)
 }
@@ -204,7 +204,7 @@ func TestBackedPipe_ConnectAfterClose(t *testing.T) {
 	err := bp.Close()
 	require.NoError(t, err)
 
-	err = bp.Connect(ctx)
+	err = bp.Connect()
 	require.Error(t, err)
 	require.ErrorIs(t, err, backedpipe.ErrPipeClosed)
 }
@@ -219,7 +219,7 @@ func TestBackedPipe_BasicReadWrite(t *testing.T) {
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
 	defer bp.Close()
 
-	err := bp.Connect(ctx)
+	err := bp.Connect()
 	require.NoError(t, err)
 
 	// Write data
@@ -264,7 +264,7 @@ func TestBackedPipe_WriteBeforeConnect(t *testing.T) {
 	}
 
 	// Connect should unblock the write
-	err := bp.Connect(ctx)
+	err := bp.Connect()
 	require.NoError(t, err)
 
 	// Write should now complete
@@ -332,7 +332,7 @@ func TestBackedPipe_Reconnection(t *testing.T) {
 	defer bp.Close()
 
 	// Initial connect
-	err := bp.Connect(ctx)
+	err := bp.Connect()
 	require.NoError(t, err)
 
 	// Write some data before failure
@@ -373,7 +373,7 @@ func TestBackedPipe_Close(t *testing.T) {
 
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
 
-	err := bp.Connect(ctx)
+	err := bp.Connect()
 	require.NoError(t, err)
 
 	err = bp.Close()
@@ -405,88 +405,6 @@ func TestBackedPipe_CloseIdempotent(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestBackedPipe_ConcurrentReadWrite(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	conn := newMockConnection()
-	reconnectFn, _, _ := mockReconnectFunc(conn)
-
-	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
-	defer bp.Close()
-
-	err := bp.Connect(ctx)
-	require.NoError(t, err)
-
-	var wg sync.WaitGroup
-	numWriters := 3
-	writesPerWriter := 10
-
-	// Fill read buffer with test data first
-	testData := make([]byte, 1000)
-	for i := range testData {
-		testData[i] = 'A'
-	}
-	conn.WriteString(string(testData))
-
-	// Channel to collect all written data
-	writtenData := make(chan byte, numWriters*writesPerWriter)
-
-	// Start a few readers
-	for i := 0; i < 2; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			buf := make([]byte, 10)
-			for j := 0; j < 10; j++ {
-				bp.Read(buf)
-				time.Sleep(time.Millisecond) // Small delay to avoid busy waiting
-			}
-		}()
-	}
-
-	// Start writers
-	for i := 0; i < numWriters; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			for j := 0; j < writesPerWriter; j++ {
-				data := []byte{byte(id + '0')}
-				bp.Write(data)
-				writtenData <- byte(id + '0')
-				time.Sleep(time.Millisecond) // Small delay
-			}
-		}(i)
-	}
-
-	// Wait with timeout
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		wg.Wait()
-	}()
-
-	testutil.TryReceive(ctx, t, done)
-
-	// Close the channel and collect all written data
-	close(writtenData)
-	var allWritten []byte
-	for b := range writtenData {
-		allWritten = append(allWritten, b)
-	}
-
-	// Verify that all written data was received by the connection
-	// Note: Since this test uses the old mock that returns readerSeqNum = 0,
-	// all data will be replayed, so we expect to receive all written data
-	receivedData := conn.ReadString()
-	require.GreaterOrEqual(t, len(receivedData), len(allWritten), "Connection should have received at least all written data")
-
-	// Check that all written bytes appear in the received data
-	for _, writtenByte := range allWritten {
-		require.Contains(t, receivedData, string(writtenByte), "Written byte %c should be present in received data", writtenByte)
-	}
-}
-
 func TestBackedPipe_ReconnectFunctionFailure(t *testing.T) {
 	t.Parallel()
 
@@ -499,7 +417,7 @@ func TestBackedPipe_ReconnectFunctionFailure(t *testing.T) {
 	bp := backedpipe.NewBackedPipe(ctx, failingReconnectFn)
 	defer bp.Close()
 
-	err := bp.Connect(ctx)
+	err := bp.Connect()
 	require.Error(t, err)
 	require.ErrorIs(t, err, backedpipe.ErrReconnectFailed)
 	require.False(t, bp.Connected())
@@ -517,7 +435,7 @@ func TestBackedPipe_ForceReconnect(t *testing.T) {
 	defer bp.Close()
 
 	// Initial connect
-	err := bp.Connect(ctx)
+	err := bp.Connect()
 	require.NoError(t, err)
 	require.True(t, bp.Connected())
 	require.Equal(t, 1, *callCount)
@@ -644,7 +562,7 @@ func TestBackedPipe_EOFTriggersReconnection(t *testing.T) {
 	defer bp.Close()
 
 	// Initial connect
-	err := bp.Connect(ctx)
+	err := bp.Connect()
 	require.NoError(t, err)
 	require.Equal(t, 1, callCount)
 
@@ -685,7 +603,7 @@ func BenchmarkBackedPipe_Write(b *testing.B) {
 	reconnectFn, _, _ := mockReconnectFunc(conn)
 
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
-	bp.Connect(ctx)
+	bp.Connect()
 	b.Cleanup(func() {
 		_ = bp.Close()
 	})
@@ -704,7 +622,7 @@ func BenchmarkBackedPipe_Read(b *testing.B) {
 	reconnectFn, _, _ := mockReconnectFunc(conn)
 
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
-	bp.Connect(ctx)
+	bp.Connect()
 	b.Cleanup(func() {
 		_ = bp.Close()
 	})

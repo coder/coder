@@ -176,7 +176,6 @@ func (bw *BackedWriter) Reconnect(replayFromSeq uint64, newWriter io.Writer) err
 	// no concurrent operations can interfere with the reconnection process.
 	if len(replayData) > 0 {
 		n, err := newWriter.Write(replayData)
-
 		if err != nil {
 			// Reconnect failed, writer remains nil
 			return ErrReplayFailed

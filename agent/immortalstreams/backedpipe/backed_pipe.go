@@ -56,9 +56,6 @@ type BackedPipe struct {
 	// Error channel for receiving connection errors from reader/writer
 	errorChan chan error
 
-	// Connection state notification
-	connectionChanged chan struct{}
-
 	// singleflight group to dedupe concurrent ForceReconnect calls
 	sf singleflight.Group
 }
@@ -70,13 +67,12 @@ func NewBackedPipe(ctx context.Context, reconnectFn ReconnectFunc) *BackedPipe {
 
 	errorChan := make(chan error, 2) // Buffer for reader and writer errors
 	bp := &BackedPipe{
-		ctx:               pipeCtx,
-		cancel:            cancel,
-		reader:            NewBackedReader(),
-		writer:            NewBackedWriter(DefaultBufferSize, errorChan),
-		reconnectFn:       reconnectFn,
-		errorChan:         errorChan,
-		connectionChanged: make(chan struct{}, 1),
+		ctx:         pipeCtx,
+		cancel:      cancel,
+		reader:      NewBackedReader(),
+		writer:      NewBackedWriter(DefaultBufferSize, errorChan),
+		reconnectFn: reconnectFn,
+		errorChan:   errorChan,
 	}
 
 	// Set up error callback for reader only (writer uses error channel directly)
@@ -94,7 +90,7 @@ func NewBackedPipe(ctx context.Context, reconnectFn ReconnectFunc) *BackedPipe {
 }
 
 // Connect establishes the initial connection using the reconnect function.
-func (bp *BackedPipe) Connect(_ context.Context) error { // external ctx ignored; internal ctx used
+func (bp *BackedPipe) Connect() error {
 	bp.mu.Lock()
 	defer bp.mu.Unlock()
 
@@ -168,7 +164,6 @@ func (bp *BackedPipe) Close() error {
 	}
 
 	bp.connected = false
-	bp.signalConnectionChange()
 
 	// Return first error encountered
 	if readerErr != nil {
@@ -185,15 +180,6 @@ func (bp *BackedPipe) Connected() bool {
 	bp.mu.RLock()
 	defer bp.mu.RUnlock()
 	return bp.connected
-}
-
-// signalConnectionChange signals that the connection state has changed.
-func (bp *BackedPipe) signalConnectionChange() {
-	select {
-	case bp.connectionChanged <- struct{}{}:
-	default:
-		// Channel is full, which is fine - we just want to signal that something changed
-	}
 }
 
 // reconnectLocked handles the reconnection logic. Must be called with write lock held.
@@ -214,16 +200,11 @@ func (bp *BackedPipe) reconnectLocked() error {
 	}
 
 	bp.connected = false
-	bp.signalConnectionChange()
 
 	// Get current writer sequence number to send to remote
 	writerSeqNum := bp.writer.SequenceNum()
 
-	// Unlock during reconnect attempt to avoid blocking reads/writes
-	bp.mu.Unlock()
 	conn, readerSeqNum, err := bp.reconnectFn(bp.ctx, writerSeqNum)
-	bp.mu.Lock()
-
 	if err != nil {
 		return ErrReconnectFailed
 	}
@@ -253,7 +234,6 @@ func (bp *BackedPipe) reconnectLocked() error {
 	// Success - update state
 	bp.conn = conn
 	bp.connected = true
-	bp.signalConnectionChange()
 
 	return nil
 }
@@ -276,7 +256,6 @@ func (bp *BackedPipe) handleErrors() {
 
 			// Mark as disconnected
 			bp.connected = false
-			bp.signalConnectionChange()
 
 			// Try to reconnect using internal context
 			reconnectErr := bp.reconnectLocked()
