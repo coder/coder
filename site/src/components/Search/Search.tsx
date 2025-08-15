@@ -1,13 +1,18 @@
 // biome-ignore lint/style/noRestrictedImports: use it to have the component prop
 import type { Interpolation } from "@emotion/react";
 import type { Theme } from "@mui/material";
-import Box, { type BoxProps } from "@mui/material/Box";
-import visuallyHidden from "@mui/utils/visuallyHidden";
 import { SearchIcon } from "lucide-react";
-import type { FC, HTMLAttributes, InputHTMLAttributes, Ref } from "react";
+import {
+	type FC,
+	type HTMLAttributes,
+	type InputHTMLAttributes,
+	type Ref,
+	useId,
+} from "react";
+import { cn } from "utils/cn";
 
-interface SearchProps extends Omit<BoxProps, "ref"> {
-	$$ref?: Ref<unknown>;
+interface SearchProps extends Omit<HTMLAttributes<HTMLDivElement>, "ref"> {
+	$$ref?: Ref<HTMLDivElement>;
 }
 
 /**
@@ -19,29 +24,26 @@ interface SearchProps extends Omit<BoxProps, "ref"> {
  * </Search>
  * ```
  */
-export const Search: FC<SearchProps> = ({ children, $$ref, ...boxProps }) => {
+export const Search: FC<SearchProps> = ({
+	children,
+	$$ref,
+	className,
+	...boxProps
+}) => {
 	return (
-		<Box ref={$$ref} {...boxProps} css={SearchStyles.container}>
-			<SearchIcon className="size-icon-xs" css={SearchStyles.icon} />
+		<div
+			ref={$$ref}
+			{...boxProps}
+			className={cn(
+				"flex items-center pl-4 h-10 border-b border-solid",
+				className,
+			)}
+		>
+			<SearchIcon className="size-icon-xs text-content-secondary" />
 			{children}
-		</Box>
+		</div>
 	);
 };
-
-const SearchStyles = {
-	container: (theme) => ({
-		display: "flex",
-		alignItems: "center",
-		paddingLeft: 16,
-		height: 40,
-		borderBottom: `1px solid ${theme.palette.divider}`,
-	}),
-
-	icon: (theme) => ({
-		fontSize: 14,
-		color: theme.palette.text.secondary,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
 
 type SearchInputProps = InputHTMLAttributes<HTMLInputElement> & {
 	label?: string;
@@ -49,62 +51,53 @@ type SearchInputProps = InputHTMLAttributes<HTMLInputElement> & {
 };
 
 export const SearchInput: FC<SearchInputProps> = ({
-	label,
 	$$ref,
+	id,
+	label,
+	className,
 	...inputProps
 }) => {
+	const hookId = useId();
+	const inputId = id || `${hookId}-input`;
+
 	return (
 		<>
-			<label css={{ ...visuallyHidden }} htmlFor={inputProps.id}>
+			<label className="sr-only" htmlFor={inputId}>
 				{label}
 			</label>
 			<input
 				ref={$$ref}
+				id={inputId}
 				tabIndex={-1}
 				type="text"
 				placeholder="Search..."
-				css={SearchInputStyles.input}
 				{...inputProps}
+				className={cn(
+					"text-inherit h-full border-none bg-transparent grow shrink ml-4 outline-none placeholder:text-content-secondary",
+					className,
+				)}
 			/>
 		</>
 	);
 };
 
-const SearchInputStyles = {
-	input: (theme) => ({
-		color: "inherit",
-		height: "100%",
-		border: 0,
-		background: "none",
-		flex: 1,
-		marginLeft: 16,
-		outline: 0,
-		"&::placeholder": {
-			color: theme.palette.text.secondary,
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
-
 export const SearchEmpty: FC<HTMLAttributes<HTMLDivElement>> = ({
 	children = "Not found",
+	className,
 	...props
 }) => {
 	return (
-		<div css={SearchEmptyStyles.empty} {...props}>
+		<div
+			{...props}
+			className={cn(
+				"text-[13px] text-content-secondary items-center py-2",
+				className,
+			)}
+		>
 			{children}
 		</div>
 	);
 };
-
-const SearchEmptyStyles = {
-	empty: (theme) => ({
-		fontSize: 13,
-		color: theme.palette.text.secondary,
-		textAlign: "center",
-		paddingTop: 8,
-		paddingBottom: 8,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
 
 /**
  * Reusable styles for consumers of the base components
