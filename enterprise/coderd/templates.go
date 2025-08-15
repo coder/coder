@@ -308,13 +308,13 @@ func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.
 
 func convertToTemplateRole(actions []policy.Action) codersdk.TemplateRole {
 	switch {
-	case len(actions) == 2 && slice.SameElements(actions, []policy.Action{policy.ActionUse, policy.ActionRead}):
-		return codersdk.TemplateRoleUse
-	case len(actions) == 1 && actions[0] == policy.WildcardSymbol:
+	case slice.SameElements(actions, db2sdk.TemplateRoleActions(codersdk.TemplateRoleAdmin)):
 		return codersdk.TemplateRoleAdmin
+	case slice.SameElements(actions, db2sdk.TemplateRoleActions(codersdk.TemplateRoleUse)):
+		return codersdk.TemplateRoleUse
 	}
 
-	return ""
+	return codersdk.TemplateRoleDeleted
 }
 
 // TODO move to api.RequireFeatureMW when we are OK with changing the behavior.

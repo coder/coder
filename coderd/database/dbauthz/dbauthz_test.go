@@ -1883,6 +1883,20 @@ func (s *MethodTestSuite) TestWorkspace() {
 		// no asserts here because SQLFilter
 		check.Args([]uuid.UUID{}, emptyPreparedAuthorized{}).Asserts()
 	}))
+	s.Run("GetWorkspaceACLByID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		tpl := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			OwnerID:        u.ID,
+			OrganizationID: o.ID,
+			TemplateID:     tpl.ID,
+		})
+		check.Args(ws.ID).Asserts(ws, policy.ActionCreate)
+	}))
 	s.Run("UpdateWorkspaceACLByID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		o := dbgen.Organization(s.T(), db, database.Organization{})
