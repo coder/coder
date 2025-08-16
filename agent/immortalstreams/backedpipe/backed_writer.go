@@ -2,6 +2,7 @@ package backedpipe
 
 import (
 	"io"
+	"os"
 	"sync"
 
 	"golang.org/x/xerrors"
@@ -50,13 +51,13 @@ func NewBackedWriter(capacity int, errorChan chan<- error) *BackedWriter {
 }
 
 // blockUntilConnectedOrClosed blocks until either a writer is available or the BackedWriter is closed.
-// Returns io.EOF if closed while waiting, nil if connected.
+// Returns os.ErrClosed if closed while waiting, nil if connected. You must hold the mutex to call this.
 func (bw *BackedWriter) blockUntilConnectedOrClosed() error {
 	for bw.writer == nil && !bw.closed {
 		bw.cond.Wait()
 	}
 	if bw.closed {
-		return io.EOF
+		return os.ErrClosed
 	}
 	return nil
 }
@@ -74,10 +75,6 @@ func (bw *BackedWriter) Write(p []byte) (int, error) {
 	bw.mu.Lock()
 	defer bw.mu.Unlock()
 
-	if bw.closed {
-		return 0, io.EOF
-	}
-
 	// Block until connected
 	if err := bw.blockUntilConnectedOrClosed(); err != nil {
 		return 0, err
@@ -89,29 +86,15 @@ func (bw *BackedWriter) Write(p []byte) (int, error) {
 
 	// Try to write to underlying writer
 	n, err := bw.writer.Write(p)
+	if err == nil && n != len(p) {
+		err = io.ErrShortWrite
+	}
+
 	if err != nil {
-		// Connection failed, mark as disconnected
+		// Connection failed or partial write, mark as disconnected
 		bw.writer = nil
 
 		// Notify parent of error
-		select {
-		case bw.errorChan <- err:
-		default:
-		}
-
-		// Block until reconnected - reconnection will replay this data
-		if err := bw.blockUntilConnectedOrClosed(); err != nil {
-			return 0, err
-		}
-
-		// Don't retry - reconnection replay handled it
-		return len(p), nil
-	}
-
-	if n != len(p) {
-		// Partial write - treat as failure
-		bw.writer = nil
-		err = xerrors.Errorf("short write: %d bytes written, %d expected", n, len(p))
 		select {
 		case bw.errorChan <- err:
 		default:
@@ -133,6 +116,10 @@ func (bw *BackedWriter) Write(p []byte) (int, error) {
 // Reconnect replaces the current writer with a new one and replays data from the specified
 // sequence number. If the requested sequence number is no longer in the buffer,
 // returns an error indicating data loss.
+//
+// IMPORTANT: You must close the current writer, if any, before calling this method.
+// Otherwise, if a Write operation is currently blocked in the underlying writer's
+// Write method, this method will deadlock waiting for the mutex that Write holds.
 func (bw *BackedWriter) Reconnect(replayFromSeq uint64, newWriter io.Writer) error {
 	bw.mu.Lock()
 	defer bw.mu.Unlock()
@@ -159,10 +146,10 @@ func (bw *BackedWriter) Reconnect(replayFromSeq uint64, newWriter io.Writer) err
 		// If the buffer doesn't have enough data (some was evicted),
 		// ReadLast will return an error
 		var err error
-		// Safe conversion: replayBytes is always non-negative due to the check above
-		// No overflow possible since replayBytes is calculated as sequenceNum - replayFromSeq
-		// and uint64->int conversion is safe for reasonable buffer sizes
-		//nolint:gosec // Safe conversion: replayBytes is calculated from uint64 subtraction
+		// Safe conversion: The check above (replayFromSeq > bw.sequenceNum) ensures
+		// replayBytes = bw.sequenceNum - replayFromSeq is always <= bw.sequenceNum.
+		// Since sequence numbers are much smaller than maxInt, the uint64->int conversion is safe.
+		//nolint:gosec // Safe conversion: replayBytes <= sequenceNum, which is much less than maxInt
 		replayData, err = bw.buffer.ReadLast(int(replayBytes))
 		if err != nil {
 			return ErrReplayDataUnavailable
@@ -198,9 +185,14 @@ func (bw *BackedWriter) Reconnect(replayFromSeq uint64, newWriter io.Writer) err
 }
 
 // Close closes the writer and prevents further writes.
-// After closing, all Write calls will return io.EOF.
+// After closing, all Write calls will return os.ErrClosed.
 // This code keeps the Close() signature consistent with io.Closer,
 // but it never actually returns an error.
+//
+// IMPORTANT: You must close the current underlying writer, if any, before calling
+// this method. Otherwise, if a Write operation is currently blocked in the
+// underlying writer's Write method, this method will deadlock waiting for the
+// mutex that Write holds.
 func (bw *BackedWriter) Close() error {
 	bw.mu.Lock()
 	defer bw.mu.Unlock()

@@ -2,7 +2,7 @@ package backedpipe_test
 
 import (
 	"bytes"
-	"io"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -394,7 +394,7 @@ func TestBackedWriter_Close(t *testing.T) {
 
 	// Writes after close should fail
 	_, err = bw.Write([]byte("test"))
-	require.Equal(t, io.EOF, err)
+	require.Equal(t, os.ErrClosed, err)
 
 	// Reconnect after close should fail
 	err = bw.Reconnect(0, newMockWriter())
@@ -566,7 +566,7 @@ func TestBackedWriter_CloseUnblocksWaitingWrites(t *testing.T) {
 
 	// Write should now complete with error
 	err = testutil.RequireReceive(ctx, t, writeComplete)
-	require.Equal(t, io.EOF, err)
+	require.Equal(t, os.ErrClosed, err)
 }
 
 func TestBackedWriter_WriteBlocksAfterDisconnection(t *testing.T) {
@@ -623,42 +623,64 @@ func TestBackedWriter_ConcurrentWriteAndClose(t *testing.T) {
 
 	errorChan := make(chan error, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
-	writer := newMockWriter()
-	bw.Reconnect(0, writer)
 
-	// Start a write operation that will be interrupted by close
+	// Don't connect initially - this will cause writes to block in blockUntilConnectedOrClosed()
+
+	writeStarted := make(chan struct{}, 1)
+
+	// Start a write operation that will block waiting for connection
 	writeComplete := make(chan struct{})
 	var writeErr error
 	var n int
 
 	go func() {
 		defer close(writeComplete)
-		// Write some data that should succeed
+		// Signal that we're about to start the write
+		writeStarted <- struct{}{}
+		// This write will block in blockUntilConnectedOrClosed() since no writer is connected
 		n, writeErr = bw.Write([]byte("hello"))
 	}()
 
-	// Give write a chance to start
-	time.Sleep(10 * time.Millisecond)
+	// Wait for write goroutine to start
+	ctx := testutil.Context(t, testutil.WaitShort)
+	testutil.RequireReceive(ctx, t, writeStarted)
 
-	// Close the writer
+	// Ensure the write is actually blocked by repeatedly checking that:
+	// 1. The write hasn't completed yet
+	// 2. The writer is still not connected
+	// We use require.Eventually to give it a fair chance to reach the blocking state
+	require.Eventually(t, func() bool {
+		select {
+		case <-writeComplete:
+			t.Fatal("Write should be blocked when no writer is connected")
+			return false
+		default:
+			// Write is still blocked, which is what we want
+			return !bw.Connected()
+		}
+	}, testutil.WaitShort, testutil.IntervalMedium)
+
+	// Close the writer while the write is blocked waiting for connection
 	closeErr := bw.Close()
 	require.NoError(t, closeErr)
 
 	// Wait for write to complete
-	<-writeComplete
-
-	// Write should have either succeeded (if it completed before close)
-	// or failed with EOF (if close interrupted it)
-	if writeErr == nil {
-		require.Equal(t, 5, n)
-	} else {
-		require.ErrorIs(t, writeErr, io.EOF)
+	select {
+	case <-writeComplete:
+		// Good, write completed
+	case <-ctx.Done():
+		t.Fatal("Write did not complete in time")
 	}
 
-	// Subsequent writes should fail
+	// The write should have failed with os.ErrClosed because Close() was called
+	// while it was waiting for connection
+	require.ErrorIs(t, writeErr, os.ErrClosed)
+	require.Equal(t, 0, n)
+
+	// Subsequent writes should also fail
 	n, err := bw.Write([]byte("world"))
 	require.Equal(t, 0, n)
-	require.ErrorIs(t, err, io.EOF)
+	require.ErrorIs(t, err, os.ErrClosed)
 }
 
 func TestBackedWriter_ConcurrentWriteAndReconnect(t *testing.T) {
@@ -676,31 +698,71 @@ func TestBackedWriter_ConcurrentWriteAndReconnect(t *testing.T) {
 	_, err = bw.Write([]byte("initial"))
 	require.NoError(t, err)
 
-	// Start a write operation that will be blocked by reconnect
+	// Start reconnection which will block new writes
+	replayStarted := make(chan struct{}, 1) // Buffered to prevent race condition
+	replayCanComplete := make(chan struct{})
+	writer2 := &mockWriter{
+		writeFunc: func(p []byte) (int, error) {
+			// Signal that replay has started
+			select {
+			case replayStarted <- struct{}{}:
+			default:
+				// Signal already sent, which is fine
+			}
+			// Wait for test to allow replay to complete
+			<-replayCanComplete
+			return len(p), nil
+		},
+	}
+
+	// Start the reconnection in a goroutine so we can control timing
+	reconnectComplete := make(chan error, 1)
+	go func() {
+		reconnectComplete <- bw.Reconnect(0, writer2)
+	}()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	// Wait for replay to start
+	testutil.RequireReceive(ctx, t, replayStarted)
+
+	// Now start a write operation that will be blocked by the ongoing reconnect
+	writeStarted := make(chan struct{}, 1)
 	writeComplete := make(chan struct{})
 	var writeErr error
 	var n int
 
 	go func() {
 		defer close(writeComplete)
+		// Signal that we're about to start the write
+		writeStarted <- struct{}{}
 		// This write should be blocked during reconnect
 		n, writeErr = bw.Write([]byte("blocked"))
 	}()
 
-	// Give write a chance to start
-	time.Sleep(10 * time.Millisecond)
+	// Wait for write to start
+	testutil.RequireReceive(ctx, t, writeStarted)
 
-	// Start reconnection which will cause the write to wait
-	writer2 := &mockWriter{
-		writeFunc: func(p []byte) (int, error) {
-			// Simulate slow replay
-			time.Sleep(50 * time.Millisecond)
-			return len(p), nil
-		},
+	// Give the write a moment to actually start and get blocked on the mutex
+	time.Sleep(testutil.IntervalFast)
+
+	// Verify write is still blocked (reconnect is still in progress)
+	select {
+	case <-writeComplete:
+		t.Fatal("Write should be blocked during reconnect")
+	default:
+		// Good, write is still blocked
 	}
 
-	reconnectErr := bw.Reconnect(0, writer2)
-	require.NoError(t, reconnectErr)
+	// Allow replay to complete, which will allow reconnect to finish
+	close(replayCanComplete)
+
+	// Wait for reconnection to complete
+	select {
+	case reconnectErr := <-reconnectComplete:
+		require.NoError(t, reconnectErr)
+	case <-ctx.Done():
+		t.Fatal("Reconnect did not complete in time")
+	}
 
 	// Wait for write to complete
 	<-writeComplete
@@ -727,6 +789,8 @@ func TestBackedWriter_ConcurrentReconnectAndClose(t *testing.T) {
 	require.NoError(t, err)
 
 	// Start reconnection with slow replay
+	reconnectStarted := make(chan struct{}, 1)
+	replayCanComplete := make(chan struct{})
 	reconnectComplete := make(chan struct{})
 	var reconnectErr error
 
@@ -734,23 +798,50 @@ func TestBackedWriter_ConcurrentReconnectAndClose(t *testing.T) {
 		defer close(reconnectComplete)
 		writer2 := &mockWriter{
 			writeFunc: func(p []byte) (int, error) {
-				// Simulate slow replay - this should be interrupted by close
-				time.Sleep(100 * time.Millisecond)
+				// Signal that replay has started
+				select {
+				case reconnectStarted <- struct{}{}:
+				default:
+				}
+				// Wait for test to allow replay to complete
+				<-replayCanComplete
 				return len(p), nil
 			},
 		}
 		reconnectErr = bw.Reconnect(0, writer2)
 	}()
 
-	// Give reconnect a chance to start
-	time.Sleep(10 * time.Millisecond)
+	// Wait for reconnection to start
+	ctx := testutil.Context(t, testutil.WaitShort)
+	testutil.RequireReceive(ctx, t, reconnectStarted)
 
-	// Close while reconnection is in progress
-	closeErr := bw.Close()
-	require.NoError(t, closeErr)
+	// Start Close() in a separate goroutine since it will block until Reconnect() completes
+	closeComplete := make(chan error, 1)
+	go func() {
+		closeComplete <- bw.Close()
+	}()
+
+	// Give Close() a moment to start and block on the mutex
+	time.Sleep(testutil.IntervalFast)
+
+	// Allow replay to complete so reconnection can finish
+	close(replayCanComplete)
 
 	// Wait for reconnect to complete
-	<-reconnectComplete
+	select {
+	case <-reconnectComplete:
+		// Good, reconnect completed
+	case <-ctx.Done():
+		t.Fatal("Reconnect did not complete in time")
+	}
+
+	// Wait for close to complete
+	select {
+	case closeErr := <-closeComplete:
+		require.NoError(t, closeErr)
+	case <-ctx.Done():
+		t.Fatal("Close did not complete in time")
+	}
 
 	// With mutex held during replay, Close() waits for Reconnect() to finish.
 	// So Reconnect() should succeed, then Close() runs and closes the writer.
@@ -779,30 +870,63 @@ func TestBackedWriter_MultipleWritesDuringReconnect(t *testing.T) {
 	numWriters := 5
 	var wg sync.WaitGroup
 	writeResults := make([]error, numWriters)
+	writesStarted := make(chan struct{}, numWriters)
 
 	for i := 0; i < numWriters; i++ {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
+			// Signal that this write is starting
+			writesStarted <- struct{}{}
 			data := []byte{byte('A' + id)}
 			_, writeResults[id] = bw.Write(data)
 		}(i)
 	}
 
-	// Give writes a chance to start
-	time.Sleep(10 * time.Millisecond)
+	// Wait for all writes to start
+	ctx := testutil.Context(t, testutil.WaitShort)
+	for i := 0; i < numWriters; i++ {
+		testutil.RequireReceive(ctx, t, writesStarted)
+	}
 
-	// Start reconnection with slow replay
+	// Give the writes a moment to actually begin execution
+	time.Sleep(testutil.IntervalFast)
+
+	// Start reconnection with controlled replay
+	replayStarted := make(chan struct{})
+	replayCanComplete := make(chan struct{})
 	writer2 := &mockWriter{
 		writeFunc: func(p []byte) (int, error) {
-			// Simulate slow replay
-			time.Sleep(50 * time.Millisecond)
+			// Signal that replay has started
+			select {
+			case replayStarted <- struct{}{}:
+			default:
+			}
+			// Wait for test to allow replay to complete
+			<-replayCanComplete
 			return len(p), nil
 		},
 	}
 
-	reconnectErr := bw.Reconnect(0, writer2)
-	require.NoError(t, reconnectErr)
+	// Start reconnection in a goroutine so we can control timing
+	reconnectComplete := make(chan error, 1)
+	go func() {
+		reconnectComplete <- bw.Reconnect(0, writer2)
+	}()
+
+	// Wait for replay to start
+	testutil.RequireReceive(ctx, t, replayStarted)
+
+	// Allow replay to complete
+	close(replayCanComplete)
+
+	// Wait for reconnection to complete
+	select {
+	case reconnectErr := <-reconnectComplete:
+		require.NoError(t, reconnectErr)
+	case <-ctx.Done():
+		t.Fatal("Reconnect did not complete in time")
+	}
 
 	// Wait for all writes to complete
 	wg.Wait()
