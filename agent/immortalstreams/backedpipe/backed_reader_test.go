@@ -57,7 +57,8 @@ func (mr *mockReader) setError(err error) {
 func TestBackedReader_NewBackedReader(t *testing.T) {
 	t.Parallel()
 
-	br := backedpipe.NewBackedReader()
+	errorChan := make(chan error, 1)
+	br := backedpipe.NewBackedReader(errorChan)
 	require.NotNil(t, br)
 	require.Equal(t, uint64(0), br.SequenceNum())
 	require.False(t, br.Connected())
@@ -67,7 +68,8 @@ func TestBackedReader_BasicReadOperation(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	br := backedpipe.NewBackedReader()
+	errorChan := make(chan error, 1)
+	br := backedpipe.NewBackedReader(errorChan)
 	reader := newMockReader("hello world")
 
 	// Connect the reader
@@ -103,9 +105,11 @@ func TestBackedReader_ReadBlocksWhenDisconnected(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	br := backedpipe.NewBackedReader()
+	errorChan := make(chan error, 1)
+	br := backedpipe.NewBackedReader(errorChan)
 
 	// Start a read operation that should block
+	readStarted := make(chan struct{}, 1)
 	readDone := make(chan struct{})
 	var readErr error
 	var readBuf []byte
@@ -113,21 +117,28 @@ func TestBackedReader_ReadBlocksWhenDisconnected(t *testing.T) {
 
 	go func() {
 		defer close(readDone)
+		// Signal that we're about to start the read
+		readStarted <- struct{}{}
 		buf := make([]byte, 10)
 		readN, readErr = br.Read(buf)
 		readBuf = buf[:readN]
 	}()
 
-	// Give a brief moment for the read to actually start and block on the condition variable
-	time.Sleep(time.Millisecond)
+	// Wait for read to start
+	testutil.RequireReceive(ctx, t, readStarted)
 
-	// Read should still be blocked
-	select {
-	case <-readDone:
-		t.Fatal("Read should be blocked when disconnected")
-	default:
-		// Good, still blocked
-	}
+	// Ensure the read is actually blocked by verifying it hasn't completed
+	// and that the reader is still not connected
+	require.Eventually(t, func() bool {
+		select {
+		case <-readDone:
+			t.Fatal("Read should be blocked when disconnected")
+			return false
+		default:
+			// Read is still blocked, which is what we want
+			return !br.Connected()
+		}
+	}, testutil.WaitShort, testutil.IntervalMedium)
 
 	// Connect and the read should unblock
 	reader := newMockReader("test")
@@ -150,7 +161,8 @@ func TestBackedReader_ReconnectionAfterFailure(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	br := backedpipe.NewBackedReader()
+	errorChan := make(chan error, 1)
+	br := backedpipe.NewBackedReader(errorChan)
 	reader1 := newMockReader("first")
 
 	// Initial connection
@@ -170,12 +182,6 @@ func TestBackedReader_ReconnectionAfterFailure(t *testing.T) {
 	require.Equal(t, "first", string(buf[:n]))
 	require.Equal(t, uint64(5), br.SequenceNum())
 
-	// Set up error callback to verify error notification
-	errorReceived := make(chan error, 1)
-	br.SetErrorCallback(func(err error) {
-		errorReceived <- err
-	})
-
 	// Simulate connection failure
 	reader1.setError(xerrors.New("connection lost"))
 
@@ -186,8 +192,8 @@ func TestBackedReader_ReconnectionAfterFailure(t *testing.T) {
 		readDone <- err
 	}()
 
-	// Wait for the error to be reported via callback
-	receivedErr := testutil.RequireReceive(ctx, t, errorReceived)
+	// Wait for the error to be reported via error channel
+	receivedErr := testutil.RequireReceive(ctx, t, errorChan)
 	require.Error(t, receivedErr)
 	require.Contains(t, receivedErr.Error(), "connection lost")
 
@@ -224,7 +230,8 @@ func TestBackedReader_Close(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	br := backedpipe.NewBackedReader()
+	errorChan := make(chan error, 1)
+	br := backedpipe.NewBackedReader(errorChan)
 	reader := newMockReader("test")
 
 	// Connect
@@ -260,7 +267,8 @@ func TestBackedReader_Close(t *testing.T) {
 func TestBackedReader_CloseIdempotent(t *testing.T) {
 	t.Parallel()
 
-	br := backedpipe.NewBackedReader()
+	errorChan := make(chan error, 1)
+	br := backedpipe.NewBackedReader(errorChan)
 
 	err := br.Close()
 	require.NoError(t, err)
@@ -274,7 +282,8 @@ func TestBackedReader_ReconnectAfterClose(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	br := backedpipe.NewBackedReader()
+	errorChan := make(chan error, 1)
+	br := backedpipe.NewBackedReader(errorChan)
 
 	err := br.Close()
 	require.NoError(t, err)
@@ -305,7 +314,8 @@ func TestBackedReader_SequenceNumberTracking(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	br := backedpipe.NewBackedReader()
+	errorChan := make(chan error, 1)
+	br := backedpipe.NewBackedReader(errorChan)
 	reader := newMockReader("0123456789")
 
 	reconnectReader(ctx, t, br, reader)
@@ -333,14 +343,9 @@ func TestBackedReader_EOFHandling(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	br := backedpipe.NewBackedReader()
+	errorChan := make(chan error, 1)
+	br := backedpipe.NewBackedReader(errorChan)
 	reader := newMockReader("test")
-
-	// Set up error callback to track when EOF triggers disconnection
-	errorReceived := make(chan error, 1)
-	br.SetErrorCallback(func(err error) {
-		errorReceived <- err
-	})
 
 	reconnectReader(ctx, t, br, reader)
 
@@ -362,8 +367,8 @@ func TestBackedReader_EOFHandling(t *testing.T) {
 		readN, readErr = br.Read(buf)
 	}()
 
-	// Wait for EOF to be reported via error callback
-	receivedErr := testutil.RequireReceive(ctx, t, errorReceived)
+	// Wait for EOF to be reported via error channel
+	receivedErr := testutil.RequireReceive(ctx, t, errorChan)
 	require.Equal(t, io.EOF, receivedErr)
 
 	// Reader should be disconnected after EOF
@@ -389,7 +394,8 @@ func TestBackedReader_EOFHandling(t *testing.T) {
 }
 
 func BenchmarkBackedReader_Read(b *testing.B) {
-	br := backedpipe.NewBackedReader()
+	errorChan := make(chan error, 1)
+	br := backedpipe.NewBackedReader(errorChan)
 	buf := make([]byte, 1024)
 
 	// Create a reader that never returns EOF by cycling through data
@@ -417,7 +423,8 @@ func TestBackedReader_PartialReads(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	br := backedpipe.NewBackedReader()
+	errorChan := make(chan error, 1)
+	br := backedpipe.NewBackedReader(errorChan)
 
 	// Create a reader that returns partial reads
 	reader := &mockReader{
@@ -449,7 +456,8 @@ func TestBackedReader_CloseWhileBlockedOnUnderlyingReader(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	br := backedpipe.NewBackedReader()
+	errorChan := make(chan error, 1)
+	br := backedpipe.NewBackedReader(errorChan)
 
 	// Create a reader that blocks on Read calls but can be unblocked
 	readStarted := make(chan struct{}, 1)
@@ -490,16 +498,18 @@ func TestBackedReader_CloseWhileBlockedOnUnderlyingReader(t *testing.T) {
 	// Wait for the read to start and block on the underlying reader
 	testutil.RequireReceive(ctx, t, readStarted)
 
-	// Give a brief moment for the read to actually block
-	time.Sleep(time.Millisecond)
-
-	// Verify read is blocked
-	select {
-	case <-readDone:
-		t.Fatal("Read should be blocked on underlying reader")
-	default:
-		// Good, still blocked
-	}
+	// Verify read is blocked by checking that it hasn't completed
+	// and ensuring we have adequate time for it to reach the blocking state
+	require.Eventually(t, func() bool {
+		select {
+		case <-readDone:
+			t.Fatal("Read should be blocked on underlying reader")
+			return false
+		default:
+			// Good, still blocked
+			return true
+		}
+	}, testutil.WaitShort, testutil.IntervalMedium)
 
 	// Start Close() in a goroutine since it will block until the underlying read completes
 	closeDone := make(chan error, 1)
@@ -539,7 +549,8 @@ func TestBackedReader_CloseWhileBlockedWaitingForReconnect(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	br := backedpipe.NewBackedReader()
+	errorChan := make(chan error, 1)
+	br := backedpipe.NewBackedReader(errorChan)
 	reader1 := newMockReader("initial")
 
 	// Initial connection
@@ -558,12 +569,6 @@ func TestBackedReader_CloseWhileBlockedWaitingForReconnect(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "initial", string(buf[:n]))
 
-	// Set up error callback to track connection failure
-	errorReceived := make(chan error, 1)
-	br.SetErrorCallback(func(err error) {
-		errorReceived <- err
-	})
-
 	// Simulate connection failure
 	reader1.setError(xerrors.New("connection lost"))
 
@@ -578,7 +583,7 @@ func TestBackedReader_CloseWhileBlockedWaitingForReconnect(t *testing.T) {
 	}()
 
 	// Wait for the error to be reported (indicating disconnection)
-	receivedErr := testutil.RequireReceive(ctx, t, errorReceived)
+	receivedErr := testutil.RequireReceive(ctx, t, errorChan)
 	require.Error(t, receivedErr)
 	require.Contains(t, receivedErr.Error(), "connection lost")
 

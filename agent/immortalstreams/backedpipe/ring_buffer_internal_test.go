@@ -162,9 +162,6 @@ func TestRingBuffer_EmptyWrite(t *testing.T) {
 	require.Contains(t, err.Error(), "requested 5 bytes but only 0 available")
 }
 
-// TestRingBuffer_ConcurrentAccess removed - the ring buffer is no longer thread-safe
-// by design, as it relies on external synchronization provided by BackedWriter.
-
 func TestRingBuffer_MultipleWrites(t *testing.T) {
 	t.Parallel()
 
