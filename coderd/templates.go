@@ -38,7 +38,7 @@ import (
 
 // Returns a single template.
 //
-// @Summary Get template metadata by ID
+// @Summary Get template settings by ID
 // @ID get-template-metadata-by-id
 // @Security CoderSessionToken
 // @Produce json
@@ -629,12 +629,13 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(template))
 }
 
-// @Summary Update template metadata by ID
+// @Summary Update template settings by ID
 // @ID update-template-metadata-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
+// @Param request body codersdk.UpdateTemplateMeta true "Patch template settings request"
 // @Success 200 {object} codersdk.Template
 // @Router /templates/{template} [patch]
 func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
