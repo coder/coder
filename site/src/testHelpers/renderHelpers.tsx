@@ -1,12 +1,12 @@
+import { AppProviders } from "App";
 import {
 	screen,
 	render as testingLibraryRender,
 	waitFor,
 } from "@testing-library/react";
-import { AppProviders } from "App";
+import { RequireAuth } from "contexts/auth/RequireAuth";
 import type { ProxyProvider } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
-import { RequireAuth } from "contexts/auth/RequireAuth";
 import { DashboardLayout } from "modules/dashboard/DashboardLayout";
 import type { DashboardProvider } from "modules/dashboard/DashboardProvider";
 import OrganizationSettingsLayout from "modules/management/OrganizationSettingsLayout";
@@ -15,10 +15,10 @@ import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSe
 import type { ReactNode } from "react";
 import { QueryClient } from "react-query";
 import {
+	createMemoryRouter,
 	type RouteObject,
 	RouterProvider,
-	createMemoryRouter,
-} from "react-router-dom";
+} from "react-router";
 import themes, { DEFAULT_THEME } from "theme";
 import { MockUserOwner } from "./entities";
 

@@ -148,7 +148,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	err = userpassword.Validate(createUser.Password)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Password not strong enough!",
+			Message: "Password is invalid",
 			Validations: []codersdk.ValidationError{{
 				Field:  "password",
 				Detail: err.Error(),
@@ -448,7 +448,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		err = userpassword.Validate(req.Password)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Password not strong enough!",
+				Message: "Password is invalid",
 				Validations: []codersdk.ValidationError{{
 					Field:  "password",
 					Detail: err.Error(),

@@ -19,7 +19,7 @@ import { TableLoader } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 
 type OAuth2AppsSettingsProps = {
 	apps?: TypesGen.OAuth2ProviderApp[];
@@ -93,7 +93,7 @@ type OAuth2AppRowProps = {
 };
 
 const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
-	const theme = useTheme();
+	const _theme = useTheme();
 	const navigate = useNavigate();
 	const clickableProps = useClickableTableRow({
 		onClick: () => navigate(`/deployment/oauth2-provider/apps/${app.id}`),

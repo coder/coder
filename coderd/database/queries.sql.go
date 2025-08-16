@@ -1711,7 +1711,7 @@ func (q *sqlQuerier) DeleteExternalAuthLink(ctx context.Context, arg DeleteExter
 }
 
 const getExternalAuthLink = `-- name: GetExternalAuthLink :one
-SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra FROM external_auth_links WHERE provider_id = $1 AND user_id = $2
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason FROM external_auth_links WHERE provider_id = $1 AND user_id = $2
 `
 
 type GetExternalAuthLinkParams struct {
@@ -1733,12 +1733,13 @@ func (q *sqlQuerier) GetExternalAuthLink(ctx context.Context, arg GetExternalAut
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
 		&i.OAuthExtra,
+		&i.OauthRefreshFailureReason,
 	)
 	return i, err
 }
 
 const getExternalAuthLinksByUserID = `-- name: GetExternalAuthLinksByUserID :many
-SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra FROM external_auth_links WHERE user_id = $1
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason FROM external_auth_links WHERE user_id = $1
 `
 
 func (q *sqlQuerier) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]ExternalAuthLink, error) {
@@ -1761,6 +1762,7 @@ func (q *sqlQuerier) GetExternalAuthLinksByUserID(ctx context.Context, userID uu
 			&i.OAuthAccessTokenKeyID,
 			&i.OAuthRefreshTokenKeyID,
 			&i.OAuthExtra,
+			&i.OauthRefreshFailureReason,
 		); err != nil {
 			return nil, err
 		}
@@ -1798,7 +1800,7 @@ INSERT INTO external_auth_links (
     $8,
     $9,
 	$10
-) RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra
+) RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason
 `
 
 type InsertExternalAuthLinkParams struct {
@@ -1839,6 +1841,7 @@ func (q *sqlQuerier) InsertExternalAuthLink(ctx context.Context, arg InsertExter
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
 		&i.OAuthExtra,
+		&i.OauthRefreshFailureReason,
 	)
 	return i, err
 }
@@ -1851,8 +1854,12 @@ UPDATE external_auth_links SET
     oauth_refresh_token = $6,
     oauth_refresh_token_key_id = $7,
     oauth_expiry = $8,
-	oauth_extra = $9
-WHERE provider_id = $1 AND user_id = $2 RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra
+	oauth_extra = $9,
+	-- Only 'UpdateExternalAuthLinkRefreshToken' supports updating the oauth_refresh_failure_reason.
+	-- Any updates to the external auth link, will be assumed to change the state and clear
+	-- any cached errors.
+	oauth_refresh_failure_reason = ''
+WHERE provider_id = $1 AND user_id = $2 RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason
 `
 
 type UpdateExternalAuthLinkParams struct {
@@ -1891,6 +1898,7 @@ func (q *sqlQuerier) UpdateExternalAuthLink(ctx context.Context, arg UpdateExter
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
 		&i.OAuthExtra,
+		&i.OauthRefreshFailureReason,
 	)
 	return i, err
 }
@@ -1899,27 +1907,32 @@ const updateExternalAuthLinkRefreshToken = `-- name: UpdateExternalAuthLinkRefre
 UPDATE
 	external_auth_links
 SET
-	oauth_refresh_token = $1,
-	updated_at = $2
+	-- oauth_refresh_failure_reason can be set to cache the failure reason
+	-- for subsequent refresh attempts.
+	oauth_refresh_failure_reason = $1,
+	oauth_refresh_token = $2,
+	updated_at = $3
 WHERE
-    provider_id = $3
+    provider_id = $4
 AND
-    user_id = $4
+    user_id = $5
 AND
     -- Required for sqlc to generate a parameter for the oauth_refresh_token_key_id
-    $5 :: text = $5 :: text
+    $6 :: text = $6 :: text
 `
 
 type UpdateExternalAuthLinkRefreshTokenParams struct {
-	OAuthRefreshToken      string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	UpdatedAt              time.Time `db:"updated_at" json:"updated_at"`
-	ProviderID             string    `db:"provider_id" json:"provider_id"`
-	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
-	OAuthRefreshTokenKeyID string    `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OauthRefreshFailureReason string    `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
+	OAuthRefreshToken         string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	UpdatedAt                 time.Time `db:"updated_at" json:"updated_at"`
+	ProviderID                string    `db:"provider_id" json:"provider_id"`
+	UserID                    uuid.UUID `db:"user_id" json:"user_id"`
+	OAuthRefreshTokenKeyID    string    `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 }
 
 func (q *sqlQuerier) UpdateExternalAuthLinkRefreshToken(ctx context.Context, arg UpdateExternalAuthLinkRefreshTokenParams) error {
 	_, err := q.db.ExecContext(ctx, updateExternalAuthLinkRefreshToken,
+		arg.OauthRefreshFailureReason,
 		arg.OAuthRefreshToken,
 		arg.UpdatedAt,
 		arg.ProviderID,
@@ -7122,7 +7135,20 @@ const claimPrebuiltWorkspace = `-- name: ClaimPrebuiltWorkspace :one
 UPDATE workspaces w
 SET owner_id   = $1::uuid,
 	name       = $2::text,
-	updated_at = NOW()
+	updated_at = $3::timestamptz,
+	-- Update autostart_schedule, next_start_at and ttl according to template and workspace-level
+	-- configurations, allowing the workspace to be managed by the lifecycle executor as expected.
+	autostart_schedule = $4,
+	next_start_at = $5,
+	ttl = $6,
+	-- Update last_used_at during claim to ensure the claimed workspace is treated as recently used.
+	-- This avoids unintended dormancy caused by prebuilds having stale usage timestamps.
+	last_used_at = $3::timestamptz,
+	-- Clear dormant and deletion timestamps as a safeguard to ensure a clean lifecycle state after claim.
+	-- These fields should not be set on prebuilds, but we defensively reset them here to prevent
+	-- accidental dormancy or deletion by the lifecycle executor.
+	dormant_at = NULL,
+	deleting_at = NULL
 WHERE w.id IN (
 	SELECT p.id
 	FROM workspace_prebuilds p
@@ -7133,7 +7159,7 @@ WHERE w.id IN (
 		-- The prebuilds system should never try to claim a prebuild for an inactive template version.
 		-- Nevertheless, this filter is here as a defensive measure:
 		AND b.template_version_id = t.active_version_id
-		AND p.current_preset_id = $3::uuid
+		AND p.current_preset_id = $7::uuid
 		AND p.ready
 		AND NOT t.deleted
 	LIMIT 1 FOR UPDATE OF p SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
@@ -7142,9 +7168,13 @@ RETURNING w.id, w.name
 `
 
 type ClaimPrebuiltWorkspaceParams struct {
-	NewUserID uuid.UUID `db:"new_user_id" json:"new_user_id"`
-	NewName   string    `db:"new_name" json:"new_name"`
-	PresetID  uuid.UUID `db:"preset_id" json:"preset_id"`
+	NewUserID         uuid.UUID      `db:"new_user_id" json:"new_user_id"`
+	NewName           string         `db:"new_name" json:"new_name"`
+	Now               time.Time      `db:"now" json:"now"`
+	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
+	NextStartAt       sql.NullTime   `db:"next_start_at" json:"next_start_at"`
+	WorkspaceTtl      sql.NullInt64  `db:"workspace_ttl" json:"workspace_ttl"`
+	PresetID          uuid.UUID      `db:"preset_id" json:"preset_id"`
 }
 
 type ClaimPrebuiltWorkspaceRow struct {
@@ -7153,7 +7183,15 @@ type ClaimPrebuiltWorkspaceRow struct {
 }
 
 func (q *sqlQuerier) ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error) {
-	row := q.db.QueryRowContext(ctx, claimPrebuiltWorkspace, arg.NewUserID, arg.NewName, arg.PresetID)
+	row := q.db.QueryRowContext(ctx, claimPrebuiltWorkspace,
+		arg.NewUserID,
+		arg.NewName,
+		arg.Now,
+		arg.AutostartSchedule,
+		arg.NextStartAt,
+		arg.WorkspaceTtl,
+		arg.PresetID,
+	)
 	var i ClaimPrebuiltWorkspaceRow
 	err := row.Scan(&i.ID, &i.Name)
 	return i, err
@@ -12870,6 +12908,21 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 	return i, err
 }
 
+const getTemplateVersionHasAITask = `-- name: GetTemplateVersionHasAITask :one
+SELECT EXISTS (
+	SELECT 1
+	FROM template_versions
+	WHERE id = $1 AND has_ai_task = TRUE
+)
+`
+
+func (q *sqlQuerier) GetTemplateVersionHasAITask(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateVersionHasAITask, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const getTemplateVersionsByIDs = `-- name: GetTemplateVersionsByIDs :many
 SELECT
 	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, created_by_avatar_url, created_by_username, created_by_name
@@ -13463,6 +13516,161 @@ $$
 // of the test-only in-memory database. Do not use this in new code.
 func (q *sqlQuerier) DisableForeignKeysAndTriggers(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, disableForeignKeysAndTriggers)
+	return err
+}
+
+const insertUsageEvent = `-- name: InsertUsageEvent :exec
+INSERT INTO
+    usage_events (
+        id,
+        event_type,
+        event_data,
+        created_at,
+        publish_started_at,
+        published_at,
+        failure_message
+    )
+VALUES
+    ($1, $2, $3, $4, NULL, NULL, NULL)
+ON CONFLICT (id) DO NOTHING
+`
+
+type InsertUsageEventParams struct {
+	ID        string          `db:"id" json:"id"`
+	EventType string          `db:"event_type" json:"event_type"`
+	EventData json.RawMessage `db:"event_data" json:"event_data"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+}
+
+// Duplicate events are ignored intentionally to allow for multiple replicas to
+// publish heartbeat events.
+func (q *sqlQuerier) InsertUsageEvent(ctx context.Context, arg InsertUsageEventParams) error {
+	_, err := q.db.ExecContext(ctx, insertUsageEvent,
+		arg.ID,
+		arg.EventType,
+		arg.EventData,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const selectUsageEventsForPublishing = `-- name: SelectUsageEventsForPublishing :many
+WITH usage_events AS (
+    UPDATE
+        usage_events
+    SET
+        publish_started_at = $1::timestamptz
+    WHERE
+        id IN (
+            SELECT
+                potential_event.id
+            FROM
+                usage_events potential_event
+            WHERE
+                -- Do not publish events that have already been published or
+                -- have permanently failed to publish.
+                potential_event.published_at IS NULL
+                -- Do not publish events that are already being published by
+                -- another replica.
+                AND (
+                    potential_event.publish_started_at IS NULL
+                    -- If the event has publish_started_at set, it must be older
+                    -- than an hour ago. This is so we can retry publishing
+                    -- events where the replica exited or couldn't update the
+                    -- row.
+                    -- The parenthesis around @now::timestamptz are necessary to
+                    -- avoid sqlc from generating an extra argument.
+                    OR potential_event.publish_started_at < ($1::timestamptz) - INTERVAL '1 hour'
+                )
+                -- Do not publish events older than 30 days. Tallyman will
+                -- always permanently reject these events anyways. This is to
+                -- avoid duplicate events being billed to customers, as
+                -- Metronome will only deduplicate events within 34 days.
+                -- Also, the same parenthesis thing here as above.
+                AND potential_event.created_at > ($1::timestamptz) - INTERVAL '30 days'
+            ORDER BY potential_event.created_at ASC
+            FOR UPDATE SKIP LOCKED
+            LIMIT 100
+        )
+    RETURNING id, event_type, event_data, created_at, publish_started_at, published_at, failure_message
+)
+SELECT id, event_type, event_data, created_at, publish_started_at, published_at, failure_message
+FROM usage_events
+ORDER BY created_at ASC
+`
+
+// Note that this selects from the CTE, not the original table. The CTE is named
+// the same as the original table to trick sqlc into reusing the existing struct
+// for the table.
+// The CTE and the reorder is required because UPDATE doesn't guarantee order.
+func (q *sqlQuerier) SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]UsageEvent, error) {
+	rows, err := q.db.QueryContext(ctx, selectUsageEventsForPublishing, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UsageEvent
+	for rows.Next() {
+		var i UsageEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventType,
+			&i.EventData,
+			&i.CreatedAt,
+			&i.PublishStartedAt,
+			&i.PublishedAt,
+			&i.FailureMessage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateUsageEventsPostPublish = `-- name: UpdateUsageEventsPostPublish :exec
+UPDATE
+    usage_events
+SET
+    publish_started_at = NULL,
+    published_at = CASE WHEN input.set_published_at THEN $1::timestamptz ELSE NULL END,
+    failure_message = NULLIF(input.failure_message, '')
+FROM (
+    SELECT
+        UNNEST($2::text[]) AS id,
+        UNNEST($3::text[]) AS failure_message,
+        UNNEST($4::boolean[]) AS set_published_at
+) input
+WHERE
+    input.id = usage_events.id
+    -- If the number of ids, failure messages, and set published ats are not the
+    -- same, do not do anything. Unfortunately you can't really throw from a
+    -- query without writing a function or doing some jank like dividing by
+    -- zero, so this is the best we can do.
+    AND cardinality($2::text[]) = cardinality($3::text[])
+    AND cardinality($2::text[]) = cardinality($4::boolean[])
+`
+
+type UpdateUsageEventsPostPublishParams struct {
+	Now             time.Time `db:"now" json:"now"`
+	IDs             []string  `db:"ids" json:"ids"`
+	FailureMessages []string  `db:"failure_messages" json:"failure_messages"`
+	SetPublishedAts []bool    `db:"set_published_ats" json:"set_published_ats"`
+}
+
+func (q *sqlQuerier) UpdateUsageEventsPostPublish(ctx context.Context, arg UpdateUsageEventsPostPublishParams) error {
+	_, err := q.db.ExecContext(ctx, updateUsageEventsPostPublish,
+		arg.Now,
+		pq.Array(arg.IDs),
+		pq.Array(arg.FailureMessages),
+		pq.Array(arg.SetPublishedAts),
+	)
 	return err
 }
 
@@ -18664,65 +18872,6 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 	return i, err
 }
 
-const getLatestWorkspaceBuilds = `-- name: GetLatestWorkspaceBuilds :many
-SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline, wb.template_version_preset_id, wb.has_ai_task, wb.ai_task_sidebar_app_id, wb.initiator_by_avatar_url, wb.initiator_by_username, wb.initiator_by_name
-FROM (
-    SELECT
-        workspace_id, MAX(build_number) as max_build_number
-    FROM
-		workspace_build_with_user AS workspace_builds
-    GROUP BY
-        workspace_id
-) m
-JOIN
-	 workspace_build_with_user AS wb
-ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number
-`
-
-func (q *sqlQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuild, error) {
-	rows, err := q.db.QueryContext(ctx, getLatestWorkspaceBuilds)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkspaceBuild
-	for rows.Next() {
-		var i WorkspaceBuild
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.WorkspaceID,
-			&i.TemplateVersionID,
-			&i.BuildNumber,
-			&i.Transition,
-			&i.InitiatorID,
-			&i.ProvisionerState,
-			&i.JobID,
-			&i.Deadline,
-			&i.Reason,
-			&i.DailyCost,
-			&i.MaxDeadline,
-			&i.TemplateVersionPresetID,
-			&i.HasAITask,
-			&i.AITaskSidebarAppID,
-			&i.InitiatorByAvatarUrl,
-			&i.InitiatorByUsername,
-			&i.InitiatorByName,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getLatestWorkspaceBuildsByWorkspaceIDs = `-- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many
 SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline, wb.template_version_preset_id, wb.has_ai_task, wb.ai_task_sidebar_app_id, wb.initiator_by_avatar_url, wb.initiator_by_username, wb.initiator_by_name
 FROM (
@@ -19224,7 +19373,15 @@ SET
 	deadline = $1::timestamptz,
 	max_deadline = $2::timestamptz,
 	updated_at = $3::timestamptz
-WHERE id = $4::uuid
+FROM
+	workspaces
+WHERE
+	workspace_builds.id = $4::uuid
+	AND workspace_builds.workspace_id = workspaces.id
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- deadline and max_deadline
+	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 `
 
 type UpdateWorkspaceBuildDeadlineByIDParams struct {
@@ -21179,6 +21336,10 @@ SET
 	next_start_at = $3
 WHERE
 	id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+  	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+  	-- autostart_schedule and next_start_at
+  	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 `
 
 type UpdateWorkspaceAutostartParams struct {
@@ -21235,6 +21396,10 @@ FROM
 WHERE
     workspaces.id = $1
     AND templates.id = workspaces.template_id
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- dormant_at and deleting_at
+	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 RETURNING
     workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl
 `
@@ -21296,6 +21461,10 @@ SET
 	next_start_at = $2
 WHERE
 	id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- next_start_at
+	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 `
 
 type UpdateWorkspaceNextStartAtParams struct {
@@ -21315,6 +21484,10 @@ SET
 	ttl = $2
 WHERE
 	id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- ttl
+	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 `
 
 type UpdateWorkspaceTTLParams struct {
@@ -21393,11 +21566,11 @@ func (q *sqlQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.C
 
 const updateWorkspacesTTLByTemplateID = `-- name: UpdateWorkspacesTTLByTemplateID :exec
 UPDATE
-		workspaces
+	workspaces
 SET
-		ttl = $2
+	ttl = $2
 WHERE
-		template_id = $1
+	template_id = $1
 `
 
 type UpdateWorkspacesTTLByTemplateIDParams struct {

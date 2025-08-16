@@ -1,4 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import { MockOrganization } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	Breadcrumb,
 	BreadcrumbEllipsis,
@@ -8,7 +9,6 @@ import {
 	BreadcrumbPage,
 	BreadcrumbSeparator,
 } from "components/Breadcrumb/Breadcrumb";
-import { MockOrganization } from "testHelpers/entities";
 
 const meta: Meta<typeof Breadcrumb> = {
 	title: "components/Breadcrumb",

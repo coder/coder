@@ -1,5 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import type { WorkspaceApp } from "api/typesGenerated";
 import {
 	MockTasks,
 	MockWorkspace,
@@ -7,6 +5,8 @@ import {
 	MockWorkspaceApp,
 } from "testHelpers/entities";
 import { withProxyProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { WorkspaceApp } from "api/typesGenerated";
 import { TaskApps } from "./TaskApps";
 
 const meta: Meta<typeof TaskApps> = {

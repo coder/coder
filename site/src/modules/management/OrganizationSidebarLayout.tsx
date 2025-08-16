@@ -1,6 +1,6 @@
 import { Loader } from "components/Loader/Loader";
 import { type FC, Suspense } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet } from "react-router";
 import { OrganizationSidebar } from "./OrganizationSidebar";
 
 const OrganizationSidebarLayout: FC = () => {

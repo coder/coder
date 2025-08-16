@@ -1,10 +1,10 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import {
 	MockGroup as MockGroup1,
 	MockUserOwner,
 	mockApiError,
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { AccountUserGroups } from "./AccountUserGroups";
 
 const MockGroup2 = {

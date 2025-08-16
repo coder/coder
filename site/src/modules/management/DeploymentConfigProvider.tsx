@@ -2,9 +2,9 @@ import type { DeploymentConfig } from "api/api";
 import { deploymentConfig } from "api/queries/deployment";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
-import { type FC, createContext, useContext } from "react";
+import { createContext, type FC, useContext } from "react";
 import { useQuery } from "react-query";
-import { Outlet } from "react-router-dom";
+import { Outlet } from "react-router";
 
 export const DeploymentConfigContext = createContext<
 	DeploymentConfigValue | undefined

@@ -1,7 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { spyOn, userEvent, within } from "@storybook/test";
-import { API } from "api/api";
-import { getPreferredProxy } from "contexts/ProxyContext";
 import { chromatic } from "testHelpers/chromatic";
 import * as M from "testHelpers/entities";
 import {
@@ -9,6 +5,10 @@ import {
 	withProxyProvider,
 	withWebSocket,
 } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { API } from "api/api";
+import { getPreferredProxy } from "contexts/ProxyContext";
+import { spyOn, userEvent, within } from "storybook/test";
 import { AgentRow } from "./AgentRow";
 
 const defaultAgentMetadata = [

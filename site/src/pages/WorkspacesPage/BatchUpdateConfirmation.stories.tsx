@@ -1,7 +1,3 @@
-import { action } from "@storybook/addon-actions";
-import type { Meta, StoryObj } from "@storybook/react";
-import type { Workspace } from "api/typesGenerated";
-import { useQueryClient } from "react-query";
 import { chromatic } from "testHelpers/chromatic";
 import {
 	MockDormantOutdatedWorkspace,
@@ -11,6 +7,10 @@ import {
 	MockUserMember,
 	MockWorkspace,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { Workspace } from "api/typesGenerated";
+import { useQueryClient } from "react-query";
+import { action } from "storybook/actions";
 import {
 	BatchUpdateConfirmation,
 	type Update,

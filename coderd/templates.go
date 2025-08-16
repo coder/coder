@@ -772,12 +772,16 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		classicTemplateFlow = *req.UseClassicParameterFlow
 	}
 
+	displayName := ptr.NilToDefault(req.DisplayName, template.DisplayName)
+	description := ptr.NilToDefault(req.Description, template.Description)
+	icon := ptr.NilToDefault(req.Icon, template.Icon)
+
 	var updated database.Template
 	err = api.Database.InTx(func(tx database.Store) error {
 		if req.Name == template.Name &&
-			req.Description == template.Description &&
-			req.DisplayName == template.DisplayName &&
-			req.Icon == template.Icon &&
+			description == template.Description &&
+			displayName == template.DisplayName &&
+			icon == template.Icon &&
 			req.AllowUserAutostart == template.AllowUserAutostart &&
 			req.AllowUserAutostop == template.AllowUserAutostop &&
 			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
@@ -828,9 +832,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			ID:                           template.ID,
 			UpdatedAt:                    dbtime.Now(),
 			Name:                         name,
-			DisplayName:                  req.DisplayName,
-			Description:                  req.Description,
-			Icon:                         req.Icon,
+			DisplayName:                  displayName,
+			Description:                  description,
+			Icon:                         icon,
 			AllowUserCancelWorkspaceJobs: req.AllowUserCancelWorkspaceJobs,
 			GroupACL:                     groupACL,
 			MaxPortSharingLevel:          maxPortShareLevel,

@@ -1,13 +1,13 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
-import { deploymentConfigQueryKey } from "api/queries/deployment";
-import { agentLogsKey, buildLogsKey } from "api/queries/workspaces";
 import * as Mocks from "testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withDesktopViewport,
 } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { deploymentConfigQueryKey } from "api/queries/deployment";
+import { agentLogsKey, buildLogsKey } from "api/queries/workspaces";
+import { expect, userEvent, within } from "storybook/test";
 import { WorkspaceActions } from "./WorkspaceActions";
 
 const meta: Meta<typeof WorkspaceActions> = {

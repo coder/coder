@@ -1,9 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { fn, userEvent, within } from "@storybook/test";
-import { getAuthorizationKey } from "api/queries/authCheck";
-import { getPreferredProxy } from "contexts/ProxyContext";
-import { AuthProvider } from "contexts/auth/AuthProvider";
-import { permissionChecks } from "modules/permissions";
 import {
 	MockAuthMethodsAll,
 	MockPermissions,
@@ -12,6 +6,12 @@ import {
 	MockWorkspaceProxies,
 } from "testHelpers/entities";
 import { withDesktopViewport } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { getAuthorizationKey } from "api/queries/authCheck";
+import { AuthProvider } from "contexts/auth/AuthProvider";
+import { getPreferredProxy } from "contexts/ProxyContext";
+import { permissionChecks } from "modules/permissions";
+import { fn, userEvent, within } from "storybook/test";
 import { ProxyMenu } from "./ProxyMenu";
 
 const defaultProxyContextValue = {

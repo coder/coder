@@ -1,7 +1,3 @@
-import { fireEvent, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import type { SlimRole } from "api/typesGenerated";
-import { http, HttpResponse } from "msw";
 import {
 	MockEntitlementsWithMultiOrg,
 	MockOrganization,
@@ -14,6 +10,10 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import { fireEvent, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { SlimRole } from "api/typesGenerated";
+import { HttpResponse, http } from "msw";
 import OrganizationMembersPage from "./OrganizationMembersPage";
 
 jest.spyOn(console, "error").mockImplementation(() => {});
