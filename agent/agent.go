@@ -70,6 +70,47 @@ const (
 	EnvProcOOMScore = "CODER_PROC_OOM_SCORE"
 )
 
+// agentImmortalDialer is a custom dialer for immortal streams that can
+// connect to the agent's own services via tailnet addresses.
+type agentImmortalDialer struct {
+	agent          *agent
+	standardDialer *net.Dialer
+}
+
+func (d *agentImmortalDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	host, portStr, err := net.SplitHostPort(address)
+	if err != nil {
+		return nil, xerrors.Errorf("split host port %q: %w", address, err)
+	}
+
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return nil, xerrors.Errorf("parse port %q: %w", portStr, err)
+	}
+
+	// Check if this is a connection to one of the agent's own services
+	isLocalhost := host == "localhost" || host == "127.0.0.1" || host == "::1"
+	isAgentPort := port == int(workspacesdk.AgentSSHPort) || port == int(workspacesdk.AgentHTTPAPIServerPort) ||
+		port == int(workspacesdk.AgentReconnectingPTYPort) || port == int(workspacesdk.AgentSpeedtestPort)
+
+	if isLocalhost && isAgentPort {
+		// Get the agent ID from the current manifest
+		manifest := d.agent.manifest.Load()
+		if manifest == nil || manifest.AgentID == uuid.Nil {
+			// Fallback to standard dialing if no manifest available yet
+			return d.standardDialer.DialContext(ctx, network, address)
+		}
+
+		// Connect to the agent's own tailnet address instead of localhost
+		agentAddr := tailnet.TailscaleServicePrefix.AddrFromUUID(manifest.AgentID)
+		agentAddress := net.JoinHostPort(agentAddr.String(), portStr)
+		return d.standardDialer.DialContext(ctx, network, agentAddress)
+	}
+
+	// For other addresses, use standard dialing
+	return d.standardDialer.DialContext(ctx, network, address)
+}
+
 type Options struct {
 	Filesystem                   afero.Fs
 	LogDir                       string
@@ -351,8 +392,13 @@ func (a *agent) init() {
 
 	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
-	// Initialize immortal streams manager
-	a.immortalStreamsManager = immortalstreams.New(a.logger.Named("immortal-streams"), &net.Dialer{})
+	// Initialize immortal streams manager with a custom dialer
+	// that can connect to the agent's own services
+	immortalDialer := &agentImmortalDialer{
+		agent:          a,
+		standardDialer: &net.Dialer{},
+	}
+	a.immortalStreamsManager = immortalstreams.New(a.logger.Named("immortal-streams"), immortalDialer)
 
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
