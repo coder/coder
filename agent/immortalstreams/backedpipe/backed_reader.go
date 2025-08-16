@@ -15,14 +15,20 @@ type BackedReader struct {
 	sequenceNum uint64
 	closed      bool
 
-	// Error callback to notify parent when connection fails
-	onError func(error)
+	// Error channel to notify parent when connection fails
+	errorChan chan<- error
 }
 
 // NewBackedReader creates a new BackedReader. The reader is initially disconnected
 // and must be connected using Reconnect before reads will succeed.
-func NewBackedReader() *BackedReader {
-	br := &BackedReader{}
+// The errorChan is required and will receive connection errors.
+func NewBackedReader(errorChan chan<- error) *BackedReader {
+	if errorChan == nil {
+		panic("error channel cannot be nil")
+	}
+	br := &BackedReader{
+		errorChan: errorChan,
+	}
 	br.cond = sync.NewCond(&br.mu)
 	return br
 }
@@ -59,8 +65,10 @@ func (br *BackedReader) Read(p []byte) (int, error) {
 		// Mark reader as disconnected so future reads will wait for reconnection
 		br.reader = nil
 
-		if br.onError != nil {
-			br.onError(err)
+		// Notify parent of error
+		select {
+		case br.errorChan <- err:
+		default:
 		}
 
 		// If we got some data before the error, return it now
@@ -122,14 +130,6 @@ func (br *BackedReader) Close() error {
 	br.cond.Broadcast()
 
 	return nil
-}
-
-// SetErrorCallback sets the callback function that will be called when
-// a connection error occurs (excluding EOF).
-func (br *BackedReader) SetErrorCallback(fn func(error)) {
-	br.mu.Lock()
-	defer br.mu.Unlock()
-	br.onError = fn
 }
 
 // SequenceNum returns the current sequence number (total bytes read).

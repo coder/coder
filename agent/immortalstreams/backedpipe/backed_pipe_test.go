@@ -104,45 +104,78 @@ func (mc *mockConnection) Reset() {
 	mc.closed = false
 }
 
-// mockReconnectFunc creates a unified reconnect function with all behaviors enabled
-func mockReconnectFunc(connections ...*mockConnection) (backedpipe.ReconnectFunc, *int, chan struct{}) {
-	connectionIndex := 0
-	callCount := 0
-	signalChan := make(chan struct{}, 1)
+// mockReconnector implements the Reconnector interface for testing
+type mockReconnector struct {
+	connections     []*mockConnection
+	connectionIndex int
+	callCount       int
+	signalChan      chan struct{}
+}
 
-	reconnectFn := func(ctx context.Context, writerSeqNum uint64) (io.ReadWriteCloser, uint64, error) {
-		callCount++
+// Reconnect implements the Reconnector interface
+func (m *mockReconnector) Reconnect(ctx context.Context, writerSeqNum uint64) (io.ReadWriteCloser, uint64, error) {
+	m.callCount++
 
-		if connectionIndex >= len(connections) {
-			return nil, 0, xerrors.New("no more connections available")
-		}
-
-		conn := connections[connectionIndex]
-		connectionIndex++
-
-		// Signal when reconnection happens
-		if connectionIndex > 1 {
-			select {
-			case signalChan <- struct{}{}:
-			default:
-			}
-		}
-
-		// Determine readerSeqNum based on call count
-		var readerSeqNum uint64
-		switch {
-		case callCount == 1:
-			readerSeqNum = 0
-		case conn.seqNum != 0:
-			readerSeqNum = conn.seqNum
-		default:
-			readerSeqNum = writerSeqNum
-		}
-
-		return conn, readerSeqNum, nil
+	if m.connectionIndex >= len(m.connections) {
+		return nil, 0, xerrors.New("no more connections available")
 	}
 
-	return reconnectFn, &callCount, signalChan
+	conn := m.connections[m.connectionIndex]
+	m.connectionIndex++
+
+	// Signal when reconnection happens
+	if m.connectionIndex > 1 {
+		select {
+		case m.signalChan <- struct{}{}:
+		default:
+		}
+	}
+
+	// Determine readerSeqNum based on call count
+	var readerSeqNum uint64
+	switch {
+	case m.callCount == 1:
+		readerSeqNum = 0
+	case conn.seqNum != 0:
+		readerSeqNum = conn.seqNum
+	default:
+		readerSeqNum = writerSeqNum
+	}
+
+	return conn, readerSeqNum, nil
+}
+
+// mockReconnectFunc creates a unified reconnector with all behaviors enabled
+func mockReconnectFunc(connections ...*mockConnection) (backedpipe.Reconnector, *int, chan struct{}) {
+	signalChan := make(chan struct{}, 1)
+
+	reconnector := &mockReconnector{
+		connections: connections,
+		signalChan:  signalChan,
+	}
+
+	return reconnector, &reconnector.callCount, signalChan
+}
+
+// eofTestReconnector is a custom reconnector for the EOF test case
+type eofTestReconnector struct {
+	conn1     io.ReadWriteCloser
+	conn2     io.ReadWriteCloser
+	callCount *int
+}
+
+func (e *eofTestReconnector) Reconnect(ctx context.Context, writerSeqNum uint64) (io.ReadWriteCloser, uint64, error) {
+	*e.callCount++
+
+	if *e.callCount == 1 {
+		return e.conn1, 0, nil
+	}
+	if *e.callCount == 2 {
+		// Second call is the reconnection after EOF
+		return e.conn2, writerSeqNum, nil // conn2 already has the reader sequence at writerSeqNum
+	}
+
+	return nil, 0, xerrors.New("no more connections")
 }
 
 func TestBackedPipe_NewBackedPipe(t *testing.T) {
@@ -287,12 +320,12 @@ func TestBackedPipe_ReadBlocksWhenDisconnected(t *testing.T) {
 
 	// Start a read that should block
 	readDone := make(chan struct{})
-	readStarted := make(chan struct{})
+	readStarted := make(chan struct{}, 1)
 	var readErr error
 
 	go func() {
 		defer close(readDone)
-		close(readStarted) // Signal that we're about to start the read
+		readStarted <- struct{}{} // Signal that we're about to start the read
 		buf := make([]byte, 10)
 		_, readErr = bp.Read(buf)
 	}()
@@ -300,16 +333,17 @@ func TestBackedPipe_ReadBlocksWhenDisconnected(t *testing.T) {
 	// Wait for the goroutine to start
 	testutil.TryReceive(testCtx, t, readStarted)
 
-	// Give a brief moment for the read to actually block
-	time.Sleep(time.Millisecond)
-
-	// Read should still be blocked
-	select {
-	case <-readDone:
-		t.Fatal("Read should be blocked when disconnected")
-	default:
-		// Good, still blocked
-	}
+	// Ensure the read is actually blocked by verifying it hasn't completed
+	require.Eventually(t, func() bool {
+		select {
+		case <-readDone:
+			t.Fatal("Read should be blocked when disconnected")
+			return false
+		default:
+			// Good, still blocked
+			return true
+		}
+	}, testutil.WaitShort, testutil.IntervalMedium)
 
 	// Close should unblock the read
 	bp.Close()
@@ -410,11 +444,11 @@ func TestBackedPipe_ReconnectFunctionFailure(t *testing.T) {
 
 	ctx := context.Background()
 
-	failingReconnectFn := func(ctx context.Context, writerSeqNum uint64) (io.ReadWriteCloser, uint64, error) {
-		return nil, 0, xerrors.New("reconnect failed")
+	failingReconnector := &mockReconnector{
+		connections: nil, // No connections available
 	}
 
-	bp := backedpipe.NewBackedPipe(ctx, failingReconnectFn)
+	bp := backedpipe.NewBackedPipe(ctx, failingReconnector)
 	defer bp.Close()
 
 	err := bp.Connect()
@@ -544,21 +578,13 @@ func TestBackedPipe_EOFTriggersReconnection(t *testing.T) {
 	conn1.WriteString("world")
 
 	callCount := 0
-	reconnectFn := func(ctx context.Context, writerSeqNum uint64) (io.ReadWriteCloser, uint64, error) {
-		callCount++
-
-		if callCount == 1 {
-			return conn1, 0, nil
-		}
-		if callCount == 2 {
-			// Second call is the reconnection after EOF
-			return conn2, writerSeqNum, nil // conn2 already has the reader sequence at writerSeqNum
-		}
-
-		return nil, 0, xerrors.New("no more connections")
+	reconnector := &eofTestReconnector{
+		conn1:     conn1,
+		conn2:     conn2,
+		callCount: &callCount,
 	}
 
-	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
+	bp := backedpipe.NewBackedPipe(ctx, reconnector)
 	defer bp.Close()
 
 	// Initial connect
