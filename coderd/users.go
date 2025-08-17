@@ -148,7 +148,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	err = userpassword.Validate(createUser.Password)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Password not strong enough!",
+			Message: "Password is invalid",
 			Validations: []codersdk.ValidationError{{
 				Field:  "password",
 				Detail: err.Error(),
@@ -448,7 +448,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		err = userpassword.Validate(req.Password)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Password not strong enough!",
+				Message: "Password is invalid",
 				Validations: []codersdk.ValidationError{{
 					Field:  "password",
 					Detail: err.Error(),
@@ -542,7 +542,10 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaces, err := api.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{
+	// This query is ONLY done to get the workspace count, so we use a system
+	// context to return ALL workspaces. Not just workspaces the user can view.
+	// nolint:gocritic
+	workspaces, err := api.Database.GetWorkspaces(dbauthz.AsSystemRestricted(ctx), database.GetWorkspacesParams{
 		OwnerID: user.ID,
 	})
 	if err != nil {

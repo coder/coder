@@ -1,17 +1,17 @@
-import { renderHook, waitFor } from "@testing-library/react";
-import * as API from "api/api";
-import type { WorkspaceAgentListContainersResponse } from "api/typesGenerated";
-import * as GlobalSnackbar from "components/GlobalSnackbar/utils";
-import { http, HttpResponse } from "msw";
-import type { FC, PropsWithChildren } from "react";
-import { act } from "react";
-import { QueryClientProvider } from "react-query";
 import {
 	MockWorkspaceAgent,
 	MockWorkspaceAgentDevcontainer,
 } from "testHelpers/entities";
 import { createTestQueryClient } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import { renderHook, waitFor } from "@testing-library/react";
+import * as API from "api/api";
+import type { WorkspaceAgentListContainersResponse } from "api/typesGenerated";
+import * as GlobalSnackbar from "components/GlobalSnackbar/utils";
+import { HttpResponse, http } from "msw";
+import type { FC, PropsWithChildren } from "react";
+import { act } from "react";
+import { QueryClientProvider } from "react-query";
 import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 import { useAgentContainers } from "./useAgentContainers";
 

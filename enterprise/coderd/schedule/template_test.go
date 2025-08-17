@@ -23,7 +23,6 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/testutil"
@@ -73,17 +72,23 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 	buildTime := time.Date(nowY, nowM, nowD, 12, 0, 0, 0, time.UTC)       // noon today UTC
 	nextQuietHours := time.Date(nowY, nowM, nowD+1, 0, 0, 0, 0, time.UTC) // midnight tomorrow UTC
 
-	// Workspace old max_deadline too soon
+	defaultTTL := 8 * time.Hour
+
 	cases := []struct {
-		name        string
-		now         time.Time
+		name string
+		now  time.Time
+		// Before:
 		deadline    time.Time
 		maxDeadline time.Time
-		// Set to nil for no change.
-		newDeadline    *time.Time
+		// After:
+		newDeadline    time.Time
 		newMaxDeadline time.Time
-		noQuietHours   bool
-		autostopReq    *agplschedule.TemplateAutostopRequirement
+		// Config:
+		noQuietHours bool
+		// Note that ttl will not influence the new build at all unless it's 0
+		// AND the build does not have a max deadline post recalculation.
+		ttl         time.Duration
+		autostopReq *agplschedule.TemplateAutostopRequirement
 	}{
 		{
 			name:        "SkippedWorkspaceMaxDeadlineTooSoon",
@@ -91,8 +96,9 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			deadline:    buildTime,
 			maxDeadline: buildTime.Add(1 * time.Hour),
 			// Unchanged since the max deadline is too soon.
-			newDeadline:    nil,
+			newDeadline:    buildTime,
 			newMaxDeadline: buildTime.Add(1 * time.Hour),
+			ttl:            defaultTTL, // no effect
 		},
 		{
 			name: "NewWorkspaceMaxDeadlineBeforeNow",
@@ -101,10 +107,11 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			deadline: buildTime,
 			// Far into the future...
 			maxDeadline: nextQuietHours.Add(24 * time.Hour),
-			newDeadline: nil,
+			newDeadline: buildTime,
 			// We will use now() + 2 hours if the newly calculated max deadline
 			// from the workspace build time is before now.
 			newMaxDeadline: nextQuietHours.Add(8 * time.Hour),
+			ttl:            defaultTTL, // no effect
 		},
 		{
 			name: "NewWorkspaceMaxDeadlineSoon",
@@ -113,10 +120,11 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			deadline: buildTime,
 			// Far into the future...
 			maxDeadline: nextQuietHours.Add(24 * time.Hour),
-			newDeadline: nil,
+			newDeadline: buildTime,
 			// We will use now() + 2 hours if the newly calculated max deadline
 			// from the workspace build time is within the next 2 hours.
 			newMaxDeadline: nextQuietHours.Add(1 * time.Hour),
+			ttl:            defaultTTL, // no effect
 		},
 		{
 			name: "NewWorkspaceMaxDeadlineFuture",
@@ -125,8 +133,9 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			deadline: buildTime,
 			// Far into the future...
 			maxDeadline:    nextQuietHours.Add(24 * time.Hour),
-			newDeadline:    nil,
+			newDeadline:    buildTime,
 			newMaxDeadline: nextQuietHours,
+			ttl:            defaultTTL, // no effect
 		},
 		{
 			name: "DeadlineAfterNewWorkspaceMaxDeadline",
@@ -136,8 +145,9 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			deadline:    nextQuietHours.Add(24 * time.Hour),
 			maxDeadline: nextQuietHours.Add(24 * time.Hour),
 			// The deadline should match since it is after the new max deadline.
-			newDeadline:    ptr.Ref(nextQuietHours),
+			newDeadline:    nextQuietHours,
 			newMaxDeadline: nextQuietHours,
+			ttl:            defaultTTL, // no effect
 		},
 		{
 			// There was a bug if a user has no quiet hours set, and autostop
@@ -151,13 +161,14 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			deadline:    buildTime.Add(time.Hour * 8),
 			maxDeadline: time.Time{}, // No max set
 			// Should be unchanged
-			newDeadline:    ptr.Ref(buildTime.Add(time.Hour * 8)),
+			newDeadline:    buildTime.Add(time.Hour * 8),
 			newMaxDeadline: time.Time{},
 			noQuietHours:   true,
 			autostopReq: &agplschedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0,
 				Weeks:      0,
 			},
+			ttl: defaultTTL, // no effect
 		},
 		{
 			// A bug existed where MaxDeadline could be set, but deadline was
@@ -168,15 +179,15 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			deadline:    time.Time{},
 			maxDeadline: time.Time{}, // No max set
 			// Should be unchanged
-			newDeadline:    ptr.Ref(time.Time{}),
+			newDeadline:    time.Time{},
 			newMaxDeadline: time.Time{},
 			noQuietHours:   true,
 			autostopReq: &agplschedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0,
 				Weeks:      0,
 			},
+			ttl: defaultTTL, // no effect
 		},
-
 		{
 			// Similar to 'NoDeadline' test. This has a MaxDeadline set, so
 			// the deadline of the workspace should now be set.
@@ -185,14 +196,33 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			// Start with unset times
 			deadline:       time.Time{},
 			maxDeadline:    time.Time{},
-			newDeadline:    ptr.Ref(nextQuietHours),
+			newDeadline:    nextQuietHours,
 			newMaxDeadline: nextQuietHours,
+			ttl:            defaultTTL, // no effect
+		},
+		{
+			// If the build doesn't have a max_deadline anymore, and there is no
+			// TTL anymore, then both the deadline and max_deadline should be
+			// zero.
+			name:           "NoTTLNoDeadlineNoMaxDeadline",
+			now:            buildTime,
+			deadline:       buildTime.Add(time.Hour * 8),
+			maxDeadline:    buildTime.Add(time.Hour * 8),
+			newDeadline:    time.Time{},
+			newMaxDeadline: time.Time{},
+			noQuietHours:   true,
+			autostopReq: &agplschedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0,
+				Weeks:      0,
+			},
+			ttl: 0,
 		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
 
 			user := quietUser
 			if c.noQuietHours {
@@ -206,6 +236,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			t.Log("maxDeadline", c.maxDeadline)
 			t.Log("newDeadline", c.newDeadline)
 			t.Log("newMaxDeadline", c.newMaxDeadline)
+			t.Log("ttl", c.ttl)
 
 			var (
 				template = dbgen.Template(t, db, database.Template{
@@ -300,7 +331,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			_, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
 				UserAutostartEnabled:     false,
 				UserAutostopEnabled:      false,
-				DefaultTTL:               0,
+				DefaultTTL:               c.ttl,
 				AutostopRequirement:      autostopReq,
 				FailureTTL:               0,
 				TimeTilDormant:           0,
@@ -312,11 +343,8 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			newBuild, err := db.GetWorkspaceBuildByID(ctx, wsBuild.ID)
 			require.NoError(t, err)
 
-			if c.newDeadline == nil {
-				c.newDeadline = &wsBuild.Deadline
-			}
-			require.WithinDuration(t, *c.newDeadline, newBuild.Deadline, time.Second)
-			require.WithinDuration(t, c.newMaxDeadline, newBuild.MaxDeadline, time.Second)
+			require.WithinDuration(t, c.newDeadline, newBuild.Deadline, time.Second, "deadline")
+			require.WithinDuration(t, c.newMaxDeadline, newBuild.MaxDeadline, time.Second, "max_deadline")
 
 			// Check that the new build has the same state as before.
 			require.Equal(t, wsBuild.ProvisionerState, newBuild.ProvisionerState, "provisioner state mismatch")

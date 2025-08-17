@@ -1,7 +1,7 @@
-import { waitFor } from "@testing-library/react";
-import { API } from "api/api";
 import * as M from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
+import { waitFor } from "@testing-library/react";
+import { API } from "api/api";
 import { TemplateRedirectController } from "./TemplateRedirectController";
 
 const renderTemplateRedirectController = (route: string) => {

@@ -39,7 +39,7 @@ const TemplateEmbedPageExperimental: FC = () => {
 	const [wsError, setWsError] = useState<Error | null>(null);
 
 	const sendMessage = useEffectEvent(
-		(formValues: Record<string, string>, ownerId?: string) => {
+		(formValues: Record<string, string>, _ownerId?: string) => {
 			const request: DynamicParametersRequest = {
 				id: wsResponseId.current + 1,
 				owner_id: me.id,
@@ -187,90 +187,88 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 	};
 
 	return (
-		<>
-			<div className="flex items-start gap-12">
-				<div className="w-full flex flex-col gap-5 max-w-screen-md">
-					{isLoading ? (
-						<div className="flex flex-col gap-9">
-							<div className="flex flex-col gap-2">
-								<Skeleton className="h-5 w-1/3" />
-								<Skeleton className="h-9 w-full" />
-							</div>
-							<div className="flex flex-col gap-2">
-								<Skeleton className="h-5 w-1/3" />
-								<Skeleton className="h-9 w-full" />
-							</div>
-							<div className="flex flex-col gap-2">
-								<Skeleton className="h-5 w-1/3" />
-								<Skeleton className="h-9 w-full" />
-							</div>
+		<div className="flex items-start gap-12">
+			<div className="w-full flex flex-col gap-5 max-w-screen-md">
+				{isLoading ? (
+					<div className="flex flex-col gap-9">
+						<div className="flex flex-col gap-2">
+							<Skeleton className="h-5 w-1/3" />
+							<Skeleton className="h-9 w-full" />
 						</div>
-					) : (
-						<>
-							{Boolean(error) && <ErrorAlert error={error} />}
-							{diagnostics.length > 0 && (
-								<Diagnostics diagnostics={diagnostics} />
+						<div className="flex flex-col gap-2">
+							<Skeleton className="h-5 w-1/3" />
+							<Skeleton className="h-9 w-full" />
+						</div>
+						<div className="flex flex-col gap-2">
+							<Skeleton className="h-5 w-1/3" />
+							<Skeleton className="h-9 w-full" />
+						</div>
+					</div>
+				) : (
+					<>
+						{Boolean(error) && <ErrorAlert error={error} />}
+						{diagnostics.length > 0 && (
+							<Diagnostics diagnostics={diagnostics} />
+						)}
+						<div className="flex flex-col gap-9">
+							<section className="flex flex-col gap-2">
+								<div>
+									<h2 className="text-lg font-bold m-0">Creation mode</h2>
+									<p className="text-sm text-content-secondary m-0">
+										When set to automatic mode, clicking the button will create
+										the workspace automatically without displaying a form to the
+										user.
+									</p>
+								</div>
+								<RadioGroup
+									value={formState.mode}
+									onValueChange={(v) => {
+										setFormState((prev) => ({
+											...prev,
+											mode: v as "manual" | "auto",
+										}));
+									}}
+								>
+									<div className="flex items-center gap-3">
+										<RadioGroupItem value="manual" id="manual" />
+										<Label htmlFor={"manual"} className="cursor-pointer">
+											Manual
+										</Label>
+									</div>
+									<div className="flex items-center gap-3">
+										<RadioGroupItem value="auto" id="automatic" />
+										<Label htmlFor={"automatic"} className="cursor-pointer">
+											Automatic
+										</Label>
+									</div>
+								</RadioGroup>
+							</section>
+
+							<Separator />
+
+							{parameters.length > 0 && (
+								<div className="flex flex-col gap-9">
+									{parameters.map((parameter) => {
+										const isDisabled = parameter.styling?.disabled;
+										return (
+											<DynamicParameter
+												key={parameter.name}
+												parameter={parameter}
+												onChange={(value) => handleChange(parameter, value)}
+												disabled={isDisabled}
+												value={formState.paramValues[parameter.name] || ""}
+											/>
+										);
+									})}
+								</div>
 							)}
-							<div className="flex flex-col gap-9">
-								<section className="flex flex-col gap-2">
-									<div>
-										<h2 className="text-lg font-bold m-0">Creation mode</h2>
-										<p className="text-sm text-content-secondary m-0">
-											When set to automatic mode, clicking the button will
-											create the workspace automatically without displaying a
-											form to the user.
-										</p>
-									</div>
-									<RadioGroup
-										value={formState.mode}
-										onValueChange={(v) => {
-											setFormState((prev) => ({
-												...prev,
-												mode: v as "manual" | "auto",
-											}));
-										}}
-									>
-										<div className="flex items-center gap-3">
-											<RadioGroupItem value="manual" id="manual" />
-											<Label htmlFor={"manual"} className="cursor-pointer">
-												Manual
-											</Label>
-										</div>
-										<div className="flex items-center gap-3">
-											<RadioGroupItem value="auto" id="automatic" />
-											<Label htmlFor={"automatic"} className="cursor-pointer">
-												Automatic
-											</Label>
-										</div>
-									</RadioGroup>
-								</section>
-
-								<Separator />
-
-								{parameters.length > 0 && (
-									<div className="flex flex-col gap-9">
-										{parameters.map((parameter) => {
-											const isDisabled = parameter.styling?.disabled;
-											return (
-												<DynamicParameter
-													key={parameter.name}
-													parameter={parameter}
-													onChange={(value) => handleChange(parameter, value)}
-													disabled={isDisabled}
-													value={formState.paramValues[parameter.name] || ""}
-												/>
-											);
-										})}
-									</div>
-								)}
-							</div>
-						</>
-					)}
-				</div>
-
-				<ButtonPreview template={template} buttonValues={buttonValues} />
+						</div>
+					</>
+				)}
 			</div>
-		</>
+
+			<ButtonPreview template={template} buttonValues={buttonValues} />
+		</div>
 	);
 };
 

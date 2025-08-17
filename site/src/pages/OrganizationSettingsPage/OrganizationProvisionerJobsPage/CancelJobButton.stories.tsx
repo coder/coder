@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, waitFor, within } from "@storybook/test";
 import { MockProvisionerJob } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, waitFor, within } from "storybook/test";
 import { CancelJobButton } from "./CancelJobButton";
 
 const meta: Meta<typeof CancelJobButton> = {

@@ -1,4 +1,4 @@
-import { type Page, expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 type PollingOptions = { timeout?: number; intervals?: number[] };
 

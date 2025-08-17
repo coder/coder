@@ -3065,6 +3065,8 @@ type ExternalAuthLink struct {
 	// The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted
 	OAuthRefreshTokenKeyID sql.NullString        `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 	OAuthExtra             pqtype.NullRawMessage `db:"oauth_extra" json:"oauth_extra"`
+	// This error means the refresh token is invalid. Cached so we can avoid calling the external provider again for the same error.
+	OauthRefreshFailureReason string `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
 }
 
 type File struct {
@@ -3757,6 +3759,23 @@ type TemplateVersionWorkspaceTag struct {
 	Value             string    `db:"value" json:"value"`
 }
 
+// usage_events contains usage data that is collected from the product and potentially shipped to the usage collector service.
+type UsageEvent struct {
+	// For "discrete" event types, this is a random UUID. For "heartbeat" event types, this is a combination of the event type and a truncated timestamp.
+	ID string `db:"id" json:"id"`
+	// The usage event type with version. "dc" means "discrete" (e.g. a single event, for counters), "hb" means "heartbeat" (e.g. a recurring event that contains a total count of usage generated from the database, for gauges).
+	EventType string `db:"event_type" json:"event_type"`
+	// Event payload. Determined by the matching usage struct for this event type.
+	EventData json.RawMessage `db:"event_data" json:"event_data"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	// Set to a timestamp while the event is being published by a Coder replica to the usage collector service. Used to avoid duplicate publishes by multiple replicas. Timestamps older than 1 hour are considered expired.
+	PublishStartedAt sql.NullTime `db:"publish_started_at" json:"publish_started_at"`
+	// Set to a timestamp when the event is successfully (or permanently unsuccessfully) published to the usage collector service. If set, the event should never be attempted to be published again.
+	PublishedAt sql.NullTime `db:"published_at" json:"published_at"`
+	// Set to an error message when the event is temporarily or permanently unsuccessfully published to the usage collector service.
+	FailureMessage sql.NullString `db:"failure_message" json:"failure_message"`
+}
+
 type User struct {
 	ID             uuid.UUID      `db:"id" json:"id"`
 	Email          string         `db:"email" json:"email"`
@@ -3810,6 +3829,18 @@ type UserLink struct {
 	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 	// Claims from the IDP for the linked user. Includes both id_token and userinfo claims.
 	Claims UserLinkClaims `db:"claims" json:"claims"`
+}
+
+type UserSecret struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	Value       string    `db:"value" json:"value"`
+	EnvName     string    `db:"env_name" json:"env_name"`
+	FilePath    string    `db:"file_path" json:"file_path"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // Tracks the history of user status changes

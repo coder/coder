@@ -1,8 +1,8 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within } from "@storybook/test";
 import { chromaticWithTablet } from "testHelpers/chromatic";
 import { MockUserMember, MockUserOwner } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
 import { NavbarView } from "./NavbarView";
 
 const meta: Meta<typeof NavbarView> = {

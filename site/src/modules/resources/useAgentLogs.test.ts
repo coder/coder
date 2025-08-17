@@ -1,7 +1,7 @@
+import { MockWorkspaceAgent } from "testHelpers/entities";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { WorkspaceAgentLog } from "api/typesGenerated";
 import WS from "jest-websocket-mock";
-import { MockWorkspaceAgent } from "testHelpers/entities";
 import { useAgentLogs } from "./useAgentLogs";
 
 /**

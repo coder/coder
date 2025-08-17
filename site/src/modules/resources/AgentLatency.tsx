@@ -1,5 +1,6 @@
 import { type Theme, useTheme } from "@emotion/react";
 import type { DERPRegion, WorkspaceAgent } from "api/typesGenerated";
+import { PopoverTrigger } from "components/deprecated/Popover/Popover";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -7,7 +8,6 @@ import {
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
-import { PopoverTrigger } from "components/deprecated/Popover/Popover";
 import type { FC } from "react";
 import { getLatencyColor } from "utils/latency";
 

@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { MockWorkspaceBuild } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { WorkspaceBuildData } from "./WorkspaceBuildData";
 
 const meta: Meta<typeof WorkspaceBuildData> = {
