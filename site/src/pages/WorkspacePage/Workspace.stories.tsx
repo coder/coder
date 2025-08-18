@@ -349,6 +349,13 @@ export const Stopping: Story = {
 	},
 };
 
+export const Unhealthy: Story = {
+	args: {
+		...Running.args,
+		workspace: Mocks.MockUnhealthyWorkspace,
+	},
+};
+
 export const FailedWithLogs: Story = {
 	args: {
 		...Running.args,

@@ -1443,6 +1443,14 @@ export const MockStoppingWorkspace: TypesGen.Workspace = {
 		status: "stopping",
 	},
 };
+export const MockUnhealthyWorkspace: TypesGen.Workspace = {
+	...MockWorkspace,
+	id: "test-unhealthy-workspace",
+	health: {
+		healthy: false,
+		failing_agents: ["test-workspace-agent"],
+	},
+};
 export const MockStartingWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
 	id: "test-starting-workspace",

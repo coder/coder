@@ -275,7 +275,7 @@ const styles = {
 	},
 } satisfies Record<string, Interpolation<Theme>>;
 
-const findTroubleshootingURL = (
+export const findTroubleshootingURL = (
 	workspaceBuild: WorkspaceBuild,
 ): string | undefined => {
 	for (const resource of workspaceBuild.resources) {
