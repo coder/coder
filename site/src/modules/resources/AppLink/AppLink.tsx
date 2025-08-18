@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import type * as TypesGen from "api/typesGenerated";
 import { DropdownMenuItem } from "components/DropdownMenu/DropdownMenu";
 import { Spinner } from "components/Spinner/Spinner";
@@ -41,7 +40,6 @@ export const AppLink: FC<AppLinkProps> = ({
 	const { proxy } = useProxy();
 	const host = proxy.preferredWildcardHostname;
 	const [iconError, setIconError] = useState(false);
-	const theme = useTheme();
 	const link = useAppLink(app, { agent, workspace });
 
 	// canClick is ONLY false when it's a subdomain app and the admin hasn't
@@ -64,8 +62,7 @@ export const AppLink: FC<AppLinkProps> = ({
 		icon = (
 			<CircleAlertIcon
 				aria-hidden="true"
-				className="size-icon-sm"
-				css={{ color: theme.palette.warning.light }}
+				className="size-icon-sm text-content-warning"
 			/>
 		);
 		primaryTooltip = "Unhealthy";
@@ -76,8 +73,7 @@ export const AppLink: FC<AppLinkProps> = ({
 		icon = (
 			<CircleAlertIcon
 				aria-hidden="true"
-				className="size-icon-sm"
-				css={{ color: theme.palette.grey[300] }}
+				className="size-icon-sm text-content-secondary"
 			/>
 		);
 		primaryTooltip =
