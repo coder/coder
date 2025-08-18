@@ -320,9 +320,9 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			timer := prometheus.NewTimer(metricsCollectorAgents)
 			derpMap := derpMapFn()
 
-			userCache, ok := userCachePool.Get().(map[uuid.UUID]database.User)
+			userCache, ok := userCachePool.Get().(map[uuid.UUID]string)
 			if !ok {
-				userCache = make(map[uuid.UUID]database.User)
+				userCache = make(map[uuid.UUID]string)
 			}
 			defer func() {
 				for k := range userCache {
@@ -346,33 +346,34 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 					templateVersionName = "unknown"
 				}
 
-				user, ok := userCache[workspace.OwnerID]
+				username, ok := userCache[workspace.OwnerID]
 				if !ok {
-					user, err = db.GetUserByID(ctx, workspace.OwnerID)
+					user, err := db.GetUserByID(ctx, workspace.OwnerID)
 					if err != nil {
 						logger.Error(ctx, "can't get user from the database", slog.F("user_id", workspace.OwnerID), slog.Error(err))
 						agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
 						continue
 					}
-					userCache[workspace.OwnerID] = user
+					username = user.Username
+					userCache[workspace.OwnerID] = username
 				}
 
 				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
 				if err != nil {
 					logger.Error(ctx, "can't get workspace agents", slog.F("workspace_id", workspace.ID), slog.Error(err))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 0, username, workspace.Name, templateName, templateVersionName)
 					continue
 				}
 
 				if len(agents) == 0 {
 					logger.Debug(ctx, "workspace agents are unavailable", slog.F("workspace_id", workspace.ID))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 0, username, workspace.Name, templateName, templateVersionName)
 					continue
 				}
 
 				for _, agent := range agents {
 					// Collect information about agents
-					agentsGauge.WithLabelValues(VectorOperationAdd, 1, user.Username, workspace.Name, templateName, templateVersionName)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 1, username, workspace.Name, templateName, templateVersionName)
 
 					connectionStatus := agent.Status(agentInactiveDisconnectTimeout)
 					node := (*coordinator.Load()).Node(agent.ID)
@@ -382,7 +383,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 						tailnetNode = node.ID.String()
 					}
 
-					agentsConnectionsGauge.WithLabelValues(VectorOperationSet, 1, agent.Name, user.Username, workspace.Name, string(connectionStatus.Status), string(agent.LifecycleState), tailnetNode)
+					agentsConnectionsGauge.WithLabelValues(VectorOperationSet, 1, agent.Name, username, workspace.Name, string(connectionStatus.Status), string(agent.LifecycleState), tailnetNode)
 
 					if node == nil {
 						logger.Debug(ctx, "can't read in-memory node for agent", slog.F("agent_id", agent.ID))
@@ -407,7 +408,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 								}
 							}
 
-							agentsConnectionLatenciesGauge.WithLabelValues(VectorOperationSet, latency, agent.Name, user.Username, workspace.Name, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID))
+							agentsConnectionLatenciesGauge.WithLabelValues(VectorOperationSet, latency, agent.Name, username, workspace.Name, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID))
 						}
 					}
 
@@ -419,7 +420,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 					}
 
 					for _, app := range apps {
-						agentsAppsGauge.WithLabelValues(VectorOperationAdd, 1, agent.Name, user.Username, workspace.Name, app.DisplayName, string(app.Health))
+						agentsAppsGauge.WithLabelValues(VectorOperationAdd, 1, agent.Name, username, workspace.Name, app.DisplayName, string(app.Health))
 					}
 				}
 			}
