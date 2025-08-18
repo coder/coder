@@ -125,7 +125,7 @@ export const AnnouncementBannerSettings: FC<
 									{!isEntitled || banners.length < 1 ? (
 										<TableCell colSpan={999}>
 											<EmptyState
-												css={{ minHeight: 160 }}
+												className="min-h-[160px]"
 												message="No announcement banners"
 											/>
 										</TableCell>
