@@ -76,7 +76,9 @@ const GroupsPage: FC = () => {
 	}
 
 	return (
-		<>
+		<div className="flex flex-col items-center flex-1 min-h-0 h-full overflow-y-auto w-full px-10 pt-10">
+
+		<div className="w-full max-w-screen-2xl pb-10">
 			{helmet}
 
 			<Stack
@@ -107,7 +109,8 @@ const GroupsPage: FC = () => {
 				canCreateGroup={permissions.createGroup}
 				groupsEnabled={groupsEnabled}
 			/>
-		</>
+		</div>
+	</div>
 	);
 };
 
