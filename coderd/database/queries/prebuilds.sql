@@ -252,8 +252,9 @@ ORDER BY t.name, tvp.name, o.name;
 -- The query finds presets where all preset parameters are present in the provided parameters,
 -- and returns the preset with the most parameters (largest subset).
 WITH provided_params AS (
-	SELECT unnest(@parameter_names::text[]) AS name,
-		   unnest(@parameter_values::text[]) AS value
+	SELECT
+		unnest(@parameter_names::text[]) AS name,
+		unnest(@parameter_values::text[]) AS value
 ),
 preset_matches AS (
 	SELECT

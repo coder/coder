@@ -7254,8 +7254,9 @@ func (q *sqlQuerier) CountInProgressPrebuilds(ctx context.Context) ([]CountInPro
 
 const findMatchingPresetID = `-- name: FindMatchingPresetID :one
 WITH provided_params AS (
-	SELECT unnest($1::text[]) AS name,
-		   unnest($2::text[]) AS value
+	SELECT
+		unnest($1::text[]) AS name,
+		unnest($2::text[]) AS value
 ),
 preset_matches AS (
 	SELECT
