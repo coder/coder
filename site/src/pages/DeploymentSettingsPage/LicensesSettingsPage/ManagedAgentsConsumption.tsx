@@ -38,12 +38,9 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 		);
 	}
 
-	const valueOrZero = (value: number | undefined | null) =>
-		value === undefined || value === null ? 0 : value;
-
-	const usage = valueOrZero(managedAgentFeature.actual);
-	const included = valueOrZero(managedAgentFeature.soft_limit);
-	const limit = valueOrZero(managedAgentFeature.limit);
+	const usage = managedAgentFeature.actual ?? 0;
+	const included = managedAgentFeature.soft_limit ?? 0;
+	const limit = managedAgentFeature.limit ?? 0;
 	const startDate = managedAgentFeature.usage_period?.start;
 	const endDate = managedAgentFeature.usage_period?.end;
 
