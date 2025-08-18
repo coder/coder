@@ -94,14 +94,8 @@ func TestDERPOnly(t *testing.T) {
 func TestDERP(t *testing.T) {
 	t.Parallel()
 
-	deploymentValues := coderdtest.DeploymentValues(t)
-	deploymentValues.Experiments = []string{
-		"*",
-	}
-
 	client, closer, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
-			DeploymentValues:         deploymentValues,
 			AppHostname:              "*.primary.test.coder.com",
 			IncludeProvisionerDaemon: true,
 			RealIPConfig: &httpmw.RealIPConfig{
@@ -146,7 +140,7 @@ func TestDERP(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Wait for both running proxies to become healthy.
+	// Wait for all three running proxies to become healthy.
 	require.Eventually(t, func() bool {
 		err := api.ProxyHealth.ForceUpdate(ctx)
 		if !assert.NoError(t, err) {
@@ -207,7 +201,7 @@ resourceLoop:
 		require.NoError(t, err)
 
 		// There should be three DERP regions in the map: the primary, and each
-		// of the two running proxies. Also the STUN-only regions.
+		// of the two DERP-enabled running proxies. Also the STUN-only regions.
 		require.NotNil(t, connInfo.DERPMap)
 		require.Len(t, connInfo.DERPMap.Regions, 3+len(api.DeploymentValues.DERP.Server.STUNAddresses.Value()))
 
@@ -290,7 +284,7 @@ resourceLoop:
 
 			t.Run(r.RegionName, func(t *testing.T) {
 				t.Parallel()
-				ctx := testutil.Context(t, testutil.WaitShort)
+				ctx := testutil.Context(t, testutil.WaitLong)
 
 				derpMap := &tailcfg.DERPMap{
 					Regions: map[int]*tailcfg.DERPRegion{

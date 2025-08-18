@@ -333,7 +333,7 @@ module "vscode-web" {
 module "jetbrains" {
   count         = data.coder_workspace.me.start_count
   source        = "dev.registry.coder.com/coder/jetbrains/coder"
-  version       = "1.0.2"
+  version       = "1.0.3"
   agent_id      = coder_agent.dev.id
   agent_name    = "dev"
   folder        = local.repo_dir
@@ -358,7 +358,7 @@ module "coder-login" {
 module "cursor" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/cursor/coder"
-  version  = "1.2.1"
+  version  = "1.3.0"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
@@ -374,7 +374,7 @@ module "windsurf" {
 module "zed" {
   count      = data.coder_workspace.me.start_count
   source     = "dev.registry.coder.com/coder/zed/coder"
-  version    = "1.0.1"
+  version    = "1.1.0"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
   folder     = local.repo_dir
