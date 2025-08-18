@@ -2668,11 +2668,11 @@ func TestAgent_Dial(t *testing.T) {
 
 	cases := []struct {
 		name  string
-		setup func(t *testing.T) net.Listener
+		setup func(t testing.TB) net.Listener
 	}{
 		{
 			name: "TCP",
-			setup: func(t *testing.T) net.Listener {
+			setup: func(t testing.TB) net.Listener {
 				l, err := net.Listen("tcp", "127.0.0.1:0")
 				require.NoError(t, err, "create TCP listener")
 				return l
@@ -2680,7 +2680,7 @@ func TestAgent_Dial(t *testing.T) {
 		},
 		{
 			name: "UDP",
-			setup: func(t *testing.T) net.Listener {
+			setup: func(t testing.TB) net.Listener {
 				addr := net.UDPAddr{
 					IP:   net.ParseIP("127.0.0.1"),
 					Port: 0,
@@ -2698,57 +2698,70 @@ func TestAgent_Dial(t *testing.T) {
 
 			// The purpose of this test is to ensure that a client can dial a
 			// listener in the workspace over tailnet.
-			l := c.setup(t)
-			done := make(chan struct{})
-			defer func() {
-				l.Close()
-				<-done
-			}()
+			//
+			// The OS sometimes drops packets if the system can't keep up with
+			// them. For TCP packets, it's typically fine due to
+			// retransmissions, but for UDP packets, it can fail this test.
+			//
+			// The OS gets involved for the Wireguard traffic (either via DERP
+			// or direct UDP), and also for the traffic between the agent and
+			// the listener in the "workspace".
+			//
+			// To avoid this, we'll retry this test up to 3 times.
+			ctx := testutil.Context(t, testutil.WaitLong)
+			testutil.RunRetry(ctx, t, 3, func(t testing.TB) {
+				l := c.setup(t)
+				done := make(chan struct{})
+				defer func() {
+					l.Close()
+					<-done
+				}()
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+				defer cancel()
 
-			go func() {
-				defer close(done)
-				for range 2 {
-					c, err := l.Accept()
-					if assert.NoError(t, err, "accept connection") {
-						testAccept(ctx, t, c)
-						_ = c.Close()
+				go func() {
+					defer close(done)
+					for range 2 {
+						c, err := l.Accept()
+						if assert.NoError(t, err, "accept connection") {
+							testAccept(ctx, t, c)
+							_ = c.Close()
+						}
 					}
+				}()
+
+				agentID := uuid.UUID{0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}
+				//nolint:dogsled
+				agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{
+					AgentID: agentID,
+				}, 0)
+				require.True(t, agentConn.AwaitReachable(ctx))
+				conn, err := agentConn.DialContext(ctx, l.Addr().Network(), l.Addr().String())
+				require.NoError(t, err)
+				testDial(ctx, t, conn)
+				err = conn.Close()
+				require.NoError(t, err)
+
+				// also connect via the CoderServicePrefix, to test that we can reach the agent on this
+				// IP. This will be required for CoderVPN.
+				_, rawPort, _ := net.SplitHostPort(l.Addr().String())
+				port, _ := strconv.ParseUint(rawPort, 10, 16)
+				ipp := netip.AddrPortFrom(tailnet.CoderServicePrefix.AddrFromUUID(agentID), uint16(port))
+
+				switch l.Addr().Network() {
+				case "tcp":
+					conn, err = agentConn.Conn.DialContextTCP(ctx, ipp)
+				case "udp":
+					conn, err = agentConn.Conn.DialContextUDP(ctx, ipp)
+				default:
+					t.Fatalf("unknown network: %s", l.Addr().Network())
 				}
-			}()
-
-			agentID := uuid.UUID{0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}
-			//nolint:dogsled
-			agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{
-				AgentID: agentID,
-			}, 0)
-			require.True(t, agentConn.AwaitReachable(ctx))
-			conn, err := agentConn.DialContext(ctx, l.Addr().Network(), l.Addr().String())
-			require.NoError(t, err)
-			testDial(ctx, t, conn)
-			err = conn.Close()
-			require.NoError(t, err)
-
-			// also connect via the CoderServicePrefix, to test that we can reach the agent on this
-			// IP. This will be required for CoderVPN.
-			_, rawPort, _ := net.SplitHostPort(l.Addr().String())
-			port, _ := strconv.ParseUint(rawPort, 10, 16)
-			ipp := netip.AddrPortFrom(tailnet.CoderServicePrefix.AddrFromUUID(agentID), uint16(port))
-
-			switch l.Addr().Network() {
-			case "tcp":
-				conn, err = agentConn.Conn.DialContextTCP(ctx, ipp)
-			case "udp":
-				conn, err = agentConn.Conn.DialContextUDP(ctx, ipp)
-			default:
-				t.Fatalf("unknown network: %s", l.Addr().Network())
-			}
-			require.NoError(t, err)
-			testDial(ctx, t, conn)
-			err = conn.Close()
-			require.NoError(t, err)
+				require.NoError(t, err)
+				testDial(ctx, t, conn)
+				err = conn.Close()
+				require.NoError(t, err)
+			})
 		})
 	}
 }
@@ -3251,7 +3264,7 @@ func setupSSHSessionOnPort(
 	return session
 }
 
-func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Duration, opts ...func(*agenttest.Client, *agent.Options)) (
+func setupAgent(t testing.TB, metadata agentsdk.Manifest, ptyTimeout time.Duration, opts ...func(*agenttest.Client, *agent.Options)) (
 	*workspacesdk.AgentConn,
 	*agenttest.Client,
 	<-chan *proto.Stats,
@@ -3349,7 +3362,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 
 var dialTestPayload = []byte("dean-was-here123")
 
-func testDial(ctx context.Context, t *testing.T, c net.Conn) {
+func testDial(ctx context.Context, t testing.TB, c net.Conn) {
 	t.Helper()
 
 	if deadline, ok := ctx.Deadline(); ok {
@@ -3365,7 +3378,7 @@ func testDial(ctx context.Context, t *testing.T, c net.Conn) {
 	assertReadPayload(t, c, dialTestPayload)
 }
 
-func testAccept(ctx context.Context, t *testing.T, c net.Conn) {
+func testAccept(ctx context.Context, t testing.TB, c net.Conn) {
 	t.Helper()
 	defer c.Close()
 
@@ -3382,7 +3395,7 @@ func testAccept(ctx context.Context, t *testing.T, c net.Conn) {
 	assertWritePayload(t, c, dialTestPayload)
 }
 
-func assertReadPayload(t *testing.T, r io.Reader, payload []byte) {
+func assertReadPayload(t testing.TB, r io.Reader, payload []byte) {
 	t.Helper()
 	b := make([]byte, len(payload)+16)
 	n, err := r.Read(b)
@@ -3391,11 +3404,11 @@ func assertReadPayload(t *testing.T, r io.Reader, payload []byte) {
 	assert.Equal(t, payload, b[:n])
 }
 
-func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
+func assertWritePayload(t testing.TB, w io.Writer, payload []byte) {
 	t.Helper()
 	n, err := w.Write(payload)
 	assert.NoError(t, err, "write payload")
-	assert.Equal(t, len(payload), n, "payload length does not match")
+	assert.Equal(t, len(payload), n, "written payload length does not match")
 }
 
 func testSessionOutput(t *testing.T, session *ssh.Session, expected, unexpected []string, expectedRe *regexp.Regexp) {
