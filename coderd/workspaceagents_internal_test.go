@@ -13,6 +13,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -28,10 +33,6 @@ import (
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/websocket"
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 type fakeAgentProvider struct {
@@ -143,8 +144,11 @@ func TestWatchAgentContainers(t *testing.T) {
 
 		// And: Dial the WebSocket
 		wsURL := strings.Replace(srv.URL, "http://", "ws://", 1)
-		conn, _, err := websocket.Dial(ctx, fmt.Sprintf("%s/workspaceagents/%s/containers/watch", wsURL, agentID), nil)
+		conn, resp, err := websocket.Dial(ctx, fmt.Sprintf("%s/workspaceagents/%s/containers/watch", wsURL, agentID), nil)
 		require.NoError(t, err)
+		if resp.Body != nil {
+			defer resp.Body.Close()
+		}
 
 		// And: Create a streaming decoder
 		decoder := wsjson.NewDecoder[codersdk.WorkspaceAgentListContainersResponse](conn, websocket.MessageText, logger)
