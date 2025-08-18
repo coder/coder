@@ -11,10 +11,10 @@ import {
 	workspacePermissionChecks,
 } from "modules/permissions/workspaces";
 import {
+	createContext,
 	type FC,
 	type PropsWithChildren,
 	Suspense,
-	createContext,
 	useContext,
 } from "react";
 import { useQuery } from "react-query";

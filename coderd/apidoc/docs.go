@@ -7383,7 +7383,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "format": "uuid",
+                        "format": "string",
                         "description": "Key ID",
                         "name": "keyid",
                         "in": "path",
@@ -7420,7 +7420,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "format": "uuid",
+                        "format": "string",
                         "description": "Key ID",
                         "name": "keyid",
                         "in": "path",
@@ -15701,6 +15701,7 @@ const docTemplate = `{
                 "system",
                 "tailnet_coordinator",
                 "template",
+                "usage_event",
                 "user",
                 "user_secret",
                 "webpush_subscription",
@@ -15742,6 +15743,7 @@ const docTemplate = `{
                 "ResourceSystem",
                 "ResourceTailnetCoordinator",
                 "ResourceTemplate",
+                "ResourceUsageEvent",
                 "ResourceUser",
                 "ResourceUserSecret",
                 "ResourceWebpushSubscription",

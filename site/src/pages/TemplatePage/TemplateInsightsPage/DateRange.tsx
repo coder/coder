@@ -10,7 +10,7 @@ import {
 import dayjs from "dayjs";
 import { MoveRightIcon } from "lucide-react";
 import { type ComponentProps, type FC, useRef, useState } from "react";
-import { DateRangePicker, createStaticRanges } from "react-date-range";
+import { createStaticRanges, DateRangePicker } from "react-date-range";
 
 // The type definition from @types is wrong
 declare module "react-date-range" {

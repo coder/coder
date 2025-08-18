@@ -32,6 +32,8 @@ const (
 	// ServiceAgentMetricAggregator merges agent metrics and exports them in a
 	// prometheus collector format.
 	ServiceAgentMetricAggregator = "agent-metrics-aggregator"
+	// ServiceTallymanPublisher publishes usage events to coder/tallyman.
+	ServiceTallymanPublisher = "tallyman-publisher"
 
 	RequestTypeTag = "coder_request_type"
 )

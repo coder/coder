@@ -1531,6 +1531,13 @@ func (m queryMetricsStore) GetTemplateVersionByTemplateIDAndName(ctx context.Con
 	return version, err
 }
 
+func (m queryMetricsStore) GetTemplateVersionHasAITask(ctx context.Context, id uuid.UUID) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateVersionHasAITask(ctx, id)
+	m.queryLatencies.WithLabelValues("GetTemplateVersionHasAITask").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
 	start := time.Now()
 	parameters, err := m.s.GetTemplateVersionParameters(ctx, templateVersionID)
@@ -2385,6 +2392,13 @@ func (m queryMetricsStore) InsertTemplateVersionWorkspaceTag(ctx context.Context
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertUsageEvent(ctx context.Context, arg database.InsertUsageEventParams) error {
+	start := time.Now()
+	r0 := m.s.InsertUsageEvent(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertUsageEvent").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
 	start := time.Now()
 	user, err := m.s.InsertUser(ctx, arg)
@@ -2642,6 +2656,13 @@ func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest
 	r0 := m.s.RevokeDBCryptKey(ctx, activeKeyDigest)
 	m.queryLatencies.WithLabelValues("RevokeDBCryptKey").Observe(time.Since(start).Seconds())
 	return r0
+}
+
+func (m queryMetricsStore) SelectUsageEventsForPublishing(ctx context.Context, arg time.Time) ([]database.UsageEvent, error) {
+	start := time.Now()
+	r0, r1 := m.s.SelectUsageEventsForPublishing(ctx, arg)
+	m.queryLatencies.WithLabelValues("SelectUsageEventsForPublishing").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error) {
@@ -2928,6 +2949,13 @@ func (m queryMetricsStore) UpdateTemplateWorkspacesLastUsedAt(ctx context.Contex
 	start := time.Now()
 	r0 := m.s.UpdateTemplateWorkspacesLastUsedAt(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateWorkspacesLastUsedAt").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) UpdateUsageEventsPostPublish(ctx context.Context, arg database.UpdateUsageEventsPostPublishParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateUsageEventsPostPublish(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUsageEventsPostPublish").Observe(time.Since(start).Seconds())
 	return r0
 }
 

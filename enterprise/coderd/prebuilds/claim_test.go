@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/quartz"
 
@@ -132,7 +134,9 @@ func TestClaimPrebuild(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 
-				// Setup.
+				// Setup
+				clock := quartz.NewMock(t)
+				clock.Set(dbtime.Now())
 				ctx := testutil.Context(t, testutil.WaitSuperLong)
 				db, pubsub := dbtestutil.NewDB(t)
 
@@ -144,6 +148,7 @@ func TestClaimPrebuild(t *testing.T) {
 					Options: &coderdtest.Options{
 						Database: spy,
 						Pubsub:   pubsub,
+						Clock:    clock,
 					},
 					LicenseOptions: &coderdenttest.LicenseOptions{
 						Features: license.Features{
@@ -238,6 +243,7 @@ func TestClaimPrebuild(t *testing.T) {
 				// When: a user creates a new workspace with a preset for which prebuilds are configured.
 				workspaceName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
 				params := database.ClaimPrebuiltWorkspaceParams{
+					Now:       clock.Now(),
 					NewUserID: user.ID,
 					NewName:   workspaceName,
 					PresetID:  presets[0].ID,

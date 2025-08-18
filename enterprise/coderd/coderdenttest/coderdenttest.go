@@ -105,7 +105,7 @@ func NewWithAPI(t *testing.T, options *Options) (
 		AuditLogging:               options.AuditLogging,
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,
-		DERPServerRelayAddress:     oop.AccessURL.String(),
+		DERPServerRelayAddress:     serverURL.String(),
 		DERPServerRegionID:         oop.BaseDERPMap.RegionIDs()[0],
 		ReplicaSyncUpdateInterval:  options.ReplicaSyncUpdateInterval,
 		ReplicaErrorGracePeriod:    options.ReplicaErrorGracePeriod,
@@ -161,12 +161,13 @@ func NewWithAPI(t *testing.T, options *Options) (
 // LicenseOptions is used to generate a license for testing.
 // It supports the builder pattern for easy customization.
 type LicenseOptions struct {
-	AccountType   string
-	AccountID     string
-	DeploymentIDs []string
-	Trial         bool
-	FeatureSet    codersdk.FeatureSet
-	AllFeatures   bool
+	AccountType      string
+	AccountID        string
+	DeploymentIDs    []string
+	Trial            bool
+	FeatureSet       codersdk.FeatureSet
+	AllFeatures      bool
+	PublishUsageData bool
 	// GraceAt is the time at which the license will enter the grace period.
 	GraceAt time.Time
 	// ExpiresAt is the time at which the license will hard expire.
@@ -271,6 +272,13 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		issuedAt = time.Now().Add(-time.Minute)
 	}
 
+	if options.AccountType == "" {
+		options.AccountType = license.AccountTypeSalesforce
+	}
+	if options.AccountID == "" {
+		options.AccountID = "test-account-id"
+	}
+
 	c := &license.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        uuid.NewString(),
@@ -279,15 +287,16 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 			NotBefore: jwt.NewNumericDate(options.NotBefore),
 			IssuedAt:  jwt.NewNumericDate(issuedAt),
 		},
-		LicenseExpires: jwt.NewNumericDate(options.GraceAt),
-		AccountType:    options.AccountType,
-		AccountID:      options.AccountID,
-		DeploymentIDs:  options.DeploymentIDs,
-		Trial:          options.Trial,
-		Version:        license.CurrentVersion,
-		AllFeatures:    options.AllFeatures,
-		FeatureSet:     options.FeatureSet,
-		Features:       options.Features,
+		LicenseExpires:   jwt.NewNumericDate(options.GraceAt),
+		AccountType:      options.AccountType,
+		AccountID:        options.AccountID,
+		DeploymentIDs:    options.DeploymentIDs,
+		Trial:            options.Trial,
+		Version:          license.CurrentVersion,
+		AllFeatures:      options.AllFeatures,
+		FeatureSet:       options.FeatureSet,
+		Features:         options.Features,
+		PublishUsageData: options.PublishUsageData,
 	}
 	return GenerateLicenseRaw(t, c)
 }

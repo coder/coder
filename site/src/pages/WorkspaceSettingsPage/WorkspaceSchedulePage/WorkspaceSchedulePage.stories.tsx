@@ -1,12 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { getAuthorizationKey } from "api/queries/authCheck";
-import { templateByNameKey } from "api/queries/templates";
-import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
-import type { Workspace } from "api/typesGenerated";
-import {
-	reactRouterNestedAncestors,
-	reactRouterParameters,
-} from "storybook-addon-remix-react-router";
 import {
 	MockPrebuiltWorkspace,
 	MockTemplate,
@@ -14,12 +5,21 @@ import {
 	MockWorkspace,
 } from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { getAuthorizationKey } from "api/queries/authCheck";
+import { templateByNameKey } from "api/queries/templates";
+import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
+import type { Workspace } from "api/typesGenerated";
+import {
+	reactRouterOutlet,
+	reactRouterParameters,
+} from "storybook-addon-remix-react-router";
 import { WorkspaceSettingsLayout } from "../WorkspaceSettingsLayout";
 import WorkspaceSchedulePage from "./WorkspaceSchedulePage";
 
 const meta = {
 	title: "pages/WorkspaceSchedulePage",
-	component: WorkspaceSchedulePage,
+	component: WorkspaceSettingsLayout,
 	decorators: [withAuthProvider, withDashboardProvider],
 	parameters: {
 		layout: "fullscreen",
@@ -52,11 +52,11 @@ function workspaceRouterParameters(workspace: Workspace) {
 				workspace: workspace.name,
 			},
 		},
-		routing: reactRouterNestedAncestors(
+		routing: reactRouterOutlet(
 			{
 				path: "/:username/:workspace/settings/schedule",
 			},
-			<WorkspaceSettingsLayout />,
+			<WorkspaceSchedulePage />,
 		),
 	});
 }

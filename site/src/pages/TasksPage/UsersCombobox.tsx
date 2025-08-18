@@ -42,7 +42,7 @@ export const UsersCombobox: FC<UsersComboboxProps> = ({
 	const usersQuery = useQuery({
 		...users({ q: debouncedSearch }),
 		select: (data) =>
-			data.users.toSorted((a, b) => {
+			data.users.toSorted((a, _b) => {
 				return selectedOption && a.username === selectedOption.value ? -1 : 0;
 			}),
 		placeholderData: keepPreviousData,

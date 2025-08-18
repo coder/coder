@@ -10,8 +10,8 @@ import { pageTitle } from "utils/page";
 import { BuildLogsDrawer } from "./BuildLogsDrawer";
 import { DuplicateTemplateView } from "./DuplicateTemplateView";
 import { ImportStarterTemplateView } from "./ImportStarterTemplateView";
-import { UploadTemplateView } from "./UploadTemplateView";
 import type { CreateTemplatePageViewProps } from "./types";
+import { UploadTemplateView } from "./UploadTemplateView";
 
 const CreateTemplatePage: FC = () => {
 	const navigate = useNavigate();

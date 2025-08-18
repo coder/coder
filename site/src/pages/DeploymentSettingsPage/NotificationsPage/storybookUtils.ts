@@ -1,9 +1,3 @@
-import type { Meta } from "@storybook/react-vite";
-import {
-	notificationDispatchMethodsKey,
-	systemNotificationTemplatesKey,
-} from "api/queries/notifications";
-import type { DeploymentValues, SerpentOption } from "api/typesGenerated";
 import {
 	MockNotificationMethodsResponse,
 	MockNotificationTemplates,
@@ -15,6 +9,12 @@ import {
 	withGlobalSnackbar,
 	withOrganizationSettingsProvider,
 } from "testHelpers/storybook";
+import type { Meta } from "@storybook/react-vite";
+import {
+	notificationDispatchMethodsKey,
+	systemNotificationTemplatesKey,
+} from "api/queries/notifications";
+import type { DeploymentValues, SerpentOption } from "api/typesGenerated";
 import type NotificationsPage from "./NotificationsPage";
 
 // Extracted from a real API response
