@@ -2,15 +2,15 @@ import { deploymentSSHConfig } from "api/queries/deployment";
 import { Button } from "components/Button/Button";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
-import {
 	HelpTooltipLink,
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 } from "components/HelpTooltip/HelpTooltip";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
 import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
@@ -33,14 +33,14 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 
 	return (
 		<Popover>
-			<PopoverTrigger>
+			<PopoverTrigger asChild={true}>
 				<Button size="sm" variant="subtle">
 					Connect via SSH
 					<ChevronDownIcon />
 				</Button>
 			</PopoverTrigger>
 
-			<PopoverContent className="py-4 px-6 w-80 text-content-secondary mt-[2px] bg-surface-secondary">
+			<PopoverContent align="start" className="py-4 px-6 w-80 text-content-secondary mt-[2px] bg-surface-secondary">
 				<HelpTooltipText>
 					Run the following commands to connect with SSH:
 				</HelpTooltipText>
