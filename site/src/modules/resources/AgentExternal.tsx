@@ -1,10 +1,10 @@
-import { API } from "api/api";
-import { getErrorMessage } from "api/errors";
+import { workspaceAgentCredentials } from "api/queries/workspaces";
 import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
-import isChromatic from "chromatic/isChromatic";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { CodeExample } from "components/CodeExample/CodeExample";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { type FC, useEffect, useState } from "react";
+import { Loader } from "components/Loader/Loader";
+import type { FC } from "react";
+import { useQuery } from "react-query";
 
 interface AgentExternalProps {
 	isExternalAgent: boolean;
@@ -17,29 +17,24 @@ export const AgentExternal: FC<AgentExternalProps> = ({
 	agent,
 	workspace,
 }) => {
-	const [externalAgentToken, setExternalAgentToken] = useState<string | null>(
-		null,
-	);
-	const [command, setCommand] = useState<string | null>(null);
+	if (!isExternalAgent) {
+		return null;
+	}
 
-	const origin = isChromatic() ? "https://example.com" : window.location.origin;
-	useEffect(() => {
-		if (
-			isExternalAgent &&
-			(agent.status === "timeout" || agent.status === "connecting")
-		) {
-			API.getWorkspaceAgentCredentials(workspace.id, agent.name)
-				.then((res) => {
-					setExternalAgentToken(res.agent_token);
-					setCommand(res.command);
-				})
-				.catch((err) => {
-					displayError(
-						getErrorMessage(err, "Failed to get external agent credentials"),
-					);
-				});
-		}
-	}, [isExternalAgent, agent.status, workspace.id, agent.name]);
+	const {
+		data: credentials,
+		error,
+		isLoading,
+		isError,
+	} = useQuery(workspaceAgentCredentials(workspace.id, agent.name));
+
+	if (isLoading) {
+		return <Loader />;
+	}
+
+	if (isError) {
+		return <ErrorAlert error={error} />;
+	}
 
 	return (
 		<section className="text-base text-muted-foreground pb-2 leading-relaxed">
@@ -48,7 +43,7 @@ export const AgentExternal: FC<AgentExternalProps> = ({
 				{workspace.name} workspace:
 			</p>
 			<CodeExample
-				code={command ?? ""}
+				code={credentials?.command ?? ""}
 				secret={false}
 				redactPattern={/CODER_AGENT_TOKEN="([^"]+)"/g}
 				redactReplacement={`CODER_AGENT_TOKEN="********"`}

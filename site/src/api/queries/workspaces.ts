@@ -430,3 +430,13 @@ export const updateWorkspaceACL = (workspaceId: string) => {
 		},
 	};
 };
+
+export const workspaceAgentCredentials = (
+	workspaceId: string,
+	agentName: string,
+) => {
+	return {
+		queryKey: ["workspaces", workspaceId, "agents", agentName, "credentials"],
+		queryFn: () => API.getWorkspaceAgentCredentials(workspaceId, agentName),
+	};
+};
