@@ -73,7 +73,7 @@ func RunRetry(ctx context.Context, t *testing.T, count int, fn func(t testing.TB
 }
 
 // fakeT is a fake implementation of testing.TB that never fails and only logs
-// errors. Fatal errors will cause the goroutine to exit without failing the'
+// errors. Fatal errors will cause the goroutine to exit without failing the
 // test.
 type fakeT struct {
 	*testing.T
