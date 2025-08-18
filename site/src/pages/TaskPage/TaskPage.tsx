@@ -21,6 +21,7 @@ import {
 } from "../WorkspacePage/WorkspaceBuildProgress";
 import { TaskApps } from "./TaskApps";
 import { TaskSidebar } from "./TaskSidebar";
+import { TaskTopbar } from "./TaskTopbar";
 
 const TaskPage = () => {
 	const { workspace: workspaceName, username } = useParams() as {
@@ -178,15 +179,20 @@ const TaskPage = () => {
 			<Helmet>
 				<title>{pageTitle(ellipsizeText(task.prompt, 64) ?? "Task")}</title>
 			</Helmet>
-			<PanelGroup autoSaveId="task" direction="horizontal">
-				<Panel defaultSize={25} minSize={20}>
-					<TaskSidebar task={task} />
-				</Panel>
-				<PanelResizeHandle>
-					<div className="w-1 bg-border h-full hover:bg-border-hover transition-all relative" />
-				</PanelResizeHandle>
-				<Panel className="[&>*]:h-full">{content}</Panel>
-			</PanelGroup>
+
+			<div className="flex flex-col h-full">
+				<TaskTopbar task={task} />
+
+				<PanelGroup autoSaveId="task" direction="horizontal">
+					<Panel defaultSize={25} minSize={20}>
+						<TaskSidebar task={task} />
+					</Panel>
+					<PanelResizeHandle>
+						<div className="w-1 bg-border h-full hover:bg-border-hover transition-all relative" />
+					</PanelResizeHandle>
+					<Panel className="[&>*]:h-full">{content}</Panel>
+				</PanelGroup>
+			</div>
 		</>
 	);
 };
