@@ -21505,7 +21505,7 @@ UPDATE workspaces
 SET
     deleting_at = CASE
         WHEN $1::bigint = 0 THEN NULL
-        WHEN $2::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN  ($2::timestamptz) + interval '1 milliseconds' * $1::bigint
+        WHEN $2::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN ($2::timestamptz) + interval '1 milliseconds' * $1::bigint
         ELSE dormant_at + interval '1 milliseconds' * $1::bigint
     END,
     dormant_at = CASE WHEN $2::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN $2::timestamptz ELSE dormant_at END

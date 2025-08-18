@@ -819,7 +819,7 @@ UPDATE workspaces
 SET
     deleting_at = CASE
         WHEN @time_til_dormant_autodelete_ms::bigint = 0 THEN NULL
-        WHEN @dormant_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN  (@dormant_at::timestamptz) + interval '1 milliseconds' * @time_til_dormant_autodelete_ms::bigint
+        WHEN @dormant_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN (@dormant_at::timestamptz) + interval '1 milliseconds' * @time_til_dormant_autodelete_ms::bigint
         ELSE dormant_at + interval '1 milliseconds' * @time_til_dormant_autodelete_ms::bigint
     END,
     dormant_at = CASE WHEN @dormant_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN @dormant_at::timestamptz ELSE dormant_at END
