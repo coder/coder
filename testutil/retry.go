@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+	"time"
 )
 
 // RunRetry runs a test function up to `count` times, retrying if it fails. If
@@ -30,19 +31,15 @@ import (
 // - TempDir
 //
 // Cleanup functions will be executed after each attempt.
-func RunRetry(ctx context.Context, t *testing.T, count int, fn func(t testing.TB)) {
+func RunRetry(t *testing.T, count int, fn func(t testing.TB)) {
 	t.Helper()
 
 	for i := 1; i <= count; i++ {
-		select {
-		case <-ctx.Done():
-			t.Fatalf("testutil.RunRetry: %s", ctx.Err())
-		default:
-		}
-
+		// Canceled in the attempt goroutine before running cleanup functions.
+		attemptCtx, attemptCancel := context.WithCancel(t.Context())
 		attemptT := &fakeT{
 			T:    t,
-			ctx:  ctx,
+			ctx:  attemptCtx,
 			name: fmt.Sprintf("%s (attempt %d/%d)", t.Name(), i, count),
 		}
 
@@ -52,6 +49,9 @@ func RunRetry(ctx context.Context, t *testing.T, count int, fn func(t testing.TB
 		go func() {
 			defer close(done)
 			defer func() {
+				// As per t.Context(), the context is canceled right before
+				// cleanup functions are executed.
+				attemptCancel()
 				attemptT.runCleanupFns()
 			}()
 
@@ -68,6 +68,14 @@ func RunRetry(ctx context.Context, t *testing.T, count int, fn func(t testing.TB
 			return
 		}
 		t.Logf("testutil.RunRetry: test failed on attempt %d/%d", i, count)
+
+		// Wait a few seconds in case the test failure was due to system load.
+		// There's not really a good way to check for this, so we just do it
+		// every time.
+		// No point waiting on t.Context() here because it doesn't factor in
+		// the test deadline, and only gets canceled when the test function
+		// completes.
+		time.Sleep(2 * time.Second)
 	}
 	t.Fatalf("testutil.RunRetry: all %d attempts failed", count)
 }
@@ -104,7 +112,9 @@ func (*fakeT) Chdir(_ string) {
 	panic("t.Chdir is not implemented in testutil.RunRetry closures")
 }
 
-// Cleanup implements testing.TB.
+// Cleanup implements testing.TB. Cleanup registers a function to be called when
+// the test completes. Cleanup functions will be called in last added, first
+// called order.
 func (t *fakeT) Cleanup(fn func()) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -112,50 +122,49 @@ func (t *fakeT) Cleanup(fn func()) {
 	t.cleanupFns = append(t.cleanupFns, fn)
 }
 
-// Context implements testing.TB.
+// Context implements testing.TB. Context returns a context that is canceled
+// just before Cleanup-registered functions are called.
 func (t *fakeT) Context() context.Context {
 	return t.ctx
 }
 
-// Error implements testing.TB.
+// Error implements testing.TB. Error is equivalent to Log followed by Fail.
 func (t *fakeT) Error(args ...any) {
 	t.T.Helper()
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.failed = true
-	t.T.Log(append([]any{"WARN: t.Error called in testutil.RunRetry closure:"}, args...)...)
+	t.T.Log(args...)
+	t.Fail()
 }
 
-// Errorf implements testing.TB.
+// Errorf implements testing.TB. Errorf is equivalent to Logf followed by Fail.
 func (t *fakeT) Errorf(format string, args ...any) {
 	t.T.Helper()
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.failed = true
-	t.T.Logf("WARN: t.Errorf called in testutil.RunRetry closure: "+format, args...)
+	t.T.Logf(format, args...)
+	t.Fail()
 }
 
-// Fail implements testing.TB.
+// Fail implements testing.TB. Fail marks the function as having failed but
+// continues execution.
 func (t *fakeT) Fail() {
 	t.T.Helper()
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.failed = true
-	t.T.Log("WARN: t.Fail called in testutil.RunRetry closure")
-	runtime.Goexit()
+	t.T.Log("testutil.RunRetry: t.Fail called in testutil.RunRetry closure")
 }
 
-// FailNow implements testing.TB.
+// FailNow implements testing.TB. FailNow marks the function as having failed
+// and stops its execution by calling runtime.Goexit (which then runs all the
+// deferred calls in the current goroutine).
 func (t *fakeT) FailNow() {
 	t.T.Helper()
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.failed = true
-	t.T.Log("WARN: t.FailNow called in testutil.RunRetry closure")
+	t.T.Log("testutil.RunRetry: t.FailNow called in testutil.RunRetry closure")
 	runtime.Goexit()
 }
 
-// Failed implements testing.TB.
+// Failed implements testing.TB. Failed reports whether the function has failed.
 func (t *fakeT) Failed() bool {
 	t.T.Helper()
 	t.mu.Lock()
@@ -163,24 +172,19 @@ func (t *fakeT) Failed() bool {
 	return t.failed
 }
 
-// Fatal implements testing.TB.
+// Fatal implements testing.TB. Fatal is equivalent to Log followed by FailNow.
 func (t *fakeT) Fatal(args ...any) {
 	t.T.Helper()
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.failed = true
-	t.T.Log(append([]any{"WARN: t.Fatal called in testutil.RunRetry closure:"}, args...)...)
-	runtime.Goexit()
+	t.T.Log(args...)
+	t.FailNow()
 }
 
-// Fatalf implements testing.TB.
+// Fatalf implements testing.TB. Fatalf is equivalent to Logf followed by
+// FailNow.
 func (t *fakeT) Fatalf(format string, args ...any) {
-	t.Helper()
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.failed = true
-	t.T.Logf("WARN: t.Fatalf called in testutil.RunRetry closure: "+format, args...)
-	runtime.Goexit()
+	t.T.Helper()
+	t.T.Logf(format, args...)
+	t.FailNow()
 }
 
 // Helper is proxied to the original *testing.T. This is to avoid the fake

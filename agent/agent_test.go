@@ -2708,17 +2708,15 @@ func TestAgent_Dial(t *testing.T) {
 			// the listener in the "workspace".
 			//
 			// To avoid this, we'll retry this test up to 3 times.
-			ctx := testutil.Context(t, testutil.WaitLong)
-			testutil.RunRetry(ctx, t, 3, func(t testing.TB) {
+			testutil.RunRetry(t, 3, func(t testing.TB) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+
 				l := c.setup(t)
 				done := make(chan struct{})
 				defer func() {
 					l.Close()
 					<-done
 				}()
-
-				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-				defer cancel()
 
 				go func() {
 					defer close(done)
