@@ -1277,7 +1277,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// We should see the workspace get stopped now.
 		tickTime2 := ws.LastUsedAt.Add(inactiveTTL * 2)
-		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime2)
 		tickCh <- tickTime2
 		stats = <-statsCh
 		require.Len(t, stats.Errors, 0)
