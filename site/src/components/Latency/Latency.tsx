@@ -44,10 +44,10 @@ export const Latency: FC<LatencyProps> = ({
 	}
 
 	return (
-		<p className="ml-auto text-sm" style={{ color }}>
+		<div className="ml-auto text-sm" style={{ color }}>
 			<span css={{ ...visuallyHidden }}>Latency: </span>
 			{latency.toFixed(0)}
 			<Abbr title="milliseconds">ms</Abbr>
-		</p>
+		</div>
 	);
 };
