@@ -7,17 +7,17 @@ import {
 	PremiumBadge,
 } from "components/Badges/Badges";
 import { Button } from "components/Button/Button";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/deprecated/Popover/Popover";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { getFormHelpers } from "utils/formUtils";

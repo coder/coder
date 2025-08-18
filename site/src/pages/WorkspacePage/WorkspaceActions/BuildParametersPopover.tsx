@@ -7,6 +7,12 @@ import type {
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+	usePopover,
+} from "components/deprecated/Popover/Popover";
 import { FormFields } from "components/Form/Form";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
 import {
@@ -17,17 +23,11 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-	usePopover,
-} from "components/deprecated/Popover/Popover";
 import { useFormik } from "formik";
 import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
 import {

@@ -1,8 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, spyOn, userEvent, waitFor, within } from "@storybook/test";
-import { API } from "api/api";
-import { MockUsers } from "pages/UsersPage/storybookData/users";
-import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import {
 	MockAIPromptPresets,
 	MockNewTaskData,
@@ -19,6 +14,11 @@ import {
 	withGlobalSnackbar,
 	withProxyProvider,
 } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { API } from "api/api";
+import { MockUsers } from "pages/UsersPage/storybookData/users";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import TasksPage, { data } from "./TasksPage";
 
 const meta: Meta<typeof TasksPage> = {

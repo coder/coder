@@ -8,7 +8,7 @@ import { useWebpushNotifications } from "contexts/useWebpushNotifications";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
 import type { FC } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation } from "react-router";
 import { cn } from "utils/cn";
 import { DeploymentDropdown } from "./DeploymentDropdown";
 import { MobileMenu } from "./MobileMenu";
@@ -51,7 +51,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	const webPush = useWebpushNotifications();
 
 	return (
-		<div className="border-0 border-b border-solid h-[72px] flex items-center leading-none px-6">
+		<div className="border-0 border-b border-solid h-[72px] min-h-[72px] flex items-center leading-none px-6">
 			<NavLink to="/workspaces">
 				{logo_url ? (
 					<ExternalImage className="h-7" src={logo_url} alt="Custom Logo" />

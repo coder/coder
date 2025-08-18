@@ -73,39 +73,37 @@ export const SecurityForm: FC<SecurityFormProps> = ({
 	}
 
 	return (
-		<>
-			<Form onSubmit={form.handleSubmit}>
-				<FormFields>
-					{Boolean(error) && <ErrorAlert error={error} />}
-					<TextField
-						{...getFieldHelpers("old_password")}
-						autoComplete="old_password"
-						fullWidth
-						label={Language.oldPasswordLabel}
-						type="password"
-					/>
-					<PasswordField
-						{...getFieldHelpers("password")}
-						autoComplete="password"
-						fullWidth
-						label={Language.newPasswordLabel}
-					/>
-					<TextField
-						{...getFieldHelpers("confirm_password")}
-						autoComplete="confirm_password"
-						fullWidth
-						label={Language.confirmPasswordLabel}
-						type="password"
-					/>
+		<Form onSubmit={form.handleSubmit}>
+			<FormFields>
+				{Boolean(error) && <ErrorAlert error={error} />}
+				<TextField
+					{...getFieldHelpers("old_password")}
+					autoComplete="old_password"
+					fullWidth
+					label={Language.oldPasswordLabel}
+					type="password"
+				/>
+				<PasswordField
+					{...getFieldHelpers("password")}
+					autoComplete="password"
+					fullWidth
+					label={Language.newPasswordLabel}
+				/>
+				<TextField
+					{...getFieldHelpers("confirm_password")}
+					autoComplete="confirm_password"
+					fullWidth
+					label={Language.confirmPasswordLabel}
+					type="password"
+				/>
 
-					<div>
-						<Button disabled={isLoading} type="submit">
-							<Spinner loading={isLoading} />
-							{Language.updatePassword}
-						</Button>
-					</div>
-				</FormFields>
-			</Form>
-		</>
+				<div>
+					<Button disabled={isLoading} type="submit">
+						<Spinner loading={isLoading} />
+						{Language.updatePassword}
+					</Button>
+				</div>
+			</FormFields>
+		</Form>
 	);
 };

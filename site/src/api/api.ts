@@ -22,8 +22,8 @@
 import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
 import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
-import { OneWayWebSocket } from "../utils/OneWayWebSocket";
 import { delay } from "../utils/delay";
+import { OneWayWebSocket } from "../utils/OneWayWebSocket";
 import { type FieldError, isApiError } from "./errors";
 import type {
 	DynamicParametersRequest,
@@ -1222,7 +1222,7 @@ class ApiMethods {
 	waitForBuild = (build: TypesGen.WorkspaceBuild) => {
 		return new Promise<TypesGen.ProvisionerJob | undefined>((res, reject) => {
 			void (async () => {
-				let latestJobInfo: TypesGen.ProvisionerJob | undefined = undefined;
+				let latestJobInfo: TypesGen.ProvisionerJob | undefined;
 
 				while (
 					!["succeeded", "canceled"].some((status) =>
@@ -2661,6 +2661,18 @@ class ExperimentalApiMethods {
 					build_ids: buildIds.join(","),
 				},
 			},
+		);
+
+		return response.data;
+	};
+
+	createTask = async (
+		user: string,
+		req: TypesGen.CreateTaskRequest,
+	): Promise<TypesGen.Workspace> => {
+		const response = await this.axios.post<TypesGen.Workspace>(
+			`/api/experimental/tasks/${user}`,
+			req,
 		);
 
 		return response.data;

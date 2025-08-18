@@ -1,9 +1,8 @@
-import { type Page, expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { API } from "api/api";
 import { setupApiCalls } from "../../api";
 import { coderPort, workspaceProxyPort } from "../../constants";
-import { randomName, requiresLicense } from "../../helpers";
-import { login } from "../../helpers";
+import { login, randomName, requiresLicense } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 import { startWorkspaceProxy, stopWorkspaceProxy } from "../../proxy";
 

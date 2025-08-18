@@ -1,5 +1,3 @@
-import { screen } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
 import {
 	MockDefaultOrganization,
 	MockEntitlementsWithMultiOrg,
@@ -10,6 +8,8 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import { screen } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
 import OrganizationRedirect from "./OrganizationRedirect";
 
 jest.spyOn(console, "error").mockImplementation(() => {});
@@ -69,7 +69,7 @@ describe("OrganizationRedirect", () => {
 			}),
 		);
 		const router = await renderPage();
-		const form = screen.getByText("Organization Settings");
+		const form = await screen.findByText("Organization Settings");
 		expect(form).toBeInTheDocument();
 		expect(router.state.location.pathname).toBe(
 			`/organizations/${MockDefaultOrganization.name}`,
@@ -94,7 +94,7 @@ describe("OrganizationRedirect", () => {
 			}),
 		);
 		const router = await renderPage();
-		const form = screen.getByText("Organization Settings");
+		const form = await screen.findByText("Organization Settings");
 		expect(form).toBeInTheDocument();
 		expect(router.state.location.pathname).toBe(
 			`/organizations/${MockOrganization2.name}`,

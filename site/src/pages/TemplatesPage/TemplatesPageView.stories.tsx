@@ -1,5 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { getDefaultFilterProps } from "components/Filter/storyHelpers";
 import { chromaticWithTablet } from "testHelpers/chromatic";
 import {
 	MockTemplate,
@@ -8,6 +6,8 @@ import {
 	mockApiError,
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { getDefaultFilterProps } from "components/Filter/storyHelpers";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 const meta: Meta<typeof TemplatesPageView> = {

@@ -14,7 +14,7 @@ import { useAppLink } from "modules/apps/useAppLink";
 import type { Task } from "modules/tasks/tasks";
 import type React from "react";
 import { type FC, useState } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import { TaskAppIFrame } from "./TaskAppIframe";
@@ -125,7 +125,6 @@ type TaskExternalAppsDropdownProps = {
 
 const TaskExternalAppsDropdown: FC<TaskExternalAppsDropdownProps> = ({
 	task,
-	agents,
 	externalApps,
 }) => {
 	return (
@@ -138,28 +137,37 @@ const TaskExternalAppsDropdown: FC<TaskExternalAppsDropdownProps> = ({
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent>
-					{externalApps.map(({ app, agent }) => {
-						const link = useAppLink(app, {
-							agent,
-							workspace: task.workspace,
-						});
-
-						return (
-							<DropdownMenuItem key={app.id} asChild>
-								<RouterLink to={link.href}>
-									{app.icon ? (
-										<ExternalImage src={app.icon} />
-									) : (
-										<LayoutGridIcon />
-									)}
-									{link.label}
-								</RouterLink>
-							</DropdownMenuItem>
-						);
-					})}
+					{externalApps.map(({ app, agent }) => (
+						<ExternalAppMenuItem
+							key={app.id}
+							app={app}
+							agent={agent}
+							task={task}
+						/>
+					))}
 				</DropdownMenuContent>
 			</DropdownMenu>
 		</div>
+	);
+};
+
+const ExternalAppMenuItem: FC<{
+	app: WorkspaceApp;
+	agent: WorkspaceAgent;
+	task: Task;
+}> = ({ app, agent, task }) => {
+	const link = useAppLink(app, {
+		agent,
+		workspace: task.workspace,
+	});
+
+	return (
+		<DropdownMenuItem asChild>
+			<RouterLink to={link.href}>
+				{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
+				{link.label}
+			</RouterLink>
+		</DropdownMenuItem>
 	);
 };
 

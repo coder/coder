@@ -205,7 +205,6 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			if opts.DefaultTTL != 0 {
 				ttl = sql.NullInt64{Valid: true, Int64: int64(opts.DefaultTTL)}
 			}
-
 			if err = tx.UpdateWorkspacesTTLByTemplateID(ctx, database.UpdateWorkspacesTTLByTemplateIDParams{
 				TemplateID: template.ID,
 				Ttl:        ttl,

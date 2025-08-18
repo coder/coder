@@ -1,6 +1,5 @@
 import { MissingBuildParameters, ParameterValidationError } from "api/api";
-import { isApiError } from "api/errors";
-import { type ApiError, getErrorMessage } from "api/errors";
+import { type ApiError, getErrorMessage, isApiError } from "api/errors";
 import {
 	changeVersion,
 	deleteWorkspace,
@@ -26,14 +25,14 @@ import {
 } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { WorkspaceErrorDialog } from "../ErrorDialog/WorkspaceErrorDialog";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { UpdateBuildParametersDialogExperimental } from "./UpdateBuildParametersDialogExperimental";
-import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
+import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 
 type WorkspaceMoreActionsProps = {
 	workspace: Workspace;
@@ -205,7 +204,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 					workspaceName={workspace.name}
 					templateVersionId={
 						changeVersionMutation.error instanceof ParameterValidationError
-							? changeVersionMutation.error?.versionId
+							? changeVersionMutation.error.versionId
 							: undefined
 					}
 				/>

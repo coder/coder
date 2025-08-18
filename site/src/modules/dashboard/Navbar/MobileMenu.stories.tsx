@@ -1,7 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { fn, userEvent, within } from "@storybook/test";
-import { PointerEventsCheckLevel } from "@testing-library/user-event";
-import type { FC } from "react";
 import {
 	MockPrimaryWorkspaceProxy,
 	MockProxyLatencies,
@@ -10,6 +6,10 @@ import {
 	MockUserOwner,
 	MockWorkspaceProxies,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { PointerEventsCheckLevel } from "@testing-library/user-event";
+import type { FC } from "react";
+import { fn, userEvent, within } from "storybook/test";
 import { MobileMenu } from "./MobileMenu";
 
 const meta: Meta<typeof MobileMenu> = {
@@ -135,7 +135,9 @@ function setupUser() {
 
 async function openAdminSettings({
 	canvasElement,
-}: { canvasElement: HTMLElement }) {
+}: {
+	canvasElement: HTMLElement;
+}) {
 	const user = setupUser();
 	const body = within(canvasElement.ownerDocument.body);
 	const menuItem = await body.findByRole("menuitem", {

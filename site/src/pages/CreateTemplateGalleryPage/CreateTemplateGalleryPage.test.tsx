@@ -1,13 +1,13 @@
-import { render, screen } from "@testing-library/react";
 import { AppProviders } from "App";
-import { RequireAuth } from "contexts/auth/RequireAuth";
-import { http, HttpResponse } from "msw";
-import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import {
 	MockTemplateExample,
 	MockTemplateExample2,
 } from "testHelpers/entities";
 import { server } from "testHelpers/server";
+import { render, screen } from "@testing-library/react";
+import { RequireAuth } from "contexts/auth/RequireAuth";
+import { HttpResponse, http } from "msw";
+import { createMemoryRouter, RouterProvider } from "react-router";
 import CreateTemplateGalleryPage from "./CreateTemplateGalleryPage";
 
 test("displays the scratch template", async () => {

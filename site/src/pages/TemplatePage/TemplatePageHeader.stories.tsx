@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { MockTemplate, MockTemplateVersion } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { TemplatePageHeader } from "./TemplatePageHeader";
 
 const meta: Meta<typeof TemplatePageHeader> = {

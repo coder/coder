@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
 import { mockApiError } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { SetupPageView } from "./SetupPageView";
 
 const meta: Meta<typeof SetupPageView> = {

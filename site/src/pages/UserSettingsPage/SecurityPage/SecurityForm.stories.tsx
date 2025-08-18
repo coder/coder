@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { mockApiError } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { SecurityForm } from "./SecurityForm";
 
 const meta: Meta<typeof SecurityForm> = {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"runtime"
 	"sort"
 	"sync"
 	"testing"
@@ -397,6 +398,9 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("WorkspaceSSHExec", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("WorkspaceSSHExec is not supported on Windows")
+		}
 		// Setup workspace exactly like main SSH tests
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 
@@ -661,6 +665,10 @@ func TestMain(m *testing.M) {
 	var untested []string
 	for _, tool := range toolsdk.All {
 		if tested, ok := testedTools.Load(tool.Name); !ok || !tested.(bool) {
+			// Test is skipped on Windows
+			if runtime.GOOS == "windows" && tool.Name == "coder_workspace_bash" {
+				continue
+			}
 			untested = append(untested, tool.Name)
 		}
 	}
