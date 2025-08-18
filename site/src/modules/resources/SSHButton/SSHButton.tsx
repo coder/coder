@@ -41,7 +41,7 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 			</PopoverTrigger>
 
 			<PopoverContent
-				align="start"
+				align="end"
 				className="py-4 px-6 w-80 text-content-secondary mt-[2px] bg-surface-secondary"
 			>
 				<HelpTooltipText>
