@@ -76,7 +76,7 @@ export const LongButtonText: Story = {
 			<SelectMenu>
 				<SelectMenuTrigger>
 					<SelectMenuButton
-						css={{ width: 200 }}
+						className="w-48"
 						startIcon={<Avatar size="sm" fallback={selectedOpt} />}
 					>
 						{selectedOpt}
@@ -107,7 +107,7 @@ export const NoSelectedOption: Story = {
 		return (
 			<SelectMenu>
 				<SelectMenuTrigger>
-					<SelectMenuButton css={{ width: 200 }}>All users</SelectMenuButton>
+					<SelectMenuButton className="w-48">All users</SelectMenuButton>
 				</SelectMenuTrigger>
 				<SelectMenuContent>
 					<SelectMenuSearch onChange={action("search")} />

@@ -103,12 +103,7 @@ export const useSingleSignOnSection = () => {
 const SSOEmptyState: FC = () => {
 	return (
 		<EmptyState
-			css={(theme) => ({
-				minHeight: 0,
-				padding: "48px 32px",
-				backgroundColor: theme.palette.background.paper,
-				borderRadius: 8,
-			})}
+			className="rounded-lg border border-solid border-border min-h-0"
 			message="No SSO Providers"
 			description="No SSO providers are configured with this Coder deployment."
 			cta={
