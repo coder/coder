@@ -179,9 +179,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 									closeMenu();
 								}}
 							>
-								<div
-									className="flex gap-6 items-center w-full"
-								>
+								<div className="flex gap-6 items-center w-full">
 									<div className="leading-[0] size-[14px]">
 										<img
 											src={proxy.icon_url}
