@@ -161,7 +161,7 @@ export const AnnouncementBannerSettings: FC<
 							},
 						]}
 					>
-						<div css={{ color: theme.palette.text.secondary }}>
+						<div className="text-content-secondary">
 							<p>
 								Your license does not include Service Banners.{" "}
 								<Link href="mailto:sales@coder.com">Contact sales</Link> to
