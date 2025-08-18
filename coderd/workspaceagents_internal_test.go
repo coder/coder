@@ -65,6 +65,10 @@ func TestWatchAgentContainers(t *testing.T) {
 	t.Run("WebSocketClosesProperly", func(t *testing.T) {
 		t.Parallel()
 
+		// This test ensures that the agent containers `/watch` websocket can gracefully
+		// handle the underlying websocket unexpectedly closing. This test was created in
+		// response to this issue: https://github.com/coder/coder/issues/19372
+
 		var (
 			ctx    = testutil.Context(t, testutil.WaitShort)
 			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).Named("coderd")
@@ -130,7 +134,7 @@ func TestWatchAgentContainers(t *testing.T) {
 		// And: Allow `db2dsk.WorkspaceAgent` to complete.
 		mCoordinator.EXPECT().Node(gomock.Any()).Return(nil)
 
-		// And: Allow `WatchContainers` to be called.
+		// And: Allow `WatchContainers` to be called, returing our `containersCh` channel.
 		mAgentConn.EXPECT().WatchContainers(gomock.Any(), gomock.Any()).
 			Return(containersCh, io.NopCloser(&bytes.Buffer{}), nil)
 
