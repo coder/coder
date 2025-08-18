@@ -37,7 +37,7 @@ export const Paywall: FC<PaywallProps> = ({
 					Read the documentation
 				</Link>
 			</div>
-			<div className="w-px h-55 bg-border ml-2" />
+			<div className="w-px h-[220px] bg-border ml-2" />
 			<Stack direction="column" alignItems="left" spacing={3}>
 				<ul className="m-0 px-6 text-sm font-medium">
 					<li css={styles.feature}>
