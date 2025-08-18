@@ -1,14 +1,13 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
 import { chromatic } from "testHelpers/chromatic";
 import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { AgentExternal } from "./AgentExternal";
 
 const meta: Meta<typeof AgentExternal> = {
 	title: "modules/resources/AgentExternal",
 	component: AgentExternal,
 	args: {
-		isExternalAgent: true,
 		agent: {
 			...MockWorkspaceAgent,
 			status: "connecting",
@@ -61,7 +60,6 @@ export const DifferentOS: Story = {
 
 export const NotExternalAgent: Story = {
 	args: {
-		isExternalAgent: false,
 		agent: {
 			...MockWorkspaceAgent,
 			status: "connecting",

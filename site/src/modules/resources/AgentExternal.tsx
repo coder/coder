@@ -7,20 +7,11 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 
 interface AgentExternalProps {
-	isExternalAgent: boolean;
 	agent: WorkspaceAgent;
 	workspace: Workspace;
 }
 
-export const AgentExternal: FC<AgentExternalProps> = ({
-	isExternalAgent,
-	agent,
-	workspace,
-}) => {
-	if (!isExternalAgent) {
-		return null;
-	}
-
+export const AgentExternal: FC<AgentExternalProps> = ({ agent, workspace }) => {
 	const {
 		data: credentials,
 		error,

@@ -298,11 +298,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 				{isExternalAgent &&
 					(agent.status === "timeout" || agent.status === "connecting") &&
 					workspace_external_agent && (
-						<AgentExternal
-							isExternalAgent={isExternalAgent}
-							agent={agent}
-							workspace={workspace}
-						/>
+						<AgentExternal agent={agent} workspace={workspace} />
 					)}
 
 				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />
