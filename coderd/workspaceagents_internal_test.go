@@ -159,6 +159,18 @@ func TestWatchAgentContainers(t *testing.T) {
 		defer decoder.Close()
 		decodeCh := decoder.Chan()
 
+		// And: We can successfully send through the channel.
+		testutil.RequireSend(ctx, t, containersCh, codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentContainer{{
+				ID: "test-container-id",
+			}},
+		})
+
+		// And: Receive the data.
+		containerResp := testutil.RequireReceive(ctx, t, decodeCh)
+		require.Len(t, containerResp.Containers, 1)
+		require.Equal(t, "test-container-id", containerResp.Containers[0].ID)
+
 		// When: We close the `containersCh`
 		close(containersCh)
 
