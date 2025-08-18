@@ -3759,6 +3759,23 @@ type TemplateVersionWorkspaceTag struct {
 	Value             string    `db:"value" json:"value"`
 }
 
+// usage_events contains usage data that is collected from the product and potentially shipped to the usage collector service.
+type UsageEvent struct {
+	// For "discrete" event types, this is a random UUID. For "heartbeat" event types, this is a combination of the event type and a truncated timestamp.
+	ID string `db:"id" json:"id"`
+	// The usage event type with version. "dc" means "discrete" (e.g. a single event, for counters), "hb" means "heartbeat" (e.g. a recurring event that contains a total count of usage generated from the database, for gauges).
+	EventType string `db:"event_type" json:"event_type"`
+	// Event payload. Determined by the matching usage struct for this event type.
+	EventData json.RawMessage `db:"event_data" json:"event_data"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	// Set to a timestamp while the event is being published by a Coder replica to the usage collector service. Used to avoid duplicate publishes by multiple replicas. Timestamps older than 1 hour are considered expired.
+	PublishStartedAt sql.NullTime `db:"publish_started_at" json:"publish_started_at"`
+	// Set to a timestamp when the event is successfully (or permanently unsuccessfully) published to the usage collector service. If set, the event should never be attempted to be published again.
+	PublishedAt sql.NullTime `db:"published_at" json:"published_at"`
+	// Set to an error message when the event is temporarily or permanently unsuccessfully published to the usage collector service.
+	FailureMessage sql.NullString `db:"failure_message" json:"failure_message"`
+}
+
 type User struct {
 	ID             uuid.UUID      `db:"id" json:"id"`
 	Email          string         `db:"email" json:"email"`

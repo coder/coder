@@ -617,7 +617,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			failureTTL = time.Minute
 		)
 
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				Logger:                   &logger,
 				AutobuildTicker:          ticker,
@@ -642,7 +642,12 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		ws := coderdtest.CreateWorkspace(t, client, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
-		ticker <- build.Job.CompletedAt.Add(failureTTL * 2)
+		tickTime := build.Job.CompletedAt.Add(failureTTL * 2)
+
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
+		require.NoError(t, err)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		ticker <- tickTime
 		stats := <-statCh
 		// Expect workspace to transition to stopped state for breaching
 		// failure TTL.
@@ -664,7 +669,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			failureTTL = time.Minute
 		)
 
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				Logger:                   &logger,
 				AutobuildTicker:          ticker,
@@ -689,7 +694,12 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
 		// Make it impossible to trigger the failure TTL.
-		ticker <- build.Job.CompletedAt.Add(-failureTTL * 2)
+		tickTime := build.Job.CompletedAt.Add(-failureTTL * 2)
+
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
+		require.NoError(t, err)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		ticker <- tickTime
 		stats := <-statCh
 		// Expect no transitions since not enough time has elapsed.
 		require.Len(t, stats.Transitions, 0)
@@ -757,10 +767,11 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				AutobuildTicker:       ticker,
-				AutobuildStats:        statCh,
-				TemplateScheduleStore: schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, nil),
-				Auditor:               auditRecorder,
+				AutobuildTicker:          ticker,
+				AutobuildStats:           statCh,
+				IncludeProvisionerDaemon: true,
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, nil),
+				Auditor:                  auditRecorder,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -788,7 +799,12 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		auditRecorder.ResetLogs()
 		// Simulate being inactive.
-		ticker <- workspace.LastUsedAt.Add(inactiveTTL * 2)
+		tickTime := workspace.LastUsedAt.Add(inactiveTTL * 2)
+
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
+		require.NoError(t, err)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		ticker <- tickTime
 		stats := <-statCh
 
 		// Expect workspace to transition to stopped state for breaching
@@ -811,7 +827,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		dormantLastUsedAt := ws.LastUsedAt
 		// nolint:gocritic // this test is not testing RBAC.
-		err := client.UpdateWorkspaceDormancy(ctx, ws.ID, codersdk.UpdateWorkspaceDormancy{Dormant: false})
+		err = client.UpdateWorkspaceDormancy(ctx, ws.ID, codersdk.UpdateWorkspaceDormancy{Dormant: false})
 		require.NoError(t, err)
 
 		// Assert that we updated our last_used_at so that we don't immediately
@@ -886,7 +902,12 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		}
 
 		// Simulate being inactive.
-		ticker <- time.Now().Add(time.Hour)
+		// Fix provisioner stale issue by updating LastSeenAt to the tick time
+		tickTime := time.Now().Add(time.Hour)
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspaces[0].OrganizationID, nil)
+		require.NoError(t, err)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		ticker <- tickTime
 		stats := <-statCh
 
 		// Expect workspace to transition to stopped state for breaching
@@ -995,7 +1016,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		)
 
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
@@ -1027,7 +1048,11 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Simulate not having accessed the workspace in a while.
-		ticker <- ws.LastUsedAt.Add(2 * inactiveTTL)
+		tickTime := ws.LastUsedAt.Add(2 * inactiveTTL)
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
+		require.NoError(t, err)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		ticker <- tickTime
 		stats := <-statCh
 		// Expect no transitions since workspace is stopped.
 		require.Len(t, stats.Transitions, 0)
@@ -1049,7 +1074,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		)
 
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
@@ -1077,7 +1102,11 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 
 		// Simulate not having accessed the workspace in a while.
-		ticker <- ws.LastUsedAt.Add(2 * transitionTTL)
+		tickTime := ws.LastUsedAt.Add(2 * transitionTTL)
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
+		require.NoError(t, err)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		ticker <- tickTime
 		stats := <-statCh
 		// Expect workspace to transition to stopped state for breaching
 		// inactive TTL.
@@ -1092,7 +1121,9 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
 		// Simulate the workspace being dormant beyond the threshold.
-		ticker <- ws.DormantAt.Add(2 * transitionTTL)
+		tickTime2 := ws.DormantAt.Add(2 * transitionTTL)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		ticker <- tickTime2
 		stats = <-statCh
 		require.Len(t, stats.Transitions, 1)
 		// The workspace should be scheduled for deletion.
@@ -1104,7 +1135,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Assert that the workspace is actually deleted.
 		//nolint:gocritic // ensuring workspace is deleted and not just invisible to us due to RBAC
-		_, err := client.Workspace(testutil.Context(t, testutil.WaitShort), ws.ID)
+		_, err = client.Workspace(testutil.Context(t, testutil.WaitShort), ws.ID)
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)
 		require.True(t, ok)
@@ -1121,7 +1152,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		)
 
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
@@ -1156,7 +1187,11 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.NotNil(t, ws.DormantAt)
 
 		// Ensure we haven't breached our threshold.
-		ticker <- ws.DormantAt.Add(-dormantTTL * 2)
+		tickTime := ws.DormantAt.Add(-dormantTTL * 2)
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
+		require.NoError(t, err)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		ticker <- tickTime
 		stats := <-statCh
 		// Expect no transitions since not enough time has elapsed.
 		require.Len(t, stats.Transitions, 0)
@@ -1167,7 +1202,9 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.NoError(t, err)
 
 		// Simlute the workspace breaching the threshold.
-		ticker <- ws.DormantAt.Add(dormantTTL * 2)
+		tickTime2 := ws.DormantAt.Add(dormantTTL * 2)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime2)
+		ticker <- tickTime2
 		stats = <-statCh
 		require.Len(t, stats.Transitions, 1)
 		require.Equal(t, database.WorkspaceTransitionDelete, stats.Transitions[ws.ID])
@@ -1184,7 +1221,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		)
 
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AutobuildTicker:          tickCh,
 				IncludeProvisionerDaemon: true,
@@ -1215,7 +1252,11 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Assert that autostart works when the workspace isn't dormant..
-		tickCh <- sched.Next(ws.LatestBuild.CreatedAt)
+		tickTime := sched.Next(ws.LatestBuild.CreatedAt)
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
+		require.NoError(t, err)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		tickCh <- tickTime
 		stats := <-statsCh
 		require.Len(t, stats.Errors, 0)
 		require.Len(t, stats.Transitions, 1)
@@ -1235,7 +1276,9 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.NoError(t, err)
 
 		// We should see the workspace get stopped now.
-		tickCh <- ws.LastUsedAt.Add(inactiveTTL * 2)
+		tickTime2 := ws.LastUsedAt.Add(inactiveTTL * 2)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		tickCh <- tickTime2
 		stats = <-statsCh
 		require.Len(t, stats.Errors, 0)
 		require.Len(t, stats.Transitions, 1)
@@ -1265,7 +1308,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		)
 
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
@@ -1333,13 +1376,19 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// Simulate ticking an hour after the workspace is expected to be deleted.
 		// Under normal circumstances this should result in a transition but
 		// since our last build resulted in failure it should be skipped.
-		ticker <- build.Job.CompletedAt.Add(time.Hour)
+		tickTime := build.Job.CompletedAt.Add(time.Hour)
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
+		require.NoError(t, err)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		ticker <- tickTime
 		stats := <-statCh
 		require.Len(t, stats.Transitions, 0)
 
 		// Simulate ticking a day after the workspace was last attempted to
 		// be deleted. This should result in an attempt.
-		ticker <- build.Job.CompletedAt.Add(time.Hour * 25)
+		tickTime2 := build.Job.CompletedAt.Add(time.Hour * 25)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime2)
+		ticker <- tickTime2
 		stats = <-statCh
 		require.Len(t, stats.Transitions, 1)
 		require.Equal(t, database.WorkspaceTransitionDelete, stats.Transitions[ws.ID])
@@ -1354,7 +1403,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		)
 
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AutobuildTicker:          tickCh,
 				IncludeProvisionerDaemon: true,
@@ -1399,7 +1448,11 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.NoError(t, err)
 
 		// Kick of an autostart build.
-		tickCh <- sched.Next(ws.LatestBuild.CreatedAt)
+		tickTime := sched.Next(ws.LatestBuild.CreatedAt)
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
+		require.NoError(t, err)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		tickCh <- tickTime
 		stats := <-statsCh
 		require.Len(t, stats.Errors, 0)
 		require.Len(t, stats.Transitions, 1)
@@ -1427,7 +1480,9 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		})
 
 		// Force an autostart transition again.
-		tickCh <- sched.Next(firstBuild.CreatedAt)
+		tickTime2 := sched.Next(firstBuild.CreatedAt)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		tickCh <- tickTime2
 		stats = <-statsCh
 		require.Len(t, stats.Errors, 0)
 		require.Len(t, stats.Transitions, 1)
@@ -1451,7 +1506,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		clock.Set(dbtime.Now())
 
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AutobuildTicker:          tickCh,
 				IncludeProvisionerDaemon: true,
@@ -1492,6 +1547,9 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			next = sched.Next(next)
 
 			clock.Set(next)
+			p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
+			require.NoError(t, err)
+			coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, next)
 			tickCh <- next
 			stats := <-statsCh
 			ws = coderdtest.MustWorkspace(t, client, ws.ID)
@@ -2184,11 +2242,19 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
+		// Wait for provisioner to be available for this specific workspace
+		coderdtest.MustWaitForProvisionersAvailable(t, db, prebuild)
+
+		tickTime := sched.Next(prebuild.LatestBuild.CreatedAt).Add(time.Minute)
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
+		require.NoError(t, err)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+
 		// Tick at the next scheduled time after the prebuild’s LatestBuild.CreatedAt,
 		// since the next allowed autostart is calculated starting from that point.
 		// When: the autobuild executor ticks after the scheduled time
 		go func() {
-			tickCh <- sched.Next(prebuild.LatestBuild.CreatedAt).Add(time.Minute)
+			tickCh <- tickTime
 		}()
 
 		// Then: the workspace should have a NextStartAt equal to the next autostart schedule
@@ -2328,9 +2394,14 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.NotNil(t, workspace.DormantAt)
 		require.NotNil(t, workspace.DeletingAt)
 
+		tickTime := workspace.DeletingAt.Add(time.Minute)
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
+		require.NoError(t, err)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+
 		// When: the autobuild executor ticks *after* the deletion TTL
 		go func() {
-			tickCh <- workspace.DeletingAt.Add(time.Minute)
+			tickCh <- tickTime
 		}()
 
 		// Then: the workspace should be deleted
