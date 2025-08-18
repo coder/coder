@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -296,6 +297,12 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	done := make(chan struct{})
 
+	userCachePool := sync.Pool{
+		New: func() interface{} {
+			return make(map[uuid.UUID]database.User)
+		},
+	}
+
 	// Use time.Nanosecond to force an initial tick. It will be reset to the
 	// correct duration after executing once.
 	ticker := time.NewTicker(time.Nanosecond)
@@ -313,6 +320,17 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			timer := prometheus.NewTimer(metricsCollectorAgents)
 			derpMap := derpMapFn()
 
+			userCache, ok := userCachePool.Get().(map[uuid.UUID]database.User)
+			if !ok {
+				userCache = make(map[uuid.UUID]database.User)
+			}
+			defer func() {
+				for k := range userCache {
+					delete(userCache, k)
+				}
+				userCachePool.Put(userCache)
+			}()
+
 			workspaceRows, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
 				AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
 			})
@@ -328,11 +346,15 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 					templateVersionName = "unknown"
 				}
 
-				user, err := db.GetUserByID(ctx, workspace.OwnerID)
-				if err != nil {
-					logger.Error(ctx, "can't get user from the database", slog.F("user_id", workspace.OwnerID), slog.Error(err))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
-					continue
+				user, ok := userCache[workspace.OwnerID]
+				if !ok {
+					user, err = db.GetUserByID(ctx, workspace.OwnerID)
+					if err != nil {
+						logger.Error(ctx, "can't get user from the database", slog.F("user_id", workspace.OwnerID), slog.Error(err))
+						agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
+						continue
+					}
+					userCache[workspace.OwnerID] = user
 				}
 
 				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
