@@ -20,6 +20,7 @@ import {
 	type ReactElement,
 	useMemo,
 } from "react";
+import { cn } from "utils/cn";
 
 const SIDE_PADDING = 16;
 
@@ -76,19 +77,20 @@ export const SelectMenuSearch: FC<SearchFieldProps> = (props) => {
 	);
 };
 
-export const SelectMenuList: FC<MenuListProps> = (props) => {
+export const SelectMenuList: FC<MenuListProps> = ({ children, className, ...attrs }) => {
 	const items = useMemo(() => {
-		let children = Children.toArray(props.children);
-		if (!children.every(isValidElement)) {
+		let items = Children.toArray(children);
+		if (!items.every(isValidElement)) {
 			throw new Error("SelectMenuList only accepts MenuItem children");
 		}
-		children = moveSelectedElementToFirst(
-			children as ReactElement<MenuItemProps>[],
+		items = moveSelectedElementToFirst(
+			items as ReactElement<MenuItemProps>[],
 		);
-		return children;
-	}, [props.children]);
+		return items;
+	}, [children]);
+
 	return (
-		<MenuList className="max-h-[480px]" {...props}>
+		<MenuList className={cn("max-h-[480px]", className)} {...attrs}>
 			{items}
 		</MenuList>
 	);
@@ -106,15 +108,15 @@ function moveSelectedElementToFirst(items: ReactElement<MenuItemProps>[]) {
 	return newItems;
 }
 
-export const SelectMenuIcon: FC<HTMLProps<HTMLDivElement>> = (props) => {
-	return <div className="mr-4" {...props} />;
+export const SelectMenuIcon: FC<HTMLProps<HTMLDivElement>> = ({ children, className, ...attrs }) => {
+	return <div className={cn("mr-4", className)} {...attrs}>{children}</div>;
 };
 
-export const SelectMenuItem: FC<MenuItemProps> = (props) => {
+export const SelectMenuItem: FC<MenuItemProps> = ({ children, className, selected, ...attrs }) => {
 	return (
-		<MenuItem className="text-sm gap-0 leading-none py-3 px-4" {...props}>
-			{props.children}
-			{props.selected && <CheckIcon className="size-icon-xs ml-auto" />}
+		<MenuItem className={cn("text-sm gap-0 leading-none py-3 px-4", className)} {...attrs}>
+			{children}
+			{selected && <CheckIcon className="size-icon-xs ml-auto" />}
 		</MenuItem>
 	);
 };

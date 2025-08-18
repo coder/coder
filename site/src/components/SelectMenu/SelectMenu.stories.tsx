@@ -31,7 +31,7 @@ const meta: Meta<typeof SelectMenu> = {
 					</SelectMenuButton>
 				</SelectMenuTrigger>
 				<SelectMenuContent>
-					<SelectMenuSearch onChange={() => {}} />
+					<SelectMenuSearch onChange={() => { }} />
 					<SelectMenuList>
 						{opts.map((o) => (
 							<SelectMenuItem key={o} selected={o === selectedOpt}>
@@ -76,14 +76,14 @@ export const LongButtonText: Story = {
 			<SelectMenu>
 				<SelectMenuTrigger>
 					<SelectMenuButton
-						className="w-50"
+						className="w-48"
 						startIcon={<Avatar size="sm" fallback={selectedOpt} />}
 					>
 						{selectedOpt}
 					</SelectMenuButton>
 				</SelectMenuTrigger>
 				<SelectMenuContent>
-					<SelectMenuSearch onChange={() => {}} />
+					<SelectMenuSearch onChange={() => { }} />
 					<SelectMenuList>
 						{opts.map((o) => (
 							<SelectMenuItem key={o} selected={o === selectedOpt}>
@@ -107,7 +107,7 @@ export const NoSelectedOption: Story = {
 		return (
 			<SelectMenu>
 				<SelectMenuTrigger>
-					<SelectMenuButton className="w-50">All users</SelectMenuButton>
+					<SelectMenuButton className="w-48">All users</SelectMenuButton>
 				</SelectMenuTrigger>
 				<SelectMenuContent>
 					<SelectMenuSearch onChange={action("search")} />
