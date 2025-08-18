@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -83,6 +84,10 @@ func RunRetry(t *testing.T, count int, fn func(t testing.TB)) {
 // fakeT is a fake implementation of testing.TB that never fails and only logs
 // errors. Fatal errors will cause the goroutine to exit without failing the
 // test.
+//
+// The behavior of the fake implementation should be as close as possible to
+// the real implementation from the test function's perspective (minus
+// intentionally unimplemented methods).
 type fakeT struct {
 	*testing.T
 	ctx  context.Context
@@ -97,13 +102,13 @@ var _ testing.TB = &fakeT{}
 
 func (t *fakeT) runCleanupFns() {
 	t.mu.Lock()
-	cleanupFns := make([]func(), len(t.cleanupFns))
-	copy(cleanupFns, t.cleanupFns)
+	cleanupFns := slices.Clone(t.cleanupFns)
 	t.mu.Unlock()
 
-	// Iterate in reverse order to match the behavior of *testing.T.
-	for i := len(cleanupFns) - 1; i >= 0; i-- {
-		cleanupFns[i]()
+	// Execute in LIFO order to match the behavior of *testing.T.
+	slices.Reverse(cleanupFns)
+	for _, fn := range cleanupFns {
+		fn()
 	}
 }
 
