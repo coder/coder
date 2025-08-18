@@ -358,7 +358,7 @@ module "coder-login" {
 module "cursor" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/cursor/coder"
-  version  = "1.2.1"
+  version  = "1.3.0"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
