@@ -43,9 +43,9 @@ main() {
 	set -euo pipefail
 
 	case "$1" in
-		"license")
-			add_license
-			;;
+	"license")
+		add_license
+		;;
 	*)
 		echo "Unknown fixture: $1"
 		exit 1
