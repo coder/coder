@@ -28,7 +28,7 @@ export const EmptyState: FC<EmptyStateProps> = ({
 	return (
 		<div
 			className={cn(
-				"overflow-hidden flex flex-col justify-center items-center text-center min-h-90 py-20 px-10 relative",
+				"overflow-hidden flex flex-col justify-center items-center text-center min-h-96 py-20 px-10 relative",
 				isCompact && "min-h-45 py-2.5",
 				className,
 			)}
