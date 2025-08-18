@@ -1,57 +1,29 @@
-import type { Interpolation } from "@emotion/react";
 import TableRow, { type TableRowProps } from "@mui/material/TableRow";
 import { forwardRef } from "react";
-import type { Theme } from "theme";
+import { cn } from "utils/cn";
 
-interface TimelineEntryProps extends TableRowProps {
+interface TimelineEntryProps extends Omit<TableRowProps, "style"> {
 	clickable?: boolean;
 }
 
 export const TimelineEntry = forwardRef<
 	HTMLTableRowElement,
 	TimelineEntryProps
->(function TimelineEntry({ children, clickable = true, ...props }, ref) {
+>(({ children, clickable = true, className, ...props }, ref) => {
 	return (
 		<TableRow
 			ref={ref}
-			css={[styles.row, clickable ? styles.clickable : null]}
 			{...props}
+			style={{ "--side-padding": "32px", "--line-width": "2px" }}
+			className={cn(
+				"focus:-outline-offset-1 focus:outline-2 focus:outline-border focus:outline-solid",
+				"[&_td]:relative [&_td]:overflow-hidden",
+				"[&_td:before]:absolute [&_td:before]:block [&_td:before]:h-full [&_td:before]:bg-border [&_td:before]:content-[''] [&_td:before]:w-[--line-width] [&_td:before]:left-[calc((var(--side-padding)+var(--avatar-default)/2)-var(--line-width)/2)]",
+				clickable && "cursor-pointer hover:bg-surface-secondary",
+				className,
+			)}
 		>
 			{children}
 		</TableRow>
 	);
 });
-
-const styles = {
-	row: (theme) => ({
-		"--side-padding": "32px",
-		"&:focus": {
-			outlineStyle: "solid",
-			outlineOffset: -1,
-			outlineWidth: 2,
-			outlineColor: theme.palette.primary.main,
-		},
-		"& td": {
-			position: "relative",
-			overflow: "hidden",
-		},
-		"& td:before": {
-			"--line-width": "2px",
-			position: "absolute",
-			left: "calc((var(--side-padding) + var(--avatar-default)/2) - var(--line-width) / 2)",
-			display: "block",
-			content: "''",
-			height: "100%",
-			width: "var(--line-width)",
-			background: theme.palette.divider,
-		},
-	}),
-
-	clickable: (theme) => ({
-		cursor: "pointer",
-
-		"&:hover": {
-			backgroundColor: theme.palette.action.hover,
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
