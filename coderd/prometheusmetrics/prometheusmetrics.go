@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -297,12 +296,6 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	done := make(chan struct{})
 
-	userCachePool := sync.Pool{
-		New: func() interface{} {
-			return make(map[uuid.UUID]database.User)
-		},
-	}
-
 	// Use time.Nanosecond to force an initial tick. It will be reset to the
 	// correct duration after executing once.
 	ticker := time.NewTicker(time.Nanosecond)
@@ -320,17 +313,6 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			timer := prometheus.NewTimer(metricsCollectorAgents)
 			derpMap := derpMapFn()
 
-			userCache, ok := userCachePool.Get().(map[uuid.UUID]string)
-			if !ok {
-				userCache = make(map[uuid.UUID]string)
-			}
-			defer func() {
-				for k := range userCache {
-					delete(userCache, k)
-				}
-				userCachePool.Put(userCache)
-			}()
-
 			workspaceRows, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
 				AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
 			})
@@ -346,8 +328,17 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 					templateVersionName = "unknown"
 				}
 
-				username, ok := userCache[workspace.OwnerID]
-				if !ok {
+				username := workspace.OwnerUsername
+				// This should never be possible, but we'll guard against it just in case.
+				// 1. The owner_id field on the workspaces table is a reference to IDs in the users table and has a `NUT NULL` constraint
+				// 2. At user creation time our httpmw package enforces non-empty usernames
+				// 3. The workspaces_expanded view has an inner join on workspaces.owner_id = visible_users.id, and if the owner
+				// is valid in the users table (which visible_users is a view of) then they will have a username set
+				if username == "" {
+					logger.Warn(ctx, "in prometheusmetrics.Agents the username on workspace was empty string, this should not be possible",
+						slog.F("workspace_id", workspace.ID),
+						slog.F("template_id", workspace.TemplateID))
+					// Fallback to GetUserByID if OwnerUsername is empty (e.g., in tests)
 					user, err := db.GetUserByID(ctx, workspace.OwnerID)
 					if err != nil {
 						logger.Error(ctx, "can't get user from the database", slog.F("user_id", workspace.OwnerID), slog.Error(err))
@@ -355,7 +346,6 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 						continue
 					}
 					username = user.Username
-					userCache[workspace.OwnerID] = username
 				}
 
 				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
