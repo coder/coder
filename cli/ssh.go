@@ -590,7 +590,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 
 				err = sshSession.Wait()
-				conn.SendDisconnectedTelemetry()
+				conn.TailnetConn().SendDisconnectedTelemetry()
 				if err != nil {
 					if exitErr := (&gossh.ExitError{}); errors.As(err, &exitErr) {
 						// Clear the error since it's not useful beyond
@@ -1364,7 +1364,7 @@ func getUsageAppName(usageApp string) codersdk.UsageAppName {
 
 func setStatsCallback(
 	ctx context.Context,
-	agentConn *workspacesdk.AgentConn,
+	agentConn workspacesdk.AgentConn,
 	logger slog.Logger,
 	networkInfoDir string,
 	networkInfoInterval time.Duration,
@@ -1437,7 +1437,7 @@ func setStatsCallback(
 
 	now := time.Now()
 	cb(now, now.Add(time.Nanosecond), map[netlogtype.Connection]netlogtype.Counts{}, map[netlogtype.Connection]netlogtype.Counts{})
-	agentConn.SetConnStatsCallback(networkInfoInterval, 2048, cb)
+	agentConn.TailnetConn().SetConnStatsCallback(networkInfoInterval, 2048, cb)
 	return errCh, nil
 }
 
@@ -1451,13 +1451,13 @@ type sshNetworkStats struct {
 	UsingCoderConnect bool               `json:"using_coder_connect"`
 }
 
-func collectNetworkStats(ctx context.Context, agentConn *workspacesdk.AgentConn, start, end time.Time, counts map[netlogtype.Connection]netlogtype.Counts) (*sshNetworkStats, error) {
+func collectNetworkStats(ctx context.Context, agentConn workspacesdk.AgentConn, start, end time.Time, counts map[netlogtype.Connection]netlogtype.Counts) (*sshNetworkStats, error) {
 	latency, p2p, pingResult, err := agentConn.Ping(ctx)
 	if err != nil {
 		return nil, err
 	}
-	node := agentConn.Node()
-	derpMap := agentConn.DERPMap()
+	node := agentConn.TailnetConn().Node()
+	derpMap := agentConn.TailnetConn().DERPMap()
 
 	totalRx := uint64(0)
 	totalTx := uint64(0)

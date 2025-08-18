@@ -2749,9 +2749,9 @@ func TestAgent_Dial(t *testing.T) {
 
 				switch l.Addr().Network() {
 				case "tcp":
-					conn, err = agentConn.Conn.DialContextTCP(ctx, ipp)
+					conn, err = agentConn.TailnetConn().DialContextTCP(ctx, ipp)
 				case "udp":
-					conn, err = agentConn.Conn.DialContextUDP(ctx, ipp)
+					conn, err = agentConn.TailnetConn().DialContextUDP(ctx, ipp)
 				default:
 					t.Fatalf("unknown network: %s", l.Addr().Network())
 				}
@@ -2810,7 +2810,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	})
 
 	// Setup a client connection.
-	newClientConn := func(derpMap *tailcfg.DERPMap, name string) *workspacesdk.AgentConn {
+	newClientConn := func(derpMap *tailcfg.DERPMap, name string) workspacesdk.AgentConn {
 		conn, err := tailnet.NewConn(&tailnet.Options{
 			Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
 			DERPMap:   derpMap,
@@ -2890,13 +2890,13 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 
 	// Connect from a second client and make sure it uses the new DERP map.
 	conn2 := newClientConn(newDerpMap, "client2")
-	require.Equal(t, []int{2}, conn2.DERPMap().RegionIDs())
+	require.Equal(t, []int{2}, conn2.TailnetConn().DERPMap().RegionIDs())
 	t.Log("conn2 got the new DERPMap")
 
 	// If the first client gets a DERP map update, it should be able to
 	// reconnect just fine.
-	conn1.SetDERPMap(newDerpMap)
-	require.Equal(t, []int{2}, conn1.DERPMap().RegionIDs())
+	conn1.TailnetConn().SetDERPMap(newDerpMap)
+	require.Equal(t, []int{2}, conn1.TailnetConn().DERPMap().RegionIDs())
 	t.Log("set the new DERPMap on conn1")
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -3263,7 +3263,7 @@ func setupSSHSessionOnPort(
 }
 
 func setupAgent(t testing.TB, metadata agentsdk.Manifest, ptyTimeout time.Duration, opts ...func(*agenttest.Client, *agent.Options)) (
-	*workspacesdk.AgentConn,
+	workspacesdk.AgentConn,
 	*agenttest.Client,
 	<-chan *proto.Stats,
 	afero.Fs,

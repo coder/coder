@@ -139,7 +139,7 @@ func (r *RootCmd) speedtest() *serpent.Command {
 					if err != nil {
 						continue
 					}
-					status := conn.Status()
+					status := conn.TailnetConn().Status()
 					if len(status.Peers()) != 1 {
 						continue
 					}
@@ -189,7 +189,7 @@ func (r *RootCmd) speedtest() *serpent.Command {
 					outputResult.Intervals[i] = interval
 				}
 			}
-			conn.Conn.SendSpeedtestTelemetry(outputResult.Overall.ThroughputMbits)
+			conn.TailnetConn().SendSpeedtestTelemetry(outputResult.Overall.ThroughputMbits)
 			out, err := formatter.Format(inv.Context(), outputResult)
 			if err != nil {
 				return err

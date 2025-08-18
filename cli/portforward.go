@@ -221,7 +221,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 func listenAndPortForward(
 	ctx context.Context,
 	inv *serpent.Invocation,
-	conn *workspacesdk.AgentConn,
+	conn workspacesdk.AgentConn,
 	wg *sync.WaitGroup,
 	spec portForwardSpec,
 	logger slog.Logger,

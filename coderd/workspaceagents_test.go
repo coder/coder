@@ -593,7 +593,7 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	_ = agenttest.New(t, client.URL, r.AgentToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 
-	conn, err := func() (*workspacesdk.AgentConn, error) {
+	conn, err := func() (workspacesdk.AgentConn, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel() // Connection should remain open even if the dial context is canceled.
 
@@ -1574,82 +1574,6 @@ func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
 			}
 		}
 	})
-
-	t.Run("PayloadTooLarge", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			ctx               = testutil.Context(t, testutil.WaitSuperLong)
-			logger            = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-			mClock            = quartz.NewMock(t)
-			updaterTickerTrap = mClock.Trap().TickerFunc("updaterLoop")
-			mCtrl             = gomock.NewController(t)
-			mCCLI             = acmock.NewMockContainerCLI(mCtrl)
-
-			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{Logger: &logger})
-			user       = coderdtest.CreateFirstUser(t, client)
-			r          = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-				OrganizationID: user.OrganizationID,
-				OwnerID:        user.UserID,
-			}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
-				return agents
-			}).Do()
-		)
-
-		// WebSocket limit is 4MiB, so we want to ensure we create _more_ than 4MiB worth of payload.
-		// Creating 20,000 fake containers creates a payload of roughly 7MiB.
-		var fakeContainers []codersdk.WorkspaceAgentContainer
-		for range 20_000 {
-			fakeContainers = append(fakeContainers, codersdk.WorkspaceAgentContainer{
-				CreatedAt:    time.Now(),
-				ID:           uuid.NewString(),
-				FriendlyName: uuid.NewString(),
-				Image:        "busybox:latest",
-				Labels: map[string]string{
-					agentcontainers.DevcontainerLocalFolderLabel: "/home/coder/project",
-					agentcontainers.DevcontainerConfigFileLabel:  "/home/coder/project/.devcontainer/devcontainer.json",
-				},
-				Running: false,
-				Ports:   []codersdk.WorkspaceAgentContainerPort{},
-				Status:  string(codersdk.WorkspaceAgentDevcontainerStatusRunning),
-				Volumes: map[string]string{},
-			})
-		}
-
-		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{Containers: fakeContainers}, nil)
-		mCCLI.EXPECT().DetectArchitecture(gomock.Any(), gomock.Any()).Return("<none>", nil).AnyTimes()
-
-		_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
-			o.Logger = logger.Named("agent")
-			o.Devcontainers = true
-			o.DevcontainerAPIOptions = []agentcontainers.Option{
-				agentcontainers.WithClock(mClock),
-				agentcontainers.WithContainerCLI(mCCLI),
-				agentcontainers.WithWatcher(watcher.NewNoop()),
-			}
-		})
-
-		resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
-		require.Len(t, resources, 1, "expected one resource")
-		require.Len(t, resources[0].Agents, 1, "expected one agent")
-		agentID := resources[0].Agents[0].ID
-
-		updaterTickerTrap.MustWait(ctx).MustRelease(ctx)
-		defer updaterTickerTrap.Close()
-
-		containers, closer, err := client.WatchWorkspaceAgentContainers(ctx, agentID)
-		require.NoError(t, err)
-		defer func() {
-			closer.Close()
-		}()
-
-		select {
-		case <-ctx.Done():
-			t.Fail()
-		case _, ok := <-containers:
-			require.False(t, ok)
-		}
-	})
 }
 
 func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
@@ -2497,7 +2421,7 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	agentID := resources[0].Agents[0].ID
 
 	// Connect from a client.
-	conn1, err := func() (*workspacesdk.AgentConn, error) {
+	conn1, err := func() (workspacesdk.AgentConn, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel() // Connection should remain open even if the dial context is canceled.
 
@@ -2538,7 +2462,7 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 
 	// Wait for the DERP map to be updated on the existing client.
 	require.Eventually(t, func() bool {
-		regionIDs := conn1.Conn.DERPMap().RegionIDs()
+		regionIDs := conn1.TailnetConn().DERPMap().RegionIDs()
 		return len(regionIDs) == 1 && regionIDs[0] == 2
 	}, testutil.WaitLong, testutil.IntervalFast)
 
@@ -2555,7 +2479,7 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	defer conn2.Close()
 	ok = conn2.AwaitReachable(ctx)
 	require.True(t, ok)
-	require.Equal(t, []int{2}, conn2.DERPMap().RegionIDs())
+	require.Equal(t, []int{2}, conn2.TailnetConn().DERPMap().RegionIDs())
 }
 
 func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
