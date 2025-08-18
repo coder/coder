@@ -77,15 +77,17 @@ export const SelectMenuSearch: FC<SearchFieldProps> = (props) => {
 	);
 };
 
-export const SelectMenuList: FC<MenuListProps> = ({ children, className, ...attrs }) => {
+export const SelectMenuList: FC<MenuListProps> = ({
+	children,
+	className,
+	...attrs
+}) => {
 	const items = useMemo(() => {
 		let items = Children.toArray(children);
 		if (!items.every(isValidElement)) {
 			throw new Error("SelectMenuList only accepts MenuItem children");
 		}
-		items = moveSelectedElementToFirst(
-			items as ReactElement<MenuItemProps>[],
-		);
+		items = moveSelectedElementToFirst(items as ReactElement<MenuItemProps>[]);
 		return items;
 	}, [children]);
 
@@ -108,13 +110,29 @@ function moveSelectedElementToFirst(items: ReactElement<MenuItemProps>[]) {
 	return newItems;
 }
 
-export const SelectMenuIcon: FC<HTMLProps<HTMLDivElement>> = ({ children, className, ...attrs }) => {
-	return <div className={cn("mr-4", className)} {...attrs}>{children}</div>;
+export const SelectMenuIcon: FC<HTMLProps<HTMLDivElement>> = ({
+	children,
+	className,
+	...attrs
+}) => {
+	return (
+		<div className={cn("mr-4", className)} {...attrs}>
+			{children}
+		</div>
+	);
 };
 
-export const SelectMenuItem: FC<MenuItemProps> = ({ children, className, selected, ...attrs }) => {
+export const SelectMenuItem: FC<MenuItemProps> = ({
+	children,
+	className,
+	selected,
+	...attrs
+}) => {
 	return (
-		<MenuItem className={cn("text-sm gap-0 leading-none py-3 px-4", className)} {...attrs}>
+		<MenuItem
+			className={cn("text-sm gap-0 leading-none py-3 px-4", className)}
+			{...attrs}
+		>
 			{children}
 			{selected && <CheckIcon className="size-icon-xs ml-auto" />}
 		</MenuItem>
