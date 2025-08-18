@@ -128,7 +128,7 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 	if r.opts.UpdateAgentMetricsFn != nil {
 		username := workspace.OwnerUsername
 		// This should never be possible, but we'll guard against it just in case.
-		// 1. The owner_id field on the workspaces table is a reference to IDs in the users table and has a `NUT NULL` constraint
+		// 1. The owner_id field on the workspaces table is a reference to IDs in the users table and has a `NOT NULL` constraint
 		// 2. At user creation time our httpmw package enforces non-empty usernames
 		// 3. The workspaces_expanded view has an inner join on workspaces.owner_id = visible_users.id, and if the owner
 		// is valid in the users table (which visible_users is a view of) then they will have a username set
