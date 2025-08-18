@@ -5,9 +5,9 @@ import { OrganizationSidebar } from "./OrganizationSidebar";
 
 const OrganizationSidebarLayout: FC = () => {
 	return (
-		<div className="flex flex-row gap-28 py-10">
+		<div className="flex flex-row flex-1 min-h-0 w-full">
 			<OrganizationSidebar />
-			<main css={{ flexGrow: 1 }}>
+			<main className="flex-grow">
 				<Suspense fallback={<Loader />}>
 					<Outlet />
 				</Suspense>

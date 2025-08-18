@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import { getErrorMessage } from "api/errors";
 import { groupsByUserIdInOrganization } from "api/queries/groups";
 import {
@@ -156,7 +155,7 @@ const OrganizationMembersPage: FC = () => {
 							</ul>
 						</p>
 
-						<p css={styles.test}>
+						<p className="pb-5">
 							Are you sure you want to remove this member?
 						</p>
 					</Stack>
@@ -165,11 +164,5 @@ const OrganizationMembersPage: FC = () => {
 		</>
 	);
 };
-
-const styles = {
-	test: {
-		paddingBottom: 20,
-	},
-} satisfies Record<string, Interpolation<Theme>>;
 
 export default OrganizationMembersPage;
