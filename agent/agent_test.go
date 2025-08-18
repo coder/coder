@@ -2708,6 +2708,7 @@ func TestAgent_Dial(t *testing.T) {
 			// the listener in the "workspace".
 			//
 			// To avoid this, we'll retry this test up to 3 times.
+			//nolint:gocritic // This test is flaky due to uncontrollable OS packet drops under heavy load.
 			testutil.RunRetry(t, 3, func(t testing.TB) {
 				ctx := testutil.Context(t, testutil.WaitLong)
 
