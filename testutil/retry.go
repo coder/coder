@@ -59,6 +59,9 @@ func RunRetry(ctx context.Context, t *testing.T, count int, fn func(t testing.TB
 			fn(attemptT)
 		}()
 
+		// We don't wait on the context here, because we want to be sure that
+		// the test function and cleanup functions have finished before
+		// returning from the test.
 		<-done
 		if !attemptT.Failed() {
 			t.Logf("testutil.RunRetry: test passed on attempt %d/%d", i, count)
@@ -86,9 +89,13 @@ var _ testing.TB = &fakeT{}
 
 func (t *fakeT) runCleanupFns() {
 	t.mu.Lock()
-	defer t.mu.Unlock()
-	for _, fn := range t.cleanupFns {
-		fn()
+	cleanupFns := make([]func(), len(t.cleanupFns))
+	copy(cleanupFns, t.cleanupFns)
+	t.mu.Unlock()
+
+	// Iterate in reverse order to match the behavior of *testing.T.
+	for i := len(cleanupFns) - 1; i >= 0; i-- {
+		cleanupFns[i]()
 	}
 }
 
