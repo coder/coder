@@ -7383,7 +7383,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "format": "uuid",
+                        "format": "string",
                         "description": "Key ID",
                         "name": "keyid",
                         "in": "path",
@@ -7420,7 +7420,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "format": "uuid",
+                        "format": "string",
                         "description": "Key ID",
                         "name": "keyid",
                         "in": "path",

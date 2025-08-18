@@ -919,10 +919,10 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
 
 ### Parameters
 
-| Name    | In   | Type         | Required | Description          |
-|---------|------|--------------|----------|----------------------|
-| `user`  | path | string       | true     | User ID, name, or me |
-| `keyid` | path | string(uuid) | true     | Key ID               |
+| Name    | In   | Type           | Required | Description          |
+|---------|------|----------------|----------|----------------------|
+| `user`  | path | string         | true     | User ID, name, or me |
+| `keyid` | path | string(string) | true     | Key ID               |
 
 ### Example responses
 
@@ -965,10 +965,10 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
 
 ### Parameters
 
-| Name    | In   | Type         | Required | Description          |
-|---------|------|--------------|----------|----------------------|
-| `user`  | path | string       | true     | User ID, name, or me |
-| `keyid` | path | string(uuid) | true     | Key ID               |
+| Name    | In   | Type           | Required | Description          |
+|---------|------|----------------|----------|----------------------|
+| `user`  | path | string         | true     | User ID, name, or me |
+| `keyid` | path | string(string) | true     | Key ID               |
 
 ### Responses
 
