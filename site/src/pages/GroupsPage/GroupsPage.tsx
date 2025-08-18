@@ -76,7 +76,6 @@ const GroupsPage: FC = () => {
 	}
 
 	return (
-
 		<div className="w-full max-w-screen-2xl pb-10">
 			{helmet}
 

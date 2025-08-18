@@ -155,9 +155,7 @@ const OrganizationMembersPage: FC = () => {
 							</ul>
 						</p>
 
-						<p className="pb-5">
-							Are you sure you want to remove this member?
-						</p>
+						<p className="pb-5">Are you sure you want to remove this member?</p>
 					</Stack>
 				}
 			/>
