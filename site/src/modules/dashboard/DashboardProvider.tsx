@@ -15,7 +15,7 @@ import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "hooks";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { canViewAnyOrganization } from "modules/permissions";
-import { type FC, type PropsWithChildren, createContext } from "react";
+import { createContext, type FC, type PropsWithChildren } from "react";
 import { useQuery } from "react-query";
 import { selectFeatureVisibility } from "./entitlements";
 

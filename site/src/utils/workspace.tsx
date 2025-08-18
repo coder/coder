@@ -5,8 +5,12 @@ import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import minMax from "dayjs/plugin/minMax";
 import utc from "dayjs/plugin/utc";
-import { HourglassIcon } from "lucide-react";
-import { CircleAlertIcon, PlayIcon, SquareIcon } from "lucide-react";
+import {
+	CircleAlertIcon,
+	HourglassIcon,
+	PlayIcon,
+	SquareIcon,
+} from "lucide-react";
 import semver from "semver";
 import { getPendingStatusLabel } from "./provisionerJob";
 

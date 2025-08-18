@@ -1,9 +1,4 @@
 import "jest-canvas-mock";
-import { waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
-import WS from "jest-websocket-mock";
-import { http, HttpResponse } from "msw";
 import {
 	MockUserOwner,
 	MockWorkspace,
@@ -11,6 +6,11 @@ import {
 } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import { waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { API } from "api/api";
+import WS from "jest-websocket-mock";
+import { HttpResponse, http } from "msw";
 import TerminalPage, { Language } from "./TerminalPage";
 
 const renderTerminal = async (

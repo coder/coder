@@ -614,7 +614,7 @@ const MockUserAuthProvisioner: TypesGen.ProvisionerDaemon = {
 	tags: { scope: "user" },
 };
 
-const MockPskProvisioner: TypesGen.ProvisionerDaemon = {
+const _MockPskProvisioner: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-psk-provisioner",
 	key_id: MockProvisionerPskKey.id,
@@ -622,7 +622,7 @@ const MockPskProvisioner: TypesGen.ProvisionerDaemon = {
 	name: "Test psk provisioner",
 };
 
-const MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
+const _MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-key-provisioner",
 	key_id: MockProvisionerKey.id,
@@ -632,7 +632,7 @@ const MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
 	tags: MockProvisionerKey.tags,
 };
 
-const MockProvisioner2: TypesGen.ProvisionerDaemon = {
+const _MockProvisioner2: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-provisioner-2",
 	name: "Test Provisioner 2",
@@ -831,7 +831,7 @@ export const MockTemplate: TypesGen.Template = {
 	cors_behavior: "simple",
 };
 
-const MockTemplateVersionFiles: TemplateVersionFiles = {
+const _MockTemplateVersionFiles: TemplateVersionFiles = {
 	"README.md": "# Example\n\nThis is an example template.",
 	"main.tf": `// Provides info about the workspace.
 data "coder_workspace" "me" {}
@@ -1201,7 +1201,7 @@ export const MockWorkspaceResourceMultipleAgents: TypesGen.WorkspaceResource = {
 	],
 };
 
-const MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
+const _MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
 	...MockWorkspaceResource,
 	id: "test-workspace-resource-hidden",
 	name: "workspace-resource-hidden",
@@ -1244,7 +1244,7 @@ export const MockWorkspaceContainerResource: TypesGen.WorkspaceResource = {
 	daily_cost: 0,
 };
 
-const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest =
+const _MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest =
 	{
 		schedule: "",
 	};
@@ -1554,7 +1554,7 @@ export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspac
 		},
 	};
 
-const MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
+const _MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 	...MockOutdatedRunningWorkspaceAlwaysUpdate,
 	latest_build: {
 		...MockWorkspaceBuild,
@@ -1583,7 +1583,7 @@ export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
 	count: 26,
 };
 
-const MockWorkspacesResponseWithDeletions = {
+const _MockWorkspacesResponseWithDeletions = {
 	workspaces: [...MockWorkspacesResponse.workspaces, MockWorkspaceWithDeletion],
 	count: MockWorkspacesResponse.count + 1,
 };
@@ -1738,7 +1738,7 @@ export const MockWorkspaceRichParametersRequest: TypesGen.CreateWorkspaceRequest
 		],
 	};
 
-const MockUserAgent = {
+const _MockUserAgent = {
 	browser: "Chrome 99.0.4844",
 	device: "Other",
 	ip_address: "11.22.33.44",
@@ -2420,7 +2420,7 @@ export const MockEntitlements: TypesGen.Entitlements = {
 	refreshed_at: "2022-05-20T16:45:57.122Z",
 };
 
-const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
+const _MockEntitlementsWithWarnings: TypesGen.Entitlements = {
 	errors: [],
 	warnings: ["You are over your active user limit.", "And another thing."],
 	has_license: true,
@@ -2490,7 +2490,7 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
 	}),
 };
 
-const MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
+const _MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
 	errors: [],
 	warnings: [],
 	has_license: true,
@@ -2667,7 +2667,7 @@ export const MockAuditLogGitSSH: TypesGen.AuditLog = {
 	},
 };
 
-const MockAuditOauthConvert: TypesGen.AuditLog = {
+const _MockAuditOauthConvert: TypesGen.AuditLog = {
 	...MockAuditLog,
 	resource_type: "convert_login",
 	resource_target: "oidc",

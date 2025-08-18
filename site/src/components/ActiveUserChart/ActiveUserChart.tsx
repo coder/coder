@@ -68,7 +68,7 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({ data }) => {
 								const item = p[0];
 								return `${item.value} active users`;
 							}}
-							formatter={(v, n, item) => {
+							formatter={(_v, _n, item) => {
 								const date = new Date(item.payload.date);
 								return date.toLocaleString(undefined, {
 									month: "long",

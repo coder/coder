@@ -1178,410 +1178,310 @@ func (s *MethodTestSuite) TestWorkspaceProxy() {
 }
 
 func (s *MethodTestSuite) TestTemplate() {
-	s.Run("GetPreviousTemplateVersion", s.Subtest(func(db database.Store, check *expects) {
-		tvid := uuid.New()
-		now := time.Now()
-		u := dbgen.User(s.T(), db, database.User{})
-		o1 := dbgen.Organization(s.T(), db, database.Organization{})
-		t1 := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID:  o1.ID,
-			ActiveVersionID: tvid,
-			CreatedBy:       u.ID,
-		})
-		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			CreatedAt:      now.Add(-time.Hour),
-			ID:             tvid,
-			Name:           t1.Name,
-			OrganizationID: o1.ID,
-			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
-			CreatedBy:      u.ID,
-		})
-		b := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			CreatedAt:      now.Add(-2 * time.Hour),
-			Name:           t1.Name + "b",
-			OrganizationID: o1.ID,
-			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
-			CreatedBy:      u.ID,
-		})
-		check.Args(database.GetPreviousTemplateVersionParams{
-			Name:           t1.Name,
-			OrganizationID: o1.ID,
-			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
-		}).Asserts(t1, policy.ActionRead).Returns(b)
+	s.Run("GetPreviousTemplateVersion", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		b := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}})
+		arg := database.GetPreviousTemplateVersionParams{Name: b.Name, OrganizationID: t1.OrganizationID, TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}}
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().GetPreviousTemplateVersion(gomock.Any(), arg).Return(b, nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionRead).Returns(b)
 	}))
-	s.Run("GetTemplateByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
+	s.Run("GetTemplateByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
 		check.Args(t1.ID).Asserts(t1, policy.ActionRead).Returns(t1)
 	}))
-	s.Run("GetTemplateByOrganizationAndName", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		o1 := dbgen.Organization(s.T(), db, database.Organization{})
-		t1 := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: o1.ID,
-		})
-		check.Args(database.GetTemplateByOrganizationAndNameParams{
-			Name:           t1.Name,
-			OrganizationID: o1.ID,
-		}).Asserts(t1, policy.ActionRead).Returns(t1)
+	s.Run("GetTemplateByOrganizationAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.GetTemplateByOrganizationAndNameParams{Name: t1.Name, OrganizationID: t1.OrganizationID}
+		dbm.EXPECT().GetTemplateByOrganizationAndName(gomock.Any(), arg).Return(t1, nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionRead).Returns(t1)
 	}))
-	s.Run("GetTemplateVersionByJobID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-		})
+	s.Run("GetTemplateVersionByJobID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}})
+		dbm.EXPECT().GetTemplateVersionByJobID(gomock.Any(), tv.JobID).Return(tv, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
 		check.Args(tv.JobID).Asserts(t1, policy.ActionRead).Returns(tv)
 	}))
-	s.Run("GetTemplateVersionByTemplateIDAndName", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-		})
-		check.Args(database.GetTemplateVersionByTemplateIDAndNameParams{
-			Name:       tv.Name,
-			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-		}).Asserts(t1, policy.ActionRead).Returns(tv)
+	s.Run("GetTemplateVersionByTemplateIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}})
+		arg := database.GetTemplateVersionByTemplateIDAndNameParams{Name: tv.Name, TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}}
+		dbm.EXPECT().GetTemplateVersionByTemplateIDAndName(gomock.Any(), arg).Return(tv, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionRead).Returns(tv)
 	}))
-	s.Run("GetTemplateVersionParameters", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-		})
+	s.Run("GetTemplateVersionParameters", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}})
+		dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), tv.ID).Return(tv, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateVersionParameters(gomock.Any(), tv.ID).Return([]database.TemplateVersionParameter{}, nil).AnyTimes()
 		check.Args(tv.ID).Asserts(t1, policy.ActionRead).Returns([]database.TemplateVersionParameter{})
 	}))
-	s.Run("GetTemplateVersionTerraformValues", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		u := dbgen.User(s.T(), db, database.User{})
-		_ = dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID})
-		t := dbgen.Template(s.T(), db, database.Template{OrganizationID: o.ID, CreatedBy: u.ID})
-		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{OrganizationID: o.ID})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-			JobID:          job.ID,
-			TemplateID:     uuid.NullUUID{UUID: t.ID, Valid: true},
-		})
-		dbgen.TemplateVersionTerraformValues(s.T(), db, database.TemplateVersionTerraformValue{
-			TemplateVersionID: tv.ID,
-		})
+	s.Run("GetTemplateVersionTerraformValues", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t := testutil.Fake(s.T(), faker, database.Template{})
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t.ID, Valid: true}})
+		val := testutil.Fake(s.T(), faker, database.TemplateVersionTerraformValue{TemplateVersionID: tv.ID})
+		dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), tv.ID).Return(tv, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t.ID).Return(t, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateVersionTerraformValues(gomock.Any(), tv.ID).Return(val, nil).AnyTimes()
 		check.Args(tv.ID).Asserts(t, policy.ActionRead)
 	}))
-	s.Run("GetTemplateVersionVariables", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-		})
-		tvv1 := dbgen.TemplateVersionVariable(s.T(), db, database.TemplateVersionVariable{
-			TemplateVersionID: tv.ID,
-		})
+	s.Run("GetTemplateVersionVariables", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}})
+		tvv1 := testutil.Fake(s.T(), faker, database.TemplateVersionVariable{TemplateVersionID: tv.ID})
+		dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), tv.ID).Return(tv, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateVersionVariables(gomock.Any(), tv.ID).Return([]database.TemplateVersionVariable{tvv1}, nil).AnyTimes()
 		check.Args(tv.ID).Asserts(t1, policy.ActionRead).Returns([]database.TemplateVersionVariable{tvv1})
 	}))
-	s.Run("GetTemplateVersionWorkspaceTags", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-		})
-		wt1 := dbgen.TemplateVersionWorkspaceTag(s.T(), db, database.TemplateVersionWorkspaceTag{
-			TemplateVersionID: tv.ID,
-		})
+	s.Run("GetTemplateVersionWorkspaceTags", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}})
+		wt1 := testutil.Fake(s.T(), faker, database.TemplateVersionWorkspaceTag{TemplateVersionID: tv.ID})
+		dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), tv.ID).Return(tv, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateVersionWorkspaceTags(gomock.Any(), tv.ID).Return([]database.TemplateVersionWorkspaceTag{wt1}, nil).AnyTimes()
 		check.Args(tv.ID).Asserts(t1, policy.ActionRead).Returns([]database.TemplateVersionWorkspaceTag{wt1})
 	}))
-	s.Run("GetTemplateGroupRoles", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
+	s.Run("GetTemplateGroupRoles", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateGroupRoles(gomock.Any(), t1.ID).Return([]database.TemplateGroup{}, nil).AnyTimes()
 		check.Args(t1.ID).Asserts(t1, policy.ActionUpdate)
 	}))
-	s.Run("GetTemplateUserRoles", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
+	s.Run("GetTemplateUserRoles", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateUserRoles(gomock.Any(), t1.ID).Return([]database.TemplateUser{}, nil).AnyTimes()
 		check.Args(t1.ID).Asserts(t1, policy.ActionUpdate)
 	}))
-	s.Run("GetTemplateVersionByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-		})
+	s.Run("GetTemplateVersionByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}})
+		dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), tv.ID).Return(tv, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
 		check.Args(tv.ID).Asserts(t1, policy.ActionRead).Returns(tv)
 	}))
-	s.Run("GetTemplateVersionsByTemplateID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		a := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-		})
-		b := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-		})
-		check.Args(database.GetTemplateVersionsByTemplateIDParams{
-			TemplateID: t1.ID,
-		}).Asserts(t1, policy.ActionRead).
-			Returns(slice.New(a, b))
+	s.Run("Orphaned/GetTemplateVersionByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{})
+		// uuid.NullUUID{Valid: false} is a zero value. faker overwrites zero values
+		// with random data, so we need to set TemplateID after faker is done with it.
+		tv.TemplateID = uuid.NullUUID{Valid: false}
+		dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), tv.ID).Return(tv, nil).AnyTimes()
+		check.Args(tv.ID).Asserts(tv.RBACObjectNoTemplate(), policy.ActionRead).Returns(tv)
 	}))
-	s.Run("GetTemplateVersionsCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
+	s.Run("GetTemplateVersionsByTemplateID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		a := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}})
+		b := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}})
+		arg := database.GetTemplateVersionsByTemplateIDParams{TemplateID: t1.ID}
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateVersionsByTemplateID(gomock.Any(), arg).Return([]database.TemplateVersion{a, b}, nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionRead).Returns(slice.New(a, b))
+	}))
+	s.Run("GetTemplateVersionsCreatedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		now := time.Now()
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-			CreatedAt:  now.Add(-time.Hour),
-		})
-		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-			CreatedAt:  now.Add(-2 * time.Hour),
-		})
+		dbm.EXPECT().GetTemplateVersionsCreatedAfter(gomock.Any(), now.Add(-time.Hour)).Return([]database.TemplateVersion{}, nil).AnyTimes()
 		check.Args(now.Add(-time.Hour)).Asserts(rbac.ResourceTemplate.All(), policy.ActionRead)
 	}))
-	s.Run("GetTemplateVersionHasAITask", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		u := dbgen.User(s.T(), db, database.User{})
-		t := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			OrganizationID: o.ID,
-			TemplateID:     uuid.NullUUID{UUID: t.ID, Valid: true},
-			CreatedBy:      u.ID,
-		})
+	s.Run("GetTemplateVersionHasAITask", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t := testutil.Fake(s.T(), faker, database.Template{})
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t.ID, Valid: true}})
+		dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), tv.ID).Return(tv, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t.ID).Return(t, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateVersionHasAITask(gomock.Any(), tv.ID).Return(false, nil).AnyTimes()
 		check.Args(tv.ID).Asserts(t, policy.ActionRead)
 	}))
-	s.Run("GetTemplatesWithFilter", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		u := dbgen.User(s.T(), db, database.User{})
-		a := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
+	s.Run("GetTemplatesWithFilter", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		a := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.GetTemplatesWithFilterParams{}
+		dbm.EXPECT().GetAuthorizedTemplates(gomock.Any(), arg, gomock.Any()).Return([]database.Template{a}, nil).AnyTimes()
 		// No asserts because SQLFilter.
-		check.Args(database.GetTemplatesWithFilterParams{}).
-			Asserts().Returns(slice.New(a))
+		check.Args(arg).Asserts().Returns(slice.New(a))
 	}))
-	s.Run("GetAuthorizedTemplates", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		a := dbgen.Template(s.T(), db, database.Template{})
+	s.Run("GetAuthorizedTemplates", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		a := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.GetTemplatesWithFilterParams{}
+		dbm.EXPECT().GetAuthorizedTemplates(gomock.Any(), arg, gomock.Any()).Return([]database.Template{a}, nil).AnyTimes()
 		// No asserts because SQLFilter.
-		check.Args(database.GetTemplatesWithFilterParams{}, emptyPreparedAuthorized{}).
-			Asserts().
-			Returns(slice.New(a))
+		check.Args(arg, emptyPreparedAuthorized{}).Asserts().Returns(slice.New(a))
 	}))
-	s.Run("InsertTemplate", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		orgID := uuid.New()
-		check.Args(database.InsertTemplateParams{
-			Provisioner:         "echo",
-			OrganizationID:      orgID,
-			MaxPortSharingLevel: database.AppSharingLevelOwner,
-			CorsBehavior:        database.CorsBehaviorSimple,
-		}).Asserts(rbac.ResourceTemplate.InOrg(orgID), policy.ActionCreate)
+	s.Run("InsertTemplate", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertTemplateParams{OrganizationID: uuid.New()}
+		dbm.EXPECT().InsertTemplate(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceTemplate.InOrg(arg.OrganizationID), policy.ActionCreate)
 	}))
-	s.Run("InsertTemplateVersion", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		check.Args(database.InsertTemplateVersionParams{
-			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
-			OrganizationID: t1.OrganizationID,
-		}).Asserts(t1, policy.ActionRead, t1, policy.ActionCreate)
+	s.Run("InsertTemplateVersion", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.InsertTemplateVersionParams{TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}, OrganizationID: t1.OrganizationID}
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().InsertTemplateVersion(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionRead, t1, policy.ActionCreate)
 	}))
-	s.Run("InsertTemplateVersionTerraformValuesByJobID", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		u := dbgen.User(s.T(), db, database.User{})
-		_ = dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID})
-		t := dbgen.Template(s.T(), db, database.Template{OrganizationID: o.ID, CreatedBy: u.ID})
-		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{OrganizationID: o.ID})
-		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-			JobID:          job.ID,
-			TemplateID:     uuid.NullUUID{UUID: t.ID, Valid: true},
-		})
-		check.Args(database.InsertTemplateVersionTerraformValuesByJobIDParams{
-			JobID:      job.ID,
-			CachedPlan: []byte("{}"),
-		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	s.Run("InsertTemplateVersionTerraformValuesByJobID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		job := uuid.New()
+		arg := database.InsertTemplateVersionTerraformValuesByJobIDParams{JobID: job, CachedPlan: []byte("{}")}
+		dbm.EXPECT().InsertTemplateVersionTerraformValuesByJobID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
-	s.Run("SoftDeleteTemplateByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
+	s.Run("SoftDeleteTemplateByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().UpdateTemplateDeletedByID(gomock.Any(), gomock.AssignableToTypeOf(database.UpdateTemplateDeletedByIDParams{})).Return(nil).AnyTimes()
 		check.Args(t1.ID).Asserts(t1, policy.ActionDelete)
 	}))
-	s.Run("UpdateTemplateACLByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		check.Args(database.UpdateTemplateACLByIDParams{
-			ID: t1.ID,
-		}).Asserts(t1, policy.ActionCreate)
+	s.Run("UpdateTemplateACLByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.UpdateTemplateACLByIDParams{ID: t1.ID}
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().UpdateTemplateACLByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionCreate)
 	}))
-	s.Run("UpdateTemplateAccessControlByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		check.Args(database.UpdateTemplateAccessControlByIDParams{
-			ID: t1.ID,
-		}).Asserts(t1, policy.ActionUpdate)
+	s.Run("UpdateTemplateAccessControlByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.UpdateTemplateAccessControlByIDParams{ID: t1.ID}
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().UpdateTemplateAccessControlByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionUpdate)
 	}))
-	s.Run("UpdateTemplateScheduleByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		check.Args(database.UpdateTemplateScheduleByIDParams{
-			ID: t1.ID,
-		}).Asserts(t1, policy.ActionUpdate)
+	s.Run("UpdateTemplateScheduleByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.UpdateTemplateScheduleByIDParams{ID: t1.ID}
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().UpdateTemplateScheduleByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionUpdate)
 	}))
-	s.Run("UpdateTemplateVersionAITaskByJobID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		u := dbgen.User(s.T(), db, database.User{})
-		_ = dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID})
-		t := dbgen.Template(s.T(), db, database.Template{OrganizationID: o.ID, CreatedBy: u.ID})
-		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{OrganizationID: o.ID})
-		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-			JobID:          job.ID,
-			TemplateID:     uuid.NullUUID{UUID: t.ID, Valid: true},
-		})
-		check.Args(database.UpdateTemplateVersionAITaskByJobIDParams{
-			JobID:     job.ID,
-			HasAITask: sql.NullBool{Bool: true, Valid: true},
-		}).Asserts(t, policy.ActionUpdate)
+	s.Run("UpdateTemplateVersionAITaskByJobID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t := testutil.Fake(s.T(), faker, database.Template{})
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t.ID, Valid: true}})
+		arg := database.UpdateTemplateVersionAITaskByJobIDParams{JobID: tv.JobID, HasAITask: sql.NullBool{Bool: true, Valid: true}}
+		dbm.EXPECT().GetTemplateVersionByJobID(gomock.Any(), tv.JobID).Return(tv, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t.ID).Return(t, nil).AnyTimes()
+		dbm.EXPECT().UpdateTemplateVersionAITaskByJobID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(t, policy.ActionUpdate)
 	}))
-	s.Run("UpdateTemplateWorkspacesLastUsedAt", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		check.Args(database.UpdateTemplateWorkspacesLastUsedAtParams{
-			TemplateID: t1.ID,
-		}).Asserts(t1, policy.ActionUpdate)
+	s.Run("UpdateTemplateWorkspacesLastUsedAt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.UpdateTemplateWorkspacesLastUsedAtParams{TemplateID: t1.ID}
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().UpdateTemplateWorkspacesLastUsedAt(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionUpdate)
 	}))
-	s.Run("UpdateWorkspacesDormantDeletingAtByTemplateID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		check.Args(database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams{
-			TemplateID: t1.ID,
-		}).Asserts(t1, policy.ActionUpdate)
+	s.Run("UpdateWorkspacesDormantDeletingAtByTemplateID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams{TemplateID: t1.ID}
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().UpdateWorkspacesDormantDeletingAtByTemplateID(gomock.Any(), arg).Return([]database.WorkspaceTable{}, nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionUpdate)
 	}))
-	s.Run("UpdateWorkspacesTTLByTemplateID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		check.Args(database.UpdateWorkspacesTTLByTemplateIDParams{
-			TemplateID: t1.ID,
-		}).Asserts(t1, policy.ActionUpdate)
+	s.Run("UpdateWorkspacesTTLByTemplateID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.UpdateWorkspacesTTLByTemplateIDParams{TemplateID: t1.ID}
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().UpdateWorkspacesTTLByTemplateID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionUpdate)
 	}))
-	s.Run("UpdateTemplateActiveVersionByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{
-			ActiveVersionID: uuid.New(),
-		})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			ID:         t1.ActiveVersionID,
-			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-		})
-		check.Args(database.UpdateTemplateActiveVersionByIDParams{
-			ID:              t1.ID,
-			ActiveVersionID: tv.ID,
-		}).Asserts(t1, policy.ActionUpdate).Returns()
+	s.Run("UpdateTemplateActiveVersionByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{ActiveVersionID: uuid.New()})
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{ID: t1.ActiveVersionID, TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}})
+		arg := database.UpdateTemplateActiveVersionByIDParams{ID: t1.ID, ActiveVersionID: tv.ID}
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().UpdateTemplateActiveVersionByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionUpdate).Returns()
 	}))
-	s.Run("UpdateTemplateDeletedByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		check.Args(database.UpdateTemplateDeletedByIDParams{
-			ID:      t1.ID,
-			Deleted: true,
-		}).Asserts(t1, policy.ActionDelete).Returns()
+	s.Run("UpdateTemplateDeletedByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.UpdateTemplateDeletedByIDParams{ID: t1.ID, Deleted: true}
+		// The method delegates to SoftDeleteTemplateByID, which fetches then updates.
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().UpdateTemplateDeletedByID(gomock.Any(), gomock.AssignableToTypeOf(database.UpdateTemplateDeletedByIDParams{})).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionDelete).Returns()
 	}))
-	s.Run("UpdateTemplateMetaByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		check.Args(database.UpdateTemplateMetaByIDParams{
-			ID:                  t1.ID,
-			MaxPortSharingLevel: "owner",
-			CorsBehavior:        database.CorsBehaviorSimple,
-		}).Asserts(t1, policy.ActionUpdate)
+	s.Run("UpdateTemplateMetaByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.UpdateTemplateMetaByIDParams{ID: t1.ID, MaxPortSharingLevel: "owner", CorsBehavior: database.CorsBehaviorSimple}
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().UpdateTemplateMetaByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionUpdate)
 	}))
-	s.Run("UpdateTemplateVersionByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-		})
-		check.Args(database.UpdateTemplateVersionByIDParams{
-			ID:         tv.ID,
-			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-			Name:       tv.Name,
-			UpdatedAt:  tv.UpdatedAt,
-		}).Asserts(t1, policy.ActionUpdate)
+	s.Run("UpdateTemplateVersionByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}})
+		arg := database.UpdateTemplateVersionByIDParams{ID: tv.ID, TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}, Name: tv.Name, UpdatedAt: tv.UpdatedAt}
+		dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), tv.ID).Return(tv, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().UpdateTemplateVersionByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionUpdate)
 	}))
-	s.Run("UpdateTemplateVersionDescriptionByJobID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		jobID := uuid.New()
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-			JobID:      jobID,
-		})
-		check.Args(database.UpdateTemplateVersionDescriptionByJobIDParams{
-			JobID:  jobID,
-			Readme: "foo",
-		}).Asserts(t1, policy.ActionUpdate).Returns()
+	s.Run("UpdateTemplateVersionDescriptionByJobID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		tv := database.TemplateVersion{ID: uuid.New(), JobID: uuid.New(), TemplateID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+		t1 := database.Template{ID: tv.TemplateID.UUID}
+		arg := database.UpdateTemplateVersionDescriptionByJobIDParams{JobID: tv.JobID, Readme: "foo"}
+		dbm.EXPECT().GetTemplateVersionByJobID(gomock.Any(), tv.JobID).Return(tv, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().UpdateTemplateVersionDescriptionByJobID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionUpdate).Returns()
 	}))
-	s.Run("UpdateTemplateVersionExternalAuthProvidersByJobID", s.Subtest(func(db database.Store, check *expects) {
-		jobID := uuid.New()
-		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		t1 := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: o.ID,
-			CreatedBy:      u.ID,
-		})
-		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
-			CreatedBy:      u.ID,
-			OrganizationID: o.ID,
-			JobID:          jobID,
-		})
-		check.Args(database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
-			JobID:                 jobID,
-			ExternalAuthProviders: json.RawMessage("{}"),
-		}).Asserts(t1, policy.ActionUpdate).Returns()
+	s.Run("UpdateTemplateVersionExternalAuthProvidersByJobID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		tv := database.TemplateVersion{ID: uuid.New(), JobID: uuid.New(), TemplateID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+		t1 := database.Template{ID: tv.TemplateID.UUID}
+		arg := database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{JobID: tv.JobID, ExternalAuthProviders: json.RawMessage("{}")}
+		dbm.EXPECT().GetTemplateVersionByJobID(gomock.Any(), tv.JobID).Return(tv, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().UpdateTemplateVersionExternalAuthProvidersByJobID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionUpdate).Returns()
 	}))
-	s.Run("GetTemplateInsights", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetTemplateInsightsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
+	s.Run("GetTemplateInsights", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetTemplateInsightsParams{}
+		dbm.EXPECT().GetTemplateInsights(gomock.Any(), arg).Return(database.GetTemplateInsightsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
-	s.Run("GetUserLatencyInsights", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetUserLatencyInsightsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
+	s.Run("GetUserLatencyInsights", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetUserLatencyInsightsParams{}
+		dbm.EXPECT().GetUserLatencyInsights(gomock.Any(), arg).Return([]database.GetUserLatencyInsightsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
-	s.Run("GetUserActivityInsights", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetUserActivityInsightsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights).
-			ErrorsWithInMemDB(sql.ErrNoRows).
-			Returns([]database.GetUserActivityInsightsRow{})
+	s.Run("GetUserActivityInsights", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetUserActivityInsightsParams{}
+		dbm.EXPECT().GetUserActivityInsights(gomock.Any(), arg).Return([]database.GetUserActivityInsightsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights).Returns([]database.GetUserActivityInsightsRow{})
 	}))
-	s.Run("GetTemplateParameterInsights", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetTemplateParameterInsightsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
+	s.Run("GetTemplateParameterInsights", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetTemplateParameterInsightsParams{}
+		dbm.EXPECT().GetTemplateParameterInsights(gomock.Any(), arg).Return([]database.GetTemplateParameterInsightsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
-	s.Run("GetTemplateInsightsByInterval", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetTemplateInsightsByIntervalParams{
-			IntervalDays: 7,
-			StartTime:    dbtime.Now().Add(-time.Hour * 24 * 7),
-			EndTime:      dbtime.Now(),
-		}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
+	s.Run("GetTemplateInsightsByInterval", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetTemplateInsightsByIntervalParams{IntervalDays: 7, StartTime: dbtime.Now().Add(-time.Hour * 24 * 7), EndTime: dbtime.Now()}
+		dbm.EXPECT().GetTemplateInsightsByInterval(gomock.Any(), arg).Return([]database.GetTemplateInsightsByIntervalRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
-	s.Run("GetTemplateInsightsByTemplate", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetTemplateInsightsByTemplateParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
+	s.Run("GetTemplateInsightsByTemplate", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetTemplateInsightsByTemplateParams{}
+		dbm.EXPECT().GetTemplateInsightsByTemplate(gomock.Any(), arg).Return([]database.GetTemplateInsightsByTemplateRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
-	s.Run("GetTemplateAppInsights", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetTemplateAppInsightsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
+	s.Run("GetTemplateAppInsights", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetTemplateAppInsightsParams{}
+		dbm.EXPECT().GetTemplateAppInsights(gomock.Any(), arg).Return([]database.GetTemplateAppInsightsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
-	s.Run("GetTemplateAppInsightsByTemplate", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetTemplateAppInsightsByTemplateParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
+	s.Run("GetTemplateAppInsightsByTemplate", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetTemplateAppInsightsByTemplateParams{}
+		dbm.EXPECT().GetTemplateAppInsightsByTemplate(gomock.Any(), arg).Return([]database.GetTemplateAppInsightsByTemplateRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
-	s.Run("GetTemplateUsageStats", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetTemplateUsageStatsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights).
-			ErrorsWithInMemDB(sql.ErrNoRows).
-			Returns([]database.TemplateUsageStat{})
+	s.Run("GetTemplateUsageStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetTemplateUsageStatsParams{}
+		dbm.EXPECT().GetTemplateUsageStats(gomock.Any(), arg).Return([]database.TemplateUsageStat{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights).Returns([]database.TemplateUsageStat{})
 	}))
-	s.Run("UpsertTemplateUsageStats", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpsertTemplateUsageStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().UpsertTemplateUsageStats(gomock.Any()).Return(nil).AnyTimes()
 		check.Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 }
@@ -5764,5 +5664,36 @@ func (s *MethodTestSuite) TestUserSecrets() {
 		})
 		check.Args(userSecret.ID).
 			Asserts(userSecret, policy.ActionRead, userSecret, policy.ActionDelete)
+	}))
+}
+
+func (s *MethodTestSuite) TestUsageEvents() {
+	s.Run("InsertUsageEvent", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.InsertUsageEventParams{
+			ID:        "1",
+			EventType: "dc_managed_agents_v1",
+			EventData: []byte("{}"),
+			CreatedAt: dbtime.Now(),
+		}
+		db.EXPECT().InsertUsageEvent(gomock.Any(), params).Return(nil)
+		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionCreate)
+	}))
+
+	s.Run("SelectUsageEventsForPublishing", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		now := dbtime.Now()
+		db.EXPECT().SelectUsageEventsForPublishing(gomock.Any(), now).Return([]database.UsageEvent{}, nil)
+		check.Args(now).Asserts(rbac.ResourceUsageEvent, policy.ActionUpdate)
+	}))
+
+	s.Run("UpdateUsageEventsPostPublish", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		now := dbtime.Now()
+		params := database.UpdateUsageEventsPostPublishParams{
+			Now:             now,
+			IDs:             []string{"1", "2"},
+			FailureMessages: []string{"error", "error"},
+			SetPublishedAts: []bool{false, false},
+		}
+		db.EXPECT().UpdateUsageEventsPostPublish(gomock.Any(), params).Return(nil)
+		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionUpdate)
 	}))
 }

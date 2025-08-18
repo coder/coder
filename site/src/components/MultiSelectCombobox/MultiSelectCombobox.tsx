@@ -22,9 +22,9 @@ import { ChevronDown, Info, X } from "lucide-react";
 import {
 	type ComponentProps,
 	type ComponentPropsWithoutRef,
+	forwardRef,
 	type KeyboardEvent,
 	type ReactNode,
-	forwardRef,
 	useCallback,
 	useEffect,
 	useImperativeHandle,

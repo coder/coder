@@ -403,7 +403,6 @@ func TestTelemetryItem(t *testing.T) {
 
 func TestPrebuiltWorkspacesTelemetry(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitMedium)
 	db, _ := dbtestutil.NewDB(t)
 
 	cases := []struct {
@@ -435,6 +434,7 @@ func TestPrebuiltWorkspacesTelemetry(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
 
 			deployment, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
 				opts.Database = tc.storeFn(db)
