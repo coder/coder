@@ -21,8 +21,8 @@ import {
 	terminalFontLabels,
 	terminalFonts,
 } from "theme/constants";
-import { Section } from "../Section";
 import { cn } from "utils/cn";
+import { Section } from "../Section";
 
 interface AppearanceFormProps {
 	isUpdating?: boolean;
