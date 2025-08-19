@@ -1573,6 +1573,35 @@ func TestAITasks(t *testing.T) {
 	})
 }
 
+func TestExternalAgents(t *testing.T) {
+	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
+
+	t.Run("External agents can be defined", func(t *testing.T) {
+		t.Parallel()
+
+		// nolint:dogsled
+		_, filename, _, _ := runtime.Caller(0)
+
+		dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "external-agents")
+		tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "external-agents.tfplan.json"))
+		require.NoError(t, err)
+		var tfPlan tfjson.Plan
+		err = json.Unmarshal(tfPlanRaw, &tfPlan)
+		require.NoError(t, err)
+		tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "external-agents.tfplan.dot"))
+		require.NoError(t, err)
+
+		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule, tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
+		require.NotNil(t, state)
+		require.NoError(t, err)
+		require.True(t, state.HasExternalAgents)
+		require.Len(t, state.Resources, 1)
+		require.Len(t, state.Resources[0].Agents, 1)
+		require.Equal(t, "dev1", state.Resources[0].Agents[0].Name)
+	})
+}
+
 // sortResource ensures resources appear in a consistent ordering
 // to prevent tests from flaking.
 func sortResources(resources []*proto.Resource) {
