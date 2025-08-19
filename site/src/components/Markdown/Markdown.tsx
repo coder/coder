@@ -163,7 +163,7 @@ interface InlineMarkdownProps {
 	/**
 	 * Additional element types to allow.
 	 * Allows italic, bold, links, and inline code snippets by default.
-	 * eg. `["ol", "ul", "li"]` to support lists.
+	 * eg. ["ol", "ul", "li"] to support lists.
 	 */
 	allowedElements?: readonly string[];
 
@@ -251,9 +251,11 @@ function parseChildrenAsAlertContent(
 		return null;
 	}
 
-	const mainParentNode = jsxChildren.find((node): node is ReactElement =>
+	// Identify the first element (usually a <p>) which contains the marker like [!NOTE]
+	const firstElementIndex = jsxChildren.findIndex((node): node is ReactElement =>
 		isValidElement(node),
 	);
+	const mainParentNode = firstElementIndex >= 0 ? (jsxChildren[firstElementIndex] as ReactElement) : undefined;
 	let parentChildren = mainParentNode?.props.children;
 	if (typeof parentChildren === "string") {
 		// Children will only be an array if the parsed text contains other
@@ -301,7 +303,7 @@ function parseChildrenAsAlertContent(
 				},
 			};
 		});
-	const [firstEl, ...remainingChildren] = outputContent;
+	const [firstEl, ...firstParagraphRemainder] = outputContent;
 	if (typeof firstEl !== "string") {
 		return null;
 	}
@@ -317,14 +319,20 @@ function parseChildrenAsAlertContent(
 	}
 
 	const hasLeadingLinebreak =
-		isValidElement(remainingChildren[0]) && remainingChildren[0].type === "br";
+		isValidElement(firstParagraphRemainder[0]) && firstParagraphRemainder[0].type === "br";
 	if (hasLeadingLinebreak) {
-		remainingChildren.shift();
+		firstParagraphRemainder.shift();
 	}
+
+	// Include all sibling nodes after the first paragraph so that additional
+	// content (including links) renders inside the alert.
+	const trailingSiblings = jsxChildren
+		.slice(firstElementIndex + 1)
+		.filter((el) => !(typeof el === "string" && el.trim() === ""));
 
 	return {
 		type: alertType,
-		children: remainingChildren,
+		children: [...firstParagraphRemainder, ...trailingSiblings],
 	};
 }
 
