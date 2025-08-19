@@ -50,4 +50,4 @@ Override the URL to your Coder deployment. This may be useful, for example, if y
 | Type        | <code>int</code>                                        |
 | Environment | <code>$CODER_SUPPORT_BUNDLE_WORKSPACES_TOTAL_CAP</code> |
 
-Maximum number of workspaces to include in the support bundle. Set to 0 to disable the cap. Defaults to 1000.
+Maximum number of workspaces to include in the support bundle. Set to 0 or negative value to disable the cap. Defaults to 1000.

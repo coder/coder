@@ -225,7 +225,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 		{
 			Flag:        "workspaces-total-cap",
 			Env:         "CODER_SUPPORT_BUNDLE_WORKSPACES_TOTAL_CAP",
-			Description: "Maximum number of workspaces to include in the support bundle. Set to 0 to disable the cap. Defaults to 1000.",
+			Description: "Maximum number of workspaces to include in the support bundle. Set to 0 or negative value to disable the cap. Defaults to 1000.",
 			Value:       serpent.Int64Of(&workspacesTotalCap64),
 		},
 	}

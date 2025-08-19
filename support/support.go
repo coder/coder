@@ -98,8 +98,9 @@ type Deps struct {
 	// AgentID is the optional agent ID against which to run connection tests.
 	// Defaults to the first agent of the workspace, if not specified.
 	AgentID uuid.UUID
-	// WorkspacesTotalCap limits the number of workspaces aggregated into the bundle.
-	// If 0 or negative, no cap is applied. If unset, default is 1000.
+	// WorkspacesTotalCap limits the TOTAL number of workspaces aggregated into the bundle.
+	// > 0  => cap at this number (default flag value should be 1000 via CLI).
+	// <= 0 => no cap (fetch/keep all available workspaces).
 	WorkspacesTotalCap int
 }
 
@@ -605,19 +606,22 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 	}
 
 	// Enforce workspaces total cap by wrapping the client with a counting reader via context.
-	cap := d.WorkspacesTotalCap
-	if cap == 0 {
-		cap = 1000
-	}
-	// After DeploymentInfo aggregates, trim if needed
+	totalCap := d.WorkspacesTotalCap
+	// no special-casing for 0
+
 	var eg errgroup.Group
 	eg.Go(func() error {
 		di := DeploymentInfo(ctx, d.Client, d.Log)
-		// Apply cap after aggregation if set (>0)
-		if cap > 0 && di.Workspaces != nil && len(di.Workspaces.Workspaces) > cap {
-			di.Workspaces.Workspaces = di.Workspaces.Workspaces[:cap]
+
+		if di.Workspaces != nil && totalCap > 0 && len(di.Workspaces.Workspaces) > totalCap {
+			di.Workspaces.Workspaces = di.Workspaces.Workspaces[:totalCap]
 			di.Workspaces.Count = len(di.Workspaces.Workspaces)
-			d.Log.Warn(ctx, "workspace list truncated", slog.F("cap", cap))
+			d.Log.Warn(
+				ctx,
+				"workspace list truncated",
+				slog.F("cap", totalCap),
+				slog.F("original_total", len(di.Workspaces.Workspaces)),
+			)
 		}
 		b.Deployment = di
 		return nil
