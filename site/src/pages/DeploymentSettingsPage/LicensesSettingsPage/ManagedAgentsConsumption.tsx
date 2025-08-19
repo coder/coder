@@ -48,7 +48,12 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 		return <ErrorAlert error="Invalid usage data" />;
 	}
 
-	if (included === undefined || included < 0 || limit === undefined || limit < 0) {
+	if (
+		included === undefined ||
+		included < 0 ||
+		limit === undefined ||
+		limit < 0
+	) {
 		return <ErrorAlert error="Invalid license usage limits" />;
 	}
 
