@@ -301,55 +301,55 @@ function parseChildrenAsAlertContent(
 				},
 			};
 		});
-        
-        // Find the alert type by looking for the first string that contains the alert pattern
-        let alertType: string | null = null;
-        let alertTypeIndex = -1;
-        
-        for (let i = 0; i < outputContent.length; i++) {
-                const el = outputContent[i];
-                if (typeof el === "string") {
-                        const trimmed = el.trim();
-                        // Check if this string contains an alert pattern like [!NOTE], [!TIP], etc.
-                        const alertMatch = trimmed.match(/^\[!([A-Z]+)\]/);
-                        if (alertMatch) {
-                                alertType = alertMatch[1].toLowerCase();
-                                alertTypeIndex = i;
-                                
-                                // Remove the alert type from this string and keep the rest
-                                const remainingText = trimmed.replace(/^\[!([A-Z]+)\]\s*/, "").trim();
-                                if (remainingText) {
-                                        // Replace the current element with the remaining text
-                                        outputContent[i] = remainingText;
-                                } else {
-                                        // If nothing remains, mark for removal
-                                        outputContent[i] = null;
-                                }
-                                break;
-                        }
-                }
-        }
-        
-        if (!alertType || !githubFlavoredMarkdownAlertTypes.includes(alertType)) {
-                return null;
-        }
-        
-        // Remove null elements and get the remaining content
-        const remainingChildren = outputContent.filter((el, index) => {
-                // Keep all elements except null ones
-                return el !== null;
-        });
-        
-        const hasLeadingLinebreak =
-                isValidElement(remainingChildren[0]) && remainingChildren[0].type === "br";
-        if (hasLeadingLinebreak) {
-                remainingChildren.shift();
-        }
 
-        return {
-                type: alertType,
-                children: remainingChildren,
-        };
+	// Find the alert type by looking for the first string that contains the alert pattern
+	let alertType: string | null = null;
+	let alertTypeIndex = -1;
+
+	for (let i = 0; i < outputContent.length; i++) {
+		const el = outputContent[i];
+		if (typeof el === "string") {
+			const trimmed = el.trim();
+			// Check if this string contains an alert pattern like [!NOTE], [!TIP], etc.
+			const alertMatch = trimmed.match(/^\[!([A-Z]+)\]/);
+			if (alertMatch) {
+				alertType = alertMatch[1].toLowerCase();
+				alertTypeIndex = i;
+
+				// Remove the alert type from this string and keep the rest
+				const remainingText = trimmed.replace(/^\[!([A-Z]+)\]\s*/, "").trim();
+				if (remainingText) {
+					// Replace the current element with the remaining text
+					outputContent[i] = remainingText;
+				} else {
+					// If nothing remains, mark for removal
+					outputContent[i] = null;
+				}
+				break;
+			}
+		}
+	}
+
+	if (!alertType || !githubFlavoredMarkdownAlertTypes.includes(alertType)) {
+		return null;
+	}
+
+	// Remove null elements and get the remaining content
+	const remainingChildren = outputContent.filter((el, index) => {
+		// Keep all elements except null ones
+		return el !== null;
+	});
+
+	const hasLeadingLinebreak =
+		isValidElement(remainingChildren[0]) && remainingChildren[0].type === "br";
+	if (hasLeadingLinebreak) {
+		remainingChildren.shift();
+	}
+
+	return {
+		type: alertType,
+		children: remainingChildren,
+	};
 }
 
 type MarkdownGfmAlertProps = Readonly<
