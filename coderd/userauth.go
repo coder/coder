@@ -708,14 +708,7 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	http.SetCookie(rw, cookie)
 
 	// Delete the session token from database.
-	apiKey, ok := httpmw.APIKeyOptional(r)
-	if !ok {
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
-			Message: "Not authenticated",
-		})
-		return
-	}
-
+	apiKey := httpmw.APIKey(r)
 	aReq.Old = apiKey
 
 	logger := api.Logger.Named(userAuthLoggerName)
