@@ -38,7 +38,11 @@ export const ProvisionerStatusAlert: FC<ProvisionerStatusAlertProps> = ({
 		default:
 			title = "Build enqueued";
 			// Show queue position if available
-			if (queuePosition !== undefined && queueSize !== undefined && queuePosition > 0) {
+			if (
+				queuePosition !== undefined &&
+				queueSize !== undefined &&
+				queuePosition > 0
+			) {
 				detail = `Your build is in position ${queuePosition} of ${queueSize} in the queue. It will begin once a provisioner becomes available to process it.`;
 			} else {
 				detail =
