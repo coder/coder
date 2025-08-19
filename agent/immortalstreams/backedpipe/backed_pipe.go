@@ -327,7 +327,7 @@ func (bp *BackedPipe) ForceReconnect() error {
 	// Deduplicate concurrent ForceReconnect calls so only one reconnection
 	// attempt runs at a time from this API. Use the pipe's internal context
 	// to ensure Close() cancels any in-flight attempt.
-	_, err, _ := bp.sf.Do("backedpipe-reconnect", func() (interface{}, error) {
+	_, err, _ := bp.sf.Do("force-reconnect", func() (interface{}, error) {
 		bp.mu.Lock()
 		defer bp.mu.Unlock()
 

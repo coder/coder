@@ -164,21 +164,30 @@ type blockingReconnector struct {
 	callCount   int
 	blockChan   <-chan struct{}
 	blockedChan chan struct{}
+	mu          sync.Mutex
+	signalOnce  sync.Once // Ensure we only signal once for the first actual reconnect
 }
 
 func (b *blockingReconnector) Reconnect(ctx context.Context, writerSeqNum uint64) (io.ReadWriteCloser, uint64, error) {
+	b.mu.Lock()
 	b.callCount++
+	currentCall := b.callCount
+	b.mu.Unlock()
 
-	if b.callCount == 1 {
+	if currentCall == 1 {
 		// Initial connect
 		return b.conn1, 0, nil
 	}
 
-	// Signal that we're about to block
-	select {
-	case b.blockedChan <- struct{}{}:
-	default:
-	}
+	// Signal that we're about to block, but only once for the first reconnect attempt
+	// This ensures we properly test singleflight deduplication
+	b.signalOnce.Do(func() {
+		select {
+		case b.blockedChan <- struct{}{}:
+		default:
+			// If channel is full, don't block
+		}
+	})
 
 	// For subsequent calls, block until channel is closed
 	select {
@@ -686,22 +695,57 @@ func TestBackedPipe_DuplicateReconnectionPrevention(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, *callCount, "should have exactly 1 call after initial connect")
 
-	// Start multiple concurrent ForceReconnect calls while the reconnect function is blocked
-	var wg sync.WaitGroup
-	errors := make([]error, 3)
+	// We'll use channels to coordinate the test execution:
+	// 1. Start all goroutines but have them wait
+	// 2. Release the first one and wait for it to block
+	// 3. Release the others while the first is still blocked
 
-	for i := 0; i < 3; i++ {
+	const numConcurrent = 3
+	startSignals := make([]chan struct{}, numConcurrent)
+	startedSignals := make([]chan struct{}, numConcurrent)
+	for i := range startSignals {
+		startSignals[i] = make(chan struct{})
+		startedSignals[i] = make(chan struct{})
+	}
+
+	errors := make([]error, numConcurrent)
+	var wg sync.WaitGroup
+
+	// Start all goroutines
+	for i := 0; i < numConcurrent; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
+			// Wait for the signal to start
+			<-startSignals[idx]
+			// Signal that we're about to call ForceReconnect
+			close(startedSignals[idx])
 			errors[idx] = bp.ForceReconnect()
 		}(i)
 	}
 
-	// Wait for the reconnect function to signal that it's blocking
+	// Start the first ForceReconnect and wait for it to block
+	close(startSignals[0])
+	<-startedSignals[0]
+
+	// Wait for the first reconnect to actually start and block
 	testutil.RequireReceive(testCtx, t, blockedChan)
 
-	// Verify that exactly one more reconnect call was made (singleflight deduplication)
+	// Now start all the other ForceReconnect calls
+	// They should all join the same singleflight operation
+	for i := 1; i < numConcurrent; i++ {
+		close(startSignals[i])
+	}
+
+	// Wait for all additional goroutines to have started their calls
+	for i := 1; i < numConcurrent; i++ {
+		<-startedSignals[i]
+	}
+
+	// At this point, one reconnect has started and is blocked,
+	// and all other goroutines have called ForceReconnect and should be
+	// waiting on the same singleflight operation.
+	// Due to singleflight, only one reconnect should have been attempted.
 	require.Equal(t, 2, *callCount, "should have exactly 2 calls: initial connect + 1 reconnect due to singleflight")
 
 	// Release the blocking reconnect function
@@ -710,9 +754,9 @@ func TestBackedPipe_DuplicateReconnectionPrevention(t *testing.T) {
 	// Wait for all ForceReconnect calls to complete
 	wg.Wait()
 
-	// With singleflight, all concurrent calls should succeed (they share the same result)
+	// All calls should succeed (they share the same result from singleflight)
 	for i, err := range errors {
-		require.NoError(t, err, "ForceReconnect %d should succeed", i)
+		require.NoError(t, err, "ForceReconnect %d should succeed", i, err)
 	}
 
 	// Final verification: call count should still be exactly 2

@@ -744,15 +744,16 @@ func TestBackedWriter_ConcurrentWriteAndReconnect(t *testing.T) {
 	// Wait for write to start
 	testutil.RequireReceive(ctx, t, writeStarted)
 
-	// Give the write a moment to actually start and get blocked on the mutex
-	time.Sleep(testutil.IntervalFast)
+	// Use a small timeout to ensure the write goroutine has a chance to get blocked
+	// on the mutex before we check if it's still blocked
+	writeCheckTimer := time.NewTimer(testutil.IntervalFast)
+	defer writeCheckTimer.Stop()
 
-	// Verify write is still blocked (reconnect is still in progress)
 	select {
 	case <-writeComplete:
 		t.Fatal("Write should be blocked during reconnect")
-	default:
-		// Good, write is still blocked
+	case <-writeCheckTimer.C:
+		// Write is still blocked after a reasonable wait
 	}
 
 	// Allow replay to complete, which will allow reconnect to finish
@@ -818,13 +819,24 @@ func TestBackedWriter_ConcurrentReconnectAndClose(t *testing.T) {
 	testutil.RequireReceive(ctx, t, reconnectStarted)
 
 	// Start Close() in a separate goroutine since it will block until Reconnect() completes
+	closeStarted := make(chan struct{}, 1)
 	closeComplete := make(chan error, 1)
 	go func() {
+		closeStarted <- struct{}{} // Signal that Close() is starting
 		closeComplete <- bw.Close()
 	}()
 
-	// Give Close() a moment to start and block on the mutex
-	time.Sleep(testutil.IntervalFast)
+	// Wait for Close() to start, then give it a moment to attempt to acquire the mutex
+	testutil.RequireReceive(ctx, t, closeStarted)
+	closeCheckTimer := time.NewTimer(testutil.IntervalFast)
+	defer closeCheckTimer.Stop()
+
+	select {
+	case <-closeComplete:
+		t.Fatal("Close should be blocked during reconnect")
+	case <-closeCheckTimer.C:
+		// Good, Close is still blocked after a reasonable wait
+	}
 
 	// Allow replay to complete so reconnection can finish
 	close(replayCanComplete)
@@ -891,8 +903,11 @@ func TestBackedWriter_MultipleWritesDuringReconnect(t *testing.T) {
 		testutil.RequireReceive(ctx, t, writesStarted)
 	}
 
-	// Give the writes a moment to actually begin execution
-	time.Sleep(testutil.IntervalFast)
+	// Use a timer to ensure all write goroutines have had a chance to start executing
+	// and potentially get blocked on the mutex before we start the reconnection
+	writesReadyTimer := time.NewTimer(testutil.IntervalFast)
+	defer writesReadyTimer.Stop()
+	<-writesReadyTimer.C
 
 	// Start reconnection with controlled replay
 	replayStarted := make(chan struct{})
