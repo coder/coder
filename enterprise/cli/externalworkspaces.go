@@ -243,15 +243,14 @@ func fetchExternalAgents(inv *serpent.Invocation, client *codersdk.Client, works
 // formatExternalAgent formats the instructions for an external agent.
 func formatExternalAgent(workspaceName string, externalAgents []externalAgent) string {
 	var output strings.Builder
-	_, _ = output.WriteString(fmt.Sprintf("\nPlease run the following commands to attach external agent to the workspace %s:\n\n", cliui.Keyword(workspaceName)))
+	_, _ = output.WriteString(fmt.Sprintf("\nPlease run the following command to attach external agent to the workspace %s:\n\n", cliui.Keyword(workspaceName)))
 
 	for i, agent := range externalAgents {
 		if len(externalAgents) > 1 {
 			_, _ = output.WriteString(fmt.Sprintf("For agent %s:\n", cliui.Keyword(agent.AgentName)))
 		}
 
-		_, _ = output.WriteString(fmt.Sprintf("%s\n", pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("export CODER_AGENT_TOKEN=%s", agent.AuthToken))))
-		_, _ = output.WriteString(fmt.Sprintf("%s\n", pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("curl -fsSL %s | sh", agent.InitScript))))
+		_, _ = output.WriteString(fmt.Sprintf("%s\n", pretty.Sprint(cliui.DefaultStyles.Code, agent.InitScript)))
 
 		if i < len(externalAgents)-1 {
 			_, _ = output.WriteString("\n")
