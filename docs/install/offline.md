@@ -235,82 +235,10 @@ server, as demonstrated in the example below:
 With these steps, you'll have the Coder documentation hosted on your server and
 accessible for your team to use.
 
-## Using Registry Modules Offline
+## Coder Modules
 
-Coder Registry modules from [registry.coder.com](https://registry.coder.com) provide IDEs, tools, and integrations for workspaces. In air-gapped environments, you have several options:
-
-### Option 1: Git Repository (Recommended)
-
-Mirror registry modules in an internal Git repository:
-
-1. **Download modules** from [registry.coder.com](https://registry.coder.com) while connected to the internet
-2. **Store modules** in your internal Git repository using the registry structure:
-
-   ```text
-   internal-registry/
-   ├── registry/
-   │   └── coder/
-   │       └── modules/
-   │           ├── code-server/
-   │           ├── cursor/
-   │           └── vscode-web/
-   └── templates/
-   ```
-
-3. **Reference modules** using Git source addresses:
-
-   ```tf
-   module "code_server" {
-     source   = "git::https://your-internal-git.com/coder-modules.git//registry/coder/modules/code-server?ref=v1.0.19"
-     agent_id = coder_agent.example.id
-     offline  = true # Prevent external downloads
-   }
-   ```
-
-### Option 2: Private Terraform Registry
-
-Set up a private Terraform registry mirror:
-
-1. **Configure a private registry** (such as Terraform Enterprise or Artifactory)
-2. **Mirror modules** from the public registry to your private registry
-3. **Update templates** to use custom source addresses:
-
-   ```tf
-   module "code_server" {
-     source   = "your-registry.com/coder/code-server/coder"
-     version  = "1.0.19"
-     agent_id = coder_agent.example.id
-   }
-   ```
-
-### Option 3: Vendored Modules
-
-Include modules directly in your template repositories:
-
-1. **Download modules** and include them in your template repository
-2. **Reference with relative paths**:
-
-   ```tf
-   module "code_server" {
-     source   = "./modules/code-server" # Relative path to vendored module
-     agent_id = coder_agent.example.id
-   }
-   ```
-
-### Module Offline Support
-
-Many registry modules support offline operation with the `offline` parameter:
-
-```tf
-module "code_server" {
-  source   = "registry.coder.com/coder/code-server/coder"
-  version  = "1.0.19"
-  agent_id = coder_agent.example.id
-  offline  = true # Prevents downloading from external sources
-}
-```
-
-For more information, see the [Terraform Modules documentation](../admin/templates/extending-templates/modules.md).
+To use Coder modules in offline installations please follow the instructions
+[here](../admin/templates/extending-templates/modules.md#offline-installations).
 
 ## Firewall exceptions
 
