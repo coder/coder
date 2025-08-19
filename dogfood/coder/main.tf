@@ -810,10 +810,11 @@ resource "coder_env" "claude_task_prompt" {
   value    = data.coder_parameter.ai_prompt.value
 }
 
-resource "coder_env" "anthropic_api_key" {
+# coder exp mcp configure claude-code reads from CLAUDE_API_KEY
+resource "coder_env" "claude_api_key" {
   count    = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
   agent_id = coder_agent.dev.id
-  name     = "ANTHROPIC_API_KEY"
+  name     = "CLAUDE_API_KEY"
   value    = var.anthropic_api_key
 }
 
