@@ -95,3 +95,24 @@ export const GFMAlerts: Story = {
 		`,
 	},
 };
+
+export const GFMAlertsWithLinks: Story = {
+	args: {
+		children: `
+> [!NOTE]
+> This template is centrally managed by CI/CD in the [coder/templates](https://github.com/coder/templates) repository.
+
+> [!TIP]
+> Check out the [documentation](https://docs.coder.com) for more information.
+
+> [!IMPORTANT]
+> Make sure to read the [security guidelines](https://coder.com/security) before proceeding.
+
+> [!WARNING]
+> This action may affect your [workspace settings](https://coder.com/settings).
+
+> [!CAUTION]
+> Deleting this will remove all data. See [backup guide](https://coder.com/backup) first.
+		`,
+	},
+};
