@@ -13,7 +13,7 @@ import { TaskStatusLink } from "./TaskStatusLink";
 
 export const TaskTopbar: FC<{ task: Task }> = ({ task }) => {
 	return (
-		<header className="flex items-center gap-2 px-3 h-14 border-solid border-border border-0 border-b">
+		<header className="flex items-center px-3 h-14 border-solid border-border border-0 border-b">
 			<TooltipProvider>
 				<Tooltip>
 					<TooltipTrigger asChild>
@@ -33,7 +33,7 @@ export const TaskTopbar: FC<{ task: Task }> = ({ task }) => {
 			</h1>
 
 			{task.workspace.latest_app_status?.uri && (
-				<div className="flex items-center gap-2 mt-2 flex-wrap">
+				<div className="flex items-center gap-2 flex-wrap ml-4">
 					<TaskStatusLink uri={task.workspace.latest_app_status.uri} />
 				</div>
 			)}

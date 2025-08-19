@@ -2,6 +2,7 @@ import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { template as templateQueryOptions } from "api/queries/templates";
 import type { Workspace, WorkspaceStatus } from "api/typesGenerated";
+import isChromatic from "chromatic/isChromatic";
 import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
@@ -10,7 +11,7 @@ import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { ArrowLeftIcon, RotateCcwIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import type { FC, ReactNode } from "react";
+import { type FC, type ReactNode, useEffect, useRef } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -178,9 +179,24 @@ const TaskBuildingWorkspace: FC<{ task: Task }> = ({ task }) => {
 		P95: null,
 	};
 
+	const scrollAreaRef = useRef<HTMLDivElement>(null);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: this effect should run when build logs change
+	useEffect(() => {
+		if (isChromatic()) {
+			return;
+		}
+		const scrollAreaEl = scrollAreaRef.current;
+		const scrollAreaViewportEl = scrollAreaEl?.querySelector<HTMLDivElement>(
+			"[data-radix-scroll-area-viewport]",
+		);
+		if (scrollAreaViewportEl) {
+			scrollAreaViewportEl.scrollTop = scrollAreaViewportEl.scrollHeight;
+		}
+	}, [buildLogs]);
+
 	return (
 		<section className="w-full h-full flex justify-center items-center p-6 overflow-y-auto">
-			<div className="flex flex-col gap-4 items-center">
+			<div className="flex flex-col gap-6 items-center w-full">
 				<header className="flex flex-col items-center text-center">
 					<h3 className="m-0 font-medium text-content-primary text-xl">
 						Starting your workspace
@@ -197,15 +213,16 @@ const TaskBuildingWorkspace: FC<{ task: Task }> = ({ task }) => {
 						variant="task"
 					/>
 
-					{buildLogs && (
-						<ScrollArea className="h-96 border border-solid border-border rounded-lg">
-							<WorkspaceBuildLogs
-								sticky
-								className="border-0 rounded-none"
-								logs={buildLogs}
-							/>
-						</ScrollArea>
-					)}
+					<ScrollArea
+						ref={scrollAreaRef}
+						className="h-96 border border-solid border-border rounded-lg"
+					>
+						<WorkspaceBuildLogs
+							sticky
+							className="border-0 rounded-none"
+							logs={buildLogs ?? []}
+						/>
+					</ScrollArea>
 				</div>
 			</div>
 		</section>
