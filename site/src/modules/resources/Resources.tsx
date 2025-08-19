@@ -1,4 +1,3 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
@@ -16,7 +15,6 @@ interface ResourcesProps {
 }
 
 export const Resources: FC<ResourcesProps> = ({ resources, agentRow }) => {
-	const theme = useTheme();
 	const [shouldDisplayHideResources, setShouldDisplayHideResources] =
 		useState(false);
 	const displayResources = shouldDisplayHideResources
@@ -28,11 +26,7 @@ export const Resources: FC<ResourcesProps> = ({ resources, agentRow }) => {
 	const hasHideResources = resources.some((r) => r.hide);
 
 	return (
-		<Stack
-			direction="column"
-			spacing={0}
-			css={{ background: theme.palette.background.default }}
-		>
+		<Stack direction="column" spacing={0} className="bg-surface-primary">
 			{displayResources.map((resource) => (
 				<ResourceCard
 					key={resource.id}
@@ -41,9 +35,9 @@ export const Resources: FC<ResourcesProps> = ({ resources, agentRow }) => {
 				/>
 			))}
 			{hasHideResources && (
-				<div css={styles.buttonWrapper}>
+				<div className="flex items-center justify-center mt-4">
 					<Button
-						css={styles.showMoreButton}
+						className="rounded-full w-full max-w-[260px]"
 						size="small"
 						onClick={() => setShouldDisplayHideResources((v) => !v)}
 					>
@@ -55,18 +49,3 @@ export const Resources: FC<ResourcesProps> = ({ resources, agentRow }) => {
 		</Stack>
 	);
 };
-
-const styles = {
-	buttonWrapper: {
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		marginTop: 16,
-	},
-
-	showMoreButton: {
-		borderRadius: 9999,
-		width: "100%",
-		maxWidth: 260,
-	},
-} satisfies Record<string, Interpolation<Theme>>;

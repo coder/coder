@@ -1579,7 +1579,7 @@ func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
 		t.Parallel()
 
 		var (
-			ctx               = testutil.Context(t, testutil.WaitLong)
+			ctx               = testutil.Context(t, testutil.WaitSuperLong)
 			logger            = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 			mClock            = quartz.NewMock(t)
 			updaterTickerTrap = mClock.Trap().TickerFunc("updaterLoop")

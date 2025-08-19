@@ -1355,13 +1355,13 @@ func (s *MethodTestSuite) TestTemplate() {
 		dbm.EXPECT().UpdateTemplateScheduleByID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(t1, policy.ActionUpdate)
 	}))
-	s.Run("UpdateTemplateVersionAITaskByJobID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("UpdateTemplateVersionFlagsByJobID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t := testutil.Fake(s.T(), faker, database.Template{})
 		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t.ID, Valid: true}})
-		arg := database.UpdateTemplateVersionAITaskByJobIDParams{JobID: tv.JobID, HasAITask: sql.NullBool{Bool: true, Valid: true}}
+		arg := database.UpdateTemplateVersionFlagsByJobIDParams{JobID: tv.JobID, HasAITask: sql.NullBool{Bool: true, Valid: true}, HasExternalAgent: sql.NullBool{Bool: true, Valid: true}}
 		dbm.EXPECT().GetTemplateVersionByJobID(gomock.Any(), tv.JobID).Return(tv, nil).AnyTimes()
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), t.ID).Return(t, nil).AnyTimes()
-		dbm.EXPECT().UpdateTemplateVersionAITaskByJobID(gomock.Any(), arg).Return(nil).AnyTimes()
+		dbm.EXPECT().UpdateTemplateVersionFlagsByJobID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(t, policy.ActionUpdate)
 	}))
 	s.Run("UpdateTemplateWorkspacesLastUsedAt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -2955,38 +2955,44 @@ func (s *MethodTestSuite) TestWorkspace() {
 			Deadline:  b.Deadline,
 		}).Asserts(w, policy.ActionUpdate)
 	}))
-	s.Run("UpdateWorkspaceBuildAITaskByID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
+	s.Run("UpdateWorkspaceBuildFlagsByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		tpl := testutil.Fake(s.T(), faker, database.Template{
 			OrganizationID: o.ID,
 			CreatedBy:      u.ID,
 		})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{
 			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
 			OrganizationID: o.ID,
 			CreatedBy:      u.ID,
 		})
-		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+		w := testutil.Fake(s.T(), faker, database.Workspace{
 			TemplateID:     tpl.ID,
 			OrganizationID: o.ID,
 			OwnerID:        u.ID,
 		})
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeWorkspaceBuild,
 		})
-		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
+		b := testutil.Fake(s.T(), faker, database.WorkspaceBuild{
 			JobID:             j.ID,
 			WorkspaceID:       w.ID,
 			TemplateVersionID: tv.ID,
 		})
-		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: b.JobID})
-		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
-		app := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agt.ID})
-		check.Args(database.UpdateWorkspaceBuildAITaskByIDParams{
-			HasAITask:    sql.NullBool{Bool: true, Valid: true},
-			SidebarAppID: uuid.NullUUID{UUID: app.ID, Valid: true},
-			ID:           b.ID,
+		res := testutil.Fake(s.T(), faker, database.WorkspaceResource{JobID: b.JobID})
+		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{ResourceID: res.ID})
+		app := testutil.Fake(s.T(), faker, database.WorkspaceApp{AgentID: agt.ID})
+
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceBuildByID(gomock.Any(), b.ID).Return(b, nil).AnyTimes()
+		dbm.EXPECT().UpdateWorkspaceBuildFlagsByID(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		check.Args(database.UpdateWorkspaceBuildFlagsByIDParams{
+			ID:               b.ID,
+			HasAITask:        sql.NullBool{Bool: true, Valid: true},
+			HasExternalAgent: sql.NullBool{Bool: true, Valid: true},
+			SidebarAppID:     uuid.NullUUID{UUID: app.ID, Valid: true},
+			UpdatedAt:        b.UpdatedAt,
 		}).Asserts(w, policy.ActionUpdate)
 	}))
 	s.Run("SoftDeleteWorkspaceByID", s.Subtest(func(db database.Store, check *expects) {
