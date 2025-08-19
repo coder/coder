@@ -15,34 +15,32 @@ const (
 	anthropicEnvVar = "ANTHROPIC_API_KEY"
 )
 
-//nolint:paralleltest // test modifies env variables
 func TestGenerateTaskName(t *testing.T) {
-	t.Run("Fallback", func(t *testing.T) {
-		if apiKey := os.Getenv(anthropicEnvVar); apiKey != "" {
-			os.Setenv(anthropicEnvVar, "")
+	t.Parallel()
 
-			t.Cleanup(func() {
-				os.Setenv(anthropicEnvVar, apiKey)
-			})
-		}
+	t.Run("Fallback", func(t *testing.T) {
+		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		name, err := taskname.Generate(ctx, "Some random prompt", "task-fallback")
-		require.NoError(t, err)
-		require.Equal(t, "task-fallback", name)
+		name, err := taskname.Generate(ctx, "Some random prompt")
+		require.ErrorIs(t, err, taskname.ErrNoAPIKey)
+		require.Equal(t, "", name)
 	})
 
 	t.Run("Anthropic", func(t *testing.T) {
-		if apiKey := os.Getenv(anthropicEnvVar); apiKey == "" {
+		t.Parallel()
+
+		apiKey := os.Getenv(anthropicEnvVar)
+		if apiKey == "" {
 			t.Skipf("Skipping test as %s not set", anthropicEnvVar)
 		}
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		name, err := taskname.Generate(ctx, `Create a finance planning app`, "task-fallback")
+		name, err := taskname.Generate(ctx, "Create a finance planning app", taskname.WithAPIKey(apiKey))
 		require.NoError(t, err)
-		require.NotEqual(t, "task-fallback", name)
+		require.NotEqual(t, "", name)
 
 		err = codersdk.NameValid(name)
 		require.NoError(t, err, "name should be valid")

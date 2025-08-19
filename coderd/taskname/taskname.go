@@ -2,17 +2,21 @@ package taskname
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
+	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-const systemPrompt = `Generate a short workspace name from this AI task prompt.
+const (
+	defaultModel = anthropic.ModelClaude3_5HaikuLatest
+	systemPrompt = `Generate a short workspace name from this AI task prompt.
 
 Requirements:
 - Only lowercase letters, numbers, and hyphens
@@ -28,10 +32,55 @@ Examples:
 - "Set up CI/CD pipeline" → "task-setup-cicd-44"
 
 If you cannot create a suitable name:
-- Respond with "task-workspace"
+- Respond with "task-unnamed"
 - Do not end with a random number`
+)
 
-func Generate(ctx context.Context, prompt, fallback string) (string, error) {
+var (
+	ErrNoAPIKey        = errors.New("no api key provided")
+	ErrNoNameGenerated = errors.New("no task name generated")
+)
+
+type options struct {
+	apiKey string
+	model  anthropic.Model
+}
+
+type option func(o *options)
+
+func WithAPIKey(apiKey string) option {
+	return func(o *options) {
+		o.apiKey = apiKey
+	}
+}
+
+func WithModel(model anthropic.Model) option {
+	return func(o *options) {
+		o.model = model
+	}
+}
+
+func GetAnthropicAPIKeyFromEnv() string {
+	return os.Getenv("ANTHROPIC_API_KEY")
+}
+
+func GetAnthropicModelFromEnv() anthropic.Model {
+	return anthropic.Model(os.Getenv("ANTHROPIC_MODEL"))
+}
+
+func Generate(ctx context.Context, prompt string, opts ...option) (string, error) {
+	o := options{}
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	if o.model == "" {
+		o.model = defaultModel
+	}
+	if o.apiKey == "" {
+		return "", ErrNoAPIKey
+	}
+
 	conversation := []aisdk.Message{
 		{
 			Role: "system",
@@ -49,49 +98,47 @@ func Generate(ctx context.Context, prompt, fallback string) (string, error) {
 		},
 	}
 
-	if apiKey := os.Getenv("ANTHROPIC_API_KEY"); apiKey == "" {
-		return fallback, nil
-	}
+	anthropicOptions := anthropic.DefaultClientOptions()
+	anthropicOptions = append(anthropicOptions, anthropicoption.WithAPIKey(o.apiKey))
+	anthropicClient := anthropic.NewClient(anthropicOptions...)
 
-	anthropicClient := anthropic.NewClient(anthropic.DefaultClientOptions()...)
-
-	stream, err := anthropicDataStream(ctx, anthropicClient, conversation)
+	stream, err := anthropicDataStream(ctx, anthropicClient, o.model, conversation)
 	if err != nil {
-		return fallback, xerrors.Errorf("create anthropic data stream: %w", err)
+		return "", xerrors.Errorf("create anthropic data stream: %w", err)
 	}
 
 	var acc aisdk.DataStreamAccumulator
 	stream = stream.WithAccumulator(&acc)
 
 	if err := stream.Pipe(io.Discard); err != nil {
-		return fallback, xerrors.Errorf("pipe data stream")
+		return "", xerrors.Errorf("pipe data stream")
 	}
 
 	if len(acc.Messages()) == 0 {
-		return fallback, nil
+		return "", ErrNoNameGenerated
 	}
 
 	generatedName := acc.Messages()[0].Content
 
 	if err := codersdk.NameValid(generatedName); err != nil {
-		return fallback, xerrors.Errorf("generated name %v not valid: %w", generatedName, err)
+		return "", xerrors.Errorf("generated name %v not valid: %w", generatedName, err)
 	}
 
-	if generatedName == "task-workspace" {
-		return fallback, nil
+	if generatedName == "task-unnamed" {
+		return "", ErrNoNameGenerated
 	}
 
 	return generatedName, nil
 }
 
-func anthropicDataStream(ctx context.Context, client anthropic.Client, input []aisdk.Message) (aisdk.DataStream, error) {
+func anthropicDataStream(ctx context.Context, client anthropic.Client, model anthropic.Model, input []aisdk.Message) (aisdk.DataStream, error) {
 	messages, system, err := aisdk.MessagesToAnthropic(input)
 	if err != nil {
 		return nil, xerrors.Errorf("convert messages to anthropic format: %w", err)
 	}
 
 	return aisdk.AnthropicToDataStream(client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
-		Model:     anthropic.ModelClaude3_5HaikuLatest,
+		Model:     model,
 		MaxTokens: 24,
 		System:    system,
 		Messages:  messages,
