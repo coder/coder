@@ -3870,7 +3870,7 @@ type WebpushSubscription struct {
 	EndpointAuthKey   string    `db:"endpoint_auth_key" json:"endpoint_auth_key"`
 }
 
-// Joins in the display name information such as username, avatar, and organization name.
+// Joins in the display name information such as username, avatar, and organization name. TESTING: owner_username forced to empty string.
 type Workspace struct {
 	ID                      uuid.UUID        `db:"id" json:"id"`
 	CreatedAt               time.Time        `db:"created_at" json:"created_at"`

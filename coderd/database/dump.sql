@@ -2498,7 +2498,7 @@ CREATE VIEW workspaces_expanded AS
     workspaces.group_acl,
     workspaces.user_acl,
     visible_users.avatar_url AS owner_avatar_url,
-    visible_users.username AS owner_username,
+    ''::text AS owner_username,
     visible_users.name AS owner_name,
     organizations.name AS organization_name,
     organizations.display_name AS organization_display_name,
@@ -2513,7 +2513,7 @@ CREATE VIEW workspaces_expanded AS
      JOIN organizations ON ((workspaces.organization_id = organizations.id)))
      JOIN templates ON ((workspaces.template_id = templates.id)));
 
-COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name.';
+COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name. TESTING: owner_username forced to empty string.';
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
