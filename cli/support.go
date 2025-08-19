@@ -45,7 +45,11 @@ var supportBundleBlurb = cliui.Bold("This will collect the following information
 	`  - Coder deployment version
   - Coder deployment Configuration (sanitized), including enabled experiments
   - Coder deployment health snapshot
+  - Coder deployment stats (aggregated workspace/session metrics)
+  - Entitlements (if available)
+  - Health settings (dismissed healthchecks)
   - Coder deployment Network troubleshooting information
+  - Workspace list accessible to the user (sanitized)
   - Workspace configuration, parameters, and build logs
   - Template version and source code for the given workspace
   - Agent details (with environment variable sanitized)
@@ -62,6 +66,7 @@ var supportBundleBlurb = cliui.Bold("This will collect the following information
 func (r *RootCmd) supportBundle() *serpent.Command {
 	var outputPath string
 	var coderURLOverride string
+	var workspacesTotalCap64 int64 = 1000
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "bundle <workspace> [<agent>]",
@@ -178,9 +183,10 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			deps := support.Deps{
 				Client: client,
 				// Support adds a sink so we don't need to supply one ourselves.
-				Log:         clientLog,
-				WorkspaceID: wsID,
-				AgentID:     agtID,
+				Log:                clientLog,
+				WorkspaceID:        wsID,
+				AgentID:            agtID,
+				WorkspacesTotalCap: int(workspacesTotalCap64),
 			}
 
 			bun, err := support.Run(inv.Context(), &deps)
@@ -215,6 +221,12 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			Env:         "CODER_SUPPORT_BUNDLE_URL_OVERRIDE",
 			Description: "Override the URL to your Coder deployment. This may be useful, for example, if you need to troubleshoot a specific Coder replica.",
 			Value:       serpent.StringOf(&coderURLOverride),
+		},
+		{
+			Flag:        "workspaces-total-cap",
+			Env:         "CODER_SUPPORT_BUNDLE_WORKSPACES_TOTAL_CAP",
+			Description: "Maximum number of workspaces to include in the support bundle. Set to 0 to disable the cap. Defaults to 1000.",
+			Value:       serpent.Int64Of(&workspacesTotalCap64),
 		},
 	}
 
@@ -282,6 +294,10 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		"deployment/config.json":          src.Deployment.Config,
 		"deployment/experiments.json":     src.Deployment.Experiments,
 		"deployment/health.json":          src.Deployment.HealthReport,
+		"deployment/stats.json":           src.Deployment.Stats,
+		"deployment/entitlements.json":    src.Deployment.Entitlements,
+		"deployment/health_settings.json": src.Deployment.HealthSettings,
+		"deployment/workspaces.json":      src.Deployment.Workspaces,
 		"network/connection_info.json":    src.Network.ConnectionInfo,
 		"network/netcheck.json":           src.Network.Netcheck,
 		"network/interfaces.json":         src.Network.Interfaces,
