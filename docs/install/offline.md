@@ -245,7 +245,8 @@ Mirror registry modules in an internal Git repository:
 
 1. **Download modules** from [registry.coder.com](https://registry.coder.com) while connected to the internet
 2. **Store modules** in your internal Git repository:
-   ```
+
+   ```text
    internal-registry/
    ├── modules/
    │   ├── code-server/
@@ -253,7 +254,9 @@ Mirror registry modules in an internal Git repository:
    │   └── vscode-web/
    └── templates/
    ```
+
 3. **Reference modules** using Git source addresses:
+
    ```tf
    module "code_server" {
      source   = "git::https://your-internal-git.com/coder-modules.git//modules/code-server?ref=v1.0.19"
@@ -269,6 +272,7 @@ Set up a private Terraform registry mirror:
 1. **Configure a private registry** (such as Terraform Enterprise or Artifactory)
 2. **Mirror modules** from the public registry to your private registry
 3. **Update templates** to use custom source addresses:
+
    ```tf
    module "code_server" {
      source   = "your-registry.com/coder/code-server/coder"
@@ -283,6 +287,7 @@ Include modules directly in your template repositories:
 
 1. **Download modules** and include them in your template repository
 2. **Reference with relative paths**:
+
    ```tf
    module "code_server" {
      source   = "./modules/code-server" # Relative path to vendored module
