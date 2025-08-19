@@ -915,7 +915,7 @@ func (api *API) workspaceAgentCreateImmortalStream(rw http.ResponseWriter, r *ht
 	stream, err := agentConn.CreateImmortalStream(ctx, req)
 	if err != nil {
 		// Check for specific error types from the agent
-		if strings.Contains(err.Error(), "too many immortal streams") {
+		if strings.Contains(err.Error(), "Too many Immortal Streams") {
 			httpapi.Write(ctx, rw, http.StatusServiceUnavailable, codersdk.Response{
 				Message: "Too many immortal streams.",
 			})
