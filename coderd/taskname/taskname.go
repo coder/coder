@@ -45,15 +45,15 @@ type options struct {
 	model  anthropic.Model
 }
 
-type option func(o *options)
+type Option func(o *options)
 
-func WithAPIKey(apiKey string) option {
+func WithAPIKey(apiKey string) Option {
 	return func(o *options) {
 		o.apiKey = apiKey
 	}
 }
 
-func WithModel(model anthropic.Model) option {
+func WithModel(model anthropic.Model) Option {
 	return func(o *options) {
 		o.model = model
 	}
@@ -67,7 +67,7 @@ func GetAnthropicModelFromEnv() anthropic.Model {
 	return anthropic.Model(os.Getenv("ANTHROPIC_MODEL"))
 }
 
-func Generate(ctx context.Context, prompt string, opts ...option) (string, error) {
+func Generate(ctx context.Context, prompt string, opts ...Option) (string, error) {
 	o := options{}
 	for _, opt := range opts {
 		opt(&o)
