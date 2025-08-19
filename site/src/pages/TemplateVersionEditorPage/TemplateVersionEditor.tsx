@@ -599,7 +599,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									{templateVersion.job.error ? (
 										<div>
 											<ProvisionerAlert
-												title="Error during the build"
+												title="Build failed"
 												detail={templateVersion.job.error}
 												severity="error"
 												tags={templateVersion.job.tags}
@@ -613,6 +613,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 													matchingProvisioners={matchingProvisioners}
 													availableProvisioners={availableProvisioners}
 													tags={templateVersion.job.tags}
+													queuePosition={templateVersion.job.queue_position}
+													queueSize={templateVersion.job.queue_size}
 													variant={AlertVariant.Inline}
 												/>
 												<Loader css={{ height: "100%" }} />

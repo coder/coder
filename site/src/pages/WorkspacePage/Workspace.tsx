@@ -182,6 +182,8 @@ export const Workspace: FC<WorkspaceProps> = ({
 									workspace.latest_build.matched_provisioners?.available ?? 0
 								}
 								tags={workspace.latest_build.job.tags}
+								queuePosition={workspace.latest_build.job.queue_position}
+								queueSize={workspace.latest_build.job.queue_size}
 							/>
 						)}
 

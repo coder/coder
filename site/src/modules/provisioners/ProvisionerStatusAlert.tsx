@@ -6,6 +6,8 @@ interface ProvisionerStatusAlertProps {
 	matchingProvisioners: number | undefined;
 	availableProvisioners: number | undefined;
 	tags: Record<string, string>;
+	queuePosition?: number;
+	queueSize?: number;
 	variant?: AlertVariant;
 }
 
@@ -13,6 +15,8 @@ export const ProvisionerStatusAlert: FC<ProvisionerStatusAlertProps> = ({
 	matchingProvisioners,
 	availableProvisioners,
 	tags,
+	queuePosition,
+	queueSize,
 	variant = AlertVariant.Standalone,
 }) => {
 	let title: string;
@@ -33,8 +37,13 @@ export const ProvisionerStatusAlert: FC<ProvisionerStatusAlertProps> = ({
 			break;
 		default:
 			title = "Build enqueued";
-			detail =
-				"Your build has been enqueued and will begin once a provisioner becomes available to process it.";
+			// Show queue position if available
+			if (queuePosition !== undefined && queueSize !== undefined && queuePosition > 0) {
+				detail = `Your build is in position ${queuePosition} of ${queueSize} in the queue. It will begin once a provisioner becomes available to process it.`;
+			} else {
+				detail =
+					"Your build has been enqueued and will begin once a provisioner becomes available to process it.";
+			}
 			severity = "info";
 	}
 
