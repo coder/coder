@@ -2683,7 +2683,7 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
-	getTasks = async (filter: TasksFilter) => {
+	getTasks = async (filter: TasksFilter): Task[] => {
 		const queryExpressions = ["has-ai-task:true"];
 
 		if (filter.username) {
@@ -2707,7 +2707,7 @@ class ExperimentalApiMethods {
 			return {
 				workspace,
 				prompt,
-			} satisfies Task;
+			};
 		});
 	};
 }
