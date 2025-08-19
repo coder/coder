@@ -1,8 +1,3 @@
-import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
-import type { Workspace } from "api/typesGenerated";
-import { http, HttpResponse } from "msw";
 import {
 	MockDormantOutdatedWorkspace,
 	MockDormantWorkspace,
@@ -17,6 +12,11 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { API } from "api/api";
+import type { Workspace, WorkspacesResponse } from "api/typesGenerated";
+import { HttpResponse, http } from "msw";
 import * as CreateDayString from "utils/createDayString";
 import WorkspacesPage from "./WorkspacesPage";
 
@@ -28,18 +28,17 @@ describe("WorkspacesPage", () => {
 	});
 
 	it("renders an empty workspaces page", async () => {
-		// Given
 		server.use(
 			http.get("/api/v2/workspaces", async () => {
-				return HttpResponse.json({ workspaces: [], count: 0 });
+				return HttpResponse.json<WorkspacesResponse>({
+					workspaces: [],
+					count: 0,
+				});
 			}),
 		);
 
-		// When
 		renderWithAuth(<WorkspacesPage />);
-
-		// Then
-		await screen.findByText("Create a workspace");
+		await screen.findByRole("heading", { name: /Create a workspace/ });
 	});
 
 	it("renders a filled workspaces page", async () => {

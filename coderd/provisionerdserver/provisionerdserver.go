@@ -1183,11 +1183,18 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 				if err != nil {
 					return xerrors.Errorf("update workspace build state: %w", err)
 				}
+
+				deadline := build.Deadline
+				maxDeadline := build.MaxDeadline
+				if workspace.IsPrebuild() {
+					deadline = time.Time{}
+					maxDeadline = time.Time{}
+				}
 				err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 					ID:          input.WorkspaceBuildID,
 					UpdatedAt:   s.timeNow(),
-					Deadline:    build.Deadline,
-					MaxDeadline: build.MaxDeadline,
+					Deadline:    deadline,
+					MaxDeadline: maxDeadline,
 				})
 				if err != nil {
 					return xerrors.Errorf("update workspace build deadline: %w", err)
@@ -1720,16 +1727,20 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		if err != nil {
 			return xerrors.Errorf("update template version external auth providers: %w", err)
 		}
-		err = db.UpdateTemplateVersionAITaskByJobID(ctx, database.UpdateTemplateVersionAITaskByJobIDParams{
+		err = db.UpdateTemplateVersionFlagsByJobID(ctx, database.UpdateTemplateVersionFlagsByJobIDParams{
 			JobID: jobID,
 			HasAITask: sql.NullBool{
 				Bool:  jobType.TemplateImport.HasAiTasks,
 				Valid: true,
 			},
+			HasExternalAgent: sql.NullBool{
+				Bool:  jobType.TemplateImport.HasExternalAgents,
+				Valid: true,
+			},
 			UpdatedAt: now,
 		})
 		if err != nil {
-			return xerrors.Errorf("update template version external auth providers: %w", err)
+			return xerrors.Errorf("update template version ai task and external agent: %w", err)
 		}
 
 		// Process terraform values
@@ -1860,38 +1871,47 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			return getWorkspaceError
 		}
 
-		templateScheduleStore := *s.TemplateScheduleStore.Load()
+		// Prebuilt workspaces must not have Deadline or MaxDeadline set,
+		// as they are managed by the prebuild reconciliation loop, not the lifecycle executor
+		deadline := time.Time{}
+		maxDeadline := time.Time{}
 
-		autoStop, err := schedule.CalculateAutostop(ctx, schedule.CalculateAutostopParams{
-			Database:                    db,
-			TemplateScheduleStore:       templateScheduleStore,
-			UserQuietHoursScheduleStore: *s.UserQuietHoursScheduleStore.Load(),
-			// `now` is used below to set the build completion time.
-			WorkspaceBuildCompletedAt: now,
-			Workspace:                 workspace.WorkspaceTable(),
-			// Allowed to be the empty string.
-			WorkspaceAutostart: workspace.AutostartSchedule.String,
-		})
-		if err != nil {
-			return xerrors.Errorf("calculate auto stop: %w", err)
-		}
+		if !workspace.IsPrebuild() {
+			templateScheduleStore := *s.TemplateScheduleStore.Load()
 
-		if workspace.AutostartSchedule.Valid {
-			templateScheduleOptions, err := templateScheduleStore.Get(ctx, db, workspace.TemplateID)
+			autoStop, err := schedule.CalculateAutostop(ctx, schedule.CalculateAutostopParams{
+				Database:                    db,
+				TemplateScheduleStore:       templateScheduleStore,
+				UserQuietHoursScheduleStore: *s.UserQuietHoursScheduleStore.Load(),
+				// `now` is used below to set the build completion time.
+				WorkspaceBuildCompletedAt: now,
+				Workspace:                 workspace.WorkspaceTable(),
+				// Allowed to be the empty string.
+				WorkspaceAutostart: workspace.AutostartSchedule.String,
+			})
 			if err != nil {
-				return xerrors.Errorf("get template schedule options: %w", err)
+				return xerrors.Errorf("calculate auto stop: %w", err)
 			}
 
-			nextStartAt, err := schedule.NextAllowedAutostart(now, workspace.AutostartSchedule.String, templateScheduleOptions)
-			if err == nil {
-				err = db.UpdateWorkspaceNextStartAt(ctx, database.UpdateWorkspaceNextStartAtParams{
-					ID:          workspace.ID,
-					NextStartAt: sql.NullTime{Valid: true, Time: nextStartAt.UTC()},
-				})
+			if workspace.AutostartSchedule.Valid {
+				templateScheduleOptions, err := templateScheduleStore.Get(ctx, db, workspace.TemplateID)
 				if err != nil {
-					return xerrors.Errorf("update workspace next start at: %w", err)
+					return xerrors.Errorf("get template schedule options: %w", err)
+				}
+
+				nextStartAt, err := schedule.NextAllowedAutostart(now, workspace.AutostartSchedule.String, templateScheduleOptions)
+				if err == nil {
+					err = db.UpdateWorkspaceNextStartAt(ctx, database.UpdateWorkspaceNextStartAtParams{
+						ID:          workspace.ID,
+						NextStartAt: sql.NullTime{Valid: true, Time: nextStartAt.UTC()},
+					})
+					if err != nil {
+						return xerrors.Errorf("update workspace next start at: %w", err)
+					}
 				}
 			}
+			deadline = autoStop.Deadline
+			maxDeadline = autoStop.MaxDeadline
 		}
 
 		err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
@@ -1917,8 +1937,8 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		}
 		err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 			ID:          workspaceBuild.ID,
-			Deadline:    autoStop.Deadline,
-			MaxDeadline: autoStop.MaxDeadline,
+			Deadline:    deadline,
+			MaxDeadline: maxDeadline,
 			UpdatedAt:   now,
 		})
 		if err != nil {
@@ -2010,18 +2030,30 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			sidebarAppID = uuid.NullUUID{}
 		}
 
+		hasExternalAgent := false
+		for _, resource := range jobType.WorkspaceBuild.Resources {
+			if resource.Type == "coder_external_agent" {
+				hasExternalAgent = true
+				break
+			}
+		}
+
 		// Regardless of whether there is an AI task or not, update the field to indicate one way or the other since it
 		// always defaults to nil. ONLY if has_ai_task=true MUST ai_task_sidebar_app_id be set.
-		if err := db.UpdateWorkspaceBuildAITaskByID(ctx, database.UpdateWorkspaceBuildAITaskByIDParams{
+		if err := db.UpdateWorkspaceBuildFlagsByID(ctx, database.UpdateWorkspaceBuildFlagsByIDParams{
 			ID: workspaceBuild.ID,
 			HasAITask: sql.NullBool{
 				Bool:  hasAITask,
 				Valid: true,
 			},
+			HasExternalAgent: sql.NullBool{
+				Bool:  hasExternalAgent,
+				Valid: true,
+			},
 			SidebarAppID: sidebarAppID,
 			UpdatedAt:    now,
 		}); err != nil {
-			return xerrors.Errorf("update workspace build ai tasks flag: %w", err)
+			return xerrors.Errorf("update workspace build ai tasks and external agent flag: %w", err)
 		}
 
 		// Insert timings inside the transaction now

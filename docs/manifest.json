@@ -48,18 +48,6 @@
 							"icon_path": "./images/icons/document.svg"
 						},
 						{
-							"title": "Modules",
-							"description": "Learn how to contribute modules to Coder",
-							"path": "./about/contributing/modules.md",
-							"icon_path": "./images/icons/gear.svg"
-						},
-						{
-							"title": "Templates",
-							"description": "Learn how to contribute templates to Coder",
-							"path": "./about/contributing/templates.md",
-							"icon_path": "./images/icons/picture.svg"
-						},
-						{
 							"title": "Backend",
 							"description": "Our guide for backend development",
 							"path": "./about/contributing/backend.md",
@@ -417,6 +405,11 @@
 							"path": "./admin/users/oidc-auth/index.md",
 							"children": [
 								{
+									"title": "Google",
+									"description": "Configure Google as an OIDC provider",
+									"path": "./admin/users/oidc-auth/google.md"
+								},
+								{
 									"title": "Configure OIDC refresh tokens",
 									"description": "How to configure OIDC refresh tokens",
 									"path": "./admin/users/oidc-auth/refresh-tokens.md"
@@ -709,8 +702,8 @@
 							"path": "./admin/integrations/platformx.md"
 						},
 						{
-							"title": "DX",
-							"description": "Tag Coder Users with DX",
+							"title": "DX Data Cloud",
+							"description": "Tag Coder Users with DX Data Cloud",
 							"path": "./admin/integrations/dx-data-cloud.md"
 						},
 						{
@@ -1165,6 +1158,26 @@
 							"title": "external-auth access-token",
 							"description": "Print auth for an external provider",
 							"path": "reference/cli/external-auth_access-token.md"
+						},
+						{
+							"title": "external-workspaces",
+							"description": "Create or manage external workspaces",
+							"path": "reference/cli/external-workspaces.md"
+						},
+						{
+							"title": "external-workspaces agent-instructions",
+							"description": "Get the instructions for an external agent",
+							"path": "reference/cli/external-workspaces_agent-instructions.md"
+						},
+						{
+							"title": "external-workspaces create",
+							"description": "Create a new external workspace",
+							"path": "reference/cli/external-workspaces_create.md"
+						},
+						{
+							"title": "external-workspaces list",
+							"description": "List external workspaces",
+							"path": "reference/cli/external-workspaces_list.md"
 						},
 						{
 							"title": "favorite",

@@ -109,7 +109,7 @@ func NewWorkspaceProxyReplica(t *testing.T, coderdAPI *coderd.API, owner *coders
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 
-	serverURL.Host = fmt.Sprintf("localhost:%d", tcpAddr.Port)
+	serverURL.Host = fmt.Sprintf("127.0.0.1:%d", tcpAddr.Port)
 
 	accessURL := options.ProxyURL
 	if accessURL == nil {

@@ -509,6 +509,25 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	subjectUsageTracker = rbac.Subject{
+		Type:         rbac.SubjectTypeUsageTracker,
+		FriendlyName: "Usage Tracker",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "usage-tracker"},
+				DisplayName: "Usage Tracker",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceLicense.Type:    {policy.ActionRead},
+					rbac.ResourceUsageEvent.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -579,8 +598,16 @@ func AsPrebuildsOrchestrator(ctx context.Context) context.Context {
 	return As(ctx, subjectPrebuildsOrchestrator)
 }
 
+// AsFileReader returns a context with an actor that has permissions required
+// for reading all files.
 func AsFileReader(ctx context.Context) context.Context {
 	return As(ctx, subjectFileReader)
+}
+
+// AsUsageTracker returns a context with an actor that has permissions required
+// for creating, reading, and updating usage events.
+func AsUsageTracker(ctx context.Context) context.Context {
+	return As(ctx, subjectUsageTracker)
 }
 
 var AsRemoveActor = rbac.Subject{
@@ -3951,6 +3978,13 @@ func (q *querier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg dat
 	return q.db.InsertTemplateVersionWorkspaceTag(ctx, arg)
 }
 
+func (q *querier) InsertUsageEvent(ctx context.Context, arg database.InsertUsageEventParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceUsageEvent); err != nil {
+		return err
+	}
+	return q.db.InsertUsageEvent(ctx, arg)
+}
+
 func (q *querier) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
 	// Always check if the assigned roles can actually be assigned by this actor.
 	impliedRoles := append([]rbac.RoleIdentifier{rbac.RoleMember()}, q.convertToDeploymentRoles(arg.RBACRoles)...)
@@ -4304,6 +4338,14 @@ func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) 
 		return err
 	}
 	return q.db.RevokeDBCryptKey(ctx, activeKeyDigest)
+}
+
+func (q *querier) SelectUsageEventsForPublishing(ctx context.Context, arg time.Time) ([]database.UsageEvent, error) {
+	// ActionUpdate because we're updating the publish_started_at column.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceUsageEvent); err != nil {
+		return nil, err
+	}
+	return q.db.SelectUsageEventsForPublishing(ctx, arg)
 }
 
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
@@ -4691,28 +4733,6 @@ func (q *querier) UpdateTemplateScheduleByID(ctx context.Context, arg database.U
 	return update(q.log, q.auth, fetch, q.db.UpdateTemplateScheduleByID)(ctx, arg)
 }
 
-func (q *querier) UpdateTemplateVersionAITaskByJobID(ctx context.Context, arg database.UpdateTemplateVersionAITaskByJobIDParams) error {
-	// An actor is allowed to update the template version AI task flag if they are authorized to update the template.
-	tv, err := q.db.GetTemplateVersionByJobID(ctx, arg.JobID)
-	if err != nil {
-		return err
-	}
-	var obj rbac.Objecter
-	if !tv.TemplateID.Valid {
-		obj = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
-	} else {
-		tpl, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
-		if err != nil {
-			return err
-		}
-		obj = tpl
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
-		return err
-	}
-	return q.db.UpdateTemplateVersionAITaskByJobID(ctx, arg)
-}
-
 func (q *querier) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) error {
 	// An actor is allowed to update the template version if they are authorized to update the template.
 	tv, err := q.db.GetTemplateVersionByID(ctx, arg.ID)
@@ -4779,12 +4799,41 @@ func (q *querier) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.
 	return q.db.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, arg)
 }
 
+func (q *querier) UpdateTemplateVersionFlagsByJobID(ctx context.Context, arg database.UpdateTemplateVersionFlagsByJobIDParams) error {
+	// An actor is allowed to update the template version ai task and external agent flag if they are authorized to update the template.
+	tv, err := q.db.GetTemplateVersionByJobID(ctx, arg.JobID)
+	if err != nil {
+		return err
+	}
+	var obj rbac.Objecter
+	if !tv.TemplateID.Valid {
+		obj = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
+	} else {
+		tpl, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+		if err != nil {
+			return err
+		}
+		obj = tpl
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
+		return err
+	}
+	return q.db.UpdateTemplateVersionFlagsByJobID(ctx, arg)
+}
+
 func (q *querier) UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) (database.Template, error) {
 		return q.db.GetTemplateByID(ctx, arg.TemplateID)
 	}
 
 	return fetchAndExec(q.log, q.auth, policy.ActionUpdate, fetch, q.db.UpdateTemplateWorkspacesLastUsedAt)(ctx, arg)
+}
+
+func (q *querier) UpdateUsageEventsPostPublish(ctx context.Context, arg database.UpdateUsageEventsPostPublishParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceUsageEvent); err != nil {
+		return err
+	}
+	return q.db.UpdateUsageEventsPostPublish(ctx, arg)
 }
 
 func (q *querier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
@@ -5094,24 +5143,6 @@ func (q *querier) UpdateWorkspaceAutostart(ctx context.Context, arg database.Upd
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceAutostart)(ctx, arg)
 }
 
-func (q *querier) UpdateWorkspaceBuildAITaskByID(ctx context.Context, arg database.UpdateWorkspaceBuildAITaskByIDParams) error {
-	build, err := q.db.GetWorkspaceBuildByID(ctx, arg.ID)
-	if err != nil {
-		return err
-	}
-
-	workspace, err := q.db.GetWorkspaceByID(ctx, build.WorkspaceID)
-	if err != nil {
-		return err
-	}
-
-	err = q.authorizeContext(ctx, policy.ActionUpdate, workspace.RBACObject())
-	if err != nil {
-		return err
-	}
-	return q.db.UpdateWorkspaceBuildAITaskByID(ctx, arg)
-}
-
 // UpdateWorkspaceBuildCostByID is used by the provisioning system to update the cost of a workspace build.
 func (q *querier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
@@ -5136,6 +5167,24 @@ func (q *querier) UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg data
 		return err
 	}
 	return q.db.UpdateWorkspaceBuildDeadlineByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceBuildFlagsByID(ctx context.Context, arg database.UpdateWorkspaceBuildFlagsByIDParams) error {
+	build, err := q.db.GetWorkspaceBuildByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	workspace, err := q.db.GetWorkspaceByID(ctx, build.WorkspaceID)
+	if err != nil {
+		return err
+	}
+
+	err = q.authorizeContext(ctx, policy.ActionUpdate, workspace.RBACObject())
+	if err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceBuildFlagsByID(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {

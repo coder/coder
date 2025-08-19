@@ -1,4 +1,5 @@
 import type { FC, HTMLAttributes, ReactNode } from "react";
+import { cn } from "utils/cn";
 
 export interface EmptyStateProps extends HTMLAttributes<HTMLDivElement> {
 	/** Text Message to display, placed inside Typography component */
@@ -21,44 +22,25 @@ export const EmptyState: FC<EmptyStateProps> = ({
 	cta,
 	image,
 	isCompact,
+	className,
 	...attrs
 }) => {
 	return (
 		<div
-			css={[
-				{
-					overflow: "hidden",
-					display: "flex",
-					flexDirection: "column",
-					justifyContent: "center",
-					alignItems: "center",
-					textAlign: "center",
-					minHeight: 360,
-					padding: "80px 40px",
-					position: "relative",
-				},
-				isCompact && {
-					minHeight: 180,
-					padding: "10px 40px",
-				},
-			]}
+			className={cn(
+				"overflow-hidden flex flex-col justify-center items-center text-center min-h-96 py-20 px-10 relative",
+				isCompact && "min-h-44 py-2.5",
+				className,
+			)}
 			{...attrs}
 		>
-			<h5 css={{ fontSize: 24, fontWeight: 500, margin: 0 }}>{message}</h5>
+			<h5 className="text-2xl font-medium m-0">{message}</h5>
 			{description && (
-				<p
-					css={(theme) => ({
-						marginTop: 16,
-						fontSize: 16,
-						lineHeight: "140%",
-						maxWidth: 480,
-						color: theme.palette.text.secondary,
-					})}
-				>
+				<p className="mt-4 line-height-[140%] max-w-md text-content-secondary">
 					{description}
 				</p>
 			)}
-			{cta && <div css={{ marginTop: 24 }}>{cta}</div>}
+			{cta && <div className="mt-6">{cta}</div>}
 			{image}
 		</div>
 	);

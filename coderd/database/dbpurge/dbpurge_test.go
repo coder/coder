@@ -15,12 +15,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -46,8 +48,9 @@ func TestPurge(t *testing.T) {
 	// We want to make sure dbpurge is actually started so that this test is meaningful.
 	clk := quartz.NewMock(t)
 	done := awaitDoTick(ctx, t, clk)
-	db, _ := dbtestutil.NewDB(t)
-	purger := dbpurge.New(context.Background(), testutil.Logger(t), db, clk)
+	mDB := dbmock.NewMockStore(gomock.NewController(t))
+	mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).Return(nil).Times(2)
+	purger := dbpurge.New(context.Background(), testutil.Logger(t), mDB, clk)
 	<-done // wait for doTick() to run.
 	require.NoError(t, purger.Close())
 }

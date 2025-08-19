@@ -1,4 +1,4 @@
-import { type FC, type HTMLAttributes, createContext, useContext } from "react";
+import { createContext, type FC, type HTMLAttributes, useContext } from "react";
 import { Link, type LinkProps } from "react-router";
 import { cn } from "utils/cn";
 

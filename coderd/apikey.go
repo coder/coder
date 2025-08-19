@@ -151,7 +151,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
-// @Param keyid path string true "Key ID" format(uuid)
+// @Param keyid path string true "Key ID" format(string)
 // @Success 200 {object} codersdk.APIKey
 // @Router /users/{user}/keys/{keyid} [get]
 func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
@@ -292,7 +292,7 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
-// @Param keyid path string true "Key ID" format(uuid)
+// @Param keyid path string true "Key ID" format(string)
 // @Success 204
 // @Router /users/{user}/keys/{keyid} [delete]
 func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {

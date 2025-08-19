@@ -1,5 +1,3 @@
-import { screen } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
 import {
 	MockDefaultOrganization,
 	MockEntitlementsWithMultiOrg,
@@ -10,6 +8,8 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import { screen } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
 import OrganizationRedirect from "./OrganizationRedirect";
 
 jest.spyOn(console, "error").mockImplementation(() => {});

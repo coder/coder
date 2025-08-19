@@ -138,7 +138,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent."
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.WorkspacesResponse
@@ -635,10 +635,17 @@ func createWorkspace(
 			claimedWorkspace *database.Workspace
 		)
 
+		// Use injected Clock to allow time mocking in tests
+		now := api.Clock.Now()
+
 		// If a template preset was chosen, try claim a prebuilt workspace.
 		if req.TemplateVersionPresetID != uuid.Nil {
 			// Try and claim an eligible prebuild, if available.
-			claimedWorkspace, err = claimPrebuild(ctx, prebuildsClaimer, db, api.Logger, req, owner)
+			// On successful claim, initialize all lifecycle fields from template and workspace-level config
+			// so the newly claimed workspace is properly managed by the lifecycle executor.
+			claimedWorkspace, err = claimPrebuild(
+				ctx, prebuildsClaimer, db, api.Logger, now, req, owner,
+				dbAutostartSchedule, nextStartAt, dbTTL)
 			// If claiming fails with an expected error (no claimable prebuilds or AGPL does not support prebuilds),
 			// we fall back to creating a new workspace. Otherwise, propagate the unexpected error.
 			if err != nil {
@@ -666,7 +673,6 @@ func createWorkspace(
 
 		// No prebuild found; regular flow.
 		if claimedWorkspace == nil {
-			now := dbtime.Now()
 			// Workspaces are created without any versions.
 			minimumWorkspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
 				ID:                uuid.New(),
@@ -681,7 +687,7 @@ func createWorkspace(
 				Ttl:               dbTTL,
 				// The workspaces page will sort by last used at, and it's useful to
 				// have the newly created workspace at the top of the list!
-				LastUsedAt:       dbtime.Now(),
+				LastUsedAt:       now,
 				AutomaticUpdates: dbAU,
 			})
 			if err != nil {
@@ -872,8 +878,19 @@ func requestTemplate(ctx context.Context, rw http.ResponseWriter, req codersdk.C
 	return template, true
 }
 
-func claimPrebuild(ctx context.Context, claimer prebuilds.Claimer, db database.Store, logger slog.Logger, req codersdk.CreateWorkspaceRequest, owner workspaceOwner) (*database.Workspace, error) {
-	claimedID, err := claimer.Claim(ctx, owner.ID, req.Name, req.TemplateVersionPresetID)
+func claimPrebuild(
+	ctx context.Context,
+	claimer prebuilds.Claimer,
+	db database.Store,
+	logger slog.Logger,
+	now time.Time,
+	req codersdk.CreateWorkspaceRequest,
+	owner workspaceOwner,
+	autostartSchedule sql.NullString,
+	nextStartAt sql.NullTime,
+	ttl sql.NullInt64,
+) (*database.Workspace, error) {
+	claimedID, err := claimer.Claim(ctx, now, owner.ID, req.Name, req.TemplateVersionPresetID, autostartSchedule, nextStartAt, ttl)
 	if err != nil {
 		// TODO: enhance this by clarifying whether this *specific* prebuild failed or whether there are none to claim.
 		return nil, xerrors.Errorf("claim prebuild: %w", err)
@@ -1072,6 +1089,17 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Autostart configuration is not supported for prebuilt workspaces.
+	// Prebuild lifecycle is managed by the reconciliation loop, with scheduling behavior
+	// defined per preset at the template level, not per workspace.
+	if workspace.IsPrebuild() {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Autostart is not supported for prebuilt workspaces",
+			Detail:  "Prebuilt workspace scheduling is configured per preset at the template level. Workspace-level overrides are not supported.",
+		})
+		return
+	}
+
 	dbSched, err := validWorkspaceSchedule(req.Schedule)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1098,12 +1126,20 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Use injected Clock to allow time mocking in tests
+	now := api.Clock.Now()
+
 	nextStartAt := sql.NullTime{}
 	if dbSched.Valid {
-		next, err := schedule.NextAllowedAutostart(dbtime.Now(), dbSched.String, templateSchedule)
-		if err == nil {
-			nextStartAt = sql.NullTime{Valid: true, Time: dbtime.Time(next.UTC())}
+		next, err := schedule.NextAllowedAutostart(now, dbSched.String, templateSchedule)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error calculating workspace autostart schedule.",
+				Detail:  err.Error(),
+			})
+			return
 		}
+		nextStartAt = sql.NullTime{Valid: true, Time: dbtime.Time(next.UTC())}
 	}
 
 	err = api.Database.UpdateWorkspaceAutostart(ctx, database.UpdateWorkspaceAutostartParams{
@@ -1156,6 +1192,17 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TTL updates are not supported for prebuilt workspaces.
+	// Prebuild lifecycle is managed by the reconciliation loop, with TTL behavior
+	// defined per preset at the template level, not per workspace.
+	if workspace.IsPrebuild() {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "TTL updates are not supported for prebuilt workspaces",
+			Detail:  "Prebuilt workspace TTL is configured per preset at the template level. Workspace-level overrides are not supported.",
+		})
+		return
+	}
+
 	var dbTTL sql.NullInt64
 
 	err := api.Database.InTx(func(s database.Store) error {
@@ -1180,6 +1227,9 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		}); err != nil {
 			return xerrors.Errorf("update workspace time until shutdown: %w", err)
 		}
+
+		// Use injected Clock to allow time mocking in tests
+		now := api.Clock.Now()
 
 		// If autostop has been disabled, we want to remove the deadline from the
 		// existing workspace build (if there is one).
@@ -1208,7 +1258,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 					// more information.
 					Deadline:    build.MaxDeadline,
 					MaxDeadline: build.MaxDeadline,
-					UpdatedAt:   dbtime.Time(api.Clock.Now()),
+					UpdatedAt:   dbtime.Time(now),
 				}); err != nil {
 					return xerrors.Errorf("update workspace build deadline: %w", err)
 				}
@@ -1272,17 +1322,30 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Dormancy configuration is not supported for prebuilt workspaces.
+	// Prebuilds are managed by the reconciliation loop and are not subject to dormancy.
+	if oldWorkspace.IsPrebuild() {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Dormancy updates are not supported for prebuilt workspaces",
+			Detail:  "Prebuilt workspaces are not subject to dormancy. Dormancy behavior is only applicable to regular workspaces",
+		})
+		return
+	}
+
 	// If the workspace is already in the desired state do nothing!
 	if oldWorkspace.DormantAt.Valid == req.Dormant {
 		rw.WriteHeader(http.StatusNotModified)
 		return
 	}
 
+	// Use injected Clock to allow time mocking in tests
+	now := api.Clock.Now()
+
 	dormantAt := sql.NullTime{
 		Valid: req.Dormant,
 	}
 	if req.Dormant {
-		dormantAt.Time = dbtime.Now()
+		dormantAt.Time = dbtime.Time(now)
 	}
 
 	newWorkspace, err := api.Database.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{
@@ -1322,7 +1385,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if initiatorErr == nil && tmplErr == nil {
-			dormantTime := dbtime.Now().Add(time.Duration(tmpl.TimeTilDormant))
+			dormantTime := dbtime.Time(now).Add(time.Duration(tmpl.TimeTilDormant))
 			_, err = api.NotificationsEnqueuer.Enqueue(
 				// nolint:gocritic // Need notifier actor to enqueue notifications
 				dbauthz.AsNotifier(ctx),
@@ -1416,6 +1479,17 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Deadline extensions are not supported for prebuilt workspaces.
+	// Prebuilds are managed by the reconciliation loop and must always have
+	// Deadline and MaxDeadline unset.
+	if workspace.IsPrebuild() {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Deadline extension is not supported for prebuilt workspaces",
+			Detail:  "Prebuilt workspaces do not support user deadline modifications. Deadline extension is only applicable to regular workspaces",
+		})
+		return
+	}
+
 	code := http.StatusOK
 	resp := codersdk.Response{}
 
@@ -1452,8 +1526,11 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("workspace shutdown is manual")
 		}
 
+		// Use injected Clock to allow time mocking in tests
+		now := api.Clock.Now()
+
 		newDeadline := req.Deadline.UTC()
-		if err := validWorkspaceDeadline(job.CompletedAt.Time, newDeadline); err != nil {
+		if err := validWorkspaceDeadline(now, job.CompletedAt.Time, newDeadline); err != nil {
 			// NOTE(Cian): Putting the error in the Message field on request from the FE folks.
 			// Normally, we would put the validation error in Validations, but this endpoint is
 			// not tied to a form or specific named user input on the FE.
@@ -1469,7 +1546,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 		if err := s.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 			ID:          build.ID,
-			UpdatedAt:   dbtime.Now(),
+			UpdatedAt:   dbtime.Time(now),
 			Deadline:    newDeadline,
 			MaxDeadline: build.MaxDeadline,
 		}); err != nil {
@@ -2424,8 +2501,8 @@ func validWorkspaceAutomaticUpdates(updates codersdk.AutomaticUpdates) (database
 	return dbAU, nil
 }
 
-func validWorkspaceDeadline(startedAt, newDeadline time.Time) error {
-	soon := time.Now().Add(29 * time.Minute)
+func validWorkspaceDeadline(now, startedAt, newDeadline time.Time) error {
+	soon := now.Add(29 * time.Minute)
 	if newDeadline.Before(soon) {
 		return errDeadlineTooSoon
 	}

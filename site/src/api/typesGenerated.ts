@@ -939,6 +939,12 @@ export const Experiments: Experiment[] = [
 	"workspace-usage",
 ];
 
+// From codersdk/workspaces.go
+export interface ExternalAgentCredentials {
+	readonly command: string;
+	readonly agent_token: string;
+}
+
 // From codersdk/externalauth.go
 export interface ExternalAuth {
 	readonly authenticated: boolean;
@@ -1052,6 +1058,7 @@ export type FeatureName =
 	| "user_limit"
 	| "user_role_management"
 	| "workspace_batch_actions"
+	| "workspace_external_agent"
 	| "workspace_prebuilds"
 	| "workspace_proxy";
 
@@ -1075,6 +1082,7 @@ export const FeatureNames: FeatureName[] = [
 	"user_limit",
 	"user_role_management",
 	"workspace_batch_actions",
+	"workspace_external_agent",
 	"workspace_prebuilds",
 	"workspace_proxy",
 ];
@@ -2393,6 +2401,7 @@ export type RBACResource =
 	| "system"
 	| "tailnet_coordinator"
 	| "template"
+	| "usage_event"
 	| "user"
 	| "user_secret"
 	| "webpush_subscription"
@@ -2434,6 +2443,7 @@ export const RBACResources: RBACResource[] = [
 	"system",
 	"tailnet_coordinator",
 	"template",
+	"usage_event",
 	"user",
 	"user_secret",
 	"webpush_subscription",
@@ -2998,6 +3008,7 @@ export interface TemplateVersion {
 	readonly archived: boolean;
 	readonly warnings?: readonly TemplateVersionWarning[];
 	readonly matched_provisioners?: MatchedProvisioners;
+	readonly has_external_agent: boolean;
 }
 
 // From codersdk/templateversions.go
@@ -3874,6 +3885,7 @@ export interface WorkspaceBuild {
 	readonly template_version_preset_id: string | null;
 	readonly has_ai_task?: boolean;
 	readonly ai_task_sidebar_app_id?: string;
+	readonly has_external_agent?: boolean;
 }
 
 // From codersdk/workspacebuilds.go

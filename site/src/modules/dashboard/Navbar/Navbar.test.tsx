@@ -1,12 +1,12 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { App } from "App";
-import { http, HttpResponse } from "msw";
 import {
 	MockEntitlementsWithAuditLog,
 	MockMemberPermissions,
 } from "testHelpers/entities";
 import { server } from "testHelpers/server";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
 
 /**
  * The LicenseBanner, mounted above the AppRouter, fetches entitlements. Thus, to test their

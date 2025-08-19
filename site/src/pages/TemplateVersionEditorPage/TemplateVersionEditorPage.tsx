@@ -25,7 +25,7 @@ import {
 	useQueryClient,
 } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { type FileTree, existsFile, traverse } from "utils/filetree";
+import { existsFile, type FileTree, traverse } from "utils/filetree";
 import { pageTitle } from "utils/page";
 import { TarReader, TarWriter } from "utils/tar";
 import { createTemplateVersionFileTree } from "utils/templateVersion";
