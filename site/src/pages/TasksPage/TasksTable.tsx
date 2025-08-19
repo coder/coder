@@ -101,7 +101,9 @@ const TasksEmpty: FC = () => {
 	);
 };
 
-const Tasks: FC<{ tasks: Task[] }> = ({ tasks }) => {
+type TasksProps = { tasks: Task[] };
+
+const Tasks: FC<TasksProps> = ({ tasks }) => {
 	return tasks.map(({ workspace, prompt }) => {
 		const templateDisplayName =
 			workspace.template_display_name ?? workspace.template_name;

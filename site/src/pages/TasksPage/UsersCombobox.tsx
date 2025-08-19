@@ -25,7 +25,10 @@ import { cn } from "utils/cn";
 
 type UserOption = {
 	label: string;
-	value: string; // username
+	/**
+	 * The username of the user.
+	 */
+	value: string;
 	avatarUrl?: string;
 };
 
@@ -123,7 +126,10 @@ type UseUsersOptionsOptions = {
 	value?: string;
 };
 
-function useUsersOptions({ query, value }: UseUsersOptionsOptions) {
+function useUsersOptions({
+	query,
+	value,
+}: UseUsersOptionsOptions): UserOption[] | undefined {
 	const { user } = useAuthenticated();
 
 	const includeAuthenticatedUser = (users: readonly User[]) => {
@@ -139,17 +145,19 @@ function useUsersOptions({ query, value }: UseUsersOptionsOptions) {
 	const sortSelectedFirst = (a: User) =>
 		value && a.username === value ? -1 : 0;
 
-	const usersQuery = useQuery({
+	const { data } = useQuery({
 		...users({ q: query }),
 		select: (data) => {
-			return includeAuthenticatedUser(data.users).toSorted(sortSelectedFirst);
+			return includeAuthenticatedUser(data.users)
+				.toSorted(sortSelectedFirst)
+				.map((user) => ({
+					label: user.name || user.username,
+					value: user.username,
+					avatarUrl: user.avatar_url,
+				}));
 		},
 		placeholderData: keepPreviousData,
 	});
 
-	return usersQuery.data?.map((user) => ({
-		label: user.name || user.username,
-		value: user.username,
-		avatarUrl: user.avatar_url,
-	}));
+	return data;
 }

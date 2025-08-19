@@ -2698,11 +2698,7 @@ class ExperimentalApiMethods {
 		);
 
 		return workspaces.workspaces.map((workspace) => {
-			let prompt = prompts.prompts[workspace.latest_build.id];
-
-			if (prompt === "") {
-				prompt = "Empty prompt";
-			}
+			const prompt = prompts.prompts[workspace.latest_build.id];
 
 			return {
 				workspace,
