@@ -1226,6 +1226,11 @@ func New(options *Options) *API {
 			r.Get("/authmethods", api.userAuthMethods)
 
 			r.Group(func(r chi.Router) {
+				r.Use(apiKeyMiddlewareOptional)
+				r.Post("/logout", api.postLogout)
+			})
+
+			r.Group(func(r chi.Router) {
 				// We use a tight limit for password login to protect against
 				// audit-log write DoS, pbkdf2 DoS, and simple brute-force
 				// attacks.
@@ -1258,7 +1263,6 @@ func New(options *Options) *API {
 				)
 				r.Post("/", api.postUser)
 				r.Get("/", api.users)
-				r.Post("/logout", api.postLogout)
 				// These routes query information about site wide roles.
 				r.Route("/roles", func(r chi.Router) {
 					r.Get("/", api.AssignableSiteRoles)
