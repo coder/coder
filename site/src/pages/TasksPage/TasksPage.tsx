@@ -66,11 +66,11 @@ const TasksPage: FC = () => {
 
 				<main className="pb-8">
 					<TaskPrompt
-						templates={AITemplatesQuery.data}
-						error={AITemplatesQuery.error}
-						onRetry={AITemplatesQuery.refetch}
+						templates={aiTemplatesQuery.data}
+						error={aiTemplatesQuery.error}
+						onRetry={aiTemplatesQuery.refetch}
 					/>
-					{AITemplatesQuery.isSuccess && (
+					{aiTemplatesQuery.isSuccess && (
 						<section>
 							{permissions.viewDeploymentConfig && (
 								<section
