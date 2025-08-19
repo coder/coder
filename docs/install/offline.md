@@ -244,14 +244,16 @@ Coder Registry modules from [registry.coder.com](https://registry.coder.com) pro
 Mirror registry modules in an internal Git repository:
 
 1. **Download modules** from [registry.coder.com](https://registry.coder.com) while connected to the internet
-2. **Store modules** in your internal Git repository:
+2. **Store modules** in your internal Git repository using the registry structure:
 
    ```text
    internal-registry/
-   ├── modules/
-   │   ├── code-server/
-   │   ├── cursor/
-   │   └── vscode-web/
+   ├── registry/
+   │   └── coder/
+   │       └── modules/
+   │           ├── code-server/
+   │           ├── cursor/
+   │           └── vscode-web/
    └── templates/
    ```
 
@@ -259,7 +261,7 @@ Mirror registry modules in an internal Git repository:
 
    ```tf
    module "code_server" {
-     source   = "git::https://your-internal-git.com/coder-modules.git//modules/code-server?ref=v1.0.19"
+     source   = "git::https://your-internal-git.com/coder-modules.git//registry/coder/modules/code-server?ref=v1.0.19"
      agent_id = coder_agent.example.id
      offline  = true # Prevent external downloads
    }
@@ -309,11 +311,6 @@ module "code_server" {
 ```
 
 For more information, see the [Terraform Modules documentation](../admin/templates/extending-templates/modules.md).
-
-## Coder Modules
-
-To use Coder modules in offline installations please follow the instructions
-[here](../admin/templates/extending-templates/modules.md#offline-installations).
 
 ## Firewall exceptions
 
