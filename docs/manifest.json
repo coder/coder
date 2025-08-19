@@ -64,6 +64,12 @@
 							"description": "Security vulnerability disclosure policy",
 							"path": "./about/contributing/SECURITY.md",
 							"icon_path": "./images/icons/lock.svg"
+						},
+						{
+							"title": "AI Contributions",
+							"description": "Guidelines for AI-generated contributions.",
+							"path": "./about/contributing/AI_CONTRIBUTING.md",
+							"icon_path": "./images/icons/ai_intelligence.svg"
 						}
 					]
 				}
