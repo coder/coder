@@ -16,9 +16,9 @@ coderd/rbac/ @Emyrk
 
 # Mainly dependent on coder/guts, which is maintained by @Emyrk
 scripts/apitypings/ @Emyrk
-scripts/gensite/ @aslilac
+scripts/gensite/ @aslilac @jaaydenh
 
-site/ @aslilac
+site/ @aslilac @jaaydenh
 site/src/hooks/ @Parkreiner
 # These rules intentionally do not specify any owners. More specific rules
 # override less specific rules, so these files are "ignored" by the site/ rule.
