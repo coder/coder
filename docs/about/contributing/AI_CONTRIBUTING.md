@@ -13,7 +13,6 @@ Contributors must **disclose AI involvement** in the pull request description wh
 
 - All pull requests must be opened under **real user accounts**.
 - Contributors are personally accountable for the content of their PRs, regardless of how it was generated.
-- Default to draft PRs until work has been tested and reviewed.
 
 ## Verification & Evidence
 
