@@ -122,15 +122,6 @@ SET
 WHERE
 	job_id = $1;
 
--- name: UpdateTemplateVersionAITaskByJobID :exec
-UPDATE
-	template_versions
-SET
-	has_ai_task = $2,
-	updated_at = $3
-WHERE
-	job_id = $1;
-
 -- name: GetPreviousTemplateVersion :one
 SELECT
 	*
@@ -241,3 +232,13 @@ SELECT EXISTS (
 	FROM template_versions
 	WHERE id = $1 AND has_ai_task = TRUE
 );
+
+-- name: UpdateTemplateVersionFlagsByJobID :exec
+UPDATE
+	template_versions
+SET
+	has_ai_task = $2,
+	has_external_agent = $3,
+	updated_at = $4
+WHERE
+	job_id = $1;

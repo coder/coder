@@ -462,6 +462,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "username": "string"
   },
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "job": {
     "available_workers": [
@@ -561,6 +562,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "username": "string"
   },
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "job": {
     "available_workers": [
@@ -684,6 +686,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "username": "string"
   },
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "job": {
     "available_workers": [
@@ -1290,6 +1293,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "username": "string"
     },
+    "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "job": {
       "available_workers": [
@@ -1367,6 +1371,7 @@ Status Code **200**
 | `»» avatar_url`             | string(uri)                                                                  | false    |              |                                                                                                                                                                     |
 | `»» id`                     | string(uuid)                                                                 | true     |              |                                                                                                                                                                     |
 | `»» username`               | string                                                                       | true     |              |                                                                                                                                                                     |
+| `» has_external_agent`      | boolean                                                                      | false    |              |                                                                                                                                                                     |
 | `» id`                      | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `» job`                     | [codersdk.ProvisionerJob](schemas.md#codersdkprovisionerjob)                 | false    |              |                                                                                                                                                                     |
 | `»» available_workers`      | array                                                                        | false    |              |                                                                                                                                                                     |
@@ -1571,6 +1576,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "username": "string"
     },
+    "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "job": {
       "available_workers": [
@@ -1648,6 +1654,7 @@ Status Code **200**
 | `»» avatar_url`             | string(uri)                                                                  | false    |              |                                                                                                                                                                     |
 | `»» id`                     | string(uuid)                                                                 | true     |              |                                                                                                                                                                     |
 | `»» username`               | string                                                                       | true     |              |                                                                                                                                                                     |
+| `» has_external_agent`      | boolean                                                                      | false    |              |                                                                                                                                                                     |
 | `» id`                      | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `» job`                     | [codersdk.ProvisionerJob](schemas.md#codersdkprovisionerjob)                 | false    |              |                                                                                                                                                                     |
 | `»» available_workers`      | array                                                                        | false    |              |                                                                                                                                                                     |
@@ -1742,6 +1749,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "username": "string"
   },
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "job": {
     "available_workers": [
@@ -1850,6 +1858,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "username": "string"
   },
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "job": {
     "available_workers": [
