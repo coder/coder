@@ -118,7 +118,7 @@ func TestTelemetry(t *testing.T) {
 			OrganizationID: org.ID,
 			CreatedBy:      user.ID,
 		})
-		_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		taskTV := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 			OrganizationID: org.ID,
 			TemplateID:     uuid.NullUUID{UUID: taskTpl.ID, Valid: true},
 			CreatedBy:      user.ID,
@@ -142,7 +142,7 @@ func TestTelemetry(t *testing.T) {
 			OpenIn:       database.WorkspaceAppOpenInSlimWindow,
 			AgentID:      taskWsAgent.ID,
 		})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		taskWB := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 			Transition:         database.WorkspaceTransitionStart,
 			Reason:             database.BuildReasonAutostart,
 			WorkspaceID:        taskWs.ID,
@@ -222,10 +222,16 @@ func TestTelemetry(t *testing.T) {
 		require.Equal(t, string(database.WorkspaceAgentSubsystemExectrace), wsa.Subsystems[1])
 
 		require.True(t, slices.ContainsFunc(snapshot.TemplateVersions, func(ttv telemetry.TemplateVersion) bool {
-			return ttv.HasAITask
+			if ttv.ID != taskTV.ID {
+				return false
+			}
+			return assert.NotNil(t, ttv.HasAITask) && assert.True(t, *ttv.HasAITask)
 		}))
 		require.True(t, slices.ContainsFunc(snapshot.WorkspaceBuilds, func(twb telemetry.WorkspaceBuild) bool {
-			return twb.HasAITask
+			if twb.ID != taskWB.ID {
+				return false
+			}
+			return assert.NotNil(t, twb.HasAITask) && assert.True(t, *twb.HasAITask)
 		}))
 
 		tvs := snapshot.TemplateVersions
