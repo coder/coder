@@ -304,7 +304,7 @@ func (s *Stream) Close() error {
 	s.closed = true
 	s.connected = false
 
-	// Cancel the context to interrupt any pending BackedPipe operations
+	// Cancel will interrupt any pending BackedPipe operations
 	if s.cancel != nil {
 		s.cancel()
 	}

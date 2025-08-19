@@ -4,9 +4,9 @@ import (
 	"context"
 	"io"
 	"net"
+	"runtime"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -387,8 +387,13 @@ func TestManager_Eviction(t *testing.T) {
 	}
 
 	// Close the first connection to make it disconnected
-	time.Sleep(100 * time.Millisecond) // Let connections establish
+	// Wait for connections to be established
 	connMu.Lock()
+	for len(conns) == 0 {
+		connMu.Unlock()
+		runtime.Gosched()
+		connMu.Lock()
+	}
 	require.Greater(t, len(conns), 0)
 	_ = conns[0].Close()
 	connMu.Unlock()
@@ -400,8 +405,10 @@ func TestManager_Eviction(t *testing.T) {
 	// Manually trigger disconnection since the automatic detection isn't working
 	firstStream.SignalDisconnect()
 
-	// Wait a bit for the disconnection to be processed
-	time.Sleep(50 * time.Millisecond)
+	// Wait for the disconnection to be processed
+	for firstStream.IsConnected() {
+		runtime.Gosched()
+	}
 
 	// Verify the first stream is now disconnected
 	require.False(t, firstStream.IsConnected(), "First stream should be disconnected")

@@ -2,6 +2,7 @@ package immortalstreams_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -129,10 +130,10 @@ func TestStream_HandleReconnect(t *testing.T) {
 	_ = fromServerWrite1.Close()
 
 	// Wait until the stream is marked disconnected
-	deadline0 := time.Now().Add(2 * time.Second)
-	for stream.IsConnected() && time.Now().Before(deadline0) {
-		time.Sleep(10 * time.Millisecond)
-	}
+	ctx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return !stream.IsConnected()
+	}, testutil.IntervalFast)
 	require.False(t, stream.IsConnected())
 
 	// Create new client connection (full-duplex)
@@ -297,7 +298,7 @@ func TestStream_ConcurrentAccess(t *testing.T) {
 		defer wg.Done()
 		for i := 0; i < 100; i++ {
 			_ = stream.IsConnected()
-			time.Sleep(time.Microsecond)
+			runtime.Gosched() // Yield to other goroutines
 		}
 	}()
 
@@ -305,7 +306,7 @@ func TestStream_ConcurrentAccess(t *testing.T) {
 		defer wg.Done()
 		for i := 0; i < 100; i++ {
 			_ = stream.ToAPI()
-			time.Sleep(time.Microsecond)
+			runtime.Gosched() // Yield to other goroutines
 		}
 	}()
 
@@ -313,7 +314,7 @@ func TestStream_ConcurrentAccess(t *testing.T) {
 		defer wg.Done()
 		for i := 0; i < 100; i++ {
 			_ = stream.LastDisconnectionAt()
-			time.Sleep(time.Microsecond)
+			runtime.Gosched() // Yield to other goroutines
 		}
 	}()
 
@@ -323,7 +324,7 @@ func TestStream_ConcurrentAccess(t *testing.T) {
 			// Test other concurrent operations instead
 			_ = stream.IsConnected()
 			_ = stream.ToAPI()
-			time.Sleep(time.Microsecond)
+			runtime.Gosched() // Yield to other goroutines
 		}
 	}()
 
@@ -403,9 +404,9 @@ func BenchmarkImmortalStream_ReconnectLatency(b *testing.B) {
 	require.NoError(b, stream.HandleReconnect(c1, 0))
 	// Ensure disconnected before starting benchmark loop
 	_ = r1.Close()
-	deadline := time.Now().Add(2 * time.Second)
-	for stream.IsConnected() && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
+	// Use a simple loop for benchmarks to avoid overhead
+	for stream.IsConnected() {
+		runtime.Gosched()
 	}
 
 	b.ReportAllocs()
@@ -425,10 +426,9 @@ func BenchmarkImmortalStream_ReconnectLatency(b *testing.B) {
 
 		// Immediately disconnect for next iteration
 		_ = remote.Close()
-		// Wait until disconnected
-		deadline := time.Now().Add(2 * time.Second)
-		for stream.IsConnected() && time.Now().Before(deadline) {
-			time.Sleep(5 * time.Millisecond)
+		// Wait until disconnected - use a simple loop with runtime.Gosched for benchmarks
+		for stream.IsConnected() {
+			runtime.Gosched()
 		}
 	}
 }
@@ -544,10 +544,10 @@ func TestStream_ReconnectionScenarios(t *testing.T) {
 		_ = fromServerWriteA.Close()
 
 		// Wait until the stream is marked disconnected
-		deadline := time.Now().Add(2 * time.Second)
-		for stream2.IsConnected() && time.Now().Before(deadline) {
-			time.Sleep(10 * time.Millisecond)
-		}
+		ctx := testutil.Context(t, testutil.WaitShort)
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			return !stream2.IsConnected()
+		}, testutil.IntervalFast)
 		require.False(t, stream2.IsConnected())
 
 		// Reconnect with new client
@@ -580,7 +580,7 @@ func TestStream_ReconnectionScenarios(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, stream2.IsConnected())
 
-		// Wait for replay to complete
+		// Wait for replay to complete - this ensures the connection is fully established
 		<-replayDone
 		require.Equal(t, testData, replayBuf, "should receive replayed data")
 
@@ -649,10 +649,10 @@ func TestStream_ReconnectionScenarios(t *testing.T) {
 			_ = fromServerWrite.Close()
 
 			// Wait until the stream is marked disconnected
-			deadline := time.Now().Add(2 * time.Second)
-			for stream3.IsConnected() && time.Now().Before(deadline) {
-				time.Sleep(10 * time.Millisecond)
-			}
+			ctx := testutil.Context(t, testutil.WaitShort)
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				return !stream3.IsConnected()
+			}, testutil.IntervalFast)
 			require.False(t, stream3.IsConnected())
 		}
 	})
@@ -771,10 +771,9 @@ func TestStream_SequenceNumberReconnection_WithSequenceNumbers(t *testing.T) {
 	// Simulate disconnection and wait for detection
 	_ = clientConn1.Close()
 	_ = serverConn1.Close()
-	deadline1 := time.Now().Add(2 * time.Second)
-	for stream.IsConnected() && time.Now().Before(deadline1) {
-		time.Sleep(10 * time.Millisecond)
-	}
+	require.Eventually(t, func() bool {
+		return !stream.IsConnected()
+	}, testutil.WaitShort, testutil.IntervalFast)
 	require.False(t, stream.IsConnected())
 
 	// Client reconnects with its sequence numbers
@@ -872,10 +871,7 @@ func TestStream_SequenceNumberReconnection_WithDataLoss(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, stream.IsConnected())
 
-	// Wait a bit for the connection to be fully established
-	time.Sleep(100 * time.Millisecond)
-
-	// Send some data
+	// Send some data - this will verify the connection is fully established
 	testData1 := []byte("first message")
 	_, err = serverConn1.Write(testData1)
 	require.NoError(t, err)
@@ -892,10 +888,9 @@ func TestStream_SequenceNumberReconnection_WithDataLoss(t *testing.T) {
 	// Simulate disconnection and wait for detection
 	_ = clientConn1.Close()
 	_ = serverConn1.Close()
-	deadline2 := time.Now().Add(2 * time.Second)
-	for stream.IsConnected() && time.Now().Before(deadline2) {
-		time.Sleep(10 * time.Millisecond)
-	}
+	require.Eventually(t, func() bool {
+		return !stream.IsConnected()
+	}, testutil.WaitShort, testutil.IntervalFast)
 	require.False(t, stream.IsConnected())
 
 	// Client reconnects with its sequence numbers
