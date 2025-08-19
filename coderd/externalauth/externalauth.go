@@ -73,6 +73,9 @@ type Config struct {
 	// AppInstallationsURL is an API endpoint that returns a list of
 	// installations for the user. This is used for GitHub Apps.
 	AppInstallationsURL string
+	// MCPURL is the endpoint that clients must use to communicate with the associated
+	// MCP server.
+	MCPURL string
 }
 
 // GenerateTokenExtra generates the extra token data to store in the database.
@@ -580,6 +583,7 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 			DisplayName:              entry.DisplayName,
 			DisplayIcon:              entry.DisplayIcon,
 			ExtraTokenKeys:           entry.ExtraTokenKeys,
+			MCPURL:                   entry.MCPURL,
 		}
 
 		if entry.DeviceFlow {

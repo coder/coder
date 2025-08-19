@@ -1,10 +1,10 @@
 package slice
 
 import (
-	"math/rand"
-
 	"golang.org/x/exp/constraints"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/cryptorand"
 )
 
 // ToStrings works for any type where the base type is a string.
@@ -103,7 +103,10 @@ func PickRandom[T any](haystack []T) (T, error) {
 		return zero, xerrors.New("cannot pick from empty slice")
 	}
 
-	index := rand.Intn(length)
+	index, err := cryptorand.Intn(length)
+	if err != nil {
+		return zero, xerrors.Errorf("generate random index: %w", err)
+	}
 
 	if length != len(haystack) {
 		return zero, xerrors.New("slice was modified during operation")

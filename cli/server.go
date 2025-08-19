@@ -1125,7 +1125,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				aiBridgeDaemons = append(aiBridgeDaemons, daemon)
 			}
 			coderAPI.AIBridgeDaemons = aiBridgeDaemons
-			coderAPI.AIBridgeManager = coderd.NewAIBridgeManager(coderAPI.DeploymentValues.AI.BridgeConfig, 100) // TODO: configurable size.
+			coderAPI.AIBridgeManager = coderd.NewAIBridgeManager(coderAPI.DeploymentValues.AI.BridgeConfig, 100, coderAPI.Database, coderAPI.ExternalAuthConfigs) // TODO: configurable size.
 
 			// Updates the systemd status from activating to activated.
 			_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
@@ -2781,6 +2781,8 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 			provider.DisplayName = v.Value
 		case "DISPLAY_ICON":
 			provider.DisplayIcon = v.Value
+		case "MCP_URL":
+			provider.MCPURL = v.Value
 		}
 		providers[providerNum] = provider
 	}
