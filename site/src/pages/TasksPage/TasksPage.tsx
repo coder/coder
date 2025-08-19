@@ -21,7 +21,7 @@ import { TasksTable } from "./TasksTable";
 import { UsersCombobox } from "./UsersCombobox";
 
 const TasksPage: FC = () => {
-	const AITemplatesQuery = useQuery(
+	const aiTemplatesQuery = useQuery(
 		templates({
 			q: "has-ai-task:true",
 		}),
