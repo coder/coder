@@ -1122,7 +1122,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Simulate the workspace being dormant beyond the threshold.
 		tickTime2 := ws.DormantAt.Add(2 * transitionTTL)
-		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime2)
 		ticker <- tickTime2
 		stats = <-statCh
 		require.Len(t, stats.Transitions, 1)
@@ -1481,7 +1481,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Force an autostart transition again.
 		tickTime2 := sched.Next(firstBuild.CreatedAt)
-		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime2)
 		tickCh <- tickTime2
 		stats = <-statsCh
 		require.Len(t, stats.Errors, 0)
