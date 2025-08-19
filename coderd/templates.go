@@ -39,7 +39,7 @@ import (
 // Returns a single template.
 //
 // @Summary Get template settings by ID
-// @ID get-template-metadata-by-id
+// @ID get-template-settings-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
@@ -630,8 +630,9 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 }
 
 // @Summary Update template settings by ID
-// @ID update-template-metadata-by-id
+// @ID update-template-settings-by-id
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)

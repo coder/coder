@@ -5174,7 +5174,7 @@ const docTemplate = `{
                     "Templates"
                 ],
                 "summary": "Get template settings by ID",
-                "operationId": "get-template-metadata-by-id",
+                "operationId": "get-template-settings-by-id",
                 "parameters": [
                     {
                         "type": "string",
@@ -5233,6 +5233,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -5240,7 +5243,7 @@ const docTemplate = `{
                     "Templates"
                 ],
                 "summary": "Update template settings by ID",
-                "operationId": "update-template-metadata-by-id",
+                "operationId": "update-template-settings-by-id",
                 "parameters": [
                     {
                         "type": "string",
