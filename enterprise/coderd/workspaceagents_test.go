@@ -385,7 +385,7 @@ func TestWorkspaceExternalAgentCredentials(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, r.AgentToken, credentials.AgentToken)
-		expectedCommand := fmt.Sprintf("CODER_AGENT_TOKEN=%q curl -fsSL \"%s/api/v2/init-script/linux/amd64\" | sh", r.AgentToken, client.URL)
+		expectedCommand := fmt.Sprintf("curl -fsSL \"%s/api/v2/init-script/linux/amd64\" | CODER_AGENT_TOKEN=%q sh", client.URL, r.AgentToken)
 		require.Equal(t, expectedCommand, credentials.Command)
 	})
 
