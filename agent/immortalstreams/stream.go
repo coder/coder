@@ -110,8 +110,13 @@ func (r *streamReconnector) Reconnect(ctx context.Context, writerSeqNum uint64) 
 	r.s.reconnectCond.Broadcast()
 	r.s.mu.Unlock()
 
-	// Wait for response from HandleReconnect or context cancellation
+	// Wait for response from HandleReconnect or context cancellation with timeout
 	r.s.logger.Info(context.Background(), "reconnect function waiting for response")
+
+	// Add a timeout to prevent indefinite hanging
+	timeout := time.NewTimer(30 * time.Second)
+	defer timeout.Stop()
+
 	select {
 	case resp := <-responseChan:
 		r.s.logger.Info(context.Background(), "reconnect function got response",
@@ -129,6 +134,16 @@ func (r *streamReconnector) Reconnect(ctx context.Context, writerSeqNum uint64) 
 		// The stream's Close() method will handle cleanup
 		r.s.logger.Info(context.Background(), "reconnect function shutdown signal received")
 		return nil, 0, xerrors.New("stream is shutting down")
+	case <-timeout.C:
+		// Timeout occurred - clean up the pending request
+		r.s.mu.Lock()
+		if r.s.pendingReconnect != nil {
+			r.s.pendingReconnect = nil
+			r.s.handshakePending = false
+		}
+		r.s.mu.Unlock()
+		r.s.logger.Info(context.Background(), "reconnect function timed out")
+		return nil, 0, xerrors.New("timeout waiting for reconnection response")
 	}
 }
 
@@ -276,7 +291,7 @@ func (s *Stream) HandleReconnect(clientConn io.ReadWriteCloser, readSeqNum uint6
 		if s.connected {
 			s.mu.Unlock()
 			s.logger.Debug(context.Background(), "another goroutine completed reconnection")
-			return xerrors.New("stream is already connected")
+			return ErrAlreadyConnected
 		}
 
 		// Ensure a reconnect attempt is requested while we wait.

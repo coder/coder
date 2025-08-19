@@ -2,6 +2,7 @@ package immortalstreams_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"runtime"
@@ -73,7 +74,7 @@ func TestManager_CreateStream(t *testing.T) {
 		// Use a port that's not listening
 		_, err := manager.CreateStream(ctx, 65535)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "connection was refused")
+		require.True(t, errors.Is(err, immortalstreams.ErrConnRefused))
 	})
 
 	t.Run("MaxStreamsLimit", func(t *testing.T) {
@@ -145,7 +146,7 @@ func TestManager_CreateStream(t *testing.T) {
 		// All streams should be connected, so creating another should fail
 		_, err = manager.CreateStream(ctx, port)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "too many immortal streams")
+		require.True(t, errors.Is(err, immortalstreams.ErrTooManyStreams))
 
 		// Disconnect one stream
 		err = manager.DeleteStream(streams[0])
@@ -259,7 +260,7 @@ func TestManager_DeleteStream(t *testing.T) {
 	// Deleting again should error
 	err = manager.DeleteStream(stream.ID)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "stream not found")
+	require.True(t, errors.Is(err, immortalstreams.ErrStreamNotFound))
 }
 
 func TestManager_GetStream(t *testing.T) {

@@ -2,6 +2,7 @@ package immortalstreams
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -74,20 +75,21 @@ func (h *Handler) createStream(w http.ResponseWriter, r *http.Request) {
 
 	stream, err := h.manager.CreateStream(ctx, req.TCPPort)
 	if err != nil {
-		if strings.Contains(err.Error(), "too many immortal streams") {
+		switch {
+		case errors.Is(err, ErrTooManyStreams):
 			httpapi.Write(ctx, w, http.StatusServiceUnavailable, codersdk.Response{
 				Message: "Too many Immortal Streams.",
 			})
 			return
-		}
-		if strings.Contains(err.Error(), "the connection was refused") {
+		case errors.Is(err, ErrConnRefused):
 			httpapi.Write(ctx, w, http.StatusNotFound, codersdk.Response{
 				Message: "The connection was refused.",
 			})
 			return
+		default:
+			httpapi.InternalServerError(w, err)
+			return
 		}
-		httpapi.InternalServerError(w, err)
-		return
 	}
 
 	httpapi.Write(ctx, w, http.StatusCreated, stream)
@@ -130,14 +132,16 @@ func (h *Handler) deleteStream(w http.ResponseWriter, r *http.Request) {
 
 	err := h.manager.DeleteStream(streamID)
 	if err != nil {
-		if strings.Contains(err.Error(), "stream not found") {
+		switch {
+		case errors.Is(err, ErrStreamNotFound):
 			httpapi.Write(ctx, w, http.StatusNotFound, codersdk.Response{
 				Message: "Stream not found",
 			})
 			return
+		default:
+			httpapi.InternalServerError(w, err)
+			return
 		}
-		httpapi.InternalServerError(w, err)
-		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -196,9 +200,18 @@ func (h *Handler) handleUpgrade(w http.ResponseWriter, r *http.Request) {
 	// BackedPipe only needs the reader sequence number for replay
 	err = h.manager.HandleConnection(streamID, wsConn, readSeqNum)
 	if err != nil {
-		h.logger.Error(ctx, "failed to handle connection", slog.Error(err))
-		conn.Close(websocket.StatusInternalError, err.Error())
-		return
+		switch {
+		case errors.Is(err, ErrStreamNotFound):
+			conn.Close(websocket.StatusUnsupportedData, "Stream not found")
+			return
+		case errors.Is(err, ErrAlreadyConnected):
+			conn.Close(websocket.StatusPolicyViolation, "Already connected")
+			return
+		default:
+			h.logger.Error(ctx, "failed to handle connection", slog.Error(err))
+			conn.Close(websocket.StatusInternalError, err.Error())
+			return
+		}
 	}
 
 	// Keep the connection open until the context is canceled

@@ -2,10 +2,12 @@ package immortalstreams
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +16,14 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/codersdk"
+)
+
+// Package-level sentinel errors
+var (
+	ErrTooManyStreams   = xerrors.New("too many streams")
+	ErrStreamNotFound   = xerrors.New("stream not found")
+	ErrConnRefused      = xerrors.New("connection refused")
+	ErrAlreadyConnected = xerrors.New("already connected")
 )
 
 const (
@@ -56,7 +66,7 @@ func (m *Manager) CreateStream(ctx context.Context, port int) (*codersdk.Immorta
 		// Try to evict a disconnected stream
 		evicted := m.evictOldestDisconnectedLocked()
 		if !evicted {
-			return nil, xerrors.New("too many immortal streams")
+			return nil, ErrTooManyStreams
 		}
 	}
 
@@ -65,7 +75,7 @@ func (m *Manager) CreateStream(ctx context.Context, port int) (*codersdk.Immorta
 	conn, err := m.dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		if isConnectionRefused(err) {
-			return nil, xerrors.Errorf("the connection was refused")
+			return nil, ErrConnRefused
 		}
 		return nil, xerrors.Errorf("dial local service: %w", err)
 	}
@@ -88,13 +98,9 @@ func (m *Manager) CreateStream(ctx context.Context, port int) (*codersdk.Immorta
 
 	m.streams[id] = stream
 
-	return &codersdk.ImmortalStream{
-		ID:               id,
-		Name:             name,
-		TCPPort:          port,
-		CreatedAt:        stream.createdAt,
-		LastConnectionAt: stream.createdAt,
-	}, nil
+	// Return the API representation of the stream
+	apiStream := stream.ToAPI()
+	return &apiStream, nil
 }
 
 // GetStream returns a stream by ID
@@ -124,7 +130,7 @@ func (m *Manager) DeleteStream(id uuid.UUID) error {
 
 	stream, ok := m.streams[id]
 	if !ok {
-		return xerrors.New("stream not found")
+		return ErrStreamNotFound
 	}
 
 	if err := stream.Close(); err != nil {
@@ -216,7 +222,7 @@ func (m *Manager) HandleConnection(id uuid.UUID, conn io.ReadWriteCloser, readSe
 	m.mu.RUnlock()
 
 	if !ok {
-		return xerrors.New("stream not found")
+		return ErrStreamNotFound
 	}
 
 	return stream.HandleReconnect(conn, readSeqNum)
@@ -224,9 +230,20 @@ func (m *Manager) HandleConnection(id uuid.UUID, conn io.ReadWriteCloser, readSe
 
 // isConnectionRefused checks if an error is a connection refused error
 func isConnectionRefused(err error) bool {
-	var opErr *net.OpError
-	if xerrors.As(err, &opErr) {
-		return opErr.Op == "dial"
+	// Check for syscall.ECONNREFUSED through error unwrapping
+	var errno syscall.Errno
+	if errors.As(err, &errno) && errno == syscall.ECONNREFUSED {
+		return true
 	}
+
+	// Fallback: check for net.OpError with "dial" operation
+	var opErr *net.OpError
+	if errors.As(err, &opErr) && opErr.Op == "dial" {
+		// Check if the underlying error is ECONNREFUSED
+		if errors.As(opErr.Err, &errno) && errno == syscall.ECONNREFUSED {
+			return true
+		}
+	}
+
 	return false
 }

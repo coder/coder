@@ -256,9 +256,20 @@ func (bp *BackedPipe) reconnectLocked() error {
 	bp.connGen++
 	bp.state = connected
 
+	// Store the generation number before releasing the lock
+	currentGen := bp.connGen
+
+	// Release the lock before calling SetGeneration to avoid deadlock
+	// SetGeneration acquires its own mutex, and we don't want to hold
+	// the BackedPipe mutex while waiting for component mutexes
+	bp.mu.Unlock()
+
 	// Update the generation on reader and writer for error reporting
-	bp.reader.SetGeneration(bp.connGen)
-	bp.writer.SetGeneration(bp.connGen)
+	bp.reader.SetGeneration(currentGen)
+	bp.writer.SetGeneration(currentGen)
+
+	// Re-acquire the lock to maintain the function contract
+	bp.mu.Lock()
 
 	return nil
 }
