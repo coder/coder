@@ -38,17 +38,17 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 		);
 	}
 
-	const usage = managedAgentFeature.actual ?? 0;
-	const included = managedAgentFeature.soft_limit ?? 0;
-	const limit = managedAgentFeature.limit ?? 0;
+	const usage = managedAgentFeature.actual;
+	const included = managedAgentFeature.soft_limit;
+	const limit = managedAgentFeature.limit;
 	const startDate = managedAgentFeature.usage_period?.start;
 	const endDate = managedAgentFeature.usage_period?.end;
 
-	if (usage < 0) {
+	if (usage === undefined || usage < 0) {
 		return <ErrorAlert error="Invalid usage data" />;
 	}
 
-	if (included < 0 || limit < 0) {
+	if (included === undefined || included < 0 || limit === undefined || limit < 0) {
 		return <ErrorAlert error="Invalid license usage limits" />;
 	}
 
