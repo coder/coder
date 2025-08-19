@@ -399,7 +399,7 @@ module "devcontainers-cli" {
 module "claude-code" {
   count               = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "~>2.0"
+  version             = "2.0.7"
   agent_id            = coder_agent.dev.id
   folder              = local.repo_dir
   install_claude_code = true
