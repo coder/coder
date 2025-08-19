@@ -1,7 +1,7 @@
 # Add a dev container template to Coder
 
 A Coder administrator adds a dev container-compatible template to Coder
-(Envbuilder). This allows the template to prompt for the developer for their dev
+(Envbuilder). This allows the template to prompt the developer for their dev
 container repository's URL as a
 [parameter](../../extending-templates/parameters.md) when they create their
 workspace. Envbuilder clones the repo and builds a container from the
@@ -72,7 +72,7 @@ choose a template from the
 
    1. Create a `.zip` of the template files:
 
-      - On Mac or Windows, highlight the files and then right click. A
+      - On Mac or Windows, highlight the files and then right-click. A
         "compress" option is available through the right-click context menu.
 
       - To zip the files through the command line:
