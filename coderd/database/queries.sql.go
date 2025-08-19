@@ -21552,14 +21552,17 @@ UPDATE workspaces
 SET
     deleting_at = CASE
         WHEN $1::bigint = 0 THEN NULL
-        WHEN $2::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN  ($2::timestamptz) + interval '1 milliseconds' * $1::bigint
+        WHEN $2::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN ($2::timestamptz) + interval '1 milliseconds' * $1::bigint
         ELSE dormant_at + interval '1 milliseconds' * $1::bigint
     END,
     dormant_at = CASE WHEN $2::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN $2::timestamptz ELSE dormant_at END
 WHERE
     template_id = $3
-AND
-    dormant_at IS NOT NULL
+	AND dormant_at IS NOT NULL
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- should not have their dormant or deleting at set, as these are handled by the
+    -- prebuilds reconciliation loop.
+	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl
 `
 
@@ -21618,6 +21621,10 @@ SET
 	ttl = $2
 WHERE
 	template_id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- should not have their TTL updated, as they are handled by the prebuilds
+	-- reconciliation loop.
+	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 `
 
 type UpdateWorkspacesTTLByTemplateIDParams struct {
