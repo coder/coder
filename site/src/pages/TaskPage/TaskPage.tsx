@@ -5,10 +5,12 @@ import type { Workspace, WorkspaceStatus } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
+import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { ArrowLeftIcon, RotateCcwIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
-import type { ReactNode } from "react";
+import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import type { FC, ReactNode } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -16,7 +18,7 @@ import { Link as RouterLink, useParams } from "react-router";
 import { ellipsizeText } from "utils/ellipsizeText";
 import { pageTitle } from "utils/page";
 import {
-	ActiveTransition,
+	getActiveTransitionStats,
 	WorkspaceBuildProgress,
 } from "../WorkspacePage/WorkspaceBuildProgress";
 import { TaskApps } from "./TaskApps";
@@ -38,18 +40,7 @@ const TaskPage = () => {
 		refetchInterval: 5_000,
 	});
 
-	const { data: template } = useQuery({
-		...templateQueryOptions(task?.workspace.template_id ?? ""),
-		enabled: Boolean(task),
-	});
-
 	const waitingStatuses: WorkspaceStatus[] = ["starting", "pending"];
-	const shouldStreamBuildLogs =
-		task && waitingStatuses.includes(task.workspace.latest_build.status);
-	const buildLogs = useWorkspaceBuildLogs(
-		task?.workspace.latest_build.id ?? "",
-		shouldStreamBuildLogs,
-	);
 
 	if (error) {
 		return (
@@ -96,38 +87,9 @@ const TaskPage = () => {
 	}
 
 	let content: ReactNode = null;
-	const _terminatedStatuses: WorkspaceStatus[] = [
-		"canceled",
-		"canceling",
-		"deleted",
-		"deleting",
-		"stopped",
-		"stopping",
-	];
 
 	if (waitingStatuses.includes(task.workspace.latest_build.status)) {
-		// If no template yet, use an indeterminate progress bar.
-		const transition = (template &&
-			ActiveTransition(template, task.workspace)) || { P50: 0, P95: null };
-		const lastStage =
-			buildLogs?.[buildLogs.length - 1]?.stage || "Waiting for build status";
-		content = (
-			<div className="w-full min-h-80 flex flex-col">
-				<div className="flex flex-col items-center grow justify-center">
-					<h3 className="m-0 font-medium text-content-primary text-base">
-						Starting your workspace
-					</h3>
-					<div className="text-content-secondary text-sm">{lastStage}</div>
-				</div>
-				<div className="w-full">
-					<WorkspaceBuildProgress
-						workspace={task.workspace}
-						transitionStats={transition}
-						variant="task"
-					/>
-				</div>
-			</div>
-		);
+		content = <TaskBuildingWorkspace task={task} />;
 	} else if (task.workspace.latest_build.status === "failed") {
 		content = (
 			<div className="w-full min-h-80 flex items-center justify-center">
@@ -171,7 +133,19 @@ const TaskPage = () => {
 			</Margins>
 		);
 	} else {
-		content = <TaskApps task={task} />;
+		content = (
+			<PanelGroup autoSaveId="task" direction="horizontal">
+				<Panel defaultSize={25} minSize={20}>
+					<TaskSidebar task={task} />
+				</Panel>
+				<PanelResizeHandle>
+					<div className="w-1 bg-border h-full hover:bg-border-hover transition-all relative" />
+				</PanelResizeHandle>
+				<Panel className="[&>*]:h-full">
+					<TaskApps task={task} />
+				</Panel>
+			</PanelGroup>
+		);
 	}
 
 	return (
@@ -182,22 +156,61 @@ const TaskPage = () => {
 
 			<div className="flex flex-col h-full">
 				<TaskTopbar task={task} />
-
-				<PanelGroup autoSaveId="task" direction="horizontal">
-					<Panel defaultSize={25} minSize={20}>
-						<TaskSidebar task={task} />
-					</Panel>
-					<PanelResizeHandle>
-						<div className="w-1 bg-border h-full hover:bg-border-hover transition-all relative" />
-					</PanelResizeHandle>
-					<Panel className="[&>*]:h-full">{content}</Panel>
-				</PanelGroup>
+				{content}
 			</div>
 		</>
 	);
 };
 
 export default TaskPage;
+
+const TaskBuildingWorkspace: FC<{ task: Task }> = ({ task }) => {
+	const { data: template } = useQuery(
+		templateQueryOptions(task.workspace.template_id),
+	);
+
+	const buildLogs = useWorkspaceBuildLogs(task?.workspace.latest_build.id);
+
+	// If no template yet, use an indeterminate progress bar.
+	const transitionStats = (template &&
+		getActiveTransitionStats(template, task.workspace)) || {
+		P50: 0,
+		P95: null,
+	};
+
+	return (
+		<section className="w-full h-full flex justify-center items-center p-6 overflow-y-auto">
+			<div className="flex flex-col gap-4 items-center">
+				<header className="flex flex-col items-center text-center">
+					<h3 className="m-0 font-medium text-content-primary text-xl">
+						Starting your workspace
+					</h3>
+					<div className="text-content-secondary">
+						Your task will be running in a few moments
+					</div>
+				</header>
+
+				<div className="w-full max-w-screen-lg flex flex-col gap-4 overflow-hidden">
+					<WorkspaceBuildProgress
+						workspace={task.workspace}
+						transitionStats={transitionStats}
+						variant="task"
+					/>
+
+					{buildLogs && (
+						<ScrollArea className="h-96 border border-solid border-border rounded-lg">
+							<WorkspaceBuildLogs
+								sticky
+								className="border-0 rounded-none"
+								logs={buildLogs}
+							/>
+						</ScrollArea>
+					)}
+				</div>
+			</div>
+		</section>
+	);
+};
 
 export class WorkspaceDoesNotHaveAITaskError extends Error {
 	constructor(workspace: Workspace) {
