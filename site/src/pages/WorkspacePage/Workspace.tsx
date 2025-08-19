@@ -21,9 +21,9 @@ import {
 	WorkspaceBuildProgress,
 } from "./WorkspaceBuildProgress";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
-import { WorkspaceTopbar } from "./WorkspaceTopbar";
-import { findTroubleshootingURL } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { NotificationActionButton } from "./WorkspaceNotifications/Notifications";
+import { findTroubleshootingURL } from "./WorkspaceNotifications/WorkspaceNotifications";
+import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
 interface WorkspaceProps {
 	workspace: TypesGen.Workspace;
