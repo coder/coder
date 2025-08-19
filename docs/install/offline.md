@@ -10,6 +10,7 @@ offline with Kubernetes or Docker.
 |--------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Terraform binary   | By default, Coder downloads Terraform binary from [releases.hashicorp.com](https://releases.hashicorp.com)                                                                                                                                                         | Terraform binary must be included in `PATH` for the VM or container image. [Supported versions](https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24)                                                                                                                   |
 | Terraform registry | Coder templates will attempt to download providers from [registry.terraform.io](https://registry.terraform.io) or [custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) specified in each template | [Custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) can be specified in each Coder template, or a custom registry/mirror can be used. More details below                                                                           |
+| Coder Registry     | Templates can use modules from [registry.coder.com](https://registry.coder.com) for IDEs, tools, and integrations                                                                                                                                                  | Use Git repositories, private registries, or vendored modules. See [Using Registry Modules Offline](#using-registry-modules-offline) below                                                                                                                                                           |
 | STUN               | By default, Coder uses Google's public STUN server for direct workspace connections                                                                                                                                                                                | STUN can be safely [disabled](../reference/cli/server.md#--derp-server-stun-addresses) users can still connect via [relayed connections](../admin/networking/index.md#-geo-distribution). Alternatively, you can set a [custom DERP server](../reference/cli/server.md#--derp-server-stun-addresses) |
 | DERP               | By default, Coder's built-in DERP relay can be used, or [Tailscale's public relays](../admin/networking/index.md#relayed-connections).                                                                                                                             | By default, Coder's built-in DERP relay can be used, or [custom relays](../admin/networking/index.md#custom-relays).                                                                                                                                                                                 |
 | PostgreSQL         | If no [PostgreSQL connection URL](../reference/cli/server.md#--postgres-url) is specified, Coder will download Postgres from [repo1.maven.org](https://repo1.maven.org)                                                                                            | An external database is required, you must specify a [PostgreSQL connection URL](../reference/cli/server.md#--postgres-url)                                                                                                                                                                          |
@@ -233,6 +234,76 @@ server, as demonstrated in the example below:
 
 With these steps, you'll have the Coder documentation hosted on your server and
 accessible for your team to use.
+
+## Using Registry Modules Offline
+
+Coder Registry modules from [registry.coder.com](https://registry.coder.com) provide IDEs, tools, and integrations for workspaces. In air-gapped environments, you have several options:
+
+### Option 1: Git Repository (Recommended)
+
+Mirror registry modules in an internal Git repository:
+
+1. **Download modules** from [registry.coder.com](https://registry.coder.com) while connected to the internet
+2. **Store modules** in your internal Git repository:
+   ```
+   internal-registry/
+   ├── modules/
+   │   ├── code-server/
+   │   ├── cursor/
+   │   └── vscode-web/
+   └── templates/
+   ```
+3. **Reference modules** using Git source addresses:
+   ```tf
+   module "code_server" {
+     source   = "git::https://your-internal-git.com/coder-modules.git//modules/code-server?ref=v1.0.19"
+     agent_id = coder_agent.example.id
+     offline  = true # Prevent external downloads
+   }
+   ```
+
+### Option 2: Private Terraform Registry
+
+Set up a private Terraform registry mirror:
+
+1. **Configure a private registry** (such as Terraform Enterprise or Artifactory)
+2. **Mirror modules** from the public registry to your private registry
+3. **Update templates** to use custom source addresses:
+   ```tf
+   module "code_server" {
+     source   = "your-registry.com/coder/code-server/coder"
+     version  = "1.0.19"
+     agent_id = coder_agent.example.id
+   }
+   ```
+
+### Option 3: Vendored Modules
+
+Include modules directly in your template repositories:
+
+1. **Download modules** and include them in your template repository
+2. **Reference with relative paths**:
+   ```tf
+   module "code_server" {
+     source   = "./modules/code-server" # Relative path to vendored module
+     agent_id = coder_agent.example.id
+   }
+   ```
+
+### Module Offline Support
+
+Many registry modules support offline operation with the `offline` parameter:
+
+```tf
+module "code_server" {
+  source   = "registry.coder.com/coder/code-server/coder"
+  version  = "1.0.19"
+  agent_id = coder_agent.example.id
+  offline  = true # Prevents downloading from external sources
+}
+```
+
+For more information, see the [Terraform Modules documentation](../admin/templates/extending-templates/modules.md).
 
 ## Coder Modules
 
