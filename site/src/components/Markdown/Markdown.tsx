@@ -252,10 +252,13 @@ function parseChildrenAsAlertContent(
 	}
 
 	// Identify the first element (usually a <p>) which contains the marker like [!NOTE]
-	const firstElementIndex = jsxChildren.findIndex((node): node is ReactElement =>
-		isValidElement(node),
+	const firstElementIndex = jsxChildren.findIndex(
+		(node): node is ReactElement => isValidElement(node),
 	);
-	const mainParentNode = firstElementIndex >= 0 ? (jsxChildren[firstElementIndex] as ReactElement) : undefined;
+	const mainParentNode =
+		firstElementIndex >= 0
+			? (jsxChildren[firstElementIndex] as ReactElement)
+			: undefined;
 	let parentChildren = mainParentNode?.props.children;
 	if (typeof parentChildren === "string") {
 		// Children will only be an array if the parsed text contains other
@@ -319,7 +322,8 @@ function parseChildrenAsAlertContent(
 	}
 
 	const hasLeadingLinebreak =
-		isValidElement(firstParagraphRemainder[0]) && firstParagraphRemainder[0].type === "br";
+		isValidElement(firstParagraphRemainder[0]) &&
+		firstParagraphRemainder[0].type === "br";
 	if (hasLeadingLinebreak) {
 		firstParagraphRemainder.shift();
 	}
