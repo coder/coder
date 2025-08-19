@@ -1280,6 +1280,39 @@ const docTemplate = `{
                 }
             }
         },
+        "/init-script/{os}/{arch}": {
+            "get": {
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "InitScript"
+                ],
+                "summary": "Get agent init script",
+                "operationId": "get-agent-init-script",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Operating system",
+                        "name": "os",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Architecture",
+                        "name": "arch",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    }
+                }
+            }
+        },
         "/insights/daus": {
             "get": {
                 "security": [
@@ -9835,7 +9868,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent.",
                         "name": "q",
                         "in": "query"
                     },
@@ -10266,6 +10299,48 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/external-agent/{agent}/credentials": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get workspace external agent credentials",
+                "operationId": "get-workspace-external-agent-credentials",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Agent name",
+                        "name": "agent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ExternalAgentCredentials"
                         }
                     }
                 }
@@ -12900,6 +12975,17 @@ const docTemplate = `{
                 "ExperimentMCPServerHTTP",
                 "ExperimentWorkspaceSharing"
             ]
+        },
+        "codersdk.ExternalAgentCredentials": {
+            "type": "object",
+            "properties": {
+                "agent_token": {
+                    "type": "string"
+                },
+                "command": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.ExternalAuth": {
             "type": "object",
@@ -16816,6 +16902,9 @@ const docTemplate = `{
                 "created_by": {
                     "$ref": "#/definitions/codersdk.MinimalUser"
                 },
+                "has_external_agent": {
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -18673,6 +18762,9 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "has_ai_task": {
+                    "type": "boolean"
+                },
+                "has_external_agent": {
                     "type": "boolean"
                 },
                 "id": {

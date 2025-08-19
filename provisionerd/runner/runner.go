@@ -600,8 +600,9 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				// ModuleFiles are not on the stopProvision. So grab from the startProvision.
 				ModuleFiles: startProvision.ModuleFiles,
 				// ModuleFileHash will be populated if the file is uploaded async
-				ModuleFilesHash: []byte{},
-				HasAiTasks:      startProvision.HasAITasks,
+				ModuleFilesHash:   []byte{},
+				HasAiTasks:        startProvision.HasAITasks,
+				HasExternalAgents: startProvision.HasExternalAgents,
 			},
 		},
 	}, nil
@@ -666,6 +667,7 @@ type templateImportProvision struct {
 	Plan                  json.RawMessage
 	ModuleFiles           []byte
 	HasAITasks            bool
+	HasExternalAgents     bool
 }
 
 // Performs a dry-run provision when importing a template.
@@ -807,6 +809,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 				Plan:                  c.Plan,
 				ModuleFiles:           moduleFilesData,
 				HasAITasks:            c.HasAiTasks,
+				HasExternalAgents:     c.HasExternalAgents,
 			}, nil
 		default:
 			return nil, xerrors.Errorf("invalid message type %q received from provisioner",

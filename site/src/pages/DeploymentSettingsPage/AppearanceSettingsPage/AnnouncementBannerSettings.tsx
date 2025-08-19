@@ -125,7 +125,7 @@ export const AnnouncementBannerSettings: FC<
 									{!isEntitled || banners.length < 1 ? (
 										<TableCell colSpan={999}>
 											<EmptyState
-												css={{ minHeight: 160 }}
+												className="min-h-[160px]"
 												message="No announcement banners"
 											/>
 										</TableCell>
@@ -161,7 +161,7 @@ export const AnnouncementBannerSettings: FC<
 							},
 						]}
 					>
-						<div css={{ color: theme.palette.text.secondary }}>
+						<div className="text-content-secondary">
 							<p>
 								Your license does not include Service Banners.{" "}
 								<Link href="mailto:sales@coder.com">Contact sales</Link> to

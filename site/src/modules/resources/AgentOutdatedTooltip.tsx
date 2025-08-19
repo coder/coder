@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import { PopoverTrigger } from "components/deprecated/Popover/Popover";
 import {
@@ -27,11 +26,6 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 	status,
 	onUpdate,
 }) => {
-	const theme = useTheme();
-	const versionLabelStyles = {
-		fontWeight: 600,
-		color: theme.palette.text.primary,
-	};
 	const title =
 		status === agentVersionStatus.Outdated
 			? "Agent Outdated"
@@ -45,7 +39,7 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 	return (
 		<HelpTooltip>
 			<PopoverTrigger>
-				<span role="status" css={{ cursor: "pointer" }}>
+				<span role="status" className="cursor-pointer">
 					{status === agentVersionStatus.Outdated ? "Outdated" : "Deprecated"}
 				</span>
 			</PopoverTrigger>
@@ -57,12 +51,16 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 					</div>
 
 					<Stack spacing={0.5}>
-						<span css={versionLabelStyles}>Agent version</span>
+						<span className="font-semibold text-content-primary">
+							Agent version
+						</span>
 						<span>{agent.version}</span>
 					</Stack>
 
 					<Stack spacing={0.5}>
-						<span css={versionLabelStyles}>Server version</span>
+						<span className="font-semibold text-content-primary">
+							Server version
+						</span>
 						<span>{serverVersion}</span>
 					</Stack>
 
