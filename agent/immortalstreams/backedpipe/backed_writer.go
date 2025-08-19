@@ -27,24 +27,27 @@ type BackedWriter struct {
 	sequenceNum uint64 // total bytes written
 	closed      bool
 
-	// Error channel to notify parent when connection fails
-	errorChan chan<- error
+	// Error channel for generation-aware error reporting
+	errorEventChan chan<- ErrorEvent
+
+	// Current connection generation for error reporting
+	currentGen uint64
 }
 
-// NewBackedWriter creates a new BackedWriter with the specified buffer capacity.
+// NewBackedWriter creates a new BackedWriter with generation-aware error reporting.
 // The writer is initially disconnected and will block writes until connected.
-// The errorChan is required and will receive connection errors.
-// Capacity must be > 0.
-func NewBackedWriter(capacity int, errorChan chan<- error) *BackedWriter {
+// The errorEventChan will receive ErrorEvent structs containing error details,
+// component info, and connection generation. Capacity must be > 0.
+func NewBackedWriter(capacity int, errorEventChan chan<- ErrorEvent) *BackedWriter {
 	if capacity <= 0 {
 		panic("backed writer capacity must be > 0")
 	}
-	if errorChan == nil {
-		panic("error channel cannot be nil")
+	if errorEventChan == nil {
+		panic("error event channel cannot be nil")
 	}
 	bw := &BackedWriter{
-		buffer:    newRingBuffer(capacity),
-		errorChan: errorChan,
+		buffer:         newRingBuffer(capacity),
+		errorEventChan: errorEventChan,
 	}
 	bw.cond = sync.NewCond(&bw.mu)
 	return bw
@@ -94,10 +97,18 @@ func (bw *BackedWriter) Write(p []byte) (int, error) {
 		// Connection failed or partial write, mark as disconnected
 		bw.writer = nil
 
-		// Notify parent of error
+		// Notify parent of error with generation information
 		select {
-		case bw.errorChan <- err:
+		case bw.errorEventChan <- ErrorEvent{
+			Err:        err,
+			Component:  "writer",
+			Generation: bw.currentGen,
+		}:
 		default:
+			// Channel is full, drop the error.
+			// This is not a problem, because we set the writer to nil
+			// and block until reconnected so no new errors will be sent
+			// until pipe processes the error and reconnects.
 		}
 
 		// Block until reconnected - reconnection will replay this data
@@ -222,4 +233,11 @@ func (bw *BackedWriter) Connected() bool {
 	bw.mu.Lock()
 	defer bw.mu.Unlock()
 	return bw.writer != nil
+}
+
+// SetGeneration sets the current connection generation for error reporting.
+func (bw *BackedWriter) SetGeneration(generation uint64) {
+	bw.mu.Lock()
+	defer bw.mu.Unlock()
+	bw.currentGen = generation
 }

@@ -19,6 +19,27 @@ var (
 	ErrReconnectWriterFailed  = xerrors.New("reconnect writer failed")
 )
 
+// connectionState represents the current state of the BackedPipe connection.
+type connectionState int
+
+const (
+	// connected indicates the pipe is connected and operational.
+	connected connectionState = iota
+	// disconnected indicates the pipe is not connected but not closed.
+	disconnected
+	// reconnecting indicates a reconnection attempt is in progress.
+	reconnecting
+	// closed indicates the pipe is permanently closed.
+	closed
+)
+
+// ErrorEvent represents an error from a reader or writer with connection generation info.
+type ErrorEvent struct {
+	Err        error
+	Component  string // "reader" or "writer"
+	Generation uint64 // connection generation when error occurred
+}
+
 const (
 	// Default buffer capacity used by the writer - 64MB
 	DefaultBufferSize = 64 * 1024 * 1024
@@ -50,18 +71,19 @@ type BackedPipe struct {
 	writer      *BackedWriter
 	reconnector Reconnector
 	conn        io.ReadWriteCloser
-	connected   bool
-	closed      bool
 
-	// Reconnection state
-	reconnecting bool
+	// State machine
+	state   connectionState
+	connGen uint64 // Increments on each successful reconnection
 
-	// Error channels for receiving connection errors from reader/writer separately
-	readerErrorChan chan error
-	writerErrorChan chan error
+	// Unified error handling with generation filtering
+	errorChan chan ErrorEvent
 
 	// singleflight group to dedupe concurrent ForceReconnect calls
 	sf singleflight.Group
+
+	// Track first error per generation to avoid duplicate reconnections
+	lastErrorGen uint64
 }
 
 // NewBackedPipe creates a new BackedPipe with default options and the specified reconnector.
@@ -69,17 +91,20 @@ type BackedPipe struct {
 func NewBackedPipe(ctx context.Context, reconnector Reconnector) *BackedPipe {
 	pipeCtx, cancel := context.WithCancel(ctx)
 
-	readerErrorChan := make(chan error, 1) // Buffer for reader errors
-	writerErrorChan := make(chan error, 1) // Buffer for writer errors
+	errorChan := make(chan ErrorEvent, 10) // Buffered for async error reporting
+
 	bp := &BackedPipe{
-		ctx:             pipeCtx,
-		cancel:          cancel,
-		reader:          NewBackedReader(readerErrorChan),
-		writer:          NewBackedWriter(DefaultBufferSize, writerErrorChan),
-		reconnector:     reconnector,
-		readerErrorChan: readerErrorChan,
-		writerErrorChan: writerErrorChan,
+		ctx:         pipeCtx,
+		cancel:      cancel,
+		reconnector: reconnector,
+		state:       disconnected,
+		connGen:     0, // Start with generation 0
+		errorChan:   errorChan,
 	}
+
+	// Create reader and writer with typed error channel for generation-aware error reporting
+	bp.reader = NewBackedReader(errorChan)
+	bp.writer = NewBackedWriter(DefaultBufferSize, errorChan)
 
 	// Start error handler goroutine
 	go bp.handleErrors()
@@ -92,11 +117,11 @@ func (bp *BackedPipe) Connect() error {
 	bp.mu.Lock()
 	defer bp.mu.Unlock()
 
-	if bp.closed {
+	if bp.state == closed {
 		return ErrPipeClosed
 	}
 
-	if bp.connected {
+	if bp.state == connected {
 		return ErrPipeAlreadyConnected
 	}
 
@@ -114,10 +139,10 @@ func (bp *BackedPipe) Read(p []byte) (int, error) {
 func (bp *BackedPipe) Write(p []byte) (int, error) {
 	bp.mu.RLock()
 	writer := bp.writer
-	closed := bp.closed
+	state := bp.state
 	bp.mu.RUnlock()
 
-	if closed {
+	if state == closed {
 		return 0, io.EOF
 	}
 
@@ -129,11 +154,11 @@ func (bp *BackedPipe) Close() error {
 	bp.mu.Lock()
 	defer bp.mu.Unlock()
 
-	if bp.closed {
+	if bp.state == closed {
 		return nil
 	}
 
-	bp.closed = true
+	bp.state = closed
 	bp.cancel() // Cancel main context
 
 	// Close all components in parallel to avoid deadlocks
@@ -164,8 +189,6 @@ func (bp *BackedPipe) Close() error {
 		})
 	}
 
-	bp.connected = false
-
 	// Wait for all close operations to complete and return any error
 	return g.Wait()
 }
@@ -174,18 +197,22 @@ func (bp *BackedPipe) Close() error {
 func (bp *BackedPipe) Connected() bool {
 	bp.mu.RLock()
 	defer bp.mu.RUnlock()
-	return bp.connected
+	return bp.state == connected
 }
 
 // reconnectLocked handles the reconnection logic. Must be called with write lock held.
 func (bp *BackedPipe) reconnectLocked() error {
-	if bp.reconnecting {
+	if bp.state == reconnecting {
 		return ErrReconnectionInProgress
 	}
 
-	bp.reconnecting = true
+	bp.state = reconnecting
 	defer func() {
-		bp.reconnecting = false
+		// Only reset to disconnected if we're still in reconnecting state
+		// (successful reconnection will set state to connected)
+		if bp.state == reconnecting {
+			bp.state = disconnected
+		}
 	}()
 
 	// Close existing connection if any
@@ -193,8 +220,6 @@ func (bp *BackedPipe) reconnectLocked() error {
 		_ = bp.conn.Close()
 		bp.conn = nil
 	}
-
-	bp.connected = false
 
 	// Get current writer sequence number to send to remote
 	writerSeqNum := bp.writer.SequenceNum()
@@ -226,41 +251,63 @@ func (bp *BackedPipe) reconnectLocked() error {
 		return ErrReconnectWriterFailed
 	}
 
-	// Success - update state
+	// Success - update state and increment connection generation
 	bp.conn = conn
-	bp.connected = true
+	bp.connGen++
+	bp.state = connected
+
+	// Update the generation on reader and writer for error reporting
+	bp.reader.SetGeneration(bp.connGen)
+	bp.writer.SetGeneration(bp.connGen)
 
 	return nil
 }
 
 // handleErrors listens for connection errors from reader/writer and triggers reconnection.
+// It filters errors from old connections and ensures only the first error per generation
+// triggers reconnection.
 func (bp *BackedPipe) handleErrors() {
 	for {
 		select {
 		case <-bp.ctx.Done():
 			return
-		case err := <-bp.readerErrorChan:
-			// Reader connection error occurred
-			bp.handleConnectionError(err, "reader")
-		case err := <-bp.writerErrorChan:
-			// Writer connection error occurred
-			bp.handleConnectionError(err, "writer")
+		case errorEvt := <-bp.errorChan:
+			bp.handleConnectionError(errorEvt)
 		}
 	}
 }
 
 // handleConnectionError handles errors from either reader or writer components.
-func (bp *BackedPipe) handleConnectionError(err error, component string) {
+// It filters errors from old connections and ensures only one reconnection per generation.
+func (bp *BackedPipe) handleConnectionError(errorEvt ErrorEvent) {
 	bp.mu.Lock()
 	defer bp.mu.Unlock()
 
-	// Skip if already closed or not connected
-	if bp.closed || !bp.connected {
+	// Skip if already closed
+	if bp.state == closed {
 		return
 	}
 
+	// Filter errors from old connections (lower generation)
+	if errorEvt.Generation < bp.connGen {
+		return
+	}
+
+	// Skip if not connected (already disconnected or reconnecting)
+	if bp.state != connected {
+		return
+	}
+
+	// Skip if we've already seen an error for this generation
+	if bp.lastErrorGen >= errorEvt.Generation {
+		return
+	}
+
+	// This is the first error for this generation
+	bp.lastErrorGen = errorEvt.Generation
+
 	// Mark as disconnected
-	bp.connected = false
+	bp.state = disconnected
 
 	// Try to reconnect using internal context
 	reconnectErr := bp.reconnectLocked()
@@ -268,13 +315,14 @@ func (bp *BackedPipe) handleConnectionError(err error, component string) {
 	if reconnectErr != nil {
 		// Reconnection failed - log or handle as needed
 		// For now, we'll just continue and wait for manual reconnection
-		_ = err       // Use the original error from the component
-		_ = component // Component info available for potential logging by higher layers
+		_ = errorEvt.Err       // Use the original error from the component
+		_ = errorEvt.Component // Component info available for potential logging by higher layers
 	}
 }
 
 // ForceReconnect forces a reconnection attempt immediately.
 // This can be used to force a reconnection if a new connection is established.
+// It prevents duplicate reconnections when called concurrently.
 func (bp *BackedPipe) ForceReconnect() error {
 	// Deduplicate concurrent ForceReconnect calls so only one reconnection
 	// attempt runs at a time from this API. Use the pipe's internal context
@@ -283,8 +331,13 @@ func (bp *BackedPipe) ForceReconnect() error {
 		bp.mu.Lock()
 		defer bp.mu.Unlock()
 
-		if bp.closed {
+		if bp.state == closed {
 			return nil, io.EOF
+		}
+
+		// Don't force reconnect if already reconnecting
+		if bp.state == reconnecting {
+			return nil, ErrReconnectionInProgress
 		}
 
 		return nil, bp.reconnectLocked()

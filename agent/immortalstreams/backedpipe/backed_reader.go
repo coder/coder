@@ -15,19 +15,23 @@ type BackedReader struct {
 	sequenceNum uint64
 	closed      bool
 
-	// Error channel to notify parent when connection fails
-	errorChan chan<- error
+	// Error channel for generation-aware error reporting
+	errorEventChan chan<- ErrorEvent
+
+	// Current connection generation for error reporting
+	currentGen uint64
 }
 
-// NewBackedReader creates a new BackedReader. The reader is initially disconnected
-// and must be connected using Reconnect before reads will succeed.
-// The errorChan is required and will receive connection errors.
-func NewBackedReader(errorChan chan<- error) *BackedReader {
-	if errorChan == nil {
-		panic("error channel cannot be nil")
+// NewBackedReader creates a new BackedReader with generation-aware error reporting.
+// The reader is initially disconnected and must be connected using Reconnect before
+// reads will succeed. The errorEventChan will receive ErrorEvent structs containing
+// error details, component info, and connection generation.
+func NewBackedReader(errorEventChan chan<- ErrorEvent) *BackedReader {
+	if errorEventChan == nil {
+		panic("error event channel cannot be nil")
 	}
 	br := &BackedReader{
-		errorChan: errorChan,
+		errorEventChan: errorEventChan,
 	}
 	br.cond = sync.NewCond(&br.mu)
 	return br
@@ -65,10 +69,18 @@ func (br *BackedReader) Read(p []byte) (int, error) {
 		// Mark reader as disconnected so future reads will wait for reconnection
 		br.reader = nil
 
-		// Notify parent of error
+		// Notify parent of error with generation information
 		select {
-		case br.errorChan <- err:
+		case br.errorEventChan <- ErrorEvent{
+			Err:        err,
+			Component:  "reader",
+			Generation: br.currentGen,
+		}:
 		default:
+			// Channel is full, drop the error.
+			// This is not a problem, because we set the reader to nil
+			// and block until reconnected so no new errors will be sent
+			// until pipe processes the error and reconnects.
 		}
 
 		// If we got some data before the error, return it now
@@ -144,4 +156,11 @@ func (br *BackedReader) Connected() bool {
 	br.mu.Lock()
 	defer br.mu.Unlock()
 	return br.reader != nil
+}
+
+// SetGeneration sets the current connection generation for error reporting.
+func (br *BackedReader) SetGeneration(generation uint64) {
+	br.mu.Lock()
+	defer br.mu.Unlock()
+	br.currentGen = generation
 }

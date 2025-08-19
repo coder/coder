@@ -157,6 +157,52 @@ func mockReconnectFunc(connections ...*mockConnection) (backedpipe.Reconnector, 
 	return reconnector, &reconnector.callCount, signalChan
 }
 
+// blockingReconnector is a reconnector that blocks on a channel for deterministic testing
+type blockingReconnector struct {
+	conn1       *mockConnection
+	conn2       *mockConnection
+	callCount   int
+	blockChan   <-chan struct{}
+	blockedChan chan struct{}
+}
+
+func (b *blockingReconnector) Reconnect(ctx context.Context, writerSeqNum uint64) (io.ReadWriteCloser, uint64, error) {
+	b.callCount++
+
+	if b.callCount == 1 {
+		// Initial connect
+		return b.conn1, 0, nil
+	}
+
+	// Signal that we're about to block
+	select {
+	case b.blockedChan <- struct{}{}:
+	default:
+	}
+
+	// For subsequent calls, block until channel is closed
+	select {
+	case <-b.blockChan:
+		// Channel closed, proceed with reconnection
+	case <-ctx.Done():
+		return nil, 0, ctx.Err()
+	}
+
+	return b.conn2, writerSeqNum, nil
+}
+
+func mockBlockingReconnectFunc(conn1, conn2 *mockConnection, blockChan <-chan struct{}) (backedpipe.Reconnector, *int, chan struct{}) {
+	blockedChan := make(chan struct{}, 1)
+	reconnector := &blockingReconnector{
+		conn1:       conn1,
+		conn2:       conn2,
+		blockChan:   blockChan,
+		blockedChan: blockedChan,
+	}
+
+	return reconnector, &reconnector.callCount, blockedChan
+}
+
 // eofTestReconnector is a custom reconnector for the EOF test case
 type eofTestReconnector struct {
 	conn1     io.ReadWriteCloser
@@ -520,6 +566,203 @@ func TestBackedPipe_ForceReconnectWhenClosed(t *testing.T) {
 	err = bp.ForceReconnect()
 	require.Error(t, err)
 	require.Equal(t, io.EOF, err)
+}
+
+func TestBackedPipe_StateTransitionsAndGenerationTracking(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	conn1 := newMockConnection()
+	conn2 := newMockConnection()
+	conn3 := newMockConnection()
+	reconnectFn, callCount, signalChan := mockReconnectFunc(conn1, conn2, conn3)
+
+	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
+	defer bp.Close()
+
+	// Initial state should be disconnected
+	require.False(t, bp.Connected())
+
+	// Connect should transition to connected
+	err := bp.Connect()
+	require.NoError(t, err)
+	require.True(t, bp.Connected())
+	require.Equal(t, 1, *callCount)
+
+	// Write some data
+	_, err = bp.Write([]byte("test data gen 1"))
+	require.NoError(t, err)
+
+	// Simulate connection failure by setting errors on connection
+	conn1.SetReadError(xerrors.New("connection lost"))
+	conn1.SetWriteError(xerrors.New("connection lost"))
+
+	// Trigger a write to cause the pipe to notice the failure
+	_, _ = bp.Write([]byte("trigger failure"))
+
+	// Wait for reconnection signal
+	testutil.RequireReceive(testutil.Context(t, testutil.WaitShort), t, signalChan)
+
+	// Wait for reconnection to complete
+	require.Eventually(t, func() bool {
+		return bp.Connected()
+	}, testutil.WaitShort, testutil.IntervalFast, "should reconnect")
+	require.Equal(t, 2, *callCount)
+
+	// Force another reconnection
+	err = bp.ForceReconnect()
+	require.NoError(t, err)
+	require.True(t, bp.Connected())
+	require.Equal(t, 3, *callCount)
+
+	// Close should transition to closed state
+	err = bp.Close()
+	require.NoError(t, err)
+	require.False(t, bp.Connected())
+
+	// Operations on closed pipe should fail
+	err = bp.Connect()
+	require.Equal(t, backedpipe.ErrPipeClosed, err)
+
+	err = bp.ForceReconnect()
+	require.Equal(t, io.EOF, err)
+}
+
+func TestBackedPipe_GenerationFiltering(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	conn1 := newMockConnection()
+	conn2 := newMockConnection()
+	reconnectFn, callCount, _ := mockReconnectFunc(conn1, conn2)
+
+	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
+	defer bp.Close()
+
+	// Connect
+	err := bp.Connect()
+	require.NoError(t, err)
+	require.True(t, bp.Connected())
+
+	// Simulate multiple rapid errors from the same connection generation
+	// Only the first one should trigger reconnection
+	conn1.SetReadError(xerrors.New("error 1"))
+	conn1.SetWriteError(xerrors.New("error 2"))
+
+	// Trigger multiple errors quickly
+	go func() {
+		_, _ = bp.Write([]byte("trigger error 1"))
+	}()
+	go func() {
+		_, _ = bp.Write([]byte("trigger error 2"))
+	}()
+
+	// Wait for reconnection to complete
+	require.Eventually(t, func() bool {
+		return bp.Connected()
+	}, testutil.WaitShort, testutil.IntervalFast, "should reconnect once")
+
+	// Should have only reconnected once despite multiple errors
+	require.Equal(t, 2, *callCount) // Initial connect + 1 reconnect
+}
+
+func TestBackedPipe_DuplicateReconnectionPrevention(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testCtx := testutil.Context(t, testutil.WaitShort)
+
+	// Create a blocking reconnector for deterministic testing
+	conn1 := newMockConnection()
+	conn2 := newMockConnection()
+	blockChan := make(chan struct{})
+	reconnectFn, callCount, blockedChan := mockBlockingReconnectFunc(conn1, conn2, blockChan)
+
+	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
+	defer bp.Close()
+
+	// Initial connect
+	err := bp.Connect()
+	require.NoError(t, err)
+	require.Equal(t, 1, *callCount, "should have exactly 1 call after initial connect")
+
+	// Start multiple concurrent ForceReconnect calls while the reconnect function is blocked
+	var wg sync.WaitGroup
+	errors := make([]error, 3)
+
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			errors[idx] = bp.ForceReconnect()
+		}(i)
+	}
+
+	// Wait for the reconnect function to signal that it's blocking
+	testutil.RequireReceive(testCtx, t, blockedChan)
+
+	// Verify that exactly one more reconnect call was made (singleflight deduplication)
+	require.Equal(t, 2, *callCount, "should have exactly 2 calls: initial connect + 1 reconnect due to singleflight")
+
+	// Release the blocking reconnect function
+	close(blockChan)
+
+	// Wait for all ForceReconnect calls to complete
+	wg.Wait()
+
+	// With singleflight, all concurrent calls should succeed (they share the same result)
+	for i, err := range errors {
+		require.NoError(t, err, "ForceReconnect %d should succeed", i)
+	}
+
+	// Final verification: call count should still be exactly 2
+	require.Equal(t, 2, *callCount, "final call count should be exactly 2: initial connect + 1 singleflight reconnect")
+}
+
+func TestBackedPipe_SingleReconnectionOnMultipleErrors(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testCtx := testutil.Context(t, testutil.WaitShort)
+
+	// Create connections for initial connect and reconnection
+	conn1 := newMockConnection()
+	conn2 := newMockConnection()
+	reconnectFn, callCount, signalChan := mockReconnectFunc(conn1, conn2)
+
+	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
+	defer bp.Close()
+
+	// Initial connect
+	err := bp.Connect()
+	require.NoError(t, err)
+	require.True(t, bp.Connected())
+	require.Equal(t, 1, *callCount)
+
+	// Write some initial data to establish the connection
+	_, err = bp.Write([]byte("initial data"))
+	require.NoError(t, err)
+
+	// Set up both read and write errors on the connection
+	conn1.SetReadError(xerrors.New("read connection lost"))
+	conn1.SetWriteError(xerrors.New("write connection lost"))
+
+	// Trigger write error (this will trigger reconnection)
+	go func() {
+		_, _ = bp.Write([]byte("trigger write error"))
+	}()
+
+	// Wait for reconnection to start
+	testutil.RequireReceive(testCtx, t, signalChan)
+
+	// Wait for reconnection to complete
+	require.Eventually(t, func() bool {
+		return bp.Connected()
+	}, testutil.WaitShort, testutil.IntervalFast, "should reconnect after write error")
+
+	// Verify that only one reconnection occurred
+	require.Equal(t, 2, *callCount, "should have exactly 2 calls: initial connect + 1 reconnection")
+	require.True(t, bp.Connected(), "should be connected after reconnection")
 }
 
 func TestBackedPipe_ForceReconnectWhenDisconnected(t *testing.T) {
