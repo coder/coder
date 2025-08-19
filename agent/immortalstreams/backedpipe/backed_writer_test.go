@@ -29,7 +29,7 @@ func newMockWriter() *mockWriter {
 
 // newBackedWriterForTest creates a BackedWriter with a small buffer for testing eviction behavior
 func newBackedWriterForTest(bufferSize int) *backedpipe.BackedWriter {
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	return backedpipe.NewBackedWriter(bufferSize, errorChan)
 }
 
@@ -74,7 +74,7 @@ func (mw *mockWriter) setError(err error) {
 func TestBackedWriter_NewBackedWriter(t *testing.T) {
 	t.Parallel()
 
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 	require.NotNil(t, bw)
 	require.Equal(t, uint64(0), bw.SequenceNum())
@@ -85,7 +85,7 @@ func TestBackedWriter_WriteBlocksWhenDisconnected(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 
 	// Write should block when disconnected
@@ -123,7 +123,7 @@ func TestBackedWriter_WriteBlocksWhenDisconnected(t *testing.T) {
 func TestBackedWriter_WriteToUnderlyingWhenConnected(t *testing.T) {
 	t.Parallel()
 
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 	writer := newMockWriter()
 
@@ -148,7 +148,7 @@ func TestBackedWriter_BlockOnWriteFailure(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 	writer := newMockWriter()
 
@@ -182,8 +182,9 @@ func TestBackedWriter_BlockOnWriteFailure(t *testing.T) {
 
 	// Error should be sent to error channel
 	select {
-	case receivedErr := <-errorChan:
-		require.Contains(t, receivedErr.Error(), "write failed")
+	case receivedErrorEvent := <-errorChan:
+		require.Contains(t, receivedErrorEvent.Err.Error(), "write failed")
+		require.Equal(t, "writer", receivedErrorEvent.Component)
 	default:
 		t.Fatal("Expected error to be sent to error channel")
 	}
@@ -205,7 +206,7 @@ func TestBackedWriter_BlockOnWriteFailure(t *testing.T) {
 func TestBackedWriter_ReplayOnReconnect(t *testing.T) {
 	t.Parallel()
 
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 
 	// Connect initially to write some data
@@ -272,7 +273,7 @@ func TestBackedWriter_ReplayOnReconnect(t *testing.T) {
 func TestBackedWriter_PartialReplay(t *testing.T) {
 	t.Parallel()
 
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 
 	// Connect initially to write some data
@@ -300,7 +301,7 @@ func TestBackedWriter_PartialReplay(t *testing.T) {
 func TestBackedWriter_ReplayFromFutureSequence(t *testing.T) {
 	t.Parallel()
 
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 
 	// Connect initially to write some data
@@ -383,7 +384,7 @@ func TestBackedWriter_BufferEviction(t *testing.T) {
 func TestBackedWriter_Close(t *testing.T) {
 	t.Parallel()
 
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 	writer := newMockWriter()
 
@@ -405,7 +406,7 @@ func TestBackedWriter_Close(t *testing.T) {
 func TestBackedWriter_CloseIdempotent(t *testing.T) {
 	t.Parallel()
 
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 
 	err := bw.Close()
@@ -419,7 +420,7 @@ func TestBackedWriter_CloseIdempotent(t *testing.T) {
 func TestBackedWriter_ReconnectDuringReplay(t *testing.T) {
 	t.Parallel()
 
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 
 	// Connect initially to write some data
@@ -445,7 +446,7 @@ func TestBackedWriter_BlockOnPartialWrite(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 
 	// Create writer that does partial writes
@@ -483,8 +484,9 @@ func TestBackedWriter_BlockOnPartialWrite(t *testing.T) {
 
 	// Error should be sent to error channel
 	select {
-	case receivedErr := <-errorChan:
-		require.Contains(t, receivedErr.Error(), "short write")
+	case receivedErrorEvent := <-errorChan:
+		require.Contains(t, receivedErrorEvent.Err.Error(), "short write")
+		require.Equal(t, "writer", receivedErrorEvent.Component)
 	default:
 		t.Fatal("Expected error to be sent to error channel")
 	}
@@ -507,7 +509,7 @@ func TestBackedWriter_WriteUnblocksOnReconnect(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 
 	// Start a single write that should block
@@ -542,7 +544,7 @@ func TestBackedWriter_CloseUnblocksWaitingWrites(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 
 	// Start a write that should block
@@ -573,7 +575,7 @@ func TestBackedWriter_WriteBlocksAfterDisconnection(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 	writer := newMockWriter()
 
@@ -621,7 +623,7 @@ func TestBackedWriter_WriteBlocksAfterDisconnection(t *testing.T) {
 func TestBackedWriter_ConcurrentWriteAndClose(t *testing.T) {
 	t.Parallel()
 
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 
 	// Don't connect initially - this will cause writes to block in blockUntilConnectedOrClosed()
@@ -686,7 +688,7 @@ func TestBackedWriter_ConcurrentWriteAndClose(t *testing.T) {
 func TestBackedWriter_ConcurrentWriteAndReconnect(t *testing.T) {
 	t.Parallel()
 
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 
 	// Initial connection
@@ -778,7 +780,7 @@ func TestBackedWriter_ConcurrentWriteAndReconnect(t *testing.T) {
 func TestBackedWriter_ConcurrentReconnectAndClose(t *testing.T) {
 	t.Parallel()
 
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 
 	// Initial connection and write some data
@@ -854,7 +856,7 @@ func TestBackedWriter_ConcurrentReconnectAndClose(t *testing.T) {
 func TestBackedWriter_MultipleWritesDuringReconnect(t *testing.T) {
 	t.Parallel()
 
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 
 	// Initial connection
@@ -941,7 +943,7 @@ func TestBackedWriter_MultipleWritesDuringReconnect(t *testing.T) {
 }
 
 func BenchmarkBackedWriter_Write(b *testing.B) {
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan) // 64KB buffer
 	writer := newMockWriter()
 	bw.Reconnect(0, writer)
@@ -955,7 +957,7 @@ func BenchmarkBackedWriter_Write(b *testing.B) {
 }
 
 func BenchmarkBackedWriter_Reconnect(b *testing.B) {
-	errorChan := make(chan error, 1)
+	errorChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errorChan)
 
 	// Connect initially to fill buffer with data
