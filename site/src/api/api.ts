@@ -2683,7 +2683,7 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
-	getTasks = async (filter: TasksFilter): Task[] => {
+	getTasks = async (filter: TasksFilter): Promise<Task[]> => {
 		const queryExpressions = ["has-ai-task:true"];
 
 		if (filter.username) {
