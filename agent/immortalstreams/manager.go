@@ -19,8 +19,6 @@ import (
 const (
 	// MaxStreams is the maximum number of immortal streams allowed per agent
 	MaxStreams = 32
-	// BufferSize is the size of the ring buffer for each stream (64 MiB)
-	BufferSize = 64 * 1024 * 1024
 )
 
 // Manager manages immortal streams for an agent

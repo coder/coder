@@ -52,6 +52,9 @@ type Stream struct {
 
 	// Shutdown signal
 	shutdownChan chan struct{}
+
+	// Context cancellation for BackedPipe
+	cancel context.CancelFunc
 }
 
 // reconnectRequest represents a pending reconnection request
@@ -67,8 +70,73 @@ type reconnectResponse struct {
 	err     error
 }
 
+// streamReconnector implements backedpipe.Reconnector interface for Stream
+type streamReconnector struct {
+	s *Stream
+}
+
+// Reconnect implements the backedpipe.Reconnector interface
+func (r *streamReconnector) Reconnect(ctx context.Context, writerSeqNum uint64) (io.ReadWriteCloser, uint64, error) {
+	r.s.mu.Lock()
+
+	// If there's already a pending reconnect, this is a concurrent call.
+	// We should return an error to let the BackedPipe retry later.
+	if r.s.pendingReconnect != nil {
+		r.s.mu.Unlock()
+		return nil, 0, xerrors.New("reconnection already in progress")
+	}
+
+	// Fast path: if the stream is already shutting down, abort immediately
+	if r.s.closed {
+		r.s.mu.Unlock()
+		return nil, 0, xerrors.New("stream is shutting down")
+	}
+
+	// Wait for HandleReconnect to be called with a new connection
+	responseChan := make(chan reconnectResponse, 1)
+	r.s.pendingReconnect = &reconnectRequest{
+		writerSeqNum: writerSeqNum,
+		response:     responseChan,
+	}
+	r.s.handshakePending = true
+	// Mark disconnected if we previously had a client connection
+	if r.s.connected {
+		r.s.connected = false
+		r.s.lastDisconnectionAt = time.Now()
+	}
+	r.s.logger.Info(context.Background(), "pending reconnect set",
+		slog.F("writer_seq", writerSeqNum))
+	// Signal waiters a reconnect request is pending
+	r.s.reconnectCond.Broadcast()
+	r.s.mu.Unlock()
+
+	// Wait for response from HandleReconnect or context cancellation
+	r.s.logger.Info(context.Background(), "reconnect function waiting for response")
+	select {
+	case resp := <-responseChan:
+		r.s.logger.Info(context.Background(), "reconnect function got response",
+			slog.F("has_conn", resp.conn != nil),
+			slog.F("read_seq", resp.readSeq),
+			slog.Error(resp.err))
+		return resp.conn, resp.readSeq, resp.err
+	case <-ctx.Done():
+		// Context was canceled, return error immediately
+		// The stream's Close() method will handle cleanup
+		r.s.logger.Info(context.Background(), "reconnect function context canceled", slog.Error(ctx.Err()))
+		return nil, 0, ctx.Err()
+	case <-r.s.shutdownChan:
+		// Stream is being shut down, return error immediately
+		// The stream's Close() method will handle cleanup
+		r.s.logger.Info(context.Background(), "reconnect function shutdown signal received")
+		return nil, 0, xerrors.New("stream is shutting down")
+	}
+}
+
 // NewStream creates a new immortal stream
 func NewStream(id uuid.UUID, name string, port int, logger slog.Logger) *Stream {
+	// Create a context that will be canceled when the stream is closed
+	ctx, cancel := context.WithCancel(context.Background())
+
 	stream := &Stream{
 		id:             id,
 		name:           name,
@@ -78,72 +146,13 @@ func NewStream(id uuid.UUID, name string, port int, logger slog.Logger) *Stream 
 		disconnectChan: make(chan struct{}, 1),
 		shutdownChan:   make(chan struct{}),
 		reconnectReq:   make(chan struct{}, 1),
+		cancel:         cancel, // Store cancel function for cleanup
 	}
 	stream.reconnectCond = sync.NewCond(&stream.mu)
 
-	// Create a reconnect function that waits for a client connection
-	reconnectFn := func(ctx context.Context, writerSeqNum uint64) (io.ReadWriteCloser, uint64, error) {
-		// Wait for HandleReconnect to be called with a new connection
-		responseChan := make(chan reconnectResponse, 1)
-
-		stream.mu.Lock()
-		stream.pendingReconnect = &reconnectRequest{
-			writerSeqNum: writerSeqNum,
-			response:     responseChan,
-		}
-		stream.handshakePending = true
-		// Mark disconnected if we previously had a client connection
-		if stream.connected {
-			stream.connected = false
-			stream.lastDisconnectionAt = time.Now()
-		}
-		stream.logger.Info(context.Background(), "pending reconnect set",
-			slog.F("writer_seq", writerSeqNum))
-		// Signal waiters a reconnect request is pending
-		stream.reconnectCond.Broadcast()
-		stream.mu.Unlock()
-
-		// Fast path: if the stream is already shutting down, abort immediately
-		select {
-		case <-stream.shutdownChan:
-			stream.mu.Lock()
-			// Clear the pending request since we're aborting
-			if stream.pendingReconnect != nil {
-				stream.pendingReconnect = nil
-			}
-			stream.mu.Unlock()
-			return nil, 0, xerrors.New("stream is shutting down")
-		default:
-		}
-
-		// Wait for response from HandleReconnect or context cancellation
-		stream.logger.Info(context.Background(), "reconnect function waiting for response")
-		select {
-		case resp := <-responseChan:
-			stream.logger.Info(context.Background(), "reconnect function got response",
-				slog.F("has_conn", resp.conn != nil),
-				slog.F("read_seq", resp.readSeq),
-				slog.Error(resp.err))
-			return resp.conn, resp.readSeq, resp.err
-		case <-ctx.Done():
-			// Context was canceled, clear pending request and return error
-			stream.mu.Lock()
-			stream.pendingReconnect = nil
-			stream.handshakePending = false
-			stream.mu.Unlock()
-			return nil, 0, ctx.Err()
-		case <-stream.shutdownChan:
-			// Stream is being shut down, clear pending request and return error
-			stream.mu.Lock()
-			stream.pendingReconnect = nil
-			stream.handshakePending = false
-			stream.mu.Unlock()
-			return nil, 0, xerrors.New("stream is shutting down")
-		}
-	}
-
-	// Create BackedPipe with background context
-	stream.pipe = backedpipe.NewBackedPipe(context.Background(), reconnectFn)
+	// Create BackedPipe with streamReconnector
+	reconnector := &streamReconnector{s: stream}
+	stream.pipe = backedpipe.NewBackedPipe(ctx, reconnector)
 
 	// Start reconnect worker: dedupe pokes and call ForceReconnect when safe.
 	go func() {
@@ -152,7 +161,7 @@ func NewStream(id uuid.UUID, name string, port int, logger slog.Logger) *Stream 
 			case <-stream.shutdownChan:
 				return
 			case <-stream.reconnectReq:
-				// Drain extra pokes to coalesce
+				// Drain extra pokes
 				for {
 					select {
 					case <-stream.reconnectReq:
@@ -240,22 +249,10 @@ func (s *Stream) HandleReconnect(clientConn io.ReadWriteCloser, readSeqNum uint6
 			s.mu.Unlock()
 			respCh <- reconnectResponse{conn: clientConn, readSeq: readSeqNum, err: nil}
 
-			// Wait until the pipe reports a connected state so the handshake fully completes.
-			// Use a bounded timeout to avoid hanging forever in pathological cases.
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			err := s.pipe.WaitForConnection(ctx)
-			cancel()
-			if err != nil {
-				s.mu.Lock()
-				s.connected = false
-				if s.reconnectCond != nil {
-					s.reconnectCond.Broadcast()
-				}
-				s.mu.Unlock()
-				s.logger.Warn(context.Background(), "failed to connect backed pipe", slog.Error(err))
-				return xerrors.Errorf("failed to establish connection: %w", err)
-			}
-
+			// The connection has been provided to the BackedPipe via the response channel.
+			// The BackedPipe will establish the connection, and since we control the
+			// reconnection process, we know it will succeed (or the Reconnect method
+			// would have returned an error).
 			s.mu.Lock()
 			s.lastConnectionAt = time.Now()
 			s.connected = true
@@ -306,6 +303,11 @@ func (s *Stream) Close() error {
 
 	s.closed = true
 	s.connected = false
+
+	// Cancel the context to interrupt any pending BackedPipe operations
+	if s.cancel != nil {
+		s.cancel()
+	}
 
 	// Signal shutdown to any pending reconnect attempts and listeners
 	// Closing the channel wakes all waiters exactly once
@@ -424,15 +426,44 @@ func (s *Stream) startCopyingLocked() {
 		// The BackedPipe will block when no client is connected
 		buf := make([]byte, 32*1024)
 		for {
+			// Check if we should shut down before attempting to read
+			select {
+			case <-s.shutdownChan:
+				s.logger.Debug(context.Background(), "shutdown signal received, exiting copy goroutine")
+				return
+			default:
+			}
+
 			// Use a buffer for copying
 			n, err := s.pipe.Read(buf)
-			// Log significant events
-			if errors.Is(err, io.EOF) {
-				s.logger.Debug(context.Background(), "got EOF from pipe")
-				s.SignalDisconnect()
-			} else if err != nil && !errors.Is(err, io.ErrClosedPipe) {
-				s.logger.Debug(context.Background(), "error reading from pipe", slog.Error(err))
-				s.SignalDisconnect()
+
+			if err != nil {
+				// Check for fatal errors that should terminate the goroutine
+				if xerrors.Is(err, io.ErrClosedPipe) {
+					// The pipe itself is closed, we're done
+					s.logger.Debug(context.Background(), "pipe closed, exiting copy goroutine")
+					s.SignalDisconnect()
+					return
+				}
+
+				// Check for BackedPipe specific errors
+				if xerrors.Is(err, backedpipe.ErrPipeClosed) {
+					s.logger.Debug(context.Background(), "backed pipe closed, exiting copy goroutine")
+					s.SignalDisconnect()
+					return
+				}
+
+				// Log other errors but continue
+				if errors.Is(err, io.EOF) {
+					s.logger.Debug(context.Background(), "got EOF from pipe")
+					s.SignalDisconnect()
+				} else {
+					s.logger.Debug(context.Background(), "error reading from pipe", slog.Error(err))
+					s.SignalDisconnect()
+				}
+
+				// For non-fatal errors, continue the loop
+				continue
 			}
 
 			if n > 0 {
@@ -444,17 +475,6 @@ func (s *Stream) startCopyingLocked() {
 					_ = s.localConn.Close()
 					return
 				}
-			}
-
-			if err != nil {
-				// Check if this is a fatal error
-				if xerrors.Is(err, io.ErrClosedPipe) {
-					// The pipe itself is closed, we're done
-					s.logger.Debug(context.Background(), "pipe closed, exiting copy goroutine")
-					s.SignalDisconnect()
-					return
-				}
-				// Any other error (including EOF) is handled by BackedPipe; continue
 			}
 		}
 	}()
