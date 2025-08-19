@@ -1,5 +1,16 @@
 # Copilot Coding Agent Instructions for Coder
 
+## Quick Start for Agents
+
+For most tasks, use this workflow:
+
+1. **Simple Go builds**: `go build -o build/coder cmd/coder/main.go` (works without full dependency setup)
+2. **Test specific functionality**: `export PATH=$PATH:$HOME/go/bin && go test -v ./package -run TestSpecific -short`
+3. **Format code**: `go fmt ./...` (basic formatting without full make fmt)
+4. **Validate changes**: `go vet ./...` and `go build ./...`
+
+For full development setup, see commands below.
+
 ## Project Overview
 
 **Coder** is a platform for **self-hosted cloud development environments** that enables organizations to provision secure, consistent development workspaces in any cloud infrastructure. The platform uses Terraform to define infrastructure, connects through Wireguard tunnels, and automatically manages resource lifecycle.
@@ -186,6 +197,16 @@ The CI runs these checks automatically:
 
 ## Critical Development Patterns
 
+### Most Common File Locations for Changes
+
+- **CLI commands**: `cli/*.go` - add new CLI subcommands here
+- **API endpoints**: `coderd/*.go` - REST API implementation  
+- **Database queries**: `coderd/database/queries/*.sql` - SQL definitions
+- **Frontend components**: `site/src/components/` - React components
+- **Frontend pages**: `site/src/pages/` - Main application pages
+- **Templates**: `examples/templates/` - Example infrastructure templates
+- **Documentation**: `docs/` - User and admin documentation
+
 ### Authorization Context
 ```go
 // System context for internal operations
@@ -219,6 +240,27 @@ Coder supports AI coding agents through **Coder Tasks** (beta):
 - Support for Claude Code, Aider, and MCP-compatible agents
 - Template modules available in [Coder Registry](https://registry.coder.com)
 - Documentation in `docs/ai-coder/`
+
+### Key Files at Repository Root
+
+- `cmd/coder/main.go` - Main CLI application entry point
+- `Makefile` - Primary build orchestration (40+ targets)
+- `go.mod` - Go module definition (1,400+ Go files)
+- `package.json` - Root package.json for documentation tooling
+- `CLAUDE.md` - Existing development guidelines for AI agents
+- `.golangci.yaml` - Go linting configuration
+- `docker-compose.yaml` - Local development database setup
+
+### Key Directories by Size & Importance
+
+- `coderd/` - **Main API server** (~100 files, most changes happen here)
+- `site/` - **Frontend application** (React/TypeScript, ~800 files)
+- `cli/` - **Command-line interface** (~50 files)
+- `agent/` - **Workspace agent services** (~30 files)
+- `docs/` - **Documentation** (~200 markdown files)
+- `examples/` - **Template examples** (Terraform/Docker templates)
+- `enterprise/` - **Premium features** (requires license)
+- `scripts/` - **Build and development scripts** (~50 shell scripts)
 
 ---
 
