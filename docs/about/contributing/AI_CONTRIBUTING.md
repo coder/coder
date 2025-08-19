@@ -5,17 +5,17 @@ It applies to all Coder repositories and is supplementary to the existing contri
 
 For minor AI-assisted edits, suggestions, or completions where the human contributor is clearly the primary author, these rules do not apply — standard contributing guidelines are sufficient.
 
-### Disclosure
+## Disclosure
 
 Contributors must **disclose AI involvement** in the pull request description whenever these guidelines apply.
 
-### Human Ownership & Attribution
+## Human Ownership & Attribution
 
 - All pull requests must be opened under **real user accounts**.
 - Contributors are personally accountable for the content of their PRs, regardless of how it was generated.
 - Default to draft PRs until work has been tested and reviewed.
 
-### Verification & Evidence
+## Verification & Evidence
 
 All AI-assisted contributions require **manual verification**.
 Contributions without verification evidence will be rejected.
