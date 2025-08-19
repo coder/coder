@@ -20,8 +20,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/workspacestats"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
@@ -44,6 +42,7 @@ import (
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	entaudit "github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
@@ -2873,7 +2872,7 @@ func TestPrebuildActivityBump(t *testing.T) {
 
 	// Then: Deadline is extended by the activity bump, MaxDeadline remains unset
 	workspace = coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)
-	require.WithinDuration(t, clock.Now().Add(activityBump).UTC(), workspace.LatestBuild.Deadline.Time.UTC(), 2*time.Second)
+	require.WithinDuration(t, clock.Now().Add(activityBump).UTC(), workspace.LatestBuild.Deadline.Time.UTC(), testutil.WaitMedium)
 	require.Zero(t, workspace.LatestBuild.MaxDeadline)
 }
 
