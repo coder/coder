@@ -1,8 +1,8 @@
 import * as path from "node:path";
 import { defineConfig } from "@playwright/test";
 import {
-	coderPort,
 	coderdPProfPort,
+	coderPort,
 	e2eFakeExperiment1,
 	e2eFakeExperiment2,
 	gitAuth,

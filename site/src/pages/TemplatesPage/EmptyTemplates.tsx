@@ -72,7 +72,7 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 				}
 				cta={
 					<Stack alignItems="center" spacing={4}>
-						<div css={styles.featuredExamples}>
+						<div className="flex flex-wrap justify-center gap-4">
 							{featuredExamples.map((example) => (
 								<TemplateExampleCard example={example} key={example.id} />
 							))}
@@ -91,7 +91,7 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 
 	return (
 		<TableEmpty
-			css={styles.withImage}
+			className="pb-0"
 			message="Create a Template"
 			description="Contact your Coder administrator to create a template. You can share the code below."
 			cta={<CodeExample secret={false} code="coder templates init" />}
@@ -105,10 +105,6 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 };
 
 const styles = {
-	withImage: {
-		paddingBottom: 0,
-	},
-
 	emptyImage: {
 		maxWidth: "50%",
 		height: 320,
@@ -118,12 +114,5 @@ const styles = {
 		"& img": {
 			maxWidth: "100%",
 		},
-	},
-
-	featuredExamples: {
-		display: "flex",
-		flexWrap: "wrap",
-		justifyContent: "center",
-		gap: 16,
 	},
 } satisfies Record<string, Interpolation<Theme>>;

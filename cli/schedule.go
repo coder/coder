@@ -46,7 +46,7 @@ When enabling scheduled stop, enter a duration in one of the following formats:
   * 2m   (2 minutes)
   * 2    (2 minutes)
 `
-	scheduleExtendDescriptionLong = `
+	scheduleExtendDescriptionLong = `Extends the workspace deadline.
   * The new stop time is calculated from *now*.
   * The new stop time must be at least 30 minutes in the future.
   * The workspace template may restrict the maximum workspace runtime.
@@ -117,7 +117,7 @@ func (r *RootCmd) scheduleShow() *serpent.Command {
 					f.FilterQuery = fmt.Sprintf("owner:me name:%s", inv.Args[0])
 				}
 			}
-			res, err := queryConvertWorkspaces(inv.Context(), client, f, scheduleListRowFromWorkspace)
+			res, err := QueryConvertWorkspaces(inv.Context(), client, f, scheduleListRowFromWorkspace)
 			if err != nil {
 				return err
 			}
@@ -155,6 +155,13 @@ func (r *RootCmd) scheduleStart() *serpent.Command {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
+			}
+
+			// Autostart configuration is not supported for prebuilt workspaces.
+			// Prebuild lifecycle is managed by the reconciliation loop, with scheduling behavior
+			// defined per preset at the template level, not per workspace.
+			if workspace.IsPrebuild {
+				return xerrors.Errorf("autostart configuration is not supported for prebuilt workspaces")
 			}
 
 			var schedStr *string
@@ -203,6 +210,13 @@ func (r *RootCmd) scheduleStop() *serpent.Command {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
+			}
+
+			// Autostop configuration is not supported for prebuilt workspaces.
+			// Prebuild lifecycle is managed by the reconciliation loop, with scheduling behavior
+			// defined per preset at the template level, not per workspace.
+			if workspace.IsPrebuild {
+				return xerrors.Errorf("autostop configuration is not supported for prebuilt workspaces")
 			}
 
 			var durMillis *int64
@@ -255,6 +269,13 @@ func (r *RootCmd) scheduleExtend() *serpent.Command {
 				return xerrors.Errorf("get workspace: %w", err)
 			}
 
+			// Deadline extensions are not supported for prebuilt workspaces.
+			// Prebuild lifecycle is managed by the reconciliation loop, with TTL behavior
+			// defined per preset at the template level, not per workspace.
+			if workspace.IsPrebuild {
+				return xerrors.Errorf("extend configuration is not supported for prebuilt workspaces")
+			}
+
 			loc, err := tz.TimezoneIANA()
 			if err != nil {
 				loc = time.UTC // best effort
@@ -286,7 +307,7 @@ func (r *RootCmd) scheduleExtend() *serpent.Command {
 }
 
 func displaySchedule(ws codersdk.Workspace, out io.Writer) error {
-	rows := []workspaceListRow{workspaceListRowFromWorkspace(time.Now(), ws)}
+	rows := []WorkspaceListRow{WorkspaceListRowFromWorkspace(time.Now(), ws)}
 	rendered, err := cliui.DisplayTable(rows, "workspace", []string{
 		"workspace", "starts at", "starts next", "stops after", "stops next",
 	})

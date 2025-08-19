@@ -1,6 +1,6 @@
+import { renderWithAuth } from "testHelpers/renderHelpers";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { renderWithAuth } from "testHelpers/renderHelpers";
 import {
 	PaginationWidgetBase,
 	type PaginationWidgetBaseProps,

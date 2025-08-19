@@ -257,7 +257,7 @@ RUN source $NVM_DIR/nvm.sh && \
 ENV PATH=$NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
 RUN corepack enable && \
 	corepack prepare npm@10.8.1 --activate && \
-	corepack prepare pnpm@9.15.1 --activate
+	corepack prepare pnpm@10.14.0 --activate
 
 RUN pnpx playwright@1.47.0 install --with-deps chromium
 

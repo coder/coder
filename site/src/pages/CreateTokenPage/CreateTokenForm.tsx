@@ -18,10 +18,10 @@ import { useNavigate } from "react-router";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 import {
 	type CreateTokenData,
-	NANO_HOUR,
 	customLifetimeDay,
 	determineDefaultLtValue,
 	filterByMaxTokenLifetime,
+	NANO_HOUR,
 } from "./utils";
 
 dayjs.extend(utc);

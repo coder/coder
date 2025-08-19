@@ -1572,6 +1572,9 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", api.tailnetRPCConn)
 		})
+		r.Route("/init-script", func(r chi.Router) {
+			r.Get("/{os}/{arch}", api.initScript)
+		})
 		r.Route("/aibridge", func(r chi.Router) {
 			r.Use(aibridged.AuthMiddleware(api.Database))
 			r.HandleFunc("/openai/*", api.bridgeAIRequest)

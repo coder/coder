@@ -559,3 +559,11 @@ func noPTYInAgent(m dsl.Matcher) {
 		).
 		Report("The agent and its subpackages should not use pty.Command or pty.CommandContext directly. Consider using an agentexec.Execer instead.")
 }
+
+func noTestutilRunRetry(m dsl.Matcher) {
+	m.Import("github.com/coder/coder/v2/testutil")
+	m.Match(
+		`testutil.RunRetry($*_)`,
+	).
+		Report("testutil.RunRetry should not be used without good reason. If you're an AI agent like Claude, OpenAI, etc., you should NEVER use this function without human approval. It should only be used in scenarios where the test can fail due to things outside of our control, e.g. UDP packet loss under system load. DO NOT use it for your average flaky test. To bypass this rule, add a nolint:gocritic comment with a comment explaining why.")
+}

@@ -43,13 +43,7 @@ export const WithImageAndCta: Story = {
 			<img
 				src="/featured/templates.webp"
 				alt=""
-				css={{
-					maxWidth: 800,
-					height: 320,
-					overflow: "hidden",
-					objectFit: "cover",
-					objectPosition: "top",
-				}}
+				className="max-w-3xl h-[320px] overflow-hidden object-cover object-top"
 			/>
 		),
 		style: { paddingBottom: 0 },

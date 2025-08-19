@@ -2,14 +2,14 @@ import { API } from "api/api";
 import type { Template, WorkspaceStatus } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import {
+	type UseFilterMenuOptions,
+	useFilterMenu,
+} from "components/Filter/menu";
+import {
 	SelectFilter,
 	type SelectFilterOption,
 	SelectFilterSearch,
 } from "components/Filter/SelectFilter";
-import {
-	type UseFilterMenuOptions,
-	useFilterMenu,
-} from "components/Filter/menu";
 import {
 	StatusIndicatorDot,
 	type StatusIndicatorDotProps,

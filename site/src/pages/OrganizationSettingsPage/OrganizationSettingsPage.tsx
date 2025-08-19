@@ -4,8 +4,7 @@ import {
 	updateOrganization,
 } from "api/queries/organizations";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { displayError } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
