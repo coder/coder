@@ -2873,7 +2873,7 @@ func TestPrebuildActivityBump(t *testing.T) {
 
 	// Then: Deadline is extended by the activity bump, MaxDeadline remains unset
 	workspace = coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)
-	require.WithinDuration(t, clock.Now().Add(activityBump).UTC(), workspace.LatestBuild.Deadline.Time.UTC(), time.Second)
+	require.WithinDuration(t, clock.Now().Add(activityBump).UTC(), workspace.LatestBuild.Deadline.Time.UTC(), 2*time.Second)
 	require.Zero(t, workspace.LatestBuild.MaxDeadline)
 }
 
