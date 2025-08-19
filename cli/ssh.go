@@ -411,11 +411,11 @@ func (r *RootCmd) ssh() *serpent.Command {
 							slog.F("agent_status", workspaceAgent.Status),
 							slog.F("immortal_fallback_enabled", immortalFallback))
 
-						shouldFallback := immortalFallback && (strings.Contains(err.Error(), "too many immortal streams") ||
+						shouldFallback := immortalFallback && (strings.Contains(err.Error(), "Too many immortal streams") ||
 							strings.Contains(err.Error(), "The connection was refused"))
 
 						if shouldFallback {
-							if strings.Contains(err.Error(), "too many immortal streams") {
+							if strings.Contains(err.Error(), "Too many immortal streams") {
 								logger.Warn(ctx, "too many immortal streams, falling back to regular SSH connection",
 									slog.F("max_streams", "32"))
 							} else {
@@ -528,11 +528,11 @@ func (r *RootCmd) ssh() *serpent.Command {
 						slog.F("agent_status", workspaceAgent.Status),
 						slog.F("immortal_fallback_enabled", immortalFallback))
 
-					shouldFallback := immortalFallback && (strings.Contains(err.Error(), "too many immortal streams") ||
+					shouldFallback := immortalFallback && (strings.Contains(err.Error(), "Too many immortal streams") ||
 						strings.Contains(err.Error(), "The connection was refused"))
 
 					if shouldFallback {
-						if strings.Contains(err.Error(), "too many immortal streams") {
+						if strings.Contains(err.Error(), "Too many immortal streams") {
 							logger.Warn(ctx, "too many immortal streams, falling back to regular SSH connection",
 								slog.F("max_streams", "32"))
 						} else {
