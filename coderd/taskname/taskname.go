@@ -2,7 +2,6 @@ package taskname
 
 import (
 	"context"
-	"errors"
 	"io"
 	"os"
 
@@ -37,8 +36,8 @@ If you cannot create a suitable name:
 )
 
 var (
-	ErrNoAPIKey        = errors.New("no api key provided")
-	ErrNoNameGenerated = errors.New("no task name generated")
+	ErrNoAPIKey        = xerrors.New("no api key provided")
+	ErrNoNameGenerated = xerrors.New("no task name generated")
 )
 
 type options struct {
