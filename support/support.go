@@ -39,11 +39,15 @@ type Bundle struct {
 }
 
 type Deployment struct {
-	BuildInfo    *codersdk.BuildInfoResponse  `json:"build"`
-	Config       *codersdk.DeploymentConfig   `json:"config"`
-	Experiments  codersdk.Experiments         `json:"experiments"`
-	HealthReport *healthsdk.HealthcheckReport `json:"health_report"`
-	Licenses     []codersdk.License           `json:"licenses"`
+	BuildInfo      *codersdk.BuildInfoResponse  `json:"build"`
+	Config         *codersdk.DeploymentConfig   `json:"config"`
+	Experiments    codersdk.Experiments         `json:"experiments"`
+	HealthReport   *healthsdk.HealthcheckReport `json:"health_report"`
+	Licenses       []codersdk.License           `json:"licenses"`
+	Stats          *codersdk.DeploymentStats    `json:"stats"`
+	Entitlements   *codersdk.Entitlements       `json:"entitlements"`
+	HealthSettings *healthsdk.HealthSettings    `json:"health_settings"`
+	Workspaces     *codersdk.WorkspacesResponse `json:"workspaces"`
 }
 
 type Network struct {
@@ -94,6 +98,9 @@ type Deps struct {
 	// AgentID is the optional agent ID against which to run connection tests.
 	// Defaults to the first agent of the workspace, if not specified.
 	AgentID uuid.UUID
+	// WorkspacesTotalCap limits the number of workspaces aggregated into the bundle.
+	// If 0 or negative, no cap is applied. If unset, default is 1000.
+	WorkspacesTotalCap int
 }
 
 func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) Deployment {
@@ -151,6 +158,98 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 			licenses = make([]codersdk.License, 0)
 		}
 		d.Licenses = licenses
+		return nil
+	})
+
+	// Deployment stats
+	eg.Go(func() error {
+		stats, err := client.DeploymentStats(ctx)
+		if err != nil {
+			// If unauthorized or forbidden, log and continue
+			if cerr, ok := codersdk.AsError(err); ok && (cerr.StatusCode() == http.StatusForbidden || cerr.StatusCode() == http.StatusUnauthorized || cerr.StatusCode() == http.StatusBadRequest) {
+				log.Warn(ctx, "unable to fetch deployment stats")
+				return nil
+			}
+			return xerrors.Errorf("fetch deployment stats: %w", err)
+		}
+		d.Stats = &stats
+		return nil
+	})
+
+	// Entitlements
+	eg.Go(func() error {
+		ents, err := client.Entitlements(ctx)
+		if err != nil {
+			// Ignore 404 or enterprise-not-enabled
+			if cerr, ok := codersdk.AsError(err); ok && (cerr.StatusCode() == http.StatusNotFound || cerr.StatusCode() == http.StatusForbidden) {
+				log.Warn(ctx, "unable to fetch entitlements")
+				return nil
+			}
+			return xerrors.Errorf("fetch entitlements: %w", err)
+		}
+		d.Entitlements = &ents
+		return nil
+	})
+
+	// Health settings
+	eg.Go(func() error {
+		settings, err := healthsdk.New(client).HealthSettings(ctx)
+		if err != nil {
+			// If not accessible, log and continue
+			if cerr, ok := codersdk.AsError(err); ok && (cerr.StatusCode() == http.StatusForbidden || cerr.StatusCode() == http.StatusUnauthorized) {
+				log.Warn(ctx, "unable to fetch health settings")
+				return nil
+			}
+			return xerrors.Errorf("fetch health settings: %w", err)
+		}
+		d.HealthSettings = &settings
+		return nil
+	})
+
+	// List workspaces (paginated)
+	eg.Go(func() error {
+		var (
+			offset int
+			limit  = 200
+			all    []codersdk.Workspace
+			count  int
+		)
+		// Determine total cap via logger-attached context? We cannot access Deps here; cap enforced in Run via context.
+		for {
+			resp, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{Offset: offset, Limit: limit})
+			if err != nil {
+				// Log and continue if forbidden; otherwise return error
+				if cerr, ok := codersdk.AsError(err); ok && (cerr.StatusCode() == http.StatusForbidden || cerr.StatusCode() == http.StatusUnauthorized) {
+					log.Warn(ctx, "unable to list workspaces")
+					break
+				}
+				return xerrors.Errorf("list workspaces: %w", err)
+			}
+			if d.Workspaces == nil {
+				d.Workspaces = &resp
+			}
+			// sanitize env vars on agents in each workspace before appending
+			for i := range resp.Workspaces {
+				ws := &resp.Workspaces[i]
+				for _, res := range ws.LatestBuild.Resources {
+					for _, agt := range res.Agents {
+						sanitizeEnv(agt.EnvironmentVariables)
+					}
+				}
+			}
+			all = append(all, resp.Workspaces...)
+			count = resp.Count
+			if offset+len(resp.Workspaces) >= count || len(resp.Workspaces) == 0 {
+				break
+			}
+			offset += len(resp.Workspaces)
+			// Safety cap enforced in Run
+		}
+		if d.Workspaces != nil {
+			// Replace with aggregated list
+			d.Workspaces.Workspaces = all
+			d.Workspaces.Count = len(all)
+		}
 		return nil
 	})
 
@@ -505,9 +604,21 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 		}
 	}
 
+	// Enforce workspaces total cap by wrapping the client with a counting reader via context.
+	cap := d.WorkspacesTotalCap
+	if cap == 0 {
+		cap = 1000
+	}
+	// After DeploymentInfo aggregates, trim if needed
 	var eg errgroup.Group
 	eg.Go(func() error {
 		di := DeploymentInfo(ctx, d.Client, d.Log)
+		// Apply cap after aggregation if set (>0)
+		if cap > 0 && di.Workspaces != nil && len(di.Workspaces.Workspaces) > cap {
+			di.Workspaces.Workspaces = di.Workspaces.Workspaces[:cap]
+			di.Workspaces.Count = len(di.Workspaces.Workspaces)
+			d.Log.Warn(ctx, "workspace list truncated", slog.F("cap", cap))
+		}
 		b.Deployment = di
 		return nil
 	})

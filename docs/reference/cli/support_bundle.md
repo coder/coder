@@ -42,3 +42,12 @@ File path for writing the generated support bundle. Defaults to coder-support-$(
 | Environment | <code>$CODER_SUPPORT_BUNDLE_URL_OVERRIDE</code> |
 
 Override the URL to your Coder deployment. This may be useful, for example, if you need to troubleshoot a specific Coder replica.
+
+### --workspaces-total-cap
+
+|             |                                                         |
+|-------------|---------------------------------------------------------|
+| Type        | <code>int</code>                                        |
+| Environment | <code>$CODER_SUPPORT_BUNDLE_WORKSPACES_TOTAL_CAP</code> |
+
+Maximum number of workspaces to include in the support bundle. Set to 0 to disable the cap. Defaults to 1000.

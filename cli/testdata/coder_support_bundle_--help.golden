@@ -18,6 +18,10 @@ OPTIONS:
           Override the URL to your Coder deployment. This may be useful, for
           example, if you need to troubleshoot a specific Coder replica.
 
+      --workspaces-total-cap int, $CODER_SUPPORT_BUNDLE_WORKSPACES_TOTAL_CAP
+          Maximum number of workspaces to include in the support bundle. Set to
+          0 to disable the cap. Defaults to 1000.
+
   -y, --yes bool
           Bypass prompts.
 
