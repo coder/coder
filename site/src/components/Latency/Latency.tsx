@@ -34,11 +34,9 @@ export const Latency: FC<LatencyProps> = ({
 		const notAvailableText = "Latency not available";
 		return (
 			<Tooltip title={notAvailableText}>
-				<>
-					<span css={{ ...visuallyHidden }}>{notAvailableText}</span>
+				<span css={{ ...visuallyHidden }}>{notAvailableText}</span>
 
-					<CircleHelpIcon className="ml-auto size-icon-sm" style={{ color }} />
-				</>
+				<CircleHelpIcon className="ml-auto size-icon-sm" style={{ color }} />
 			</Tooltip>
 		);
 	}

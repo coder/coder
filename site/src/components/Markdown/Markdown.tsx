@@ -304,7 +304,6 @@ function parseChildrenAsAlertContent(
 
 	// Find the alert type by looking for the first string that contains the alert pattern
 	let alertType: string | null = null;
-	let alertTypeIndex = -1;
 
 	for (let i = 0; i < outputContent.length; i++) {
 		const el = outputContent[i];
@@ -314,7 +313,6 @@ function parseChildrenAsAlertContent(
 			const alertMatch = trimmed.match(/^\[!([A-Z]+)\]/);
 			if (alertMatch) {
 				alertType = alertMatch[1].toLowerCase();
-				alertTypeIndex = i;
 
 				// Remove the alert type from this string and keep the rest
 				const remainingText = trimmed.replace(/^\[!([A-Z]+)\]\s*/, "").trim();
@@ -335,7 +333,7 @@ function parseChildrenAsAlertContent(
 	}
 
 	// Remove null elements and get the remaining content
-	const remainingChildren = outputContent.filter((el, index) => {
+	const remainingChildren = outputContent.filter((el) => {
 		// Keep all elements except null ones
 		return el !== null;
 	});

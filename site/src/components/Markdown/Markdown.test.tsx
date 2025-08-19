@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
 import { AppProviders } from "App";
 import { createTestQueryClient } from "testHelpers/renderHelpers";
+import { render, screen } from "@testing-library/react";
 import { Markdown } from "./Markdown";
 
 const renderWithProviders = (children: React.ReactNode) => {
@@ -91,7 +91,7 @@ describe("Markdown", () => {
 	});
 
 	it("renders regular blockquotes without alert syntax", () => {
-		const markdown = `> This is a regular blockquote without alert syntax.`;
+		const markdown = "> This is a regular blockquote without alert syntax.";
 
 		renderWithProviders(<Markdown>{markdown}</Markdown>);
 
