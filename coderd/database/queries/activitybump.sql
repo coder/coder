@@ -22,7 +22,7 @@ WITH latest AS (
 				-- be as if the workspace auto started at the given time and the
 				-- original TTL was applied.
 				--
-				-- Sadly we can't define `activity_bump_interval` above since
+				-- Sadly we can't define 'activity_bump_interval' above since
 				-- it won't be available for this CASE statement, so we have to
 				-- copy the cast twice.
 				WHEN NOW() + (templates.activity_bump / 1000 / 1000 / 1000 || ' seconds')::interval > @next_autostart :: timestamptz
