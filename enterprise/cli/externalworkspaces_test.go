@@ -162,11 +162,11 @@ func TestExternalWorkspaces(t *testing.T) {
 		pty.WriteLine("yes")
 
 		// Expect the external agent instructions
-		pty.ExpectMatch("Please run the following commands to attach external agent")
-		pty.ExpectMatch("export CODER_AGENT_TOKEN=")
-		pty.ExpectMatch("curl -fsSL")
+		pty.ExpectMatch("Please run the following command to attach external agent")
+		pty.ExpectRegexMatch("curl -fsSL .* | CODER_AGENT_TOKEN=.* sh")
 
-		<-doneChan
+		ctx := testutil.Context(t, testutil.WaitLong)
+		testutil.TryReceive(ctx, t, doneChan)
 
 		// Verify the workspace was created
 		ws, err := member.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "my-external-workspace", codersdk.WorkspaceOptions{})
@@ -392,11 +392,12 @@ func TestExternalWorkspaces(t *testing.T) {
 			assert.NoError(t, errC)
 			close(done)
 		}()
-		pty.ExpectMatch("Please run the following commands to attach external agent to the workspace")
-		pty.ExpectMatch("export CODER_AGENT_TOKEN=")
-		pty.ExpectMatch("curl -fsSL")
+		pty.ExpectMatch("Please run the following command to attach external agent to the workspace")
+		pty.ExpectRegexMatch("curl -fsSL .* | CODER_AGENT_TOKEN=.* sh")
 		cancelFunc()
-		<-done
+
+		ctx = testutil.Context(t, testutil.WaitLong)
+		testutil.TryReceive(ctx, t, done)
 	})
 
 	t.Run("AgentInstructionsJSON", func(t *testing.T) {
@@ -545,11 +546,11 @@ func TestExternalWorkspaces(t *testing.T) {
 		pty.ExpectMatch("external-agent (linux, amd64)")
 
 		// Expect the external agent instructions
-		pty.ExpectMatch("Please run the following commands to attach external agent")
-		pty.ExpectMatch("export CODER_AGENT_TOKEN=")
-		pty.ExpectMatch("curl -fsSL")
+		pty.ExpectMatch("Please run the following command to attach external agent")
+		pty.ExpectRegexMatch("curl -fsSL .* | CODER_AGENT_TOKEN=.* sh")
 
-		<-doneChan
+		ctx := testutil.Context(t, testutil.WaitLong)
+		testutil.TryReceive(ctx, t, doneChan)
 
 		// Verify the workspace was created
 		ws, err := member.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "my-external-workspace", codersdk.WorkspaceOptions{})
