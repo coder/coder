@@ -165,7 +165,8 @@ func TestExternalWorkspaces(t *testing.T) {
 		pty.ExpectMatch("Please run the following command to attach external agent")
 		pty.ExpectRegexMatch("curl -fsSL .* | CODER_AGENT_TOKEN=.* sh")
 
-		testutil.TryReceive(context.Background(), t, doneChan)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		testutil.TryReceive(ctx, t, doneChan)
 
 		// Verify the workspace was created
 		ws, err := member.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "my-external-workspace", codersdk.WorkspaceOptions{})
@@ -394,7 +395,9 @@ func TestExternalWorkspaces(t *testing.T) {
 		pty.ExpectMatch("Please run the following command to attach external agent to the workspace")
 		pty.ExpectRegexMatch("curl -fsSL .* | CODER_AGENT_TOKEN=.* sh")
 		cancelFunc()
-		testutil.TryReceive(context.Background(), t, done)
+
+		ctx = testutil.Context(t, testutil.WaitLong)
+		testutil.TryReceive(ctx, t, done)
 	})
 
 	t.Run("AgentInstructionsJSON", func(t *testing.T) {
@@ -546,7 +549,8 @@ func TestExternalWorkspaces(t *testing.T) {
 		pty.ExpectMatch("Please run the following command to attach external agent")
 		pty.ExpectRegexMatch("curl -fsSL .* | CODER_AGENT_TOKEN=.* sh")
 
-		testutil.TryReceive(context.Background(), t, doneChan)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		testutil.TryReceive(ctx, t, doneChan)
 
 		// Verify the workspace was created
 		ws, err := member.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "my-external-workspace", codersdk.WorkspaceOptions{})
