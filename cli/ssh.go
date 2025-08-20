@@ -440,8 +440,10 @@ func (r *RootCmd) ssh() *serpent.Command {
 						// Connect to the immortal stream via WebSocket
 						rawSSH, err = connectToImmortalStreamWebSocket(ctx, conn, stream.ID, logger)
 						if err != nil {
-							// Clean up the stream if connection fails
-							_ = immortalStreamClient.deleteStream(ctx, stream.ID)
+							// Only clean up the stream if it's a permanent failure
+							if !isNetworkError(err) {
+								_ = immortalStreamClient.deleteStream(ctx, stream.ID)
+							}
 							return xerrors.Errorf("connect to immortal stream: %w", err)
 						}
 					}
@@ -481,12 +483,17 @@ func (r *RootCmd) ssh() *serpent.Command {
 					}
 				}
 
-				// Set up cleanup for immortal stream
+				// Set up signal-based cleanup for immortal stream
+				// Only delete on explicit user termination (SIGINT, SIGTERM), not network errors
 				if immortalStreamClient != nil && streamID != nil {
-					defer func() {
-						if err := immortalStreamClient.deleteStream(context.Background(), *streamID); err != nil {
-							logger.Error(context.Background(), "failed to cleanup immortal stream", slog.Error(err))
-						}
+					// Create a signal-only context for cleanup
+					signalCtx, signalStop := inv.SignalNotifyContext(context.Background(), StopSignals...)
+					defer signalStop()
+
+					go func() {
+						<-signalCtx.Done()
+						// User sent termination signal - clean up the stream
+						_ = immortalStreamClient.deleteStream(context.Background(), *streamID)
 					}()
 				}
 
@@ -494,12 +501,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				go func() {
 					defer wg.Done()
 					watchAndClose(ctx, func() error {
-						// Clean up immortal stream on termination
-						if immortalStreamClient != nil && streamID != nil {
-							if err := immortalStreamClient.deleteStream(context.Background(), *streamID); err != nil {
-								logger.Error(context.Background(), "failed to cleanup immortal stream on termination", slog.Error(err))
-							}
-						}
+						// Don't delete immortal stream here - let signal handler do it
 						stack.close(xerrors.New("watchAndClose"))
 						return nil
 					}, logger, client, workspace, errCh)
@@ -557,8 +559,10 @@ func (r *RootCmd) ssh() *serpent.Command {
 					// Connect to the immortal stream and create SSH client
 					rawConn, err := connectToImmortalStreamWebSocket(ctx, conn, stream.ID, logger)
 					if err != nil {
-						// Clean up the stream if connection fails
-						_ = immortalStreamClient.deleteStream(ctx, stream.ID)
+						// Only clean up the stream if it's a permanent failure
+						if !isNetworkError(err) {
+							_ = immortalStreamClient.deleteStream(ctx, stream.ID)
+						}
 						return xerrors.Errorf("connect to immortal stream: %w", err)
 					}
 
@@ -569,7 +573,10 @@ func (r *RootCmd) ssh() *serpent.Command {
 					})
 					if err != nil {
 						rawConn.Close()
-						_ = immortalStreamClient.deleteStream(ctx, stream.ID)
+						// Only clean up the stream if it's a permanent failure
+						if !isNetworkError(err) {
+							_ = immortalStreamClient.deleteStream(ctx, stream.ID)
+						}
 						return xerrors.Errorf("ssh handshake over immortal stream: %w", err)
 					}
 
@@ -603,12 +610,17 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			}
 
-			// Set up cleanup for immortal stream in regular SSH mode
+			// Set up signal-based cleanup for immortal stream
+			// Only delete on explicit user termination (SIGINT, SIGTERM), not network errors
 			if immortalStreamClient != nil && streamID != nil {
-				defer func() {
-					if err := immortalStreamClient.deleteStream(context.Background(), *streamID); err != nil {
-						logger.Error(context.Background(), "failed to cleanup immortal stream", slog.Error(err))
-					}
+				// Create a signal-only context for cleanup
+				signalCtx, signalStop := inv.SignalNotifyContext(context.Background(), StopSignals...)
+				defer signalStop()
+
+				go func() {
+					<-signalCtx.Done()
+					// User sent termination signal - clean up the stream
+					_ = immortalStreamClient.deleteStream(context.Background(), *streamID)
 				}()
 			}
 
@@ -618,12 +630,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				watchAndClose(
 					ctx,
 					func() error {
-						// Clean up immortal stream on termination
-						if immortalStreamClient != nil && streamID != nil {
-							if err := immortalStreamClient.deleteStream(context.Background(), *streamID); err != nil {
-								logger.Error(context.Background(), "failed to cleanup immortal stream on termination", slog.Error(err))
-							}
-						}
+						// Don't delete immortal stream here - let signal handler do it
 						stack.close(xerrors.New("watchAndClose"))
 						return nil
 					},
@@ -923,64 +930,61 @@ func (r *RootCmd) ssh() *serpent.Command {
 	return cmd
 }
 
-// connectToImmortalStreamWebSocket connects to an immortal stream via WebSocket and returns a net.Conn
+// connectToImmortalStreamWebSocket connects to an immortal stream via WebSocket
+// The immortal stream infrastructure handles reconnection automatically
 func connectToImmortalStreamWebSocket(ctx context.Context, agentConn *workspacesdk.AgentConn, streamID uuid.UUID, logger slog.Logger) (net.Conn, error) {
 	// Build the target address for the agent's HTTP API server
-	// We'll let the WebSocket dialer handle the actual connection through the agent
 	apiServerAddr := fmt.Sprintf("127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort)
 	wsURL := fmt.Sprintf("ws://%s/api/v0/immortal-stream/%s", apiServerAddr, streamID)
 
 	// Create WebSocket connection using the agent's tailnet connection
-	// The key is to use a custom dialer that routes through the agent connection
 	dialOptions := &websocket.DialOptions{
 		HTTPClient: &http.Client{
 			Transport: &http.Transport{
 				DialContext: func(dialCtx context.Context, network, addr string) (net.Conn, error) {
-					// Route all connections through the agent connection
-					// The agent connection will handle routing to the correct internal address
-
-					conn, err := agentConn.DialContext(dialCtx, network, addr)
-					if err != nil {
-						return nil, err
-					}
-
-					return conn, nil
+					return agentConn.DialContext(dialCtx, network, addr)
 				},
 			},
 		},
-		// Disable compression for raw TCP data
 		CompressionMode: websocket.CompressionDisabled,
 	}
 
 	// Connect to the WebSocket endpoint
-	conn, res, err := websocket.Dial(ctx, wsURL, dialOptions)
+	conn, _, err := websocket.Dial(ctx, wsURL, dialOptions)
 	if err != nil {
-		if res != nil {
-			logger.Error(ctx, "WebSocket dial failed",
-				slog.F("stream_id", streamID),
-				slog.F("websocket_url", wsURL),
-				slog.F("status", res.StatusCode),
-				slog.F("status_text", res.Status),
-				slog.Error(err))
-		} else {
-			logger.Error(ctx, "WebSocket dial failed (no response)",
-				slog.F("stream_id", streamID),
-				slog.F("websocket_url", wsURL),
-				slog.Error(err))
-		}
 		return nil, xerrors.Errorf("dial immortal stream WebSocket: %w", err)
 	}
 
-	logger.Info(ctx, "successfully connected to immortal stream WebSocket",
-		slog.F("stream_id", streamID))
-
 	// Convert WebSocket to net.Conn for SSH usage
-	// Use MessageBinary for raw TCP data transport
+	// The immortal stream's BackedPipe handles reconnection automatically
 	netConn := websocket.NetConn(ctx, conn, websocket.MessageBinary)
 
-	logger.Debug(ctx, "converted WebSocket to net.Conn for SSH usage")
-
 	return netConn, nil
+}
+
+// isNetworkError checks if an error is a temporary network error
+func isNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := err.Error()
+	networkErrors := []string{
+		"connection refused",
+		"network is unreachable",
+		"connection reset",
+		"broken pipe",
+		"timeout",
+		"no route to host",
+	}
+
+	for _, netErr := range networkErrors {
+		if strings.Contains(errStr, netErr) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // findWorkspaceAndAgentByHostname parses the hostname from the commandline and finds the workspace and agent it
