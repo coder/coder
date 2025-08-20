@@ -47,7 +47,7 @@
 		"@fontsource/ibm-plex-mono": "5.1.1",
 		"@fontsource/jetbrains-mono": "5.2.5",
 		"@fontsource/source-code-pro": "5.2.5",
-		"@monaco-editor/react": "4.6.0",
+		"@monaco-editor/react": "4.7.0",
 		"@mui/icons-material": "5.16.14",
 		"@mui/material": "5.16.14",
 		"@mui/system": "5.16.14",
