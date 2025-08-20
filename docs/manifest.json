@@ -519,6 +519,11 @@
 									"title": "Workspace Scheduling",
 									"description": "Learn how to control how workspaces are started and stopped",
 									"path": "./admin/templates/managing-templates/schedule.md"
+								},
+								{
+									"title": "Early Access External Workspaces",
+									"description": "Learn how to manage external workspaces",
+									"path": "./admin/templates/managing-templates/external-workspaces.md"
 								}
 							]
 						},
