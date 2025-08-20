@@ -25,7 +25,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { SquareArrowOutUpRightIcon, XIcon } from "lucide-react";
+import { XIcon } from "lucide-react";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 import { LastConnectionHead } from "./LastConnectionHead";
