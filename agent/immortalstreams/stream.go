@@ -350,24 +350,35 @@ func (s *Stream) Close() error {
 		s.handshakePending = false
 	}
 
-	// Close the backed pipe
-	if s.pipe != nil {
-		if err := s.pipe.Close(); err != nil {
+	// Get references to resources we need to close, but close them outside the mutex
+	// to avoid deadlocks with reconnection attempts
+	pipe := s.pipe
+	localConn := s.localConn
+
+	// Release the mutex before closing resources to avoid deadlocks
+	s.mu.Unlock()
+
+	// Close the backed pipe (this can trigger reconnection attempts, so must be outside mutex)
+	if pipe != nil {
+		if err := pipe.Close(); err != nil {
 			s.logger.Warn(context.Background(), "failed to close backed pipe", slog.Error(err))
 		}
 	}
 
 	// Close connections
-	if s.localConn != nil {
-		if err := s.localConn.Close(); err != nil {
+	if localConn != nil {
+		if err := localConn.Close(); err != nil {
 			s.logger.Warn(context.Background(), "failed to close local connection", slog.Error(err))
 		}
 	}
 
 	// Wait for goroutines to finish
-	s.mu.Unlock()
 	s.goroutines.Wait()
+
+	// Re-acquire mutex for final cleanup and clear the references
 	s.mu.Lock()
+	s.pipe = nil
+	s.localConn = nil
 
 	return nil
 }
