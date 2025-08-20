@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -750,13 +749,11 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 }
 
 func (s *MethodTestSuite) TestLicense() {
-	s.Run("GetLicenses", s.Subtest(func(db database.Store, check *expects) {
-		l, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
-			UUID: uuid.New(),
-		})
-		require.NoError(s.T(), err)
-		check.Args().Asserts(l, policy.ActionRead).
-			Returns([]database.License{l})
+	s.Run("GetLicenses", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		a := database.License{ID: 1}
+		b := database.License{ID: 2}
+		dbm.EXPECT().GetLicenses(gomock.Any()).Return([]database.License{a, b}, nil).AnyTimes()
+		check.Args().Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns([]database.License{a, b})
 	}))
 	s.Run("GetUnexpiredLicenses", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		l := database.License{
@@ -770,80 +767,73 @@ func (s *MethodTestSuite) TestLicense() {
 		check.Args().Asserts(rbac.ResourceLicense, policy.ActionRead).
 			Returns([]database.License{l})
 	}))
-	s.Run("InsertLicense", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.InsertLicenseParams{}).
-			Asserts(rbac.ResourceLicense, policy.ActionCreate)
+	s.Run("InsertLicense", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().InsertLicense(gomock.Any(), database.InsertLicenseParams{}).Return(database.License{}, nil).AnyTimes()
+		check.Args(database.InsertLicenseParams{}).Asserts(rbac.ResourceLicense, policy.ActionCreate)
 	}))
-	s.Run("UpsertLogoURL", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpsertLogoURL", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().UpsertLogoURL(gomock.Any(), "value").Return(nil).AnyTimes()
 		check.Args("value").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
-	s.Run("UpsertAnnouncementBanners", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpsertAnnouncementBanners", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().UpsertAnnouncementBanners(gomock.Any(), "value").Return(nil).AnyTimes()
 		check.Args("value").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
-	s.Run("GetLicenseByID", s.Subtest(func(db database.Store, check *expects) {
-		l, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
-			UUID: uuid.New(),
-		})
-		require.NoError(s.T(), err)
-		check.Args(l.ID).Asserts(l, policy.ActionRead).Returns(l)
+	s.Run("GetLicenseByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		l := database.License{ID: 1}
+		dbm.EXPECT().GetLicenseByID(gomock.Any(), int32(1)).Return(l, nil).AnyTimes()
+		check.Args(int32(1)).Asserts(l, policy.ActionRead).Returns(l)
 	}))
-	s.Run("DeleteLicense", s.Subtest(func(db database.Store, check *expects) {
-		l, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
-			UUID: uuid.New(),
-		})
-		require.NoError(s.T(), err)
+	s.Run("DeleteLicense", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		l := database.License{ID: 1}
+		dbm.EXPECT().GetLicenseByID(gomock.Any(), l.ID).Return(l, nil).AnyTimes()
+		dbm.EXPECT().DeleteLicense(gomock.Any(), l.ID).Return(int32(1), nil).AnyTimes()
 		check.Args(l.ID).Asserts(l, policy.ActionDelete)
 	}))
-	s.Run("GetDeploymentID", s.Subtest(func(db database.Store, check *expects) {
-		db.InsertDeploymentID(context.Background(), "value")
+	s.Run("GetDeploymentID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetDeploymentID(gomock.Any()).Return("value", nil).AnyTimes()
 		check.Args().Asserts().Returns("value")
 	}))
-	s.Run("GetDefaultProxyConfig", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts().Returns(database.GetDefaultProxyConfigRow{
-			DisplayName: "Default",
-			IconUrl:     "/emojis/1f3e1.png",
-		})
+	s.Run("GetDefaultProxyConfig", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetDefaultProxyConfig(gomock.Any()).Return(database.GetDefaultProxyConfigRow{DisplayName: "Default", IconUrl: "/emojis/1f3e1.png"}, nil).AnyTimes()
+		check.Args().Asserts().Returns(database.GetDefaultProxyConfigRow{DisplayName: "Default", IconUrl: "/emojis/1f3e1.png"})
 	}))
-	s.Run("GetLogoURL", s.Subtest(func(db database.Store, check *expects) {
-		err := db.UpsertLogoURL(context.Background(), "value")
-		require.NoError(s.T(), err)
+	s.Run("GetLogoURL", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetLogoURL(gomock.Any()).Return("value", nil).AnyTimes()
 		check.Args().Asserts().Returns("value")
 	}))
-	s.Run("GetAnnouncementBanners", s.Subtest(func(db database.Store, check *expects) {
-		err := db.UpsertAnnouncementBanners(context.Background(), "value")
-		require.NoError(s.T(), err)
+	s.Run("GetAnnouncementBanners", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetAnnouncementBanners(gomock.Any()).Return("value", nil).AnyTimes()
 		check.Args().Asserts().Returns("value")
 	}))
-	s.Run("GetManagedAgentCount", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetManagedAgentCount", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		start := dbtime.Now()
 		end := start.Add(time.Hour)
-		check.Args(database.GetManagedAgentCountParams{
-			StartTime: start,
-			EndTime:   end,
-		}).Asserts(rbac.ResourceWorkspace, policy.ActionRead).Returns(int64(0))
+		dbm.EXPECT().GetManagedAgentCount(gomock.Any(), database.GetManagedAgentCountParams{StartTime: start, EndTime: end}).Return(int64(0), nil).AnyTimes()
+		check.Args(database.GetManagedAgentCountParams{StartTime: start, EndTime: end}).Asserts(rbac.ResourceWorkspace, policy.ActionRead).Returns(int64(0))
 	}))
 }
 
 func (s *MethodTestSuite) TestOrganization() {
-	s.Run("Deployment/OIDCClaimFields", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("Deployment/OIDCClaimFields", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().OIDCClaimFields(gomock.Any(), uuid.Nil).Return([]string{}, nil).AnyTimes()
 		check.Args(uuid.Nil).Asserts(rbac.ResourceIdpsyncSettings, policy.ActionRead).Returns([]string{})
 	}))
-	s.Run("Organization/OIDCClaimFields", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("Organization/OIDCClaimFields", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()
+		dbm.EXPECT().OIDCClaimFields(gomock.Any(), id).Return([]string{}, nil).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceIdpsyncSettings.InOrg(id), policy.ActionRead).Returns([]string{})
 	}))
-	s.Run("Deployment/OIDCClaimFieldValues", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.OIDCClaimFieldValuesParams{
-			ClaimField:     "claim-field",
-			OrganizationID: uuid.Nil,
-		}).Asserts(rbac.ResourceIdpsyncSettings, policy.ActionRead).Returns([]string{})
+	s.Run("Deployment/OIDCClaimFieldValues", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.OIDCClaimFieldValuesParams{ClaimField: "claim-field", OrganizationID: uuid.Nil}
+		dbm.EXPECT().OIDCClaimFieldValues(gomock.Any(), arg).Return([]string{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceIdpsyncSettings, policy.ActionRead).Returns([]string{})
 	}))
-	s.Run("Organization/OIDCClaimFieldValues", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("Organization/OIDCClaimFieldValues", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()
-		check.Args(database.OIDCClaimFieldValuesParams{
-			ClaimField:     "claim-field",
-			OrganizationID: id,
-		}).Asserts(rbac.ResourceIdpsyncSettings.InOrg(id), policy.ActionRead).Returns([]string{})
+		arg := database.OIDCClaimFieldValuesParams{ClaimField: "claim-field", OrganizationID: id}
+		dbm.EXPECT().OIDCClaimFieldValues(gomock.Any(), arg).Return([]string{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceIdpsyncSettings.InOrg(id), policy.ActionRead).Returns([]string{})
 	}))
 	s.Run("ByOrganization/GetGroups", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
@@ -1150,41 +1140,43 @@ func (s *MethodTestSuite) TestOrganization() {
 }
 
 func (s *MethodTestSuite) TestWorkspaceProxy() {
-	s.Run("InsertWorkspaceProxy", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.InsertWorkspaceProxyParams{
-			ID: uuid.New(),
-		}).Asserts(rbac.ResourceWorkspaceProxy, policy.ActionCreate)
+	s.Run("InsertWorkspaceProxy", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertWorkspaceProxyParams{ID: uuid.New()}
+		dbm.EXPECT().InsertWorkspaceProxy(gomock.Any(), arg).Return(database.WorkspaceProxy{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceWorkspaceProxy, policy.ActionCreate)
 	}))
-	s.Run("RegisterWorkspaceProxy", s.Subtest(func(db database.Store, check *expects) {
-		p, _ := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
-		check.Args(database.RegisterWorkspaceProxyParams{
-			ID: p.ID,
-		}).Asserts(p, policy.ActionUpdate)
+	s.Run("RegisterWorkspaceProxy", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		p := testutil.Fake(s.T(), faker, database.WorkspaceProxy{})
+		dbm.EXPECT().GetWorkspaceProxyByID(gomock.Any(), p.ID).Return(p, nil).AnyTimes()
+		dbm.EXPECT().RegisterWorkspaceProxy(gomock.Any(), database.RegisterWorkspaceProxyParams{ID: p.ID}).Return(p, nil).AnyTimes()
+		check.Args(database.RegisterWorkspaceProxyParams{ID: p.ID}).Asserts(p, policy.ActionUpdate)
 	}))
-	s.Run("GetWorkspaceProxyByID", s.Subtest(func(db database.Store, check *expects) {
-		p, _ := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+	s.Run("GetWorkspaceProxyByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		p := testutil.Fake(s.T(), faker, database.WorkspaceProxy{})
+		dbm.EXPECT().GetWorkspaceProxyByID(gomock.Any(), p.ID).Return(p, nil).AnyTimes()
 		check.Args(p.ID).Asserts(p, policy.ActionRead).Returns(p)
 	}))
-	s.Run("GetWorkspaceProxyByName", s.Subtest(func(db database.Store, check *expects) {
-		p, _ := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+	s.Run("GetWorkspaceProxyByName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		p := testutil.Fake(s.T(), faker, database.WorkspaceProxy{})
+		dbm.EXPECT().GetWorkspaceProxyByName(gomock.Any(), p.Name).Return(p, nil).AnyTimes()
 		check.Args(p.Name).Asserts(p, policy.ActionRead).Returns(p)
 	}))
-	s.Run("UpdateWorkspaceProxyDeleted", s.Subtest(func(db database.Store, check *expects) {
-		p, _ := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
-		check.Args(database.UpdateWorkspaceProxyDeletedParams{
-			ID:      p.ID,
-			Deleted: true,
-		}).Asserts(p, policy.ActionDelete)
+	s.Run("UpdateWorkspaceProxyDeleted", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		p := testutil.Fake(s.T(), faker, database.WorkspaceProxy{})
+		dbm.EXPECT().GetWorkspaceProxyByID(gomock.Any(), p.ID).Return(p, nil).AnyTimes()
+		dbm.EXPECT().UpdateWorkspaceProxyDeleted(gomock.Any(), database.UpdateWorkspaceProxyDeletedParams{ID: p.ID, Deleted: true}).Return(nil).AnyTimes()
+		check.Args(database.UpdateWorkspaceProxyDeletedParams{ID: p.ID, Deleted: true}).Asserts(p, policy.ActionDelete)
 	}))
-	s.Run("UpdateWorkspaceProxy", s.Subtest(func(db database.Store, check *expects) {
-		p, _ := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
-		check.Args(database.UpdateWorkspaceProxyParams{
-			ID: p.ID,
-		}).Asserts(p, policy.ActionUpdate)
+	s.Run("UpdateWorkspaceProxy", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		p := testutil.Fake(s.T(), faker, database.WorkspaceProxy{})
+		dbm.EXPECT().GetWorkspaceProxyByID(gomock.Any(), p.ID).Return(p, nil).AnyTimes()
+		dbm.EXPECT().UpdateWorkspaceProxy(gomock.Any(), database.UpdateWorkspaceProxyParams{ID: p.ID}).Return(p, nil).AnyTimes()
+		check.Args(database.UpdateWorkspaceProxyParams{ID: p.ID}).Asserts(p, policy.ActionUpdate)
 	}))
-	s.Run("GetWorkspaceProxies", s.Subtest(func(db database.Store, check *expects) {
-		p1, _ := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
-		p2, _ := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+	s.Run("GetWorkspaceProxies", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		p1 := testutil.Fake(s.T(), faker, database.WorkspaceProxy{})
+		p2 := testutil.Fake(s.T(), faker, database.WorkspaceProxy{})
+		dbm.EXPECT().GetWorkspaceProxies(gomock.Any()).Return([]database.WorkspaceProxy{p1, p2}, nil).AnyTimes()
 		check.Args().Asserts(p1, policy.ActionRead, p2, policy.ActionRead).Returns(slice.New(p1, p2))
 	}))
 }
@@ -3345,73 +3337,50 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 }
 
 func (s *MethodTestSuite) TestProvisionerKeys() {
-	s.Run("InsertProvisionerKey", s.Subtest(func(db database.Store, check *expects) {
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		pk := database.ProvisionerKey{
-			ID:             uuid.New(),
-			CreatedAt:      dbtestutil.NowInDefaultTimezone(),
-			OrganizationID: org.ID,
-			Name:           strings.ToLower(coderdtest.RandomName(s.T())),
-			HashedSecret:   []byte(coderdtest.RandomName(s.T())),
-		}
-		//nolint:gosimple // casting is not a simplification
-		check.Args(database.InsertProvisionerKeyParams{
-			ID:             pk.ID,
-			CreatedAt:      pk.CreatedAt,
-			OrganizationID: pk.OrganizationID,
-			Name:           pk.Name,
-			HashedSecret:   pk.HashedSecret,
-		}).Asserts(pk, policy.ActionCreate).Returns(pk)
+	s.Run("InsertProvisionerKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		pk := testutil.Fake(s.T(), faker, database.ProvisionerKey{OrganizationID: org.ID})
+		arg := database.InsertProvisionerKeyParams{ID: pk.ID, CreatedAt: pk.CreatedAt, OrganizationID: pk.OrganizationID, Name: pk.Name, HashedSecret: pk.HashedSecret}
+		dbm.EXPECT().InsertProvisionerKey(gomock.Any(), arg).Return(pk, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceProvisionerDaemon.InOrg(org.ID).WithID(pk.ID), policy.ActionCreate).Returns(pk)
 	}))
-	s.Run("GetProvisionerKeyByID", s.Subtest(func(db database.Store, check *expects) {
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		pk := dbgen.ProvisionerKey(s.T(), db, database.ProvisionerKey{OrganizationID: org.ID})
+	s.Run("GetProvisionerKeyByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		pk := testutil.Fake(s.T(), faker, database.ProvisionerKey{OrganizationID: org.ID})
+		dbm.EXPECT().GetProvisionerKeyByID(gomock.Any(), pk.ID).Return(pk, nil).AnyTimes()
 		check.Args(pk.ID).Asserts(pk, policy.ActionRead).Returns(pk)
 	}))
-	s.Run("GetProvisionerKeyByHashedSecret", s.Subtest(func(db database.Store, check *expects) {
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		pk := dbgen.ProvisionerKey(s.T(), db, database.ProvisionerKey{OrganizationID: org.ID, HashedSecret: []byte("foo")})
+	s.Run("GetProvisionerKeyByHashedSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		pk := testutil.Fake(s.T(), faker, database.ProvisionerKey{OrganizationID: org.ID, HashedSecret: []byte("foo")})
+		dbm.EXPECT().GetProvisionerKeyByHashedSecret(gomock.Any(), []byte("foo")).Return(pk, nil).AnyTimes()
 		check.Args([]byte("foo")).Asserts(pk, policy.ActionRead).Returns(pk)
 	}))
-	s.Run("GetProvisionerKeyByName", s.Subtest(func(db database.Store, check *expects) {
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		pk := dbgen.ProvisionerKey(s.T(), db, database.ProvisionerKey{OrganizationID: org.ID})
-		check.Args(database.GetProvisionerKeyByNameParams{
-			OrganizationID: org.ID,
-			Name:           pk.Name,
-		}).Asserts(pk, policy.ActionRead).Returns(pk)
+	s.Run("GetProvisionerKeyByName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		pk := testutil.Fake(s.T(), faker, database.ProvisionerKey{OrganizationID: org.ID})
+		arg := database.GetProvisionerKeyByNameParams{OrganizationID: org.ID, Name: pk.Name}
+		dbm.EXPECT().GetProvisionerKeyByName(gomock.Any(), arg).Return(pk, nil).AnyTimes()
+		check.Args(arg).Asserts(pk, policy.ActionRead).Returns(pk)
 	}))
-	s.Run("ListProvisionerKeysByOrganization", s.Subtest(func(db database.Store, check *expects) {
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		pk := dbgen.ProvisionerKey(s.T(), db, database.ProvisionerKey{OrganizationID: org.ID})
-		pks := []database.ProvisionerKey{
-			{
-				ID:             pk.ID,
-				CreatedAt:      pk.CreatedAt,
-				OrganizationID: pk.OrganizationID,
-				Name:           pk.Name,
-				HashedSecret:   pk.HashedSecret,
-			},
-		}
-		check.Args(org.ID).Asserts(pk, policy.ActionRead).Returns(pks)
+	s.Run("ListProvisionerKeysByOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		a := testutil.Fake(s.T(), faker, database.ProvisionerKey{OrganizationID: org.ID})
+		b := testutil.Fake(s.T(), faker, database.ProvisionerKey{OrganizationID: org.ID})
+		dbm.EXPECT().ListProvisionerKeysByOrganization(gomock.Any(), org.ID).Return([]database.ProvisionerKey{a, b}, nil).AnyTimes()
+		check.Args(org.ID).Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns([]database.ProvisionerKey{a, b})
 	}))
-	s.Run("ListProvisionerKeysByOrganizationExcludeReserved", s.Subtest(func(db database.Store, check *expects) {
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		pk := dbgen.ProvisionerKey(s.T(), db, database.ProvisionerKey{OrganizationID: org.ID})
-		pks := []database.ProvisionerKey{
-			{
-				ID:             pk.ID,
-				CreatedAt:      pk.CreatedAt,
-				OrganizationID: pk.OrganizationID,
-				Name:           pk.Name,
-				HashedSecret:   pk.HashedSecret,
-			},
-		}
-		check.Args(org.ID).Asserts(pk, policy.ActionRead).Returns(pks)
+	s.Run("ListProvisionerKeysByOrganizationExcludeReserved", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		pk := testutil.Fake(s.T(), faker, database.ProvisionerKey{OrganizationID: org.ID})
+		dbm.EXPECT().ListProvisionerKeysByOrganizationExcludeReserved(gomock.Any(), org.ID).Return([]database.ProvisionerKey{pk}, nil).AnyTimes()
+		check.Args(org.ID).Asserts(pk, policy.ActionRead).Returns([]database.ProvisionerKey{pk})
 	}))
-	s.Run("DeleteProvisionerKey", s.Subtest(func(db database.Store, check *expects) {
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		pk := dbgen.ProvisionerKey(s.T(), db, database.ProvisionerKey{OrganizationID: org.ID})
+	s.Run("DeleteProvisionerKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		pk := testutil.Fake(s.T(), faker, database.ProvisionerKey{OrganizationID: org.ID})
+		dbm.EXPECT().GetProvisionerKeyByID(gomock.Any(), pk.ID).Return(pk, nil).AnyTimes()
+		dbm.EXPECT().DeleteProvisionerKey(gomock.Any(), pk.ID).Return(nil).AnyTimes()
 		check.Args(pk.ID).Asserts(pk, policy.ActionDelete).Returns()
 	}))
 }
@@ -3665,21 +3634,20 @@ func (s *MethodTestSuite) TestTailnetFunctions() {
 }
 
 func (s *MethodTestSuite) TestDBCrypt() {
-	s.Run("GetDBCryptKeys", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetDBCryptKeys", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetDBCryptKeys(gomock.Any()).Return([]database.DBCryptKey{}, nil).AnyTimes()
 		check.Args().
 			Asserts(rbac.ResourceSystem, policy.ActionRead).
 			Returns([]database.DBCryptKey{})
 	}))
-	s.Run("InsertDBCryptKey", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("InsertDBCryptKey", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().InsertDBCryptKey(gomock.Any(), database.InsertDBCryptKeyParams{}).Return(nil).AnyTimes()
 		check.Args(database.InsertDBCryptKeyParams{}).
 			Asserts(rbac.ResourceSystem, policy.ActionCreate).
 			Returns()
 	}))
-	s.Run("RevokeDBCryptKey", s.Subtest(func(db database.Store, check *expects) {
-		err := db.InsertDBCryptKey(context.Background(), database.InsertDBCryptKeyParams{
-			ActiveKeyDigest: "revoke me",
-		})
-		s.NoError(err)
+	s.Run("RevokeDBCryptKey", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().RevokeDBCryptKey(gomock.Any(), "revoke me").Return(nil).AnyTimes()
 		check.Args("revoke me").
 			Asserts(rbac.ResourceSystem, policy.ActionUpdate).
 			Returns()
@@ -3687,56 +3655,44 @@ func (s *MethodTestSuite) TestDBCrypt() {
 }
 
 func (s *MethodTestSuite) TestCryptoKeys() {
-	s.Run("GetCryptoKeys", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetCryptoKeys", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetCryptoKeys(gomock.Any()).Return([]database.CryptoKey{}, nil).AnyTimes()
 		check.Args().
 			Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
 	}))
-	s.Run("InsertCryptoKey", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.InsertCryptoKeyParams{
-			Feature: database.CryptoKeyFeatureWorkspaceAppsAPIKey,
-		}).
+	s.Run("InsertCryptoKey", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertCryptoKeyParams{Feature: database.CryptoKeyFeatureWorkspaceAppsAPIKey}
+		dbm.EXPECT().InsertCryptoKey(gomock.Any(), arg).Return(database.CryptoKey{}, nil).AnyTimes()
+		check.Args(arg).
 			Asserts(rbac.ResourceCryptoKey, policy.ActionCreate)
 	}))
-	s.Run("DeleteCryptoKey", s.Subtest(func(db database.Store, check *expects) {
-		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
-			Sequence: 4,
-		})
-		check.Args(database.DeleteCryptoKeyParams{
-			Feature:  key.Feature,
-			Sequence: key.Sequence,
-		}).Asserts(rbac.ResourceCryptoKey, policy.ActionDelete)
+	s.Run("DeleteCryptoKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		key := testutil.Fake(s.T(), faker, database.CryptoKey{Feature: database.CryptoKeyFeatureWorkspaceAppsAPIKey, Sequence: 4})
+		arg := database.DeleteCryptoKeyParams{Feature: key.Feature, Sequence: key.Sequence}
+		dbm.EXPECT().DeleteCryptoKey(gomock.Any(), arg).Return(key, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceCryptoKey, policy.ActionDelete)
 	}))
-	s.Run("GetCryptoKeyByFeatureAndSequence", s.Subtest(func(db database.Store, check *expects) {
-		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
-			Sequence: 4,
-		})
-		check.Args(database.GetCryptoKeyByFeatureAndSequenceParams{
-			Feature:  key.Feature,
-			Sequence: key.Sequence,
-		}).Asserts(rbac.ResourceCryptoKey, policy.ActionRead).Returns(key)
+	s.Run("GetCryptoKeyByFeatureAndSequence", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		key := testutil.Fake(s.T(), faker, database.CryptoKey{Feature: database.CryptoKeyFeatureWorkspaceAppsAPIKey, Sequence: 4})
+		arg := database.GetCryptoKeyByFeatureAndSequenceParams{Feature: key.Feature, Sequence: key.Sequence}
+		dbm.EXPECT().GetCryptoKeyByFeatureAndSequence(gomock.Any(), arg).Return(key, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceCryptoKey, policy.ActionRead).Returns(key)
 	}))
-	s.Run("GetLatestCryptoKeyByFeature", s.Subtest(func(db database.Store, check *expects) {
-		dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
-			Sequence: 4,
-		})
-		check.Args(database.CryptoKeyFeatureWorkspaceAppsAPIKey).Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
+	s.Run("GetLatestCryptoKeyByFeature", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		feature := database.CryptoKeyFeatureWorkspaceAppsAPIKey
+		dbm.EXPECT().GetLatestCryptoKeyByFeature(gomock.Any(), feature).Return(database.CryptoKey{}, nil).AnyTimes()
+		check.Args(feature).Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
 	}))
-	s.Run("UpdateCryptoKeyDeletesAt", s.Subtest(func(db database.Store, check *expects) {
-		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
-			Sequence: 4,
-		})
-		check.Args(database.UpdateCryptoKeyDeletesAtParams{
-			Feature:   key.Feature,
-			Sequence:  key.Sequence,
-			DeletesAt: sql.NullTime{Time: time.Now(), Valid: true},
-		}).Asserts(rbac.ResourceCryptoKey, policy.ActionUpdate)
+	s.Run("UpdateCryptoKeyDeletesAt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		key := testutil.Fake(s.T(), faker, database.CryptoKey{Feature: database.CryptoKeyFeatureWorkspaceAppsAPIKey, Sequence: 4})
+		arg := database.UpdateCryptoKeyDeletesAtParams{Feature: key.Feature, Sequence: key.Sequence, DeletesAt: sql.NullTime{Time: time.Now(), Valid: true}}
+		dbm.EXPECT().UpdateCryptoKeyDeletesAt(gomock.Any(), arg).Return(key, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceCryptoKey, policy.ActionUpdate)
 	}))
-	s.Run("GetCryptoKeysByFeature", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.CryptoKeyFeatureWorkspaceAppsAPIKey).
+	s.Run("GetCryptoKeysByFeature", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		feature := database.CryptoKeyFeatureWorkspaceAppsAPIKey
+		dbm.EXPECT().GetCryptoKeysByFeature(gomock.Any(), feature).Return([]database.CryptoKey{}, nil).AnyTimes()
+		check.Args(feature).
 			Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
 	}))
 }
@@ -5638,63 +5594,56 @@ func (s *MethodTestSuite) TestAuthorizePrebuiltWorkspace() {
 }
 
 func (s *MethodTestSuite) TestUserSecrets() {
-	s.Run("GetUserSecretByUserIDAndName", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
-		userSecret := dbgen.UserSecret(s.T(), db, database.UserSecret{
-			UserID: user.ID,
-		})
-		arg := database.GetUserSecretByUserIDAndNameParams{
-			UserID: user.ID,
-			Name:   userSecret.Name,
-		}
+	s.Run("GetUserSecretByUserIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		secret := testutil.Fake(s.T(), faker, database.UserSecret{UserID: user.ID})
+		arg := database.GetUserSecretByUserIDAndNameParams{UserID: user.ID, Name: secret.Name}
+		dbm.EXPECT().GetUserSecretByUserIDAndName(gomock.Any(), arg).Return(secret, nil).AnyTimes()
 		check.Args(arg).
-			Asserts(rbac.ResourceUserSecret.WithOwner(arg.UserID.String()), policy.ActionRead).
-			Returns(userSecret)
+			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionRead).
+			Returns(secret)
 	}))
-	s.Run("GetUserSecret", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
-		userSecret := dbgen.UserSecret(s.T(), db, database.UserSecret{
-			UserID: user.ID,
-		})
-		check.Args(userSecret.ID).
-			Asserts(userSecret, policy.ActionRead).
-			Returns(userSecret)
+	s.Run("GetUserSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		secret := testutil.Fake(s.T(), faker, database.UserSecret{})
+		dbm.EXPECT().GetUserSecret(gomock.Any(), secret.ID).Return(secret, nil).AnyTimes()
+		check.Args(secret.ID).
+			Asserts(secret, policy.ActionRead).
+			Returns(secret)
 	}))
-	s.Run("ListUserSecrets", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
-		userSecret := dbgen.UserSecret(s.T(), db, database.UserSecret{
-			UserID: user.ID,
-		})
+	s.Run("ListUserSecrets", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		secret := testutil.Fake(s.T(), faker, database.UserSecret{UserID: user.ID})
+		dbm.EXPECT().ListUserSecrets(gomock.Any(), user.ID).Return([]database.UserSecret{secret}, nil).AnyTimes()
 		check.Args(user.ID).
 			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionRead).
-			Returns([]database.UserSecret{userSecret})
+			Returns([]database.UserSecret{secret})
 	}))
-	s.Run("CreateUserSecret", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
-		arg := database.CreateUserSecretParams{
-			UserID: user.ID,
-		}
+	s.Run("CreateUserSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.CreateUserSecretParams{UserID: user.ID}
+		ret := testutil.Fake(s.T(), faker, database.UserSecret{UserID: user.ID})
+		dbm.EXPECT().CreateUserSecret(gomock.Any(), arg).Return(ret, nil).AnyTimes()
 		check.Args(arg).
-			Asserts(rbac.ResourceUserSecret.WithOwner(arg.UserID.String()), policy.ActionCreate)
+			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionCreate).
+			Returns(ret)
 	}))
-	s.Run("UpdateUserSecret", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
-		userSecret := dbgen.UserSecret(s.T(), db, database.UserSecret{
-			UserID: user.ID,
-		})
-		arg := database.UpdateUserSecretParams{
-			ID: userSecret.ID,
-		}
+	s.Run("UpdateUserSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		secret := testutil.Fake(s.T(), faker, database.UserSecret{})
+		updated := testutil.Fake(s.T(), faker, database.UserSecret{ID: secret.ID})
+		arg := database.UpdateUserSecretParams{ID: secret.ID}
+		dbm.EXPECT().GetUserSecret(gomock.Any(), secret.ID).Return(secret, nil).AnyTimes()
+		dbm.EXPECT().UpdateUserSecret(gomock.Any(), arg).Return(updated, nil).AnyTimes()
 		check.Args(arg).
-			Asserts(userSecret, policy.ActionUpdate)
+			Asserts(secret, policy.ActionUpdate).
+			Returns(updated)
 	}))
-	s.Run("DeleteUserSecret", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
-		userSecret := dbgen.UserSecret(s.T(), db, database.UserSecret{
-			UserID: user.ID,
-		})
-		check.Args(userSecret.ID).
-			Asserts(userSecret, policy.ActionRead, userSecret, policy.ActionDelete)
+	s.Run("DeleteUserSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		secret := testutil.Fake(s.T(), faker, database.UserSecret{})
+		dbm.EXPECT().GetUserSecret(gomock.Any(), secret.ID).Return(secret, nil).AnyTimes()
+		dbm.EXPECT().DeleteUserSecret(gomock.Any(), secret.ID).Return(nil).AnyTimes()
+		check.Args(secret.ID).
+			Asserts(secret, policy.ActionRead, secret, policy.ActionDelete).
+			Returns()
 	}))
 }
 
