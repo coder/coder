@@ -758,6 +758,18 @@ func (s *MethodTestSuite) TestLicense() {
 		check.Args().Asserts(l, policy.ActionRead).
 			Returns([]database.License{l})
 	}))
+	s.Run("GetUnexpiredLicenses", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		l := database.License{
+			ID:   1,
+			Exp:  time.Now().Add(time.Hour * 24 * 30),
+			UUID: uuid.New(),
+		}
+		db.EXPECT().GetUnexpiredLicenses(gomock.Any()).
+			Return([]database.License{l}, nil).
+			AnyTimes()
+		check.Args().Asserts(rbac.ResourceLicense, policy.ActionRead).
+			Returns([]database.License{l})
+	}))
 	s.Run("InsertLicense", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertLicenseParams{}).
 			Asserts(rbac.ResourceLicense, policy.ActionCreate)
@@ -3770,9 +3782,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetActiveUserCount", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(int64(0))
 	}))
-	s.Run("GetUnexpiredLicenses", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
-	}))
 	s.Run("GetAuthorizationUserRoles", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(u.ID).Asserts(rbac.ResourceSystem, policy.ActionRead)
@@ -4964,6 +4973,22 @@ func (s *MethodTestSuite) TestPrebuilds() {
 			template, policy.ActionRead,
 			template, policy.ActionUse,
 		).Errors(sql.ErrNoRows)
+	}))
+	s.Run("FindMatchingPresetID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}})
+		dbm.EXPECT().FindMatchingPresetID(gomock.Any(), database.FindMatchingPresetIDParams{
+			TemplateVersionID: tv.ID,
+			ParameterNames:    []string{"test"},
+			ParameterValues:   []string{"test"},
+		}).Return(uuid.Nil, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), tv.ID).Return(tv, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		check.Args(database.FindMatchingPresetIDParams{
+			TemplateVersionID: tv.ID,
+			ParameterNames:    []string{"test"},
+			ParameterValues:   []string{"test"},
+		}).Asserts(tv.RBACObject(t1), policy.ActionRead).Returns(uuid.Nil)
 	}))
 	s.Run("GetPrebuildMetrics", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().

@@ -32,7 +32,7 @@ WITH latest AS (
 				-- be as if the workspace auto started at the given time and the
 				-- original TTL was applied.
 				--
-				-- Sadly we can't define ` + "`" + `activity_bump_interval` + "`" + ` above since
+				-- Sadly we can't define 'activity_bump_interval' above since
 				-- it won't be available for this CASE statement, so we have to
 				-- copy the cast twice.
 				WHEN NOW() + (templates.activity_bump / 1000 / 1000 / 1000 || ' seconds')::interval > $1 :: timestamptz
@@ -62,7 +62,11 @@ WITH latest AS (
 		ON workspaces.id = workspace_builds.workspace_id
 	JOIN templates
 		ON templates.id = workspaces.template_id
-	WHERE workspace_builds.workspace_id = $2::uuid
+	WHERE
+		workspace_builds.workspace_id = $2::uuid
+		-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+		-- are managed by the reconciliation loop and not subject to activity bumping
+	  	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 	ORDER BY workspace_builds.build_number DESC
 	LIMIT 1
 )
@@ -7250,6 +7254,47 @@ func (q *sqlQuerier) CountInProgressPrebuilds(ctx context.Context) ([]CountInPro
 		return nil, err
 	}
 	return items, nil
+}
+
+const findMatchingPresetID = `-- name: FindMatchingPresetID :one
+WITH provided_params AS (
+	SELECT
+		unnest($1::text[]) AS name,
+		unnest($2::text[]) AS value
+),
+preset_matches AS (
+	SELECT
+		tvp.id AS template_version_preset_id,
+		COALESCE(COUNT(tvpp.name), 0) AS total_preset_params,
+		COALESCE(COUNT(pp.name), 0) AS matching_params
+	FROM template_version_presets tvp
+	LEFT JOIN template_version_preset_parameters tvpp ON tvpp.template_version_preset_id = tvp.id
+	LEFT JOIN provided_params pp ON pp.name = tvpp.name AND pp.value = tvpp.value
+	WHERE tvp.template_version_id = $3
+	GROUP BY tvp.id
+)
+SELECT pm.template_version_preset_id
+FROM preset_matches pm
+WHERE pm.total_preset_params = pm.matching_params  -- All preset parameters must match
+ORDER BY pm.total_preset_params DESC               -- Return the preset with the most parameters
+LIMIT 1
+`
+
+type FindMatchingPresetIDParams struct {
+	ParameterNames    []string  `db:"parameter_names" json:"parameter_names"`
+	ParameterValues   []string  `db:"parameter_values" json:"parameter_values"`
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+}
+
+// FindMatchingPresetID finds a preset ID that is the largest exact subset of the provided parameters.
+// It returns the preset ID if a match is found, or NULL if no match is found.
+// The query finds presets where all preset parameters are present in the provided parameters,
+// and returns the preset with the most parameters (largest subset).
+func (q *sqlQuerier) FindMatchingPresetID(ctx context.Context, arg FindMatchingPresetIDParams) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, findMatchingPresetID, pq.Array(arg.ParameterNames), pq.Array(arg.ParameterValues), arg.TemplateVersionID)
+	var template_version_preset_id uuid.UUID
+	err := row.Scan(&template_version_preset_id)
+	return template_version_preset_id, err
 }
 
 const getPrebuildMetrics = `-- name: GetPrebuildMetrics :many

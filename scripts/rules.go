@@ -37,7 +37,9 @@ func dbauthzAuthorizationContext(m dsl.Matcher) {
 		Where(
 			m["c"].Type.Implements("context.Context") &&
 				// Only report on functions that start with "As".
-				m["f"].Text.Matches("^As"),
+				m["f"].Text.Matches("^As") &&
+				// Ignore test usages of dbauthz contexts.
+				!m.File().Name.Matches(`_test\.go$`),
 		).
 		// Instructions for fixing the lint error should be included on the dangerous function.
 		Report("Using '$f' is dangerous and should be accompanied by a comment explaining why it's ok and a nolint.")
