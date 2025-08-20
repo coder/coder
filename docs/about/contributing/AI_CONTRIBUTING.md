@@ -11,7 +11,7 @@ Contributors must **disclose AI involvement** in the pull request description wh
 
 ## Human Ownership & Attribution
 
-- All pull requests must be opened under **real user accounts**.
+- All pull requests must be opened under **user accounts linked to a human**, and not an application ("bot account").
 - Contributors are personally accountable for the content of their PRs, regardless of how it was generated.
 
 ## Verification & Evidence
