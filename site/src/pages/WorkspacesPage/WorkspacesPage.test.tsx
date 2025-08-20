@@ -305,6 +305,84 @@ describe("WorkspacesPage", () => {
 			MockStoppedWorkspace.latest_build.template_version_id,
 		);
 	});
+
+	it("correctly handles pagination by including pagination parameters in query key", async () => {
+		// Create enough workspaces to require pagination
+		const totalWorkspaces = 50;
+		const workspacesPage1 = Array.from({ length: 25 }, (_, i) => ({
+			...MockWorkspace,
+			id: `page1-workspace-${i}`,
+			name: `page1-workspace-${i}`,
+		}));
+		const workspacesPage2 = Array.from({ length: 25 }, (_, i) => ({
+			...MockWorkspace,
+			id: `page2-workspace-${i}`,
+			name: `page2-workspace-${i}`,
+		}));
+
+		const getWorkspacesSpy = jest.spyOn(API, "getWorkspaces");
+
+		// Mock responses for both pages
+		getWorkspacesSpy
+			.mockResolvedValueOnce({
+				workspaces: workspacesPage1,
+				count: totalWorkspaces,
+			})
+			.mockResolvedValueOnce({
+				workspaces: workspacesPage2,
+				count: totalWorkspaces,
+			});
+
+		const user = userEvent.setup();
+		renderWithAuth(<WorkspacesPage />);
+
+		// Wait for first page to load
+		await waitFor(() => {
+			expect(screen.getByText("page1-workspace-0")).toBeInTheDocument();
+		});
+
+		// Verify first API call was made with correct pagination parameters
+		expect(getWorkspacesSpy).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({
+				q: "owner:me",
+				offset: 0,
+				limit: 25,
+			}),
+		);
+
+		// Navigate to page 2
+		const nextPageButton = screen.getByRole("button", { name: /next page/i });
+		await user.click(nextPageButton);
+
+		// Wait for second page to load
+		await waitFor(() => {
+			expect(screen.getByText("page2-workspace-0")).toBeInTheDocument();
+		});
+
+		// Verify second API call was made with updated pagination parameters
+		expect(getWorkspacesSpy).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				q: "owner:me",
+				offset: 25,
+				limit: 25,
+			}),
+		);
+
+		// Verify the calls were made with different parameters (fixing the pagination bug)
+		expect(getWorkspacesSpy).toHaveBeenCalledTimes(2);
+
+		// Ensure first page content is no longer visible
+		expect(screen.queryByText("page1-workspace-0")).not.toBeInTheDocument();
+
+		// Verify the key difference: the offset changed between calls
+		const firstCallArgs = getWorkspacesSpy.mock.calls[0][0];
+		const secondCallArgs = getWorkspacesSpy.mock.calls[1][0];
+		expect(firstCallArgs.offset).toBe(0);
+		expect(secondCallArgs.offset).toBe(25);
+		expect(firstCallArgs.offset).not.toBe(secondCallArgs.offset);
+	});
 });
 
 const getWorkspaceCheckbox = (workspace: Workspace) => {
