@@ -34,10 +34,12 @@ export const TasksTable: FC<TasksTableProps> = ({ tasks, error, onRetry }) => {
 
 	if (error) {
 		body = <TasksErrorBody error={error} onRetry={onRetry} />;
-	} else if (tasks) {
-		body = tasks.length === 0 ? <TasksEmpty /> : <Tasks tasks={tasks} />;
-	} else {
+	} else if (!tasks) {
 		body = <TasksSkeleton />;
+	} else if (tasks.length === 0) {
+		body = <TasksEmpty />;
+	} else {
+		<Tasks tasks={tasks} />
 	}
 
 	return (
