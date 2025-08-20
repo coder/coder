@@ -217,7 +217,7 @@ export const logout = (queryClient: QueryClient): MutationOptions => {
 			 * a full roundtrip, but this still felt like the best way to ensure that
 			 * manually logging out doesn't blow the entire app up.
 			 *
-			 * 2025-08-20 - Since endpoint is for performing a post logout clean up on
+			 * 2025-08-20 - Since this endpoint is for performing a post logout clean up
 			 * on the backend we should move this local clean up outside of the mutation
 			 * so that it can be explicitly performed even in cases where we don't want
 			 * run the clean up (e.g. when a user is unauthorized). Unfortunately our
