@@ -636,7 +636,8 @@ GEN_FILES := \
 	coderd/database/pubsub/psmock/psmock.go \
 	agent/agentcontainers/acmock/acmock.go \
 	agent/agentcontainers/dcspec/dcspec_gen.go \
-	coderd/httpmw/loggermw/loggermock/loggermock.go
+	coderd/httpmw/loggermw/loggermock/loggermock.go \
+	codersdk/workspacesdk/agentconnmock/agentconnmock.go
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: gen/db gen/golden-files $(GEN_FILES)
@@ -686,6 +687,7 @@ gen/mark-fresh:
 		agent/agentcontainers/acmock/acmock.go \
 		agent/agentcontainers/dcspec/dcspec_gen.go \
 		coderd/httpmw/loggermw/loggermock/loggermock.go \
+		codersdk/workspacesdk/agentconnmock/agentconnmock.go \
 		"
 
 	for file in $$files; do
@@ -727,6 +729,10 @@ agent/agentcontainers/acmock/acmock.go: agent/agentcontainers/containers.go
 
 coderd/httpmw/loggermw/loggermock/loggermock.go: coderd/httpmw/loggermw/logger.go
 	go generate ./coderd/httpmw/loggermw/loggermock/
+	touch "$@"
+
+codersdk/workspacesdk/agentconnmock/agentconnmock.go: codersdk/workspacesdk/agentconn.go
+	go generate ./codersdk/workspacesdk/agentconnmock/
 	touch "$@"
 
 agent/agentcontainers/dcspec/dcspec_gen.go: \

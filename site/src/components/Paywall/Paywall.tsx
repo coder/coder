@@ -20,24 +20,26 @@ export const Paywall: FC<PaywallProps> = ({
 	return (
 		<div css={styles.root}>
 			<div>
-				<Stack direction="row" alignItems="center" css={{ marginBottom: 24 }}>
-					<h5 css={styles.title}>{message}</h5>
+				<Stack direction="row" alignItems="center" className="mb-6">
+					<h5 className="font-semibold font-inherit text-xl m-0">{message}</h5>
 					<PremiumBadge />
 				</Stack>
 
-				{description && <p css={styles.description}>{description}</p>}
+				{description && (
+					<p className="font-inherit max-w-md text-sm">{description}</p>
+				)}
 				<Link
 					href={documentationLink}
 					target="_blank"
 					rel="noreferrer"
-					css={{ fontWeight: 600 }}
+					className="font-semibold"
 				>
 					Read the documentation
 				</Link>
 			</div>
-			<div css={styles.separator} />
+			<div className="w-px h-[220px] bg-highlight-purple/50 ml-2" />
 			<Stack direction="column" alignItems="left" spacing={3}>
-				<ul css={styles.featureList}>
+				<ul className="m-0 px-6 text-sm font-medium">
 					<li css={styles.feature}>
 						<FeatureIcon />
 						High availability & workspace proxies
@@ -55,7 +57,7 @@ export const Paywall: FC<PaywallProps> = ({
 						Unlimited Git & external auth integrations
 					</li>
 				</ul>
-				<div css={styles.learnButton}>
+				<div className="px-7">
 					<Button asChild>
 						<a
 							href="https://coder.com/pricing#compare-plans"
@@ -97,36 +99,6 @@ const styles = {
 		gap: 32,
 		backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.premium.background})`,
 		border: `1px solid ${theme.branding.premium.border}`,
-	}),
-	title: {
-		fontWeight: 600,
-		fontFamily: "inherit",
-		fontSize: 22,
-		margin: 0,
-	},
-	description: () => ({
-		fontFamily: "inherit",
-		maxWidth: 460,
-		fontSize: 14,
-	}),
-	separator: (theme) => ({
-		width: 1,
-		height: 220,
-		backgroundColor: theme.branding.premium.divider,
-		marginLeft: 8,
-	}),
-	learnButton: {
-		padding: "0 28px",
-	},
-	featureList: {
-		listStyle: "none",
-		margin: 0,
-		padding: "0 24px",
-		fontSize: 14,
-		fontWeight: 500,
-	},
-	featureIcon: (theme) => ({
-		color: theme.roles.active.fill.outline,
 	}),
 	feature: {
 		display: "flex",

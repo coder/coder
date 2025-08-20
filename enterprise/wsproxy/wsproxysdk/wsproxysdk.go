@@ -75,7 +75,7 @@ func (c *Client) RequestIgnoreRedirects(ctx context.Context, method, path string
 
 // DialWorkspaceAgent calls the underlying codersdk.Client's DialWorkspaceAgent
 // method.
-func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *workspacesdk.DialAgentOptions) (agentConn *workspacesdk.AgentConn, err error) {
+func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *workspacesdk.DialAgentOptions) (agentConn workspacesdk.AgentConn, err error) {
 	return workspacesdk.New(c.SDKClient).DialAgent(ctx, agentID, options)
 }
 

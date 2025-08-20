@@ -138,7 +138,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent."
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.WorkspacesResponse
@@ -636,16 +636,37 @@ func createWorkspace(
 		)
 
 		// Use injected Clock to allow time mocking in tests
-		now := api.Clock.Now()
+		now := dbtime.Time(api.Clock.Now())
 
-		// If a template preset was chosen, try claim a prebuilt workspace.
-		if req.TemplateVersionPresetID != uuid.Nil {
+		templateVersionPresetID := req.TemplateVersionPresetID
+
+		// If no preset was chosen, look for a matching preset by parameter values.
+		if templateVersionPresetID == uuid.Nil {
+			parameterNames := make([]string, len(req.RichParameterValues))
+			parameterValues := make([]string, len(req.RichParameterValues))
+			for i, parameter := range req.RichParameterValues {
+				parameterNames[i] = parameter.Name
+				parameterValues[i] = parameter.Value
+			}
+			var err error
+			templateVersionID := req.TemplateVersionID
+			if templateVersionID == uuid.Nil {
+				templateVersionID = template.ActiveVersionID
+			}
+			templateVersionPresetID, err = prebuilds.FindMatchingPresetID(ctx, db, templateVersionID, parameterNames, parameterValues)
+			if err != nil {
+				return xerrors.Errorf("find matching preset: %w", err)
+			}
+		}
+
+		// Try to claim a prebuilt workspace.
+		if templateVersionPresetID != uuid.Nil {
 			// Try and claim an eligible prebuild, if available.
 			// On successful claim, initialize all lifecycle fields from template and workspace-level config
 			// so the newly claimed workspace is properly managed by the lifecycle executor.
 			claimedWorkspace, err = claimPrebuild(
-				ctx, prebuildsClaimer, db, api.Logger, now, req, owner,
-				dbAutostartSchedule, nextStartAt, dbTTL)
+				ctx, prebuildsClaimer, db, api.Logger, now, req.Name, owner,
+				templateVersionPresetID, dbAutostartSchedule, nextStartAt, dbTTL)
 			// If claiming fails with an expected error (no claimable prebuilds or AGPL does not support prebuilds),
 			// we fall back to creating a new workspace. Otherwise, propagate the unexpected error.
 			if err != nil {
@@ -654,7 +675,7 @@ func createWorkspace(
 				fields := []any{
 					slog.Error(err),
 					slog.F("workspace_name", req.Name),
-					slog.F("template_version_preset_id", req.TemplateVersionPresetID),
+					slog.F("template_version_preset_id", templateVersionPresetID),
 				}
 
 				if !isExpectedError {
@@ -718,8 +739,8 @@ func createWorkspace(
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
 		}
-		if req.TemplateVersionPresetID != uuid.Nil {
-			builder = builder.TemplateVersionPresetID(req.TemplateVersionPresetID)
+		if templateVersionPresetID != uuid.Nil {
+			builder = builder.TemplateVersionPresetID(templateVersionPresetID)
 		}
 		if claimedWorkspace != nil {
 			builder = builder.MarkPrebuiltWorkspaceClaim()
@@ -884,13 +905,14 @@ func claimPrebuild(
 	db database.Store,
 	logger slog.Logger,
 	now time.Time,
-	req codersdk.CreateWorkspaceRequest,
+	name string,
 	owner workspaceOwner,
+	templateVersionPresetID uuid.UUID,
 	autostartSchedule sql.NullString,
 	nextStartAt sql.NullTime,
 	ttl sql.NullInt64,
 ) (*database.Workspace, error) {
-	claimedID, err := claimer.Claim(ctx, now, owner.ID, req.Name, req.TemplateVersionPresetID, autostartSchedule, nextStartAt, ttl)
+	claimedID, err := claimer.Claim(ctx, now, owner.ID, name, templateVersionPresetID, autostartSchedule, nextStartAt, ttl)
 	if err != nil {
 		// TODO: enhance this by clarifying whether this *specific* prebuild failed or whether there are none to claim.
 		return nil, xerrors.Errorf("claim prebuild: %w", err)
