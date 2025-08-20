@@ -2697,14 +2697,10 @@ class ExperimentalApiMethods {
 			workspaces.workspaces.map((workspace) => workspace.latest_build.id),
 		);
 
-		return workspaces.workspaces.map((workspace) => {
-			const prompt = prompts.prompts[workspace.latest_build.id];
-
-			return {
-				workspace,
-				prompt,
-			};
-		});
+		return workspaces.workspaces.map((workspace) => ({
+			workspace,
+			prompt: prompts.prompts[workspace.latest_build.id],
+		}));
 	};
 }
 
