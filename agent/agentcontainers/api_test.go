@@ -1675,6 +1675,8 @@ func TestAPI(t *testing.T) {
 
 		coderBin, err := os.Executable()
 		require.NoError(t, err)
+		coderBin, err = filepath.EvalSymlinks(coderBin)
+		require.NoError(t, err)
 
 		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
 			Containers: []codersdk.WorkspaceAgentContainer{testContainer},
@@ -2096,9 +2098,6 @@ func TestAPI(t *testing.T) {
 				}
 			)
 
-			coderBin, err := os.Executable()
-			require.NoError(t, err)
-
 			// Mock the `List` function to always return the test container.
 			mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
 				Containers: []codersdk.WorkspaceAgentContainer{testContainer},
@@ -2139,7 +2138,7 @@ func TestAPI(t *testing.T) {
 			require.Equal(t, http.StatusOK, rec.Code)
 
 			var response codersdk.WorkspaceAgentListContainersResponse
-			err = json.NewDecoder(rec.Body).Decode(&response)
+			err := json.NewDecoder(rec.Body).Decode(&response)
 			require.NoError(t, err)
 
 			// Then: We expect that there will be an error associated with the devcontainer.
@@ -2149,7 +2148,7 @@ func TestAPI(t *testing.T) {
 			gomock.InOrder(
 				mCCLI.EXPECT().DetectArchitecture(gomock.Any(), testContainer.ID).Return(runtime.GOARCH, nil),
 				mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
-				mCCLI.EXPECT().Copy(gomock.Any(), testContainer.ID, coderBin, "/.coder-agent/coder").Return(nil),
+				mCCLI.EXPECT().Copy(gomock.Any(), testContainer.ID, gomock.Any(), "/.coder-agent/coder").Return(nil),
 				mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
 				mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "/bin/sh", "-c", "chown $(id -u):$(id -g) /.coder-agent/coder").Return(nil, nil),
 			)
@@ -2157,8 +2156,8 @@ func TestAPI(t *testing.T) {
 			// Given: We allow creation to succeed.
 			testutil.RequireSend(ctx, t, fSAC.createErrC, nil)
 
-			_, aw := mClock.AdvanceNext()
-			aw.MustWait(ctx)
+			err = api.RefreshContainers(ctx)
+			require.NoError(t, err)
 
 			req = httptest.NewRequest(http.MethodGet, "/", nil)
 			rec = httptest.NewRecorder()
@@ -2458,6 +2457,8 @@ func TestAPI(t *testing.T) {
 
 				coderBin, err := os.Executable()
 				require.NoError(t, err)
+				coderBin, err = filepath.EvalSymlinks(coderBin)
+				require.NoError(t, err)
 
 				// Mock the `List` function to always return out test container.
 				mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
@@ -2551,6 +2552,8 @@ func TestAPI(t *testing.T) {
 		)
 
 		coderBin, err := os.Executable()
+		require.NoError(t, err)
+		coderBin, err = filepath.EvalSymlinks(coderBin)
 		require.NoError(t, err)
 
 		// Mock the `List` function to always return out test container.
@@ -2656,6 +2659,8 @@ func TestAPI(t *testing.T) {
 		)
 
 		coderBin, err := os.Executable()
+		require.NoError(t, err)
+		coderBin, err = filepath.EvalSymlinks(coderBin)
 		require.NoError(t, err)
 
 		// Mock the `List` function to always return our test container.

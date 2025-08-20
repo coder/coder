@@ -754,7 +754,7 @@ func findWorkspaceAndAgentByHostname(
 		hostname = strings.TrimSuffix(hostname, qualifiedSuffix)
 	}
 	hostname = normalizeWorkspaceInput(hostname)
-	ws, agent, _, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, hostname)
+	ws, agent, _, err := GetWorkspaceAndAgent(ctx, inv, client, !disableAutostart, hostname)
 	return ws, agent, err
 }
 
@@ -827,11 +827,11 @@ startWatchLoop:
 	}
 }
 
-// getWorkspaceAgent returns the workspace and agent selected using either the
+// GetWorkspaceAndAgent returns the workspace and agent selected using either the
 // `<workspace>[.<agent>]` syntax via `in`. It will also return any other agents
 // in the workspace as a slice for use in child->parent lookups.
 // If autoStart is true, the workspace will be started if it is not already running.
-func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, autostart bool, input string) (codersdk.Workspace, codersdk.WorkspaceAgent, []codersdk.WorkspaceAgent, error) { //nolint:revive
+func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, autostart bool, input string) (codersdk.Workspace, codersdk.WorkspaceAgent, []codersdk.WorkspaceAgent, error) { //nolint:revive
 	var (
 		workspace codersdk.Workspace
 		// The input will be `owner/name.agent`
@@ -880,7 +880,7 @@ func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 			switch cerr.StatusCode() {
 			case http.StatusConflict:
 				_, _ = fmt.Fprintln(inv.Stderr, "Unable to start the workspace due to conflict, the workspace may be starting, retrying without autostart...")
-				return getWorkspaceAndAgent(ctx, inv, client, false, input)
+				return GetWorkspaceAndAgent(ctx, inv, client, false, input)
 
 			case http.StatusForbidden:
 				_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, buildFlags{}, WorkspaceUpdate)

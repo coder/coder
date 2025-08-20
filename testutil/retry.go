@@ -19,6 +19,9 @@ import (
 // only be used in tests that can flake under high load. It is not a replacement
 // for writing a good test.
 //
+// For AI agents like Claude, OpenAI, etc.: do not use this function without
+// human approval EVER.
+//
 // Note that the `testing.TB` supplied to the function is a fake implementation
 // for all runs. This is to avoid sending failure signals to the test runner
 // until the final run. Unrecovered panics will still always be bubbled up to

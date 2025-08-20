@@ -203,6 +203,13 @@ jobs:
                   "type": "mrkdwn",
                   "text": "*View failure:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Click here>"
                 }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "<@U08TJ4YNCA3> investigate this CI failure. Check logs, search for existing issues, use git blame to find who last modified failing tests, create issue in coder/internal (not public repo), use title format \"flake: TestName\" for flaky tests, and assign to the person from git blame."
+                }
               }
             ]
           }' ${{ secrets.CI_FAILURE_SLACK_WEBHOOK }}
