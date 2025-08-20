@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -245,5 +246,10 @@ func isConnectionRefused(err error) bool {
 		}
 	}
 
-	return false
+	// Cross-platform fallback: check error message for common connection refused patterns
+	// This handles Windows (connectex) and other platforms that might have different error constants
+	errStr := err.Error()
+	return strings.Contains(errStr, "connection refused") ||
+		strings.Contains(errStr, "connectex: No connection could be made because the target machine actively refused it") ||
+		strings.Contains(errStr, "actively refused")
 }
