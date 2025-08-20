@@ -67,12 +67,11 @@ const OrganizationProvisionersPage: FC = () => {
 				buildVersion={buildInfoQuery.data?.version}
 				onRetry={provisionersQuery.refetch}
 				filter={queryParams}
-				onFilterChange={(filter) => {
-					const params: Record<string, string> = {
-						ids: filter.ids ?? "",
-						offline: filter.offline ? "true" : "false",
-					};
-					setSearchParams(params);
+				onFilterChange={({ ids, offline }) => {
+					setSearchParams({
+						ids,
+						offline: offline.toString(),
+					});
 				}}
 			/>
 		</>

@@ -155,10 +155,10 @@ export const OrganizationProvisionersPageView: FC<
 												description="A provisioner is required before you can create templates and workspaces. You can connect your first provisioner by following our documentation."
 												cta={
 													<Button size="sm" asChild>
-														<a href={docs("/admin/provisioners")}>
+														<Link href={docs("/admin/provisioners")}>
 															Create a provisioner
 															<SquareArrowOutUpRightIcon />
-														</a>
+														</Link>
 													</Button>
 												}
 											/>
