@@ -56,7 +56,6 @@ func TestOrganizationSync(t *testing.T) {
 	requireUserOrgs := func(t *testing.T, db database.Store, user database.User, expected []uuid.UUID) {
 		t.Helper()
 
-		// nolint:gocritic // in testing
 		members, err := db.OrganizationMembers(dbauthz.AsSystemRestricted(context.Background()), database.OrganizationMembersParams{
 			UserID: user.ID,
 		})

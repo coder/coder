@@ -758,6 +758,18 @@ func (s *MethodTestSuite) TestLicense() {
 		check.Args().Asserts(l, policy.ActionRead).
 			Returns([]database.License{l})
 	}))
+	s.Run("GetUnexpiredLicenses", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		l := database.License{
+			ID:   1,
+			Exp:  time.Now().Add(time.Hour * 24 * 30),
+			UUID: uuid.New(),
+		}
+		db.EXPECT().GetUnexpiredLicenses(gomock.Any()).
+			Return([]database.License{l}, nil).
+			AnyTimes()
+		check.Args().Asserts(rbac.ResourceLicense, policy.ActionRead).
+			Returns([]database.License{l})
+	}))
 	s.Run("InsertLicense", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertLicenseParams{}).
 			Asserts(rbac.ResourceLicense, policy.ActionCreate)
@@ -3769,9 +3781,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("GetActiveUserCount", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(int64(0))
-	}))
-	s.Run("GetUnexpiredLicenses", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetAuthorizationUserRoles", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})

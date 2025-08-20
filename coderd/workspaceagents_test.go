@@ -562,7 +562,6 @@ func TestWorkspaceAgentConnectRPC(t *testing.T) {
 		seed := database.WorkspaceTable{OrganizationID: user.OrganizationID, OwnerID: user.UserID}
 		wsb := dbfake.WorkspaceBuild(t, db, seed).WithAgent().Do()
 		// When: the workspace is marked as soft-deleted
-		// nolint:gocritic // this is a test
 		err := db.UpdateWorkspaceDeletedByID(
 			dbauthz.AsProvisionerd(ctx),
 			database.UpdateWorkspaceDeletedByIDParams{ID: wsb.Workspace.ID, Deleted: true},
@@ -633,7 +632,6 @@ func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	agentToken, err := uuid.Parse(r.AgentToken)
 	require.NoError(t, err)
-	//nolint: gocritic // testing
 	ao, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentToken)
 	require.NoError(t, err)
 
@@ -724,7 +722,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 		agentTokenUUID, err := uuid.Parse(r.AgentToken)
 		require.NoError(t, err)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		agentAndBuild, err := api.Database.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID) //nolint
+		agentAndBuild, err := api.Database.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID)
 		require.NoError(t, err)
 
 		// Connect with no resume token, and ensure that the peer ID is set to a
@@ -796,7 +794,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 		agentTokenUUID, err := uuid.Parse(r.AgentToken)
 		require.NoError(t, err)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		agentAndBuild, err := api.Database.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID) //nolint
+		agentAndBuild, err := api.Database.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID)
 		require.NoError(t, err)
 
 		// Connect with no resume token, and ensure that the peer ID is set to a

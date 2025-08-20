@@ -570,7 +570,6 @@ func TestCreateUserWorkspace(t *testing.T) {
 			return a
 		}).Do()
 
-		// nolint:gocritic // this is a test
 		ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
 		agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, uuid.MustParse(r.AgentToken))
 		require.NoError(t, err)
@@ -1708,7 +1707,6 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// We want to test the database nullifies the NextStartAt so we
 		// make a raw DB call here. We pass in NextStartAt here so we
 		// can test the database will nullify it and not us.
-		//nolint: gocritic // We need system context to modify this.
 		err = db.UpdateWorkspaceAutostart(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAutostartParams{
 			ID:                ws.ID,
 			AutostartSchedule: sql.NullString{Valid: true, String: sched.String()},
@@ -2720,7 +2718,6 @@ func TestPrebuildUpdateLifecycleParams(t *testing.T) {
 			}).Do()
 
 			// Mark the prebuilt workspace's agent as ready so the prebuild can be claimed
-			// nolint:gocritic
 			ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
 			agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, uuid.MustParse(workspaceBuild.AgentToken))
 			require.NoError(t, err)
@@ -3722,7 +3719,6 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		require.Equal(t, ws.LatestBuild.MatchedProvisioners.Available, 0)
 
 		// Verify that the provisioner daemon is registered in the database
-		//nolint:gocritic // unit testing
 		daemons, err := db.GetProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
 		require.NoError(t, err)
 		require.Equal(t, 1, len(daemons))
@@ -3758,7 +3754,6 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 
 		ctx = testutil.Context(t, testutil.WaitLong) // Reset the context to avoid timeouts.
 
-		// nolint:gocritic // unit testing
 		daemons, err := db.GetProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
 		require.NoError(t, err)
 		require.Equal(t, len(daemons), 1)
@@ -3768,8 +3763,6 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		require.NoError(t, err)
 
 		// Simulate it's subsequent deletion from the database:
-
-		// nolint:gocritic // unit testing
 		_, err = db.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.UpsertProvisionerDaemonParams{
 			Name:           daemons[0].Name,
 			OrganizationID: daemons[0].OrganizationID,
@@ -3787,7 +3780,6 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		// nolint:gocritic // unit testing
 		err = db.DeleteOldProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
 		require.NoError(t, err)
 
@@ -3798,7 +3790,6 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Count, 0)
 		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Available, 0)
 
-		// nolint:gocritic // unit testing
 		_, err = client.WorkspaceByOwnerAndName(dbauthz.As(ctx, userSubject), username, workspace.Name, codersdk.WorkspaceOptions{})
 		require.NoError(t, err)
 		require.Equal(t, workspace.LatestBuild.Status, codersdk.WorkspaceStatusPending)
@@ -3835,7 +3826,6 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 
 		ctx = testutil.Context(t, testutil.WaitLong) // Reset the context to avoid timeouts.
 
-		// nolint:gocritic // unit testing
 		daemons, err := db.GetProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
 		require.NoError(t, err)
 		require.Equal(t, len(daemons), 1)
@@ -3844,7 +3834,6 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		err = closer.Close()
 		require.NoError(t, err)
 
-		// nolint:gocritic // unit testing
 		_, err = db.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.UpsertProvisionerDaemonParams{
 			Name:           daemons[0].Name,
 			OrganizationID: daemons[0].OrganizationID,

@@ -328,7 +328,6 @@ func TestGroupSyncTable(t *testing.T) {
 			},
 		}
 
-		//nolint:gocritic // testing
 		defOrg, err := db.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
 		require.NoError(t, err)
 		SetupOrganization(t, s, db, user, defOrg.ID, def)
@@ -527,7 +526,6 @@ func TestApplyGroupDifference(t *testing.T) {
 			db, _ := dbtestutil.NewDB(t)
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			//nolint:gocritic // testing
 			ctx = dbauthz.AsSystemRestricted(ctx)
 
 			org := dbgen.Organization(t, db, database.Organization{})
