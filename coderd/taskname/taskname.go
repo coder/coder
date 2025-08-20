@@ -2,11 +2,15 @@ package taskname
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"math/rand/v2"
 	"os"
+	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
+	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/aisdk-go"
@@ -20,19 +24,17 @@ const (
 Requirements:
 - Only lowercase letters, numbers, and hyphens
 - Start with "task-"
-- End with a random number between 0-99
-- Maximum 32 characters total
+- Maximum 28 characters total
 - Descriptive of the main task
 
 Examples:
-- "Help me debug a Python script" → "task-python-debug-12"
-- "Create a React dashboard component" → "task-react-dashboard-93"
-- "Analyze sales data from Q3" → "task-analyze-q3-sales-37"
-- "Set up CI/CD pipeline" → "task-setup-cicd-44"
+- "Help me debug a Python script" → "task-python-debug"
+- "Create a React dashboard component" → "task-react-dashboard"
+- "Analyze sales data from Q3" → "task-analyze-q3-sales"
+- "Set up CI/CD pipeline" → "task-setup-cicd"
 
 If you cannot create a suitable name:
-- Respond with "task-unnamed"
-- Do not end with a random number`
+- Respond with "task-unnamed"`
 )
 
 var (
@@ -65,6 +67,20 @@ func GetAnthropicAPIKeyFromEnv() string {
 
 func GetAnthropicModelFromEnv() anthropic.Model {
 	return anthropic.Model(os.Getenv("ANTHROPIC_MODEL"))
+}
+
+// GenerateSuffix generates a random hex string between `100` and `fff`.
+func GenerateSuffix() string {
+	numMin := 0x100
+	numMax := 0x1000
+	//nolint:gosec // We don't need a cryptographically secure random number generator for generating a task name suffix.
+	num := rand.IntN(numMax-numMin) + numMin
+
+	return fmt.Sprintf("%x", num)
+}
+
+func GenerateFallback() string {
+	return "task-" + strings.ReplaceAll(namesgenerator.GetRandomName(0), "_", "-")
 }
 
 func Generate(ctx context.Context, prompt string, opts ...Option) (string, error) {
