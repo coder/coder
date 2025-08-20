@@ -325,6 +325,9 @@ func New(options *Options) *API {
 		})
 	}
 
+	if options.PrometheusRegistry == nil {
+		options.PrometheusRegistry = prometheus.NewRegistry()
+	}
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 		if buildinfo.IsDev() {
@@ -380,9 +383,6 @@ func New(options *Options) *API {
 	}
 	if options.FilesRateLimit == 0 {
 		options.FilesRateLimit = 12
-	}
-	if options.PrometheusRegistry == nil {
-		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
 	if options.Clock == nil {
 		options.Clock = quartz.NewReal()
