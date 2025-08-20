@@ -163,11 +163,11 @@ func (m *multiCloser) Add(closer io.Closer) {
 }
 
 func (m *multiCloser) Close() error {
-	var mErr error
+	var errs []error
 	for _, closer := range m.closers {
 		if err := closer.Close(); err != nil {
-			mErr = xerrors.Errorf("close %T: %w", closer, err)
+			errs = append(errs, xerrors.Errorf("close %T: %w", closer, err))
 		}
 	}
-	return mErr
+	return errors.Join(errs...)
 }

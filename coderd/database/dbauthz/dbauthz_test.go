@@ -767,7 +767,7 @@ func (s *MethodTestSuite) TestLicense() {
 		db.EXPECT().GetUnexpiredLicenses(gomock.Any()).
 			Return([]database.License{l}, nil).
 			AnyTimes()
-		check.Args().Asserts(l, policy.ActionRead).
+		check.Args().Asserts(rbac.ResourceLicense, policy.ActionRead).
 			Returns([]database.License{l})
 	}))
 	s.Run("InsertLicense", s.Subtest(func(db database.Store, check *expects) {

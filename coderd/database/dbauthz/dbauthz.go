@@ -3042,10 +3042,10 @@ func (q *querier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTe
 }
 
 func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License, error) {
-	fetch := func(ctx context.Context, _ interface{}) ([]database.License, error) {
-		return q.db.GetUnexpiredLicenses(ctx)
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceLicense); err != nil {
+		return nil, err
 	}
-	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
+	return q.db.GetUnexpiredLicenses(ctx)
 }
 
 func (q *querier) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
