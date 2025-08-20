@@ -104,14 +104,14 @@ func (r *streamReconnector) Reconnect(ctx context.Context, writerSeqNum uint64) 
 		r.s.connected = false
 		r.s.lastDisconnectionAt = time.Now()
 	}
-	r.s.logger.Info(context.Background(), "pending reconnect set",
+	r.s.logger.Debug(context.Background(), "pending reconnect set",
 		slog.F("writer_seq", writerSeqNum))
 	// Signal waiters a reconnect request is pending
 	r.s.reconnectCond.Broadcast()
 	r.s.mu.Unlock()
 
 	// Wait for response from HandleReconnect or context cancellation with timeout
-	r.s.logger.Info(context.Background(), "reconnect function waiting for response")
+	r.s.logger.Debug(context.Background(), "reconnect function waiting for response")
 
 	// Add a timeout to prevent indefinite hanging
 	timeout := time.NewTimer(30 * time.Second)
@@ -119,7 +119,7 @@ func (r *streamReconnector) Reconnect(ctx context.Context, writerSeqNum uint64) 
 
 	select {
 	case resp := <-responseChan:
-		r.s.logger.Info(context.Background(), "reconnect function got response",
+		r.s.logger.Debug(context.Background(), "reconnect function got response",
 			slog.F("has_conn", resp.conn != nil),
 			slog.F("read_seq", resp.readSeq),
 			slog.Error(resp.err))
@@ -127,12 +127,12 @@ func (r *streamReconnector) Reconnect(ctx context.Context, writerSeqNum uint64) 
 	case <-ctx.Done():
 		// Context was canceled, return error immediately
 		// The stream's Close() method will handle cleanup
-		r.s.logger.Info(context.Background(), "reconnect function context canceled", slog.Error(ctx.Err()))
+		r.s.logger.Debug(context.Background(), "reconnect function context canceled", slog.Error(ctx.Err()))
 		return nil, 0, ctx.Err()
 	case <-r.s.shutdownChan:
 		// Stream is being shut down, return error immediately
 		// The stream's Close() method will handle cleanup
-		r.s.logger.Info(context.Background(), "reconnect function shutdown signal received")
+		r.s.logger.Debug(context.Background(), "reconnect function shutdown signal received")
 		return nil, 0, xerrors.New("stream is shutting down")
 	case <-timeout.C:
 		// Timeout occurred - clean up the pending request
@@ -142,7 +142,7 @@ func (r *streamReconnector) Reconnect(ctx context.Context, writerSeqNum uint64) 
 			r.s.handshakePending = false
 		}
 		r.s.mu.Unlock()
-		r.s.logger.Info(context.Background(), "reconnect function timed out")
+		r.s.logger.Debug(context.Background(), "reconnect function timed out")
 		return nil, 0, xerrors.New("timeout waiting for reconnection response")
 	}
 }
@@ -239,7 +239,7 @@ func (s *Stream) HandleReconnect(clientConn io.ReadWriteCloser, readSeqNum uint6
 		return xerrors.New("stream is closed")
 	}
 
-	s.logger.Info(context.Background(), "handling reconnection",
+	s.logger.Debug(context.Background(), "handling reconnection",
 		slog.F("read_seq_num", readSeqNum),
 		slog.F("has_pending", s.pendingReconnect != nil))
 
