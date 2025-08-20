@@ -126,7 +126,7 @@ type PillButtonProps = ButtonProps & {
 	active?: boolean;
 };
 
-const PillButton = ({ className, active, ...props }: PillButtonProps) => {
+const PillButton: FC<PillButtonProps> = ({ className, active, ...props }) => {
 	return (
 		<Button
 			size="sm"

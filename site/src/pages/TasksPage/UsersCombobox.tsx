@@ -44,7 +44,12 @@ export const UsersCombobox: FC<UsersComboboxProps> = ({
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
 	const debouncedSearch = useDebouncedValue(search, 250);
-	const options = useUsersOptions({ query: debouncedSearch, value });
+	const { user } = useAuthenticated();
+	const { data: options } = useQuery({
+		...users({ q: debouncedSearch }),
+		select: (res) => mapUsersToOptions(res.users, user, value),
+		placeholderData: keepPreviousData,
+	});
 	const selectedOption = options?.find((o) => o.value === value);
 
 	return (
@@ -121,43 +126,36 @@ const UserItem: FC<UserItemProps> = ({ option, className }) => {
 	);
 };
 
-type UseUsersOptionsOptions = {
-	query: string;
-	value?: string;
-};
-
-function useUsersOptions({
-	query,
-	value,
-}: UseUsersOptionsOptions): UserOption[] | undefined {
-	const { user } = useAuthenticated();
-
+function mapUsersToOptions(
+	users: readonly User[],
+	/**
+	 * Includes the authenticated user in the list if they are not already
+	 * present. So the current user can always select themselves easily.
+	 */
+	authUser: User,
+	/**
+	 * Username of the currently selected user.
+	 */
+	selectedValue: string,
+): UserOption[] {
 	const includeAuthenticatedUser = (users: readonly User[]) => {
 		const hasAuthenticatedUser = users.some(
-			(u) => u.username === user?.username,
+			(u) => u.username === authUser.username,
 		);
 		if (hasAuthenticatedUser) {
 			return users;
 		}
-		return [user, ...users];
+		return [authUser, ...users];
 	};
 
 	const sortSelectedFirst = (a: User) =>
-		value && a.username === value ? -1 : 0;
+		selectedValue && a.username === selectedValue ? -1 : 0;
 
-	const { data } = useQuery({
-		...users({ q: query }),
-		select: (data) => {
-			return includeAuthenticatedUser(data.users)
-				.toSorted(sortSelectedFirst)
-				.map((user) => ({
-					label: user.name || user.username,
-					value: user.username,
-					avatarUrl: user.avatar_url,
-				}));
-		},
-		placeholderData: keepPreviousData,
-	});
-
-	return data;
+	return includeAuthenticatedUser(users)
+		.toSorted(sortSelectedFirst)
+		.map((user) => ({
+			label: user.name || user.username,
+			value: user.username,
+			avatarUrl: user.avatar_url,
+		}));
 }
