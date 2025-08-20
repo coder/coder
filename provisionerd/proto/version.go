@@ -47,9 +47,12 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.8:
 //   - Add new fields `description` and `icon` to `Preset`.
+//
+// API v1.9:
+//   - Added new field named 'has_external_agent' in 'CompleteJob.TemplateImport'
 const (
 	CurrentMajor = 1
-	CurrentMinor = 8
+	CurrentMinor = 9
 )
 
 // CurrentVersion is the current provisionerd API version.

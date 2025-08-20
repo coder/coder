@@ -363,6 +363,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		ModuleFiles:           moduleFiles,
 		HasAiTasks:            state.HasAITasks,
 		AiTasks:               state.AITasks,
+		HasExternalAgents:     state.HasExternalAgents,
 	}
 
 	return msg, nil

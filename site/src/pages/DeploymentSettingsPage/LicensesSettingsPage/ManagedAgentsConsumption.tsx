@@ -44,11 +44,16 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 	const startDate = managedAgentFeature.usage_period?.start;
 	const endDate = managedAgentFeature.usage_period?.end;
 
-	if (!usage || usage < 0) {
+	if (usage === undefined || usage < 0) {
 		return <ErrorAlert error="Invalid usage data" />;
 	}
 
-	if (!included || included < 0 || !limit || limit < 0) {
+	if (
+		included === undefined ||
+		included < 0 ||
+		limit === undefined ||
+		limit < 0
+	) {
 		return <ErrorAlert error="Invalid license usage limits" />;
 	}
 
@@ -107,24 +112,22 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 						</p>
 						<ul>
 							<li className="flex items-center gap-2">
-								<div
-									className="rounded-[2px] bg-highlight-green size-3 inline-block"
-									aria-label="Legend for current usage in the chart"
-								/>
+								<div className="rounded-[2px] bg-highlight-green size-3 inline-block">
+									<span className="sr-only">Legend for started workspaces</span>
+								</div>
 								Amount of started workspaces with an AI agent.
 							</li>
 							<li className="flex items-center gap-2">
-								<div
-									className="rounded-[2px] bg-content-disabled size-3 inline-block"
-									aria-label="Legend for included allowance in the chart"
-								/>
+								<div className="rounded-[2px] bg-content-disabled size-3 inline-block">
+									<span className="sr-only">Legend for included allowance</span>
+								</div>
 								Included allowance from your current license plan.
 							</li>
 							<li className="flex items-center gap-2">
-								<div
-									className="size-3 inline-flex items-center justify-center"
-									aria-label="Legend for total limit in the chart"
-								>
+								<div className="size-3 inline-flex items-center justify-center">
+									<span className="sr-only">
+										Legend for total limit in the chart
+									</span>
 									<div className="w-full border-b-1 border-t-1 border-dashed border-content-disabled" />
 								</div>
 								Total limit after which further AI workspace builds will be

@@ -28,13 +28,6 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
-
-	"github.com/coder/coder/v2/coderd/util/slice"
-
-	"github.com/coder/coder/v2/codersdk/drpcsdk"
-
-	"github.com/coder/quartz"
-
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -48,13 +41,18 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/usage"
+	"github.com/coder/coder/v2/coderd/usage/usagetypes"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -121,6 +119,7 @@ type server struct {
 	DeploymentValues            *codersdk.DeploymentValues
 	NotificationsEnqueuer       notifications.Enqueuer
 	PrebuildsOrchestrator       *atomic.Pointer[prebuilds.ReconciliationOrchestrator]
+	UsageInserter               *atomic.Pointer[usage.Inserter]
 
 	OIDCConfig promoauth.OAuth2Config
 
@@ -174,6 +173,7 @@ func NewServer(
 	auditor *atomic.Pointer[audit.Auditor],
 	templateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore],
 	userQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore],
+	usageInserter *atomic.Pointer[usage.Inserter],
 	deploymentValues *codersdk.DeploymentValues,
 	options Options,
 	enqueuer notifications.Enqueuer,
@@ -194,6 +194,9 @@ func NewServer(
 	}
 	if userQuietHoursScheduleStore == nil {
 		return nil, xerrors.New("userQuietHoursScheduleStore is nil")
+	}
+	if usageInserter == nil {
+		return nil, xerrors.New("usageCollector is nil")
 	}
 	if deploymentValues == nil {
 		return nil, xerrors.New("deploymentValues is nil")
@@ -244,6 +247,7 @@ func NewServer(
 		heartbeatInterval:           options.HeartbeatInterval,
 		heartbeatFn:                 options.HeartbeatFn,
 		PrebuildsOrchestrator:       prebuildsOrchestrator,
+		UsageInserter:               usageInserter,
 	}
 
 	if s.heartbeatFn == nil {
@@ -1727,16 +1731,20 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		if err != nil {
 			return xerrors.Errorf("update template version external auth providers: %w", err)
 		}
-		err = db.UpdateTemplateVersionAITaskByJobID(ctx, database.UpdateTemplateVersionAITaskByJobIDParams{
+		err = db.UpdateTemplateVersionFlagsByJobID(ctx, database.UpdateTemplateVersionFlagsByJobIDParams{
 			JobID: jobID,
 			HasAITask: sql.NullBool{
 				Bool:  jobType.TemplateImport.HasAiTasks,
 				Valid: true,
 			},
+			HasExternalAgent: sql.NullBool{
+				Bool:  jobType.TemplateImport.HasExternalAgents,
+				Valid: true,
+			},
 			UpdatedAt: now,
 		})
 		if err != nil {
-			return xerrors.Errorf("update template version external auth providers: %w", err)
+			return xerrors.Errorf("update template version ai task and external agent: %w", err)
 		}
 
 		// Process terraform values
@@ -2026,18 +2034,44 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			sidebarAppID = uuid.NullUUID{}
 		}
 
+		if hasAITask && workspaceBuild.Transition == database.WorkspaceTransitionStart {
+			// Insert usage event for managed agents.
+			usageInserter := s.UsageInserter.Load()
+			if usageInserter != nil {
+				event := usagetypes.DCManagedAgentsV1{
+					Count: 1,
+				}
+				err = (*usageInserter).InsertDiscreteUsageEvent(ctx, db, event)
+				if err != nil {
+					return xerrors.Errorf("insert %q event: %w", event.EventType(), err)
+				}
+			}
+		}
+
+		hasExternalAgent := false
+		for _, resource := range jobType.WorkspaceBuild.Resources {
+			if resource.Type == "coder_external_agent" {
+				hasExternalAgent = true
+				break
+			}
+		}
+
 		// Regardless of whether there is an AI task or not, update the field to indicate one way or the other since it
 		// always defaults to nil. ONLY if has_ai_task=true MUST ai_task_sidebar_app_id be set.
-		if err := db.UpdateWorkspaceBuildAITaskByID(ctx, database.UpdateWorkspaceBuildAITaskByIDParams{
+		if err := db.UpdateWorkspaceBuildFlagsByID(ctx, database.UpdateWorkspaceBuildFlagsByIDParams{
 			ID: workspaceBuild.ID,
 			HasAITask: sql.NullBool{
 				Bool:  hasAITask,
 				Valid: true,
 			},
+			HasExternalAgent: sql.NullBool{
+				Bool:  hasExternalAgent,
+				Valid: true,
+			},
 			SidebarAppID: sidebarAppID,
 			UpdatedAt:    now,
 		}); err != nil {
-			return xerrors.Errorf("update workspace build ai tasks flag: %w", err)
+			return xerrors.Errorf("update workspace build ai tasks and external agent flag: %w", err)
 		}
 
 		// Insert timings inside the transaction now

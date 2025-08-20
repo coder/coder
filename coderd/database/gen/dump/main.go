@@ -19,6 +19,10 @@ type mockTB struct {
 	cleanup []func()
 }
 
+func (*mockTB) Name() string {
+	return "mockTB"
+}
+
 func (t *mockTB) Cleanup(f func()) {
 	t.cleanup = append(t.cleanup, f)
 }

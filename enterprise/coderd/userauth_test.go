@@ -941,7 +941,6 @@ func TestGroupSync(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			// nolint:gocritic
 			_, err := runner.API.Database.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
 				NewLoginType: database.LoginTypeOIDC,
 				UserID:       user.ID,

@@ -93,7 +93,7 @@ type OAuth2AppRowProps = {
 };
 
 const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
-	const theme = useTheme();
+	const _theme = useTheme();
 	const navigate = useNavigate();
 	const clickableProps = useClickableTableRow({
 		onClick: () => navigate(`/deployment/oauth2-provider/apps/${app.id}`),

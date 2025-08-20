@@ -1,13 +1,13 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import type { AlertProps } from "components/Alert/Alert";
 import { Button, type ButtonProps } from "components/Button/Button";
-import { Pill } from "components/Pill/Pill";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 	usePopover,
 } from "components/deprecated/Popover/Popover";
+import { Pill } from "components/Pill/Pill";
 import type { FC, ReactNode } from "react";
 import type { ThemeRole } from "theme/roles";
 

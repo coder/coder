@@ -1,7 +1,7 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { DetailedError } from "api/errors";
 import { chromatic } from "testHelpers/chromatic";
 import { MockTemplate, MockUserOwner } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { DetailedError } from "api/errors";
 import { CreateWorkspacePageViewExperimental } from "./CreateWorkspacePageViewExperimental";
 
 const meta: Meta<typeof CreateWorkspacePageViewExperimental> = {

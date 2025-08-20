@@ -17,18 +17,23 @@ import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidg
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { TableToolbar } from "components/TableToolbar/TableToolbar";
-import { CloudIcon } from "lucide-react";
-import { ChevronDownIcon, PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
+import {
+	ChevronDownIcon,
+	CloudIcon,
+	PlayIcon,
+	SquareIcon,
+	TrashIcon,
+} from "lucide-react";
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
 import type { FC } from "react";
 import type { UseQueryResult } from "react-query";
 import { mustUpdateWorkspace } from "utils/workspace";
-import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip";
-import { WorkspacesButton } from "./WorkspacesButton";
 import {
 	type WorkspaceFilterState,
 	WorkspacesFilter,
 } from "./filter/WorkspacesFilter";
+import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip";
+import { WorkspacesButton } from "./WorkspacesButton";
 
 const Language = {
 	pageTitle: "Workspaces",

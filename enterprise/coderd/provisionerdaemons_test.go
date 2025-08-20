@@ -682,7 +682,6 @@ func TestProvisionerDaemonServe(t *testing.T) {
 
 				if tc.insertParams.Name != "" {
 					tc.insertParams.OrganizationID = user.OrganizationID
-					// nolint:gocritic // test
 					_, err := db.InsertProvisionerKey(dbauthz.AsSystemRestricted(ctx), tc.insertParams)
 					require.NoError(t, err)
 				}
@@ -945,7 +944,6 @@ func TestGetProvisionerDaemons(t *testing.T) {
 
 				daemonCreatedAt := time.Now()
 
-				//nolint:gocritic // We're not testing auth on the following in this test
 				provisionerKey, err := db.InsertProvisionerKey(dbauthz.AsSystemRestricted(ctx), database.InsertProvisionerKeyParams{
 					Name:           "Test Provisioner Key",
 					ID:             uuid.New(),
@@ -956,7 +954,6 @@ func TestGetProvisionerDaemons(t *testing.T) {
 				})
 				require.NoError(t, err, "should be able to create a provisioner key")
 
-				//nolint:gocritic // We're not testing auth on the following in this test
 				pd, err := db.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.UpsertProvisionerDaemonParams{
 					CreatedAt:    daemonCreatedAt,
 					Name:         "Test Provisioner Daemon",

@@ -74,7 +74,7 @@ type AgentProvider interface {
 	ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID, app appurl.ApplicationURL, wildcardHost string) *httputil.ReverseProxy
 
 	// AgentConn returns a new connection to the specified agent.
-	AgentConn(ctx context.Context, agentID uuid.UUID) (_ *workspacesdk.AgentConn, release func(), _ error)
+	AgentConn(ctx context.Context, agentID uuid.UUID) (_ workspacesdk.AgentConn, release func(), _ error)
 
 	ServeHTTPDebug(w http.ResponseWriter, r *http.Request)
 

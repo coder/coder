@@ -117,7 +117,7 @@ func (r *RootCmd) scheduleShow() *serpent.Command {
 					f.FilterQuery = fmt.Sprintf("owner:me name:%s", inv.Args[0])
 				}
 			}
-			res, err := queryConvertWorkspaces(inv.Context(), client, f, scheduleListRowFromWorkspace)
+			res, err := QueryConvertWorkspaces(inv.Context(), client, f, scheduleListRowFromWorkspace)
 			if err != nil {
 				return err
 			}
@@ -307,7 +307,7 @@ func (r *RootCmd) scheduleExtend() *serpent.Command {
 }
 
 func displaySchedule(ws codersdk.Workspace, out io.Writer) error {
-	rows := []workspaceListRow{workspaceListRowFromWorkspace(time.Now(), ws)}
+	rows := []WorkspaceListRow{WorkspaceListRowFromWorkspace(time.Now(), ws)}
 	rendered, err := cliui.DisplayTable(rows, "workspace", []string{
 		"workspace", "starts at", "starts next", "stops after", "stops next",
 	})

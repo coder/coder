@@ -169,6 +169,7 @@ jobs:
           CODER_URL: https://dev.coder.com
           CODER_SESSION_TOKEN: ${{ secrets.CODER_SESSION_TOKEN }}
           # Template source & details
+          TF_VAR_CODER_DOGFOOD_ANTHROPIC_API_KEY: ${{ secrets.CODER_DOGFOOD_ANTHROPIC_API_KEY }}
           TF_VAR_CODER_TEMPLATE_NAME: ${{ secrets.CODER_TEMPLATE_NAME }}
           TF_VAR_CODER_TEMPLATE_VERSION: ${{ steps.vars.outputs.sha_short }}
           TF_VAR_CODER_TEMPLATE_DIR: ./coder

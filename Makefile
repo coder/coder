@@ -576,6 +576,7 @@ lint/go:
 	./scripts/check_codersdk_imports.sh
 	linter_ver=$(shell egrep -o 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/Dockerfile | cut -d '=' -f 2)
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver run
+	go run github.com/coder/paralleltestctx/cmd/paralleltestctx@v0.0.1 -custom-funcs="testutil.Context" ./...
 .PHONY: lint/go
 
 lint/examples:
@@ -635,7 +636,8 @@ GEN_FILES := \
 	coderd/database/pubsub/psmock/psmock.go \
 	agent/agentcontainers/acmock/acmock.go \
 	agent/agentcontainers/dcspec/dcspec_gen.go \
-	coderd/httpmw/loggermw/loggermock/loggermock.go
+	coderd/httpmw/loggermw/loggermock/loggermock.go \
+	codersdk/workspacesdk/agentconnmock/agentconnmock.go
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: gen/db gen/golden-files $(GEN_FILES)
@@ -685,6 +687,7 @@ gen/mark-fresh:
 		agent/agentcontainers/acmock/acmock.go \
 		agent/agentcontainers/dcspec/dcspec_gen.go \
 		coderd/httpmw/loggermw/loggermock/loggermock.go \
+		codersdk/workspacesdk/agentconnmock/agentconnmock.go \
 		"
 
 	for file in $$files; do
@@ -726,6 +729,10 @@ agent/agentcontainers/acmock/acmock.go: agent/agentcontainers/containers.go
 
 coderd/httpmw/loggermw/loggermock/loggermock.go: coderd/httpmw/loggermw/logger.go
 	go generate ./coderd/httpmw/loggermw/loggermock/
+	touch "$@"
+
+codersdk/workspacesdk/agentconnmock/agentconnmock.go: codersdk/workspacesdk/agentconn.go
+	go generate ./codersdk/workspacesdk/agentconnmock/
 	touch "$@"
 
 agent/agentcontainers/dcspec/dcspec_gen.go: \

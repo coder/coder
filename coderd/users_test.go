@@ -1544,7 +1544,6 @@ func TestUsersFilter(t *testing.T) {
 		}
 		userClient, userData := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, roles...)
 		// Set the last seen for each user to a unique day
-		// nolint:gocritic // Unit test
 		_, err := api.Database.UpdateUserLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLastSeenAtParams{
 			ID:         userData.ID,
 			LastSeenAt: lastSeenNow.Add(-1 * time.Hour * 24 * time.Duration(i)),
@@ -1572,7 +1571,6 @@ func TestUsersFilter(t *testing.T) {
 
 	// Add users with different creation dates for testing date filters
 	for i := 0; i < 3; i++ {
-		// nolint:gocritic // Using system context is necessary to seed data in tests
 		user1, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
 			ID:        uuid.New(),
 			Email:     fmt.Sprintf("before%d@coder.com", i),
@@ -1594,7 +1592,6 @@ func TestUsersFilter(t *testing.T) {
 		require.NoError(t, err)
 		users = append(users, sdkUser1)
 
-		// nolint:gocritic //Using system context is necessary to seed data in tests
 		user2, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
 			ID:        uuid.New(),
 			Email:     fmt.Sprintf("during%d@coder.com", i),
@@ -1615,7 +1612,6 @@ func TestUsersFilter(t *testing.T) {
 		require.NoError(t, err)
 		users = append(users, sdkUser2)
 
-		// nolint:gocritic // Using system context is necessary to seed data in tests
 		user3, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
 			ID:        uuid.New(),
 			Email:     fmt.Sprintf("after%d@coder.com", i),
@@ -1912,7 +1908,6 @@ func TestGetUsers(t *testing.T) {
 			Email:    "test2@coder.com",
 			Username: "test2",
 		})
-		// nolint:gocritic // Unit test
 		err := db.UpdateUserGithubComUserID(dbauthz.AsSystemRestricted(ctx), database.UpdateUserGithubComUserIDParams{
 			ID: first.UserID,
 			GithubComUserID: sql.NullInt64{
