@@ -118,7 +118,6 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 			taskName = generatedName
 		}
 	}
-	taskName += "-" + taskname.GenerateSuffix()
 
 	createReq := codersdk.CreateWorkspaceRequest{
 		Name:                    taskName,

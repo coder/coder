@@ -69,8 +69,8 @@ func GetAnthropicModelFromEnv() anthropic.Model {
 	return anthropic.Model(os.Getenv("ANTHROPIC_MODEL"))
 }
 
-// GenerateSuffix generates a random hex string between `100` and `fff`.
-func GenerateSuffix() string {
+// generateSuffix generates a random hex string between `100` and `fff`.
+func generateSuffix() string {
 	numMin := 0x100
 	numMax := 0x1000
 	//nolint:gosec // We don't need a cryptographically secure random number generator for generating a task name suffix.
@@ -80,7 +80,9 @@ func GenerateSuffix() string {
 }
 
 func GenerateFallback() string {
-	return "task-" + strings.ReplaceAll(namesgenerator.GetRandomName(0), "_", "-")
+	name := strings.ReplaceAll(namesgenerator.GetRandomName(0), "_", "-")
+
+	return fmt.Sprintf("task-%s-%s", name, generateSuffix())
 }
 
 func Generate(ctx context.Context, prompt string, opts ...Option) (string, error) {
@@ -143,7 +145,7 @@ func Generate(ctx context.Context, prompt string, opts ...Option) (string, error
 		return "", ErrNoNameGenerated
 	}
 
-	return generatedName, nil
+	return fmt.Sprintf("%s-%s", generatedName, generateSuffix()), nil
 }
 
 func anthropicDataStream(ctx context.Context, client anthropic.Client, model anthropic.Model, input []aisdk.Message) (aisdk.DataStream, error) {
