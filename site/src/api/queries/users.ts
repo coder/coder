@@ -17,7 +17,7 @@ import {
 } from "hooks/useEmbeddedMetadata";
 import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import type {
-    MutationOptions,
+	MutationOptions,
 	QueryClient,
 	UseMutationOptions,
 	UseQueryOptions,
@@ -201,7 +201,7 @@ export const logout = (queryClient: QueryClient): MutationOptions => {
 			if (error) {
 				console.error(error);
 			}
-			
+
 			/**
 			 * 2024-05-02 - If we persist any form of user data after the user logs
 			 * out, that will continue to seed the React Query cache, creating
