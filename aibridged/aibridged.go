@@ -8,11 +8,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/valyala/fasthttp/fasthttputil"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/aibridge"
 	"github.com/coder/retry"
 
 	"github.com/coder/coder/v2/aibridged/proto"
@@ -26,6 +28,8 @@ type Dialer func(ctx context.Context) (proto.DRPCRecorderClient, error)
 type Server struct {
 	clientDialer Dialer
 	clientCh     chan proto.DRPCRecorderClient
+
+	manager Manager
 
 	logger slog.Logger
 	wg     sync.WaitGroup
@@ -53,8 +57,9 @@ type Server struct {
 }
 
 var _ proto.DRPCRecorderServer = &Server{}
+var _ Manager = &Server{}
 
-func New(rpcDialer Dialer, logger slog.Logger) (*Server, error) {
+func New(rpcDialer Dialer, manager Manager, logger slog.Logger) (*Server, error) {
 	if rpcDialer == nil {
 		return nil, xerrors.Errorf("nil rpcDialer given")
 	}
@@ -63,6 +68,7 @@ func New(rpcDialer Dialer, logger slog.Logger) (*Server, error) {
 	daemon := &Server{
 		logger:           logger,
 		clientDialer:     rpcDialer,
+		manager:          manager,
 		clientCh:         make(chan proto.DRPCRecorderClient),
 		closeContext:     ctx,
 		closeCancel:      cancel,
@@ -149,6 +155,14 @@ func (s *Server) Client() (proto.DRPCRecorderClient, error) {
 	case client := <-s.clientCh:
 		return client, nil
 	}
+}
+
+func (s *Server) Acquire(ctx context.Context, key string, userID uuid.UUID, apiClientFn func() (proto.DRPCRecorderClient, error)) (*aibridge.Bridge, error) {
+	if s.manager == nil {
+		return nil, xerrors.New("nil manager")
+	}
+
+	return s.manager.Acquire(ctx, key, userID, apiClientFn)
 }
 
 func (s *Server) RecordSession(ctx context.Context, in *proto.RecordSessionRequest) (*proto.RecordSessionResponse, error) {

@@ -3217,15 +3217,15 @@ Write out the current server config as YAML to stdout.`,
 
 		// AI Bridge Options
 		{
-			Name:        "AI Bridge Daemons",
-			Description: "TODO.",
-			Flag:        "ai-bridge-daemons",
-			Env:         "CODER_AI_BRIDGE_DAEMONS",
-			Value:       &c.AI.BridgeConfig.Daemons,
-			Default:     "3",
+			Name:        "AI Bridge Enabled",
+			Description: "Whether to start an in-memory aibridged instance ('ai-bridge' experiment must be enabled, too).",
+			Flag:        "ai-bridge-enabled",
+			Env:         "CODER_AI_BRIDGE_ENABLED",
+			Value:       &c.AI.BridgeConfig.Enabled,
+			Default:     "true",
 			Group:       &deploymentGroupAIBridge,
-			YAML:        "daemons",
-			Hidden:      true,
+			YAML:        "enabled",
+			Hidden:      false,
 		},
 		{
 			Name:        "AI Bridge OpenAI Base URL",
@@ -3277,7 +3277,7 @@ Write out the current server config as YAML to stdout.`,
 }
 
 type AIBridgeConfig struct {
-	Daemons   serpent.Int64           `json:"daemons" typescript:",notnull"`
+	Enabled   serpent.Bool            `json:"enabled" typescript:",notnull"`
 	OpenAI    AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
 	Anthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
 }
@@ -3519,6 +3519,7 @@ const (
 	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
+	ExperimentAIBridge           Experiment = "ai-bridge"            // Enables AI Bridge functionality.
 )
 
 func (e Experiment) DisplayName() string {
@@ -3539,6 +3540,8 @@ func (e Experiment) DisplayName() string {
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceSharing:
 		return "Workspace Sharing"
+	case ExperimentAIBridge:
+		return "AI Bridge"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
@@ -3557,6 +3560,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
 	ExperimentWorkspaceSharing,
+	ExperimentAIBridge,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

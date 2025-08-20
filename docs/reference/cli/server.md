@@ -1636,3 +1636,14 @@ How often to reconcile workspace prebuilds state.
 | Default     | <code>false</code>                |
 
 Hide AI tasks from the dashboard.
+
+### --ai-bridge-enabled
+
+|             |                                       |
+|-------------|---------------------------------------|
+| Type        | <code>bool</code>                     |
+| Environment | <code>$CODER_AI_BRIDGE_ENABLED</code> |
+| YAML        | <code>ai_bridge.enabled</code>        |
+| Default     | <code>true</code>                     |
+
+Whether to start an in-memory aibridged instance ('ai-bridge' experiment must be enabled, too).

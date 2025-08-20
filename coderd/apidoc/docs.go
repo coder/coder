@@ -11038,8 +11038,8 @@ const docTemplate = `{
                 "anthropic": {
                     "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
                 },
-                "daemons": {
-                    "type": "integer"
+                "enabled": {
+                    "type": "boolean"
                 },
                 "openai": {
                     "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
@@ -13012,9 +13012,11 @@ const docTemplate = `{
                 "web-push",
                 "oauth2",
                 "mcp-server-http",
-                "workspace-sharing"
+                "workspace-sharing",
+                "ai-bridge"
             ],
             "x-enum-comments": {
+                "ExperimentAIBridge": "Enables AI Bridge functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -13032,7 +13034,8 @@ const docTemplate = `{
                 "ExperimentWebPush",
                 "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP",
-                "ExperimentWorkspaceSharing"
+                "ExperimentWorkspaceSharing",
+                "ExperimentAIBridge"
             ]
         },
         "codersdk.ExternalAgentCredentials": {
@@ -13128,6 +13131,9 @@ const docTemplate = `{
                 },
                 "id": {
                     "description": "ID is a unique identifier for the auth config.\nIt defaults to ` + "`" + `type` + "`" + ` when not provided.",
+                    "type": "string"
+                },
+                "mcp_url": {
                     "type": "string"
                 },
                 "no_refresh": {

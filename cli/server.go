@@ -1101,31 +1101,21 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}()
 
-			aiBridgeDaemons := make([]*aibridged.Server, 0)
 			defer func() {
-				// We have no graceful shutdown of aiBridgeDaemons
-				// here because that's handled at the end of main, this
-				// is here in case the program exits early.
-				for _, daemon := range aiBridgeDaemons {
-					_ = daemon.Close()
+				// TODO: ensure cleanup is correct.
+				if coderAPI.AIBridgeServer != nil {
+					_ = coderAPI.AIBridgeServer.Close()
 				}
 			}()
 
 			// Built in aibridge daemons.
-			for i := int64(0); i < vals.AI.BridgeConfig.Daemons.Value(); i++ {
-				suffix := fmt.Sprintf("%d", i)
-				// The suffix is added to the hostname, so we may need to trim to fit into
-				// the 64 character limit.
-				hostname := stringutil.Truncate(cliutil.Hostname(), 63-len(suffix))
-				name := fmt.Sprintf("%s-%s", hostname, suffix)
-				daemon, err := newAIBridgeDaemon(ctx, coderAPI, name, vals.AI.BridgeConfig)
+			if vals.AI.BridgeConfig.Enabled {
+				srv, err := newAIBridgeServer(ctx, coderAPI)
 				if err != nil {
-					return xerrors.Errorf("create provisioner daemon: %w", err)
+					return xerrors.Errorf("create aibridged: %w", err)
 				}
-				aiBridgeDaemons = append(aiBridgeDaemons, daemon)
+				coderAPI.AIBridgeServer = srv
 			}
-			coderAPI.AIBridgeDaemons = aiBridgeDaemons
-			coderAPI.AIBridgeManager = coderd.NewAIBridgeManager(coderAPI.DeploymentValues.AI.BridgeConfig, 100, coderAPI.Database, coderAPI.ExternalAuthConfigs) // TODO: configurable size.
 
 			// Updates the systemd status from activating to activated.
 			_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
@@ -1242,34 +1232,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			wg.Wait()
 
-			// Shut down aibridge daemons before waiting for WebSockets
-			// connections to close.
-			for i, aiBridgeDaemon := range aiBridgeDaemons {
-				id := i + 1
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-
-					r.Verbosef(inv, "Shutting down AI bridge daemon %d...", id)
-
-					err := shutdownWithTimeout(func(ctx context.Context) error {
-						// We only want to cancel active jobs if we aren't exiting gracefully.
-						return aiBridgeDaemon.Shutdown(ctx)
-					}, 5*time.Second)
-					if err != nil {
-						cliui.Errorf(inv.Stderr, "Failed to shut down AI bridge daemon %d: %s\n", id, err)
-						return
-					}
-					err = aiBridgeDaemon.Close()
-					if err != nil {
-						cliui.Errorf(inv.Stderr, "Close AI bridge daemon %d: %s\n", id, err)
-						return
-					}
-					r.Verbosef(inv, "Gracefully shut down AI bridge daemon %d", id)
-				}()
-			}
-			wg.Wait()
-
 			cliui.Info(inv.Stdout, "Waiting for WebSocket connections to close..."+"\n")
 			_ = coderAPICloser.Close()
 			cliui.Info(inv.Stdout, "Done waiting for WebSocket connections"+"\n")
@@ -1373,6 +1335,21 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	)
 
 	return serverCmd
+}
+
+func newAIBridgeServer(ctx context.Context, coderAPI *coderd.API) (*aibridged.Server, error) {
+	mcpCfg := aibridged.NewStoreMCPConfigurator(
+		coderAPI.DeploymentValues.AccessURL.String(), coderAPI.Database,
+		coderAPI.Options.ExternalAuthConfigs, coderAPI.Logger.Named("aibridged.mcp"),
+	)
+	mgr := aibridged.NewAIBridgeManager(coderAPI.DeploymentValues.AI.BridgeConfig, 100, mcpCfg, coderAPI.Logger.Named("aibridge-manager")) // TODO: configurable size.
+	daemon, err := aibridged.New(func(dialCtx context.Context) (aibridgedproto.DRPCRecorderClient, error) {
+		return coderAPI.CreateInMemoryAIBridgeDaemon(dialCtx)
+	}, mgr, coderAPI.Logger.Named("aibridged"))
+	if err != nil {
+		return nil, xerrors.Errorf("create aibridge daemon: %w", err)
+	}
+	return daemon, nil
 }
 
 // templateHelpers builds a set of functions which can be called in templates.
@@ -1568,14 +1545,6 @@ func newProvisionerDaemon(
 		TracerProvider:      coderAPI.TracerProvider,
 		Metrics:             &metrics,
 	}), nil
-}
-
-func newAIBridgeDaemon(ctx context.Context, coderAPI *coderd.API, name string, bridgeCfg codersdk.AIBridgeConfig) (*aibridged.Server, error) {
-	return aibridged.New(func(dialCtx context.Context) (aibridgedproto.DRPCRecorderClient, error) {
-		// This debounces calls to listen every second.
-		// TODO: is this true / necessary?
-		return coderAPI.CreateInMemoryAIBridgeDaemon(dialCtx, name)
-	}, coderAPI.Logger.Named("aibridged").With(slog.F("name", name)))
 }
 
 // nolint: revive

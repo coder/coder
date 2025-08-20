@@ -1586,7 +1586,10 @@ func New(options *Options) *API {
 			r.Get("/{os}/{arch}", api.initScript)
 		})
 		r.Route("/aibridge", func(r chi.Router) {
-			r.Use(aibridged.AuthMiddleware(api.Database))
+			r.Use(
+				httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentAIBridge),
+				aibridged.AuthMiddleware(api.Database),
+			)
 			r.HandleFunc("/openai/*", api.bridgeAIRequest)
 			r.HandleFunc("/anthropic/*", api.bridgeAIRequest)
 		})
@@ -1751,8 +1754,7 @@ type API struct {
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
 
-	AIBridgeDaemons []*aibridged.Server
-	AIBridgeManager *AIBridgeManager
+	AIBridgeServer *aibridged.Server
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -1983,7 +1985,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	return provisionerdproto.NewDRPCProvisionerDaemonClient(clientSession), nil
 }
 
-func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context, name string) (client proto.DRPCRecorderClient, err error) {
+func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context) (client proto.DRPCRecorderClient, err error) {
 	// TODO(dannyk): implement options.
 	// TODO(dannyk): implement tracing.
 
@@ -1996,11 +1998,10 @@ func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context, name strin
 	}()
 
 	// TODO(dannyk): implement API versioning.
-	// TODO(dannyk): implement database tracking of daemons.
 
 	mux := drpcmux.New()
-	api.Logger.Debug(dialCtx, "starting in-memory AI bridge daemon", slog.F("name", name))
-	logger := api.Logger.Named(fmt.Sprintf("inmem-aibridged-%s", name))
+	api.Logger.Debug(dialCtx, "starting in-memory AI bridge daemon")
+	logger := api.Logger.Named("inmem-aibridged")
 	srv, err := aibridgedserver.NewServer(api.ctx, api.Database, api.Logger)
 	if err != nil {
 		return nil, err

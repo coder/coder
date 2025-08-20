@@ -710,9 +710,10 @@ workspace_prebuilds:
   # (default: 3, type: int)
   failure_hard_limit: 3
 ai_bridge:
-  # TODO.
-  # (default: 3, type: int)
-  daemons: 3
+  # Whether to start an in-memory aibridged instance ('ai-bridge' experiment must be
+  # enabled, too).
+  # (default: true, type: bool)
+  enabled: true
   # TODO.
   # (default: https://api.openai.com/v1/, type: string)
   openai_base_url: https://api.openai.com/v1/

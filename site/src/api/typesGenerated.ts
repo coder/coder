@@ -14,7 +14,7 @@ export interface AIBridgeAnthropicConfig {
 
 // From codersdk/deployment.go
 export interface AIBridgeConfig {
-	readonly daemons: number;
+	readonly enabled: boolean;
 	readonly openai: AIBridgeOpenAIConfig;
 	readonly anthropic: AIBridgeAnthropicConfig;
 }
@@ -944,6 +944,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
+	| "ai-bridge"
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
@@ -954,6 +955,7 @@ export type Experiment =
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
+	"ai-bridge",
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
@@ -1002,6 +1004,7 @@ export interface ExternalAuthConfig {
 	readonly scopes: readonly string[];
 	readonly device_flow: boolean;
 	readonly device_code_url: string;
+	readonly mcp_url: string;
 	readonly regex: string;
 	readonly display_name: string;
 	readonly display_icon: string;

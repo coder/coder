@@ -77,6 +77,11 @@ OPTIONS:
           Periodically check for new releases of Coder and inform the owner. The
           check is performed once per day.
 
+AI BRIDGE OPTIONS: 
+      --ai-bridge-enabled bool, $CODER_AI_BRIDGE_ENABLED (default: true)
+          Whether to start an in-memory aibridged instance ('ai-bridge'
+          experiment must be enabled, too).
+
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
 Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.

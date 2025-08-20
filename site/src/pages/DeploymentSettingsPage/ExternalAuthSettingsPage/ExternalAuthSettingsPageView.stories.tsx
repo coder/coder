@@ -23,6 +23,7 @@ const meta: Meta<typeof ExternalAuthSettingsPageView> = {
 					device_code_url: "",
 					display_icon: "",
 					display_name: "GitHub",
+					mcp_url: "",
 				},
 			],
 		},
