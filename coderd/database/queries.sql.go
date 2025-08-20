@@ -19356,7 +19356,9 @@ INSERT INTO
 		template_version_preset_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+	($1, $2, $3, $4, $5,
+	COALESCE((SELECT MAX("build_number") + 1 FROM workspace_builds WHERE workspace_id = $4), 1),
+	$6, $7, $8, $9, $10, $11, $12, $13)
 `
 
 type InsertWorkspaceBuildParams struct {
@@ -19365,7 +19367,6 @@ type InsertWorkspaceBuildParams struct {
 	UpdatedAt               time.Time           `db:"updated_at" json:"updated_at"`
 	WorkspaceID             uuid.UUID           `db:"workspace_id" json:"workspace_id"`
 	TemplateVersionID       uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	BuildNumber             int32               `db:"build_number" json:"build_number"`
 	Transition              WorkspaceTransition `db:"transition" json:"transition"`
 	InitiatorID             uuid.UUID           `db:"initiator_id" json:"initiator_id"`
 	JobID                   uuid.UUID           `db:"job_id" json:"job_id"`
@@ -19383,7 +19384,6 @@ func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspa
 		arg.UpdatedAt,
 		arg.WorkspaceID,
 		arg.TemplateVersionID,
-		arg.BuildNumber,
 		arg.Transition,
 		arg.InitiatorID,
 		arg.JobID,
