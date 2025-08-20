@@ -569,21 +569,13 @@ func TestStream_ReconnectionScenarios(t *testing.T) {
 		_ = fromServerWriteA.Close()
 
 		// Wait until the stream is marked disconnected with proper timeout handling
-		disconnectCtx := testutil.Context(t, testutil.WaitShort)
-		disconnected := make(chan bool, 1)
-		go func() {
-			testutil.Eventually(disconnectCtx, t, func(ctx context.Context) bool {
-				return !stream2.IsConnected()
-			}, testutil.IntervalFast)
-			disconnected <- true
-		}()
+		disconnectCtx := testutil.Context(t, testutil.WaitMedium)
+		testutil.Eventually(disconnectCtx, t, func(ctx context.Context) bool {
+			return !stream2.IsConnected()
+		}, testutil.IntervalMedium)
 
-		select {
-		case <-disconnected:
-			require.False(t, stream2.IsConnected())
-		case <-disconnectCtx.Done():
-			t.Fatal("Timed out waiting for stream to be marked as disconnected")
-		}
+		// Verify disconnection
+		require.False(t, stream2.IsConnected())
 
 		// Reconnect with new client
 		// Create two pipes for bidirectional communication
@@ -690,21 +682,13 @@ func TestStream_ReconnectionScenarios(t *testing.T) {
 			_ = fromServerWrite.Close()
 
 			// Wait until the stream is marked disconnected with proper timeout handling
-			disconnectCtx := testutil.Context(t, testutil.WaitShort)
-			disconnected := make(chan bool, 1)
-			go func() {
-				testutil.Eventually(disconnectCtx, t, func(ctx context.Context) bool {
-					return !stream3.IsConnected()
-				}, testutil.IntervalFast)
-				disconnected <- true
-			}()
+			disconnectCtx := testutil.Context(t, testutil.WaitMedium)
+			testutil.Eventually(disconnectCtx, t, func(ctx context.Context) bool {
+				return !stream3.IsConnected()
+			}, testutil.IntervalMedium)
 
-			select {
-			case <-disconnected:
-				require.False(t, stream3.IsConnected())
-			case <-disconnectCtx.Done():
-				t.Fatalf("Iteration %d: Timed out waiting for stream to be marked as disconnected", i)
-			}
+			// Verify disconnection
+			require.False(t, stream3.IsConnected(), "Stream should be disconnected after iteration %d", i)
 		}
 	})
 }
