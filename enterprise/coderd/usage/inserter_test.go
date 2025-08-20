@@ -12,7 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	agplusage "github.com/coder/coder/v2/coderd/usage"
+	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/enterprise/coderd/usage"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -33,37 +33,37 @@ func TestInserter(t *testing.T) {
 		now := dbtime.Now()
 		events := []struct {
 			time  time.Time
-			event agplusage.DiscreteEvent
+			event usagetypes.DiscreteEvent
 		}{
 			{
 				time: now,
-				event: agplusage.DCManagedAgentsV1{
+				event: usagetypes.DCManagedAgentsV1{
 					Count: 1,
 				},
 			},
 			{
 				time: now.Add(1 * time.Minute),
-				event: agplusage.DCManagedAgentsV1{
+				event: usagetypes.DCManagedAgentsV1{
 					Count: 2,
 				},
 			},
 		}
 
-		for _, event := range events {
-			eventJSON := jsoninate(t, event.event)
+		for _, e := range events {
+			eventJSON := jsoninate(t, e.event)
 			db.EXPECT().InsertUsageEvent(gomock.Any(), gomock.Any()).DoAndReturn(
-				func(ctx any, params database.InsertUsageEventParams) error {
+				func(ctx interface{}, params database.InsertUsageEventParams) error {
 					_, err := uuid.Parse(params.ID)
 					assert.NoError(t, err)
-					assert.Equal(t, string(event.event.EventType()), params.EventType)
+					assert.Equal(t, e.event.EventType(), usagetypes.UsageEventType(params.EventType))
 					assert.JSONEq(t, eventJSON, string(params.EventData))
-					assert.Equal(t, event.time, params.CreatedAt)
+					assert.Equal(t, e.time, params.CreatedAt)
 					return nil
 				},
 			).Times(1)
 
-			clock.Set(event.time)
-			err := inserter.InsertDiscreteUsageEvent(ctx, db, event.event)
+			clock.Set(e.time)
+			err := inserter.InsertDiscreteUsageEvent(ctx, db, e.event)
 			require.NoError(t, err)
 		}
 	})
@@ -77,7 +77,7 @@ func TestInserter(t *testing.T) {
 
 		// We should get an error if the event is invalid.
 		inserter := usage.NewDBInserter()
-		err := inserter.InsertDiscreteUsageEvent(ctx, db, agplusage.DCManagedAgentsV1{
+		err := inserter.InsertDiscreteUsageEvent(ctx, db, usagetypes.DCManagedAgentsV1{
 			Count: 0, // invalid
 		})
 		assert.ErrorContains(t, err, `invalid "dc_managed_agents_v1" event: count must be greater than 0`)
