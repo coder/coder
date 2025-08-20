@@ -26,7 +26,7 @@ const meta: Meta<typeof OrganizationProvisionersPageView> = {
 			{
 				...MockUserProvisioner,
 				status: "offline",
-			}
+			},
 		],
 		filter: {
 			ids: "",
@@ -85,6 +85,6 @@ export const FilterByOffline: Story = {
 		filter: {
 			ids: "",
 			offline: false,
-		}
-	}
-}
+		},
+	},
+};

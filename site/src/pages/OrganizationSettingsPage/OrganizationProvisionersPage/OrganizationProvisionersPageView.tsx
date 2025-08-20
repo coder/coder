@@ -104,7 +104,8 @@ export const OrganizationProvisionersPageView: FC<
 					documentationLink={docs("/")}
 				/>
 			) : (
-				<><div className="flex items-center gap-2 mb-6">
+				<>
+					<div className="flex items-center gap-2 mb-6">
 						<Checkbox
 							id="offline-filter"
 							checked={filter.offline}
@@ -113,70 +114,80 @@ export const OrganizationProvisionersPageView: FC<
 									...filter,
 									offline: checked === true,
 								});
-							} } />
+							}}
+						/>
 						<label
 							htmlFor="offline-filter"
 							className="text-sm font-medium leading-none"
 						>
 							Include offline provisioners
 						</label>
-					</div><Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>Name</TableHead>
-									<TableHead>Key</TableHead>
-									<TableHead>Version</TableHead>
-									<TableHead>Status</TableHead>
-									<TableHead>Tags</TableHead>
-									<TableHead>
-										<LastConnectionHead />
-									</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{provisioners ? (
-									provisioners.length > 0 ? (
-										provisioners.map((provisioner) => (
-											<ProvisionerRow
-												provisioner={provisioner}
-												key={provisioner.id}
-												buildVersion={buildVersion}
-												defaultIsOpen={filter.ids.includes(provisioner.id)} />
-										))
-									) : (
-										<TableRow>
-											<TableCell colSpan={999}>
-												<EmptyState
-													message="No provisioners found"
-													description="A provisioner is required before you can create templates and workspaces. You can connect your first provisioner by following our documentation."
-													cta={<Button size="sm" asChild>
+					</div>
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead>Name</TableHead>
+								<TableHead>Key</TableHead>
+								<TableHead>Version</TableHead>
+								<TableHead>Status</TableHead>
+								<TableHead>Tags</TableHead>
+								<TableHead>
+									<LastConnectionHead />
+								</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{provisioners ? (
+								provisioners.length > 0 ? (
+									provisioners.map((provisioner) => (
+										<ProvisionerRow
+											provisioner={provisioner}
+											key={provisioner.id}
+											buildVersion={buildVersion}
+											defaultIsOpen={filter.ids.includes(provisioner.id)}
+										/>
+									))
+								) : (
+									<TableRow>
+										<TableCell colSpan={999}>
+											<EmptyState
+												message="No provisioners found"
+												description="A provisioner is required before you can create templates and workspaces. You can connect your first provisioner by following our documentation."
+												cta={
+													<Button size="sm" asChild>
 														<a href={docs("/admin/provisioners")}>
 															Create a provisioner
 															<SquareArrowOutUpRightIcon />
 														</a>
-													</Button>} />
-											</TableCell>
-										</TableRow>
-									)
-								) : error ? (
-									<TableRow>
-										<TableCell colSpan={999}>
-											<EmptyState
-												message="Error loading the provisioner jobs"
-												cta={<Button onClick={onRetry} size="sm">
+													</Button>
+												}
+											/>
+										</TableCell>
+									</TableRow>
+								)
+							) : error ? (
+								<TableRow>
+									<TableCell colSpan={999}>
+										<EmptyState
+											message="Error loading the provisioner jobs"
+											cta={
+												<Button onClick={onRetry} size="sm">
 													Retry
-												</Button>} />
-										</TableCell>
-									</TableRow>
-								) : (
-									<TableRow>
-										<TableCell colSpan={999}>
-											<Loader />
-										</TableCell>
-									</TableRow>
-								)}
-							</TableBody>
-						</Table></>
+												</Button>
+											}
+										/>
+									</TableCell>
+								</TableRow>
+							) : (
+								<TableRow>
+									<TableCell colSpan={999}>
+										<Loader />
+									</TableCell>
+								</TableRow>
+							)}
+						</TableBody>
+					</Table>
+				</>
 			)}
 		</section>
 	);
