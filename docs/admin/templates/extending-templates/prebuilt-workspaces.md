@@ -29,6 +29,7 @@ Prebuilt workspaces are tightly integrated with [workspace presets](./parameters
 1. The preset must define all required parameters needed to build the workspace.
 1. The preset parameters define the base configuration and are immutable once a prebuilt workspace is provisioned.
 1. Parameters that are not defined in the preset can still be customized by users when they claim a workspace.
+1. If a user does not select a preset but provides parameters that match one or more presets, Coder will automatically select the most specific matching preset and assign a prebuilt workspace if one is available.
 
 ## Prerequisites
 
@@ -290,16 +291,6 @@ Once a prebuilt workspace has been claimed, and if its template uses `ignore_cha
 does not reconnect after a template update. This shortcoming is described in [this issue](https://github.com/coder/coder/issues/17840)
 and will be addressed before the next release (v2.23). In the interim, a simple workaround is to restart the workspace
 when it is in this problematic state.
-
-### Current limitations
-
-The prebuilt workspaces feature has these current limitations:
-
-- **Organizations**
-
-  Prebuilt workspaces can only be used with the default organization.
-
-  [View issue](https://github.com/coder/internal/issues/364)
 
 ### Monitoring and observability
 
