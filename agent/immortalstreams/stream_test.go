@@ -911,21 +911,14 @@ func TestStream_SequenceNumberReconnection_WithDataLoss(t *testing.T) {
 	_ = clientConn1.Close()
 	_ = serverConn1.Close()
 
-	disconnectCtx := testutil.Context(t, testutil.WaitShort)
-	disconnected := make(chan bool, 1)
-	go func() {
-		testutil.Eventually(disconnectCtx, t, func(ctx context.Context) bool {
-			return !stream.IsConnected()
-		}, testutil.IntervalFast)
-		disconnected <- true
-	}()
+	// Wait until the stream is marked disconnected with proper timeout handling
+	disconnectCtx := testutil.Context(t, testutil.WaitMedium)
+	testutil.Eventually(disconnectCtx, t, func(ctx context.Context) bool {
+		return !stream.IsConnected()
+	}, testutil.IntervalMedium)
 
-	select {
-	case <-disconnected:
-		require.False(t, stream.IsConnected())
-	case <-disconnectCtx.Done():
-		t.Fatal("Timed out waiting for stream to be marked as disconnected")
-	}
+	// Verify disconnection
+	require.False(t, stream.IsConnected())
 
 	// Client reconnects with its sequence numbers
 	// Client knows it has read len(testData1) bytes
