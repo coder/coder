@@ -157,7 +157,6 @@ export const OrganizationProvisionersPageView: FC<
 													<Button size="sm" asChild>
 														<Link href={docs("/admin/provisioners")}>
 															Create a provisioner
-															<SquareArrowOutUpRightIcon />
 														</Link>
 													</Button>
 												}
