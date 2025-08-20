@@ -451,7 +451,6 @@ func (s *Stream) startCopyingLocked() {
 
 			// Use a buffer for copying
 			n, err := s.pipe.Read(buf)
-
 			if err != nil {
 				// Check for fatal errors that should terminate the goroutine
 				if xerrors.Is(err, io.ErrClosedPipe) {

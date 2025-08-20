@@ -495,7 +495,7 @@ func TestStream_ReconnectionScenarios(t *testing.T) {
 				// Use context-aware copying to prevent hangs
 				go func() {
 					<-serverCtx.Done()
-					c.Close()
+					_ = c.Close()
 				}()
 				_, _ = io.Copy(c, c)
 			}(conn)
@@ -707,7 +707,6 @@ func TestStream_ReconnectionScenarios(t *testing.T) {
 			}
 		}
 	})
-
 }
 
 func TestStream_SequenceNumberReconnection_WithSequenceNumbers(t *testing.T) {
@@ -874,7 +873,7 @@ func TestStream_SequenceNumberReconnection_WithDataLoss(t *testing.T) {
 				// Use context-aware copying to prevent hangs
 				go func() {
 					<-serverCtx.Done()
-					c.Close()
+					_ = c.Close()
 				}()
 				_, _ = io.Copy(c, c)
 			}(conn)
