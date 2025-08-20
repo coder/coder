@@ -1552,8 +1552,11 @@ func TestUpdateSystemUser(t *testing.T) {
 
 	// When: attempting to update a system user's name.
 	_, err = db.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
-		ID:   systemUser.ID,
-		Name: "not prebuilds",
+		ID:        systemUser.ID,
+		Email:     systemUser.Email,
+		Username:  systemUser.Username,
+		AvatarURL: systemUser.AvatarURL,
+		Name:      "not prebuilds",
 	})
 	// Then: the attempt is rejected by a postgres trigger.
 	// require.ErrorContains(t, err, "Cannot modify or delete system users")
