@@ -188,16 +188,17 @@ func NewStream(id uuid.UUID, name string, port int, logger slog.Logger) *Stream 
 				stream.mu.Lock()
 				closed := stream.closed
 				handshaking := stream.handshakePending
-				canReconnect := stream.pipe != nil && !stream.pipe.Connected()
+				streamDisconnected := !stream.connected
+				pipeDisconnected := stream.pipe != nil && !stream.pipe.Connected()
+				// Can reconnect if either the stream OR the pipe is disconnected
+				canReconnect := stream.pipe != nil && (streamDisconnected || pipeDisconnected)
 				stream.mu.Unlock()
 				if closed || handshaking || !canReconnect {
 					// Nothing to do now; wait for a future poke.
 					continue
 				}
 				// BackedPipe handles singleflight internally.
-				stream.logger.Debug(context.Background(), "worker calling ForceReconnect")
-				err := stream.pipe.ForceReconnect()
-				stream.logger.Debug(context.Background(), "worker ForceReconnect returned", slog.Error(err))
+				_ = stream.pipe.ForceReconnect()
 				// Wake any waiters to re-check state after attempt completes.
 				stream.mu.Lock()
 				if stream.reconnectCond != nil {
@@ -298,10 +299,6 @@ func (s *Stream) HandleReconnect(clientConn io.ReadWriteCloser, readSeqNum uint6
 		requestReconnect()
 
 		// Wait until state changes: pendingReconnect set, connection established, or closed.
-		s.logger.Debug(context.Background(), "waiting for pending request or connection change",
-			slog.F("pending", s.pendingReconnect != nil),
-			slog.F("connected", s.connected),
-			slog.F("closed", s.closed))
 		s.reconnectCond.Wait()
 		// Loop will re-check conditions under lock to avoid lost wakeups.
 	}
@@ -551,4 +548,6 @@ func (s *Stream) SignalDisconnect() {
 // ForceDisconnect forces the stream to be marked as disconnected (for testing)
 func (s *Stream) ForceDisconnect() {
 	s.handleDisconnect()
+	// Also signal disconnection to trigger proper cleanup and reconnection readiness
+	s.SignalDisconnect()
 }
