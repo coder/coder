@@ -42,6 +42,7 @@ import (
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	entaudit "github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
@@ -2765,6 +2766,114 @@ func TestPrebuildUpdateLifecycleParams(t *testing.T) {
 			tc.assertUpdate(t, clock, client, claimedWorkspace.ID)
 		})
 	}
+}
+
+func TestPrebuildActivityBump(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	clock.Set(dbtime.Now())
+
+	// Setup
+	log := testutil.Logger(t)
+	client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			Clock:                    clock,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspacePrebuilds: 1,
+			},
+		},
+	})
+
+	// Given: a template and a template version with preset and a prebuilt workspace
+	presetID := uuid.New()
+	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	// Configure activity bump on the template
+	activityBump := time.Hour
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+		ctr.ActivityBumpMillis = ptr.Ref[int64](activityBump.Milliseconds())
+	})
+	dbgen.Preset(t, db, database.InsertPresetParams{
+		ID:                presetID,
+		TemplateVersionID: version.ID,
+		DesiredInstances:  sql.NullInt32{Int32: 1, Valid: true},
+	})
+	// Given: a prebuild with an expired Deadline
+	deadline := clock.Now().Add(-30 * time.Minute)
+	wb := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:    database.PrebuildsSystemUserID,
+		TemplateID: template.ID,
+	}).Seed(database.WorkspaceBuild{
+		TemplateVersionID: version.ID,
+		TemplateVersionPresetID: uuid.NullUUID{
+			UUID:  presetID,
+			Valid: true,
+		},
+		Deadline: deadline,
+	}).WithAgent(func(agent []*proto.Agent) []*proto.Agent {
+		return agent
+	}).Do()
+
+	// Mark the prebuilt workspace's agent as ready so the prebuild can be claimed
+	// nolint:gocritic
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
+	agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, uuid.MustParse(wb.AgentToken))
+	require.NoError(t, err)
+	err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+		ID:             agent.WorkspaceAgent.ID,
+		LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+	})
+	require.NoError(t, err)
+
+	// Given: a prebuilt workspace with a Deadline and an empty MaxDeadline
+	prebuild := coderdtest.MustWorkspace(t, client, wb.Workspace.ID)
+	require.Equal(t, deadline.UTC(), prebuild.LatestBuild.Deadline.Time.UTC())
+	require.Zero(t, prebuild.LatestBuild.MaxDeadline)
+
+	// When: activity bump is applied to an unclaimed prebuild
+	workspacestats.ActivityBumpWorkspace(ctx, log, db, prebuild.ID, clock.Now().Add(10*time.Hour))
+
+	// Then: prebuild Deadline/MaxDeadline remain unchanged
+	prebuild = coderdtest.MustWorkspace(t, client, wb.Workspace.ID)
+	require.Equal(t, deadline.UTC(), prebuild.LatestBuild.Deadline.Time.UTC())
+	require.Zero(t, prebuild.LatestBuild.MaxDeadline)
+
+	// Given: the prebuilt workspace is claimed by a user
+	user, err := client.User(ctx, "testUser")
+	require.NoError(t, err)
+	claimedWorkspace, err := client.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
+		TemplateVersionID:       version.ID,
+		TemplateVersionPresetID: presetID,
+		Name:                    coderdtest.RandomUsername(t),
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, claimedWorkspace.LatestBuild.ID)
+	workspace := coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)
+	require.Equal(t, prebuild.ID, workspace.ID)
+	// Claimed workspaces have an empty Deadline and MaxDeadline
+	require.Zero(t, workspace.LatestBuild.Deadline)
+	require.Zero(t, workspace.LatestBuild.MaxDeadline)
+
+	// Given: the claimed workspace has an expired Deadline
+	err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+		ID:        workspace.LatestBuild.ID,
+		Deadline:  deadline,
+		UpdatedAt: clock.Now(),
+	})
+	require.NoError(t, err)
+	workspace = coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)
+
+	// When: activity bump is applied to a claimed prebuild
+	workspacestats.ActivityBumpWorkspace(ctx, log, db, workspace.ID, clock.Now().Add(10*time.Hour))
+
+	// Then: Deadline is extended by the activity bump, MaxDeadline remains unset
+	workspace = coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)
+	require.WithinDuration(t, clock.Now().Add(activityBump).UTC(), workspace.LatestBuild.Deadline.Time.UTC(), testutil.WaitMedium)
+	require.Zero(t, workspace.LatestBuild.MaxDeadline)
 }
 
 // TestWorkspaceTemplateParamsChange tests a workspace with a parameter that
