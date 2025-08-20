@@ -177,21 +177,11 @@ export const LoadedTasksWithAIPromptPresets: Story = {
 
 export const LoadedTasksWaitingForInput: Story = {
 	beforeEach: () => {
-		const [firstTask, ...otherTasks] = MockTasks;
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API.experimental, "getTasks").mockResolvedValue([
-			{
-				...firstTask,
-				workspace: {
-					...firstTask.workspace,
-					latest_app_status: {
-						...firstTask.workspace.latest_app_status,
-						state: "idle" as const,
-					},
-				},
-			},
-			...otherTasks,
-		]);
+
+		const tasks = structuredClone(MockTasks);
+		tasks[0].workspace.latest_app_status.state = "idle";
+		spyOn(API.experimental, "getTasks").mockResolvedValue(tasks);
 	},
 };
 
