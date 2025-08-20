@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/coder/v2/buildinfo"
@@ -21,10 +22,12 @@ import (
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/enterprise/coderd/connectionlog"
 	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
 	"github.com/coder/coder/v2/enterprise/coderd/portsharing"
+	"github.com/coder/coder/v2/enterprise/coderd/usage"
 	"github.com/coder/quartz"
 
 	"golang.org/x/xerrors"
@@ -89,6 +92,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	if options.Entitlements == nil {
 		options.Entitlements = entitlements.New()
+	}
+	if options.Options.UsageInserter == nil {
+		options.Options.UsageInserter = &atomic.Pointer[agplusage.Inserter]{}
+	}
+	if options.Options.UsageInserter.Load() == nil {
+		collector := usage.NewDBInserter()
+		options.Options.UsageInserter.Store(&collector)
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)

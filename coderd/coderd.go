@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 
 	"github.com/andybalholm/brotli"
@@ -204,6 +205,7 @@ type Options struct {
 	TemplateScheduleStore          *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore    *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	AccessControlStore             *atomic.Pointer[dbauthz.AccessControlStore]
+	UsageInserter                  *atomic.Pointer[usage.Inserter]
 	// CoordinatorResumeTokenProvider is used to provide and validate resume
 	// tokens issued by and passed to the coordinator DRPC API.
 	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
@@ -329,6 +331,9 @@ func New(options *Options) *API {
 		})
 	}
 
+	if options.PrometheusRegistry == nil {
+		options.PrometheusRegistry = prometheus.NewRegistry()
+	}
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 		if buildinfo.IsDev() {
@@ -385,9 +390,6 @@ func New(options *Options) *API {
 	if options.FilesRateLimit == 0 {
 		options.FilesRateLimit = 12
 	}
-	if options.PrometheusRegistry == nil {
-		options.PrometheusRegistry = prometheus.NewRegistry()
-	}
 	if options.Clock == nil {
 		options.Clock = quartz.NewReal()
 	}
@@ -431,6 +433,13 @@ func New(options *Options) *API {
 	if options.UserQuietHoursScheduleStore.Load() == nil {
 		v := schedule.NewAGPLUserQuietHoursScheduleStore()
 		options.UserQuietHoursScheduleStore.Store(&v)
+	}
+	if options.UsageInserter == nil {
+		options.UsageInserter = &atomic.Pointer[usage.Inserter]{}
+	}
+	if options.UsageInserter.Load() == nil {
+		inserter := usage.NewAGPLInserter()
+		options.UsageInserter.Store(&inserter)
 	}
 	if options.OneTimePasscodeValidityPeriod == 0 {
 		options.OneTimePasscodeValidityPeriod = 20 * time.Minute
@@ -594,6 +603,7 @@ func New(options *Options) *API {
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
 		BuildUsageChecker:           &buildUsageChecker,
+		UsageInserter:               options.UsageInserter,
 		FileCache:                   files.New(options.PrometheusRegistry, options.Authorizer),
 		Experiments:                 experiments,
 		WebpushDispatcher:           options.WebPushDispatcher,
@@ -1701,6 +1711,9 @@ type API struct {
 	// BuildUsageChecker is a pointer as it's passed around to multiple
 	// components.
 	BuildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker]
+	// UsageInserter is a pointer to an atomic pointer because it is passed to
+	// multiple components.
+	UsageInserter *atomic.Pointer[usage.Inserter]
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 
@@ -1919,6 +1932,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		&api.Auditor,
 		api.TemplateScheduleStore,
 		api.UserQuietHoursScheduleStore,
+		api.UsageInserter,
 		api.DeploymentValues,
 		provisionerdserver.Options{
 			OIDCConfig:          api.OIDCConfig,

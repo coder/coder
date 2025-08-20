@@ -42,6 +42,7 @@ import (
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	entaudit "github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
@@ -569,7 +570,6 @@ func TestCreateUserWorkspace(t *testing.T) {
 			return a
 		}).Do()
 
-		// nolint:gocritic // this is a test
 		ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
 		agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, uuid.MustParse(r.AgentToken))
 		require.NoError(t, err)
@@ -1122,7 +1122,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Simulate the workspace being dormant beyond the threshold.
 		tickTime2 := ws.DormantAt.Add(2 * transitionTTL)
-		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime2)
 		ticker <- tickTime2
 		stats = <-statCh
 		require.Len(t, stats.Transitions, 1)
@@ -1277,7 +1277,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// We should see the workspace get stopped now.
 		tickTime2 := ws.LastUsedAt.Add(inactiveTTL * 2)
-		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime2)
 		tickCh <- tickTime2
 		stats = <-statsCh
 		require.Len(t, stats.Errors, 0)
@@ -1481,7 +1481,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Force an autostart transition again.
 		tickTime2 := sched.Next(firstBuild.CreatedAt)
-		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime2)
 		tickCh <- tickTime2
 		stats = <-statsCh
 		require.Len(t, stats.Errors, 0)
@@ -1707,7 +1707,6 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// We want to test the database nullifies the NextStartAt so we
 		// make a raw DB call here. We pass in NextStartAt here so we
 		// can test the database will nullify it and not us.
-		//nolint: gocritic // We need system context to modify this.
 		err = db.UpdateWorkspaceAutostart(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAutostartParams{
 			ID:                ws.ID,
 			AutostartSchedule: sql.NullString{Valid: true, String: sched.String()},
@@ -2719,7 +2718,6 @@ func TestPrebuildUpdateLifecycleParams(t *testing.T) {
 			}).Do()
 
 			// Mark the prebuilt workspace's agent as ready so the prebuild can be claimed
-			// nolint:gocritic
 			ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
 			agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, uuid.MustParse(workspaceBuild.AgentToken))
 			require.NoError(t, err)
@@ -2765,6 +2763,114 @@ func TestPrebuildUpdateLifecycleParams(t *testing.T) {
 			tc.assertUpdate(t, clock, client, claimedWorkspace.ID)
 		})
 	}
+}
+
+func TestPrebuildActivityBump(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	clock.Set(dbtime.Now())
+
+	// Setup
+	log := testutil.Logger(t)
+	client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			Clock:                    clock,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspacePrebuilds: 1,
+			},
+		},
+	})
+
+	// Given: a template and a template version with preset and a prebuilt workspace
+	presetID := uuid.New()
+	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	// Configure activity bump on the template
+	activityBump := time.Hour
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+		ctr.ActivityBumpMillis = ptr.Ref[int64](activityBump.Milliseconds())
+	})
+	dbgen.Preset(t, db, database.InsertPresetParams{
+		ID:                presetID,
+		TemplateVersionID: version.ID,
+		DesiredInstances:  sql.NullInt32{Int32: 1, Valid: true},
+	})
+	// Given: a prebuild with an expired Deadline
+	deadline := clock.Now().Add(-30 * time.Minute)
+	wb := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:    database.PrebuildsSystemUserID,
+		TemplateID: template.ID,
+	}).Seed(database.WorkspaceBuild{
+		TemplateVersionID: version.ID,
+		TemplateVersionPresetID: uuid.NullUUID{
+			UUID:  presetID,
+			Valid: true,
+		},
+		Deadline: deadline,
+	}).WithAgent(func(agent []*proto.Agent) []*proto.Agent {
+		return agent
+	}).Do()
+
+	// Mark the prebuilt workspace's agent as ready so the prebuild can be claimed
+	// nolint:gocritic
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
+	agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, uuid.MustParse(wb.AgentToken))
+	require.NoError(t, err)
+	err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+		ID:             agent.WorkspaceAgent.ID,
+		LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+	})
+	require.NoError(t, err)
+
+	// Given: a prebuilt workspace with a Deadline and an empty MaxDeadline
+	prebuild := coderdtest.MustWorkspace(t, client, wb.Workspace.ID)
+	require.Equal(t, deadline.UTC(), prebuild.LatestBuild.Deadline.Time.UTC())
+	require.Zero(t, prebuild.LatestBuild.MaxDeadline)
+
+	// When: activity bump is applied to an unclaimed prebuild
+	workspacestats.ActivityBumpWorkspace(ctx, log, db, prebuild.ID, clock.Now().Add(10*time.Hour))
+
+	// Then: prebuild Deadline/MaxDeadline remain unchanged
+	prebuild = coderdtest.MustWorkspace(t, client, wb.Workspace.ID)
+	require.Equal(t, deadline.UTC(), prebuild.LatestBuild.Deadline.Time.UTC())
+	require.Zero(t, prebuild.LatestBuild.MaxDeadline)
+
+	// Given: the prebuilt workspace is claimed by a user
+	user, err := client.User(ctx, "testUser")
+	require.NoError(t, err)
+	claimedWorkspace, err := client.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
+		TemplateVersionID:       version.ID,
+		TemplateVersionPresetID: presetID,
+		Name:                    coderdtest.RandomUsername(t),
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, claimedWorkspace.LatestBuild.ID)
+	workspace := coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)
+	require.Equal(t, prebuild.ID, workspace.ID)
+	// Claimed workspaces have an empty Deadline and MaxDeadline
+	require.Zero(t, workspace.LatestBuild.Deadline)
+	require.Zero(t, workspace.LatestBuild.MaxDeadline)
+
+	// Given: the claimed workspace has an expired Deadline
+	err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+		ID:        workspace.LatestBuild.ID,
+		Deadline:  deadline,
+		UpdatedAt: clock.Now(),
+	})
+	require.NoError(t, err)
+	workspace = coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)
+
+	// When: activity bump is applied to a claimed prebuild
+	workspacestats.ActivityBumpWorkspace(ctx, log, db, workspace.ID, clock.Now().Add(10*time.Hour))
+
+	// Then: Deadline is extended by the activity bump, MaxDeadline remains unset
+	workspace = coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)
+	require.WithinDuration(t, clock.Now().Add(activityBump).UTC(), workspace.LatestBuild.Deadline.Time.UTC(), testutil.WaitMedium)
+	require.Zero(t, workspace.LatestBuild.MaxDeadline)
 }
 
 // TestWorkspaceTemplateParamsChange tests a workspace with a parameter that
@@ -3613,7 +3719,6 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		require.Equal(t, ws.LatestBuild.MatchedProvisioners.Available, 0)
 
 		// Verify that the provisioner daemon is registered in the database
-		//nolint:gocritic // unit testing
 		daemons, err := db.GetProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
 		require.NoError(t, err)
 		require.Equal(t, 1, len(daemons))
@@ -3649,7 +3754,6 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 
 		ctx = testutil.Context(t, testutil.WaitLong) // Reset the context to avoid timeouts.
 
-		// nolint:gocritic // unit testing
 		daemons, err := db.GetProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
 		require.NoError(t, err)
 		require.Equal(t, len(daemons), 1)
@@ -3659,8 +3763,6 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		require.NoError(t, err)
 
 		// Simulate it's subsequent deletion from the database:
-
-		// nolint:gocritic // unit testing
 		_, err = db.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.UpsertProvisionerDaemonParams{
 			Name:           daemons[0].Name,
 			OrganizationID: daemons[0].OrganizationID,
@@ -3678,7 +3780,6 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		// nolint:gocritic // unit testing
 		err = db.DeleteOldProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
 		require.NoError(t, err)
 
@@ -3689,7 +3790,6 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Count, 0)
 		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Available, 0)
 
-		// nolint:gocritic // unit testing
 		_, err = client.WorkspaceByOwnerAndName(dbauthz.As(ctx, userSubject), username, workspace.Name, codersdk.WorkspaceOptions{})
 		require.NoError(t, err)
 		require.Equal(t, workspace.LatestBuild.Status, codersdk.WorkspaceStatusPending)
@@ -3726,7 +3826,6 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 
 		ctx = testutil.Context(t, testutil.WaitLong) // Reset the context to avoid timeouts.
 
-		// nolint:gocritic // unit testing
 		daemons, err := db.GetProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
 		require.NoError(t, err)
 		require.Equal(t, len(daemons), 1)
@@ -3735,7 +3834,6 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		err = closer.Close()
 		require.NoError(t, err)
 
-		// nolint:gocritic // unit testing
 		_, err = db.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.UpsertProvisionerDaemonParams{
 			Name:           daemons[0].Name,
 			OrganizationID: daemons[0].OrganizationID,

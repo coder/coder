@@ -1675,6 +1675,8 @@ func TestAPI(t *testing.T) {
 
 		coderBin, err := os.Executable()
 		require.NoError(t, err)
+		coderBin, err = filepath.EvalSymlinks(coderBin)
+		require.NoError(t, err)
 
 		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
 			Containers: []codersdk.WorkspaceAgentContainer{testContainer},
@@ -2455,6 +2457,8 @@ func TestAPI(t *testing.T) {
 
 				coderBin, err := os.Executable()
 				require.NoError(t, err)
+				coderBin, err = filepath.EvalSymlinks(coderBin)
+				require.NoError(t, err)
 
 				// Mock the `List` function to always return out test container.
 				mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
@@ -2548,6 +2552,8 @@ func TestAPI(t *testing.T) {
 		)
 
 		coderBin, err := os.Executable()
+		require.NoError(t, err)
+		coderBin, err = filepath.EvalSymlinks(coderBin)
 		require.NoError(t, err)
 
 		// Mock the `List` function to always return out test container.
@@ -2653,6 +2659,8 @@ func TestAPI(t *testing.T) {
 		)
 
 		coderBin, err := os.Executable()
+		require.NoError(t, err)
+		coderBin, err = filepath.EvalSymlinks(coderBin)
 		require.NoError(t, err)
 
 		// Mock the `List` function to always return our test container.

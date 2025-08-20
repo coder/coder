@@ -163,7 +163,7 @@ func TestSubAgentAPI(t *testing.T) {
 					agentID, err := uuid.FromBytes(createResp.Agent.Id)
 					require.NoError(t, err)
 
-					agent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
+					agent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID)
 					require.NoError(t, err)
 
 					assert.Equal(t, tt.agentName, agent.Name)
@@ -621,7 +621,7 @@ func TestSubAgentAPI(t *testing.T) {
 				agentID, err := uuid.FromBytes(createResp.Agent.Id)
 				require.NoError(t, err)
 
-				apps, err := api.Database.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
+				apps, err := api.Database.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), agentID)
 				require.NoError(t, err)
 
 				// Sort the apps for determinism
@@ -751,7 +751,7 @@ func TestSubAgentAPI(t *testing.T) {
 			agentID, err := uuid.FromBytes(createResp.Agent.Id)
 			require.NoError(t, err)
 
-			apps, err := db.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
+			apps, err := db.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), agentID)
 			require.NoError(t, err)
 			require.Len(t, apps, 1)
 			require.Equal(t, "k5jd7a99-duplicate-slug", apps[0].Slug)
@@ -789,7 +789,7 @@ func TestSubAgentAPI(t *testing.T) {
 			require.NoError(t, err)
 
 			// Then: It is deleted.
-			_, err = db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), childAgent.ID) //nolint:gocritic // this is a test.
+			_, err = db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), childAgent.ID)
 			require.ErrorIs(t, err, sql.ErrNoRows)
 		})
 
@@ -830,10 +830,10 @@ func TestSubAgentAPI(t *testing.T) {
 			require.NoError(t, err)
 
 			// Then: The correct one is deleted.
-			_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), childAgentOne.ID) //nolint:gocritic // this is a test.
+			_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), childAgentOne.ID)
 			require.ErrorIs(t, err, sql.ErrNoRows)
 
-			_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), childAgentTwo.ID) //nolint:gocritic // this is a test.
+			_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), childAgentTwo.ID)
 			require.NoError(t, err)
 		})
 
@@ -871,7 +871,7 @@ func TestSubAgentAPI(t *testing.T) {
 			var notAuthorizedError dbauthz.NotAuthorizedError
 			require.ErrorAs(t, err, &notAuthorizedError)
 
-			_, err = db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), childAgentOne.ID) //nolint:gocritic // this is a test.
+			_, err = db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), childAgentOne.ID)
 			require.NoError(t, err)
 		})
 
@@ -912,7 +912,7 @@ func TestSubAgentAPI(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify that the apps were created
-			apps, err := api.Database.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), subAgentID) //nolint:gocritic // this is a test.
+			apps, err := api.Database.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), subAgentID)
 			require.NoError(t, err)
 			require.Len(t, apps, 2)
 
@@ -923,7 +923,7 @@ func TestSubAgentAPI(t *testing.T) {
 			require.NoError(t, err)
 
 			// Then: The agent is deleted
-			_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), subAgentID) //nolint:gocritic // this is a test.
+			_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), subAgentID)
 			require.ErrorIs(t, err, sql.ErrNoRows)
 
 			// And: The apps are *retained* to avoid causing issues
@@ -1068,7 +1068,7 @@ func TestSubAgentAPI(t *testing.T) {
 					agentID, err := uuid.FromBytes(createResp.Agent.Id)
 					require.NoError(t, err)
 
-					subAgent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
+					subAgent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID)
 					require.NoError(t, err)
 
 					require.Equal(t, len(tt.expectedApps), len(subAgent.DisplayApps), "display apps count mismatch")
@@ -1118,14 +1118,14 @@ func TestSubAgentAPI(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify display apps
-		subAgent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
+		subAgent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID)
 		require.NoError(t, err)
 		require.Len(t, subAgent.DisplayApps, 2)
 		require.Equal(t, database.DisplayAppVscode, subAgent.DisplayApps[0])
 		require.Equal(t, database.DisplayAppWebTerminal, subAgent.DisplayApps[1])
 
 		// Verify regular apps
-		apps, err := api.Database.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
+		apps, err := api.Database.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), agentID)
 		require.NoError(t, err)
 		require.Len(t, apps, 1)
 		require.Equal(t, "v4qhkq17-custom-app", apps[0].Slug)
@@ -1190,7 +1190,7 @@ func TestSubAgentAPI(t *testing.T) {
 			})
 
 			// When: We list the sub agents.
-			listResp, err := api.ListSubAgents(ctx, &proto.ListSubAgentsRequest{}) //nolint:gocritic // this is a test.
+			listResp, err := api.ListSubAgents(ctx, &proto.ListSubAgentsRequest{})
 			require.NoError(t, err)
 
 			listedChildAgents := listResp.Agents
