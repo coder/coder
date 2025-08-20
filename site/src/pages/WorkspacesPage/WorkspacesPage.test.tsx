@@ -322,18 +322,20 @@ describe("WorkspacesPage", () => {
 		const getWorkspacesSpy = jest.spyOn(API, "getWorkspaces");
 
 		getWorkspacesSpy.mockImplementation(({ offset }) => {
-			if (offset === 0) {
-				return Promise.resolve({
-					workspaces: workspacesPage1,
-					count: totalWorkspaces,
-				});
-			} else if (offset === 25) {
-				return Promise.resolve({
-					workspaces: workspacesPage2,
-					count: totalWorkspaces,
-				});
+			switch (offset) {
+				case 0:
+					return Promise.resolve({
+						workspaces: workspacesPage1,
+						count: totalWorkspaces,
+					});
+				case 25:
+					return Promise.resolve({
+						workspaces: workspacesPage2,
+						count: totalWorkspaces,
+					});
+				default:
+					return Promise.reject(new Error("Unexpected offset"));
 			}
-			return Promise.reject(new Error("Unexpected offset"));
 		});
 
 		const user = userEvent.setup();
