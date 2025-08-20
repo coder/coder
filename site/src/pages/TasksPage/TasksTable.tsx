@@ -39,7 +39,7 @@ export const TasksTable: FC<TasksTableProps> = ({ tasks, error, onRetry }) => {
 	} else if (tasks.length === 0) {
 		body = <TasksEmpty />;
 	} else {
-		<Tasks tasks={tasks} />;
+		body = <Tasks tasks={tasks} />;
 	}
 
 	return (
