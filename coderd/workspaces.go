@@ -636,7 +636,7 @@ func createWorkspace(
 		)
 
 		// Use injected Clock to allow time mocking in tests
-		now := api.Clock.Now()
+		now := dbtime.Time(api.Clock.Now())
 
 		templateVersionPresetID := req.TemplateVersionPresetID
 
