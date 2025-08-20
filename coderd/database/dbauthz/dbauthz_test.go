@@ -750,9 +750,10 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 
 func (s *MethodTestSuite) TestLicense() {
 	s.Run("GetLicenses", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		l := database.License{ID: 1}
-		dbm.EXPECT().GetLicenses(gomock.Any()).Return([]database.License{l}, nil).AnyTimes()
-		check.Args().Asserts(l, policy.ActionRead).Returns([]database.License{l})
+		a := database.License{ID: 1}
+		b := database.License{ID: 2}
+		dbm.EXPECT().GetLicenses(gomock.Any()).Return([]database.License{a, b}, nil).AnyTimes()
+		check.Args().Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns([]database.License{a, b})
 	}))
 	s.Run("InsertLicense", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().InsertLicense(gomock.Any(), database.InsertLicenseParams{}).Return(database.License{}, nil).AnyTimes()
@@ -3446,9 +3447,10 @@ func (s *MethodTestSuite) TestProvisionerKeys() {
 	}))
 	s.Run("ListProvisionerKeysByOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		org := testutil.Fake(s.T(), faker, database.Organization{})
-		pk := testutil.Fake(s.T(), faker, database.ProvisionerKey{OrganizationID: org.ID})
-		dbm.EXPECT().ListProvisionerKeysByOrganization(gomock.Any(), org.ID).Return([]database.ProvisionerKey{pk}, nil).AnyTimes()
-		check.Args(org.ID).Asserts(pk, policy.ActionRead).Returns([]database.ProvisionerKey{pk})
+		a := testutil.Fake(s.T(), faker, database.ProvisionerKey{OrganizationID: org.ID})
+		b := testutil.Fake(s.T(), faker, database.ProvisionerKey{OrganizationID: org.ID})
+		dbm.EXPECT().ListProvisionerKeysByOrganization(gomock.Any(), org.ID).Return([]database.ProvisionerKey{a, b}, nil).AnyTimes()
+		check.Args(org.ID).Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns([]database.ProvisionerKey{a, b})
 	}))
 	s.Run("ListProvisionerKeysByOrganizationExcludeReserved", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		org := testutil.Fake(s.T(), faker, database.Organization{})
