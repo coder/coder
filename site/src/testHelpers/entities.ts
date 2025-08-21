@@ -992,6 +992,15 @@ export const MockWorkspaceSubAgent: TypesGen.WorkspaceAgent = {
 	],
 };
 
+export const MockWorkspaceUnhealthyAgent: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
+	id: "test-workspace-unhealthy-agent",
+	name: "a-workspace-unhealthy-agent",
+	status: "timeout",
+	lifecycle_state: "start_error",
+	health: { healthy: false },
+};
+
 export const MockWorkspaceAppStatus: TypesGen.WorkspaceAppStatus = {
 	id: "test-app-status",
 	created_at: "2022-05-17T17:39:01.382927298Z",
@@ -1448,7 +1457,13 @@ export const MockUnhealthyWorkspace: TypesGen.Workspace = {
 	id: "test-unhealthy-workspace",
 	health: {
 		healthy: false,
-		failing_agents: ["test-workspace-agent"],
+		failing_agents: [MockWorkspaceUnhealthyAgent.id],
+	},
+	latest_build: {
+		...MockWorkspace.latest_build,
+		resources: [
+			{ ...MockWorkspaceResource, agents: [MockWorkspaceUnhealthyAgent] },
+		],
 	},
 };
 export const MockStartingWorkspace: TypesGen.Workspace = {
