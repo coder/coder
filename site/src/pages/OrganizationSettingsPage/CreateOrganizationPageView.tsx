@@ -101,7 +101,7 @@ export const CreateOrganizationPageView: FC<
 					</Badges>
 
 					<header className="flex flex-col items-center">
-						<h1 className="text-3xl font-semibold m-0">New Organization</h1>
+						<h1 className="text-3xl font-semibold m-0">New Team</h1>
 						<p className="max-w-md text-sm text-content-secondary text-center">
 							Organize your deployment into multiple platform teams with unique
 							provisioners, templates, groups, and members.
@@ -155,7 +155,7 @@ export const CreateOrganizationPageView: FC<
 								<div className="flex flex-row gap-2">
 									<Button type="submit" disabled={form.isSubmitting}>
 										{form.isSubmitting && <Spinner />}
-										Save
+										Create team
 									</Button>
 									<Button
 										variant="outline"

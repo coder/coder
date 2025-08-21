@@ -49,6 +49,8 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	proxyContextValue,
 }) => {
 	const webPush = useWebpushNotifications();
+	const location = useLocation();
+	const hideUserMenus = location.pathname === "/organizations/new";
 
 	return (
 		<div className="border-0 border-b border-solid h-[72px] min-h-[72px] flex items-center leading-none px-6">
@@ -109,7 +111,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					}
 				/>
 
-				{user && (
+				{user && !hideUserMenus && (
 					<div className="hidden md:block">
 						<UserDropdown
 							user={user}
@@ -120,19 +122,21 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					</div>
 				)}
 
-				<div className="md:hidden">
-					<MobileMenu
-						proxyContextValue={proxyContextValue}
-						user={user}
-						supportLinks={supportLinks}
-						onSignOut={onSignOut}
-						canViewAuditLog={canViewAuditLog}
-						canViewConnectionLog={canViewConnectionLog}
-						canViewOrganizations={canViewOrganizations}
-						canViewDeployment={canViewDeployment}
-						canViewHealth={canViewHealth}
-					/>
-				</div>
+				{!hideUserMenus && (
+					<div className="md:hidden">
+						<MobileMenu
+							proxyContextValue={proxyContextValue}
+							user={user}
+							supportLinks={supportLinks}
+							onSignOut={onSignOut}
+							canViewAuditLog={canViewAuditLog}
+							canViewConnectionLog={canViewConnectionLog}
+							canViewOrganizations={canViewOrganizations}
+							canViewDeployment={canViewDeployment}
+							canViewHealth={canViewHealth}
+						/>
+					</div>
+				)}
 			</div>
 		</div>
 	);
