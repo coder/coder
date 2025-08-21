@@ -2242,7 +2242,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		// Wait for provisioner to be available for this specific workspace
-		coderdtest.MustWaitForProvisionersAvailable(t, db, prebuild)
+		coderdtest.MustWaitForProvisionersAvailable(t, db, prebuild, sched.Next(prebuild.LatestBuild.CreatedAt))
 
 		tickTime := sched.Next(prebuild.LatestBuild.CreatedAt).Add(time.Minute)
 		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
