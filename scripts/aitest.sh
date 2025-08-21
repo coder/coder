@@ -171,6 +171,17 @@ while ((iteration < MAX_ITERATIONS)); do
 	echo "$claude_output" >>"$LOG_FILE"
 	echo "" >>"$LOG_FILE"
 
+	# Check if Claude made any changes
+	if ! git status --porcelain | grep -q .; then
+		# No changes detected, check if this is the first iteration
+		if [[ $iteration -gt 1 ]]; then
+			error "No file changes detected after Claude's response. Bailing out."
+			echo "=== FAILURE: No changes made by Claude in iteration $iteration at $(date) ===" >>"$LOG_FILE"
+			exit 1
+		fi
+		warn "No changes detected, but this is the first iteration. Continuing..."
+	fi
+
 	# Detect what tests to run
 	test_type=$(detect_test_type)
 	log "Detected test requirements: $test_type"
