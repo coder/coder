@@ -559,13 +559,9 @@ else
 endif
 .PHONY: fmt/markdown
 
-# Note: we don't run zizmor in the lint target except in CI because it takes a
-#       while.
-ifdef CI
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/actions
-else
+# Note: we don't run zizmor in the lint target because it takes a while. CI
+#       runs it explicitly.
 lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/actions/actionlint
-endif
 .PHONY: lint
 
 lint/site-icons:

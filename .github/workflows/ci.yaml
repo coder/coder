@@ -209,7 +209,12 @@ jobs:
 
       - name: make lint
         run: |
-          make --output-sync=line -j lint
+          # zizmor isn't included in the lint target because it takes a while,
+          # but we explicitly want to run it in CI.
+          make --output-sync=line -j lint lint/actions/zizmor
+        env:
+          # Used by zizmor to lint third-party GitHub actions.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check workflow files
         run: |
