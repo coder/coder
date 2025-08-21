@@ -127,7 +127,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 			<Tooltip
 				classes={{
 					tooltip:
-						"ml-3 mb-1 max-w-[400px] p-4 text-sm text-content-primary bg-surface-secondary border border-solid border-border pointer-events-none",
+						"ml-3 mb-1 w-[400px] p-4 text-sm text-content-primary bg-surface-secondary border border-solid border-border pointer-events-none",
 				}}
 				title={
 					healthErrors.length > 0 ? (
