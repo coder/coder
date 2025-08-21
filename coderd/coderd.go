@@ -20,7 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/oauth2provider"
+	"github.com/coder/coder/v2/coderd/fositeprovider"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/usage"
@@ -210,11 +210,6 @@ type Options struct {
 	HealthcheckTimeout           time.Duration
 	HealthcheckRefresh           time.Duration
 	WorkspaceProxiesFetchUpdater *atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]
-
-	// OAuthSigningKey is the crypto key used to sign and encrypt state strings
-	// related to OAuth. This is a symmetric secret key using hmac to sign payloads.
-	// So this secret should **never** be exposed to the client.
-	OAuthSigningKey [32]byte
 
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
@@ -590,6 +585,7 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
+		OAuth2Provider:              fositeprovider.New(ctx, options.Logger, options.Database),
 		metricsCache:                metricsCache,
 		Auditor:                     atomic.Pointer[audit.Auditor]{},
 		ConnectionLogger:            atomic.Pointer[connectionlog.ConnectionLogger]{},
@@ -950,54 +946,64 @@ func New(options *Options) *API {
 	// OAuth2 protected resource metadata endpoint for RFC 9728 discovery
 	r.Get("/.well-known/oauth-protected-resource", api.oauth2ProtectedResourceMetadata())
 
+	// fosite oauth2 replacement
+	r.Route("/oauth2", func(r chi.Router) {
+		r.Group(func(r chi.Router) {
+			r.Use(apiKeyMiddlewareRedirect)
+			r.Get("/authorize", api.OAuth2Provider.ShowAuthorizationPage(api.AccessURL))
+			r.Post("/authorize", api.OAuth2Provider.AuthEndpoint)
+		})
+		r.Post("/tokens", api.OAuth2Provider.TokenEndpoint)
+	})
+
 	// OAuth2 linking routes do not make sense under the /api/v2 path.  These are
 	// for an external application to use Coder as an OAuth2 provider, not for
 	// logging into Coder with an external OAuth2 provider.
-	r.Route("/oauth2", func(r chi.Router) {
-		r.Use(
-			httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2),
-		)
-		r.Route("/authorize", func(r chi.Router) {
-			r.Use(
-				// Fetch the app as system for the authorize endpoint
-				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
-				apiKeyMiddlewareRedirect,
-			)
-			// GET shows the consent page, POST processes the consent
-			r.Get("/", api.getOAuth2ProviderAppAuthorize())
-			r.Post("/", api.postOAuth2ProviderAppAuthorize())
-		})
-		r.Route("/tokens", func(r chi.Router) {
-			r.Use(
-				// Use OAuth2-compliant error responses for the tokens endpoint
-				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
-			)
-			r.Group(func(r chi.Router) {
-				r.Use(apiKeyMiddleware)
-				// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
-				// route used to revoke permissions from an application.  It is here for
-				// parity with POST on /tokens.
-				r.Delete("/", api.deleteOAuth2ProviderAppTokens())
-			})
-			// The POST /tokens endpoint will be called from an unauthorized client so
-			// we cannot require an API key.
-			r.Post("/", api.postOAuth2ProviderAppToken())
-		})
-
-		// RFC 7591 Dynamic Client Registration - Public endpoint
-		r.Post("/register", api.postOAuth2ClientRegistration())
-
-		// RFC 7592 Client Configuration Management - Protected by registration access token
-		r.Route("/clients/{client_id}", func(r chi.Router) {
-			r.Use(
-				// Middleware to validate registration access token
-				oauth2provider.RequireRegistrationAccessToken(api.Database),
-			)
-			r.Get("/", api.oauth2ClientConfiguration())          // Read client configuration
-			r.Put("/", api.putOAuth2ClientConfiguration())       // Update client configuration
-			r.Delete("/", api.deleteOAuth2ClientConfiguration()) // Delete client
-		})
-	})
+	//r.Route("/oauth2", func(r chi.Router) {
+	//	r.Use(
+	//		httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2),
+	//	)
+	//	r.Route("/authorize", func(r chi.Router) {
+	//		r.Use(
+	//			// Fetch the app as system for the authorize endpoint
+	//			httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
+	//			apiKeyMiddlewareRedirect,
+	//		)
+	//		// GET shows the consent page, POST processes the consent
+	//		r.Get("/", api.getOAuth2ProviderAppAuthorize())
+	//		r.Post("/", api.postOAuth2ProviderAppAuthorize())
+	//	})
+	//	r.Route("/tokens", func(r chi.Router) {
+	//		r.Use(
+	//			// Use OAuth2-compliant error responses for the tokens endpoint
+	//			httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
+	//		)
+	//		r.Group(func(r chi.Router) {
+	//			r.Use(apiKeyMiddleware)
+	//			// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
+	//			// route used to revoke permissions from an application.  It is here for
+	//			// parity with POST on /tokens.
+	//			r.Delete("/", api.deleteOAuth2ProviderAppTokens())
+	//		})
+	//		// The POST /tokens endpoint will be called from an unauthorized client so
+	//		// we cannot require an API key.
+	//		r.Post("/", api.postOAuth2ProviderAppToken())
+	//	})
+	//
+	//	// RFC 7591 Dynamic Client Registration - Public endpoint
+	//	r.Post("/register", api.postOAuth2ClientRegistration())
+	//
+	//	// RFC 7592 Client Configuration Management - Protected by registration access token
+	//	r.Route("/clients/{client_id}", func(r chi.Router) {
+	//		r.Use(
+	//			// Middleware to validate registration access token
+	//			oauth2provider.RequireRegistrationAccessToken(api.Database),
+	//		)
+	//		r.Get("/", api.oauth2ClientConfiguration())          // Read client configuration
+	//		r.Put("/", api.putOAuth2ClientConfiguration())       // Update client configuration
+	//		r.Delete("/", api.deleteOAuth2ClientConfiguration()) // Delete client
+	//	})
+	//})
 
 	// Experimental routes are not guaranteed to be stable and may change at any time.
 	r.Route("/api/experimental", func(r chi.Router) {
@@ -1705,6 +1711,7 @@ type API struct {
 	UsageInserter *atomic.Pointer[usage.Inserter]
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
+	OAuth2Provider  *fositeprovider.Provider
 
 	HTTPAuth *HTTPAuthorizer
 
