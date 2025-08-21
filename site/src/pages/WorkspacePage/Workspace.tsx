@@ -17,7 +17,7 @@ import { ResourcesSidebar } from "./ResourcesSidebar";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import {
-	ActiveTransition,
+	getActiveTransitionStats,
 	WorkspaceBuildProgress,
 } from "./WorkspaceBuildProgress";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
@@ -68,7 +68,9 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const navigate = useNavigate();
 
 	const transitionStats =
-		template !== undefined ? ActiveTransition(template, workspace) : undefined;
+		template !== undefined
+			? getActiveTransitionStats(template, workspace)
+			: undefined;
 
 	const sidebarOption = useSearchParamsKey({ key: "sidebar" });
 	const setSidebarOption = (newOption: string) => {
