@@ -48,6 +48,7 @@ import (
 	"github.com/coder/quartz"
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
+	"github.com/coder/websocket"
 )
 
 const (
@@ -85,6 +86,10 @@ func (r *RootCmd) ssh() *serpent.Command {
 
 		containerName string
 		containerUser string
+
+		// Immortal streams flags
+		immortal         bool
+		immortalFallback bool // Default to false for SSH
 	)
 	client := new(codersdk.Client)
 	wsClient := workspacesdk.New(client)
@@ -387,11 +392,85 @@ func (r *RootCmd) ssh() *serpent.Command {
 			}
 
 			if stdio {
-				rawSSH, err := conn.SSH(ctx)
-				if err != nil {
-					return xerrors.Errorf("connect SSH: %w", err)
+				var rawSSH net.Conn
+				var immortalStreamClient *immortalStreamClient
+				var streamID *uuid.UUID
+
+				if immortal {
+					// Use immortal stream for SSH connection
+					immortalStreamClient = newImmortalStreamClient(client, workspaceAgent.ID, logger)
+
+					// Create immortal stream to agent SSH port (1)
+					stream, err := immortalStreamClient.createStream(ctx, 1)
+					if err != nil {
+						logger.Error(ctx, "failed to create immortal stream for SSH",
+							slog.Error(err),
+							slog.F("agent_id", workspaceAgent.ID),
+							slog.F("target_port", 1),
+							slog.F("workspace", workspace.Name),
+							slog.F("agent_status", workspaceAgent.Status),
+							slog.F("immortal_fallback_enabled", immortalFallback))
+
+						shouldFallback := immortalFallback && (strings.Contains(err.Error(), "Too many immortal streams") ||
+							strings.Contains(err.Error(), "The connection was refused"))
+
+						if shouldFallback {
+							if strings.Contains(err.Error(), "Too many immortal streams") {
+								logger.Warn(ctx, "too many immortal streams, falling back to regular SSH connection",
+									slog.F("max_streams", "32"))
+							} else {
+								logger.Warn(ctx, "Agent SSH service not available on port 1, falling back to regular SSH connection",
+									slog.F("reason", "connection_refused"),
+									slog.F("suggestion", "agent SSH server may not be running"))
+							}
+							logger.Info(ctx, "attempting fallback to regular SSH connection")
+							rawSSH, err = conn.SSH(ctx)
+							if err != nil {
+								logger.Error(ctx, "fallback SSH connection also failed", slog.Error(err))
+								return xerrors.Errorf("connect SSH (fallback): %w", err)
+							}
+							logger.Info(ctx, "successfully connected via regular SSH fallback")
+						} else {
+							return xerrors.Errorf("create immortal stream for SSH: %w", err)
+						}
+					} else {
+						streamID = &stream.ID
+						logger.Info(ctx, "created immortal stream for SSH", slog.F("stream_name", stream.Name), slog.F("stream_id", stream.ID))
+
+						// Connect to the immortal stream via WebSocket
+						rawSSH, err = connectToImmortalStreamWebSocket(ctx, conn, stream.ID, logger)
+						if err != nil {
+							// Only clean up the stream if it's a permanent failure
+							if !isNetworkError(err) {
+								_ = immortalStreamClient.deleteStream(ctx, stream.ID)
+							}
+							return xerrors.Errorf("connect to immortal stream: %w", err)
+						}
+					}
+				} else {
+					// Use regular SSH connection
+					rawSSH, err = conn.SSH(ctx)
+					if err != nil {
+						return xerrors.Errorf("connect SSH: %w", err)
+					}
 				}
-				copier := newRawSSHCopier(logger, rawSSH, stdioReader, stdioWriter)
+
+				var copier io.Closer
+
+				if tcpConn, ok := rawSSH.(*gonet.TCPConn); ok {
+					// Use specialized raw SSH copier for regular TCP connections
+					rawCopier := newRawSSHCopier(logger, tcpConn, stdioReader, stdioWriter)
+					copier = rawCopier
+					// Start copying in the background for rawSSHCopier
+					go rawCopier.copy(&wg)
+				} else {
+					// Use generic copier for immortal stream connections
+					genericCopier := newGenericSSHCopier(logger, rawSSH, stdioReader, stdioWriter)
+					copier = genericCopier
+					// Start copying in the background for genericSSHCopier
+					go genericCopier.copy(&wg)
+				}
+
 				if err = stack.push("rawSSHCopier", copier); err != nil {
 					return err
 				}
@@ -404,22 +483,113 @@ func (r *RootCmd) ssh() *serpent.Command {
 					}
 				}
 
+				// Set up signal-based cleanup for immortal stream
+				// Only delete on explicit user termination (SIGINT, SIGTERM), not network errors
+				if immortalStreamClient != nil && streamID != nil {
+					// Create a signal-only context for cleanup
+					signalCtx, signalStop := inv.SignalNotifyContext(context.Background(), StopSignals...)
+					defer signalStop()
+
+					go func() {
+						<-signalCtx.Done()
+						// User sent termination signal - clean up the stream
+						_ = immortalStreamClient.deleteStream(context.Background(), *streamID)
+					}()
+				}
+
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
 					watchAndClose(ctx, func() error {
+						// Don't delete immortal stream here - let signal handler do it
 						stack.close(xerrors.New("watchAndClose"))
 						return nil
 					}, logger, client, workspace, errCh)
 				}()
-				copier.copy(&wg)
+				// The copying is already started in the background above
+				wg.Wait()
 				return nil
 			}
 
-			sshClient, err := conn.SSHClient(ctx)
-			if err != nil {
-				return xerrors.Errorf("ssh client: %w", err)
+			var sshClient *gossh.Client
+			var immortalStreamClient *immortalStreamClient
+			var streamID *uuid.UUID
+
+			if immortal {
+				// Use immortal stream for SSH connection
+				immortalStreamClient = newImmortalStreamClient(client, workspaceAgent.ID, logger)
+
+				// Create immortal stream to agent SSH port (1)
+				stream, err := immortalStreamClient.createStream(ctx, 1)
+				if err != nil {
+					logger.Error(ctx, "failed to create immortal stream for SSH (regular mode)",
+						slog.Error(err),
+						slog.F("agent_id", workspaceAgent.ID),
+						slog.F("target_port", 1),
+						slog.F("workspace", workspace.Name),
+						slog.F("agent_status", workspaceAgent.Status),
+						slog.F("immortal_fallback_enabled", immortalFallback))
+
+					shouldFallback := immortalFallback && (strings.Contains(err.Error(), "Too many immortal streams") ||
+						strings.Contains(err.Error(), "The connection was refused"))
+
+					if shouldFallback {
+						if strings.Contains(err.Error(), "Too many immortal streams") {
+							logger.Warn(ctx, "too many immortal streams, falling back to regular SSH connection",
+								slog.F("max_streams", "32"))
+						} else {
+							logger.Warn(ctx, "Agent SSH service not available on port 1, falling back to regular SSH connection",
+								slog.F("reason", "connection_refused"),
+								slog.F("suggestion", "agent SSH server may not be running"))
+						}
+						logger.Info(ctx, "attempting fallback to regular SSH client")
+						sshClient, err = conn.SSHClient(ctx)
+						if err != nil {
+							logger.Error(ctx, "fallback SSH client creation also failed", slog.Error(err))
+							return xerrors.Errorf("ssh client (fallback): %w", err)
+						}
+						logger.Info(ctx, "successfully created SSH client via regular fallback")
+					} else {
+						return xerrors.Errorf("create immortal stream for SSH: %w", err)
+					}
+				} else {
+					streamID = &stream.ID
+					logger.Info(ctx, "created immortal stream for SSH", slog.F("stream_name", stream.Name), slog.F("stream_id", stream.ID))
+
+					// Connect to the immortal stream and create SSH client
+					rawConn, err := connectToImmortalStreamWebSocket(ctx, conn, stream.ID, logger)
+					if err != nil {
+						// Only clean up the stream if it's a permanent failure
+						if !isNetworkError(err) {
+							_ = immortalStreamClient.deleteStream(ctx, stream.ID)
+						}
+						return xerrors.Errorf("connect to immortal stream: %w", err)
+					}
+
+					// Create SSH client over the immortal stream connection
+					sshConn, chans, reqs, err := gossh.NewClientConn(rawConn, "localhost:22", &gossh.ClientConfig{
+						HostKeyCallback: gossh.InsecureIgnoreHostKey(),
+						Timeout:         30 * time.Second,
+					})
+					if err != nil {
+						rawConn.Close()
+						// Only clean up the stream if it's a permanent failure
+						if !isNetworkError(err) {
+							_ = immortalStreamClient.deleteStream(ctx, stream.ID)
+						}
+						return xerrors.Errorf("ssh handshake over immortal stream: %w", err)
+					}
+
+					sshClient = gossh.NewClient(sshConn, chans, reqs)
+				}
+			} else {
+				// Use regular SSH connection
+				sshClient, err = conn.SSHClient(ctx)
+				if err != nil {
+					return xerrors.Errorf("ssh client: %w", err)
+				}
 			}
+
 			if err = stack.push("ssh client", sshClient); err != nil {
 				return err
 			}
@@ -440,12 +610,27 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			}
 
+			// Set up signal-based cleanup for immortal stream
+			// Only delete on explicit user termination (SIGINT, SIGTERM), not network errors
+			if immortalStreamClient != nil && streamID != nil {
+				// Create a signal-only context for cleanup
+				signalCtx, signalStop := inv.SignalNotifyContext(context.Background(), StopSignals...)
+				defer signalStop()
+
+				go func() {
+					<-signalCtx.Done()
+					// User sent termination signal - clean up the stream
+					_ = immortalStreamClient.deleteStream(context.Background(), *streamID)
+				}()
+			}
+
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				watchAndClose(
 					ctx,
 					func() error {
+						// Don't delete immortal stream here - let signal handler do it
 						stack.close(xerrors.New("watchAndClose"))
 						return nil
 					},
@@ -728,9 +913,78 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Value:       serpent.BoolOf(&forceNewTunnel),
 			Hidden:      true,
 		},
+		{
+			Flag:        "immortal",
+			Description: "Use immortal streams for SSH connection, providing automatic reconnection when interrupted.",
+			Value:       serpent.BoolOf(&immortal),
+			Hidden:      true,
+		},
+		{
+			Flag:        "immortal-fallback",
+			Description: "If immortal streams are unavailable due to connection limits, fall back to regular TCP connection.",
+			Value:       serpent.BoolOf(&immortalFallback),
+			Hidden:      true,
+		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
 	}
 	return cmd
+}
+
+// connectToImmortalStreamWebSocket connects to an immortal stream via WebSocket
+// The immortal stream infrastructure handles reconnection automatically
+func connectToImmortalStreamWebSocket(ctx context.Context, agentConn *workspacesdk.AgentConn, streamID uuid.UUID, logger slog.Logger) (net.Conn, error) {
+	// Build the target address for the agent's HTTP API server
+	apiServerAddr := fmt.Sprintf("127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort)
+	wsURL := fmt.Sprintf("ws://%s/api/v0/immortal-stream/%s", apiServerAddr, streamID)
+
+	// Create WebSocket connection using the agent's tailnet connection
+	dialOptions := &websocket.DialOptions{
+		HTTPClient: &http.Client{
+			Transport: &http.Transport{
+				DialContext: func(dialCtx context.Context, network, addr string) (net.Conn, error) {
+					return agentConn.DialContext(dialCtx, network, addr)
+				},
+			},
+		},
+		CompressionMode: websocket.CompressionDisabled,
+	}
+
+	// Connect to the WebSocket endpoint
+	conn, _, err := websocket.Dial(ctx, wsURL, dialOptions)
+	if err != nil {
+		return nil, xerrors.Errorf("dial immortal stream WebSocket: %w", err)
+	}
+
+	// Convert WebSocket to net.Conn for SSH usage
+	// The immortal stream's BackedPipe handles reconnection automatically
+	netConn := websocket.NetConn(ctx, conn, websocket.MessageBinary)
+
+	return netConn, nil
+}
+
+// isNetworkError checks if an error is a temporary network error
+func isNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := err.Error()
+	networkErrors := []string{
+		"connection refused",
+		"network is unreachable",
+		"connection reset",
+		"broken pipe",
+		"timeout",
+		"no route to host",
+	}
+
+	for _, netErr := range networkErrors {
+		if strings.Contains(errStr, netErr) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // findWorkspaceAndAgentByHostname parses the hostname from the commandline and finds the workspace and agent it
@@ -1274,6 +1528,44 @@ type rawSSHCopier struct {
 
 func newRawSSHCopier(logger slog.Logger, conn *gonet.TCPConn, r io.Reader, w io.Writer) *rawSSHCopier {
 	return &rawSSHCopier{conn: conn, logger: logger, r: r, w: w, done: make(chan struct{})}
+}
+
+// genericSSHCopier is similar to rawSSHCopier but works with any net.Conn (e.g., immortal streams)
+type genericSSHCopier struct {
+	conn   net.Conn
+	logger slog.Logger
+	r      io.Reader
+	w      io.Writer
+	done   chan struct{}
+}
+
+func newGenericSSHCopier(logger slog.Logger, conn net.Conn, r io.Reader, w io.Writer) *genericSSHCopier {
+	return &genericSSHCopier{conn: conn, logger: logger, r: r, w: w, done: make(chan struct{})}
+}
+
+func (c *genericSSHCopier) copy(wg *sync.WaitGroup) {
+	defer close(c.done)
+
+	// Copy stdin to connection
+	go func() {
+		defer c.conn.Close()
+		_, err := io.Copy(c.conn, c.r)
+		if err != nil {
+			c.logger.Debug(context.Background(), "error copying stdin to connection", slog.Error(err))
+		}
+	}()
+
+	// Copy connection to stdout
+	_, err := io.Copy(c.w, c.conn)
+	if err != nil {
+		c.logger.Debug(context.Background(), "error copying connection to stdout", slog.Error(err))
+	}
+}
+
+func (c *genericSSHCopier) Close() error {
+	c.conn.Close()
+	<-c.done
+	return nil
 }
 
 func (c *rawSSHCopier) copy(wg *sync.WaitGroup) {

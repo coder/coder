@@ -70,6 +70,16 @@ const (
 	EnvProcOOMScore = "CODER_PROC_OOM_SCORE"
 )
 
+// agentImmortalDialer wraps the standard dialer for immortal streams.
+// Agent services are available on both tailnet and localhost interfaces.
+type agentImmortalDialer struct {
+	standardDialer *net.Dialer
+}
+
+func (d *agentImmortalDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	return d.standardDialer.DialContext(ctx, network, address)
+}
+
 type Options struct {
 	Filesystem                   afero.Fs
 	LogDir                       string
@@ -352,7 +362,10 @@ func (a *agent) init() {
 	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
 	// Initialize immortal streams manager
-	a.immortalStreamsManager = immortalstreams.New(a.logger.Named("immortal-streams"), &net.Dialer{})
+	immortalDialer := &agentImmortalDialer{
+		standardDialer: &net.Dialer{},
+	}
+	a.immortalStreamsManager = immortalstreams.New(a.logger.Named("immortal-streams"), immortalDialer)
 
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
@@ -1485,6 +1498,7 @@ func (a *agent) createTailnet(
 	}
 
 	for _, port := range []int{workspacesdk.AgentSSHPort, workspacesdk.AgentStandardSSHPort} {
+		// Listen on tailnet interface for external connections
 		sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(port))
 		if err != nil {
 			return nil, xerrors.Errorf("listen on the ssh port (%v): %w", port, err)
@@ -1499,6 +1513,25 @@ func (a *agent) createTailnet(
 			_ = a.sshServer.Serve(sshListener)
 		}); err != nil {
 			return nil, err
+		}
+
+		// Also listen on localhost for immortal streams (only for SSH port 1)
+		if port == workspacesdk.AgentSSHPort {
+			localhostListener, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(port))
+			if err != nil {
+				return nil, xerrors.Errorf("listen on localhost ssh port (%v): %w", port, err)
+			}
+			// nolint:revive // We do want to run the deferred functions when createTailnet returns.
+			defer func() {
+				if err != nil {
+					_ = localhostListener.Close()
+				}
+			}()
+			if err = a.trackGoroutine(func() {
+				_ = a.sshServer.Serve(localhostListener)
+			}); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -1570,6 +1603,7 @@ func (a *agent) createTailnet(
 		return nil, err
 	}
 
+	// Listen on tailnet interface for external connections
 	apiListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.AgentHTTPAPIServerPort))
 	if err != nil {
 		return nil, xerrors.Errorf("api listener: %w", err)
@@ -1601,6 +1635,43 @@ func (a *agent) createTailnet(
 		apiServErr := server.Serve(apiListener)
 		if apiServErr != nil && !xerrors.Is(apiServErr, http.ErrServerClosed) && !strings.Contains(apiServErr.Error(), "use of closed network connection") {
 			a.logger.Critical(ctx, "serve HTTP API server", slog.Error(apiServErr))
+		}
+	}); err != nil {
+		return nil, err
+	}
+
+	// Also listen on localhost for immortal streams WebSocket connections
+	localhostAPIListener, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(workspacesdk.AgentHTTPAPIServerPort))
+	if err != nil {
+		return nil, xerrors.Errorf("localhost api listener: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = localhostAPIListener.Close()
+		}
+	}()
+	if err = a.trackGoroutine(func() {
+		defer localhostAPIListener.Close()
+		apiHandler := a.apiHandler()
+		server := &http.Server{
+			BaseContext:       func(net.Listener) context.Context { return ctx },
+			Handler:           apiHandler,
+			ReadTimeout:       20 * time.Second,
+			ReadHeaderTimeout: 20 * time.Second,
+			WriteTimeout:      20 * time.Second,
+			ErrorLog:          slog.Stdlib(ctx, a.logger.Named("http_api_server_localhost"), slog.LevelInfo),
+		}
+		go func() {
+			select {
+			case <-ctx.Done():
+			case <-a.hardCtx.Done():
+			}
+			_ = server.Close()
+		}()
+
+		apiServErr := server.Serve(localhostAPIListener)
+		if apiServErr != nil && !xerrors.Is(apiServErr, http.ErrServerClosed) && !strings.Contains(apiServErr.Error(), "use of closed network connection") {
+			a.logger.Critical(ctx, "serve localhost HTTP API server", slog.Error(apiServErr))
 		}
 	}); err != nil {
 		return nil, err
