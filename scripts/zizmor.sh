@@ -33,7 +33,7 @@ fi
 if [[ "${GH_TOKEN:-}" == "" ]] && command -v gh &>/dev/null; then
 	set +e
 	GH_TOKEN="$(gh auth token)"
-    export GH_TOKEN
+	export GH_TOKEN
 	set -e
 fi
 
