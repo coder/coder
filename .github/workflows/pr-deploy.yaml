@@ -55,7 +55,7 @@ jobs:
             echo "PR doesn't exist or is closed."
             pr_open=false
           fi
-          echo "pr_open=$pr_open" >> $GITHUB_OUTPUT
+          echo "pr_open=$pr_open" >> "$GITHUB_OUTPUT"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -90,9 +90,11 @@ jobs:
           PR_NUMBER=$(gh pr view --json number | jq -r '.number')
           PR_TITLE=$(gh pr view --json title | jq -r '.title')
           PR_URL=$(gh pr view --json url | jq -r '.url')
-          echo "PR_URL=$PR_URL" >> $GITHUB_OUTPUT
-          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_OUTPUT
-          echo "PR_TITLE=$PR_TITLE" >> $GITHUB_OUTPUT
+          {
+            echo "PR_URL=$PR_URL"
+            echo "PR_NUMBER=$PR_NUMBER"
+            echo "PR_TITLE=$PR_TITLE"
+          } >> "$GITHUB_OUTPUT"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -100,8 +102,8 @@ jobs:
         id: set_tags
         run: |
           set -euo pipefail
-          echo "CODER_BASE_IMAGE_TAG=$CODER_BASE_IMAGE_TAG" >> $GITHUB_OUTPUT
-          echo "CODER_IMAGE_TAG=$CODER_IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "CODER_BASE_IMAGE_TAG=$CODER_BASE_IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "CODER_IMAGE_TAG=$CODER_IMAGE_TAG" >> "$GITHUB_OUTPUT"
         env:
           CODER_BASE_IMAGE_TAG: ghcr.io/coder/coder-preview-base:pr${{ steps.pr_info.outputs.PR_NUMBER }}
           CODER_IMAGE_TAG: ghcr.io/coder/coder-preview:pr${{ steps.pr_info.outputs.PR_NUMBER }}
@@ -125,7 +127,7 @@ jobs:
             echo "Deployment doesn't exist."
             NEW=true
           fi
-          echo "NEW=$NEW" >> $GITHUB_OUTPUT
+          echo "NEW=$NEW" >> "$GITHUB_OUTPUT"
 
       - name: Check changed files
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
@@ -162,9 +164,9 @@ jobs:
         run: |
           set -euo pipefail
           # build if the workflow is manually triggered and the deployment doesn't exist (first build or force rebuild)
-          echo "first_or_force_build=${{ (github.event_name == 'workflow_dispatch' && steps.check_deployment.outputs.NEW == 'true') || github.event.inputs.build == 'true' }}" >> $GITHUB_OUTPUT
+          echo "first_or_force_build=${{ (github.event_name == 'workflow_dispatch' && steps.check_deployment.outputs.NEW == 'true') || github.event.inputs.build == 'true' }}" >> "$GITHUB_OUTPUT"
           # build if the deployment already exist and there are changes in the files that we care about (automatic updates)
-          echo "automatic_rebuild=${{ steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count }}" >> $GITHUB_OUTPUT
+          echo "automatic_rebuild=${{ steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count }}" >> "$GITHUB_OUTPUT"
 
   comment-pr:
     needs: get_info
@@ -250,12 +252,13 @@ jobs:
           make gen/mark-fresh
           export DOCKER_IMAGE_NO_PREREQUISITES=true
           version="$(./scripts/version.sh)"
-          export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
+          CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
+          export CODER_IMAGE_BUILD_BASE_TAG
           make -j build/coder_linux_amd64
           ./scripts/build_docker.sh \
             --arch amd64 \
-            --target ${{ env.CODER_IMAGE_TAG }} \
-            --version $version \
+            --target "${{ env.CODER_IMAGE_TAG }}" \
+            --version "$version" \
             --push \
             build/coder_linux_amd64
 
@@ -404,14 +407,14 @@ jobs:
           DEST="${HOME}/coder"
           URL="https://${{ env.PR_HOSTNAME }}/bin/coder-linux-amd64"
 
-          mkdir -p "$(dirname ${DEST})"
+          mkdir -p "$(dirname "$DEST")"
 
           COUNT=0
-          until $(curl --output /dev/null --silent --head --fail "$URL"); do
+          until curl --output /dev/null --silent --head --fail "$URL"; do
               printf '.'
               sleep 5
               COUNT=$((COUNT+1))
-              if [ $COUNT -ge 60 ]; then
+              if [ "$COUNT" -ge 60 ]; then
                 echo "Timed out waiting for URL to be available"
                 exit 1
               fi
@@ -435,12 +438,12 @@ jobs:
 
           # add mask so that the password is not printed to the logs
           echo "::add-mask::$password"
-          echo "password=$password" >> $GITHUB_OUTPUT
+          echo "password=$password" >> "$GITHUB_OUTPUT"
 
           coder login \
-            --first-user-username pr${{ env.PR_NUMBER }}-admin \
-            --first-user-email pr${{ env.PR_NUMBER }}@coder.com \
-            --first-user-password $password \
+            --first-user-username "pr${{ env.PR_NUMBER }}-admin" \
+            --first-user-email "pr${{ env.PR_NUMBER }}@coder.com" \
+            --first-user-password "$password" \
             --first-user-trial=false \
             --use-token-as-session \
             https://${{ env.PR_HOSTNAME }}

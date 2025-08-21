@@ -12,9 +12,9 @@ runs:
       run: |
         set -e
 
-        owner=${{ github.repository_owner	 }}
+        owner="${{ github.repository_owner }}"
         echo "owner: $owner"
-        if [[  $owner != "coder" ]]; then
+        if [[ $owner != "coder" ]]; then
           echo "Not a pull request from the main repo, skipping..."
           exit 0
         fi

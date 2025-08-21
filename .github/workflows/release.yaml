@@ -80,9 +80,11 @@ jobs:
       - name: Setup build tools
         run: |
           brew install bash gnu-getopt make
-          echo "$(brew --prefix bash)/bin" >> $GITHUB_PATH
-          echo "$(brew --prefix gnu-getopt)/bin" >> $GITHUB_PATH
-          echo "$(brew --prefix make)/libexec/gnubin" >> $GITHUB_PATH
+          {
+            echo "$(brew --prefix bash)/bin"
+            echo "$(brew --prefix gnu-getopt)/bin"
+            echo "$(brew --prefix make)/libexec/gnubin"
+          } >> "$GITHUB_PATH"
 
       - name: Switch XCode Version
         uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
@@ -183,9 +185,9 @@ jobs:
         run: |
           set -euo pipefail
           version="$(./scripts/version.sh)"
-          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "version=$version" >> "$GITHUB_OUTPUT"
           # Speed up future version.sh calls.
-          echo "CODER_FORCE_VERSION=$version" >> $GITHUB_ENV
+          echo "CODER_FORCE_VERSION=$version" >> "$GITHUB_ENV"
           echo "$version"
 
       # Verify that all expectations for a release are met.
@@ -227,7 +229,7 @@ jobs:
 
           release_notes_file="$(mktemp -t release_notes.XXXXXX)"
           echo "$CODER_RELEASE_NOTES" > "$release_notes_file"
-          echo CODER_RELEASE_NOTES_FILE="$release_notes_file" >> $GITHUB_ENV
+          echo CODER_RELEASE_NOTES_FILE="$release_notes_file" >> "$GITHUB_ENV"
 
       - name: Show release notes
         run: |
@@ -377,9 +379,9 @@ jobs:
           set -euo pipefail
           if [[ "${CODER_RELEASE:-}" != *t* ]] || [[ "${CODER_DRY_RUN:-}" == *t* ]]; then
             # Empty value means use the default and avoid building a fresh one.
-            echo "tag=" >> $GITHUB_OUTPUT
+            echo "tag=" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=$(CODER_IMAGE_BASE=ghcr.io/coder/coder-base ./scripts/image_tag.sh)" >> $GITHUB_OUTPUT
+            echo "tag=$(CODER_IMAGE_BASE=ghcr.io/coder/coder-base ./scripts/image_tag.sh)" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Create empty base-build-context directory
@@ -503,7 +505,7 @@ jobs:
 
           # Save multiarch image tag for attestation
           multiarch_image="$(./scripts/image_tag.sh)"
-          echo "multiarch_image=${multiarch_image}" >> $GITHUB_OUTPUT
+          echo "multiarch_image=${multiarch_image}" >> "$GITHUB_OUTPUT"
 
           # For debugging, print all docker image tags
           docker images
@@ -511,16 +513,15 @@ jobs:
           # if the current version is equal to the highest (according to semver)
           # version in the repo, also create a multi-arch image as ":latest" and
           # push it
-          created_latest_tag=false
           if [[ "$(git tag | grep '^v' | grep -vE '(rc|dev|-|\+|\/)' | sort -r --version-sort | head -n1)" == "v$(./scripts/version.sh)" ]]; then
+            # shellcheck disable=SC2046
             ./scripts/build_docker_multiarch.sh \
               --push \
               --target "$(./scripts/image_tag.sh --version latest)" \
               $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
-            created_latest_tag=true
-            echo "created_latest_tag=true" >> $GITHUB_OUTPUT
+            echo "created_latest_tag=true" >> "$GITHUB_OUTPUT"
           else
-            echo "created_latest_tag=false" >> $GITHUB_OUTPUT
+            echo "created_latest_tag=false" >> "$GITHUB_OUTPUT"
           fi
         env:
           CODER_BASE_IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
@@ -599,7 +600,7 @@ jobs:
       - name: Get latest tag name
         id: latest_tag
         if: ${{ !inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true' }}
-        run: echo "tag=$(./scripts/image_tag.sh --version latest)" >> $GITHUB_OUTPUT
+        run: echo "tag=$(./scripts/image_tag.sh --version latest)" >> "$GITHUB_OUTPUT"
 
       # If this is the highest version according to semver, also attest the "latest" tag
       - name: GitHub Attestation for "latest" Docker image
@@ -742,12 +743,12 @@ jobs:
           cp "build/provisioner_helm_${version}.tgz" build/helm
           gsutil cp gs://helm.coder.com/v2/index.yaml build/helm/index.yaml
           helm repo index build/helm --url https://helm.coder.com/v2 --merge build/helm/index.yaml
-          gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/coder_helm_${version}.tgz gs://helm.coder.com/v2
-          gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/provisioner_helm_${version}.tgz gs://helm.coder.com/v2
-          gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/index.yaml gs://helm.coder.com/v2
-          gsutil -h "Cache-Control:no-cache,max-age=0" cp helm/artifacthub-repo.yml gs://helm.coder.com/v2
-          helm push build/coder_helm_${version}.tgz oci://ghcr.io/coder/chart
-          helm push build/provisioner_helm_${version}.tgz oci://ghcr.io/coder/chart
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/coder_helm_${version}.tgz" gs://helm.coder.com/v2
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/provisioner_helm_${version}.tgz" gs://helm.coder.com/v2
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/index.yaml" gs://helm.coder.com/v2
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp "helm/artifacthub-repo.yml" gs://helm.coder.com/v2
+          helm push "build/coder_helm_${version}.tgz" oci://ghcr.io/coder/chart
+          helm push "build/provisioner_helm_${version}.tgz" oci://ghcr.io/coder/chart
 
       - name: Upload artifacts to actions (if dry-run)
         if: ${{ inputs.dry_run }}
@@ -822,9 +823,9 @@ jobs:
           wget "$checksums_url" -O checksums.txt
 
           # Get the SHAs
-          darwin_arm_sha="$(cat checksums.txt | grep "darwin_arm64.zip" | awk '{ print $1 }')"
-          darwin_intel_sha="$(cat checksums.txt | grep "darwin_amd64.zip" | awk '{ print $1 }')"
-          linux_sha="$(cat checksums.txt | grep "linux_amd64.tar.gz" | awk '{ print $1 }')"
+          darwin_arm_sha="$(grep "darwin_arm64.zip" checksums.txt | awk '{ print $1 }')"
+          darwin_intel_sha="$(grep "darwin_amd64.zip" checksums.txt | awk '{ print $1 }')"
+          linux_sha="$(grep "linux_amd64.tar.gz" checksums.txt | awk '{ print $1 }')"
 
           echo "macOS arm64: $darwin_arm_sha"
           echo "macOS amd64: $darwin_intel_sha"
@@ -837,7 +838,7 @@ jobs:
 
           # Check if a PR already exists.
           pr_count="$(gh pr list --search "head:$brew_branch" --json id,closed | jq -r ".[] | select(.closed == false) | .id" | wc -l)"
-          if [[ "$pr_count" > 0 ]]; then
+          if [ "$pr_count" -gt 0 ]; then
             echo "Bailing out as PR already exists" 2>&1
             exit 0
           fi

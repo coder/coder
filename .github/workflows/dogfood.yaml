@@ -70,7 +70,7 @@ jobs:
           tag=${{ steps.branch-name.outputs.current_branch }}
           # Replace / with --, e.g. user/feature => user--feature.
           tag=${tag//\//--}
-          echo "tag=${tag}" >> $GITHUB_OUTPUT
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Depot CLI
         uses: depot/setup-action@b0b1ea4f69e92ebf5dea3f8713a1b0c37b2126a5 # v1.6.0
@@ -107,11 +107,11 @@ jobs:
 
           CURRENT_SYSTEM=$(nix eval --impure --raw --expr 'builtins.currentSystem')
 
-          docker image tag codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM codercom/oss-dogfood-nix:${{ steps.docker-tag-name.outputs.tag }}
-          docker image push codercom/oss-dogfood-nix:${{ steps.docker-tag-name.outputs.tag }}
+          docker image tag "codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM" "codercom/oss-dogfood-nix:${{ steps.docker-tag-name.outputs.tag }}"
+          docker image push "codercom/oss-dogfood-nix:${{ steps.docker-tag-name.outputs.tag }}"
 
-          docker image tag codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM codercom/oss-dogfood-nix:latest
-          docker image push codercom/oss-dogfood-nix:latest
+          docker image tag "codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM" "codercom/oss-dogfood-nix:latest"
+          docker image push "codercom/oss-dogfood-nix:latest"
 
   deploy_template:
     needs: build_image
@@ -152,12 +152,12 @@ jobs:
       - name: Get short commit SHA
         if: github.ref == 'refs/heads/main'
         id: vars
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Get latest commit title
         if: github.ref == 'refs/heads/main'
         id: message
-        run: echo "pr_title=$(git log --format=%s -n 1 ${{ github.sha }})" >> $GITHUB_OUTPUT
+        run: echo "pr_title=$(git log --format=%s -n 1 ${{ github.sha }})" >> "$GITHUB_OUTPUT"
 
       - name: "Push template"
         if: github.ref == 'refs/heads/main'

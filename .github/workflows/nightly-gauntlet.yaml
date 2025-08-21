@@ -37,8 +37,8 @@ jobs:
       - name: Disable Spotlight Indexing
         if: runner.os == 'macOS'
         run: |
-          enabled=$(sudo mdutil -a -s | grep "Indexing enabled" | wc -l)
-          if [ $enabled -eq 0 ]; then
+          enabled=$(sudo mdutil -a -s | grep -c "Indexing enabled")
+          if [ "$enabled" -eq 0 ]; then
             echo "Spotlight indexing is already disabled"
             exit 0
           fi
