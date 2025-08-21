@@ -2564,7 +2564,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		},
 		{
 			name:          "invalid schedule",
-			schedule:      ptr.Ref("asdfa asdf asdf "),
+			schedule:      ptr.Ref("asdf asdf asdf "),
 			expectedError: `validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
 		},
 		{

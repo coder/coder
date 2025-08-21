@@ -1029,7 +1029,9 @@ jobs:
         run: rm -f /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
 
   check-build:
-    # This job runs make build to verify compilation on PRs
+    # This job runs make build to verify compilation on PRs.
+    # The build doesn't get signed, and is not suitable for usage, unlike the
+    # `build` job that runs on main.
     needs: changes
     if: needs.changes.outputs.go == 'true' && github.ref != 'refs/heads/main'
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
