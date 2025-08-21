@@ -116,7 +116,8 @@ const WorkspacesPage: FC = () => {
 	});
 
 	const workspacesQueryOptions = workspaces({
-		...pagination,
+		limit: pagination.limit,
+		offset: pagination.offset,
 		q: filterState.filter.query,
 	});
 	const { data, error, refetch } = useQuery({

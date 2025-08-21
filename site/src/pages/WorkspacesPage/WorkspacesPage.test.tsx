@@ -345,14 +345,11 @@ describe("WorkspacesPage", () => {
 			expect(screen.getByText("page1-workspace-0")).toBeInTheDocument();
 		});
 
-		expect(getWorkspacesSpy).toHaveBeenNthCalledWith(
-			1,
-			expect.objectContaining({
-				q: "owner:me",
-				offset: 0,
-				limit: 25,
-			}),
-		);
+		expect(getWorkspacesSpy).toHaveBeenLastCalledWith({
+			q: "owner:me",
+			offset: 0,
+			limit: 25,
+		});
 
 		const nextPageButton = screen.getByRole("button", { name: /next page/i });
 		await user.click(nextPageButton);
@@ -361,14 +358,11 @@ describe("WorkspacesPage", () => {
 			expect(screen.getByText("page2-workspace-0")).toBeInTheDocument();
 		});
 
-		expect(getWorkspacesSpy).toHaveBeenNthCalledWith(
-			2,
-			expect.objectContaining({
-				q: "owner:me",
-				offset: 25,
-				limit: 25,
-			}),
-		);
+		expect(getWorkspacesSpy).toHaveBeenLastCalledWith({
+			q: "owner:me",
+			offset: 25,
+			limit: 25,
+		});
 
 		expect(screen.queryByText("page1-workspace-0")).not.toBeInTheDocument();
 	});
