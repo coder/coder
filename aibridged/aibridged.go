@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/valyala/fasthttp/fasthttputil"
 	"golang.org/x/xerrors"
@@ -29,7 +28,7 @@ type Server struct {
 	clientDialer Dialer
 	clientCh     chan proto.DRPCRecorderClient
 
-	manager Manager
+	requestBridgePool pooler
 
 	logger slog.Logger
 	wg     sync.WaitGroup
@@ -57,24 +56,23 @@ type Server struct {
 }
 
 var _ proto.DRPCRecorderServer = &Server{}
-var _ Manager = &Server{}
 
-func New(rpcDialer Dialer, manager Manager, logger slog.Logger) (*Server, error) {
+func New(rpcDialer Dialer, requestBridgePool pooler, logger slog.Logger) (*Server, error) {
 	if rpcDialer == nil {
 		return nil, xerrors.Errorf("nil rpcDialer given")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	daemon := &Server{
-		logger:           logger,
-		clientDialer:     rpcDialer,
-		manager:          manager,
-		clientCh:         make(chan proto.DRPCRecorderClient),
-		closeContext:     ctx,
-		closeCancel:      cancel,
-		closedCh:         make(chan struct{}),
-		shuttingDownCh:   make(chan struct{}),
-		initConnectionCh: make(chan struct{}),
+		logger:            logger,
+		clientDialer:      rpcDialer,
+		requestBridgePool: requestBridgePool,
+		clientCh:          make(chan proto.DRPCRecorderClient),
+		closeContext:      ctx,
+		closeCancel:       cancel,
+		closedCh:          make(chan struct{}),
+		shuttingDownCh:    make(chan struct{}),
+		initConnectionCh:  make(chan struct{}),
 	}
 
 	daemon.wg.Add(1)
@@ -92,13 +90,11 @@ func (s *Server) connect() {
 	// This is to prevent server spam in case of a coderd outage.
 connectLoop:
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(s.closeContext); {
-		// TODO(dannyk): handle premature close.
-		//// It's possible for the provisioner daemon to be shut down
-		//// before the wait is complete!
-		// if s.isClosed() {
-		//	return
-		//}
-
+		// It's possible for the aibridge daemon to be shut down
+		// before the wait is complete!
+		if s.isClosed() {
+			return
+		}
 		s.logger.Debug(s.closeContext, "dialing coderd")
 		client, err := s.clientDialer(s.closeContext)
 		if err != nil {
@@ -118,11 +114,7 @@ connectLoop:
 			continue
 		}
 
-		// This log is useful to verify that an external provisioner daemon is
-		// successfully connecting to coderd. It doesn't add much value if the
-		// daemon is built-in, so we only log it on the info level if p.externalProvisioner
-		// is true. This log message is mentioned in the docs:
-		// https://github.com/coder/coder/blob/5bd86cb1c06561d1d3e90ce689da220467e525c0/docs/admin/provisioners.md#L346
+		// TODO: log this with INFO level when we implement external aibridge daemons.
 		logConnect(s.closeContext, "successfully connected to coderd")
 		retrier.Reset()
 		s.initConnectionOnce.Do(func() {
@@ -157,12 +149,24 @@ func (s *Server) Client() (proto.DRPCRecorderClient, error) {
 	}
 }
 
-func (s *Server) Acquire(ctx context.Context, key string, userID uuid.UUID, apiClientFn func() (proto.DRPCRecorderClient, error)) (*aibridge.Bridge, error) {
-	if s.manager == nil {
-		return nil, xerrors.New("nil manager")
+func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handler, error) {
+	if s.requestBridgePool == nil {
+		return nil, xerrors.New("nil requestBridgePool")
 	}
 
-	return s.manager.Acquire(ctx, key, userID, apiClientFn)
+	reqBridge, err := s.requestBridgePool.Acquire(ctx, req, func() (aibridge.Recorder, error) {
+		client, err := s.Client()
+		if err != nil {
+			return nil, xerrors.Errorf("acquire client: %w", err)
+		}
+
+		return &translator{client: client}, nil
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("acquire request bridge: %w", err)
+	}
+
+	return reqBridge.Handler(), nil
 }
 
 func (s *Server) RecordSession(ctx context.Context, in *proto.RecordSessionRequest) (*proto.RecordSessionResponse, error) {

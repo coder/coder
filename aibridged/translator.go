@@ -13,9 +13,9 @@ import (
 	"github.com/coder/aibridge"
 )
 
-var _ aibridge.RecorderClient = &translator{}
+var _ aibridge.Recorder = &translator{}
 
-// translator satisfies the aibridge.RecorderClient interface and translates calls into dRPC calls to aibridgedserver.
+// translator satisfies the aibridge.Recorder interface and translates calls into dRPC calls to aibridgedserver.
 type translator struct {
 	client proto.DRPCRecorderClient
 }

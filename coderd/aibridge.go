@@ -14,6 +14,8 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 )
 
+// bridgeAIRequest handles requests destined for an upstream AI provider; aibridged intercepts these requests
+// and applies a governance layer.
 func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 	srv := api.AIBridgeServer
 	if srv == nil {
@@ -36,23 +38,26 @@ func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Identify
 	r.Header.Set(aibridge.InitiatorHeaderKey, initiatorID.String())
 
-	// Inject the initiator's scope into the scope.
+	// Inject the initiator's RBAC subject into the scope so all actions occur on their behalf.
 	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, initiatorID, rbac.ScopeAll)
 	if err != nil {
 		api.Logger.Error(ctx, "failed to setup user RBAC context", slog.Error(err), slog.F("userID", initiatorID))
 		http.Error(rw, "internal server error", http.StatusInternalServerError) // Don't leak reason as this might have security implications.
 		return
 	}
-
 	ctx = dbauthz.As(ctx, actor)
 
-	bridge, err := srv.Acquire(ctx, sessionKey, initiatorID, srv.Client)
+	handler, err := srv.GetRequestHandler(ctx, aibridged.Request{
+		SessionKey:  sessionKey,
+		InitiatorID: initiatorID,
+	})
 	if err != nil {
-		api.Logger.Error(ctx, "failed to acquire aibridge", slog.Error(err))
-		http.Error(rw, "failed to acquire aibridge", http.StatusInternalServerError)
+		api.Logger.Error(ctx, "failed to handle request", slog.Error(err))
+		http.Error(rw, "failed to handle request", http.StatusInternalServerError)
 		return
 	}
-	http.StripPrefix("/api/v2/aibridge", bridge.Handler()).ServeHTTP(rw, r)
+	http.StripPrefix("/api/v2/aibridge", handler).ServeHTTP(rw, r)
 }

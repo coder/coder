@@ -1342,10 +1342,10 @@ func newAIBridgeServer(ctx context.Context, coderAPI *coderd.API) (*aibridged.Se
 		coderAPI.DeploymentValues.AccessURL.String(), coderAPI.Database,
 		coderAPI.Options.ExternalAuthConfigs, coderAPI.Logger.Named("aibridged.mcp"),
 	)
-	mgr := aibridged.NewAIBridgeManager(coderAPI.DeploymentValues.AI.BridgeConfig, 100, mcpCfg, coderAPI.Logger.Named("aibridge-manager")) // TODO: configurable size.
+	pool := aibridged.NewCachedBridgePool(coderAPI.DeploymentValues.AI.BridgeConfig, 100, mcpCfg, coderAPI.Logger.Named("aibridge-manager")) // TODO: configurable size.
 	daemon, err := aibridged.New(func(dialCtx context.Context) (aibridgedproto.DRPCRecorderClient, error) {
 		return coderAPI.CreateInMemoryAIBridgeDaemon(dialCtx)
-	}, mgr, coderAPI.Logger.Named("aibridged"))
+	}, pool, coderAPI.Logger.Named("aibridged"))
 	if err != nil {
 		return nil, xerrors.Errorf("create aibridge daemon: %w", err)
 	}
