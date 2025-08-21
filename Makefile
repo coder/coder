@@ -958,12 +958,31 @@ else
 GOTESTSUM_RETRY_FLAGS :=
 endif
 
+# default to 8x8 parallelism to avoid overwhelming our workspaces. Hopefully we can remove these defaults
+# when we get our test suite's resource utilization under control.
+GOTEST_FLAGS := -v -p $(or $(TEST_NUM_PARALLEL_PACKAGES),"8") -parallel=$(or $(TEST_NUM_PARALLEL_TESTS),"8")
+
+# The most common use is to set TEST_COUNT=1 to avoid Go's test cache.
+ifdef TEST_COUNT
+GOTEST_FLAGS += -count=$(TEST_COUNT)
+endif
+
+ifdef TEST_SHORT
+GOTEST_FLAGS += -short
+endif
+
+ifdef RUN
+GOTEST_FLAGS += -run $(RUN)
+endif
+
+TEST_PACKAGES ?= ./...
+
 test:
-	$(GIT_FLAGS) gotestsum --format standard-quiet $(GOTESTSUM_RETRY_FLAGS) --packages="./..." -- -v -short -count=1 $(if $(RUN),-run $(RUN))
+	$(GIT_FLAGS) gotestsum --format standard-quiet $(GOTESTSUM_RETRY_FLAGS) --packages="$(TEST_PACKAGES)" -- $(GOTEST_FLAGS)
 .PHONY: test
 
 test-cli:
-	$(GIT_FLAGS) gotestsum --format standard-quiet $(GOTESTSUM_RETRY_FLAGS) --packages="./cli/..." -- -v -short -count=1
+	$(MAKE) test TEST_PACKAGES="./cli..."
 .PHONY: test-cli
 
 # sqlc-cloud-is-setup will fail if no SQLc auth token is set. Use this as a
