@@ -68,6 +68,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       # If the event that triggered the build was an annotated tag (which our
       # tags are supposed to be), actions/checkout has a bug where the tag in
@@ -80,9 +81,11 @@ jobs:
       - name: Setup build tools
         run: |
           brew install bash gnu-getopt make
-          echo "$(brew --prefix bash)/bin" >> $GITHUB_PATH
-          echo "$(brew --prefix gnu-getopt)/bin" >> $GITHUB_PATH
-          echo "$(brew --prefix make)/libexec/gnubin" >> $GITHUB_PATH
+          {
+            echo "$(brew --prefix bash)/bin"
+            echo "$(brew --prefix gnu-getopt)/bin"
+            echo "$(brew --prefix make)/libexec/gnubin"
+          } >> "$GITHUB_PATH"
 
       - name: Switch XCode Version
         uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
@@ -169,6 +172,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       # If the event that triggered the build was an annotated tag (which our
       # tags are supposed to be), actions/checkout has a bug where the tag in
@@ -183,9 +187,9 @@ jobs:
         run: |
           set -euo pipefail
           version="$(./scripts/version.sh)"
-          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "version=$version" >> "$GITHUB_OUTPUT"
           # Speed up future version.sh calls.
-          echo "CODER_FORCE_VERSION=$version" >> $GITHUB_ENV
+          echo "CODER_FORCE_VERSION=$version" >> "$GITHUB_ENV"
           echo "$version"
 
       # Verify that all expectations for a release are met.
@@ -227,7 +231,7 @@ jobs:
 
           release_notes_file="$(mktemp -t release_notes.XXXXXX)"
           echo "$CODER_RELEASE_NOTES" > "$release_notes_file"
-          echo CODER_RELEASE_NOTES_FILE="$release_notes_file" >> $GITHUB_ENV
+          echo CODER_RELEASE_NOTES_FILE="$release_notes_file" >> "$GITHUB_ENV"
 
       - name: Show release notes
         run: |
@@ -377,9 +381,9 @@ jobs:
           set -euo pipefail
           if [[ "${CODER_RELEASE:-}" != *t* ]] || [[ "${CODER_DRY_RUN:-}" == *t* ]]; then
             # Empty value means use the default and avoid building a fresh one.
-            echo "tag=" >> $GITHUB_OUTPUT
+            echo "tag=" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=$(CODER_IMAGE_BASE=ghcr.io/coder/coder-base ./scripts/image_tag.sh)" >> $GITHUB_OUTPUT
+            echo "tag=$(CODER_IMAGE_BASE=ghcr.io/coder/coder-base ./scripts/image_tag.sh)" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Create empty base-build-context directory
@@ -414,7 +418,7 @@ jobs:
           # available immediately
           for i in {1..10}; do
             rc=0
-            raw_manifests=$(docker buildx imagetools inspect --raw "${{ steps.image-base-tag.outputs.tag }}") || rc=$?
+            raw_manifests=$(docker buildx imagetools inspect --raw "${IMAGE_TAG}") || rc=$?
             if [[ "$rc" -eq 0 ]]; then
               break
             fi
@@ -436,6 +440,8 @@ jobs:
           echo "$manifests" | grep -q linux/amd64
           echo "$manifests" | grep -q linux/arm64
           echo "$manifests" | grep -q linux/arm/v7
+        env:
+          IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
 
       # GitHub attestation provides SLSA provenance for Docker images, establishing a verifiable
       # record that these images were built in GitHub Actions with specific inputs and environment.
@@ -503,7 +509,7 @@ jobs:
 
           # Save multiarch image tag for attestation
           multiarch_image="$(./scripts/image_tag.sh)"
-          echo "multiarch_image=${multiarch_image}" >> $GITHUB_OUTPUT
+          echo "multiarch_image=${multiarch_image}" >> "$GITHUB_OUTPUT"
 
           # For debugging, print all docker image tags
           docker images
@@ -511,16 +517,15 @@ jobs:
           # if the current version is equal to the highest (according to semver)
           # version in the repo, also create a multi-arch image as ":latest" and
           # push it
-          created_latest_tag=false
           if [[ "$(git tag | grep '^v' | grep -vE '(rc|dev|-|\+|\/)' | sort -r --version-sort | head -n1)" == "v$(./scripts/version.sh)" ]]; then
+            # shellcheck disable=SC2046
             ./scripts/build_docker_multiarch.sh \
               --push \
               --target "$(./scripts/image_tag.sh --version latest)" \
               $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
-            created_latest_tag=true
-            echo "created_latest_tag=true" >> $GITHUB_OUTPUT
+            echo "created_latest_tag=true" >> "$GITHUB_OUTPUT"
           else
-            echo "created_latest_tag=false" >> $GITHUB_OUTPUT
+            echo "created_latest_tag=false" >> "$GITHUB_OUTPUT"
           fi
         env:
           CODER_BASE_IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
@@ -528,24 +533,27 @@ jobs:
       - name: SBOM Generation and Attestation
         if: ${{ !inputs.dry_run }}
         env:
-          COSIGN_EXPERIMENTAL: "1"
+          COSIGN_EXPERIMENTAL: '1'
+          MULTIARCH_IMAGE: ${{ steps.build_docker.outputs.multiarch_image }}
+          VERSION: ${{ steps.version.outputs.version }}
+          CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
         run: |
           set -euxo pipefail
 
           # Generate SBOM for multi-arch image with version in filename
-          echo "Generating SBOM for multi-arch image: ${{ steps.build_docker.outputs.multiarch_image }}"
-          syft "${{ steps.build_docker.outputs.multiarch_image }}" -o spdx-json > coder_${{ steps.version.outputs.version }}_sbom.spdx.json
+          echo "Generating SBOM for multi-arch image: ${MULTIARCH_IMAGE}"
+          syft "${MULTIARCH_IMAGE}" -o spdx-json > "coder_${VERSION}_sbom.spdx.json"
 
           # Attest SBOM to multi-arch image
-          echo "Attesting SBOM to multi-arch image: ${{ steps.build_docker.outputs.multiarch_image }}"
-          cosign clean --force=true "${{ steps.build_docker.outputs.multiarch_image }}"
+          echo "Attesting SBOM to multi-arch image: ${MULTIARCH_IMAGE}"
+          cosign clean --force=true "${MULTIARCH_IMAGE}"
           cosign attest --type spdxjson \
-            --predicate coder_${{ steps.version.outputs.version }}_sbom.spdx.json \
+            --predicate "coder_${VERSION}_sbom.spdx.json" \
             --yes \
-            "${{ steps.build_docker.outputs.multiarch_image }}"
+            "${MULTIARCH_IMAGE}"
 
           # If latest tag was created, also attest it
-          if [[ "${{ steps.build_docker.outputs.created_latest_tag }}" == "true" ]]; then
+          if [[ "${CREATED_LATEST_TAG}" == "true" ]]; then
             latest_tag="$(./scripts/image_tag.sh --version latest)"
             echo "Generating SBOM for latest image: ${latest_tag}"
             syft "${latest_tag}" -o spdx-json > coder_latest_sbom.spdx.json
@@ -599,7 +607,7 @@ jobs:
       - name: Get latest tag name
         id: latest_tag
         if: ${{ !inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true' }}
-        run: echo "tag=$(./scripts/image_tag.sh --version latest)" >> $GITHUB_OUTPUT
+        run: echo "tag=$(./scripts/image_tag.sh --version latest)" >> "$GITHUB_OUTPUT"
 
       # If this is the highest version according to semver, also attest the "latest" tag
       - name: GitHub Attestation for "latest" Docker image
@@ -642,7 +650,7 @@ jobs:
       # Report attestation failures but don't fail the workflow
       - name: Check attestation status
         if: ${{ !inputs.dry_run }}
-        run: |
+        run: | # zizmor: ignore[template-injection] We're just reading steps.attest_x.outcome here, no risk of injection
           if [[ "${{ steps.attest_base.outcome }}" == "failure" && "${{ steps.attest_base.conclusion }}" != "skipped" ]]; then
             echo "::warning::GitHub attestation for base image failed"
           fi
@@ -707,11 +715,11 @@ jobs:
             ./build/*.apk
             ./build/*.deb
             ./build/*.rpm
-            ./coder_${{ steps.version.outputs.version }}_sbom.spdx.json
+            "./coder_${VERSION}_sbom.spdx.json"
           )
 
           # Only include the latest SBOM file if it was created
-          if [[ "${{ steps.build_docker.outputs.created_latest_tag }}" == "true" ]]; then
+          if [[ "${CREATED_LATEST_TAG}" == "true" ]]; then
             files+=(./coder_latest_sbom.spdx.json)
           fi
 
@@ -722,6 +730,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
+          VERSION: ${{ steps.version.outputs.version }}
+          CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@b7593ed2efd1c1617e1b0254da33b86225adb2a5 # v2.1.12
@@ -742,12 +752,12 @@ jobs:
           cp "build/provisioner_helm_${version}.tgz" build/helm
           gsutil cp gs://helm.coder.com/v2/index.yaml build/helm/index.yaml
           helm repo index build/helm --url https://helm.coder.com/v2 --merge build/helm/index.yaml
-          gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/coder_helm_${version}.tgz gs://helm.coder.com/v2
-          gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/provisioner_helm_${version}.tgz gs://helm.coder.com/v2
-          gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/index.yaml gs://helm.coder.com/v2
-          gsutil -h "Cache-Control:no-cache,max-age=0" cp helm/artifacthub-repo.yml gs://helm.coder.com/v2
-          helm push build/coder_helm_${version}.tgz oci://ghcr.io/coder/chart
-          helm push build/provisioner_helm_${version}.tgz oci://ghcr.io/coder/chart
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/coder_helm_${version}.tgz" gs://helm.coder.com/v2
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/provisioner_helm_${version}.tgz" gs://helm.coder.com/v2
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/index.yaml" gs://helm.coder.com/v2
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp "helm/artifacthub-repo.yml" gs://helm.coder.com/v2
+          helm push "build/coder_helm_${version}.tgz" oci://ghcr.io/coder/chart
+          helm push "build/provisioner_helm_${version}.tgz" oci://ghcr.io/coder/chart
 
       - name: Upload artifacts to actions (if dry-run)
         if: ${{ inputs.dry_run }}
@@ -798,12 +808,12 @@ jobs:
 
       - name: Update homebrew
         env:
-          # Variables used by the `gh` command
           GH_REPO: coder/homebrew-coder
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
         run: |
           # Keep version number around for reference, removing any potential leading v
-          coder_version="$(echo "${{ needs.release.outputs.version }}" | tr -d v)"
+          coder_version="$(echo "${VERSION}" | tr -d v)"
 
           set -euxo pipefail
 
@@ -822,9 +832,9 @@ jobs:
           wget "$checksums_url" -O checksums.txt
 
           # Get the SHAs
-          darwin_arm_sha="$(cat checksums.txt | grep "darwin_arm64.zip" | awk '{ print $1 }')"
-          darwin_intel_sha="$(cat checksums.txt | grep "darwin_amd64.zip" | awk '{ print $1 }')"
-          linux_sha="$(cat checksums.txt | grep "linux_amd64.tar.gz" | awk '{ print $1 }')"
+          darwin_arm_sha="$(grep "darwin_arm64.zip" checksums.txt | awk '{ print $1 }')"
+          darwin_intel_sha="$(grep "darwin_amd64.zip" checksums.txt | awk '{ print $1 }')"
+          linux_sha="$(grep "linux_amd64.tar.gz" checksums.txt | awk '{ print $1 }')"
 
           echo "macOS arm64: $darwin_arm_sha"
           echo "macOS amd64: $darwin_intel_sha"
@@ -837,7 +847,7 @@ jobs:
 
           # Check if a PR already exists.
           pr_count="$(gh pr list --search "head:$brew_branch" --json id,closed | jq -r ".[] | select(.closed == false) | .id" | wc -l)"
-          if [[ "$pr_count" > 0 ]]; then
+          if [ "$pr_count" -gt 0 ]; then
             echo "Bailing out as PR already exists" 2>&1
             exit 0
           fi
@@ -856,8 +866,8 @@ jobs:
             -B master -H "$brew_branch" \
             -t "coder $coder_version" \
             -b "" \
-            -r "${{ github.actor }}" \
-            -a "${{ github.actor }}" \
+            -r "${GITHUB_ACTOR}" \
+            -a "${GITHUB_ACTOR}" \
             -b "This automatic PR was triggered by the release of Coder v$coder_version"
 
   publish-winget:
@@ -881,6 +891,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       # If the event that triggered the build was an annotated tag (which our
       # tags are supposed to be), actions/checkout has a bug where the tag in
@@ -899,7 +910,7 @@ jobs:
           # The package version is the same as the tag minus the leading "v".
           # The version in this output already has the leading "v" removed but
           # we do it again to be safe.
-          $version = "${{ needs.release.outputs.version }}".Trim('v')
+          $version = $env:VERSION.Trim('v')
 
           $release_assets = gh release view --repo coder/coder "v${version}" --json assets | `
             ConvertFrom-Json
@@ -931,13 +942,14 @@ jobs:
           # For wingetcreate. We need a real token since we're pushing a commit
           # to GitHub and then making a PR in a different repo.
           WINGET_GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
 
       - name: Comment on PR
         run: |
           # wait 30 seconds
           Start-Sleep -Seconds 30.0
           # Find the PR that wingetcreate just made.
-          $version = "${{ needs.release.outputs.version }}".Trim('v')
+          $version = $env:VERSION.Trim('v')
           $pr_list = gh pr list --repo microsoft/winget-pkgs --search "author:cdrci Coder.Coder version ${version}" --limit 1 --json number | `
             ConvertFrom-Json
           $pr_number = $pr_list[0].number
@@ -948,6 +960,7 @@ jobs:
           # For gh CLI. We need a real token since we're commenting on a PR in a
           # different repo.
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
 
   # publish-sqlc pushes the latest schema to sqlc cloud.
   # At present these pushes cannot be tagged, so the last push is always the latest.
@@ -966,6 +979,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       # We need golang to run the migration main.go
       - name: Setup Go
