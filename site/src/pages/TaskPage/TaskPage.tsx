@@ -16,7 +16,6 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Link as RouterLink, useParams } from "react-router";
-import { ellipsizeText } from "utils/ellipsizeText";
 import { pageTitle } from "utils/page";
 import {
 	getActiveTransitionStats,
@@ -152,7 +151,7 @@ const TaskPage = () => {
 	return (
 		<>
 			<Helmet>
-				<title>{pageTitle(ellipsizeText(task.prompt, 64) ?? "Task")}</title>
+				<title>{pageTitle(ellipsizeText(task.prompt, 64))}</title>
 			</Helmet>
 
 			<div className="flex flex-col h-full">
@@ -165,7 +164,9 @@ const TaskPage = () => {
 
 export default TaskPage;
 
-const TaskBuildingWorkspace: FC<{ task: Task }> = ({ task }) => {
+type TaskBuildingWorkspaceProps = { task: Task };
+
+const TaskBuildingWorkspace: FC<TaskBuildingWorkspaceProps> = ({ task }) => {
 	const { data: template } = useQuery(
 		templateQueryOptions(task.workspace.template_id),
 	);
@@ -263,4 +264,8 @@ export const data = {
 			prompt,
 		} satisfies Task;
 	},
+};
+
+const ellipsizeText = (text: string, maxLength = 80): string => {
+	return text.length <= maxLength ? text : `${text.slice(0, maxLength - 3)}...`;
 };

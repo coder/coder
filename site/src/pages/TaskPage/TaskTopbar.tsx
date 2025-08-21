@@ -11,7 +11,9 @@ import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import { TaskStatusLink } from "./TaskStatusLink";
 
-export const TaskTopbar: FC<{ task: Task }> = ({ task }) => {
+type TaskTopbarProps = { task: Task };
+
+export const TaskTopbar: FC<TaskTopbarProps> = ({ task }) => {
 	return (
 		<header className="flex items-center px-3 h-14 border-solid border-border border-0 border-b">
 			<TooltipProvider>
@@ -28,9 +30,7 @@ export const TaskTopbar: FC<{ task: Task }> = ({ task }) => {
 				</Tooltip>
 			</TooltipProvider>
 
-			<h1 className="m-0 text-base font-medium truncate">
-				{task.prompt || task.workspace.name}
-			</h1>
+			<h1 className="m-0 text-base font-medium truncate">{task.prompt}</h1>
 
 			{task.workspace.latest_app_status?.uri && (
 				<div className="flex items-center gap-2 flex-wrap ml-4">
