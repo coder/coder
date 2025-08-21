@@ -105,7 +105,7 @@ func NewWithAPI(t *testing.T, options *Options) (
 		AuditLogging:               options.AuditLogging,
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,
-		DERPServerRelayAddress:     oop.AccessURL.String(),
+		DERPServerRelayAddress:     serverURL.String(),
 		DERPServerRegionID:         oop.BaseDERPMap.RegionIDs()[0],
 		ReplicaSyncUpdateInterval:  options.ReplicaSyncUpdateInterval,
 		ReplicaErrorGracePeriod:    options.ReplicaErrorGracePeriod,

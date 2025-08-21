@@ -10,17 +10,21 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	agplusage "github.com/coder/coder/v2/coderd/usage"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/usage"
 	"github.com/coder/coder/v2/testutil"
@@ -40,32 +44,32 @@ func TestIntegration(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	log := slogtest.Make(t, nil)
 	db, _ := dbtestutil.NewDB(t)
+
 	clock := quartz.NewMock(t)
 	deploymentID, licenseJWT := configureDeployment(ctx, t, db)
 	now := time.Now()
 
 	var (
 		calls   int
-		handler func(req usage.TallymanIngestRequestV1) any
+		handler func(req usagetypes.TallymanV1IngestRequest) any
 	)
-	ingestURL := fakeServer(t, tallymanHandler(t, licenseJWT, func(req usage.TallymanIngestRequestV1) any {
+	ingestURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), licenseJWT, func(req usagetypes.TallymanV1IngestRequest) any {
 		calls++
 		t.Logf("tallyman backend received call %d", calls)
-		assert.Equal(t, deploymentID, req.DeploymentID)
 
 		if handler == nil {
 			t.Errorf("handler is nil")
-			return usage.TallymanIngestResponseV1{}
+			return usagetypes.TallymanV1IngestResponse{}
 		}
 		return handler(req)
 	}))
 
-	inserter := usage.NewInserter(
+	inserter := usage.NewDBInserter(
 		usage.InserterWithClock(clock),
 	)
 	// Insert an old event that should never be published.
 	clock.Set(now.Add(-31 * 24 * time.Hour))
-	err := inserter.InsertDiscreteUsageEvent(ctx, db, agplusage.DCManagedAgentsV1{
+	err := inserter.InsertDiscreteUsageEvent(ctx, db, usagetypes.DCManagedAgentsV1{
 		Count: 31,
 	})
 	require.NoError(t, err)
@@ -74,16 +78,18 @@ func TestIntegration(t *testing.T) {
 	clock.Set(now.Add(1 * time.Second))
 	for i := 0; i < eventCount; i++ {
 		clock.Advance(time.Second)
-		err := inserter.InsertDiscreteUsageEvent(ctx, db, agplusage.DCManagedAgentsV1{
+		err := inserter.InsertDiscreteUsageEvent(ctx, db, usagetypes.DCManagedAgentsV1{
 			Count: uint64(i + 1), // nolint:gosec // these numbers are tiny and will not overflow
 		})
 		require.NoErrorf(t, err, "collecting event %d", i)
 	}
 
-	publisher := usage.NewTallymanPublisher(ctx, log, db,
+	// Wrap the publisher's DB in a dbauthz to ensure that the publisher has
+	// enough permissions.
+	authzDB := dbauthz.New(db, rbac.NewAuthorizer(prometheus.NewRegistry()), log, coderdtest.AccessControlStorePointer())
+	publisher := usage.NewTallymanPublisher(ctx, log, authzDB, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
-		usage.PublisherWithLicenseKeys(coderdenttest.Keys),
 	)
 	defer publisher.Close()
 
@@ -110,33 +116,33 @@ func TestIntegration(t *testing.T) {
 	// first event, temporarily reject the second, and permanently reject the
 	// third.
 	var temporarilyRejectedEventID string
-	handler = func(req usage.TallymanIngestRequestV1) any {
+	handler = func(req usagetypes.TallymanV1IngestRequest) any {
 		// On the first call, accept the first event, temporarily reject the
 		// second, and permanently reject the third.
-		acceptedEvents := make([]usage.TallymanIngestAcceptedEventV1, 1)
-		rejectedEvents := make([]usage.TallymanIngestRejectedEventV1, 2)
+		acceptedEvents := make([]usagetypes.TallymanV1IngestAcceptedEvent, 1)
+		rejectedEvents := make([]usagetypes.TallymanV1IngestRejectedEvent, 2)
 		if assert.Len(t, req.Events, eventCount) {
-			assert.JSONEqf(t, jsoninate(t, agplusage.DCManagedAgentsV1{
+			assert.JSONEqf(t, jsoninate(t, usagetypes.DCManagedAgentsV1{
 				Count: 1,
 			}), string(req.Events[0].EventData), "event data did not match for event %d", 0)
 			acceptedEvents[0].ID = req.Events[0].ID
 
 			temporarilyRejectedEventID = req.Events[1].ID
-			assert.JSONEqf(t, jsoninate(t, agplusage.DCManagedAgentsV1{
+			assert.JSONEqf(t, jsoninate(t, usagetypes.DCManagedAgentsV1{
 				Count: 2,
 			}), string(req.Events[1].EventData), "event data did not match for event %d", 1)
 			rejectedEvents[0].ID = req.Events[1].ID
 			rejectedEvents[0].Message = "temporarily rejected"
 			rejectedEvents[0].Permanent = false
 
-			assert.JSONEqf(t, jsoninate(t, agplusage.DCManagedAgentsV1{
+			assert.JSONEqf(t, jsoninate(t, usagetypes.DCManagedAgentsV1{
 				Count: 3,
 			}), string(req.Events[2].EventData), "event data did not match for event %d", 2)
 			rejectedEvents[1].ID = req.Events[2].ID
 			rejectedEvents[1].Message = "permanently rejected"
 			rejectedEvents[1].Permanent = true
 		}
-		return usage.TallymanIngestResponseV1{
+		return usagetypes.TallymanV1IngestResponse{
 			AcceptedEvents: acceptedEvents,
 			RejectedEvents: rejectedEvents,
 		}
@@ -155,16 +161,16 @@ func TestIntegration(t *testing.T) {
 
 	// Set the handler for the next publish call. This call should only include
 	// the temporarily rejected event from earlier. This time we'll accept it.
-	handler = func(req usage.TallymanIngestRequestV1) any {
+	handler = func(req usagetypes.TallymanV1IngestRequest) any {
 		assert.Len(t, req.Events, 1)
-		acceptedEvents := make([]usage.TallymanIngestAcceptedEventV1, len(req.Events))
+		acceptedEvents := make([]usagetypes.TallymanV1IngestAcceptedEvent, len(req.Events))
 		for i, event := range req.Events {
 			assert.Equal(t, temporarilyRejectedEventID, event.ID)
 			acceptedEvents[i].ID = event.ID
 		}
-		return usage.TallymanIngestResponseV1{
+		return usagetypes.TallymanV1IngestResponse{
 			AcceptedEvents: acceptedEvents,
-			RejectedEvents: []usage.TallymanIngestRejectedEventV1{},
+			RejectedEvents: []usagetypes.TallymanV1IngestRejectedEvent{},
 		}
 	}
 
@@ -204,18 +210,17 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 	db.EXPECT().GetDeploymentID(gomock.Any()).Return(deploymentID.String(), nil).Times(1)
 
 	var calls int
-	ingestURL := fakeServer(t, tallymanHandler(t, "", func(req usage.TallymanIngestRequestV1) any {
+	ingestURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), "", func(req usagetypes.TallymanV1IngestRequest) any {
 		calls++
-		return usage.TallymanIngestResponseV1{
-			AcceptedEvents: []usage.TallymanIngestAcceptedEventV1{},
-			RejectedEvents: []usage.TallymanIngestRejectedEventV1{},
+		return usagetypes.TallymanV1IngestResponse{
+			AcceptedEvents: []usagetypes.TallymanV1IngestAcceptedEvent{},
+			RejectedEvents: []usagetypes.TallymanV1IngestRejectedEvent{},
 		}
 	}))
 
-	publisher := usage.NewTallymanPublisher(ctx, log, db,
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
-		usage.PublisherWithLicenseKeys(coderdenttest.Keys),
 	)
 	defer publisher.Close()
 
@@ -274,23 +279,22 @@ func TestPublisherClaimExpiry(t *testing.T) {
 	log := slogtest.Make(t, nil)
 	db, _ := dbtestutil.NewDB(t)
 	clock := quartz.NewMock(t)
-	_, licenseJWT := configureDeployment(ctx, t, db)
+	deploymentID, licenseJWT := configureDeployment(ctx, t, db)
 	now := time.Now()
 
 	var calls int
-	ingestURL := fakeServer(t, tallymanHandler(t, licenseJWT, func(req usage.TallymanIngestRequestV1) any {
+	ingestURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), licenseJWT, func(req usagetypes.TallymanV1IngestRequest) any {
 		calls++
 		return tallymanAcceptAllHandler(req)
 	}))
 
-	inserter := usage.NewInserter(
+	inserter := usage.NewDBInserter(
 		usage.InserterWithClock(clock),
 	)
 
-	publisher := usage.NewTallymanPublisher(ctx, log, db,
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
-		usage.PublisherWithLicenseKeys(coderdenttest.Keys),
 		usage.PublisherWithInitialDelay(17*time.Minute),
 	)
 	defer publisher.Close()
@@ -298,7 +302,7 @@ func TestPublisherClaimExpiry(t *testing.T) {
 	// Create an event that was claimed 1h-18m ago. The ticker has a forced
 	// delay of 17m in this test.
 	clock.Set(now)
-	err := inserter.InsertDiscreteUsageEvent(ctx, db, agplusage.DCManagedAgentsV1{
+	err := inserter.InsertDiscreteUsageEvent(ctx, db, usagetypes.DCManagedAgentsV1{
 		Count: 1,
 	})
 	require.NoError(t, err)
@@ -353,24 +357,23 @@ func TestPublisherMissingEvents(t *testing.T) {
 	log := slogtest.Make(t, nil)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	_, licenseJWT := configureMockDeployment(t, db)
+	deploymentID, licenseJWT := configureMockDeployment(t, db)
 	clock := quartz.NewMock(t)
 	now := time.Now()
 	clock.Set(now)
 
 	var calls int
-	ingestURL := fakeServer(t, tallymanHandler(t, licenseJWT, func(req usage.TallymanIngestRequestV1) any {
+	ingestURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), licenseJWT, func(req usagetypes.TallymanV1IngestRequest) any {
 		calls++
-		return usage.TallymanIngestResponseV1{
-			AcceptedEvents: []usage.TallymanIngestAcceptedEventV1{},
-			RejectedEvents: []usage.TallymanIngestRejectedEventV1{},
+		return usagetypes.TallymanV1IngestResponse{
+			AcceptedEvents: []usagetypes.TallymanV1IngestAcceptedEvent{},
+			RejectedEvents: []usagetypes.TallymanV1IngestRejectedEvent{},
 		}
 	}))
 
-	publisher := usage.NewTallymanPublisher(ctx, log, db,
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
-		usage.PublisherWithLicenseKeys(coderdenttest.Keys),
 	)
 
 	// Expect the publisher to call SelectUsageEventsForPublishing, followed by
@@ -378,8 +381,8 @@ func TestPublisherMissingEvents(t *testing.T) {
 	events := []database.UsageEvent{
 		{
 			ID:        uuid.New().String(),
-			EventType: string(agplusage.UsageEventTypeDCManagedAgentsV1),
-			EventData: []byte(jsoninate(t, agplusage.DCManagedAgentsV1{
+			EventType: string(usagetypes.UsageEventTypeDCManagedAgentsV1),
+			EventData: []byte(jsoninate(t, usagetypes.DCManagedAgentsV1{
 				Count: 1,
 			})),
 			CreatedAt:        now,
@@ -504,16 +507,14 @@ func TestPublisherLicenseSelection(t *testing.T) {
 	}, nil)
 
 	called := false
-	ingestURL := fakeServer(t, tallymanHandler(t, expectedLicense, func(req usage.TallymanIngestRequestV1) any {
+	ingestURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), expectedLicense, func(req usagetypes.TallymanV1IngestRequest) any {
 		called = true
-		assert.Equal(t, deploymentID, req.DeploymentID)
 		return tallymanAcceptAllHandler(req)
 	}))
 
-	publisher := usage.NewTallymanPublisher(ctx, log, db,
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
-		usage.PublisherWithLicenseKeys(coderdenttest.Keys),
 	)
 	defer publisher.Close()
 
@@ -533,8 +534,8 @@ func TestPublisherLicenseSelection(t *testing.T) {
 	events := []database.UsageEvent{
 		{
 			ID:        uuid.New().String(),
-			EventType: string(agplusage.UsageEventTypeDCManagedAgentsV1),
-			EventData: []byte(jsoninate(t, agplusage.DCManagedAgentsV1{
+			EventType: string(usagetypes.UsageEventTypeDCManagedAgentsV1),
+			EventData: []byte(jsoninate(t, usagetypes.DCManagedAgentsV1{
 				Count: 1,
 			})),
 		},
@@ -569,20 +570,19 @@ func TestPublisherTallymanError(t *testing.T) {
 	now := time.Now()
 	clock.Set(now)
 
-	_, licenseJWT := configureMockDeployment(t, db)
+	deploymentID, licenseJWT := configureMockDeployment(t, db)
 	const errorMessage = "tallyman error"
 	var calls int
-	ingestURL := fakeServer(t, tallymanHandler(t, licenseJWT, func(req usage.TallymanIngestRequestV1) any {
+	ingestURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), licenseJWT, func(req usagetypes.TallymanV1IngestRequest) any {
 		calls++
-		return usage.TallymanErrorV1{
+		return usagetypes.TallymanV1Response{
 			Message: errorMessage,
 		}
 	}))
 
-	publisher := usage.NewTallymanPublisher(ctx, log, db,
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
-		usage.PublisherWithLicenseKeys(coderdenttest.Keys),
 	)
 	defer publisher.Close()
 
@@ -602,8 +602,8 @@ func TestPublisherTallymanError(t *testing.T) {
 	events := []database.UsageEvent{
 		{
 			ID:        uuid.New().String(),
-			EventType: string(agplusage.UsageEventTypeDCManagedAgentsV1),
-			EventData: []byte(jsoninate(t, agplusage.DCManagedAgentsV1{
+			EventType: string(usagetypes.UsageEventTypeDCManagedAgentsV1),
+			EventData: []byte(jsoninate(t, usagetypes.DCManagedAgentsV1{
 				Count: 1,
 			})),
 		},
@@ -630,7 +630,7 @@ func TestPublisherTallymanError(t *testing.T) {
 
 func jsoninate(t *testing.T, v any) string {
 	t.Helper()
-	if e, ok := v.(agplusage.Event); ok {
+	if e, ok := v.(usagetypes.Event); ok {
 		v = e.Fields()
 	}
 	buf, err := json.Marshal(v)
@@ -686,44 +686,61 @@ func fakeServer(t *testing.T, handler http.Handler) string {
 	return server.URL
 }
 
-func tallymanHandler(t *testing.T, expectLicenseJWT string, handler func(req usage.TallymanIngestRequestV1) any) http.Handler {
+func tallymanHandler(t *testing.T, expectDeploymentID string, expectLicenseJWT string, handler func(req usagetypes.TallymanV1IngestRequest) any) http.Handler {
 	t.Helper()
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		t.Helper()
-		licenseJWT := r.Header.Get(usage.CoderLicenseJWTHeader)
+		licenseJWT := r.Header.Get(usagetypes.TallymanCoderLicenseKeyHeader)
 		if expectLicenseJWT != "" && !assert.Equal(t, expectLicenseJWT, licenseJWT, "license JWT in request did not match") {
 			rw.WriteHeader(http.StatusUnauthorized)
-			err := json.NewEncoder(rw).Encode(usage.TallymanErrorV1{
+			_ = json.NewEncoder(rw).Encode(usagetypes.TallymanV1Response{
 				Message: "license JWT in request did not match",
 			})
-			require.NoError(t, err)
 			return
 		}
 
-		var req usage.TallymanIngestRequestV1
+		deploymentID := r.Header.Get(usagetypes.TallymanCoderDeploymentIDHeader)
+		if expectDeploymentID != "" && !assert.Equal(t, expectDeploymentID, deploymentID, "deployment ID in request did not match") {
+			rw.WriteHeader(http.StatusUnauthorized)
+			_ = json.NewEncoder(rw).Encode(usagetypes.TallymanV1Response{
+				Message: "deployment ID in request did not match",
+			})
+			return
+		}
+
+		var req usagetypes.TallymanV1IngestRequest
 		err := json.NewDecoder(r.Body).Decode(&req)
-		require.NoError(t, err)
+		if !assert.NoError(t, err, "could not decode request body") {
+			rw.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(rw).Encode(usagetypes.TallymanV1Response{
+				Message: "could not decode request body",
+			})
+			return
+		}
 
 		resp := handler(req)
 		switch resp.(type) {
-		case usage.TallymanErrorV1:
+		case usagetypes.TallymanV1Response:
 			rw.WriteHeader(http.StatusInternalServerError)
 		default:
 			rw.WriteHeader(http.StatusOK)
 		}
 		err = json.NewEncoder(rw).Encode(resp)
-		require.NoError(t, err)
+		if !assert.NoError(t, err, "could not encode response body") {
+			rw.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	})
 }
 
-func tallymanAcceptAllHandler(req usage.TallymanIngestRequestV1) usage.TallymanIngestResponseV1 {
-	acceptedEvents := make([]usage.TallymanIngestAcceptedEventV1, len(req.Events))
+func tallymanAcceptAllHandler(req usagetypes.TallymanV1IngestRequest) usagetypes.TallymanV1IngestResponse {
+	acceptedEvents := make([]usagetypes.TallymanV1IngestAcceptedEvent, len(req.Events))
 	for i, event := range req.Events {
 		acceptedEvents[i].ID = event.ID
 	}
 
-	return usage.TallymanIngestResponseV1{
+	return usagetypes.TallymanV1IngestResponse{
 		AcceptedEvents: acceptedEvents,
-		RejectedEvents: []usage.TallymanIngestRejectedEventV1{},
+		RejectedEvents: []usagetypes.TallymanV1IngestRejectedEvent{},
 	}
 }
