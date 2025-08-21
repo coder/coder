@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -58,6 +59,7 @@ func TestProvisionerJobs(t *testing.T) {
 				Input:       input,
 				Type:        jobType,
 				StartedAt:   sql.NullTime{Time: coderdAPI.Clock.Now().Add(-time.Minute), Valid: true},
+				Tags:        database.StringMap{provisionersdk.TagOwner: "", provisionersdk.TagScope: provisionersdk.ScopeOrganization, "foo": uuid.NewString()},
 			})
 		}
 
