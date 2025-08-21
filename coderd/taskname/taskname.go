@@ -69,27 +69,27 @@ func GetAnthropicModelFromEnv() anthropic.Model {
 	return anthropic.Model(os.Getenv("ANTHROPIC_MODEL"))
 }
 
-// generateSuffix generates a random hex string between `000` and `fff`.
+// generateSuffix generates a random hex string between `0000` and `ffff`.
 func generateSuffix() string {
-	numMin := 0x0000
-	numMax := 0x1000
+	numMin := 0x00000
+	numMax := 0x10000
 	//nolint:gosec // We don't need a cryptographically secure random number generator for generating a task name suffix.
 	num := rand.IntN(numMax-numMin) + numMin
 
-	return fmt.Sprintf("%03x", num)
+	return fmt.Sprintf("%04x", num)
 }
 
 func GenerateFallback() string {
 	// We have a 32 character limit for the name.
 	// We have a 5 character prefix `task-`.
-	// We have a 4 character suffix `-fff`.
-	// This leaves us with 23 characters for the middle.
+	// We have a 5 character suffix `-ffff`.
+	// This leaves us with 22 characters for the middle.
 	//
 	// Unfortunately, `namesgenerator.GetRandomName(0)` will
-	// generate names that are longer than 23 characters, so
+	// generate names that are longer than 22 characters, so
 	// we just trim these down to length.
 	name := strings.ReplaceAll(namesgenerator.GetRandomName(0), "_", "-")
-	name = name[:min(len(name), 23)]
+	name = name[:min(len(name), 22)]
 	name = strings.TrimSuffix(name, "-")
 
 	return fmt.Sprintf("task-%s-%s", name, generateSuffix())
