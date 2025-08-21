@@ -44,7 +44,7 @@ jobs:
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
       - name: Send Slack notification
-        run: | # zizmor: ignore[template-injection] We're reading variables from github context into a json string, so replacing with envs is tricky
+        run: |
           curl -X POST -H 'Content-type: application/json' \
           --data '{
             "username": "dependabot",
@@ -54,7 +54,7 @@ jobs:
                 "type": "header",
                 "text": {
                   "type": "plain_text",
-                  "text": ":pr-merged: Auto merge enabled for Dependabot PR #${{ github.event.pull_request.number }}",
+                  "text": ":pr-merged: Auto merge enabled for Dependabot PR #'"${PR_NUMBER}"'",
                   "emoji": true
                 }
               },
@@ -63,7 +63,7 @@ jobs:
                 "fields": [
                   {
                     "type": "mrkdwn",
-                    "text": "${{ github.event.pull_request.number }}"
+                    "text": "'"${PR_TITLE}"'"
                   }
                 ]
               },
@@ -76,9 +76,14 @@ jobs:
                       "type": "plain_text",
                       "text": "View PR"
                     },
-                    "url": "${{ github.event.pull_request.html_url }}"
+                    "url": "'"${PR_URL}"'"
                   }
                 ]
               }
             ]
           }' "${{ secrets.DEPENDABOT_PRS_SLACK_WEBHOOK }}"
+        env:
+          SLACK_WEBHOOK: ${{ secrets.DEPENDABOT_PRS_SLACK_WEBHOOK }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}

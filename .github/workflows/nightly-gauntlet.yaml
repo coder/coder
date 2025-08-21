@@ -37,7 +37,7 @@ jobs:
       - name: Disable Spotlight Indexing
         if: runner.os == 'macOS'
         run: |
-          enabled=$(sudo mdutil -a -s | grep -c "Indexing enabled")
+          enabled=$(sudo mdutil -a -s | { grep -Fc "Indexing enabled" || true; })
           if [ "$enabled" -eq 0 ]; then
             echo "Spotlight indexing is already disabled"
             exit 0
@@ -169,7 +169,7 @@ jobs:
 
     steps:
       - name: Send Slack notification
-        run: | # zizmor: ignore[template-injection] We're reading variables from github context into a json string, so replacing with envs is tricky
+        run: |
           curl -X POST -H 'Content-type: application/json' \
           --data '{
             "blocks": [
@@ -186,15 +186,15 @@ jobs:
                 "fields": [
                   {
                     "type": "mrkdwn",
-                    "text": "*Workflow:*\n${{ github.workflow }}"
+                    "text": "*Workflow:*\n'"${GITHUB_WORKFLOW}"'"
                   },
                   {
                     "type": "mrkdwn",
-                    "text": "*Committer:*\n${{ github.actor }}"
+                    "text": "*Committer:*\n'"${GITHUB_ACTOR}"'"
                   },
                   {
                     "type": "mrkdwn",
-                    "text": "*Commit:*\n${{ github.sha }}"
+                    "text": "*Commit:*\n'"${GITHUB_SHA}"'"
                   }
                 ]
               },
@@ -202,7 +202,7 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*View failure:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Click here>"
+                  "text": "*View failure:* <'"${RUN_URL}"'|Click here>"
                 }
               },
               {
@@ -213,4 +213,7 @@ jobs:
                 }
               }
             ]
-          }' "${{ secrets.CI_FAILURE_SLACK_WEBHOOK }}"
+          }' "${SLACK_WEBHOOK}"
+        env:
+          SLACK_WEBHOOK: ${{ secrets.CI_FAILURE_SLACK_WEBHOOK }}
+          RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

@@ -910,7 +910,7 @@ jobs:
           # The package version is the same as the tag minus the leading "v".
           # The version in this output already has the leading "v" removed but
           # we do it again to be safe.
-          $version = "${NEEDS_RELEASE_OUTPUTS_VERSION}".Trim('v')
+          $version = $env:VERSION.Trim('v')
 
           $release_assets = gh release view --repo coder/coder "v${version}" --json assets | `
             ConvertFrom-Json
