@@ -1,4 +1,3 @@
-import type { CSSInterpolation } from "@emotion/css/dist/declarations/src/create-instance";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
@@ -15,7 +14,6 @@ import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
-import { type ClassName, useClassName } from "hooks/useClassName";
 import {
 	AppWindowIcon,
 	CircleAlertIcon,
@@ -53,7 +51,8 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 	fetchStats,
 }) => {
 	const theme = useTheme();
-	const summaryTooltip = useClassName(classNames.summaryTooltip, []);
+	const summaryTooltip =
+		"ml-3 mb-1 max-w-[400px] p-4 text-content-primary bg-surface-secondary border border-solid border-border pointer-events-none";
 
 	const aggregatedMinutes = useMemo(() => {
 		if (!stats) {
@@ -409,20 +408,6 @@ const getHealthErrors = (health: HealthcheckReport) => {
 
 	return warnings;
 };
-
-const classNames = {
-	summaryTooltip: (css, theme) => css`
-    ${theme.typography.body2 as CSSInterpolation}
-
-    margin: 0 0 4px 12px;
-    width: 400px;
-    padding: 16px;
-    color: ${theme.palette.text.primary};
-    background-color: ${theme.palette.background.paper};
-    border: 1px solid ${theme.palette.divider};
-    pointer-events: none;
-  `,
-} satisfies Record<string, ClassName>;
 
 const styles = {
 	statusBadge: (theme) => css`
