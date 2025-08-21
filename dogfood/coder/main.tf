@@ -326,7 +326,7 @@ data "coder_parameter" "ide_choices" {
 }
 
 data "coder_parameter" "vscode_channel" {
-  count       = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") ? data.coder_workspace.me.start_count : 0
+  count       = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") ? 1 : 0
   type        = "string"
   name        = "VS Code Desktop channel"
   description = "Choose the VS Code Desktop channel"
