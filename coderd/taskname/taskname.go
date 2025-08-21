@@ -69,14 +69,14 @@ func GetAnthropicModelFromEnv() anthropic.Model {
 	return anthropic.Model(os.Getenv("ANTHROPIC_MODEL"))
 }
 
-// generateSuffix generates a random hex string between `100` and `fff`.
+// generateSuffix generates a random hex string between `000` and `fff`.
 func generateSuffix() string {
-	numMin := 0x100
+	numMin := 0x0000
 	numMax := 0x1000
 	//nolint:gosec // We don't need a cryptographically secure random number generator for generating a task name suffix.
 	num := rand.IntN(numMax-numMin) + numMin
 
-	return fmt.Sprintf("%x", num)
+	return fmt.Sprintf("%03x", num)
 }
 
 func GenerateFallback() string {
