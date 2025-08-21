@@ -126,26 +126,8 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 
 	// update prometheus metrics
 	if r.opts.UpdateAgentMetricsFn != nil {
-		username := workspace.OwnerUsername
-		// This should never be possible, but we'll guard against it just in case.
-		// 1. The owner_id field on the workspaces table is a reference to IDs in the users table and has a `NOT NULL` constraint
-		// 2. At user creation time our httpmw package enforces non-empty usernames
-		// 3. The workspaces_expanded view has an inner join on workspaces.owner_id = visible_users.id, and if the owner
-		// is valid in the users table (which visible_users is a view of) then they will have a username set
-		if username == "" {
-			r.opts.Logger.Warn(ctx, "in ReportAgentStats the username on workspace was empty string, this should not be possible",
-				slog.F("workspace_id", workspace.ID),
-				slog.F("template_id", workspace.TemplateID))
-			// Fallback to GetUserByID if OwnerUsername is empty (e.g., in tests)
-			user, err := r.opts.Database.GetUserByID(ctx, workspace.OwnerID)
-			if err != nil {
-				return xerrors.Errorf("get user: %w", err)
-			}
-			username = user.Username
-		}
-
 		r.opts.UpdateAgentMetricsFn(ctx, prometheusmetrics.AgentMetricLabels{
-			Username:      username,
+			Username:      workspace.OwnerUsername,
 			WorkspaceName: workspace.Name,
 			AgentName:     workspaceAgent.Name,
 			TemplateName:  templateName,
