@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/smithy-go/ptr"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,102 +35,86 @@ func TestProvisionerJobs(t *testing.T) {
 	templateAdminClient, templateAdmin := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
 	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-	// Create initial resources with a running provisioner.
-	firstProvisioner := coderdtest.NewTaggedProvisionerDaemon(t, coderdAPI, "default-provisioner", map[string]string{"owner": "", "scope": "organization"})
-	t.Cleanup(func() { _ = firstProvisioner.Close() })
-	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithAgent())
-	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(req *codersdk.CreateTemplateRequest) {
-		req.AllowUserCancelWorkspaceJobs = ptr.Bool(true)
+	// Create minimal template setup without provisioner overhead
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:               owner.OrganizationID,
+		CreatedBy:                    owner.UserID,
+		AllowUserCancelWorkspaceJobs: true,
 	})
-
-	// Stop the provisioner so it doesn't grab any more jobs.
-	firstProvisioner.Close()
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: owner.OrganizationID,
+		CreatedBy:      owner.UserID,
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+	})
 
 	t.Run("Cancel", func(t *testing.T) {
 		t.Parallel()
 
-		// Set up test helpers.
-		type jobInput struct {
-			WorkspaceBuildID  string `json:"workspace_build_id,omitempty"`
-			TemplateVersionID string `json:"template_version_id,omitempty"`
-			DryRun            bool   `json:"dry_run,omitempty"`
-		}
-		prepareJob := func(t *testing.T, input jobInput) database.ProvisionerJob {
+		// Set up test helpers - simplified to avoid provisioner daemon overhead.
+		prepareJob := func(t *testing.T, jobType database.ProvisionerJobType, input json.RawMessage) database.ProvisionerJob {
 			t.Helper()
-
-			inputBytes, err := json.Marshal(input)
-			require.NoError(t, err)
-
-			var typ database.ProvisionerJobType
-			switch {
-			case input.WorkspaceBuildID != "":
-				typ = database.ProvisionerJobTypeWorkspaceBuild
-			case input.TemplateVersionID != "":
-				if input.DryRun {
-					typ = database.ProvisionerJobTypeTemplateVersionDryRun
-				} else {
-					typ = database.ProvisionerJobTypeTemplateVersionImport
-				}
-			default:
-				t.Fatal("invalid input")
-			}
-
-			var (
-				tags = database.StringMap{"owner": "", "scope": "organization", "foo": uuid.New().String()}
-				_    = dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{Tags: tags})
-				job  = dbgen.ProvisionerJob(t, db, coderdAPI.Pubsub, database.ProvisionerJob{
-					InitiatorID: member.ID,
-					Input:       json.RawMessage(inputBytes),
-					Type:        typ,
-					Tags:        tags,
-					StartedAt:   sql.NullTime{Time: coderdAPI.Clock.Now().Add(-time.Minute), Valid: true},
-				})
-			)
-			return job
+			return dbgen.ProvisionerJob(t, db, coderdAPI.Pubsub, database.ProvisionerJob{
+				InitiatorID: member.ID,
+				Input:       input,
+				Type:        jobType,
+				StartedAt:   sql.NullTime{Time: coderdAPI.Clock.Now().Add(-time.Minute), Valid: true},
+			})
 		}
 
 		prepareWorkspaceBuildJob := func(t *testing.T) database.ProvisionerJob {
 			t.Helper()
-			var (
-				wbID = uuid.New()
-				job  = prepareJob(t, jobInput{WorkspaceBuildID: wbID.String()})
-				w    = dbgen.Workspace(t, db, database.WorkspaceTable{
-					OrganizationID: owner.OrganizationID,
-					OwnerID:        member.ID,
-					TemplateID:     template.ID,
-				})
-				_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-					ID:                wbID,
-					InitiatorID:       member.ID,
-					WorkspaceID:       w.ID,
-					TemplateVersionID: version.ID,
-					JobID:             job.ID,
-				})
-			)
+			wbID := uuid.New()
+			input, _ := json.Marshal(map[string]string{"workspace_build_id": wbID.String()})
+			job := prepareJob(t, database.ProvisionerJobTypeWorkspaceBuild, input)
+
+			w := dbgen.Workspace(t, db, database.WorkspaceTable{
+				OrganizationID: owner.OrganizationID,
+				OwnerID:        member.ID,
+				TemplateID:     template.ID,
+			})
+			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				ID:                wbID,
+				InitiatorID:       member.ID,
+				WorkspaceID:       w.ID,
+				TemplateVersionID: version.ID,
+				JobID:             job.ID,
+			})
 			return job
 		}
 
-		prepareTemplateVersionImportJobBuilder := func(t *testing.T, dryRun bool) database.ProvisionerJob {
+		prepareTemplateVersionImportJob := func(t *testing.T) database.ProvisionerJob {
 			t.Helper()
-			var (
-				tvID = uuid.New()
-				job  = prepareJob(t, jobInput{TemplateVersionID: tvID.String(), DryRun: dryRun})
-				_    = dbgen.TemplateVersion(t, db, database.TemplateVersion{
-					OrganizationID: owner.OrganizationID,
-					CreatedBy:      templateAdmin.ID,
-					ID:             tvID,
-					TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-					JobID:          job.ID,
-				})
-			)
+			tvID := uuid.New()
+			input, _ := json.Marshal(map[string]string{"template_version_id": tvID.String()})
+			job := prepareJob(t, database.ProvisionerJobTypeTemplateVersionImport, input)
+
+			_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				OrganizationID: owner.OrganizationID,
+				CreatedBy:      templateAdmin.ID,
+				ID:             tvID,
+				TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+				JobID:          job.ID,
+			})
 			return job
 		}
-		prepareTemplateVersionImportJob := func(t *testing.T) database.ProvisionerJob {
-			return prepareTemplateVersionImportJobBuilder(t, false)
-		}
+
 		prepareTemplateVersionImportJobDryRun := func(t *testing.T) database.ProvisionerJob {
-			return prepareTemplateVersionImportJobBuilder(t, true)
+			t.Helper()
+			tvID := uuid.New()
+			input, _ := json.Marshal(map[string]interface{}{
+				"template_version_id": tvID.String(),
+				"dry_run":             true,
+			})
+			job := prepareJob(t, database.ProvisionerJobTypeTemplateVersionDryRun, input)
+
+			_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				OrganizationID: owner.OrganizationID,
+				CreatedBy:      templateAdmin.ID,
+				ID:             tvID,
+				TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+				JobID:          job.ID,
+			})
+			return job
 		}
 
 		// Run the cancellation test suite.
