@@ -934,6 +934,7 @@ jobs:
       - test-e2e
       - offlinedocs
       - sqlc-vet
+      - check-build
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
     if: always()
@@ -954,6 +955,7 @@ jobs:
           echo "- test-js: ${{ needs.test-js.result }}"
           echo "- test-e2e: ${{ needs.test-e2e.result }}"
           echo "- offlinedocs: ${{ needs.offlinedocs.result }}"
+          echo "- check-build: ${{ needs.check-build.result }}"
           echo
 
           # We allow skipped jobs to pass, but not failed or cancelled jobs.
@@ -1046,6 +1048,46 @@ jobs:
       - name: Delete Apple Developer certificate and API key
         if: ${{ github.repository_owner == 'coder' && github.ref == 'refs/heads/main' }}
         run: rm -f /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
+
+  check-build:
+    # This job runs make build to verify compilation on PRs.
+    # The build doesn't get signed, and is not suitable for usage, unlike the
+    # `build` job that runs on main.
+    needs: changes
+    if: needs.changes.outputs.go == 'true' && github.ref != 'refs/heads/main'
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Install go-winres
+        run: go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
+
+      - name: Install nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1
+
+      - name: Install zstd
+        run: sudo apt-get install -y zstd
+
+      - name: Build
+        run: |
+          set -euxo pipefail
+          go mod download
+          make gen/mark-fresh
+          make build
 
   build:
     # This builds and publishes ghcr.io/coder/coder-preview:main for each commit

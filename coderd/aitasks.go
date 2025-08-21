@@ -107,7 +107,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	taskName := req.Name
+	taskName := taskname.GenerateFallback()
 	if anthropicAPIKey := taskname.GetAnthropicAPIKeyFromEnv(); anthropicAPIKey != "" {
 		anthropicModel := taskname.GetAnthropicModelFromEnv()
 
