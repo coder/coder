@@ -465,30 +465,28 @@ jobs:
             # running in parallel, and dbtestutil.NewDB starts to take more than
             # 10s to complete sometimes causing test timeouts. With 16x8=128 tests
             # Postgres tends not to choke.
-            NUM_PARALLEL_PACKAGES=8
-            NUM_PARALLEL_TESTS=16
+            export TEST_NUM_PARALLEL_PACKAGES=8
+            export TEST_NUM_PARALLEL_TESTS=16
             # Only the CLI and Agent are officially supported on Windows and the rest are too flaky
-            PACKAGES="./cli/... ./enterprise/cli/... ./agent/..."
+            export TEST_PACKAGES="./cli/... ./enterprise/cli/... ./agent/..."
           elif [ "${RUNNER_OS}" == "macOS" ]; then
             # Our macOS runners have 8 cores. We set NUM_PARALLEL_TESTS to 16
             # because the tests complete faster and Postgres doesn't choke. It seems
             # that macOS's tmpfs is faster than the one on Windows.
-            NUM_PARALLEL_PACKAGES=8
-            NUM_PARALLEL_TESTS=16
+            export TEST_NUM_PARALLEL_PACKAGES=8
+            export TEST_NUM_PARALLEL_TESTS=16
             # Only the CLI and Agent are officially supported on macOS and the rest are too flaky
-            PACKAGES="./cli/... ./enterprise/cli/... ./agent/..."
+            export TEST_PACKAGES="./cli/... ./enterprise/cli/... ./agent/..."
           elif [ "${RUNNER_OS}" == "Linux" ]; then
             # Our Linux runners have 8 cores.
-            NUM_PARALLEL_PACKAGES=8
-            NUM_PARALLEL_TESTS=8
-            PACKAGES="./..."
+            export TEST_NUM_PARALLEL_PACKAGES=8
+            export TEST_NUM_PARALLEL_TESTS=8
           fi
 
           # by default, run tests with cache
-          TESTCOUNT=""
           if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
             # on main, run tests without cache
-            TESTCOUNT="-count=1"
+            export TEST_COUNT="1"
           fi
 
           mkdir -p "$RUNNER_TEMP/sym"
@@ -498,8 +496,7 @@ jobs:
           # invalidated. See scripts/normalize_path.sh for more details.
           normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
 
-          gotestsum --format standard-quiet --packages "$PACKAGES" \
-            -- -timeout=20m -v -p $NUM_PARALLEL_PACKAGES -parallel=$NUM_PARALLEL_TESTS $TESTCOUNT
+          make test
 
       - name: Upload failed test db dumps
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
