@@ -1,6 +1,5 @@
 import { API } from "api/api";
 import type { Task } from "modules/tasks/tasks";
-import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 
 // TODO: This is a temporary solution while the BE does not return the Task in a
 // right shape with a custom name. This should be removed once the BE is fixed.
@@ -12,7 +11,6 @@ export const data = {
 		presetId: string | undefined,
 	): Promise<Task> {
 		const workspace = await API.experimental.createTask(userId, {
-			name: `task-${generateWorkspaceName()}`,
 			template_version_id: templateVersionId,
 			template_version_preset_id: presetId,
 			prompt,
