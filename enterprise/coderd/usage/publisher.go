@@ -136,8 +136,8 @@ func (p *tallymanPublisher) Start() error {
 	if p.initialDelay <= 0 {
 		// Pick a random time between tallymanPublishInitialMinimumDelay and
 		// tallymanPublishInterval.
-		maxPlusDelay := int(tallymanPublishInterval - tallymanPublishInitialMinimumDelay)
-		plusDelay, err := cryptorand.Intn(maxPlusDelay)
+		maxPlusDelay := tallymanPublishInterval - tallymanPublishInitialMinimumDelay
+		plusDelay, err := cryptorand.Int63n(int64(maxPlusDelay))
 		if err != nil {
 			return xerrors.Errorf("could not generate random start delay: %w", err)
 		}

@@ -175,7 +175,6 @@ locals {
   ], ["us-pittsburgh"])[0]
 }
 
-
 data "coder_parameter" "region" {
   type    = "string"
   name    = "Region"
@@ -277,6 +276,74 @@ data "coder_workspace_tags" "tags" {
   }
 }
 
+data "coder_parameter" "ide_choices" {
+  type        = "list(string)"
+  name        = "Select IDEs"
+  form_type   = "multi-select"
+  mutable     = true
+  description = "Choose one or more IDEs to enable in your workspace"
+  default     = jsonencode(["vscode", "code-server", "cursor"])
+  option {
+    name  = "VS Code Desktop"
+    value = "vscode"
+    icon  = "/icon/code.svg"
+  }
+  option {
+    name  = "code-server"
+    value = "code-server"
+    icon  = "/icon/code.svg"
+  }
+  option {
+    name  = "VS Code Web"
+    value = "vscode-web"
+    icon  = "/icon/code.svg"
+  }
+  option {
+    name  = "JetBrains IDEs"
+    value = "jetbrains"
+    icon  = "/icon/jetbrains.svg"
+  }
+  option {
+    name  = "JetBrains Fleet"
+    value = "fleet"
+    icon  = "/icon/fleet.svg"
+  }
+  option {
+    name  = "Cursor"
+    value = "cursor"
+    icon  = "/icon/cursor.svg"
+  }
+  option {
+    name  = "Windsurf"
+    value = "windsurf"
+    icon  = "/icon/windsurf.svg"
+  }
+  option {
+    name  = "Zed"
+    value = "zed"
+    icon  = "/icon/zed.svg"
+  }
+}
+
+data "coder_parameter" "vscode_channel" {
+  count       = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") ? 1 : 0
+  type        = "string"
+  name        = "VS Code Desktop channel"
+  description = "Choose the VS Code Desktop channel"
+  mutable     = true
+  default     = "stable"
+  option {
+    value = "stable"
+    name  = "Stable"
+    icon  = "/icon/code.svg"
+  }
+  option {
+    value = "insiders"
+    name  = "Insiders"
+    icon  = "/icon/code-insiders.svg"
+  }
+}
+
 module "slackme" {
   count            = data.coder_workspace.me.start_count
   source           = "dev.registry.coder.com/coder/slackme/coder"
@@ -309,7 +376,7 @@ module "personalize" {
 }
 
 module "code-server" {
-  count                   = data.coder_workspace.me.start_count
+  count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
   version                 = "1.3.1"
   agent_id                = coder_agent.dev.id
@@ -319,7 +386,7 @@ module "code-server" {
 }
 
 module "vscode-web" {
-  count                   = data.coder_workspace.me.start_count
+  count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode-web") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
   version                 = "1.3.1"
   agent_id                = coder_agent.dev.id
@@ -331,7 +398,7 @@ module "vscode-web" {
 }
 
 module "jetbrains" {
-  count         = data.coder_workspace.me.start_count
+  count         = contains(jsondecode(data.coder_parameter.ide_choices.value), "jetbrains") ? data.coder_workspace.me.start_count : 0
   source        = "dev.registry.coder.com/coder/jetbrains/coder"
   version       = "1.0.3"
   agent_id      = coder_agent.dev.id
@@ -356,7 +423,7 @@ module "coder-login" {
 }
 
 module "cursor" {
-  count    = data.coder_workspace.me.start_count
+  count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "cursor") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/cursor/coder"
   version  = "1.3.0"
   agent_id = coder_agent.dev.id
@@ -364,7 +431,7 @@ module "cursor" {
 }
 
 module "windsurf" {
-  count    = data.coder_workspace.me.start_count
+  count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "windsurf") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/windsurf/coder"
   version  = "1.1.1"
   agent_id = coder_agent.dev.id
@@ -372,7 +439,7 @@ module "windsurf" {
 }
 
 module "zed" {
-  count      = data.coder_workspace.me.start_count
+  count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "zed") ? data.coder_workspace.me.start_count : 0
   source     = "dev.registry.coder.com/coder/zed/coder"
   version    = "1.1.0"
   agent_id   = coder_agent.dev.id
@@ -381,7 +448,7 @@ module "zed" {
 }
 
 module "jetbrains-fleet" {
-  count      = data.coder_workspace.me.start_count
+  count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "fleet") ? data.coder_workspace.me.start_count : 0
   source     = "registry.coder.com/coder/jetbrains-fleet/coder"
   version    = "1.0.1"
   agent_id   = coder_agent.dev.id
@@ -422,6 +489,11 @@ resource "coder_agent" "dev" {
     OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
   }
   startup_script_behavior = "blocking"
+
+  display_apps {
+    vscode          = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") && try(data.coder_parameter.vscode_channel[0].value, "stable") == "stable"
+    vscode_insiders = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") && try(data.coder_parameter.vscode_channel[0].value, "stable") == "insiders"
+  }
 
   # The following metadata blocks are optional. They are used to display
   # information about your workspace in the dashboard. You can remove them

@@ -502,7 +502,6 @@ export interface CreateProvisionerKeyResponse {
 
 // From codersdk/aitasks.go
 export interface CreateTaskRequest {
-	readonly name: string;
 	readonly template_version_id: string;
 	readonly template_version_preset_id?: string;
 	readonly prompt: string;

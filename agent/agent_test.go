@@ -3470,7 +3470,11 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 	registry := prometheus.NewRegistry()
 
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{
+		// Make sure we always get a DERP connection for
+		// currently_reachable_peers.
+		DisableDirectConnections: true,
+	}, 0, func(_ *agenttest.Client, o *agent.Options) {
 		o.PrometheusRegistry = registry
 	})
 
@@ -3524,7 +3528,7 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 		{
 			Name:  "coderd_agentstats_currently_reachable_peers",
 			Type:  proto.Stats_Metric_GAUGE,
-			Value: 0,
+			Value: 1,
 			Labels: []*proto.Stats_Metric_Label{
 				{
 					Name:  "connection_type",
@@ -3535,7 +3539,7 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 		{
 			Name:  "coderd_agentstats_currently_reachable_peers",
 			Type:  proto.Stats_Metric_GAUGE,
-			Value: 1,
+			Value: 0,
 			Labels: []*proto.Stats_Metric_Label{
 				{
 					Name:  "connection_type",

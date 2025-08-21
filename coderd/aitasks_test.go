@@ -151,7 +151,6 @@ func TestTaskCreate(t *testing.T) {
 		var (
 			ctx = testutil.Context(t, testutil.WaitShort)
 
-			taskName   = "task-foo-bar-baz"
 			taskPrompt = "Some task prompt"
 		)
 
@@ -176,7 +175,6 @@ func TestTaskCreate(t *testing.T) {
 
 		// When: We attempt to create a Task.
 		workspace, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
-			Name:              taskName,
 			TemplateVersionID: template.ActiveVersionID,
 			Prompt:            taskPrompt,
 		})
@@ -184,7 +182,7 @@ func TestTaskCreate(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		// Then: We expect a workspace to have been created.
-		assert.Equal(t, taskName, workspace.Name)
+		assert.NotEmpty(t, workspace.Name)
 		assert.Equal(t, template.ID, workspace.TemplateID)
 
 		// And: We expect it to have the "AI Prompt" parameter correctly set.
@@ -201,7 +199,6 @@ func TestTaskCreate(t *testing.T) {
 		var (
 			ctx = testutil.Context(t, testutil.WaitShort)
 
-			taskName   = "task-foo-bar-baz"
 			taskPrompt = "Some task prompt"
 		)
 
@@ -217,7 +214,6 @@ func TestTaskCreate(t *testing.T) {
 
 		// When: We attempt to create a Task.
 		_, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
-			Name:              taskName,
 			TemplateVersionID: template.ActiveVersionID,
 			Prompt:            taskPrompt,
 		})
@@ -235,7 +231,6 @@ func TestTaskCreate(t *testing.T) {
 		var (
 			ctx = testutil.Context(t, testutil.WaitShort)
 
-			taskName   = "task-foo-bar-baz"
 			taskPrompt = "Some task prompt"
 		)
 
@@ -251,7 +246,6 @@ func TestTaskCreate(t *testing.T) {
 
 		// When: We attempt to create a Task with an invalid template version ID.
 		_, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
-			Name:              taskName,
 			TemplateVersionID: uuid.New(),
 			Prompt:            taskPrompt,
 		})
