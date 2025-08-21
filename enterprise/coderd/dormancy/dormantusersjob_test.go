@@ -31,20 +31,28 @@ func TestCheckInactiveUsers(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 
-	inactiveUser1 := setupUser(ctx, t, db, "dormant-user-1@coder.com", database.UserStatusActive, time.Now().Add(-dormancyPeriod).Add(-time.Minute))
-	inactiveUser2 := setupUser(ctx, t, db, "dormant-user-2@coder.com", database.UserStatusActive, time.Now().Add(-dormancyPeriod).Add(-time.Hour))
-	inactiveUser3 := setupUser(ctx, t, db, "dormant-user-3@coder.com", database.UserStatusActive, time.Now().Add(-dormancyPeriod).Add(-6*time.Hour))
+	// Use a fixed base time to avoid timing races
+	baseTime := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	dormancyThreshold := baseTime.Add(-dormancyPeriod)
 
-	activeUser1 := setupUser(ctx, t, db, "active-user-1@coder.com", database.UserStatusActive, time.Now().Add(-dormancyPeriod).Add(time.Minute))
-	activeUser2 := setupUser(ctx, t, db, "active-user-2@coder.com", database.UserStatusActive, time.Now().Add(-dormancyPeriod).Add(time.Hour))
-	activeUser3 := setupUser(ctx, t, db, "active-user-3@coder.com", database.UserStatusActive, time.Now().Add(-dormancyPeriod).Add(6*time.Hour))
+	// Create inactive users (last seen BEFORE dormancy threshold)
+	inactiveUser1 := setupUser(ctx, t, db, "dormant-user-1@coder.com", database.UserStatusActive, dormancyThreshold.Add(-24*time.Hour))
+	inactiveUser2 := setupUser(ctx, t, db, "dormant-user-2@coder.com", database.UserStatusActive, dormancyThreshold.Add(-48*time.Hour))
+	inactiveUser3 := setupUser(ctx, t, db, "dormant-user-3@coder.com", database.UserStatusActive, dormancyThreshold.Add(-72*time.Hour))
 
-	suspendedUser1 := setupUser(ctx, t, db, "suspended-user-1@coder.com", database.UserStatusSuspended, time.Now().Add(-dormancyPeriod).Add(-time.Minute))
-	suspendedUser2 := setupUser(ctx, t, db, "suspended-user-2@coder.com", database.UserStatusSuspended, time.Now().Add(-dormancyPeriod).Add(-time.Hour))
-	suspendedUser3 := setupUser(ctx, t, db, "suspended-user-3@coder.com", database.UserStatusSuspended, time.Now().Add(-dormancyPeriod).Add(-6*time.Hour))
+	// Create active users (last seen AFTER dormancy threshold)
+	activeUser1 := setupUser(ctx, t, db, "active-user-1@coder.com", database.UserStatusActive, baseTime.Add(-24*time.Hour))
+	activeUser2 := setupUser(ctx, t, db, "active-user-2@coder.com", database.UserStatusActive, baseTime.Add(-48*time.Hour))
+	activeUser3 := setupUser(ctx, t, db, "active-user-3@coder.com", database.UserStatusActive, baseTime.Add(-72*time.Hour))
+
+	suspendedUser1 := setupUser(ctx, t, db, "suspended-user-1@coder.com", database.UserStatusSuspended, dormancyThreshold.Add(-24*time.Hour))
+	suspendedUser2 := setupUser(ctx, t, db, "suspended-user-2@coder.com", database.UserStatusSuspended, dormancyThreshold.Add(-48*time.Hour))
+	suspendedUser3 := setupUser(ctx, t, db, "suspended-user-3@coder.com", database.UserStatusSuspended, dormancyThreshold.Add(-72*time.Hour))
 
 	mAudit := audit.NewMock()
 	mClock := quartz.NewMock(t)
+	// Set the mock clock to the base time to ensure consistent behavior
+	mClock.Set(baseTime)
 	// Run the periodic job
 	closeFunc := dormancy.CheckInactiveUsersWithOptions(ctx, logger, mClock, db, mAudit, interval, dormancyPeriod)
 	t.Cleanup(closeFunc)
