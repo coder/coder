@@ -2,11 +2,15 @@ package taskname
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"math/rand/v2"
 	"os"
+	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
+	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/aisdk-go"
@@ -20,19 +24,17 @@ const (
 Requirements:
 - Only lowercase letters, numbers, and hyphens
 - Start with "task-"
-- End with a random number between 0-99
-- Maximum 32 characters total
+- Maximum 28 characters total
 - Descriptive of the main task
 
 Examples:
-- "Help me debug a Python script" → "task-python-debug-12"
-- "Create a React dashboard component" → "task-react-dashboard-93"
-- "Analyze sales data from Q3" → "task-analyze-q3-sales-37"
-- "Set up CI/CD pipeline" → "task-setup-cicd-44"
+- "Help me debug a Python script" → "task-python-debug"
+- "Create a React dashboard component" → "task-react-dashboard"
+- "Analyze sales data from Q3" → "task-analyze-q3-sales"
+- "Set up CI/CD pipeline" → "task-setup-cicd"
 
 If you cannot create a suitable name:
-- Respond with "task-unnamed"
-- Do not end with a random number`
+- Respond with "task-unnamed"`
 )
 
 var (
@@ -65,6 +67,32 @@ func GetAnthropicAPIKeyFromEnv() string {
 
 func GetAnthropicModelFromEnv() anthropic.Model {
 	return anthropic.Model(os.Getenv("ANTHROPIC_MODEL"))
+}
+
+// generateSuffix generates a random hex string between `0000` and `ffff`.
+func generateSuffix() string {
+	numMin := 0x00000
+	numMax := 0x10000
+	//nolint:gosec // We don't need a cryptographically secure random number generator for generating a task name suffix.
+	num := rand.IntN(numMax-numMin) + numMin
+
+	return fmt.Sprintf("%04x", num)
+}
+
+func GenerateFallback() string {
+	// We have a 32 character limit for the name.
+	// We have a 5 character prefix `task-`.
+	// We have a 5 character suffix `-ffff`.
+	// This leaves us with 22 characters for the middle.
+	//
+	// Unfortunately, `namesgenerator.GetRandomName(0)` will
+	// generate names that are longer than 22 characters, so
+	// we just trim these down to length.
+	name := strings.ReplaceAll(namesgenerator.GetRandomName(0), "_", "-")
+	name = name[:min(len(name), 22)]
+	name = strings.TrimSuffix(name, "-")
+
+	return fmt.Sprintf("task-%s-%s", name, generateSuffix())
 }
 
 func Generate(ctx context.Context, prompt string, opts ...Option) (string, error) {
@@ -127,7 +155,7 @@ func Generate(ctx context.Context, prompt string, opts ...Option) (string, error
 		return "", ErrNoNameGenerated
 	}
 
-	return generatedName, nil
+	return fmt.Sprintf("%s-%s", generatedName, generateSuffix()), nil
 }
 
 func anthropicDataStream(ctx context.Context, client anthropic.Client, model anthropic.Model, input []aisdk.Message) (aisdk.DataStream, error) {

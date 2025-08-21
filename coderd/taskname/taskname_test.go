@@ -15,6 +15,14 @@ const (
 	anthropicEnvVar = "ANTHROPIC_API_KEY"
 )
 
+func TestGenerateFallback(t *testing.T) {
+	t.Parallel()
+
+	name := taskname.GenerateFallback()
+	err := codersdk.NameValid(name)
+	require.NoErrorf(t, err, "expected fallback to be valid workspace name, instead found %s", name)
+}
+
 func TestGenerateTaskName(t *testing.T) {
 	t.Parallel()
 

@@ -53,7 +53,6 @@ import { useAuthenticated } from "hooks";
 import { useExternalAuth } from "hooks/useExternalAuth";
 import { RedoIcon, RotateCcwIcon, SendIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
-import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { type FC, type ReactNode, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
@@ -741,7 +740,6 @@ export const data = {
 		}
 
 		const workspace = await API.experimental.createTask(userId, {
-			name: `task-${generateWorkspaceName()}`,
 			template_version_id: templateVersionId,
 			template_version_preset_id: preset_id || undefined,
 			prompt,
