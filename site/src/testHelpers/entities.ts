@@ -992,7 +992,7 @@ export const MockWorkspaceSubAgent: TypesGen.WorkspaceAgent = {
 	],
 };
 
-export const MockWorkspaceUnhealthyAgent: TypesGen.WorkspaceAgent = {
+const MockWorkspaceUnhealthyAgent: TypesGen.WorkspaceAgent = {
 	...MockWorkspaceAgent,
 	id: "test-workspace-unhealthy-agent",
 	name: "a-workspace-unhealthy-agent",
