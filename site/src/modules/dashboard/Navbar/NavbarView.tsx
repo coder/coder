@@ -4,11 +4,17 @@ import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { useWebpushNotifications } from "contexts/useWebpushNotifications";
-import { useAuthenticated } from "hooks";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
+import type { Task } from "modules/tasks/tasks";
 import { data } from "pages/TasksPage/TasksPage";
 import type { FC } from "react";
 import { useQuery } from "react-query";
@@ -21,7 +27,7 @@ import { UserDropdown } from "./UserDropdown/UserDropdown";
 
 interface NavbarViewProps {
 	logo_url?: string;
-	user?: TypesGen.User;
+	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks?: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
@@ -64,7 +70,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				)}
 			</NavLink>
 
-			<NavItems className="ml-4" />
+			<NavItems className="ml-4" user={user} />
 
 			<div className="flex items-center gap-3 ml-auto">
 				{proxyContextValue && (
@@ -113,16 +119,14 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					}
 				/>
 
-				{user && (
-					<div className="hidden md:block">
-						<UserDropdown
-							user={user}
-							buildInfo={buildInfo}
-							supportLinks={supportLinks}
-							onSignOut={onSignOut}
-						/>
-					</div>
-				)}
+				<div className="hidden md:block">
+					<UserDropdown
+						user={user}
+						buildInfo={buildInfo}
+						supportLinks={supportLinks}
+						onSignOut={onSignOut}
+					/>
+				</div>
 
 				<div className="md:hidden">
 					<MobileMenu
@@ -144,9 +148,10 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
 interface NavItemsProps {
 	className?: string;
+	user: TypesGen.User;
 }
 
-const NavItems: FC<NavItemsProps> = ({ className }) => {
+const NavItems: FC<NavItemsProps> = ({ className, user }) => {
 	const location = useLocation();
 
 	return (
@@ -170,17 +175,20 @@ const NavItems: FC<NavItemsProps> = ({ className }) => {
 			>
 				Templates
 			</NavLink>
-			<TasksNavItem />
+			<TasksNavItem user={user} />
 		</nav>
 	);
 };
 
-const TasksNavItem: FC = () => {
+type TasksNavItemProps = {
+	user: TypesGen.User;
+};
+
+const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 	const { metadata } = useEmbeddedMetadata();
 	const canSeeTasks =
 		!!metadata["tasks-tab-visible"].value ||
 		process.env.NODE_ENV === "development";
-	const { user } = useAuthenticated();
 	const filter = {
 		user: {
 			label: user.username,
@@ -202,24 +210,44 @@ const TasksNavItem: FC = () => {
 		return null;
 	}
 
+	const search =
+		idleTasks && idleTasks.length > 0
+			? new URLSearchParams({
+					username: user.username,
+					tab: "waiting-for-input",
+				}).toString()
+			: undefined;
+
 	return (
 		<NavLink
+			to={{ pathname: "/tasks", search }}
 			className={({ isActive }) => {
 				return cn(linkStyles.default, isActive ? linkStyles.active : "");
 			}}
-			to="/tasks"
 		>
 			Tasks
 			{idleTasks && idleTasks.length > 0 && (
-				<Badge
-					variant="info"
-					size="xs"
-					className="ml-2"
-					aria-label={`You have ${idleTasks.length} tasks waiting for input`}
-				>
-					{idleTasks.length}
-				</Badge>
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Badge
+								variant="info"
+								size="xs"
+								className="ml-2"
+								aria-label={idleTasksLabel(idleTasks)}
+							>
+								{idleTasks.length}
+							</Badge>
+						</TooltipTrigger>
+						<TooltipContent>{idleTasksLabel(idleTasks)}</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
 			)}
 		</NavLink>
 	);
 };
+
+function idleTasksLabel(idleTasks: Task[]) {
+	const count = idleTasks.length;
+	return `You have ${count} ${count === 1 ? "task" : "tasks"} waiting for input`;
+}

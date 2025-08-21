@@ -1,13 +1,35 @@
 import { chromaticWithTablet } from "testHelpers/chromatic";
-import { MockUserMember, MockUserOwner } from "testHelpers/entities";
+import {
+	MockUserMember,
+	MockUserOwner,
+	MockWorkspace,
+	MockWorkspaceAppStatus,
+} from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 import { NavbarView } from "./NavbarView";
 
+const filter = {
+	user: {
+		label: MockUserOwner.username,
+		value: MockUserOwner.username,
+		avatarUrl: MockUserOwner.avatar_url,
+	},
+};
+
 const meta: Meta<typeof NavbarView> = {
 	title: "modules/dashboard/NavbarView",
-	parameters: { chromatic: chromaticWithTablet, layout: "fullscreen" },
+	parameters: {
+		chromatic: chromaticWithTablet,
+		layout: "fullscreen",
+		queries: [
+			{
+				key: ["tasks", filter],
+				data: [],
+			},
+		],
+	},
 	component: NavbarView,
 	args: {
 		user: MockUserOwner,
@@ -76,5 +98,27 @@ export const ForMember: Story = {
 export const CustomLogo: Story = {
 	args: {
 		logo_url: "/icon/github.svg",
+	},
+};
+
+export const IdleTasks: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", filter],
+				data: [
+					{
+						prompt: "Task 1",
+						workspace: {
+							...MockWorkspace,
+							latest_app_status: {
+								...MockWorkspaceAppStatus,
+								state: "idle",
+							},
+						},
+					},
+				],
+			},
+		],
 	},
 };
