@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -69,4 +70,97 @@ func (c *ExperimentalClient) CreateTask(ctx context.Context, user string, reques
 	}
 
 	return workspace, nil
+}
+
+// TaskStatus represents the high-level lifecycle of a task.
+//
+// Experimental: This type is experimental and may change in the future.
+type TaskStatus string
+
+const (
+	TaskStatusQueued    TaskStatus = "queued"
+	TaskStatusWorking   TaskStatus = "working"
+	TaskStatusIdle      TaskStatus = "idle"
+	TaskStatusPaused    TaskStatus = "paused"
+	TaskStatusCompleted TaskStatus = "completed"
+	TaskStatusFailed    TaskStatus = "failed"
+)
+
+// TasksFilter filters the list of tasks.
+//
+// Experimental: This type is experimental and may change in the future.
+type TasksFilter struct {
+	// Owner can be a username, UUID, or "me"
+	Owner string `json:"owner,omitempty"`
+}
+
+// Task represents a task.
+//
+// Experimental: This type is experimental and may change in the future.
+type Task struct {
+	ID             uuid.UUID     `json:"id"`
+	OrganizationID uuid.UUID     `json:"organization_id"`
+	OwnerID        uuid.UUID     `json:"owner_id"`
+	Name           string        `json:"name"`
+	TemplateID     uuid.UUID     `json:"template_id"`
+	WorkspaceID    uuid.NullUUID `json:"workspace_id"`
+	Prompt         string        `json:"prompt"`
+	Status         TaskStatus    `json:"status"`
+	CreatedAt      time.Time     `json:"created_at" format:"date-time"`
+	UpdatedAt      time.Time     `json:"updated_at" format:"date-time"`
+}
+
+// Tasks lists all tasks belonging to the user or specified owner.
+//
+// Experimental: This method is experimental and may change in the future.
+func (c *ExperimentalClient) Tasks(ctx context.Context, filter *TasksFilter) ([]Task, error) {
+	if filter == nil {
+		filter = &TasksFilter{}
+	}
+	user := filter.Owner
+	if user == "" {
+		user = "me"
+	}
+
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/tasks/%s", user), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	// Experimental response shape for tasks list (server returns []Task).
+	type tasksListResponse struct {
+		Tasks []Task `json:"tasks"`
+		Count int    `json:"count"`
+	}
+	var tres tasksListResponse
+	if err := json.NewDecoder(res.Body).Decode(&tres); err != nil {
+		return nil, err
+	}
+
+	return tres.Tasks, nil
+}
+
+// TaskByID fetches a single experimental task by its ID.
+//
+// Experimental: This method is experimental and may change in the future.
+func (c *ExperimentalClient) TaskByID(ctx context.Context, id uuid.UUID) (Task, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/tasks/%s/%s", "me", id.String()), nil)
+	if err != nil {
+		return Task{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Task{}, ReadBodyAsError(res)
+	}
+
+	var task Task
+	if err := json.NewDecoder(res.Body).Decode(&task); err != nil {
+		return Task{}, err
+	}
+
+	return task, nil
 }
