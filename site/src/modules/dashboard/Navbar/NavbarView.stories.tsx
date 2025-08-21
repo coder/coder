@@ -117,6 +117,17 @@ export const IdleTasks: Story = {
 							},
 						},
 					},
+					{
+						prompt: "Task 2",
+						workspace: MockWorkspace,
+					},
+					{
+						prompt: "Task 3",
+						workspace: {
+							...MockWorkspace,
+							latest_app_status: MockWorkspaceAppStatus,
+						},
+					},
 				],
 			},
 		],

@@ -186,9 +186,11 @@ type TasksNavItemProps = {
 
 const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 	const { metadata } = useEmbeddedMetadata();
-	const canSeeTasks =
-		!!metadata["tasks-tab-visible"].value ||
-		process.env.NODE_ENV === "development";
+	const canSeeTasks = Boolean(
+		metadata["tasks-tab-visible"].value ||
+			process.env.NODE_ENV === "development" ||
+			process.env.STORYBOOK,
+	);
 	const filter = {
 		user: {
 			label: user.username,
@@ -199,7 +201,7 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 	const { data: idleTasks } = useQuery({
 		queryKey: ["tasks", filter],
 		queryFn: () => data.fetchTasks(filter),
-		refetchInterval: 10_000,
+		refetchInterval: 1_000 * 60,
 		enabled: canSeeTasks,
 		refetchOnWindowFocus: true,
 		select: (data) =>
