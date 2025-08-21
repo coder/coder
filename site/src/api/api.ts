@@ -1187,9 +1187,9 @@ class ApiMethods {
 	};
 
 	getWorkspaces = async (
-		options: TypesGen.WorkspacesRequest,
+		req: TypesGen.WorkspacesRequest,
 	): Promise<TypesGen.WorkspacesResponse> => {
-		const url = getURLWithSearchParams("/api/v2/workspaces", options);
+		const url = getURLWithSearchParams("/api/v2/workspaces", req);
 		const response = await this.axios.get<TypesGen.WorkspacesResponse>(url);
 		return response.data;
 	};

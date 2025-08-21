@@ -139,15 +139,14 @@ async function findMatchWorkspace(q: string): Promise<Workspace | undefined> {
 	}
 }
 
-function workspacesKey(config: WorkspacesRequest = {}) {
-	const { q, limit } = config;
-	return ["workspaces", { q, limit }] as const;
+function workspacesKey(req: WorkspacesRequest = {}) {
+	return ["workspaces", req] as const;
 }
 
-export function workspaces(config: WorkspacesRequest = {}) {
+export function workspaces(req: WorkspacesRequest = {}) {
 	return {
-		queryKey: workspacesKey(config),
-		queryFn: () => API.getWorkspaces(config),
+		queryKey: workspacesKey(req),
+		queryFn: () => API.getWorkspaces(req),
 	} as const satisfies QueryOptions<WorkspacesResponse>;
 }
 
