@@ -1541,6 +1541,7 @@ jobs:
 
   notify-slack-on-failure:
     needs:
+      - build
       - required
     runs-on: ubuntu-latest
     if: failure() && github.ref == 'refs/heads/main'
