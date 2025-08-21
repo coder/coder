@@ -6,6 +6,9 @@ set -euo pipefail
 TIMEOUT=${1:-600}
 MAX_ITERATIONS=10
 
+# Log file for Claude output
+LOG_FILE="aitest-$(date +%Y%m%d-%H%M%S).log"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -45,6 +48,15 @@ if [[ -z "$prompt" ]]; then
 fi
 
 log "Received prompt (${#prompt} characters)"
+log "Logging Claude output to: $LOG_FILE"
+
+# Initialize log file with header
+{
+	echo "=== AI Test Session Started at $(date) ==="
+	echo "Initial prompt:"
+	echo "$prompt"
+	echo ""
+} >"$LOG_FILE"
 
 # Function to detect if changes affect Go or TypeScript
 detect_test_type() {
@@ -130,6 +142,7 @@ while ((iteration < MAX_ITERATIONS)); do
 
 	if ((elapsed >= TIMEOUT)); then
 		error "Timeout reached after ${elapsed}s"
+		echo "=== FAILURE: Timeout reached after ${elapsed}s at $(date) ===" >>"$LOG_FILE"
 		exit 1
 	fi
 
@@ -137,10 +150,26 @@ while ((iteration < MAX_ITERATIONS)); do
 
 	# Send prompt to Claude
 	log "Sending prompt to Claude..."
-	if ! echo "$prompt" | claude -p; then
+
+	# Log the prompt for this iteration
+	{
+		echo "=== Iteration $iteration at $(date) ==="
+		echo "Prompt:"
+		echo "$prompt"
+		echo ""
+		echo "Claude response:"
+	} >>"$LOG_FILE"
+
+	# Send to Claude and capture output
+	if ! claude_output=$(echo "$prompt" | claude -p 2>&1); then
 		error "Claude command failed"
+		echo "Claude command failed: $claude_output" >>"$LOG_FILE"
 		exit 1
 	fi
+
+	# Log Claude's response
+	echo "$claude_output" >>"$LOG_FILE"
+	echo "" >>"$LOG_FILE"
 
 	# Detect what tests to run
 	test_type=$(detect_test_type)
@@ -149,9 +178,17 @@ while ((iteration < MAX_ITERATIONS)); do
 	# Run tests
 	if test_output=$(run_tests "$test_type"); then
 		success "All tests passed! Completed in $iteration iteration(s)"
+		echo "=== SUCCESS: All tests passed in $iteration iteration(s) at $(date) ===" >>"$LOG_FILE"
 		exit 0
 	else
 		warn "Tests failed, providing feedback to Claude..."
+
+		# Log the test failures
+		{
+			echo "Test failures:"
+			echo "$test_output"
+			echo ""
+		} >>"$LOG_FILE"
 
 		# Update prompt to include only the test failures
 		prompt="Fix these test failures:
@@ -163,4 +200,5 @@ $test_output"
 done
 
 error "Maximum iterations ($MAX_ITERATIONS) reached without success"
+echo "=== FAILURE: Maximum iterations reached without success at $(date) ===" >>"$LOG_FILE"
 exit 1
