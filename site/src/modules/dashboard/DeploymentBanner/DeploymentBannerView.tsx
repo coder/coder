@@ -51,8 +51,6 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 	fetchStats,
 }) => {
 	const theme = useTheme();
-	const summaryTooltip =
-		"ml-3 mb-1 max-w-[400px] p-4 text-content-primary bg-surface-secondary border border-solid border-border pointer-events-none";
 
 	const aggregatedMinutes = useMemo(() => {
 		if (!stats) {
@@ -127,7 +125,10 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 			}}
 		>
 			<Tooltip
-				classes={{ tooltip: summaryTooltip }}
+				classes={{
+					tooltip:
+						"ml-3 mb-1 max-w-[400px] p-4 text-sm text-content-primary bg-surface-secondary border border-solid border-border pointer-events-none",
+				}}
 				title={
 					healthErrors.length > 0 ? (
 						<>
@@ -235,10 +236,10 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						<div css={styles.value}>
 							<VSCodeIcon
 								css={css`
-                  & * {
-                    fill: currentColor;
-                  }
-                `}
+									& * {
+										fill: currentColor;
+									}
+								`}
 							/>
 							{typeof stats?.session_count.vscode === "undefined"
 								? "-"
@@ -250,10 +251,10 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						<div css={styles.value}>
 							<JetBrainsIcon
 								css={css`
-                  & * {
-                    fill: currentColor;
-                  }
-                `}
+									& * {
+										fill: currentColor;
+									}
+								`}
 							/>
 							{typeof stats?.session_count.jetbrains === "undefined"
 								? "-"
@@ -302,20 +303,20 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						css={[
 							styles.value,
 							css`
-                margin: 0;
-                padding: 0 8px;
-                height: unset;
-                min-height: unset;
-                font-size: unset;
-                color: unset;
-                border: 0;
-                min-width: unset;
-                font-family: inherit;
+								margin: 0;
+								padding: 0 8px;
+								height: unset;
+								min-height: unset;
+								font-size: unset;
+								color: unset;
+								border: 0;
+								min-width: unset;
+								font-family: inherit;
 
-                & svg {
-                  margin-right: 4px;
-                }
-              `,
+								& svg {
+									margin-right: 4px;
+								}
+							`,
 						]}
 						onClick={() => {
 							if (fetchStats) {
@@ -411,25 +412,25 @@ const getHealthErrors = (health: HealthcheckReport) => {
 
 const styles = {
 	statusBadge: (theme) => css`
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 12px;
-    height: 100%;
-    color: ${theme.experimental.l1.text};
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0 12px;
+		height: 100%;
+		color: ${theme.experimental.l1.text};
 
-    & svg {
-      width: 16px;
-      height: 16px;
-    }
-  `,
+		& svg {
+			width: 16px;
+			height: 16px;
+		}
+	`,
 	unhealthy: {
 		backgroundColor: colors.red[700],
 	},
 	group: css`
-    display: flex;
-    align-items: center;
-  `,
+		display: flex;
+		align-items: center;
+	`,
 	category: (theme) => ({
 		marginRight: 16,
 		color: theme.palette.text.primary,
@@ -440,15 +441,15 @@ const styles = {
 		color: theme.palette.text.secondary,
 	}),
 	value: css`
-    display: flex;
-    align-items: center;
-    gap: 4px;
+		display: flex;
+		align-items: center;
+		gap: 4px;
 
-    & svg {
-      width: 12px;
-      height: 12px;
-    }
-  `,
+		& svg {
+			width: 12px;
+			height: 12px;
+		}
+	`,
 	separator: (theme) => ({
 		color: theme.palette.text.disabled,
 	}),
