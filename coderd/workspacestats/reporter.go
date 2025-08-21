@@ -126,13 +126,8 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 
 	// update prometheus metrics
 	if r.opts.UpdateAgentMetricsFn != nil {
-		user, err := r.opts.Database.GetUserByID(ctx, workspace.OwnerID)
-		if err != nil {
-			return xerrors.Errorf("get user: %w", err)
-		}
-
 		r.opts.UpdateAgentMetricsFn(ctx, prometheusmetrics.AgentMetricLabels{
-			Username:      user.Username,
+			Username:      workspace.OwnerUsername,
 			WorkspaceName: workspace.Name,
 			AgentName:     workspaceAgent.Name,
 			TemplateName:  templateName,
