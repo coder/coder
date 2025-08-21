@@ -80,7 +80,16 @@ func generateSuffix() string {
 }
 
 func GenerateFallback() string {
+	// We have a 32 character limit for the name.
+	// We have a 5 character prefix `task-`.
+	// We have a 4 character suffix `-fff`.
+	// This leaves us with 23 characters for the middle.
+	//
+	// Unfortunately, `namesgenerator.GetRandomName(0)` will
+	// generate names that are longer than 23 characters, so
+	// we just trim these down to length.
 	name := strings.ReplaceAll(namesgenerator.GetRandomName(0), "_", "-")
+	name = name[:min(len(name), 23)]
 
 	return fmt.Sprintf("task-%s-%s", name, generateSuffix())
 }
