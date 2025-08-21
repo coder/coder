@@ -90,6 +90,7 @@ func GenerateFallback() string {
 	// we just trim these down to length.
 	name := strings.ReplaceAll(namesgenerator.GetRandomName(0), "_", "-")
 	name = name[:min(len(name), 23)]
+	name = strings.TrimSuffix(name, "-")
 
 	return fmt.Sprintf("task-%s-%s", name, generateSuffix())
 }
