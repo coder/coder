@@ -49,6 +49,14 @@ const (
 	ProvisionerDaemonBusy    ProvisionerDaemonStatus = "busy"
 )
 
+func ProvisionerDaemonStatusEnums() []ProvisionerDaemonStatus {
+	return []ProvisionerDaemonStatus{
+		ProvisionerDaemonOffline,
+		ProvisionerDaemonIdle,
+		ProvisionerDaemonBusy,
+	}
+}
+
 type ProvisionerDaemon struct {
 	ID             uuid.UUID         `json:"id" format:"uuid" table:"id"`
 	OrganizationID uuid.UUID         `json:"organization_id" format:"uuid" table:"organization id"`

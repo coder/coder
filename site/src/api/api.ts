@@ -421,6 +421,8 @@ export type GetProvisionerDaemonsParams = {
 	// Stringified JSON Object
 	tags?: string;
 	limit?: number;
+	// Include offline provisioner daemons?
+	offline?: boolean;
 };
 
 export type TasksFilter = {
