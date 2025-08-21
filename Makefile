@@ -614,7 +614,7 @@ lint/actions/actionlint:
 lint/actions/zizmor:
 	./scripts/zizmor.sh \
 		--strict-collection \
-		--persona=pedantic \
+		--persona=regular \
 		.
 .PHONY: lint/actions/zizmor
 

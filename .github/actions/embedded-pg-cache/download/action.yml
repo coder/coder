@@ -27,9 +27,9 @@ runs:
         export DAY=$(date +'%d')
         echo "year-month=$YEAR_MONTH" >> "$GITHUB_OUTPUT"
         echo "prev-year-month=$PREV_YEAR_MONTH" >> "$GITHUB_OUTPUT"
-        echo "cache-key=${KEY_PREFIX}-${YEAR_MONTH}-${DAY}" >> "$GITHUB_OUTPUT"
+        echo "cache-key=${INPUTS_KEY_PREFIX}-${YEAR_MONTH}-${DAY}" >> "$GITHUB_OUTPUT"
       env:
-        KEY_PREFIX: ${{ inputs.key-prefix }}
+        INPUTS_KEY_PREFIX: ${{ inputs.key-prefix }}
 
     # By default, depot keeps caches for 14 days. This is plenty for embedded
     # postgres, which changes infrequently.

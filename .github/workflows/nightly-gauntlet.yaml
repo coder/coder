@@ -50,12 +50,13 @@ jobs:
       # a separate repository to allow its use before actions/checkout.
       - name: Setup RAM Disks
         if: runner.os == 'Windows'
-        uses: coder/setup-ramdisk-action@e1100847ab2d7bcd9d14bcda8f2d1b0f07b36f1b
+        uses: coder/setup-ramdisk-action@e1100847ab2d7bcd9d14bcda8f2d1b0f07b36f1b # v0.1.0
 
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -168,7 +169,7 @@ jobs:
 
     steps:
       - name: Send Slack notification
-        run: |
+        run: | # zizmor: ignore[template-injection] We're reading variables from github context into a json string, so replacing with envs is tricky
           curl -X POST -H 'Content-type: application/json' \
           --data '{
             "blocks": [
@@ -212,4 +213,4 @@ jobs:
                 }
               }
             ]
-          }' ${{ secrets.CI_FAILURE_SLACK_WEBHOOK }}
+          }' "${{ secrets.CI_FAILURE_SLACK_WEBHOOK }}"

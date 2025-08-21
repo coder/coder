@@ -45,6 +45,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
 
       - name: Check if PR is open
         id: check_pr
@@ -82,6 +84,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Get PR number, title, and branch name
         id: pr_info
@@ -120,7 +123,7 @@ jobs:
         id: check_deployment
         run: |
           set -euo pipefail
-          if helm status "pr${{ steps.pr_info.outputs.PR_NUMBER }}" --namespace "pr${{ steps.pr_info.outputs.PR_NUMBER }}" > /dev/null 2>&1; then
+          if helm status "pr${PR_NUMBER}" --namespace "pr${PR_NUMBER}" > /dev/null 2>&1; then
             echo "Deployment already exists. Skipping deployment."
             NEW=false
           else
@@ -128,6 +131,8 @@ jobs:
             NEW=true
           fi
           echo "NEW=$NEW" >> "$GITHUB_OUTPUT"
+        env:
+          PR_NUMBER: ${{ steps.pr_info.outputs.PR_NUMBER }}
 
       - name: Check changed files
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
@@ -156,8 +161,11 @@ jobs:
       - name: Print number of changed files
         run: |
           set -euo pipefail
-          echo "Total number of changed files: ${{ steps.filter.outputs.all_count }}"
-          echo "Number of ignored files: ${{ steps.filter.outputs.ignored_count }}"
+          echo "Total number of changed files: ${ALL_COUNT}"
+          echo "Number of ignored files: ${IGNORED_COUNT}"
+        env:
+          ALL_COUNT: ${{ steps.filter.outputs.all_count }}
+          IGNORED_COUNT: ${{ steps.filter.outputs.ignored_count }}
 
       - name: Build conditionals
         id: build_conditionals
@@ -228,6 +236,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -257,7 +266,7 @@ jobs:
           make -j build/coder_linux_amd64
           ./scripts/build_docker.sh \
             --arch amd64 \
-            --target "${{ env.CODER_IMAGE_TAG }}" \
+            --target "${CODER_IMAGE_TAG}" \
             --version "$version" \
             --push \
             build/coder_linux_amd64
@@ -296,13 +305,13 @@ jobs:
           set -euo pipefail
           foundTag=$(
             gh api /orgs/coder/packages/container/coder-preview/versions |
-            jq -r --arg tag "pr${{ env.PR_NUMBER }}" '.[] |
+            jq -r --arg tag "pr${PR_NUMBER}" '.[] |
             select(.metadata.container.tags == [$tag]) |
             .metadata.container.tags[0]'
           )
           if [ -z "$foundTag" ]; then
             echo "Image not found"
-            echo "${{ env.CODER_IMAGE_TAG }} not found in ghcr.io/coder/coder-preview"
+            echo "${CODER_IMAGE_TAG} not found in ghcr.io/coder/coder-preview"
             exit 1
           else
             echo "Image found"
@@ -317,40 +326,42 @@ jobs:
           curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
             -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
             -H "Content-Type:application/json" \
-            --data '{"type":"CNAME","name":"*.${{ env.PR_HOSTNAME }}","content":"${{ env.PR_HOSTNAME }}","ttl":1,"proxied":false}'
+            --data '{"type":"CNAME","name":"*.'"${PR_HOSTNAME}"'","content":"'"${PR_HOSTNAME}"'","ttl":1,"proxied":false}'
 
       - name: Create PR namespace
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
         run: |
           set -euo pipefail
           # try to delete the namespace, but don't fail if it doesn't exist
-          kubectl delete namespace "pr${{ env.PR_NUMBER }}" || true
-          kubectl create namespace "pr${{ env.PR_NUMBER }}"
+          kubectl delete namespace "pr${PR_NUMBER}" || true
+          kubectl create namespace "pr${PR_NUMBER}"
 
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
 
       - name: Check and Create Certificate
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
         run: |
           # Using kubectl to check if a Certificate resource already exists
           # we are doing this to avoid letsenrypt rate limits
-          if ! kubectl get certificate pr${{ env.PR_NUMBER }}-tls -n pr-deployment-certs > /dev/null 2>&1; then
+          if ! kubectl get certificate "pr${PR_NUMBER}-tls" -n pr-deployment-certs > /dev/null 2>&1; then
             echo "Certificate doesn't exist. Creating a new one."
             envsubst < ./.github/pr-deployments/certificate.yaml | kubectl apply -f -
           else
             echo "Certificate exists. Skipping certificate creation."
           fi
-          echo "Copy certificate from pr-deployment-certs to pr${{ env.PR_NUMBER }} namespace"
-          until kubectl get secret pr${{ env.PR_NUMBER }}-tls -n pr-deployment-certs &> /dev/null
+          echo "Copy certificate from pr-deployment-certs to pr${PR_NUMBER} namespace"
+          until kubectl get secret "pr${PR_NUMBER}-tls" -n pr-deployment-certs &> /dev/null
           do
-            echo "Waiting for secret pr${{ env.PR_NUMBER }}-tls to be created..."
+            echo "Waiting for secret pr${PR_NUMBER}-tls to be created..."
             sleep 5
           done
           (
-            kubectl get secret pr${{ env.PR_NUMBER }}-tls -n pr-deployment-certs -o json |
+            kubectl get secret "pr${PR_NUMBER}-tls" -n pr-deployment-certs -o json |
             jq 'del(.metadata.namespace,.metadata.creationTimestamp,.metadata.resourceVersion,.metadata.selfLink,.metadata.uid,.metadata.managedFields)' |
-            kubectl -n pr${{ env.PR_NUMBER }} apply -f -
+            kubectl -n "pr${PR_NUMBER}" apply -f -
           )
 
       - name: Set up PostgreSQL database
@@ -358,13 +369,13 @@ jobs:
         run: |
           helm repo add bitnami https://charts.bitnami.com/bitnami
           helm install coder-db bitnami/postgresql \
-            --namespace pr${{ env.PR_NUMBER }} \
+            --namespace "pr${PR_NUMBER}" \
             --set auth.username=coder \
             --set auth.password=coder \
             --set auth.database=coder \
             --set persistence.size=10Gi
-          kubectl create secret generic coder-db-url -n pr${{ env.PR_NUMBER }} \
-            --from-literal=url="postgres://coder:coder@coder-db-postgresql.pr${{ env.PR_NUMBER }}.svc.cluster.local:5432/coder?sslmode=disable"
+          kubectl create secret generic coder-db-url -n "pr${PR_NUMBER}" \
+            --from-literal=url="postgres://coder:coder@coder-db-postgresql.pr${PR_NUMBER}.svc.cluster.local:5432/coder?sslmode=disable"
 
       - name: Create a service account, role, and rolebinding for the PR namespace
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
@@ -386,8 +397,8 @@ jobs:
         run: |
           set -euo pipefail
           helm dependency update --skip-refresh ./helm/coder
-          helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm/coder \
-          --namespace "pr${{ env.PR_NUMBER }}" \
+          helm upgrade --install "pr${PR_NUMBER}" ./helm/coder \
+          --namespace "pr${PR_NUMBER}" \
           --values ./pr-deploy-values.yaml \
           --force
 
@@ -396,8 +407,8 @@ jobs:
         run: |
           helm repo add coder-logstream-kube https://helm.coder.com/logstream-kube
           helm upgrade --install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
-            --namespace "pr${{ env.PR_NUMBER }}" \
-            --set url="https://${{ env.PR_HOSTNAME }}"
+            --namespace "pr${PR_NUMBER}" \
+            --set url="https://${PR_HOSTNAME}"
 
       - name: Get Coder binary
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
@@ -405,7 +416,7 @@ jobs:
           set -euo pipefail
 
           DEST="${HOME}/coder"
-          URL="https://${{ env.PR_HOSTNAME }}/bin/coder-linux-amd64"
+          URL="https://${PR_HOSTNAME}/bin/coder-linux-amd64"
 
           mkdir -p "$(dirname "$DEST")"
 
@@ -441,21 +452,21 @@ jobs:
           echo "password=$password" >> "$GITHUB_OUTPUT"
 
           coder login \
-            --first-user-username "pr${{ env.PR_NUMBER }}-admin" \
-            --first-user-email "pr${{ env.PR_NUMBER }}@coder.com" \
+            --first-user-username "pr${PR_NUMBER}-admin" \
+            --first-user-email "pr${PR_NUMBER}@coder.com" \
             --first-user-password "$password" \
             --first-user-trial=false \
             --use-token-as-session \
-            https://${{ env.PR_HOSTNAME }}
+            "https://${PR_HOSTNAME}"
 
           # Create a user for the github.actor
           # TODO: update once https://github.com/coder/coder/issues/15466 is resolved
           # coder users create \
-          #   --username ${{ github.actor }} \
+          #   --username ${GITHUB_ACTOR} \
           #   --login-type github
 
           # promote the user to admin role
-          # coder org members edit-role ${{ github.actor }} organization-admin
+          # coder org members edit-role ${GITHUB_ACTOR} organization-admin
           # TODO: update once https://github.com/coder/internal/issues/207 is resolved
 
       - name: Send Slack notification
@@ -464,17 +475,19 @@ jobs:
           curl -s -o /dev/null -X POST -H 'Content-type: application/json' \
             -d \
             '{
-              "pr_number": "'"${{ env.PR_NUMBER }}"'",
-              "pr_url": "'"${{ env.PR_URL }}"'",
-              "pr_title": "'"${{ env.PR_TITLE }}"'",
-              "pr_access_url": "'"https://${{ env.PR_HOSTNAME }}"'",
-              "pr_username": "'"pr${{ env.PR_NUMBER }}-admin"'",
-              "pr_email": "'"pr${{ env.PR_NUMBER }}@coder.com"'",
-              "pr_password": "'"${{ steps.setup_deployment.outputs.password }}"'",
-              "pr_actor": "'"${{ github.actor }}"'"
+              "pr_number": "'"${PR_NUMBER}"'",
+              "pr_url": "'"${PR_URL}"'",
+              "pr_title": "'"${PR_TITLE}"'",
+              "pr_access_url": "'"https://${PR_HOSTNAME}"'",
+              "pr_username": "'"pr${PR_NUMBER}-admin"'",
+              "pr_email": "'"pr${PR_NUMBER}@coder.com"'",
+              "pr_password": "'"${PASSWORD}"'",
+              "pr_actor": "'"${GITHUB_ACTOR}"'"
             }' \
             ${{ secrets.PR_DEPLOYMENTS_SLACK_WEBHOOK }}
           echo "Slack notification sent"
+        env:
+          PASSWORD: ${{ steps.setup_deployment.outputs.password }}
 
       - name: Find Comment
         uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e # v3.1.0
@@ -507,7 +520,7 @@ jobs:
         run: |
           set -euo pipefail
           cd .github/pr-deployments/template
-          coder templates push -y --variable namespace=pr${{ env.PR_NUMBER }} kubernetes
+          coder templates push -y --variable "namespace=pr${PR_NUMBER}" kubernetes
 
           # Create workspace
           coder create --template="kubernetes" kube --parameter cpu=2 --parameter memory=4 --parameter home_disk_size=2 -y

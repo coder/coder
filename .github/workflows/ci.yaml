@@ -42,7 +42,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 1
-      # For pull requests it's not necessary to checkout the code
+          persist-credentials: false
       - name: check changed files
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
@@ -111,7 +111,9 @@ jobs:
 
       - id: debug
         run: |
-          echo "${{ toJSON(steps.filter )}}"
+          echo "$FILTER_JSON"
+        env:
+          FILTER_JSON: ${{ toJSON(steps.filter.outputs) }}
 
   # Disabled due to instability. See: https://github.com/coder/coder/issues/14553
   # Re-enable once the flake hash calculation is stable.
@@ -162,6 +164,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -234,6 +237,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -289,6 +293,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -353,12 +358,13 @@ jobs:
       # a separate repository to allow its use before actions/checkout.
       - name: Setup RAM Disks
         if: runner.os == 'Windows'
-        uses: coder/setup-ramdisk-action@e1100847ab2d7bcd9d14bcda8f2d1b0f07b36f1b
+        uses: coder/setup-ramdisk-action@e1100847ab2d7bcd9d14bcda8f2d1b0f07b36f1b # v0.1.0
 
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Go Paths
         id: go-paths
@@ -421,34 +427,34 @@ jobs:
           set -o errexit
           set -o pipefail
 
-          if [ "${{ runner.os }}" == "Windows" ]; then
+          if [ "$RUNNER_OS" == "Windows" ]; then
             # Create a temp dir on the R: ramdisk drive for Windows. The default
             # C: drive is extremely slow: https://github.com/actions/runner-images/issues/8755
             mkdir -p "R:/temp/embedded-pg"
             go run scripts/embedded-pg/main.go -path "R:/temp/embedded-pg" -cache "${EMBEDDED_PG_CACHE_DIR}"
-          elif [ "${{ runner.os }}" == "macOS" ]; then
+          elif [ "$RUNNER_OS" == "macOS" ]; then
             # Postgres runs faster on a ramdisk on macOS too
             mkdir -p /tmp/tmpfs
             sudo mount_tmpfs -o noowners -s 8g /tmp/tmpfs
             go run scripts/embedded-pg/main.go -path /tmp/tmpfs/embedded-pg -cache "${EMBEDDED_PG_CACHE_DIR}"
-          elif [ "${{ runner.os }}" == "Linux" ]; then
+          elif [ "$RUNNER_OS" == "Linux" ]; then
             make test-postgres-docker
           fi
 
           # if macOS, install google-chrome for scaletests
           # As another concern, should we really have this kind of external dependency
           # requirement on standard CI?
-          if [ "${{ matrix.os }}" == "macos-latest" ]; then
+          if [ "${RUNNER_OS}" == "macos-latest" ]; then
             brew install google-chrome
           fi
 
           # macOS will output "The default interactive shell is now zsh"
           # intermittently in CI...
-          if [ "${{ matrix.os }}" == "macos-latest" ]; then
+          if [ "${RUNNER_OS}" == "macos-latest" ]; then
             touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
           fi
 
-          if [ "${{ runner.os }}" == "Windows" ]; then
+          if [ "${RUNNER_OS}" == "Windows" ]; then
             # Our Windows runners have 16 cores.
             # On Windows Postgres chokes up when we have 16x16=256 tests
             # running in parallel, and dbtestutil.NewDB starts to take more than
@@ -458,7 +464,7 @@ jobs:
             NUM_PARALLEL_TESTS=16
             # Only the CLI and Agent are officially supported on Windows and the rest are too flaky
             PACKAGES="./cli/... ./enterprise/cli/... ./agent/..."
-          elif [ "${{ runner.os }}" == "macOS" ]; then
+          elif [ "${RUNNER_OS}" == "macOS" ]; then
             # Our macOS runners have 8 cores. We set NUM_PARALLEL_TESTS to 16
             # because the tests complete faster and Postgres doesn't choke. It seems
             # that macOS's tmpfs is faster than the one on Windows.
@@ -466,7 +472,7 @@ jobs:
             NUM_PARALLEL_TESTS=16
             # Only the CLI and Agent are officially supported on macOS and the rest are too flaky
             PACKAGES="./cli/... ./enterprise/cli/... ./agent/..."
-          elif [ "${{ runner.os }}" == "Linux" ]; then
+          elif [ "${RUNNER_OS}" == "Linux" ]; then
             # Our Linux runners have 8 cores.
             NUM_PARALLEL_PACKAGES=8
             NUM_PARALLEL_TESTS=8
@@ -475,7 +481,7 @@ jobs:
 
           # by default, run tests with cache
           TESTCOUNT=""
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
             # on main, run tests without cache
             TESTCOUNT="-count=1"
           fi
@@ -546,6 +552,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -594,6 +601,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -653,6 +661,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -679,6 +688,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -711,6 +721,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -785,6 +796,7 @@ jobs:
           fetch-depth: 0
           # 👇 Tells the checkout which commit hash to reference
           ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -863,6 +875,7 @@ jobs:
         with:
           # 0 is required here for version.sh to work.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -926,7 +939,7 @@ jobs:
           egress-policy: audit
 
       - name: Ensure required checks
-        run: |
+        run: | # zizmor: ignore[template-injection] We're just reading needs.x.result here, no risk of injection
           echo "Checking required checks"
           echo "- fmt: ${{ needs.fmt.result }}"
           echo "- lint: ${{ needs.lint.result }}"
@@ -959,6 +972,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup build tools
         run: |
@@ -1059,6 +1073,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: GHCR Login
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
@@ -1201,7 +1216,7 @@ jobs:
           make build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
           # only push if we are on main branch
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
             # build and push multi-arch manifest, this depends on the other images
             # being pushed so will automatically push them
             # note: omitting the -j argument to avoid race conditions when pushing
@@ -1228,12 +1243,13 @@ jobs:
         continue-on-error: true
         env:
           COSIGN_EXPERIMENTAL: 1
+          BUILD_TAG: ${{ steps.build-docker.outputs.tag }}
         run: |
           set -euxo pipefail
 
           # Define image base and tags
           IMAGE_BASE="ghcr.io/coder/coder-preview"
-          TAGS=("${{ steps.build-docker.outputs.tag }}" "main" "latest")
+          TAGS=("${BUILD_TAG}" "main" "latest")
 
           # Generate and attest SBOM for each tag
           for tag in "${TAGS[@]}"; do
@@ -1372,7 +1388,7 @@ jobs:
       # Report attestation failures but don't fail the workflow
       - name: Check attestation status
         if: github.ref == 'refs/heads/main'
-        run: |
+        run: | # zizmor: ignore[template-injection] We're just reading steps.attest_x.outcome here, no risk of injection
           if [[ "${{ steps.attest_main.outcome }}" == "failure" ]]; then
             echo "::warning::GitHub attestation for main tag failed"
           fi
@@ -1432,6 +1448,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@b7593ed2efd1c1617e1b0254da33b86225adb2a5 # v2.1.12
@@ -1496,6 +1513,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup flyctl
         uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # v1.5
@@ -1531,7 +1549,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 1
-      # We need golang to run the migration main.go
+          persist-credentials: false
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
@@ -1550,7 +1568,7 @@ jobs:
 
     steps:
       - name: Send Slack notification
-        run: |
+        run: | # zizmor: ignore[template-injection] We're reading variables from github context into a json string, so replacing with envs is tricky
           curl -X POST -H 'Content-type: application/json' \
           --data '{
             "blocks": [
