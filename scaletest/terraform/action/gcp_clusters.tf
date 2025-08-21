@@ -78,12 +78,13 @@ resource "google_container_cluster" "cluster" {
   name                      = "${var.name}-${each.key}"
   location                  = each.value.zone
   project                   = var.project_id
-  network                   = local.vpc_name
-  subnetwork                = local.subnet_name
+  network                   = google_compute_network.network.name
+  subnetwork                = google_compute_subnetwork.subnetwork[each.key].name
   networking_mode           = "VPC_NATIVE"
   default_max_pods_per_node = 256
   ip_allocation_policy { # Required with networking_mode=VPC_NATIVE
-
+    cluster_secondary_range_name  = local.secondary_ip_range_k8s_pods
+    services_secondary_range_name = local.secondary_ip_range_k8s_services
   }
   release_channel {
     # Setting release channel as STABLE can cause unexpected cluster upgrades.
@@ -107,7 +108,6 @@ resource "google_container_cluster" "cluster" {
   workload_identity_config {
     workload_pool = "${data.google_project.project.project_id}.svc.id.goog"
   }
-
 
   lifecycle {
     ignore_changes = [
