@@ -1,13 +1,17 @@
 import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
+import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { useWebpushNotifications } from "contexts/useWebpushNotifications";
+import { useAuthenticated } from "hooks";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
+import { data } from "pages/TasksPage/TasksPage";
 import type { FC } from "react";
+import { useQuery } from "react-query";
 import { NavLink, useLocation } from "react-router";
 import { cn } from "utils/cn";
 import { DeploymentDropdown } from "./DeploymentDropdown";
@@ -144,7 +148,6 @@ interface NavItemsProps {
 
 const NavItems: FC<NavItemsProps> = ({ className }) => {
 	const location = useLocation();
-	const { metadata } = useEmbeddedMetadata();
 
 	return (
 		<nav className={cn("flex items-center gap-4 h-full", className)}>
@@ -167,16 +170,56 @@ const NavItems: FC<NavItemsProps> = ({ className }) => {
 			>
 				Templates
 			</NavLink>
-			{metadata["tasks-tab-visible"].value && (
-				<NavLink
-					className={({ isActive }) => {
-						return cn(linkStyles.default, isActive ? linkStyles.active : "");
-					}}
-					to="/tasks"
-				>
-					Tasks
-				</NavLink>
-			)}
+			<TasksNavItem />
 		</nav>
+	);
+};
+
+const TasksNavItem: FC = () => {
+	const { metadata } = useEmbeddedMetadata();
+	const canSeeTasks =
+		!!metadata["tasks-tab-visible"].value ||
+		process.env.NODE_ENV === "development";
+	const { user } = useAuthenticated();
+	const filter = {
+		user: {
+			label: user.username,
+			value: user.username,
+			avatarUrl: user.avatar_url,
+		},
+	};
+	const { data: idleTasks } = useQuery({
+		queryKey: ["tasks", filter],
+		queryFn: () => data.fetchTasks(filter),
+		refetchInterval: 10_000,
+		enabled: canSeeTasks,
+		refetchOnWindowFocus: true,
+		select: (data) =>
+			data.filter((task) => task.workspace.latest_app_status?.state === "idle"),
+	});
+
+	if (!canSeeTasks) {
+		return null;
+	}
+
+	return (
+		<NavLink
+			className={({ isActive }) => {
+				return cn(linkStyles.default, isActive ? linkStyles.active : "");
+			}}
+			to="/tasks"
+		>
+			Tasks
+			{idleTasks && idleTasks.length > 0 && (
+				<Badge
+					variant="info"
+					size="xs"
+					className="ml-2"
+					aria-label={`You have ${idleTasks.length} tasks waiting for input`}
+				>
+					{idleTasks.length}
+				</Badge>
+			)}
+		</NavLink>
 	);
 };
