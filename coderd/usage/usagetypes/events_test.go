@@ -13,29 +13,34 @@ func TestParseEvent(t *testing.T) {
 
 	t.Run("ExtraFields", func(t *testing.T) {
 		t.Parallel()
-		_, err := usagetypes.ParseEvent[usagetypes.DCManagedAgentsV1]([]byte(`{"count": 1, "extra": "field"}`))
-		require.ErrorContains(t, err, "unmarshal usagetypes.DCManagedAgentsV1 event")
+		var event usagetypes.DCManagedAgentsV1
+		err := usagetypes.ParseEvent([]byte(`{"count": 1, "extra": "field"}`), &event)
+		require.ErrorContains(t, err, "unmarshal *usagetypes.DCManagedAgentsV1 event")
 	})
 
 	t.Run("ExtraData", func(t *testing.T) {
 		t.Parallel()
-		_, err := usagetypes.ParseEvent[usagetypes.DCManagedAgentsV1]([]byte(`{"count": 1}{"count": 2}`))
-		require.ErrorContains(t, err, "extra data after usagetypes.DCManagedAgentsV1 event")
+		var event usagetypes.DCManagedAgentsV1
+		err := usagetypes.ParseEvent([]byte(`{"count": 1}{"count": 2}`), &event)
+		require.ErrorContains(t, err, "extra data after *usagetypes.DCManagedAgentsV1 event")
 	})
 
 	t.Run("DCManagedAgentsV1", func(t *testing.T) {
 		t.Parallel()
 
-		event, err := usagetypes.ParseEvent[usagetypes.DCManagedAgentsV1]([]byte(`{"count": 1}`))
+		var event usagetypes.DCManagedAgentsV1
+		err := usagetypes.ParseEvent([]byte(`{"count": 1}`), &event)
 		require.NoError(t, err)
 		require.Equal(t, usagetypes.DCManagedAgentsV1{Count: 1}, event)
 		require.Equal(t, map[string]any{"count": uint64(1)}, event.Fields())
 
-		_, err = usagetypes.ParseEvent[usagetypes.DCManagedAgentsV1]([]byte(`{"count": "invalid"}`))
-		require.ErrorContains(t, err, "unmarshal usagetypes.DCManagedAgentsV1 event")
+		event = usagetypes.DCManagedAgentsV1{}
+		err = usagetypes.ParseEvent([]byte(`{"count": "invalid"}`), &event)
+		require.ErrorContains(t, err, "unmarshal *usagetypes.DCManagedAgentsV1 event")
 
-		_, err = usagetypes.ParseEvent[usagetypes.DCManagedAgentsV1]([]byte(`{}`))
-		require.ErrorContains(t, err, "invalid usagetypes.DCManagedAgentsV1 event: count must be greater than 0")
+		event = usagetypes.DCManagedAgentsV1{}
+		err = usagetypes.ParseEvent([]byte(`{}`), &event)
+		require.ErrorContains(t, err, "invalid *usagetypes.DCManagedAgentsV1 event: count must be greater than 0")
 	})
 }
 
@@ -45,7 +50,9 @@ func TestParseEventWithType(t *testing.T) {
 	t.Run("UnknownEvent", func(t *testing.T) {
 		t.Parallel()
 		_, err := usagetypes.ParseEventWithType(usagetypes.UsageEventType("fake"), []byte(`{}`))
-		require.ErrorContains(t, err, "unknown event type: fake")
+		var unknownEventTypeError usagetypes.UnknownEventTypeError
+		require.ErrorAs(t, err, &unknownEventTypeError)
+		require.Equal(t, "fake", unknownEventTypeError.EventType)
 	})
 
 	t.Run("DCManagedAgentsV1", func(t *testing.T) {
