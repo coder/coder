@@ -1735,7 +1735,7 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, staleTime)
 		p, err = coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
 		assert.NoError(t, err, "Error getting provisioner for workspace")
-		assert.Equal(t, p.LastSeenAt.Time.UnixNano(), staleTime.UnixNano())
+		assert.Eventually(t, func() bool { return p.LastSeenAt.Time.UnixNano() == staleTime.UnixNano() }, testutil.WaitMedium, testutil.IntervalFast)
 	}()
 
 	go func() {
