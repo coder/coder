@@ -471,7 +471,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
-	serverURL.Host = fmt.Sprintf("localhost:%d", tcpAddr.Port)
+	serverURL.Host = fmt.Sprintf("127.0.0.1:%d", tcpAddr.Port)
 
 	derpPort, err := strconv.Atoi(serverURL.Port())
 	require.NoError(t, err)

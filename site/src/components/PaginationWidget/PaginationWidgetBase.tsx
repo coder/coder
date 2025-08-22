@@ -39,16 +39,7 @@ export const PaginationWidgetBase: FC<PaginationWidgetBaseProps> = ({
 	);
 
 	return (
-		<div
-			css={{
-				justifyContent: "center",
-				alignItems: "center",
-				display: "flex",
-				flexDirection: "row",
-				padding: "0 20px",
-				columnGap: "6px",
-			}}
-		>
+		<div className="flex flex-row items-center justify-center px-5 gap-x-1.5">
 			<PaginationNavButton
 				disabledMessage="You are already on the first page"
 				disabled={isPrevDisabled}

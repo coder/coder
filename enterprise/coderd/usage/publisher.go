@@ -14,19 +14,18 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/pproflabel"
-	agplusage "github.com/coder/coder/v2/coderd/usage"
+	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/cryptorand"
-	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/quartz"
 )
 
 const (
-	CoderLicenseJWTHeader = "Coder-License-JWT"
-
 	tallymanURL         = "https://tallyman-prod.coder.com"
 	tallymanIngestURLV1 = tallymanURL + "/api/v1/events/ingest"
 
@@ -49,17 +48,17 @@ type Publisher interface {
 }
 
 type tallymanPublisher struct {
-	ctx       context.Context
-	ctxCancel context.CancelFunc
-	log       slog.Logger
-	db        database.Store
-	done      chan struct{}
+	ctx         context.Context
+	ctxCancel   context.CancelFunc
+	log         slog.Logger
+	db          database.Store
+	licenseKeys map[string]ed25519.PublicKey
+	done        chan struct{}
 
 	// Configured with options:
 	ingestURL    string
 	httpClient   *http.Client
 	clock        quartz.Clock
-	licenseKeys  map[string]ed25519.PublicKey
 	initialDelay time.Duration
 }
 
@@ -67,19 +66,21 @@ var _ Publisher = &tallymanPublisher{}
 
 // NewTallymanPublisher creates a Publisher that publishes usage events to
 // Coder's Tallyman service.
-func NewTallymanPublisher(ctx context.Context, log slog.Logger, db database.Store, opts ...TallymanPublisherOption) Publisher {
+func NewTallymanPublisher(ctx context.Context, log slog.Logger, db database.Store, keys map[string]ed25519.PublicKey, opts ...TallymanPublisherOption) Publisher {
 	ctx, cancel := context.WithCancel(ctx)
-	publisher := &tallymanPublisher{
-		ctx:       ctx,
-		ctxCancel: cancel,
-		log:       log,
-		db:        db,
-		done:      make(chan struct{}),
+	ctx = dbauthz.AsUsagePublisher(ctx) //nolint:gocritic // we intentionally want to be able to process usage events
 
-		ingestURL:   tallymanIngestURLV1,
-		httpClient:  http.DefaultClient,
-		clock:       quartz.NewReal(),
-		licenseKeys: coderd.Keys,
+	publisher := &tallymanPublisher{
+		ctx:         ctx,
+		ctxCancel:   cancel,
+		log:         log,
+		db:          db,
+		licenseKeys: keys,
+		done:        make(chan struct{}),
+
+		ingestURL:  tallymanIngestURLV1,
+		httpClient: http.DefaultClient,
+		clock:      quartz.NewReal(),
 	}
 	for _, opt := range opts {
 		opt(publisher)
@@ -92,6 +93,9 @@ type TallymanPublisherOption func(*tallymanPublisher)
 // PublisherWithHTTPClient sets the HTTP client to use for publishing usage events.
 func PublisherWithHTTPClient(httpClient *http.Client) TallymanPublisherOption {
 	return func(p *tallymanPublisher) {
+		if httpClient == nil {
+			httpClient = http.DefaultClient
+		}
 		p.httpClient = httpClient
 	}
 }
@@ -100,14 +104,6 @@ func PublisherWithHTTPClient(httpClient *http.Client) TallymanPublisherOption {
 func PublisherWithClock(clock quartz.Clock) TallymanPublisherOption {
 	return func(p *tallymanPublisher) {
 		p.clock = clock
-	}
-}
-
-// PublisherWithLicenseKeys sets the license public keys to use for license
-// validation.
-func PublisherWithLicenseKeys(keys map[string]ed25519.PublicKey) TallymanPublisherOption {
-	return func(p *tallymanPublisher) {
-		p.licenseKeys = keys
 	}
 }
 
@@ -141,12 +137,16 @@ func (p *tallymanPublisher) Start() error {
 	if p.initialDelay <= 0 {
 		// Pick a random time between tallymanPublishInitialMinimumDelay and
 		// tallymanPublishInterval.
-		maxPlusDelay := int(tallymanPublishInterval - tallymanPublishInitialMinimumDelay)
-		plusDelay, err := cryptorand.Intn(maxPlusDelay)
+		maxPlusDelay := tallymanPublishInterval - tallymanPublishInitialMinimumDelay
+		plusDelay, err := cryptorand.Int63n(int64(maxPlusDelay))
 		if err != nil {
 			return xerrors.Errorf("could not generate random start delay: %w", err)
 		}
 		p.initialDelay = tallymanPublishInitialMinimumDelay + time.Duration(plusDelay)
+	}
+
+	if len(p.licenseKeys) == 0 {
+		return xerrors.New("no license keys provided")
 	}
 
 	pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceTallymanPublisher), func(ctx context.Context) {
@@ -216,20 +216,19 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 
 	var (
 		eventIDs    = make(map[string]struct{})
-		tallymanReq = TallymanIngestRequestV1{
-			DeploymentID: deploymentID,
-			Events:       make([]TallymanIngestEventV1, 0, len(events)),
+		tallymanReq = usagetypes.TallymanV1IngestRequest{
+			Events: make([]usagetypes.TallymanV1IngestEvent, 0, len(events)),
 		}
 	)
 	for _, event := range events {
 		eventIDs[event.ID] = struct{}{}
-		eventType := agplusage.EventType(event.EventType)
+		eventType := usagetypes.UsageEventType(event.EventType)
 		if !eventType.Valid() {
 			// This should never happen due to the check constraint in the
 			// database.
 			return 0, xerrors.Errorf("event %q has an invalid event type %q", event.ID, event.EventType)
 		}
-		tallymanReq.Events = append(tallymanReq.Events, TallymanIngestEventV1{
+		tallymanReq.Events = append(tallymanReq.Events, usagetypes.TallymanV1IngestEvent{
 			ID:        event.ID,
 			EventType: eventType,
 			EventData: event.EventData,
@@ -242,17 +241,17 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 		return 0, xerrors.Errorf("duplicate event IDs found in events for publishing")
 	}
 
-	resp, err := p.sendPublishRequest(ctx, licenseJwt, tallymanReq)
+	resp, err := p.sendPublishRequest(ctx, deploymentID, licenseJwt, tallymanReq)
 	allFailed := err != nil
 	if err != nil {
 		p.log.Warn(ctx, "failed to send publish request to tallyman", slog.F("count", len(events)), slog.Error(err))
 		// Fake a response with all events temporarily rejected.
-		resp = TallymanIngestResponseV1{
-			AcceptedEvents: []TallymanIngestAcceptedEventV1{},
-			RejectedEvents: make([]TallymanIngestRejectedEventV1, len(events)),
+		resp = usagetypes.TallymanV1IngestResponse{
+			AcceptedEvents: []usagetypes.TallymanV1IngestAcceptedEvent{},
+			RejectedEvents: make([]usagetypes.TallymanV1IngestRejectedEvent, len(events)),
 		}
 		for i, event := range events {
-			resp.RejectedEvents[i] = TallymanIngestRejectedEventV1{
+			resp.RejectedEvents[i] = usagetypes.TallymanV1IngestRejectedEvent{
 				ID:        event.ID,
 				Message:   fmt.Sprintf("failed to publish to tallyman: %v", err),
 				Permanent: false,
@@ -266,8 +265,8 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 		p.log.Warn(ctx, "tallyman returned a different number of events than we sent", slog.F("sent", len(events)), slog.F("accepted", len(resp.AcceptedEvents)), slog.F("rejected", len(resp.RejectedEvents)))
 	}
 
-	acceptedEvents := make(map[string]*TallymanIngestAcceptedEventV1)
-	rejectedEvents := make(map[string]*TallymanIngestRejectedEventV1)
+	acceptedEvents := make(map[string]*usagetypes.TallymanV1IngestAcceptedEvent)
+	rejectedEvents := make(map[string]*usagetypes.TallymanV1IngestRejectedEvent)
 	for _, event := range resp.AcceptedEvents {
 		acceptedEvents[event.ID] = &event
 	}
@@ -388,37 +387,39 @@ func (p *tallymanPublisher) getBestLicenseJWT(ctx context.Context) (string, erro
 	return bestLicense.Raw, nil
 }
 
-func (p *tallymanPublisher) sendPublishRequest(ctx context.Context, licenseJwt string, req TallymanIngestRequestV1) (TallymanIngestResponseV1, error) {
+func (p *tallymanPublisher) sendPublishRequest(ctx context.Context, deploymentID uuid.UUID, licenseJwt string, req usagetypes.TallymanV1IngestRequest) (usagetypes.TallymanV1IngestResponse, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
-		return TallymanIngestResponseV1{}, err
+		return usagetypes.TallymanV1IngestResponse{}, err
 	}
 
 	r, err := http.NewRequestWithContext(ctx, http.MethodPost, p.ingestURL, bytes.NewReader(body))
 	if err != nil {
-		return TallymanIngestResponseV1{}, err
+		return usagetypes.TallymanV1IngestResponse{}, err
 	}
-	r.Header.Set(CoderLicenseJWTHeader, licenseJwt)
+	r.Header.Set("User-Agent", "coderd/"+buildinfo.Version())
+	r.Header.Set(usagetypes.TallymanCoderLicenseKeyHeader, licenseJwt)
+	r.Header.Set(usagetypes.TallymanCoderDeploymentIDHeader, deploymentID.String())
 
 	resp, err := p.httpClient.Do(r)
 	if err != nil {
-		return TallymanIngestResponseV1{}, err
+		return usagetypes.TallymanV1IngestResponse{}, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		var errBody TallymanErrorV1
+		var errBody usagetypes.TallymanV1Response
 		if err := json.NewDecoder(resp.Body).Decode(&errBody); err != nil {
-			errBody = TallymanErrorV1{
+			errBody = usagetypes.TallymanV1Response{
 				Message: fmt.Sprintf("could not decode error response body: %v", err),
 			}
 		}
-		return TallymanIngestResponseV1{}, xerrors.Errorf("unexpected status code %v, error: %s", resp.StatusCode, errBody.Message)
+		return usagetypes.TallymanV1IngestResponse{}, xerrors.Errorf("unexpected status code %v, error: %s", resp.StatusCode, errBody.Message)
 	}
 
-	var respBody TallymanIngestResponseV1
+	var respBody usagetypes.TallymanV1IngestResponse
 	if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
-		return TallymanIngestResponseV1{}, xerrors.Errorf("decode response body: %w", err)
+		return usagetypes.TallymanV1IngestResponse{}, xerrors.Errorf("decode response body: %w", err)
 	}
 
 	return respBody, nil
@@ -429,35 +430,4 @@ func (p *tallymanPublisher) Close() error {
 	p.ctxCancel()
 	<-p.done
 	return nil
-}
-
-type TallymanErrorV1 struct {
-	Message string `json:"message"`
-}
-
-type TallymanIngestRequestV1 struct {
-	DeploymentID uuid.UUID               `json:"deployment_id"`
-	Events       []TallymanIngestEventV1 `json:"events"`
-}
-
-type TallymanIngestEventV1 struct {
-	ID        string              `json:"id"`
-	EventType agplusage.EventType `json:"event_type"`
-	EventData json.RawMessage     `json:"event_data"`
-	CreatedAt time.Time           `json:"created_at"`
-}
-
-type TallymanIngestResponseV1 struct {
-	AcceptedEvents []TallymanIngestAcceptedEventV1 `json:"accepted_events"`
-	RejectedEvents []TallymanIngestRejectedEventV1 `json:"rejected_events"`
-}
-
-type TallymanIngestAcceptedEventV1 struct {
-	ID string `json:"id"`
-}
-
-type TallymanIngestRejectedEventV1 struct {
-	ID        string `json:"id"`
-	Message   string `json:"message"`
-	Permanent bool   `json:"permanent"`
 }

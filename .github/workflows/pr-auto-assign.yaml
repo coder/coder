@@ -3,6 +3,7 @@
 name: PR Auto Assign
 
 on:
+  # zizmor: ignore[dangerous-triggers] We explicitly want to run on pull_request_target.
   pull_request_target:
     types: [opened]
 

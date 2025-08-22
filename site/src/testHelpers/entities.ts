@@ -732,6 +732,7 @@ You can add instructions here
 [Some link info](https://coder.com)`,
 	created_by: MockUserOwner,
 	archived: false,
+	has_external_agent: false,
 };
 
 export const MockTemplateVersion2: TypesGen.TemplateVersion = {
@@ -751,6 +752,7 @@ You can add instructions here
 [Some link info](https://coder.com)`,
 	created_by: MockUserOwner,
 	archived: false,
+	has_external_agent: false,
 };
 
 export const MockTemplateVersionWithMarkdownMessage: TypesGen.TemplateVersion =
@@ -990,6 +992,15 @@ export const MockWorkspaceSubAgent: TypesGen.WorkspaceAgent = {
 		"vscode_insiders",
 		"web_terminal",
 	],
+};
+
+const MockWorkspaceUnhealthyAgent: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
+	id: "test-workspace-unhealthy-agent",
+	name: "a-workspace-unhealthy-agent",
+	status: "timeout",
+	lifecycle_state: "start_error",
+	health: { healthy: false },
 };
 
 export const MockWorkspaceAppStatus: TypesGen.WorkspaceAppStatus = {
@@ -1441,6 +1452,20 @@ export const MockStoppingWorkspace: TypesGen.Workspace = {
 		...MockWorkspaceBuildStop,
 		job: MockRunningProvisionerJob,
 		status: "stopping",
+	},
+};
+export const MockUnhealthyWorkspace: TypesGen.Workspace = {
+	...MockWorkspace,
+	id: "test-unhealthy-workspace",
+	health: {
+		healthy: false,
+		failing_agents: [MockWorkspaceUnhealthyAgent.id],
+	},
+	latest_build: {
+		...MockWorkspace.latest_build,
+		resources: [
+			{ ...MockWorkspaceResource, agents: [MockWorkspaceUnhealthyAgent] },
+		],
 	},
 };
 export const MockStartingWorkspace: TypesGen.Workspace = {

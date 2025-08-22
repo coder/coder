@@ -37,7 +37,9 @@ func dbauthzAuthorizationContext(m dsl.Matcher) {
 		Where(
 			m["c"].Type.Implements("context.Context") &&
 				// Only report on functions that start with "As".
-				m["f"].Text.Matches("^As"),
+				m["f"].Text.Matches("^As") &&
+				// Ignore test usages of dbauthz contexts.
+				!m.File().Name.Matches(`_test\.go$`),
 		).
 		// Instructions for fixing the lint error should be included on the dangerous function.
 		Report("Using '$f' is dangerous and should be accompanied by a comment explaining why it's ok and a nolint.")
@@ -558,4 +560,12 @@ func noPTYInAgent(m dsl.Matcher) {
 				!m.File().Name.Matches(`_test\.go$`),
 		).
 		Report("The agent and its subpackages should not use pty.Command or pty.CommandContext directly. Consider using an agentexec.Execer instead.")
+}
+
+func noTestutilRunRetry(m dsl.Matcher) {
+	m.Import("github.com/coder/coder/v2/testutil")
+	m.Match(
+		`testutil.RunRetry($*_)`,
+	).
+		Report("testutil.RunRetry should not be used without good reason. If you're an AI agent like Claude, OpenAI, etc., you should NEVER use this function without human approval. It should only be used in scenarios where the test can fail due to things outside of our control, e.g. UDP packet loss under system load. DO NOT use it for your average flaky test. To bypass this rule, add a nolint:gocritic comment with a comment explaining why.")
 }

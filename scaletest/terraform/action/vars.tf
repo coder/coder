@@ -13,6 +13,7 @@ variable "scenario" {
 // GCP
 variable "project_id" {
   description = "The project in which to provision resources"
+  default     = "coder-scaletest"
 }
 
 variable "k8s_version" {
@@ -24,19 +25,14 @@ variable "k8s_version" {
 variable "cloudflare_api_token" {
   description = "Cloudflare API token."
   sensitive   = true
-}
-
-variable "cloudflare_email" {
-  description = "Cloudflare email address."
-  sensitive   = true
+  # only override if you want to change the cloudflare_domain; pulls the token for scaletest.dev from Google Secrets
+  # Manager if null.
+  default = null
 }
 
 variable "cloudflare_domain" {
   description = "Cloudflare coder domain."
-}
-
-variable "cloudflare_zone_id" {
-  description = "Cloudflare zone ID."
+  default     = "scaletest.dev"
 }
 
 // Coder
