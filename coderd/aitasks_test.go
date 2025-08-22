@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -145,12 +146,8 @@ func TestAITasksPrompts(t *testing.T) {
 func TestTasks(t *testing.T) {
 	t.Parallel()
 
-	t.Run("List", func(t *testing.T) {
-		t.Parallel()
-
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
+	createAITemplate := func(t *testing.T, client *coderdtest.Client, user coderdtest.User) codersdk.Template {
+		t.Helper()
 
 		// Create a template version that supports AI tasks with the AI Prompt parameter.
 		taskAppID := uuid.New()
@@ -203,6 +200,18 @@ func TestTasks(t *testing.T) {
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		return template
+	}
+
+	t.Run("List", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		template := createAITemplate(t, client, user)
 
 		// Create a workspace (task) with a specific prompt.
 		wantPrompt := "build me a web app"
@@ -218,14 +227,8 @@ func TestTasks(t *testing.T) {
 		tasks, err := exp.Tasks(ctx, &codersdk.TasksFilter{Owner: codersdk.Me})
 		require.NoError(t, err)
 
-		var got codersdk.Task
-		for _, task := range tasks {
-			if task.ID == workspace.ID {
-				got = task
-				break
-			}
-		}
-		require.NotEqual(t, uuid.Nil, got.ID, "expected to find created task in list")
+		got, ok := slice.Find(tasks, func(task codersdk.Task) bool { return task.ID == workspace.ID })
+		require.True(t, ok, "task should be found in the list")
 		assert.Equal(t, wantPrompt, got.InitialPrompt, "task prompt should match the AI Prompt parameter")
 		assert.Equal(t, workspace.Name, got.Name, "task name should map from workspace name")
 		assert.Equal(t, workspace.ID, got.WorkspaceID.UUID, "workspace id should match")
@@ -240,57 +243,7 @@ func TestTasks(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// Create a template version that supports AI tasks with the AI Prompt parameter.
-		taskAppID := uuid.New()
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionPlan: []*proto.Response{
-				{
-					Type: &proto.Response_Plan{
-						Plan: &proto.PlanComplete{
-							Parameters: []*proto.RichParameter{{Name: codersdk.AITaskPromptParameterName, Type: "string"}},
-							HasAiTasks: true,
-						},
-					},
-				},
-			},
-			ProvisionApply: []*proto.Response{
-				{
-					Type: &proto.Response_Apply{
-						Apply: &proto.ApplyComplete{
-							Resources: []*proto.Resource{
-								{
-									Name: "example",
-									Type: "aws_instance",
-									Agents: []*proto.Agent{
-										{
-											Id:   uuid.NewString(),
-											Name: "example",
-											Apps: []*proto.App{
-												{
-													Id:          taskAppID.String(),
-													Slug:        "task-sidebar",
-													DisplayName: "Task Sidebar",
-												},
-											},
-										},
-									},
-								},
-							},
-							AiTasks: []*proto.AITask{
-								{
-									SidebarApp: &proto.AITaskSidebarApp{
-										Id: taskAppID.String(),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := createAITemplate(t, client, user)
 
 		// Create a workspace (task) with a specific prompt.
 		wantPrompt := "review my code"
