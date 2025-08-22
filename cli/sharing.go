@@ -28,7 +28,6 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 	var (
 		client            = new(codersdk.Client)
 		userAndGroupRegex = regexp.MustCompile(`([A-Za-z0-9]+)(?::([A-Za-z0-9]+))?`)
-		workspaceRegex    = regexp.MustCompile(`([A-Za-z0-9\-]+)(?:\/([A-Za-z0-9\-]+))?`)
 		users             []string
 		groups            []string
 	)
@@ -55,32 +54,9 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 			serpent.RequireRangeArgs(1, -1),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			workspaceAndOwner := workspaceRegex.FindStringSubmatch(inv.Args[0])
-
-			// Assume the workspace is being given in the format <owner>/<workspace>
-			// If the owner is an empty string assume just a workspace name was given
-			ownerUsername := workspaceAndOwner[1]
-			workspaceName := workspaceAndOwner[2]
-			if workspaceName == "" {
-				workspaceName = workspaceAndOwner[1]
-				ownerUsername = ""
-			}
-
-			ownerId := codersdk.Me
-			if ownerUsername != "" {
-				owner, err := client.User(inv.Context(), ownerUsername)
-				if err != nil {
-					return xerrors.Errorf("could not fetch the workspace owner with the username %s.", ownerUsername)
-				}
-
-				ownerId = owner.ID.String()
-			}
-
-			workspace, err := client.WorkspaceByOwnerAndName(inv.Context(), ownerId, workspaceName, codersdk.WorkspaceOptions{
-				IncludeDeleted: false,
-			})
+			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
-				return xerrors.Errorf("could not fetch the workspace %s.", workspaceName)
+				return xerrors.Errorf("could not fetch the workspace %s.", inv.Args[0])
 			}
 
 			userRoles := make(map[string]codersdk.WorkspaceRole, len(users))
