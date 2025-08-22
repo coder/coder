@@ -2812,31 +2812,28 @@ export interface Task {
 	readonly name: string;
 	readonly template_id: string;
 	readonly workspace_id: string | null;
-	readonly prompt: string;
-	readonly status: TaskStatus;
+	readonly initial_prompt: string;
+	readonly status: WorkspaceStatus;
+	readonly current_state: TaskStateEntry | null;
 	readonly created_at: string;
 	readonly updated_at: string;
 }
 
 // From codersdk/aitasks.go
-export type TaskStatus =
-	| "completed"
-	| "deleting"
-	| "failed"
-	| "idle"
-	| "pending"
-	| "starting"
-	| "stopping"
-	| "working";
+export type TaskState = "completed" | "failed" | "idle" | "working";
 
-export const TaskStatuses: TaskStatus[] = [
+// From codersdk/aitasks.go
+export interface TaskStateEntry {
+	readonly timestamp: string;
+	readonly state: TaskState;
+	readonly message: string;
+	readonly uri: string;
+}
+
+export const TaskStates: TaskState[] = [
 	"completed",
-	"deleting",
 	"failed",
 	"idle",
-	"pending",
-	"starting",
-	"stopping",
 	"working",
 ];
 

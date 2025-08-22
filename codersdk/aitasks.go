@@ -94,7 +94,7 @@ type Task struct {
 	Name           string          `json:"name"`
 	TemplateID     uuid.UUID       `json:"template_id" format:"uuid"`
 	WorkspaceID    uuid.NullUUID   `json:"workspace_id" format:"uuid"`
-	Prompt         string          `json:"prompt"`
+	InitialPrompt  string          `json:"initial_prompt"`
 	Status         WorkspaceStatus `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
 	CurrentState   *TaskStateEntry `json:"current_state"`
 	CreatedAt      time.Time       `json:"created_at" format:"date-time"`

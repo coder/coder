@@ -226,7 +226,7 @@ func TestTasks(t *testing.T) {
 			}
 		}
 		require.NotEqual(t, uuid.Nil, got.ID, "expected to find created task in list")
-		assert.Equal(t, wantPrompt, got.Prompt, "task prompt should match the AI Prompt parameter")
+		assert.Equal(t, wantPrompt, got.InitialPrompt, "task prompt should match the AI Prompt parameter")
 		assert.Equal(t, workspace.Name, got.Name, "task name should map from workspace name")
 		assert.Equal(t, workspace.ID, got.WorkspaceID.UUID, "workspace id should match")
 		// Status should be populated via app status or workspace status mapping.
@@ -308,7 +308,7 @@ func TestTasks(t *testing.T) {
 
 		assert.Equal(t, workspace.ID, task.ID, "task ID should match workspace ID")
 		assert.Equal(t, workspace.Name, task.Name, "task name should map from workspace name")
-		assert.Equal(t, wantPrompt, task.Prompt, "task prompt should match the AI Prompt parameter")
+		assert.Equal(t, wantPrompt, task.InitialPrompt, "task prompt should match the AI Prompt parameter")
 		assert.Equal(t, workspace.ID, task.WorkspaceID.UUID, "workspace id should match")
 		assert.NotEmpty(t, task.Status, "task status should not be empty")
 	})

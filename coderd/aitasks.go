@@ -230,7 +230,7 @@ func (api *API) tasksFromWorkspaces(ctx context.Context, apiWorkspaces []codersd
 			WorkspaceID:    uuid.NullUUID{Valid: true, UUID: ws.ID},
 			CreatedAt:      ws.CreatedAt,
 			UpdatedAt:      ws.UpdatedAt,
-			Prompt:         promptsByBuildID[ws.LatestBuild.ID],
+			InitialPrompt:  promptsByBuildID[ws.LatestBuild.ID],
 			Status:         ws.LatestBuild.Status,
 			CurrentState:   currentState,
 		})
