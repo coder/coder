@@ -68,59 +68,62 @@ func TestProvisionerJobs(t *testing.T) {
 		// Test helper to create a workspace build job with a predefined input.
 		prepareWorkspaceBuildJob := func(t *testing.T) database.ProvisionerJob {
 			t.Helper()
-			wbID := uuid.New()
-			input, _ := json.Marshal(map[string]string{"workspace_build_id": wbID.String()})
-			job := prepareJob(t, database.ProvisionerJobTypeWorkspaceBuild, input)
-
-			w := dbgen.Workspace(t, db, database.WorkspaceTable{
-				OrganizationID: owner.OrganizationID,
-				OwnerID:        member.ID,
-				TemplateID:     template.ID,
-			})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-				ID:                wbID,
-				InitiatorID:       member.ID,
-				WorkspaceID:       w.ID,
-				TemplateVersionID: version.ID,
-				JobID:             job.ID,
-			})
+			var (
+				wbID     = uuid.New()
+				input, _ = json.Marshal(map[string]string{"workspace_build_id": wbID.String()})
+				job      = prepareJob(t, database.ProvisionerJobTypeWorkspaceBuild, input)
+				w        = dbgen.Workspace(t, db, database.WorkspaceTable{
+					OrganizationID: owner.OrganizationID,
+					OwnerID:        member.ID,
+					TemplateID:     template.ID,
+				})
+				_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+					ID:                wbID,
+					InitiatorID:       member.ID,
+					WorkspaceID:       w.ID,
+					TemplateVersionID: version.ID,
+					JobID:             job.ID,
+				})
+			)
 			return job
 		}
 
 		// Test helper to create a template version import job with a predefined input.
 		prepareTemplateVersionImportJob := func(t *testing.T) database.ProvisionerJob {
 			t.Helper()
-			tvID := uuid.New()
-			input, _ := json.Marshal(map[string]string{"template_version_id": tvID.String()})
-			job := prepareJob(t, database.ProvisionerJobTypeTemplateVersionImport, input)
-
-			_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				OrganizationID: owner.OrganizationID,
-				CreatedBy:      templateAdmin.ID,
-				ID:             tvID,
-				TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-				JobID:          job.ID,
-			})
+			var (
+				tvID     = uuid.New()
+				input, _ = json.Marshal(map[string]string{"template_version_id": tvID.String()})
+				job      = prepareJob(t, database.ProvisionerJobTypeTemplateVersionImport, input)
+				_        = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					OrganizationID: owner.OrganizationID,
+					CreatedBy:      templateAdmin.ID,
+					ID:             tvID,
+					TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+					JobID:          job.ID,
+				})
+			)
 			return job
 		}
 
 		// Test helper to create a template version import dry run job with a predefined input.
 		prepareTemplateVersionImportJobDryRun := func(t *testing.T) database.ProvisionerJob {
 			t.Helper()
-			tvID := uuid.New()
-			input, _ := json.Marshal(map[string]interface{}{
-				"template_version_id": tvID.String(),
-				"dry_run":             true,
-			})
-			job := prepareJob(t, database.ProvisionerJobTypeTemplateVersionDryRun, input)
-
-			_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				OrganizationID: owner.OrganizationID,
-				CreatedBy:      templateAdmin.ID,
-				ID:             tvID,
-				TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-				JobID:          job.ID,
-			})
+			var (
+				tvID     = uuid.New()
+				input, _ = json.Marshal(map[string]interface{}{
+					"template_version_id": tvID.String(),
+					"dry_run":             true,
+				})
+				job = prepareJob(t, database.ProvisionerJobTypeTemplateVersionDryRun, input)
+				_   = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					OrganizationID: owner.OrganizationID,
+					CreatedBy:      templateAdmin.ID,
+					ID:             tvID,
+					TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+					JobID:          job.ID,
+				})
+			)
 			return job
 		}
 
