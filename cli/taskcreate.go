@@ -26,7 +26,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 	)
 
 	return &serpent.Command{
-		Use:   "create [task]",
+		Use:   "create <template[@version]>",
 		Short: "Create a task",
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 1),
