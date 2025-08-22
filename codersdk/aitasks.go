@@ -98,14 +98,14 @@ type TasksFilter struct {
 //
 // Experimental: This type is experimental and may change in the future.
 type Task struct {
-	ID             uuid.UUID     `json:"id"`
-	OrganizationID uuid.UUID     `json:"organization_id"`
-	OwnerID        uuid.UUID     `json:"owner_id"`
+	ID             uuid.UUID     `json:"id" format:"uuid"`
+	OrganizationID uuid.UUID     `json:"organization_id" format:"uuid"`
+	OwnerID        uuid.UUID     `json:"owner_id" format:"uuid"`
 	Name           string        `json:"name"`
-	TemplateID     uuid.UUID     `json:"template_id"`
-	WorkspaceID    uuid.NullUUID `json:"workspace_id"`
+	TemplateID     uuid.UUID     `json:"template_id" format:"uuid"`
+	WorkspaceID    uuid.NullUUID `json:"workspace_id" format:"uuid"`
 	Prompt         string        `json:"prompt"`
-	Status         TaskStatus    `json:"status"`
+	Status         TaskStatus    `json:"status" enum:"queued,working,idle,paused,completed,failed"`
 	CreatedAt      time.Time     `json:"created_at" format:"date-time"`
 	UpdatedAt      time.Time     `json:"updated_at" format:"date-time"`
 }
