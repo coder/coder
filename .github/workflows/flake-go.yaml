@@ -99,11 +99,9 @@ jobs:
           regex='${{ steps.gometa.outputs.regex }}'
           pkgs='${{ steps.gometa.outputs.pkgs }}'
 
-          for i in $(seq 1 ${ATTEMPTS}); do
-            for p in $pkgs; do
-              go test -json -run "$regex" -count=1 -shuffle=on "$p" \
-                | tee "json/run-$i-$(echo "$p" | tr '/.' '__').json" >/dev/null || true
-            done
+          for p in $pkgs; do
+            go test -json -run "$regex" -count=${ATTEMPTS} -shuffle=on "$p" \
+              | tee "json/run-$(echo "$p" | tr '/.' '__').json" >/dev/null || true
           done
 
           jq -s '
@@ -135,7 +133,14 @@ jobs:
           flaky_count=$(jq 'length' json/flaky.json)
           fail_count=$(jq 'length' json/failing.json)
           if [ "$flaky_count" -gt 0 ] || [ "$fail_count" -gt 0 ]; then
-            echo "::error::Flaky or failing tests detected: flaky=$flaky_count failing=$fail_count"
+            error_msg="Flaky or failing tests detected: flaky=$flaky_count failing=$fail_count"
+            if [ "$flaky_count" -gt 0 ]; then
+              error_msg="$error_msg. Flaky tests: $(jq -r '.[] | "\(.name) (failed \(.fail)/\(.pass+.fail) times)"' json/flaky.json | paste -sd', ' -)"
+            fi
+            if [ "$fail_count" -gt 0 ]; then
+              error_msg="$error_msg. Consistently failing tests: $(jq -r '.[].name' json/failing.json | paste -sd', ' -)"
+            fi
+            echo "::error::$error_msg"
             exit 1
           fi
 
