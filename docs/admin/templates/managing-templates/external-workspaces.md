@@ -4,10 +4,13 @@ External workspaces allow you to seamlessly connect externally managed infrastru
 
 ## Prerequisites
 
-- Access to external compute resources (VMs, bare-metal servers, Kubernetes nodes, etc.) that can run the Coder agent.
+- Access to external compute resources that can run the Coder agent:
+  - **Windows**: amd64 or arm64 architecture
+  - **Linux**: amd64, arm64, or armv7 architecture
+  - **macOS**: amd64 or arm64 architecture
+  - **Examples**: VMs, bare-metal servers, Kubernetes nodes, or any machine meeting the above requirements.
 - Networking access to your Coder deployment.
 - A workspace template that includes a [`coder_external_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/external_agent) resource.
-
 
 We provide an example template on how to set up external workspaces in the [Coder Registry](https://registry.coder.com/templates/coder-labs/externally-managed-workspace)
 
@@ -17,22 +20,15 @@ External workspaces offer flexibility and control in complex environments:
 
 - **Incremental adoption of Coder**
 
-  Integrate with existing infrastructure gradually without needing to migrate everything at once.
+  Integrate with existing infrastructure gradually without needing to migrate everything at once. This is particularly useful when gradually migrating worklods to Coder without refactoring current infrastructure.
 
 - **Flexibility**
 
-  Attach cloud, hybrid, or on-premises machines as developer workspaces.
+  Attach cloud, hybrid, or on-premises machines as developer workspaces. This enables connecting existing on-premises GPU servers for ML development or bringing manually provisioned VMs in restricted networks under Coder's workspace management.
 
 - **Separation of concerns**
 
-  Provision compute resources externally (using your existing IaC or manual processes) while managing workspace configuration (apps, scripts) with Terraform.
-
-## Use cases
-
-- Connecting an existing on-premises GPU server for ML development.
-- Bringing a manually provisioned VM in a restricted network under Coder’s workspace management.
-- Gradually migrating workloads to Coder without refactoring current infrastructure.
-- Running agents in CI pipelines to provision short-lived, externally managed workspaces for testing or build automation.
+  Provision compute resources externally (using your existing IaC or manual processes) while managing workspace configuration (apps, scripts) with Terraform. This approach is ideal for running agents in CI pipelines to provision short-lived, externally managed workspaces for testing or build automation.
 
 ## Known limitations
 
@@ -131,3 +127,5 @@ coder external-workspaces agent-instructions hello-world --output=json
 4. The workspace will appear in the dashboard, but with the following differences:
    - **Start**, **Stop**, and **Restart** actions are disabled.
    - Users are provided with instructions for launching the agent manually on the external machine.
+
+![External Workspace View](../../../images/admin/templates/external-workspace.png)
