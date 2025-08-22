@@ -4090,7 +4090,7 @@ export const WorkspaceTransitions: WorkspaceTransition[] = [
 ];
 
 // From codersdk/workspaces.go
-export interface WorkspaceUser extends User {
+export interface WorkspaceUser extends MinimalUser {
 	readonly role: WorkspaceRole;
 }
 

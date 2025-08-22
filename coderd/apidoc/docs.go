@@ -19381,8 +19381,6 @@ const docTemplate = `{
         "codersdk.WorkspaceUser": {
             "type": "object",
             "required": [
-                "created_at",
-                "email",
                 "id",
                 "username"
             ],
@@ -19391,34 +19389,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uri"
                 },
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "email": {
-                    "type": "string",
-                    "format": "email"
-                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
-                },
-                "last_seen_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "login_type": {
-                    "$ref": "#/definitions/codersdk.LoginType"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "organization_ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "format": "uuid"
-                    }
                 },
                 "role": {
                     "enum": [
@@ -19430,31 +19403,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceRole"
                         }
                     ]
-                },
-                "roles": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.SlimRole"
-                    }
-                },
-                "status": {
-                    "enum": [
-                        "active",
-                        "suspended"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.UserStatus"
-                        }
-                    ]
-                },
-                "theme_preference": {
-                    "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string",
-                    "format": "date-time"
                 },
                 "username": {
                     "type": "string"
