@@ -1,11 +1,10 @@
 package cli
 
 import (
-	"regexp"
-
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 	"golang.org/x/xerrors"
+	"regexp"
 )
 
 func (r *RootCmd) sharing() *serpent.Command {
@@ -25,7 +24,8 @@ func (r *RootCmd) sharing() *serpent.Command {
 func (r *RootCmd) shareWorkspace() *serpent.Command {
 	var (
 		client            = new(codersdk.Client)
-		userAndGroupRegex = regexp.MustCompile(`([A-Za-z/0-9]+)(?::([A-Za-z/0-9]+))?`)
+		userAndGroupRegex = regexp.MustCompile(`([A-Za-z0-9]+)(?::([A-Za-z0-9]+))?`)
+		workspaceRegex    = regexp.MustCompile(`([A-Za-z0-9\-]+)(?:\/([A-Za-z0-9\-]+))?`)
 		users             []string
 		groups            []string
 	)
@@ -52,8 +52,26 @@ func (r *RootCmd) shareWorkspace() *serpent.Command {
 			serpent.RequireRangeArgs(1, -1),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			workspaceName := inv.Args[0]
-			workspace, err := client.WorkspaceByOwnerAndName(inv.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceOptions{
+			workspaceAndOwner := workspaceRegex.FindStringSubmatch(inv.Args[0])
+
+			ownerUsername := workspaceAndOwner[1]
+			workspaceName := workspaceAndOwner[2]
+			if workspaceName == "" {
+				workspaceName = workspaceAndOwner[1]
+				ownerUsername = ""
+			}
+
+			ownerId := codersdk.Me
+			if ownerUsername != "" {
+				owner, err := client.User(inv.Context(), ownerUsername)
+				if err != nil {
+					return xerrors.Errorf("could not workspace owner with username %s.", ownerUsername)
+				}
+
+				ownerId = owner.ID.String()
+			}
+
+			workspace, err := client.WorkspaceByOwnerAndName(inv.Context(), ownerId, workspaceName, codersdk.WorkspaceOptions{
 				IncludeDeleted: false,
 			})
 			if err != nil {
