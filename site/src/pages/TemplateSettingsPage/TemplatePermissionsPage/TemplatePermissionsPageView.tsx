@@ -30,8 +30,7 @@ import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
-import { UserPlusIcon } from "lucide-react";
-import { EllipsisVertical } from "lucide-react";
+import { EllipsisVertical, UserPlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { getGroupSubtitle } from "utils/groups";
 import {

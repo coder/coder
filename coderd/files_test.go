@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -68,6 +69,30 @@ func TestPostFiles(t *testing.T) {
 		require.NoError(t, err)
 		_, err = client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(data))
 		require.NoError(t, err)
+	})
+	t.Run("InsertConcurrent", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		var wg sync.WaitGroup
+		var end sync.WaitGroup
+		wg.Add(1)
+		end.Add(3)
+		for range 3 {
+			go func() {
+				wg.Wait()
+				data := make([]byte, 1024)
+				_, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(data))
+				end.Done()
+				require.NoError(t, err)
+			}()
+		}
+		wg.Done()
+		end.Wait()
 	})
 }
 

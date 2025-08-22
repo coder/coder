@@ -9,10 +9,10 @@ import {
 } from "react";
 import { HelmetProvider } from "react-helmet-async";
 import { QueryClient, QueryClientProvider } from "react-query";
-import { RouterProvider } from "react-router-dom";
+import { RouterProvider } from "react-router";
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
-import { ThemeProvider } from "./contexts/ThemeProvider";
 import { AuthProvider } from "./contexts/auth/AuthProvider";
+import { ThemeProvider } from "./contexts/ThemeProvider";
 import { router } from "./router";
 
 const defaultQueryClient = new QueryClient({

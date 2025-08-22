@@ -1,8 +1,8 @@
-import { action } from "@storybook/addon-actions";
-import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within } from "@storybook/test";
-import { Avatar } from "components/Avatar/Avatar";
 import { withDesktopViewport } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Avatar } from "components/Avatar/Avatar";
+import { action } from "storybook/actions";
+import { userEvent, within } from "storybook/test";
 import {
 	SelectMenu,
 	SelectMenuButton,
@@ -76,7 +76,7 @@ export const LongButtonText: Story = {
 			<SelectMenu>
 				<SelectMenuTrigger>
 					<SelectMenuButton
-						css={{ width: 200 }}
+						className="w-48"
 						startIcon={<Avatar size="sm" fallback={selectedOpt} />}
 					>
 						{selectedOpt}
@@ -107,7 +107,7 @@ export const NoSelectedOption: Story = {
 		return (
 			<SelectMenu>
 				<SelectMenuTrigger>
-					<SelectMenuButton css={{ width: 200 }}>All users</SelectMenuButton>
+					<SelectMenuButton className="w-48">All users</SelectMenuButton>
 				</SelectMenuTrigger>
 				<SelectMenuContent>
 					<SelectMenuSearch onChange={action("search")} />

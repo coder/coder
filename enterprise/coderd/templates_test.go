@@ -70,8 +70,7 @@ func TestTemplates(t *testing.T) {
 
 		_ = coderdtest.CreateWorkspace(t, otherClient, secondTemplate.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			DeprecationMessage: ptr.Ref("Stop using this template"),
@@ -185,8 +184,7 @@ func TestTemplates(t *testing.T) {
 		ws, err := client.Workspace(context.Background(), ws.ID)
 		require.NoError(t, err)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// OK
 		var level codersdk.WorkspaceAgentPortShareLevel = codersdk.WorkspaceAgentPortShareLevelPublic
@@ -261,9 +259,9 @@ func TestTemplates(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:        template.Name,
-			DisplayName: template.DisplayName,
-			Description: template.Description,
-			Icon:        template.Icon,
+			DisplayName: &template.DisplayName,
+			Description: &template.Description,
+			Icon:        &template.Icon,
 			AutostartRequirement: &codersdk.TemplateAutostartRequirement{
 				DaysOfWeek: []string{"monday", "saturday"},
 			},
@@ -278,9 +276,9 @@ func TestTemplates(t *testing.T) {
 		// Ensure a missing field is a noop
 		updated, err = anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:        template.Name,
-			DisplayName: template.DisplayName,
-			Description: template.Description,
-			Icon:        template.Icon + "something",
+			DisplayName: &template.DisplayName,
+			Description: &template.Description,
+			Icon:        ptr.Ref(template.Icon + "something"),
 		})
 		require.NoError(t, err)
 		require.Equal(t, []string{"monday", "saturday"}, updated.AutostartRequirement.DaysOfWeek)
@@ -315,9 +313,9 @@ func TestTemplates(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:        template.Name,
-			DisplayName: template.DisplayName,
-			Description: template.Description,
-			Icon:        template.Icon,
+			DisplayName: &template.DisplayName,
+			Description: &template.Description,
+			Icon:        &template.Icon,
 			AutostartRequirement: &codersdk.TemplateAutostartRequirement{
 				DaysOfWeek: []string{"foobar", "saturday"},
 			},
@@ -351,9 +349,9 @@ func TestTemplates(t *testing.T) {
 		ctx := context.Background()
 		updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:                         template.Name,
-			DisplayName:                  template.DisplayName,
-			Description:                  template.Description,
-			Icon:                         template.Icon,
+			DisplayName:                  &template.DisplayName,
+			Description:                  &template.Description,
+			Icon:                         &template.Icon,
 			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 			DefaultTTLMillis:             time.Hour.Milliseconds(),
 			AutostopRequirement: &codersdk.TemplateAutostopRequirement{
@@ -405,9 +403,9 @@ func TestTemplates(t *testing.T) {
 
 			updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 				Name:                           template.Name,
-				DisplayName:                    template.DisplayName,
-				Description:                    template.Description,
-				Icon:                           template.Icon,
+				DisplayName:                    &template.DisplayName,
+				Description:                    &template.Description,
+				Icon:                           &template.Icon,
 				AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
 				TimeTilDormantMillis:           inactivityTTL.Milliseconds(),
 				FailureTTLMillis:               failureTTL.Milliseconds(),
@@ -474,9 +472,9 @@ func TestTemplates(t *testing.T) {
 				t.Run(c.Name, func(t *testing.T) {
 					_, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 						Name:                           template.Name,
-						DisplayName:                    template.DisplayName,
-						Description:                    template.Description,
-						Icon:                           template.Icon,
+						DisplayName:                    &template.DisplayName,
+						Description:                    &template.Description,
+						Icon:                           &template.Icon,
 						AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
 						TimeTilDormantMillis:           c.TimeTilDormantMS,
 						FailureTTLMillis:               c.FailureTTLMS,
@@ -704,8 +702,7 @@ func TestTemplates(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		require.True(t, template.RequireActiveVersion)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Update the field and assert it persists.
 		updatedTemplate, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
@@ -760,9 +757,6 @@ func TestTemplates(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
 
 		_, err = owner.Template(ctx, template.ID)
 		require.NoError(t, err)
@@ -932,8 +926,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		acl, err := anotherClient.TemplateACL(ctx, template.ID)
 		require.NoError(t, err)
@@ -955,8 +948,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // non-template-admin cannot update template acl
 		acl, err := client.TemplateACL(ctx, template.ID)
@@ -1004,8 +996,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // non-template-admin cannot get template acl
 		acl, err := client.TemplateACL(ctx, template.ID)
@@ -1013,9 +1004,9 @@ func TestTemplateACL(t *testing.T) {
 		require.Equal(t, 1, len(acl.Groups))
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:                         template.Name,
-			DisplayName:                  template.DisplayName,
-			Description:                  template.Description,
-			Icon:                         template.Icon,
+			DisplayName:                  &template.DisplayName,
+			Description:                  &template.Description,
+			Icon:                         &template.Icon,
 			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 			DisableEveryoneGroupAccess:   true,
 		})
@@ -1267,8 +1258,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := anotherClient.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
@@ -1359,8 +1349,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 			},
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := anotherClient.UpdateTemplateACL(ctx, template.ID, req)
 		require.NoError(t, err)
@@ -1413,13 +1402,40 @@ func TestUpdateTemplateACL(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		req := codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
-				"hi": "admin",
+				"hi": codersdk.TemplateRoleAdmin,
 			},
 		}
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		//nolint:gocritic // we're testing invalid UUID so testing RBAC is not relevant here.
+		//nolint:gocritic // Testing ACL validation
+		err := client.UpdateTemplateACL(ctx, template.ID, req)
+		require.Error(t, err)
+		cerr, _ := codersdk.AsError(err)
+		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+	})
+
+	// We should report invalid UUIDs as errors
+	t.Run("DeleteRoleForInvalidUUID", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		}})
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		req := codersdk.UpdateTemplateACL{
+			UserPerms: map[string]codersdk.TemplateRole{
+				"hi": codersdk.TemplateRoleDeleted,
+			},
+		}
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Testing ACL validation
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
 		cerr, _ := codersdk.AsError(err)
@@ -1445,8 +1461,70 @@ func TestUpdateTemplateACL(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		//nolint:gocritic // we're testing invalid user so testing RBAC is not relevant here.
+		//nolint:gocritic // Testing ACL validation
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
+		require.Error(t, err)
+		cerr, _ := codersdk.AsError(err)
+		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+	})
+
+	// We should allow the special "Delete" role for valid UUIDs that don't
+	// correspond to a valid user, because the user might have been deleted.
+	t.Run("DeleteRoleForDeletedUser", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		}})
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, deletedUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		//nolint:gocritic // Can't delete yourself
+		err := client.DeleteUser(ctx, deletedUser.ID)
+		require.NoError(t, err)
+
+		req := codersdk.UpdateTemplateACL{
+			UserPerms: map[string]codersdk.TemplateRole{
+				deletedUser.ID.String(): codersdk.TemplateRoleDeleted,
+			},
+		}
+		//nolint:gocritic // Testing ACL validation
+		err = client.UpdateTemplateACL(ctx, template.ID, req)
+		require.NoError(t, err)
+	})
+
+	t.Run("DeletedUser", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		}})
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, deletedUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		//nolint:gocritic // Can't delete yourself
+		err := client.DeleteUser(ctx, deletedUser.ID)
+		require.NoError(t, err)
+
+		req := codersdk.UpdateTemplateACL{
+			UserPerms: map[string]codersdk.TemplateRole{
+				deletedUser.ID.String(): codersdk.TemplateRoleAdmin,
+			},
+		}
+		//nolint:gocritic // Testing ACL validation
+		err = client.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
 		cerr, _ := codersdk.AsError(err)
 		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
@@ -1472,7 +1550,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		//nolint:gocritic // we're testing invalid role so testing RBAC is not relevant here.
+		//nolint:gocritic // Testing ACL validation
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
 		cerr, _ := codersdk.AsError(err)
@@ -1590,8 +1668,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		acl, err := anotherClient.TemplateACL(ctx, template.ID)
 		require.NoError(t, err)
@@ -1680,8 +1757,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		acl, err := anotherClient.TemplateACL(ctx, template.ID)
 		require.NoError(t, err)

@@ -1056,6 +1056,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `vscode_connection`    |
 | `jetbrains_connection` |
 
+## codersdk.CORSBehavior
+
+```json
+"simple"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value      |
+|------------|
+| `simple`   |
+| `passthru` |
+
 ## codersdk.ChangePasswordWithOneTimePasscodeRequest
 
 ```json
@@ -1475,6 +1490,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "weeks": 0
   },
+  "cors_behavior": "simple",
   "default_ttl_ms": 0,
   "delete_ttl_ms": 0,
   "description": "string",
@@ -1501,6 +1517,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `allow_user_cancel_workspace_jobs`    | boolean                                                                        | false    |              | Allow users to cancel in-progress workspace jobs. *bool as the default value is "true".                                                                                                                                                                                                                             |
 | `autostart_requirement`               | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              | Autostart requirement allows optionally specifying the autostart allowed days for workspaces created from this template. This is an enterprise feature.                                                                                                                                                             |
 | `autostop_requirement`                | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement allows optionally specifying the autostop requirement for workspaces created from this template. This is an enterprise feature.                                                                                                                                                                |
+| `cors_behavior`                       | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              | Cors behavior allows optionally specifying the CORS behavior for all shared ports.                                                                                                                                                                                                                                  |
 | `default_ttl_ms`                      | integer                                                                        | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                                                                                          |
 | `delete_ttl_ms`                       | integer                                                                        | false    |              | Delete ttl ms allows optionally specifying the max lifetime before Coder permanently deletes dormant workspaces created from this template.                                                                                                                                                                         |
 | `description`                         | string                                                                         | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                                                                                         |
@@ -3303,6 +3320,23 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `web-push`             |
 | `oauth2`               |
 | `mcp-server-http`      |
+| `workspace-sharing`    |
+
+## codersdk.ExternalAgentCredentials
+
+```json
+{
+  "agent_token": "string",
+  "command": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `agent_token` | string | false    |              |             |
+| `command`     | string | false    |              |             |
 
 ## codersdk.ExternalAuth
 
@@ -5889,6 +5923,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
   },
+  "logs_overflowed": true,
   "metadata": {
     "template_display_name": "string",
     "template_icon": "string",
@@ -5926,6 +5961,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `file_id`           | string                                                             | false    |              |             |
 | `id`                | string                                                             | false    |              |             |
 | `input`             | [codersdk.ProvisionerJobInput](#codersdkprovisionerjobinput)       | false    |              |             |
+| `logs_overflowed`   | boolean                                                            | false    |              |             |
 | `metadata`          | [codersdk.ProvisionerJobMetadata](#codersdkprovisionerjobmetadata) | false    |              |             |
 | `organization_id`   | string                                                             | false    |              |             |
 | `queue_position`    | integer                                                            | false    |              |             |
@@ -6358,7 +6394,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `system`                           |
 | `tailnet_coordinator`              |
 | `template`                         |
+| `usage_event`                      |
 | `user`                             |
+| `user_secret`                      |
 | `webpush_subscription`             |
 | `workspace`                        |
 | `workspace_agent_devcontainers`    |
@@ -6970,6 +7008,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "p95": 146
     }
   },
+  "cors_behavior": "simple",
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
@@ -7009,6 +7048,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `autostart_requirement`            | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                                                 |
 | `autostop_requirement`             | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are enterprise features. Its value is only used if your license is entitled to use the advanced template scheduling feature.                      |
 | `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats)             | false    |              |                                                                                                                                                                                                 |
+| `cors_behavior`                    | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              |                                                                                                                                                                                                 |
 | `created_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `created_by_id`                    | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `created_by_name`                  | string                                                                         | false    |              |                                                                                                                                                                                                 |
@@ -7590,6 +7630,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "username": "string"
   },
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "job": {
     "available_workers": [
@@ -7607,6 +7648,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
+    "logs_overflowed": true,
     "metadata": {
       "template_display_name": "string",
       "template_icon": "string",
@@ -7653,6 +7695,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `archived`             | boolean                                                                     | false    |              |             |
 | `created_at`           | string                                                                      | false    |              |             |
 | `created_by`           | [codersdk.MinimalUser](#codersdkminimaluser)                                | false    |              |             |
+| `has_external_agent`   | boolean                                                                     | false    |              |             |
 | `id`                   | string                                                                      | false    |              |             |
 | `job`                  | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                          | false    |              |             |
 | `matched_provisioners` | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)                | false    |              |             |
@@ -8044,6 +8087,71 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `user_perms`       | object                                         | false    |              | User perms should be a mapping of user ID to role. The user ID must be the uuid of the user, not a username or email address. |
 | » `[any property]` | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |                                                                                                                               |
 
+## codersdk.UpdateTemplateMeta
+
+```json
+{
+  "activity_bump_ms": 0,
+  "allow_user_autostart": true,
+  "allow_user_autostop": true,
+  "allow_user_cancel_workspace_jobs": true,
+  "autostart_requirement": {
+    "days_of_week": [
+      "monday"
+    ]
+  },
+  "autostop_requirement": {
+    "days_of_week": [
+      "monday"
+    ],
+    "weeks": 0
+  },
+  "cors_behavior": "simple",
+  "default_ttl_ms": 0,
+  "deprecation_message": "string",
+  "description": "string",
+  "disable_everyone_group_access": true,
+  "display_name": "string",
+  "failure_ttl_ms": 0,
+  "icon": "string",
+  "max_port_share_level": "owner",
+  "name": "string",
+  "require_active_version": true,
+  "time_til_dormant_autodelete_ms": 0,
+  "time_til_dormant_ms": 0,
+  "update_workspace_dormant_at": true,
+  "update_workspace_last_used_at": true,
+  "use_classic_parameter_flow": true
+}
+```
+
+### Properties
+
+| Name                               | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                        |
+|------------------------------------|--------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `activity_bump_ms`                 | integer                                                                        | false    |              | Activity bump ms allows optionally specifying the activity bump duration for all workspaces created from this template. Defaults to 1h but can be set to 0 to disable activity bumping.                                                                                                                                                                                            |
+| `allow_user_autostart`             | boolean                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `allow_user_autostop`              | boolean                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `allow_user_cancel_workspace_jobs` | boolean                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `autostart_requirement`            | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `autostop_requirement`             | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement can only be set if your license includes the advanced template scheduling feature. If you attempt to set this value while unlicensed, it will be ignored.                                                                                                                                                                            |
+| `cors_behavior`                    | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `default_ttl_ms`                   | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `deprecation_message`              | string                                                                         | false    |              | Deprecation message if set, will mark the template as deprecated and block any new workspaces from using this template. If passed an empty string, will remove the deprecated message, making the template usable for new workspaces again.                                                                                                                                        |
+| `description`                      | string                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `disable_everyone_group_access`    | boolean                                                                        | false    |              | Disable everyone group access allows optionally disabling the default behavior of granting the 'everyone' group access to use the template. If this is set to true, the template will not be available to all users, and must be explicitly granted to users or groups in the permissions settings of the template.                                                                |
+| `display_name`                     | string                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `failure_ttl_ms`                   | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `icon`                             | string                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `max_port_share_level`             | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `name`                             | string                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `require_active_version`           | boolean                                                                        | false    |              | Require active version mandates workspaces built using this template use the active version of the template. This option has no effect on template admins.                                                                                                                                                                                                                         |
+| `time_til_dormant_autodelete_ms`   | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `time_til_dormant_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
+| `update_workspace_dormant_at`      | boolean                                                                        | false    |              | Update workspace dormant at updates the dormant_at field of workspaces spawned from the template. This is useful for preventing dormant workspaces being immediately deleted when updating the dormant_ttl field to a new, shorter value.                                                                                                                                          |
+| `update_workspace_last_used_at`    | boolean                                                                        | false    |              | Update workspace last used at updates the last_used_at field of workspaces spawned from the template. This is useful for preventing workspaces being immediately locked when updating the inactivity_ttl field to a new, shorter value.                                                                                                                                            |
+| `use_classic_parameter_flow`       | boolean                                                                        | false    |              | Use classic parameter flow is a flag that switches the default behavior to use the classic parameter flow when creating a workspace. This only affects deployments with the experiment "dynamic-parameters" enabled. This setting will live for a period after the experiment is made the default. An "opt-out" is present in case the new feature breaks some existing templates. |
+
 ## codersdk.UpdateUserAppearanceSettingsRequest
 
 ```json
@@ -8125,6 +8233,30 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`schedule`|string|true||Schedule is a cron expression that defines when the user's quiet hours window is. Schedule must not be empty. For new users, the schedule is set to 2am in their browser or computer's timezone. The schedule denotes the beginning of a 4 hour window where the workspace is allowed to automatically stop or restart due to maintenance or template schedule.
 The schedule must be daily with a single time, and should have a timezone specified via a CRON_TZ prefix (otherwise UTC will be used).
 If the schedule is empty, the user will be updated to use the default schedule.|
+
+## codersdk.UpdateWorkspaceACL
+
+```json
+{
+  "group_roles": {
+    "property1": "admin",
+    "property2": "admin"
+  },
+  "user_roles": {
+    "property1": "admin",
+    "property2": "admin"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                             | Required | Restrictions | Description                                                                                                                                           |
+|--------------------|--------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `group_roles`      | object                                           | false    |              |                                                                                                                                                       |
+| » `[any property]` | [codersdk.WorkspaceRole](#codersdkworkspacerole) | false    |              |                                                                                                                                                       |
+| `user_roles`       | object                                           | false    |              | Keys must be valid UUIDs. To remove a user/group from the ACL use "" as the role name (available as a constant named `codersdk.WorkspaceRoleDeleted`) |
+| » `[any property]` | [codersdk.WorkspaceRole](#codersdkworkspacerole) | false    |              |                                                                                                                                                       |
 
 ## codersdk.UpdateWorkspaceAutomaticUpdatesRequest
 
@@ -8764,6 +8896,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
     "has_ai_task": true,
+    "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -8783,6 +8916,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
       },
+      "logs_overflowed": true,
       "metadata": {
         "template_display_name": "string",
         "template_icon": "string",
@@ -9873,6 +10007,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
   "has_ai_task": true,
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",
@@ -9892,6 +10027,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
+    "logs_overflowed": true,
     "metadata": {
       "template_display_name": "string",
       "template_icon": "string",
@@ -10081,6 +10217,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `daily_cost`                 | integer                                                           | false    |              |                                                                     |
 | `deadline`                   | string                                                            | false    |              |                                                                     |
 | `has_ai_task`                | boolean                                                           | false    |              |                                                                     |
+| `has_external_agent`         | boolean                                                           | false    |              |                                                                     |
 | `id`                         | string                                                            | false    |              |                                                                     |
 | `initiator_id`               | string                                                            | false    |              |                                                                     |
 | `initiator_name`             | string                                                            | false    |              |                                                                     |
@@ -10523,6 +10660,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `sensitive` | boolean | false    |              |             |
 | `value`     | string  | false    |              |             |
 
+## codersdk.WorkspaceRole
+
+```json
+"admin"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value   |
+|---------|
+| `admin` |
+| `use`   |
+| ``      |
+
 ## codersdk.WorkspaceStatus
 
 ```json
@@ -10604,6 +10757,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "daily_cost": 0,
         "deadline": "2019-08-24T14:15:22Z",
         "has_ai_task": true,
+        "has_external_agent": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
         "initiator_name": "string",
@@ -10623,6 +10777,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
             "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
           },
+          "logs_overflowed": true,
           "metadata": {
             "template_display_name": "string",
             "template_icon": "string",

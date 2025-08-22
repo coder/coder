@@ -202,7 +202,7 @@ func (c *Client) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
 	tailnet.RewriteDERPMapDefaultRelay(context.Background(), c.client.Logger(), derpMap, c.client.URL)
 }
 
-func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *DialAgentOptions) (agentConn *AgentConn, err error) {
+func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *DialAgentOptions) (agentConn AgentConn, err error) {
 	if options == nil {
 		options = &DialAgentOptions{}
 	}

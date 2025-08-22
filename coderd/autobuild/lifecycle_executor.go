@@ -20,6 +20,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -28,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
@@ -107,10 +109,10 @@ func (e *Executor) WithStatsChannel(ch chan<- Stats) *Executor {
 // tick from its channel. It will stop when its context is Done, or when
 // its channel is closed.
 func (e *Executor) Run() {
-	go func() {
+	pproflabel.Go(e.ctx, pproflabel.Service(pproflabel.ServiceLifecycles), func(ctx context.Context) {
 		for {
 			select {
-			case <-e.ctx.Done():
+			case <-ctx.Done():
 				return
 			case t, ok := <-e.tick:
 				if !ok {
@@ -120,15 +122,48 @@ func (e *Executor) Run() {
 				e.metrics.autobuildExecutionDuration.Observe(stats.Elapsed.Seconds())
 				if e.statsCh != nil {
 					select {
-					case <-e.ctx.Done():
+					case <-ctx.Done():
 						return
 					case e.statsCh <- stats:
 					}
 				}
-				e.log.Debug(e.ctx, "run stats", slog.F("elapsed", stats.Elapsed), slog.F("transitions", stats.Transitions))
+				e.log.Debug(ctx, "run stats", slog.F("elapsed", stats.Elapsed), slog.F("transitions", stats.Transitions))
 			}
 		}
-	}()
+	})
+}
+
+// hasValidProvisioner checks whether there is at least one valid (non-stale, correct tags) provisioner
+// based on time t and the tags maps (such as from a templateVersionJob).
+func (e *Executor) hasValidProvisioner(ctx context.Context, tx database.Store, t time.Time, ws database.Workspace, tags map[string]string) (bool, error) {
+	queryParams := database.GetProvisionerDaemonsByOrganizationParams{
+		OrganizationID: ws.OrganizationID,
+		WantTags:       tags,
+	}
+
+	// nolint: gocritic // The user (in this case, the user/context for autostart builds) may not have the full
+	// permissions to read provisioner daemons, but we need to check if there's any for the job prior to the
+	// execution of the job via autostart to fix: https://github.com/coder/coder/issues/17941
+	provisionerDaemons, err := tx.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), queryParams)
+	if err != nil {
+		return false, xerrors.Errorf("get provisioner daemons: %w", err)
+	}
+
+	logger := e.log.With(slog.F("tags", tags))
+	// Check if any provisioners are active (not stale)
+	for _, pd := range provisionerDaemons {
+		if pd.LastSeenAt.Valid {
+			age := t.Sub(pd.LastSeenAt.Time)
+			if age <= provisionerdserver.StaleInterval {
+				logger.Debug(ctx, "hasValidProvisioner: found active provisioner",
+					slog.F("daemon_id", pd.ID),
+				)
+				return true, nil
+			}
+		}
+	}
+	logger.Debug(ctx, "hasValidProvisioner: no active provisioners found")
+	return false, nil
 }
 
 func (e *Executor) runOnce(t time.Time) Stats {
@@ -278,6 +313,22 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						// doesn't matter since the transaction is  read-only up to
 						// this point.
 						return nil
+					}
+
+					// Get the template version job to access tags
+					templateVersionJob, err := tx.GetProvisionerJobByID(e.ctx, activeTemplateVersion.JobID)
+					if err != nil {
+						return xerrors.Errorf("get template version job: %w", err)
+					}
+
+					// Before creating the workspace build, check for available provisioners
+					hasProvisioners, err := e.hasValidProvisioner(e.ctx, tx, t, ws, templateVersionJob.Tags)
+					if err != nil {
+						return xerrors.Errorf("check provisioner availability: %w", err)
+					}
+					if !hasProvisioners {
+						log.Warn(e.ctx, "skipping autostart - no available provisioners")
+						return nil // Skip this workspace
 					}
 
 					if nextTransition != "" {

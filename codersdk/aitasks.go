@@ -3,6 +3,7 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -43,4 +44,29 @@ func (c *ExperimentalClient) AITaskPrompts(ctx context.Context, buildIDs []uuid.
 	}
 	var prompts AITasksPromptsResponse
 	return prompts, json.NewDecoder(res.Body).Decode(&prompts)
+}
+
+type CreateTaskRequest struct {
+	TemplateVersionID       uuid.UUID `json:"template_version_id" format:"uuid"`
+	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
+	Prompt                  string    `json:"prompt"`
+}
+
+func (c *ExperimentalClient) CreateTask(ctx context.Context, user string, request CreateTaskRequest) (Workspace, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/tasks/%s", user), request)
+	if err != nil {
+		return Workspace{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusCreated {
+		return Workspace{}, ReadBodyAsError(res)
+	}
+
+	var workspace Workspace
+	if err := json.NewDecoder(res.Body).Decode(&workspace); err != nil {
+		return Workspace{}, err
+	}
+
+	return workspace, nil
 }

@@ -20,7 +20,7 @@ import { Check, ChevronDown, Plus } from "lucide-react";
 import type { Permissions } from "modules/permissions";
 import type { OrganizationPermissions } from "modules/permissions/organizations";
 import { type FC, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 
 interface OrganizationsSettingsNavigationProps {
 	/** The organization selected from the dropdown */
@@ -163,60 +163,58 @@ const OrganizationSettingsNavigation: FC<
 	OrganizationSettingsNavigationProps
 > = ({ organization, orgPermissions }) => {
 	return (
-		<>
-			<div className="flex flex-col gap-1 my-2">
-				<SettingsSidebarNavItem end href={urlForSubpage(organization.name)}>
-					Members
+		<div className="flex flex-col gap-1 my-2">
+			<SettingsSidebarNavItem end href={urlForSubpage(organization.name)}>
+				Members
+			</SettingsSidebarNavItem>
+			{orgPermissions.viewGroups && (
+				<SettingsSidebarNavItem
+					href={urlForSubpage(organization.name, "groups")}
+				>
+					Groups
 				</SettingsSidebarNavItem>
-				{orgPermissions.viewGroups && (
-					<SettingsSidebarNavItem
-						href={urlForSubpage(organization.name, "groups")}
-					>
-						Groups
-					</SettingsSidebarNavItem>
+			)}
+			{orgPermissions.viewOrgRoles && (
+				<SettingsSidebarNavItem
+					href={urlForSubpage(organization.name, "roles")}
+				>
+					Roles
+				</SettingsSidebarNavItem>
+			)}
+			{orgPermissions.viewProvisioners &&
+				orgPermissions.viewProvisionerJobs && (
+					<>
+						<SettingsSidebarNavItem
+							href={urlForSubpage(organization.name, "provisioners")}
+						>
+							Provisioners
+						</SettingsSidebarNavItem>
+						<SettingsSidebarNavItem
+							href={urlForSubpage(organization.name, "provisioner-keys")}
+						>
+							Provisioner Keys
+						</SettingsSidebarNavItem>
+						<SettingsSidebarNavItem
+							href={urlForSubpage(organization.name, "provisioner-jobs")}
+						>
+							Provisioner Jobs
+						</SettingsSidebarNavItem>
+					</>
 				)}
-				{orgPermissions.viewOrgRoles && (
-					<SettingsSidebarNavItem
-						href={urlForSubpage(organization.name, "roles")}
-					>
-						Roles
-					</SettingsSidebarNavItem>
-				)}
-				{orgPermissions.viewProvisioners &&
-					orgPermissions.viewProvisionerJobs && (
-						<>
-							<SettingsSidebarNavItem
-								href={urlForSubpage(organization.name, "provisioners")}
-							>
-								Provisioners
-							</SettingsSidebarNavItem>
-							<SettingsSidebarNavItem
-								href={urlForSubpage(organization.name, "provisioner-keys")}
-							>
-								Provisioner Keys
-							</SettingsSidebarNavItem>
-							<SettingsSidebarNavItem
-								href={urlForSubpage(organization.name, "provisioner-jobs")}
-							>
-								Provisioner Jobs
-							</SettingsSidebarNavItem>
-						</>
-					)}
-				{orgPermissions.viewIdpSyncSettings && (
-					<SettingsSidebarNavItem
-						href={urlForSubpage(organization.name, "idp-sync")}
-					>
-						IdP Sync
-					</SettingsSidebarNavItem>
-				)}
-				{orgPermissions.editSettings && (
-					<SettingsSidebarNavItem
-						href={urlForSubpage(organization.name, "settings")}
-					>
-						Settings
-					</SettingsSidebarNavItem>
-				)}
-			</div>
-		</>
+			{orgPermissions.viewIdpSyncSettings && (
+				<SettingsSidebarNavItem
+					href={urlForSubpage(organization.name, "idp-sync")}
+				>
+					IdP Sync
+				</SettingsSidebarNavItem>
+			)}
+			{orgPermissions.editSettings && (
+				<SettingsSidebarNavItem
+					href={urlForSubpage(organization.name, "settings")}
+				>
+					Settings
+				</SettingsSidebarNavItem>
+			)}
+		</div>
 	);
 };

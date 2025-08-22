@@ -1,7 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { spyOn, userEvent, within } from "@storybook/test";
-import { API } from "api/api";
-import { getPreferredProxy } from "contexts/ProxyContext";
 import { chromatic } from "testHelpers/chromatic";
 import * as M from "testHelpers/entities";
 import {
@@ -9,6 +5,10 @@ import {
 	withProxyProvider,
 	withWebSocket,
 } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { API } from "api/api";
+import { getPreferredProxy } from "contexts/ProxyContext";
+import { spyOn, userEvent, within } from "storybook/test";
 import { AgentRow } from "./AgentRow";
 
 const defaultAgentMetadata = [
@@ -286,10 +286,43 @@ export const GroupApp: Story = {
 };
 
 export const Devcontainer: Story = {
-	beforeEach: () => {
-		spyOn(API, "getAgentContainers").mockResolvedValue({
-			devcontainers: [M.MockWorkspaceAgentDevcontainer],
-			containers: [M.MockWorkspaceAgentContainer],
-		});
+	parameters: {
+		queries: [
+			{
+				key: ["agents", M.MockWorkspaceAgent.id, "containers"],
+				data: {
+					devcontainers: [M.MockWorkspaceAgentDevcontainer],
+					containers: [M.MockWorkspaceAgentContainer],
+				},
+			},
+		],
+		webSocket: [],
+	},
+};
+
+export const FoundDevcontainer: Story = {
+	args: {
+		agent: {
+			...M.MockWorkspaceAgentReady,
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: ["agents", M.MockWorkspaceAgentReady.id, "containers"],
+				data: {
+					devcontainers: [
+						{
+							...M.MockWorkspaceAgentDevcontainer,
+							status: "stopped",
+							container: undefined,
+							agent: undefined,
+						},
+					],
+					containers: [],
+				},
+			},
+		],
+		webSocket: [],
 	},
 };

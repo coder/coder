@@ -456,8 +456,6 @@ func TestAgent_GitSSH(t *testing.T) {
 
 func TestAgent_SessionTTYShell(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	t.Cleanup(cancel)
 	if runtime.GOOS == "windows" {
 		// This might be our implementation, or ConPTY itself.
 		// It's difficult to find extensive tests for it, so
@@ -468,6 +466,7 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 	for _, port := range sshPorts {
 		t.Run(fmt.Sprintf("(%d)", port), func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
 
 			session := setupSSHSessionOnPort(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, port)
 			command := "sh"
@@ -2458,16 +2457,222 @@ func TestAgent_DevcontainersDisabledForSubAgent(t *testing.T) {
 	require.Contains(t, err.Error(), "Dev Container integration inside other Dev Containers is explicitly not supported.")
 }
 
+// TestAgent_DevcontainerPrebuildClaim tests that we correctly handle
+// the claiming process for running devcontainers.
+//
+// You can run it manually as follows:
+//
+// CODER_TEST_USE_DOCKER=1 go test -count=1 ./agent -run TestAgent_DevcontainerPrebuildClaim
+//
+//nolint:paralleltest // This test sets an environment variable.
+func TestAgent_DevcontainerPrebuildClaim(t *testing.T) {
+	if os.Getenv("CODER_TEST_USE_DOCKER") != "1" {
+		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
+	}
+	if _, err := exec.LookPath("devcontainer"); err != nil {
+		t.Skip("This test requires the devcontainer CLI: npm install -g @devcontainers/cli")
+	}
+
+	pool, err := dockertest.NewPool("")
+	require.NoError(t, err, "Could not connect to docker")
+
+	var (
+		ctx = testutil.Context(t, testutil.WaitShort)
+
+		devcontainerID          = uuid.New()
+		devcontainerLogSourceID = uuid.New()
+
+		workspaceFolder    = filepath.Join(t.TempDir(), "project")
+		devcontainerPath   = filepath.Join(workspaceFolder, ".devcontainer")
+		devcontainerConfig = filepath.Join(devcontainerPath, "devcontainer.json")
+	)
+
+	// Given: A devcontainer project.
+	t.Logf("Workspace folder: %s", workspaceFolder)
+
+	err = os.MkdirAll(devcontainerPath, 0o755)
+	require.NoError(t, err, "create dev container directory")
+
+	// Given: This devcontainer project specifies an app that uses the owner name and workspace name.
+	err = os.WriteFile(devcontainerConfig, []byte(`{
+	    "name": "project",
+		"image": "busybox:latest",
+	    "cmd": ["sleep", "infinity"],
+		"runArgs": ["--label=`+agentcontainers.DevcontainerIsTestRunLabel+`=true"],
+		"customizations": {
+		 	"coder": {
+				"apps": [{
+					"slug": "zed",
+					"url": "zed://ssh/${localEnv:CODER_WORKSPACE_AGENT_NAME}.${localEnv:CODER_WORKSPACE_NAME}.${localEnv:CODER_WORKSPACE_OWNER_NAME}.coder${containerWorkspaceFolder}"
+				}]
+			}
+		}
+	}`), 0o600)
+	require.NoError(t, err, "write devcontainer config")
+
+	// Given: A manifest with a prebuild username and workspace name.
+	manifest := agentsdk.Manifest{
+		OwnerName:     "prebuilds",
+		WorkspaceName: "prebuilds-xyz-123",
+
+		Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+			{ID: devcontainerID, Name: "test", WorkspaceFolder: workspaceFolder},
+		},
+		Scripts: []codersdk.WorkspaceAgentScript{
+			{ID: devcontainerID, LogSourceID: devcontainerLogSourceID},
+		},
+	}
+
+	// When: We create an agent with devcontainers enabled.
+	//nolint:dogsled
+	conn, client, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.Devcontainers = true
+		o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
+			agentcontainers.WithContainerLabelIncludeFilter(agentcontainers.DevcontainerLocalFolderLabel, workspaceFolder),
+			agentcontainers.WithContainerLabelIncludeFilter(agentcontainers.DevcontainerIsTestRunLabel, "true"),
+		)
+	})
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return slices.Contains(client.GetLifecycleStates(), codersdk.WorkspaceAgentLifecycleReady)
+	}, testutil.IntervalMedium, "agent not ready")
+
+	var dcPrebuild codersdk.WorkspaceAgentDevcontainer
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		resp, err := conn.ListContainers(ctx)
+		require.NoError(t, err)
+
+		for _, dc := range resp.Devcontainers {
+			if dc.Container == nil {
+				continue
+			}
+
+			v, ok := dc.Container.Labels[agentcontainers.DevcontainerLocalFolderLabel]
+			if ok && v == workspaceFolder {
+				dcPrebuild = dc
+				return true
+			}
+		}
+
+		return false
+	}, testutil.IntervalMedium, "devcontainer not found")
+	defer func() {
+		pool.Client.RemoveContainer(docker.RemoveContainerOptions{
+			ID:            dcPrebuild.Container.ID,
+			RemoveVolumes: true,
+			Force:         true,
+		})
+	}()
+
+	// Then: We expect a sub agent to have been created.
+	subAgents := client.GetSubAgents()
+	require.Len(t, subAgents, 1)
+
+	subAgent := subAgents[0]
+	subAgentID, err := uuid.FromBytes(subAgent.GetId())
+	require.NoError(t, err)
+
+	// And: We expect there to be 1 app.
+	subAgentApps, err := client.GetSubAgentApps(subAgentID)
+	require.NoError(t, err)
+	require.Len(t, subAgentApps, 1)
+
+	// And: This app should contain the prebuild workspace name and owner name.
+	subAgentApp := subAgentApps[0]
+	require.Equal(t, "zed://ssh/project.prebuilds-xyz-123.prebuilds.coder/workspaces/project", subAgentApp.GetUrl())
+
+	// Given: We close the client and connection
+	client.Close()
+	conn.Close()
+
+	// Given: A new manifest with a regular user owner name and workspace name.
+	manifest = agentsdk.Manifest{
+		OwnerName:     "user",
+		WorkspaceName: "user-workspace",
+
+		Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+			{ID: devcontainerID, Name: "test", WorkspaceFolder: workspaceFolder},
+		},
+		Scripts: []codersdk.WorkspaceAgentScript{
+			{ID: devcontainerID, LogSourceID: devcontainerLogSourceID},
+		},
+	}
+
+	// When: We create an agent with devcontainers enabled.
+	//nolint:dogsled
+	conn, client, _, _, _ = setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.Devcontainers = true
+		o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
+			agentcontainers.WithContainerLabelIncludeFilter(agentcontainers.DevcontainerLocalFolderLabel, workspaceFolder),
+			agentcontainers.WithContainerLabelIncludeFilter(agentcontainers.DevcontainerIsTestRunLabel, "true"),
+		)
+	})
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return slices.Contains(client.GetLifecycleStates(), codersdk.WorkspaceAgentLifecycleReady)
+	}, testutil.IntervalMedium, "agent not ready")
+
+	var dcClaimed codersdk.WorkspaceAgentDevcontainer
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		resp, err := conn.ListContainers(ctx)
+		require.NoError(t, err)
+
+		for _, dc := range resp.Devcontainers {
+			if dc.Container == nil {
+				continue
+			}
+
+			v, ok := dc.Container.Labels[agentcontainers.DevcontainerLocalFolderLabel]
+			if ok && v == workspaceFolder {
+				dcClaimed = dc
+				return true
+			}
+		}
+
+		return false
+	}, testutil.IntervalMedium, "devcontainer not found")
+	defer func() {
+		if dcClaimed.Container.ID != dcPrebuild.Container.ID {
+			pool.Client.RemoveContainer(docker.RemoveContainerOptions{
+				ID:            dcClaimed.Container.ID,
+				RemoveVolumes: true,
+				Force:         true,
+			})
+		}
+	}()
+
+	// Then: We expect the claimed devcontainer and prebuild devcontainer
+	// to be using the same underlying container.
+	require.Equal(t, dcPrebuild.Container.ID, dcClaimed.Container.ID)
+
+	// And: We expect there to be a sub agent created.
+	subAgents = client.GetSubAgents()
+	require.Len(t, subAgents, 1)
+
+	subAgent = subAgents[0]
+	subAgentID, err = uuid.FromBytes(subAgent.GetId())
+	require.NoError(t, err)
+
+	// And: We expect there to be an app.
+	subAgentApps, err = client.GetSubAgentApps(subAgentID)
+	require.NoError(t, err)
+	require.Len(t, subAgentApps, 1)
+
+	// And: We expect this app to have the user's owner name and workspace name.
+	subAgentApp = subAgentApps[0]
+	require.Equal(t, "zed://ssh/project.user-workspace.user.coder/workspaces/project", subAgentApp.GetUrl())
+}
+
 func TestAgent_Dial(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
 		name  string
-		setup func(t *testing.T) net.Listener
+		setup func(t testing.TB) net.Listener
 	}{
 		{
 			name: "TCP",
-			setup: func(t *testing.T) net.Listener {
+			setup: func(t testing.TB) net.Listener {
 				l, err := net.Listen("tcp", "127.0.0.1:0")
 				require.NoError(t, err, "create TCP listener")
 				return l
@@ -2475,7 +2680,7 @@ func TestAgent_Dial(t *testing.T) {
 		},
 		{
 			name: "UDP",
-			setup: func(t *testing.T) net.Listener {
+			setup: func(t testing.TB) net.Listener {
 				addr := net.UDPAddr{
 					IP:   net.ParseIP("127.0.0.1"),
 					Port: 0,
@@ -2493,57 +2698,69 @@ func TestAgent_Dial(t *testing.T) {
 
 			// The purpose of this test is to ensure that a client can dial a
 			// listener in the workspace over tailnet.
-			l := c.setup(t)
-			done := make(chan struct{})
-			defer func() {
-				l.Close()
-				<-done
-			}()
+			//
+			// The OS sometimes drops packets if the system can't keep up with
+			// them. For TCP packets, it's typically fine due to
+			// retransmissions, but for UDP packets, it can fail this test.
+			//
+			// The OS gets involved for the Wireguard traffic (either via DERP
+			// or direct UDP), and also for the traffic between the agent and
+			// the listener in the "workspace".
+			//
+			// To avoid this, we'll retry this test up to 3 times.
+			//nolint:gocritic // This test is flaky due to uncontrollable OS packet drops under heavy load.
+			testutil.RunRetry(t, 3, func(t testing.TB) {
+				ctx := testutil.Context(t, testutil.WaitLong)
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
+				l := c.setup(t)
+				done := make(chan struct{})
+				defer func() {
+					l.Close()
+					<-done
+				}()
 
-			go func() {
-				defer close(done)
-				for range 2 {
-					c, err := l.Accept()
-					if assert.NoError(t, err, "accept connection") {
-						testAccept(ctx, t, c)
-						_ = c.Close()
+				go func() {
+					defer close(done)
+					for range 2 {
+						c, err := l.Accept()
+						if assert.NoError(t, err, "accept connection") {
+							testAccept(ctx, t, c)
+							_ = c.Close()
+						}
 					}
+				}()
+
+				agentID := uuid.UUID{0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}
+				//nolint:dogsled
+				agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{
+					AgentID: agentID,
+				}, 0)
+				require.True(t, agentConn.AwaitReachable(ctx))
+				conn, err := agentConn.DialContext(ctx, l.Addr().Network(), l.Addr().String())
+				require.NoError(t, err)
+				testDial(ctx, t, conn)
+				err = conn.Close()
+				require.NoError(t, err)
+
+				// also connect via the CoderServicePrefix, to test that we can reach the agent on this
+				// IP. This will be required for CoderVPN.
+				_, rawPort, _ := net.SplitHostPort(l.Addr().String())
+				port, _ := strconv.ParseUint(rawPort, 10, 16)
+				ipp := netip.AddrPortFrom(tailnet.CoderServicePrefix.AddrFromUUID(agentID), uint16(port))
+
+				switch l.Addr().Network() {
+				case "tcp":
+					conn, err = agentConn.TailnetConn().DialContextTCP(ctx, ipp)
+				case "udp":
+					conn, err = agentConn.TailnetConn().DialContextUDP(ctx, ipp)
+				default:
+					t.Fatalf("unknown network: %s", l.Addr().Network())
 				}
-			}()
-
-			agentID := uuid.UUID{0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}
-			//nolint:dogsled
-			agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{
-				AgentID: agentID,
-			}, 0)
-			require.True(t, agentConn.AwaitReachable(ctx))
-			conn, err := agentConn.DialContext(ctx, l.Addr().Network(), l.Addr().String())
-			require.NoError(t, err)
-			testDial(ctx, t, conn)
-			err = conn.Close()
-			require.NoError(t, err)
-
-			// also connect via the CoderServicePrefix, to test that we can reach the agent on this
-			// IP. This will be required for CoderVPN.
-			_, rawPort, _ := net.SplitHostPort(l.Addr().String())
-			port, _ := strconv.ParseUint(rawPort, 10, 16)
-			ipp := netip.AddrPortFrom(tailnet.CoderServicePrefix.AddrFromUUID(agentID), uint16(port))
-
-			switch l.Addr().Network() {
-			case "tcp":
-				conn, err = agentConn.Conn.DialContextTCP(ctx, ipp)
-			case "udp":
-				conn, err = agentConn.Conn.DialContextUDP(ctx, ipp)
-			default:
-				t.Fatalf("unknown network: %s", l.Addr().Network())
-			}
-			require.NoError(t, err)
-			testDial(ctx, t, conn)
-			err = conn.Close()
-			require.NoError(t, err)
+				require.NoError(t, err)
+				testDial(ctx, t, conn)
+				err = conn.Close()
+				require.NoError(t, err)
+			})
 		})
 	}
 }
@@ -2594,7 +2811,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	})
 
 	// Setup a client connection.
-	newClientConn := func(derpMap *tailcfg.DERPMap, name string) *workspacesdk.AgentConn {
+	newClientConn := func(derpMap *tailcfg.DERPMap, name string) workspacesdk.AgentConn {
 		conn, err := tailnet.NewConn(&tailnet.Options{
 			Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
 			DERPMap:   derpMap,
@@ -2674,13 +2891,13 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 
 	// Connect from a second client and make sure it uses the new DERP map.
 	conn2 := newClientConn(newDerpMap, "client2")
-	require.Equal(t, []int{2}, conn2.DERPMap().RegionIDs())
+	require.Equal(t, []int{2}, conn2.TailnetConn().DERPMap().RegionIDs())
 	t.Log("conn2 got the new DERPMap")
 
 	// If the first client gets a DERP map update, it should be able to
 	// reconnect just fine.
-	conn1.SetDERPMap(newDerpMap)
-	require.Equal(t, []int{2}, conn1.DERPMap().RegionIDs())
+	conn1.TailnetConn().SetDERPMap(newDerpMap)
+	require.Equal(t, []int{2}, conn1.TailnetConn().DERPMap().RegionIDs())
 	t.Log("set the new DERPMap on conn1")
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -3046,8 +3263,8 @@ func setupSSHSessionOnPort(
 	return session
 }
 
-func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Duration, opts ...func(*agenttest.Client, *agent.Options)) (
-	*workspacesdk.AgentConn,
+func setupAgent(t testing.TB, metadata agentsdk.Manifest, ptyTimeout time.Duration, opts ...func(*agenttest.Client, *agent.Options)) (
+	workspacesdk.AgentConn,
 	*agenttest.Client,
 	<-chan *proto.Stats,
 	afero.Fs,
@@ -3144,7 +3361,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 
 var dialTestPayload = []byte("dean-was-here123")
 
-func testDial(ctx context.Context, t *testing.T, c net.Conn) {
+func testDial(ctx context.Context, t testing.TB, c net.Conn) {
 	t.Helper()
 
 	if deadline, ok := ctx.Deadline(); ok {
@@ -3160,7 +3377,7 @@ func testDial(ctx context.Context, t *testing.T, c net.Conn) {
 	assertReadPayload(t, c, dialTestPayload)
 }
 
-func testAccept(ctx context.Context, t *testing.T, c net.Conn) {
+func testAccept(ctx context.Context, t testing.TB, c net.Conn) {
 	t.Helper()
 	defer c.Close()
 
@@ -3177,7 +3394,7 @@ func testAccept(ctx context.Context, t *testing.T, c net.Conn) {
 	assertWritePayload(t, c, dialTestPayload)
 }
 
-func assertReadPayload(t *testing.T, r io.Reader, payload []byte) {
+func assertReadPayload(t testing.TB, r io.Reader, payload []byte) {
 	t.Helper()
 	b := make([]byte, len(payload)+16)
 	n, err := r.Read(b)
@@ -3186,11 +3403,11 @@ func assertReadPayload(t *testing.T, r io.Reader, payload []byte) {
 	assert.Equal(t, payload, b[:n])
 }
 
-func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
+func assertWritePayload(t testing.TB, w io.Writer, payload []byte) {
 	t.Helper()
 	n, err := w.Write(payload)
 	assert.NoError(t, err, "write payload")
-	assert.Equal(t, len(payload), n, "payload length does not match")
+	assert.Equal(t, len(payload), n, "written payload length does not match")
 }
 
 func testSessionOutput(t *testing.T, session *ssh.Session, expected, unexpected []string, expectedRe *regexp.Regexp) {
@@ -3253,7 +3470,11 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 	registry := prometheus.NewRegistry()
 
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{
+		// Make sure we always get a DERP connection for
+		// currently_reachable_peers.
+		DisableDirectConnections: true,
+	}, 0, func(_ *agenttest.Client, o *agent.Options) {
 		o.PrometheusRegistry = registry
 	})
 
@@ -3307,7 +3528,7 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 		{
 			Name:  "coderd_agentstats_currently_reachable_peers",
 			Type:  proto.Stats_Metric_GAUGE,
-			Value: 0,
+			Value: 1,
 			Labels: []*proto.Stats_Metric_Label{
 				{
 					Name:  "connection_type",
@@ -3318,7 +3539,7 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 		{
 			Name:  "coderd_agentstats_currently_reachable_peers",
 			Type:  proto.Stats_Metric_GAUGE,
-			Value: 1,
+			Value: 0,
 			Labels: []*proto.Stats_Metric_Label{
 				{
 					Name:  "connection_type",

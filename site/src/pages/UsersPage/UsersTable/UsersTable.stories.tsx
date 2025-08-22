@@ -1,4 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import {
 	MockAssignableSiteRoles,
 	MockAuditorRole,
@@ -10,6 +9,7 @@ import {
 	MockUserMember,
 	MockUserOwner,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { UsersTable } from "./UsersTable";
 
 const mockGroupsByUserId = new Map([

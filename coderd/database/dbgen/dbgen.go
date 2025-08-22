@@ -148,6 +148,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		AllowUserCancelWorkspaceJobs: seed.AllowUserCancelWorkspaceJobs,
 		MaxPortSharingLevel:          takeFirst(seed.MaxPortSharingLevel, database.AppSharingLevelOwner),
 		UseClassicParameterFlow:      takeFirst(seed.UseClassicParameterFlow, false),
+		CorsBehavior:                 takeFirst(seed.CorsBehavior, database.CorsBehaviorSimple),
 	})
 	require.NoError(t, err, "insert template")
 
@@ -436,6 +437,7 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 	jobID := takeFirst(orig.JobID, uuid.New())
 	hasAITask := takeFirst(orig.HasAITask, sql.NullBool{})
 	sidebarAppID := takeFirst(orig.AITaskSidebarAppID, uuid.NullUUID{})
+	hasExternalAgent := takeFirst(orig.HasExternalAgent, sql.NullBool{})
 	var build database.WorkspaceBuild
 	err := db.InTx(func(db database.Store) error {
 		err := db.InsertWorkspaceBuild(genCtx, database.InsertWorkspaceBuildParams{
@@ -469,12 +471,13 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 			require.NoError(t, err)
 		}
 
-		if hasAITask.Valid {
-			require.NoError(t, db.UpdateWorkspaceBuildAITaskByID(genCtx, database.UpdateWorkspaceBuildAITaskByIDParams{
-				HasAITask:    hasAITask,
-				SidebarAppID: sidebarAppID,
-				UpdatedAt:    dbtime.Now(),
-				ID:           buildID,
+		if hasAITask.Valid || hasExternalAgent.Valid {
+			require.NoError(t, db.UpdateWorkspaceBuildFlagsByID(genCtx, database.UpdateWorkspaceBuildFlagsByIDParams{
+				ID:               buildID,
+				HasAITask:        hasAITask,
+				HasExternalAgent: hasExternalAgent,
+				SidebarAppID:     sidebarAppID,
+				UpdatedAt:        dbtime.Now(),
 			}))
 		}
 
@@ -774,6 +777,7 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 		Input:          takeFirstSlice(orig.Input, []byte("{}")),
 		Tags:           tags,
 		TraceMetadata:  pqtype.NullRawMessage{},
+		LogsOverflowed: false,
 	})
 	require.NoError(t, err, "insert job")
 	if ps != nil {
@@ -1026,6 +1030,7 @@ func ExternalAuthLink(t testing.TB, db database.Store, orig database.ExternalAut
 func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVersion) database.TemplateVersion {
 	var version database.TemplateVersion
 	hasAITask := takeFirst(orig.HasAITask, sql.NullBool{})
+	hasExternalAgent := takeFirst(orig.HasExternalAgent, sql.NullBool{})
 	jobID := takeFirst(orig.JobID, uuid.New())
 	err := db.InTx(func(db database.Store) error {
 		versionID := takeFirst(orig.ID, uuid.New())
@@ -1046,11 +1051,12 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 			return err
 		}
 
-		if hasAITask.Valid {
-			require.NoError(t, db.UpdateTemplateVersionAITaskByJobID(genCtx, database.UpdateTemplateVersionAITaskByJobIDParams{
-				JobID:     jobID,
-				HasAITask: hasAITask,
-				UpdatedAt: dbtime.Now(),
+		if hasAITask.Valid || hasExternalAgent.Valid {
+			require.NoError(t, db.UpdateTemplateVersionFlagsByJobID(genCtx, database.UpdateTemplateVersionFlagsByJobIDParams{
+				JobID:            jobID,
+				HasAITask:        hasAITask,
+				HasExternalAgent: hasExternalAgent,
+				UpdatedAt:        dbtime.Now(),
 			}))
 		}
 
@@ -1420,11 +1426,39 @@ func PresetParameter(t testing.TB, db database.Store, seed database.InsertPreset
 	return parameters
 }
 
-func ClaimPrebuild(t testing.TB, db database.Store, newUserID uuid.UUID, newName string, presetID uuid.UUID) database.ClaimPrebuiltWorkspaceRow {
+func UserSecret(t testing.TB, db database.Store, seed database.UserSecret) database.UserSecret {
+	userSecret, err := db.CreateUserSecret(genCtx, database.CreateUserSecretParams{
+		ID:          takeFirst(seed.ID, uuid.New()),
+		UserID:      takeFirst(seed.UserID, uuid.New()),
+		Name:        takeFirst(seed.Name, "secret-name"),
+		Description: takeFirst(seed.Description, "secret description"),
+		Value:       takeFirst(seed.Value, "secret value"),
+		EnvName:     takeFirst(seed.EnvName, "SECRET_ENV_NAME"),
+		FilePath:    takeFirst(seed.FilePath, "~/secret/file/path"),
+	})
+	require.NoError(t, err, "failed to insert user secret")
+	return userSecret
+}
+
+func ClaimPrebuild(
+	t testing.TB,
+	db database.Store,
+	now time.Time,
+	newUserID uuid.UUID,
+	newName string,
+	presetID uuid.UUID,
+	autostartSchedule sql.NullString,
+	nextStartAt sql.NullTime,
+	ttl sql.NullInt64,
+) database.ClaimPrebuiltWorkspaceRow {
 	claimedWorkspace, err := db.ClaimPrebuiltWorkspace(genCtx, database.ClaimPrebuiltWorkspaceParams{
-		NewUserID: newUserID,
-		NewName:   newName,
-		PresetID:  presetID,
+		NewUserID:         newUserID,
+		NewName:           newName,
+		Now:               now,
+		PresetID:          presetID,
+		AutostartSchedule: autostartSchedule,
+		NextStartAt:       nextStartAt,
+		WorkspaceTtl:      ttl,
 	})
 	require.NoError(t, err, "claim prebuilt workspace")
 

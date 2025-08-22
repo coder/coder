@@ -18,8 +18,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { Check, ChevronDown, CornerDownLeft } from "lucide-react";
-import { Info } from "lucide-react";
+import { Check, ChevronDown, CornerDownLeft, Info } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useState } from "react";
 import { cn } from "utils/cn";
 import { ExternalImage } from "../ExternalImage/ExternalImage";
@@ -34,6 +33,7 @@ interface ComboboxProps {
 	onInputChange?: (value: string) => void;
 	onKeyDown?: KeyboardEventHandler<HTMLInputElement>;
 	onSelect: (value: string) => void;
+	id?: string;
 }
 
 type ComboboxOption = {
@@ -53,6 +53,7 @@ export const Combobox: FC<ComboboxProps> = ({
 	onInputChange,
 	onKeyDown,
 	onSelect,
+	id,
 }) => {
 	const [managedOpen, setManagedOpen] = useState(false);
 	const [managedInputValue, setManagedInputValue] = useState("");
@@ -78,6 +79,7 @@ export const Combobox: FC<ComboboxProps> = ({
 		<Popover open={isOpen} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
 				<Button
+					id={id}
 					variant="outline"
 					aria-expanded={isOpen}
 					className="w-full justify-between group"

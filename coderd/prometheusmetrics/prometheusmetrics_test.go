@@ -247,6 +247,32 @@ func TestWorkspaceLatestBuildTotals(t *testing.T) {
 			codersdk.ProvisionerJobSucceeded: 3,
 			codersdk.ProvisionerJobRunning:   1,
 		},
+	}, {
+		Name: "MultipleWithDeleted",
+		Database: func() database.Store {
+			db, _ := dbtestutil.NewDB(t)
+			u := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			insertCanceled(t, db, u, org)
+			insertFailed(t, db, u, org)
+			insertSuccess(t, db, u, org)
+			insertRunning(t, db, u, org)
+
+			// Verify that deleted workspaces/builds are NOT counted in metrics.
+			n, err := cryptorand.Intn(5)
+			require.NoError(t, err)
+			for range 1 + n {
+				insertDeleted(t, db, u, org)
+			}
+			return db
+		},
+		Total: 4, // Only non-deleted workspaces should be counted
+		Status: map[codersdk.ProvisionerJobStatus]int{
+			codersdk.ProvisionerJobCanceled:  1,
+			codersdk.ProvisionerJobFailed:    1,
+			codersdk.ProvisionerJobSucceeded: 1,
+			codersdk.ProvisionerJobRunning:   1,
+		},
 	}} {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
@@ -321,6 +347,33 @@ func TestWorkspaceLatestBuildStatuses(t *testing.T) {
 			codersdk.ProvisionerJobCanceled:  1,
 			codersdk.ProvisionerJobFailed:    2,
 			codersdk.ProvisionerJobSucceeded: 3,
+			codersdk.ProvisionerJobRunning:   1,
+		},
+	}, {
+		Name: "MultipleWithDeleted",
+		Database: func() database.Store {
+			db, _ := dbtestutil.NewDB(t)
+			u := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			insertTemplates(t, db, u, org)
+			insertCanceled(t, db, u, org)
+			insertFailed(t, db, u, org)
+			insertSuccess(t, db, u, org)
+			insertRunning(t, db, u, org)
+
+			// Verify that deleted workspaces/builds are NOT counted in metrics.
+			n, err := cryptorand.Intn(5)
+			require.NoError(t, err)
+			for range 1 + n {
+				insertDeleted(t, db, u, org)
+			}
+			return db
+		},
+		ExpectedWorkspaces: 4, // Only non-deleted workspaces should be counted
+		ExpectedStatuses: map[codersdk.ProvisionerJobStatus]int{
+			codersdk.ProvisionerJobCanceled:  1,
+			codersdk.ProvisionerJobFailed:    1,
+			codersdk.ProvisionerJobSucceeded: 1,
 			codersdk.ProvisionerJobRunning:   1,
 		},
 	}} {
@@ -744,6 +797,7 @@ func insertTemplates(t *testing.T, db database.Store, u database.User, org datab
 		MaxPortSharingLevel: database.AppSharingLevelAuthenticated,
 		CreatedBy:           u.ID,
 		OrganizationID:      org.ID,
+		CorsBehavior:        database.CorsBehaviorSimple,
 	}))
 	pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
 
@@ -763,6 +817,7 @@ func insertTemplates(t *testing.T, db database.Store, u database.User, org datab
 		MaxPortSharingLevel: database.AppSharingLevelAuthenticated,
 		CreatedBy:           u.ID,
 		OrganizationID:      org.ID,
+		CorsBehavior:        database.CorsBehaviorSimple,
 	}))
 
 	require.NoError(t, db.InsertTemplateVersion(context.Background(), database.InsertTemplateVersionParams{
@@ -902,6 +957,27 @@ func insertSuccess(t *testing.T, db database.Store, u database.User, org databas
 			Time:  dbtime.Now(),
 			Valid: true,
 		},
+	})
+	require.NoError(t, err)
+}
+
+func insertDeleted(t *testing.T, db database.Store, u database.User, org database.Organization) {
+	job := insertRunning(t, db, u, org)
+	err := db.UpdateProvisionerJobWithCompleteByID(context.Background(), database.UpdateProvisionerJobWithCompleteByIDParams{
+		ID: job.ID,
+		CompletedAt: sql.NullTime{
+			Time:  dbtime.Now(),
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+
+	build, err := db.GetWorkspaceBuildByJobID(context.Background(), job.ID)
+	require.NoError(t, err)
+
+	err = db.UpdateWorkspaceDeletedByID(context.Background(), database.UpdateWorkspaceDeletedByIDParams{
+		ID:      build.WorkspaceID,
+		Deleted: true,
 	})
 	require.NoError(t, err)
 }

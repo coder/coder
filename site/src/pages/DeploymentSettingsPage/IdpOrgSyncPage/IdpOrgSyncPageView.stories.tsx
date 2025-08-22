@@ -1,5 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
 import {
 	MockOrganization,
 	MockOrganization2,
@@ -7,6 +5,8 @@ import {
 	MockOrganizationSyncSettings2,
 	MockOrganizationSyncSettingsEmpty,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, within } from "storybook/test";
 import { IdpOrgSyncPageView } from "./IdpOrgSyncPageView";
 
 const meta: Meta<typeof IdpOrgSyncPageView> = {

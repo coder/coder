@@ -16,7 +16,7 @@ terraform {
     }
 
     // We use the kubectl provider to apply Custom Resources.
-    // The kubernetes provider requires the CRD is already present 
+    // The kubernetes provider requires the CRD is already present
     // and would require a separate apply step beforehand.
     // https://github.com/hashicorp/terraform-provider-kubernetes/issues/1367
     kubectl = {
@@ -40,14 +40,19 @@ terraform {
     }
   }
 
-  required_version = "~> 1.9.0"
+  required_version = ">= 1.9.0"
 }
 
 provider "google" {
 }
 
+data "google_secret_manager_secret_version_access" "cloudflare_api_token_dns" {
+  secret  = "cloudflare-api-token-dns"
+  project = var.project_id
+}
+
 provider "cloudflare" {
-  api_token = var.cloudflare_api_token
+  api_token = coalesce(var.cloudflare_api_token, data.google_secret_manager_secret_version_access.cloudflare_api_token_dns.secret_data)
 }
 
 provider "kubernetes" {

@@ -47,7 +47,7 @@ import {
 } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import { getLatencyColor } from "utils/latency";
 import {
 	addTime,
@@ -59,8 +59,8 @@ import {
 import { getTemplatePageTitle } from "../utils";
 import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
-import { WeekPicker, numberOfWeeksOptions } from "./WeekPicker";
 import { lastWeeks } from "./utils";
+import { numberOfWeeksOptions, WeekPicker } from "./WeekPicker";
 
 const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
 

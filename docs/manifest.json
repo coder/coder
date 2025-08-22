@@ -76,6 +76,12 @@
 							"description": "Security vulnerability disclosure policy",
 							"path": "./about/contributing/SECURITY.md",
 							"icon_path": "./images/icons/lock.svg"
+						},
+						{
+							"title": "AI Contribution Guidelines",
+							"description": "Guidelines for AI-generated contributions.",
+							"path": "./about/contributing/AI_CONTRIBUTING.md",
+							"icon_path": "./images/icons/ai_intelligence.svg"
 						}
 					]
 				}
@@ -417,6 +423,11 @@
 							"path": "./admin/users/oidc-auth/index.md",
 							"children": [
 								{
+									"title": "Google",
+									"description": "Configure Google as an OIDC provider",
+									"path": "./admin/users/oidc-auth/google.md"
+								},
+								{
 									"title": "Configure OIDC refresh tokens",
 									"description": "How to configure OIDC refresh tokens",
 									"path": "./admin/users/oidc-auth/refresh-tokens.md"
@@ -547,8 +558,7 @@
 								{
 									"title": "Dynamic Parameters",
 									"description": "Conditional, identity-aware parameter syntax for advanced users.",
-									"path": "./admin/templates/extending-templates/dynamic-parameters.md",
-									"state": ["beta"]
+									"path": "./admin/templates/extending-templates/dynamic-parameters.md"
 								},
 								{
 									"title": "Prebuilt workspaces",
@@ -700,11 +710,6 @@
 							"path": "./admin/integrations/jfrog-artifactory.md"
 						},
 						{
-							"title": "JFrog Xray",
-							"description": "Integrate Coder with JFrog Xray",
-							"path": "./admin/integrations/jfrog-xray.md"
-						},
-						{
 							"title": "Island Secure Browser",
 							"description": "Integrate Coder with Island's Secure Browser",
 							"path": "./admin/integrations/island.md"
@@ -715,14 +720,19 @@
 							"path": "./admin/integrations/platformx.md"
 						},
 						{
-							"title": "DX",
-							"description": "Tag Coder Users with DX",
+							"title": "DX Data Cloud",
+							"description": "Tag Coder Users with DX Data Cloud",
 							"path": "./admin/integrations/dx-data-cloud.md"
 						},
 						{
 							"title": "Hashicorp Vault",
 							"description": "Integrate Coder with Hashicorp Vault",
 							"path": "./admin/integrations/vault.md"
+						},
+						{
+							"title": "OAuth2 Provider",
+							"description": "Use Coder as an OAuth2 provider",
+							"path": "./admin/integrations/oauth2-provider.md"
 						}
 					]
 				},
@@ -955,11 +965,6 @@
 					"path": "./install/kubernetes/kubernetes-azure-app-gateway.md"
 				},
 				{
-					"title": "Scanning Workspaces with JFrog Xray",
-					"description": "Integrate Coder with JFrog Xray",
-					"path": "./admin/integrations/jfrog-xray.md"
-				},
-				{
 					"title": "Cloning Git Repositories",
 					"description": "Learn how to clone Git repositories in Coder",
 					"path": "./tutorials/cloning-git-repositories.md"
@@ -1171,6 +1176,26 @@
 							"title": "external-auth access-token",
 							"description": "Print auth for an external provider",
 							"path": "reference/cli/external-auth_access-token.md"
+						},
+						{
+							"title": "external-workspaces",
+							"description": "Create or manage external workspaces",
+							"path": "reference/cli/external-workspaces.md"
+						},
+						{
+							"title": "external-workspaces agent-instructions",
+							"description": "Get the instructions for an external agent",
+							"path": "reference/cli/external-workspaces_agent-instructions.md"
+						},
+						{
+							"title": "external-workspaces create",
+							"description": "Create a new external workspace",
+							"path": "reference/cli/external-workspaces_create.md"
+						},
+						{
+							"title": "external-workspaces list",
+							"description": "List external workspaces",
+							"path": "reference/cli/external-workspaces_list.md"
 						},
 						{
 							"title": "favorite",

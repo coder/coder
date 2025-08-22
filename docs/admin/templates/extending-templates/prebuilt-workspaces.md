@@ -25,6 +25,7 @@ Prebuilt workspaces are tightly integrated with [workspace presets](./parameters
 1. The preset must define all required parameters needed to build the workspace.
 1. The preset parameters define the base configuration and are immutable once a prebuilt workspace is provisioned.
 1. Parameters that are not defined in the preset can still be customized by users when they claim a workspace.
+1. If a user does not select a preset but provides parameters that match one or more presets, Coder will automatically select the most specific matching preset and assign a prebuilt workspace if one is available.
 
 ## Prerequisites
 

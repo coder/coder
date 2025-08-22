@@ -1280,6 +1280,39 @@ const docTemplate = `{
                 }
             }
         },
+        "/init-script/{os}/{arch}": {
+            "get": {
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "InitScript"
+                ],
+                "summary": "Get agent init script",
+                "operationId": "get-agent-init-script",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Operating system",
+                        "name": "os",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Architecture",
+                        "name": "arch",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    }
+                }
+            }
+        },
         "/insights/daus": {
             "get": {
                 "security": [
@@ -5140,8 +5173,8 @@ const docTemplate = `{
                 "tags": [
                     "Templates"
                 ],
-                "summary": "Get template metadata by ID",
-                "operationId": "get-template-metadata-by-id",
+                "summary": "Get template settings by ID",
+                "operationId": "get-template-settings-by-id",
                 "parameters": [
                     {
                         "type": "string",
@@ -5200,14 +5233,17 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Templates"
                 ],
-                "summary": "Update template metadata by ID",
-                "operationId": "update-template-metadata-by-id",
+                "summary": "Update template settings by ID",
+                "operationId": "update-template-settings-by-id",
                 "parameters": [
                     {
                         "type": "string",
@@ -5216,6 +5252,15 @@ const docTemplate = `{
                         "name": "template",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Patch template settings request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateTemplateMeta"
+                        }
                     }
                 ],
                 "responses": {
@@ -5289,7 +5334,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Update template request",
+                        "description": "Update template ACL request",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -7383,7 +7428,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "format": "uuid",
+                        "format": "string",
                         "description": "Key ID",
                         "name": "keyid",
                         "in": "path",
@@ -7420,7 +7465,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "format": "uuid",
+                        "format": "string",
                         "description": "Key ID",
                         "name": "keyid",
                         "in": "path",
@@ -9835,7 +9880,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent.",
                         "name": "q",
                         "in": "query"
                     },
@@ -9932,6 +9977,50 @@ const docTemplate = `{
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/codersdk.UpdateWorkspaceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/acl": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Update workspace ACL",
+                "operationId": "update-workspace-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update workspace ACL request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceACL"
                         }
                     }
                 ],
@@ -10222,6 +10311,48 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/external-agent/{agent}/credentials": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get workspace external agent credentials",
+                "operationId": "get-workspace-external-agent-credentials",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Agent name",
+                        "name": "agent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ExternalAgentCredentials"
                         }
                     }
                 }
@@ -11467,6 +11598,17 @@ const docTemplate = `{
                 "BuildReasonJetbrainsConnection"
             ]
         },
+        "codersdk.CORSBehavior": {
+            "type": "string",
+            "enum": [
+                "simple",
+                "passthru"
+            ],
+            "x-enum-varnames": [
+                "CORSBehaviorSimple",
+                "CORSBehaviorPassthru"
+            ]
+        },
         "codersdk.ChangePasswordWithOneTimePasscodeRequest": {
             "type": "object",
             "required": [
@@ -11805,6 +11947,14 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
+                        }
+                    ]
+                },
+                "cors_behavior": {
+                    "description": "CORSBehavior allows optionally specifying the CORS behavior for all shared ports.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.CORSBehavior"
                         }
                     ]
                 },
@@ -12814,7 +12964,8 @@ const docTemplate = `{
                 "workspace-usage",
                 "web-push",
                 "oauth2",
-                "mcp-server-http"
+                "mcp-server-http",
+                "workspace-sharing"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
@@ -12823,6 +12974,7 @@ const docTemplate = `{
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
+                "ExperimentWorkspaceSharing": "Enables updating workspace ACLs for sharing with users and groups.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-varnames": [
@@ -12832,8 +12984,20 @@ const docTemplate = `{
                 "ExperimentWorkspaceUsage",
                 "ExperimentWebPush",
                 "ExperimentOAuth2",
-                "ExperimentMCPServerHTTP"
+                "ExperimentMCPServerHTTP",
+                "ExperimentWorkspaceSharing"
             ]
+        },
+        "codersdk.ExternalAgentCredentials": {
+            "type": "object",
+            "properties": {
+                "agent_token": {
+                    "type": "string"
+                },
+                "command": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.ExternalAuth": {
             "type": "object",
@@ -15242,6 +15406,9 @@ const docTemplate = `{
                 "input": {
                     "$ref": "#/definitions/codersdk.ProvisionerJobInput"
                 },
+                "logs_overflowed": {
+                    "type": "boolean"
+                },
                 "metadata": {
                     "$ref": "#/definitions/codersdk.ProvisionerJobMetadata"
                 },
@@ -15632,7 +15799,9 @@ const docTemplate = `{
                 "system",
                 "tailnet_coordinator",
                 "template",
+                "usage_event",
                 "user",
+                "user_secret",
                 "webpush_subscription",
                 "workspace",
                 "workspace_agent_devcontainers",
@@ -15672,7 +15841,9 @@ const docTemplate = `{
                 "ResourceSystem",
                 "ResourceTailnetCoordinator",
                 "ResourceTemplate",
+                "ResourceUsageEvent",
                 "ResourceUser",
+                "ResourceUserSecret",
                 "ResourceWebpushSubscription",
                 "ResourceWorkspace",
                 "ResourceWorkspaceAgentDevcontainers",
@@ -16215,6 +16386,9 @@ const docTemplate = `{
                 "build_time_stats": {
                     "$ref": "#/definitions/codersdk.TemplateBuildTimeStats"
                 },
+                "cors_behavior": {
+                    "$ref": "#/definitions/codersdk.CORSBehavior"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -16740,6 +16914,9 @@ const docTemplate = `{
                 "created_by": {
                     "$ref": "#/definitions/codersdk.MinimalUser"
                 },
+                "has_external_agent": {
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -17139,6 +17316,89 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateTemplateMeta": {
+            "type": "object",
+            "properties": {
+                "activity_bump_ms": {
+                    "description": "ActivityBumpMillis allows optionally specifying the activity bump\nduration for all workspaces created from this template. Defaults to 1h\nbut can be set to 0 to disable activity bumping.",
+                    "type": "integer"
+                },
+                "allow_user_autostart": {
+                    "type": "boolean"
+                },
+                "allow_user_autostop": {
+                    "type": "boolean"
+                },
+                "allow_user_cancel_workspace_jobs": {
+                    "type": "boolean"
+                },
+                "autostart_requirement": {
+                    "$ref": "#/definitions/codersdk.TemplateAutostartRequirement"
+                },
+                "autostop_requirement": {
+                    "description": "AutostopRequirement and AutostartRequirement can only be set if your license\nincludes the advanced template scheduling feature. If you attempt to set this\nvalue while unlicensed, it will be ignored.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
+                        }
+                    ]
+                },
+                "cors_behavior": {
+                    "$ref": "#/definitions/codersdk.CORSBehavior"
+                },
+                "default_ttl_ms": {
+                    "type": "integer"
+                },
+                "deprecation_message": {
+                    "description": "DeprecationMessage if set, will mark the template as deprecated and block\nany new workspaces from using this template.\nIf passed an empty string, will remove the deprecated message, making\nthe template usable for new workspaces again.",
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "disable_everyone_group_access": {
+                    "description": "DisableEveryoneGroupAccess allows optionally disabling the default\nbehavior of granting the 'everyone' group access to use the template.\nIf this is set to true, the template will not be available to all users,\nand must be explicitly granted to users or groups in the permissions settings\nof the template.",
+                    "type": "boolean"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "failure_ttl_ms": {
+                    "type": "integer"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "max_port_share_level": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "require_active_version": {
+                    "description": "RequireActiveVersion mandates workspaces built using this template\nuse the active version of the template. This option has no\neffect on template admins.",
+                    "type": "boolean"
+                },
+                "time_til_dormant_autodelete_ms": {
+                    "type": "integer"
+                },
+                "time_til_dormant_ms": {
+                    "type": "integer"
+                },
+                "update_workspace_dormant_at": {
+                    "description": "UpdateWorkspaceDormant updates the dormant_at field of workspaces spawned\nfrom the template. This is useful for preventing dormant workspaces being immediately\ndeleted when updating the dormant_ttl field to a new, shorter value.",
+                    "type": "boolean"
+                },
+                "update_workspace_last_used_at": {
+                    "description": "UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces\nspawned from the template. This is useful for preventing workspaces being\nimmediately locked when updating the inactivity_ttl field to a new, shorter\nvalue.",
+                    "type": "boolean"
+                },
+                "use_classic_parameter_flow": {
+                    "description": "UseClassicParameterFlow is a flag that switches the default behavior to use the classic\nparameter flow when creating a workspace. This only affects deployments with the experiment\n\"dynamic-parameters\" enabled. This setting will live for a period after the experiment is\nmade the default.\nAn \"opt-out\" is present in case the new feature breaks some existing templates.",
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.UpdateUserAppearanceSettingsRequest": {
             "type": "object",
             "required": [
@@ -17202,6 +17462,24 @@ const docTemplate = `{
                 "schedule": {
                     "description": "Schedule is a cron expression that defines when the user's quiet hours\nwindow is. Schedule must not be empty. For new users, the schedule is set\nto 2am in their browser or computer's timezone. The schedule denotes the\nbeginning of a 4 hour window where the workspace is allowed to\nautomatically stop or restart due to maintenance or template schedule.\n\nThe schedule must be daily with a single time, and should have a timezone\nspecified via a CRON_TZ prefix (otherwise UTC will be used).\n\nIf the schedule is empty, the user will be updated to use the default\nschedule.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateWorkspaceACL": {
+            "type": "object",
+            "properties": {
+                "group_roles": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.WorkspaceRole"
+                    }
+                },
+                "user_roles": {
+                    "description": "Keys must be valid UUIDs. To remove a user/group from the ACL use \"\" as the\nrole name (available as a constant named ` + "`" + `codersdk.WorkspaceRoleDeleted` + "`" + `)",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.WorkspaceRole"
+                    }
                 }
             }
         },
@@ -18581,6 +18859,9 @@ const docTemplate = `{
                 "has_ai_task": {
                     "type": "boolean"
                 },
+                "has_external_agent": {
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -18936,6 +19217,19 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.WorkspaceRole": {
+            "type": "string",
+            "enum": [
+                "admin",
+                "use",
+                ""
+            ],
+            "x-enum-varnames": [
+                "WorkspaceRoleAdmin",
+                "WorkspaceRoleUse",
+                "WorkspaceRoleDeleted"
+            ]
         },
         "codersdk.WorkspaceStatus": {
             "type": "string",

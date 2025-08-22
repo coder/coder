@@ -1,18 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, within } from "@storybook/test";
-import {
-	type Workspace,
-	type WorkspaceStatus,
-	WorkspaceStatuses,
-} from "api/typesGenerated";
-import {
-	MockMenu,
-	getDefaultFilterProps,
-} from "components/Filter/storyHelpers";
-import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
-import dayjs from "dayjs";
-import uniqueId from "lodash/uniqueId";
-import type { ComponentProps } from "react";
 import {
 	MockBuildInfo,
 	MockOrganization,
@@ -30,6 +15,21 @@ import {
 	withDashboardProvider,
 	withProxyProvider,
 } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import {
+	type Workspace,
+	type WorkspaceStatus,
+	WorkspaceStatuses,
+} from "api/typesGenerated";
+import {
+	getDefaultFilterProps,
+	MockMenu,
+} from "components/Filter/storyHelpers";
+import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
+import dayjs from "dayjs";
+import uniqueId from "lodash/uniqueId";
+import { expect, within } from "storybook/test";
+import type { WorkspaceFilterState } from "./filter/WorkspacesFilter";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
 const createWorkspace = (
@@ -134,9 +134,7 @@ const allWorkspaces = [
 	...Object.values(additionalWorkspaces),
 ];
 
-type FilterProps = ComponentProps<typeof WorkspacesPageView>["filterProps"];
-
-const defaultFilterProps = getDefaultFilterProps<FilterProps>({
+const defaultFilterProps = getDefaultFilterProps<WorkspaceFilterState>({
 	query: "owner:me",
 	menus: {
 		user: MockMenu,
@@ -169,7 +167,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
 	component: WorkspacesPageView,
 	args: {
 		limit: DEFAULT_RECORDS_PER_PAGE,
-		filterProps: defaultFilterProps,
+		filterState: defaultFilterProps,
 		checkedWorkspaces: [],
 		canCheckWorkspaces: true,
 		templates: mockTemplates,
@@ -266,7 +264,7 @@ export const UserHasNoWorkspacesAndNoTemplates: Story = {
 export const NoSearchResults: Story = {
 	args: {
 		workspaces: [],
-		filterProps: {
+		filterState: {
 			...defaultFilterProps,
 			filter: {
 				...defaultFilterProps.filter,

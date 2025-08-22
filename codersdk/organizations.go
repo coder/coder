@@ -206,6 +206,9 @@ type CreateTemplateRequest struct {
 	// true, and is why `*bool` is used here. When dynamic parameters becomes
 	// the default, this will default to false.
 	UseClassicParameterFlow *bool `json:"template_use_classic_parameter_flow,omitempty"`
+
+	// CORSBehavior allows optionally specifying the CORS behavior for all shared ports.
+	CORSBehavior *CORSBehavior `json:"cors_behavior"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
@@ -341,9 +344,12 @@ func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, e
 }
 
 type OrganizationProvisionerDaemonsOptions struct {
-	Limit int
-	IDs   []uuid.UUID
-	Tags  map[string]string
+	Limit   int
+	Offline bool
+	Status  []ProvisionerDaemonStatus
+	MaxAge  time.Duration
+	IDs     []uuid.UUID
+	Tags    map[string]string
 }
 
 func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizationID uuid.UUID, opts *OrganizationProvisionerDaemonsOptions) ([]ProvisionerDaemon, error) {
@@ -351,6 +357,15 @@ func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizatio
 	if opts != nil {
 		if opts.Limit > 0 {
 			qp.Add("limit", strconv.Itoa(opts.Limit))
+		}
+		if opts.Offline {
+			qp.Add("offline", "true")
+		}
+		if len(opts.Status) > 0 {
+			qp.Add("status", joinSlice(opts.Status))
+		}
+		if opts.MaxAge > 0 {
+			qp.Add("max_age", opts.MaxAge.String())
 		}
 		if len(opts.IDs) > 0 {
 			qp.Add("ids", joinSliceStringer(opts.IDs))
@@ -538,6 +553,7 @@ type TemplateFilter struct {
 	OrganizationID uuid.UUID `typescript:"-"`
 	ExactName      string    `typescript:"-"`
 	FuzzyName      string    `typescript:"-"`
+	AuthorUsername string    `typescript:"-"`
 	SearchQuery    string    `json:"q,omitempty"`
 }
 
@@ -559,6 +575,11 @@ func (f TemplateFilter) asRequestOption() RequestOption {
 		if f.FuzzyName != "" {
 			params = append(params, fmt.Sprintf("name:%q", f.FuzzyName))
 		}
+
+		if f.AuthorUsername != "" {
+			params = append(params, fmt.Sprintf("author:%q", f.AuthorUsername))
+		}
+
 		if f.SearchQuery != "" {
 			params = append(params, f.SearchQuery)
 		}

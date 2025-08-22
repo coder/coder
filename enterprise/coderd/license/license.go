@@ -3,6 +3,7 @@ package license
 import (
 	"context"
 	"crypto/ed25519"
+	"database/sql"
 	"fmt"
 	"math"
 	"time"
@@ -94,10 +95,34 @@ func Entitlements(
 		return codersdk.Entitlements{}, xerrors.Errorf("query active user count: %w", err)
 	}
 
+	// nolint:gocritic // Getting external workspaces is a system function.
+	externalWorkspaces, err := db.GetWorkspaces(dbauthz.AsSystemRestricted(ctx), database.GetWorkspacesParams{
+		HasExternalAgent: sql.NullBool{
+			Bool:  true,
+			Valid: true,
+		},
+	})
+	if err != nil {
+		return codersdk.Entitlements{}, xerrors.Errorf("query external workspaces: %w", err)
+	}
+
+	// nolint:gocritic // Getting external templates is a system function.
+	externalTemplates, err := db.GetTemplatesWithFilter(dbauthz.AsSystemRestricted(ctx), database.GetTemplatesWithFilterParams{
+		HasExternalAgent: sql.NullBool{
+			Bool:  true,
+			Valid: true,
+		},
+	})
+	if err != nil {
+		return codersdk.Entitlements{}, xerrors.Errorf("query external templates: %w", err)
+	}
+
 	entitlements, err := LicensesEntitlements(ctx, now, licenses, enablements, keys, FeatureArguments{
-		ActiveUserCount:   activeUserCount,
-		ReplicaCount:      replicaCount,
-		ExternalAuthCount: externalAuthCount,
+		ActiveUserCount:        activeUserCount,
+		ReplicaCount:           replicaCount,
+		ExternalAuthCount:      externalAuthCount,
+		ExternalWorkspaceCount: int64(len(externalWorkspaces)),
+		ExternalTemplateCount:  int64(len(externalTemplates)),
 		ManagedAgentCountFn: func(ctx context.Context, startTime time.Time, endTime time.Time) (int64, error) {
 			// nolint:gocritic // Requires permission to read all workspaces to read managed agent count.
 			return db.GetManagedAgentCount(dbauthz.AsSystemRestricted(ctx), database.GetManagedAgentCountParams{
@@ -114,9 +139,11 @@ func Entitlements(
 }
 
 type FeatureArguments struct {
-	ActiveUserCount   int64
-	ReplicaCount      int
-	ExternalAuthCount int
+	ActiveUserCount        int64
+	ReplicaCount           int
+	ExternalAuthCount      int
+	ExternalWorkspaceCount int64
+	ExternalTemplateCount  int64
 	// Unfortunately, managed agent count is not a simple count of the current
 	// state of the world, but a count between two points in time determined by
 	// the licenses.
@@ -418,6 +445,30 @@ func LicensesEntitlements(
 		}
 	}
 
+	if featureArguments.ExternalWorkspaceCount > 0 {
+		feature := entitlements.Features[codersdk.FeatureWorkspaceExternalAgent]
+		switch feature.Entitlement {
+		case codersdk.EntitlementNotEntitled:
+			entitlements.Errors = append(entitlements.Errors,
+				"You have external workspaces but your license is not entitled to this feature.")
+		case codersdk.EntitlementGracePeriod:
+			entitlements.Warnings = append(entitlements.Warnings,
+				"You have external workspaces but your license is expired.")
+		}
+	}
+
+	if featureArguments.ExternalTemplateCount > 0 {
+		feature := entitlements.Features[codersdk.FeatureWorkspaceExternalAgent]
+		switch feature.Entitlement {
+		case codersdk.EntitlementNotEntitled:
+			entitlements.Errors = append(entitlements.Errors,
+				"You have templates which use external agents but your license is not entitled to this feature.")
+		case codersdk.EntitlementGracePeriod:
+			entitlements.Warnings = append(entitlements.Warnings,
+				"You have templates which use external agents but your license is expired.")
+		}
+	}
+
 	// Managed agent warnings are applied based on usage period. We only
 	// generate a warning if the license actually has managed agents.
 	// Note that agents are free when unlicensed.
@@ -584,6 +635,7 @@ type Claims struct {
 	Version          uint64   `json:"version"`
 	Features         Features `json:"features"`
 	RequireTelemetry bool     `json:"require_telemetry,omitempty"`
+	PublishUsageData bool     `json:"publish_usage_data,omitempty"`
 }
 
 var _ jwt.Claims = &Claims{}

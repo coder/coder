@@ -2,11 +2,11 @@ import { API } from "api/api";
 import type { Organization } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
+import { useFilterMenu } from "components/Filter/menu";
 import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
-import { useFilterMenu } from "components/Filter/menu";
 import type { FC } from "react";
 
 interface TemplatesFilterProps {
@@ -41,6 +41,7 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 		<Filter
 			presets={[
 				{ query: "", name: "All templates" },
+				{ query: "deprecated:false author:me", name: "Templates you authored" },
 				{ query: "deprecated:true", name: "Deprecated templates" },
 			]}
 			// TODO: Add docs for this

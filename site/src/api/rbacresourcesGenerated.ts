@@ -159,6 +159,11 @@ export const RBACResourceActions: Partial<
 		use: "use the template to initially create a workspace, then workspace lifecycle permissions take over",
 		view_insights: "view insights",
 	},
+	usage_event: {
+		create: "create a usage event",
+		read: "read usage events",
+		update: "update usage events",
+	},
 	user: {
 		create: "create a new user",
 		delete: "delete an existing user",
@@ -166,6 +171,12 @@ export const RBACResourceActions: Partial<
 		read_personal: "read personal user data like user settings and auth links",
 		update: "update an existing user",
 		update_personal: "update personal data",
+	},
+	user_secret: {
+		create: "create a user secret",
+		delete: "delete a user secret",
+		read: "read user secret metadata and value",
+		update: "update user secret metadata and value",
 	},
 	webpush_subscription: {
 		create: "create webpush subscriptions",

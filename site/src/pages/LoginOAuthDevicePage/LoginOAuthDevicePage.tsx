@@ -10,10 +10,10 @@ import {
 } from "components/GitDeviceAuth/GitDeviceAuth";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
-import { useEffect, useMemo } from "react";
 import type { FC } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import LoginOAuthDevicePageView from "./LoginOAuthDevicePageView";
 
 // The page is hardcoded to only use GitHub,
@@ -31,6 +31,10 @@ const LoginOAuthDevicePage: FC = () => {
 		);
 	}
 
+	return <LoginOauthDevicePageWithState state={state} />;
+};
+
+const LoginOauthDevicePageWithState: FC<{ state: string }> = ({ state }) => {
 	const externalAuthDeviceQuery = useQuery({
 		...getGitHubDevice(),
 		refetchOnMount: false,

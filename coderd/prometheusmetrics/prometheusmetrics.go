@@ -150,7 +150,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Namespace: "coderd",
 		Subsystem: "api",
 		Name:      "workspace_latest_build",
-		Help:      "The current number of workspace builds by status.",
+		Help:      "The current number of workspace builds by status for all non-deleted workspaces.",
 	}, []string{"status"})
 	if err := registerer.Register(workspaceLatestBuildTotals); err != nil {
 		return nil, err
@@ -159,7 +159,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	workspaceLatestBuildStatuses := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Name:      "workspace_latest_build_status",
-		Help:      "The current workspace statuses by template, transition, and owner.",
+		Help:      "The current workspace statuses by template, transition, and owner for all non-deleted workspaces.",
 	}, []string{"status", "template_name", "template_version", "workspace_owner", "workspace_transition"})
 	if err := registerer.Register(workspaceLatestBuildStatuses); err != nil {
 		return nil, err
@@ -168,59 +168,37 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
 
-	updateWorkspaceTotals := func() {
-		builds, err := db.GetLatestWorkspaceBuilds(ctx)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				// clear all series if there are no database entries
-				workspaceLatestBuildTotals.Reset()
-			} else {
-				logger.Warn(ctx, "failed to load latest workspace builds", slog.Error(err))
-			}
-			return
-		}
-		jobIDs := make([]uuid.UUID, 0, len(builds))
-		for _, build := range builds {
-			jobIDs = append(jobIDs, build.JobID)
-		}
-		jobs, err := db.GetProvisionerJobsByIDs(ctx, jobIDs)
-		if err != nil {
-			ids := make([]string, 0, len(jobIDs))
-			for _, id := range jobIDs {
-				ids = append(ids, id.String())
-			}
-
-			logger.Warn(ctx, "failed to load provisioner jobs", slog.F("ids", ids), slog.Error(err))
-			return
-		}
-
-		workspaceLatestBuildTotals.Reset()
-		for _, job := range jobs {
-			status := codersdk.ProvisionerJobStatus(job.JobStatus)
-			workspaceLatestBuildTotals.WithLabelValues(string(status)).Add(1)
-			// TODO: deprecated: remove in the future
-			workspaceLatestBuildTotalsDeprecated.WithLabelValues(string(status)).Add(1)
-		}
-	}
-
-	updateWorkspaceStatuses := func() {
+	updateWorkspaceMetrics := func() {
 		ws, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
 			Deleted:     false,
 			WithSummary: false,
 		})
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				// clear all series if there are no database entries
+				workspaceLatestBuildTotals.Reset()
 				workspaceLatestBuildStatuses.Reset()
+			} else {
+				logger.Warn(ctx, "failed to load active workspaces for metrics", slog.Error(err))
 			}
-
-			logger.Warn(ctx, "failed to load active workspaces", slog.Error(err))
 			return
 		}
 
+		workspaceLatestBuildTotals.Reset()
 		workspaceLatestBuildStatuses.Reset()
+
 		for _, w := range ws {
-			workspaceLatestBuildStatuses.WithLabelValues(string(w.LatestBuildStatus), w.TemplateName, w.TemplateVersionName.String, w.OwnerUsername, string(w.LatestBuildTransition)).Add(1)
+			status := string(w.LatestBuildStatus)
+			workspaceLatestBuildTotals.WithLabelValues(status).Add(1)
+			// TODO: deprecated: remove in the future
+			workspaceLatestBuildTotalsDeprecated.WithLabelValues(status).Add(1)
+
+			workspaceLatestBuildStatuses.WithLabelValues(
+				status,
+				w.TemplateName,
+				w.TemplateVersionName.String,
+				w.OwnerUsername,
+				string(w.LatestBuildTransition),
+			).Add(1)
 		}
 	}
 
@@ -230,8 +208,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	doTick := func() {
 		defer ticker.Reset(duration)
 
-		updateWorkspaceTotals()
-		updateWorkspaceStatuses()
+		updateWorkspaceMetrics()
 	}
 
 	go func() {
@@ -351,29 +328,24 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 					templateVersionName = "unknown"
 				}
 
-				user, err := db.GetUserByID(ctx, workspace.OwnerID)
-				if err != nil {
-					logger.Error(ctx, "can't get user from the database", slog.F("user_id", workspace.OwnerID), slog.Error(err))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
-					continue
-				}
+				// username :=
 
 				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
 				if err != nil {
 					logger.Error(ctx, "can't get workspace agents", slog.F("workspace_id", workspace.ID), slog.Error(err))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 0, workspace.OwnerUsername, workspace.Name, templateName, templateVersionName)
 					continue
 				}
 
 				if len(agents) == 0 {
 					logger.Debug(ctx, "workspace agents are unavailable", slog.F("workspace_id", workspace.ID))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 0, workspace.OwnerUsername, workspace.Name, templateName, templateVersionName)
 					continue
 				}
 
 				for _, agent := range agents {
 					// Collect information about agents
-					agentsGauge.WithLabelValues(VectorOperationAdd, 1, user.Username, workspace.Name, templateName, templateVersionName)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 1, workspace.OwnerUsername, workspace.Name, templateName, templateVersionName)
 
 					connectionStatus := agent.Status(agentInactiveDisconnectTimeout)
 					node := (*coordinator.Load()).Node(agent.ID)
@@ -383,7 +355,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 						tailnetNode = node.ID.String()
 					}
 
-					agentsConnectionsGauge.WithLabelValues(VectorOperationSet, 1, agent.Name, user.Username, workspace.Name, string(connectionStatus.Status), string(agent.LifecycleState), tailnetNode)
+					agentsConnectionsGauge.WithLabelValues(VectorOperationSet, 1, agent.Name, workspace.OwnerUsername, workspace.Name, string(connectionStatus.Status), string(agent.LifecycleState), tailnetNode)
 
 					if node == nil {
 						logger.Debug(ctx, "can't read in-memory node for agent", slog.F("agent_id", agent.ID))
@@ -408,7 +380,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 								}
 							}
 
-							agentsConnectionLatenciesGauge.WithLabelValues(VectorOperationSet, latency, agent.Name, user.Username, workspace.Name, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID))
+							agentsConnectionLatenciesGauge.WithLabelValues(VectorOperationSet, latency, agent.Name, workspace.OwnerUsername, workspace.Name, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID))
 						}
 					}
 
@@ -420,7 +392,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 					}
 
 					for _, app := range apps {
-						agentsAppsGauge.WithLabelValues(VectorOperationAdd, 1, agent.Name, user.Username, workspace.Name, app.DisplayName, string(app.Health))
+						agentsAppsGauge.WithLabelValues(VectorOperationAdd, 1, agent.Name, workspace.OwnerUsername, workspace.Name, app.DisplayName, string(app.Health))
 					}
 				}
 			}

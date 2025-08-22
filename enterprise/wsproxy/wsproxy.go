@@ -333,17 +333,18 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	r.Use(
 		// TODO: @emyrk Should we standardize these in some other package?
 		httpmw.Recover(s.Logger),
+		httpmw.WithProfilingLabels,
 		tracing.StatusWriterMiddleware,
 		tracing.Middleware(s.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(s.Options.RealIPConfig),
 		loggermw.Logger(s.Logger),
 		prometheusMW,
-		corsMW,
 
 		// HandleSubdomain is a middleware that handles all requests to the
 		// subdomain-based workspace apps.
 		s.AppServer.HandleSubdomain(apiRateLimiter),
+		corsMW,
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
