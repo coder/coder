@@ -14,8 +14,8 @@ Prebuilt workspaces are:
 - Monitored and replaced automatically to maintain your desired pool size.
 - Automatically scaled based on time-based schedules to optimize resource usage.
 
-Prebuilt workspaces are not fully compatible with
-[workspace scheduling features](../../../user-guides/workspace-scheduling.md) like autostart and autostop.
+Prebuilt workspaces are a special type of workspace that don't follow the
+[regular workspace scheduling features](../../../user-guides/workspace-scheduling.md) like autostart and autostop. Instead, they have their own reconciliation loop that handles prebuild-specific scheduling features such as TTL and prebuild scheduling.
 
 ## Relationship to workspace presets
 
