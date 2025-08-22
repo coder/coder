@@ -359,6 +359,13 @@ module "dotfiles" {
   agent_id = coder_agent.dev.id
 }
 
+module "git-config" {
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/coder/git-config/coder"
+  version  = "1.0.31"
+  agent_id = coder_agent.dev.id
+}
+
 module "git-clone" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/git-clone/coder"
