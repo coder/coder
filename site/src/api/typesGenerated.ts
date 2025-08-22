@@ -1840,6 +1840,9 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 // From codersdk/organizations.go
 export interface OrganizationProvisionerDaemonsOptions {
 	readonly Limit: number;
+	readonly Offline: boolean;
+	readonly Status: readonly ProvisionerDaemonStatus[];
+	readonly MaxAge: number;
 	readonly IDs: readonly string[];
 	readonly Tags: Record<string, string>;
 }
@@ -2802,6 +2805,44 @@ export interface TailDERPRegion {
 	readonly RegionName: string;
 	readonly Avoid?: boolean;
 	readonly Nodes: readonly TailDERPNode[];
+}
+
+// From codersdk/aitasks.go
+export interface Task {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly owner_id: string;
+	readonly name: string;
+	readonly template_id: string;
+	readonly workspace_id: string | null;
+	readonly initial_prompt: string;
+	readonly status: WorkspaceStatus;
+	readonly current_state: TaskStateEntry | null;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/aitasks.go
+export type TaskState = "completed" | "failed" | "idle" | "working";
+
+// From codersdk/aitasks.go
+export interface TaskStateEntry {
+	readonly timestamp: string;
+	readonly state: TaskState;
+	readonly message: string;
+	readonly uri: string;
+}
+
+export const TaskStates: TaskState[] = [
+	"completed",
+	"failed",
+	"idle",
+	"working",
+];
+
+// From codersdk/aitasks.go
+export interface TasksFilter {
+	readonly owner?: string;
 }
 
 // From codersdk/deployment.go

@@ -20,6 +20,7 @@ const OrganizationProvisionersPage: FC = () => {
 	const queryParams = {
 		ids: searchParams.get("ids") ?? "",
 		tags: searchParams.get("tags") ?? "",
+		offline: searchParams.get("offline") === "true",
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
 	const { entitlements } = useDashboard();
@@ -66,7 +67,12 @@ const OrganizationProvisionersPage: FC = () => {
 				buildVersion={buildInfoQuery.data?.version}
 				onRetry={provisionersQuery.refetch}
 				filter={queryParams}
-				onFilterChange={setSearchParams}
+				onFilterChange={({ ids, offline }) => {
+					setSearchParams({
+						ids,
+						offline: offline.toString(),
+					});
+				}}
 			/>
 		</>
 	);

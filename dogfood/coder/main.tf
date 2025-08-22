@@ -254,7 +254,7 @@ data "coder_parameter" "ai_prompt" {
   name        = "AI Prompt"
   default     = ""
   description = "Prompt for Claude Code"
-  mutable     = false
+  mutable     = true // Workaround for issue with claiming a prebuild from a preset that does not include this parameter.
 }
 
 provider "docker" {
@@ -356,6 +356,13 @@ module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
   version  = "1.2.1"
+  agent_id = coder_agent.dev.id
+}
+
+module "git-config" {
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/coder/git-config/coder"
+  version  = "1.0.31"
   agent_id = coder_agent.dev.id
 }
 

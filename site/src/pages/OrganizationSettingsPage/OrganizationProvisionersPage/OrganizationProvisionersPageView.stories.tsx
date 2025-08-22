@@ -23,9 +23,14 @@ const meta: Meta<typeof OrganizationProvisionersPageView> = {
 				...MockProvisionerWithTags,
 				version: "0.0.0",
 			},
+			{
+				...MockUserProvisioner,
+				status: "offline",
+			},
 		],
 		filter: {
 			ids: "",
+			offline: true,
 		},
 	},
 };
@@ -69,6 +74,17 @@ export const FilterByID: Story = {
 		provisioners: [MockProvisioner],
 		filter: {
 			ids: MockProvisioner.id,
+			offline: true,
+		},
+	},
+};
+
+export const FilterByOffline: Story = {
+	args: {
+		provisioners: [MockProvisioner],
+		filter: {
+			ids: "",
+			offline: false,
 		},
 	},
 };
