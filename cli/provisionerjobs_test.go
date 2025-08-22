@@ -36,7 +36,9 @@ func TestProvisionerJobs(t *testing.T) {
 	templateAdminClient, templateAdmin := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
 	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-	// Create minimal template setup without provisioner overhead
+	// These CLI tests are related to provisioner job CRUD operations and as such
+	// do not require the overhead of starting a provisioner. Other provisioner job
+	// functionalities (acquisition etc.) are tested elsewhere.
 	template := dbgen.Template(t, db, database.Template{
 		OrganizationID:               owner.OrganizationID,
 		CreatedBy:                    owner.UserID,
@@ -51,7 +53,7 @@ func TestProvisionerJobs(t *testing.T) {
 	t.Run("Cancel", func(t *testing.T) {
 		t.Parallel()
 
-		// Set up test helpers - simplified to avoid provisioner daemon overhead.
+		// Test helper to create a provisioner job of a given type with a given input.
 		prepareJob := func(t *testing.T, jobType database.ProvisionerJobType, input json.RawMessage) database.ProvisionerJob {
 			t.Helper()
 			return dbgen.ProvisionerJob(t, db, coderdAPI.Pubsub, database.ProvisionerJob{
@@ -63,6 +65,7 @@ func TestProvisionerJobs(t *testing.T) {
 			})
 		}
 
+		// Test helper to create a workspace build job with a predefined input.
 		prepareWorkspaceBuildJob := func(t *testing.T) database.ProvisionerJob {
 			t.Helper()
 			wbID := uuid.New()
@@ -84,6 +87,7 @@ func TestProvisionerJobs(t *testing.T) {
 			return job
 		}
 
+		// Test helper to create a template version import job with a predefined input.
 		prepareTemplateVersionImportJob := func(t *testing.T) database.ProvisionerJob {
 			t.Helper()
 			tvID := uuid.New()
@@ -100,6 +104,7 @@ func TestProvisionerJobs(t *testing.T) {
 			return job
 		}
 
+		// Test helper to create a template version import dry run job with a predefined input.
 		prepareTemplateVersionImportJobDryRun := func(t *testing.T) database.ProvisionerJob {
 			t.Helper()
 			tvID := uuid.New()
