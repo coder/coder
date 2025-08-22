@@ -914,3 +914,23 @@ SET
 	user_acl = @user_acl
 WHERE
 	id = @id;
+
+-- name: GetRegularWorkspaceCreateMetrics :many
+SELECT
+	t.name AS template_name,
+	COALESCE(tvp.name, '') AS preset_name,
+	o.name AS organization_name,
+	COUNT(*) AS created_count
+FROM workspaces w
+INNER JOIN workspace_builds wb ON wb.workspace_id = w.id
+	AND wb.build_number = 1
+	AND wb.transition = 'start'::workspace_transition
+	AND wb.initiator_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid -- The system user responsible for prebuilds.
+INNER JOIN templates t ON t.id = w.template_id
+LEFT JOIN template_version_presets tvp ON tvp.id = wb.template_version_preset_id
+INNER JOIN provisioner_jobs pj ON pj.id = wb.job_id
+	AND pj.job_status = 'succeeded'::provisioner_job_status
+INNER JOIN organizations o ON o.id = w.organization_id
+WHERE NOT t.deleted
+GROUP BY t.name, COALESCE(tvp.name, ''), o.name
+ORDER BY t.name, preset_name, o.name;

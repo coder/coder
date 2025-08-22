@@ -7301,7 +7301,7 @@ const getPrebuildMetrics = `-- name: GetPrebuildMetrics :many
 SELECT
 	t.name as template_name,
 	tvp.name as preset_name,
-		o.name as organization_name,
+	o.name as organization_name,
 	COUNT(*) as created_count,
 	COUNT(*) FILTER (WHERE pj.job_status = 'failed'::provisioner_job_status) as failed_count,
 	COUNT(*) FILTER (
@@ -20126,6 +20126,62 @@ func (q *sqlQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploy
 		&i.StoppedWorkspaces,
 	)
 	return i, err
+}
+
+const getRegularWorkspaceCreateMetrics = `-- name: GetRegularWorkspaceCreateMetrics :many
+SELECT
+	t.name AS template_name,
+	COALESCE(tvp.name, '') AS preset_name,
+	o.name AS organization_name,
+	COUNT(*) AS created_count
+FROM workspaces w
+INNER JOIN workspace_builds wb ON wb.workspace_id = w.id
+	AND wb.build_number = 1
+	AND wb.transition = 'start'::workspace_transition
+	AND wb.initiator_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid -- The system user responsible for prebuilds.
+INNER JOIN templates t ON t.id = w.template_id
+LEFT JOIN template_version_presets tvp ON tvp.id = wb.template_version_preset_id
+INNER JOIN provisioner_jobs pj ON pj.id = wb.job_id
+	AND pj.job_status = 'succeeded'::provisioner_job_status
+INNER JOIN organizations o ON o.id = w.organization_id
+WHERE NOT t.deleted
+GROUP BY t.name, COALESCE(tvp.name, ''), o.name
+ORDER BY t.name, preset_name, o.name
+`
+
+type GetRegularWorkspaceCreateMetricsRow struct {
+	TemplateName     string `db:"template_name" json:"template_name"`
+	PresetName       string `db:"preset_name" json:"preset_name"`
+	OrganizationName string `db:"organization_name" json:"organization_name"`
+	CreatedCount     int64  `db:"created_count" json:"created_count"`
+}
+
+func (q *sqlQuerier) GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]GetRegularWorkspaceCreateMetricsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getRegularWorkspaceCreateMetrics)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetRegularWorkspaceCreateMetricsRow
+	for rows.Next() {
+		var i GetRegularWorkspaceCreateMetricsRow
+		if err := rows.Scan(
+			&i.TemplateName,
+			&i.PresetName,
+			&i.OrganizationName,
+			&i.CreatedCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkspaceByAgentID = `-- name: GetWorkspaceByAgentID :one

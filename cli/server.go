@@ -236,11 +236,12 @@ func enablePrometheus(
 	}
 	afterCtx(ctx, closeUsersFunc)
 
-	closeWorkspacesFunc, err := prometheusmetrics.Workspaces(ctx, options.Logger.Named("workspaces_metrics"), options.PrometheusRegistry, options.Database, 0)
+	closeWorkspacesFunc, updateWorkspaceTimingsMetrics, err := prometheusmetrics.Workspaces(ctx, options.Logger.Named("workspaces_metrics"), options.PrometheusRegistry, options.Database, 0)
 	if err != nil {
 		return nil, xerrors.Errorf("register workspaces prometheus metric: %w", err)
 	}
 	afterCtx(ctx, closeWorkspacesFunc)
+	options.UpdateWorkspaceTimingMetricsFn = updateWorkspaceTimingsMetrics
 
 	insightsMetricsCollector, err := insights.NewMetricsCollector(options.Database, options.Logger, 0, 0)
 	if err != nil {

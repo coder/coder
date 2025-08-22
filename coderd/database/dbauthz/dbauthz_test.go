@@ -3226,6 +3226,10 @@ func (s *MethodTestSuite) TestWorkspace() {
 		d := dbgen.WorkspaceAgentDevcontainer(s.T(), db, database.WorkspaceAgentDevcontainer{WorkspaceAgentID: agt.ID})
 		check.Args(agt.ID).Asserts(w, policy.ActionRead).Returns([]database.WorkspaceAgentDevcontainer{d})
 	}))
+	s.Run("GetRegularWorkspaceCreateMetrics", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
+	}))
 }
 
 func (s *MethodTestSuite) TestWorkspacePortSharing() {

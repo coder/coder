@@ -128,7 +128,7 @@ func Users(ctx context.Context, logger slog.Logger, clk quartz.Clock, registerer
 }
 
 // Workspaces tracks the total number of workspaces with labels on status.
-func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
+func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), UpdateWorkspaceTimingMetricsFn, error) {
 	if duration == 0 {
 		duration = defaultRefreshRate
 	}
@@ -143,7 +143,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Help:      "DEPRECATED: use coderd_api_workspace_latest_build instead",
 	}, []string{"status"})
 	if err := registerer.Register(workspaceLatestBuildTotalsDeprecated); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	workspaceLatestBuildTotals := prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -153,7 +153,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Help:      "The current number of workspace builds by status for all non-deleted workspaces.",
 	}, []string{"status"})
 	if err := registerer.Register(workspaceLatestBuildTotals); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	workspaceLatestBuildStatuses := prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -162,7 +162,76 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Help:      "The current workspace statuses by template, transition, and owner for all non-deleted workspaces.",
 	}, []string{"status", "template_name", "template_version", "workspace_owner", "workspace_transition"})
 	if err := registerer.Register(workspaceLatestBuildStatuses); err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+
+	workspaceCreationTotal := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "coderd",
+			Subsystem: "api",
+			Name:      "workspace_creation_total",
+			Help:      "Total regular workspace (without prebuild) creations by organization, template and preset.",
+		},
+		[]string{"organization_name", "template_name", "preset_name"},
+	)
+	if err := registerer.Register(workspaceCreationTotal); err != nil {
+		return nil, nil, err
+	}
+
+	workspaceCreationTimings := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "coderd",
+		Subsystem: "provisionerd",
+		Name:      "workspace_creation_duration_seconds",
+		Help:      "Time to create a workspace (regular or prebuild).",
+		Buckets: []float64{
+			1, // 1s
+			10,
+			30,
+			60, // 1min
+			60 * 5,
+			60 * 10,
+			60 * 30, // 30min
+			60 * 60, // 1hr
+		},
+		NativeHistogramBucketFactor: 1.1,
+		// Max number of native buckets kept at once to bound memory.
+		NativeHistogramMaxBucketNumber: 100,
+		// Merge/flush small buckets periodically to control churn.
+		NativeHistogramMinResetDuration: time.Hour,
+		// Treat tiny values as zero (helps with noisy near-zero latencies).
+		NativeHistogramZeroThreshold:    0,
+		NativeHistogramMaxZeroThreshold: 0,
+	}, []string{"organization_name", "template_name", "preset_name", "source"})
+	if err := registerer.Register(workspaceCreationTimings); err != nil {
+		return nil, nil, err
+	}
+
+	workspaceClaimTimings := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "coderd",
+		Subsystem: "provisionerd",
+		Name:      "workspace_claim_duration_seconds",
+		Help:      "Time to claim a prebuilt workspace.",
+		Buckets: []float64{
+			1, // 1s
+			10,
+			30,
+			60, // 1min
+			60 * 5,
+			60 * 10,
+			60 * 30, // 30min
+			60 * 60, // 1hr
+		},
+		NativeHistogramBucketFactor: 1.1,
+		// Max number of native buckets kept at once to bound memory.
+		NativeHistogramMaxBucketNumber: 100,
+		// Merge/flush small buckets periodically to control churn.
+		NativeHistogramMinResetDuration: time.Hour,
+		// Treat tiny values as zero (helps with noisy near-zero latencies).
+		NativeHistogramZeroThreshold:    0,
+		NativeHistogramMaxZeroThreshold: 0,
+	}, []string{"organization_name", "template_name", "preset_name"})
+	if err := registerer.Register(workspaceClaimTimings); err != nil {
+		return nil, nil, err
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -200,6 +269,27 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 				string(w.LatestBuildTransition),
 			).Add(1)
 		}
+
+		// Update regular workspaces (without a prebuild transition) creation counter
+		regularWorkspaces, err := db.GetRegularWorkspaceCreateMetrics(ctx)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				workspaceCreationTotal.Reset()
+			} else {
+				logger.Warn(ctx, "failed to load regular workspaces for metrics", slog.Error(err))
+			}
+			return
+		}
+
+		workspaceCreationTotal.Reset()
+
+		for _, regularWorkspace := range regularWorkspaces {
+			workspaceCreationTotal.WithLabelValues(
+				regularWorkspace.OrganizationName,
+				regularWorkspace.TemplateName,
+				regularWorkspace.PresetName,
+			).Add(float64(regularWorkspace.CreatedCount))
+		}
 	}
 
 	// Use time.Nanosecond to force an initial tick. It will be reset to the
@@ -226,7 +316,71 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	return func() {
 		cancelFunc()
 		<-done
-	}, nil
+	}, updateWorkspaceTimingsMetrics(workspaceCreationTimings, workspaceClaimTimings), nil
+}
+
+type WorkspaceTimingType int
+
+const (
+	Unsupported WorkspaceTimingType = iota
+	WorkspaceCreation
+	PrebuildCreation
+	PrebuildClaim
+)
+
+const (
+	workspaceTypeRegular  = "regular"
+	workspaceTypePrebuild = "prebuild"
+)
+
+type UpdateWorkspaceTimingMetricsFn func(
+	workspaceTimingType WorkspaceTimingType,
+	organizationName string,
+	templateName string,
+	presetName string,
+	buildTime float64,
+)
+
+func GetTimingType(isPrebuild bool, isClaim bool, isWorkspaceFirstBuild bool) WorkspaceTimingType {
+	switch {
+	case isPrebuild:
+		return PrebuildCreation
+	case isClaim:
+		return PrebuildClaim
+	case isWorkspaceFirstBuild:
+		return WorkspaceCreation
+	default:
+		return Unsupported
+	}
+}
+
+func updateWorkspaceTimingsMetrics(
+	workspaceCreationTimings *prometheus.HistogramVec,
+	workspaceClaimTimings *prometheus.HistogramVec,
+) UpdateWorkspaceTimingMetricsFn {
+	return func(
+		workspaceTimingType WorkspaceTimingType,
+		organizationName string,
+		templateName string,
+		presetName string,
+		buildTime float64,
+	) {
+		switch workspaceTimingType {
+		case WorkspaceCreation:
+			// Regular workspace creation (without prebuild pool)
+			workspaceCreationTimings.
+				WithLabelValues(organizationName, templateName, presetName, workspaceTypeRegular).Observe(buildTime)
+		case PrebuildCreation:
+			// Prebuilt workspace creation duration
+			workspaceCreationTimings.
+				WithLabelValues(organizationName, templateName, presetName, workspaceTypePrebuild).Observe(buildTime)
+		case PrebuildClaim:
+			// Prebuilt workspace claim duration
+			workspaceClaimTimings.
+				WithLabelValues(organizationName, templateName, presetName).Observe(buildTime)
+		default:
+		}
+	}
 }
 
 // Agents tracks the total number of workspaces with labels on status.

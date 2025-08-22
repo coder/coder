@@ -355,9 +355,10 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		api.AGPL.UsageInserter,
 		api.DeploymentValues,
 		provisionerdserver.Options{
-			ExternalAuthConfigs: api.ExternalAuthConfigs,
-			OIDCConfig:          api.OIDCConfig,
-			Clock:               api.Clock,
+			ExternalAuthConfigs:            api.ExternalAuthConfigs,
+			OIDCConfig:                     api.OIDCConfig,
+			Clock:                          api.Clock,
+			UpdateWorkspaceTimingMetricsFn: api.UpdateWorkspaceTimingMetricsFn,
 		},
 		api.NotificationsEnqueuer,
 		&api.AGPL.PrebuildsReconciler,

@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -92,6 +93,9 @@ type Options struct {
 	// The default function just calls UpdateProvisionerDaemonLastSeenAt.
 	// This is mainly used for testing.
 	HeartbeatFn func(context.Context) error
+
+	// Function to update workspace timing metrics
+	UpdateWorkspaceTimingMetricsFn prometheusmetrics.UpdateWorkspaceTimingMetricsFn
 }
 
 type server struct {
@@ -129,6 +133,9 @@ type server struct {
 
 	heartbeatInterval time.Duration
 	heartbeatFn       func(ctx context.Context) error
+
+	// Function to update workspace timing metrics
+	UpdateWorkspaceTimingMetricsFn prometheusmetrics.UpdateWorkspaceTimingMetricsFn
 }
 
 // We use the null byte (0x00) in generating a canonical map key for tags, so
@@ -221,33 +228,34 @@ func NewServer(
 	}
 
 	s := &server{
-		lifecycleCtx:                lifecycleCtx,
-		apiVersion:                  apiVersion,
-		AccessURL:                   accessURL,
-		ID:                          id,
-		OrganizationID:              organizationID,
-		Logger:                      logger,
-		Provisioners:                provisioners,
-		ExternalAuthConfigs:         options.ExternalAuthConfigs,
-		Tags:                        tags,
-		Database:                    db,
-		Pubsub:                      ps,
-		Acquirer:                    acquirer,
-		NotificationsEnqueuer:       enqueuer,
-		Telemetry:                   tel,
-		Tracer:                      tracer,
-		QuotaCommitter:              quotaCommitter,
-		Auditor:                     auditor,
-		TemplateScheduleStore:       templateScheduleStore,
-		UserQuietHoursScheduleStore: userQuietHoursScheduleStore,
-		DeploymentValues:            deploymentValues,
-		OIDCConfig:                  options.OIDCConfig,
-		Clock:                       options.Clock,
-		acquireJobLongPollDur:       options.AcquireJobLongPollDur,
-		heartbeatInterval:           options.HeartbeatInterval,
-		heartbeatFn:                 options.HeartbeatFn,
-		PrebuildsOrchestrator:       prebuildsOrchestrator,
-		UsageInserter:               usageInserter,
+		lifecycleCtx:                   lifecycleCtx,
+		apiVersion:                     apiVersion,
+		AccessURL:                      accessURL,
+		ID:                             id,
+		OrganizationID:                 organizationID,
+		Logger:                         logger,
+		Provisioners:                   provisioners,
+		ExternalAuthConfigs:            options.ExternalAuthConfigs,
+		Tags:                           tags,
+		Database:                       db,
+		Pubsub:                         ps,
+		Acquirer:                       acquirer,
+		NotificationsEnqueuer:          enqueuer,
+		Telemetry:                      tel,
+		Tracer:                         tracer,
+		QuotaCommitter:                 quotaCommitter,
+		Auditor:                        auditor,
+		TemplateScheduleStore:          templateScheduleStore,
+		UserQuietHoursScheduleStore:    userQuietHoursScheduleStore,
+		DeploymentValues:               deploymentValues,
+		OIDCConfig:                     options.OIDCConfig,
+		Clock:                          options.Clock,
+		acquireJobLongPollDur:          options.AcquireJobLongPollDur,
+		heartbeatInterval:              options.HeartbeatInterval,
+		heartbeatFn:                    options.HeartbeatFn,
+		PrebuildsOrchestrator:          prebuildsOrchestrator,
+		UsageInserter:                  usageInserter,
+		UpdateWorkspaceTimingMetricsFn: options.UpdateWorkspaceTimingMetricsFn,
 	}
 
 	if s.heartbeatFn == nil {
@@ -2247,6 +2255,42 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		if resourceReplacements := jobType.WorkspaceBuild.ResourceReplacements; orchestrator != nil && len(resourceReplacements) > 0 {
 			// Fire and forget. Bind to the lifecycle of the server so shutdowns are handled gracefully.
 			go (*orchestrator).TrackResourceReplacement(s.lifecycleCtx, workspace.ID, workspaceBuild.ID, resourceReplacements)
+		}
+	}
+
+	// Update workspace (regular and prebuild) timing metrics
+	if s.UpdateWorkspaceTimingMetricsFn != nil {
+		// Get the updated job to report the metrics with correct data
+		updatedJob, err := s.Database.GetProvisionerJobByID(ctx, jobID)
+		if err != nil {
+			s.Logger.Error(ctx, "get job from database", slog.Error(err))
+		} else {
+			presetName := ""
+			if workspaceBuild.TemplateVersionPresetID.Valid {
+				preset, err := s.Database.GetPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
+				if err != nil {
+					if !errors.Is(err, sql.ErrNoRows) {
+						s.Logger.Error(ctx, "get preset by ID", slog.Error(err))
+					}
+				} else {
+					presetName = preset.Name
+				}
+			}
+			// Only consider succeeded provisioner jobs
+			if updatedJob.JobStatus == database.ProvisionerJobStatusSucceeded {
+				buildTime := updatedJob.CompletedAt.Time.Sub(updatedJob.StartedAt.Time).Seconds()
+				s.UpdateWorkspaceTimingMetricsFn(
+					prometheusmetrics.GetTimingType(
+						input.PrebuiltWorkspaceBuildStage.IsPrebuild(),
+						input.PrebuiltWorkspaceBuildStage.IsPrebuiltWorkspaceClaim(),
+						workspaceBuild.BuildNumber == 1,
+					),
+					workspace.OrganizationName,
+					workspace.TemplateName,
+					presetName,
+					buildTime,
+				)
+			}
 		}
 	}
 
