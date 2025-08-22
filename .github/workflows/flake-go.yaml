@@ -130,7 +130,8 @@ jobs:
             echo "  none" >> "$GITHUB_STEP_SUMMARY"
           else
             jq -r '.[] | "  \(.name): fail=\(.fail)"' json/failing.json >> "$GITHUB_STEP_SUMMARY"
-
+          fi
+          
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
