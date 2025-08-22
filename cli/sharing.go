@@ -39,12 +39,12 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 		Options: serpent.OptionSet{
 			{
 				Name:        "user",
-				Description: "TODO.",
+				Description: "A comma separated list of users to share the workspace with.",
 				Flag:        "user",
 				Value:       serpent.StringArrayOf(&users),
 			}, {
 				Name:        "group",
-				Description: "TODO.",
+				Description: "A comma separated list of groups to share the workspace with.",
 				Flag:        "group",
 				Value:       serpent.StringArrayOf(&groups),
 			},
@@ -56,7 +56,7 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 		Handler: func(inv *serpent.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
-				return xerrors.Errorf("could not fetch the workspace %s.", inv.Args[0])
+				return xerrors.Errorf("could not fetch the workspace %s: %w", inv.Args[0], err)
 			}
 
 			userRoles := make(map[string]codersdk.WorkspaceRole, len(users))
