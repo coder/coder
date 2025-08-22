@@ -10,12 +10,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 import { NavbarView } from "./NavbarView";
 
-const filter = {
-	user: {
-		label: MockUserOwner.username,
-		value: MockUserOwner.username,
-		avatarUrl: MockUserOwner.avatar_url,
-	},
+const tasksFilter = {
+	username: MockUserOwner.username,
 };
 
 const meta: Meta<typeof NavbarView> = {
@@ -25,7 +21,7 @@ const meta: Meta<typeof NavbarView> = {
 		layout: "fullscreen",
 		queries: [
 			{
-				key: ["tasks", filter],
+				key: ["tasks", tasksFilter],
 				data: [],
 			},
 		],
@@ -105,7 +101,7 @@ export const IdleTasks: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["tasks", filter],
+				key: ["tasks", tasksFilter],
 				data: [
 					{
 						prompt: "Task 1",
