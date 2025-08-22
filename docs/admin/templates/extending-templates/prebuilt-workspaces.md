@@ -4,6 +4,7 @@ Prebuilt workspaces (prebuilds) reduce workspace creation time with an automatic
 ready-to-use workspaces for specific parameter presets.
 
 The template administrator defines the prebuilt workspace's parameters and number of instances to keep provisioned.
+The desired number of workspaces are then provisioned transparently.
 When a developer creates a new workspace that matches the definition, Coder assigns them an existing prebuilt workspace.
 This significantly reduces wait times, especially for templates with complex provisioning or lengthy startup procedures.
 
@@ -281,13 +282,6 @@ For example, the [`ami`](https://registry.terraform.io/providers/hashicorp/aws/l
 has [`ForceNew`](https://github.com/hashicorp/terraform-provider-aws/blob/main/internal/service/ec2/ec2_instance.go#L75-L81) set,
 since the AMI cannot be changed in-place._
 
-#### Updating claimed prebuilt workspace templates
-
-Once a prebuilt workspace has been claimed, and if its template uses `ignore_changes`, users may run into an issue where the agent
-does not reconnect after a template update. This shortcoming is described in [this issue](https://github.com/coder/coder/issues/17840)
-and will be addressed before the next release (v2.23). In the interim, a simple workaround is to restart the workspace
-when it is in this problematic state.
-
 ### Monitoring and observability
 
 #### Available metrics
@@ -310,19 +304,3 @@ These logs provide information about:
 1. Creation and deletion attempts for prebuilt workspaces.
 1. Backoff events after failed builds.
 1. Claiming operations.
-
-## Known Issues and Limitations
-
-Some known limitations of prebuilt workspaces include:
-
-- **Organizations**
-
-  Prebuilt workspaces can only be used with the default organization.
-
-  [View issue](https://github.com/coder/internal/issues/364)
-
-- **Dev containers**
-
-  Prebuilt workspaces do not work reliably with the [dev containers integration](../extending-templates/devcontainers.md).
-
-  If your project relies on a dev container configuration, you should disabling prebuilds or carefully test their behavior before enabling them.
