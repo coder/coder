@@ -1,0 +1,146 @@
+name: go-flake-check
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  changed-go-tests:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    outputs:
+      any_changed: ${{ steps.changed.outputs.any_changed }}
+      files: ${{ steps.changed.outputs.all_changed_files }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
+
+      - id: changed
+        name: Detect changed go test files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            **/*_test.go
+
+  go-flake:
+    needs: changed-go-tests
+    if: needs.changed-go-tests.outputs.any_changed == 'true'
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    env:
+      ATTEMPTS: '10'
+      POSTGRES_VERSION: '17'
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 1
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Ensure jq
+        run: |
+          if ! command -v jq >/dev/null; then
+            sudo apt-get update -y
+            sudo apt-get install -y jq
+          fi
+
+      - name: Start Postgres (reuse CI helper)
+        run: |
+          make test-postgres-docker
+
+      - name: Build package and test regex from changed files
+        id: gometa
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' "${{ needs.changed-go-tests.outputs.files }}" | tr ' ' '\n' | sed '/^$/d' > /tmp/go_changed_files.txt
+          sort -u /tmp/go_changed_files.txt -o /tmp/go_changed_files.txt
+
+          pkgs=$(awk '{print $0}' /tmp/go_changed_files.txt | xargs -I{} dirname {} | sort -u | while read d; do (cd "$d" && go list -f '{{.ImportPath}}'); done)
+          if [ -z "$pkgs" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "pkgs=$pkgs" >> "$GITHUB_OUTPUT"
+
+          tests=$(awk '{print $0}' /tmp/go_changed_files.txt | xargs -I{} sh -c "sed -nE 's/^func[[:space:]]+(Test[[:alnum:]_]+)[[:space:]]*\\(.*/\\1/p' {}" | sort -u | paste -sd'|' -)
+          if [ -z "$tests" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "regex=^(${tests})$" >> "$GITHUB_OUTPUT"
+
+      - name: Run repeated tests to detect flakiness
+        if: steps.gometa.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p flake/go json
+          regex='${{ steps.gometa.outputs.regex }}'
+          pkgs='${{ steps.gometa.outputs.pkgs }}'
+
+          for i in $(seq 1 ${ATTEMPTS}); do
+            for p in $pkgs; do
+              go test -json -run "$regex" -count=1 -shuffle=on "$p" \
+                | tee "json/run-$i-$(echo "$p" | tr '/.' '__').json" >/dev/null || true
+            done
+          done
+
+          jq -s '
+            map(select(.Action=="pass" or .Action=="fail") | select(.Test)) as $events
+            | reduce $events[] as $e ({}; .[$e.Test] = (
+                .[$e.Test] // {pass:0,fail:0}
+                | if $e.Action=="pass" then (.pass+=1) else (.fail+=1) end
+              )
+            )
+          ' json/*.json > json/counts.json
+
+          jq 'to_entries | map(select(.value.fail>0 and .value.pass>0) | {name:.key, pass:.value.pass, fail:.value.fail})' json/counts.json > json/flaky.json
+          jq 'to_entries | map(select(.value.fail>0 and ((.value.pass//0)==0)) | {name:.key, fail:.value.fail})' json/counts.json > json/failing.json
+
+          echo "Go flaky tests (changed files) after ${ATTEMPTS} runs:" >> "$GITHUB_STEP_SUMMARY"
+          if jq -e 'length==0' json/flaky.json >/dev/null; then
+            echo "  none" >> "$GITHUB_STEP_SUMMARY"
+          else
+            jq -r '.[] | "  \(.name): fail=\(.fail) pass=\(.pass)"' json/flaky.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "\nConsistently failing tests:" >> "$GITHUB_STEP_SUMMARY"
+          if jq -e 'length==0' json/failing.json >/dev/null; then
+            echo "  none" >> "$GITHUB_STEP_SUMMARY"
+          else
+            jq -r '.[] | "  \(.name): fail=\(.fail)"' json/failing.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: go-flake-json
+          path: json/
+
+  no-changed-tests:
+    needs: changed-go-tests
+    if: needs.changed-go-tests.outputs.any_changed != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "No changed Go tests in this PR" >> "$GITHUB_STEP_SUMMARY"
