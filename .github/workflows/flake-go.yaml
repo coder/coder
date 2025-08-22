@@ -151,7 +151,19 @@ jobs:
                   for (i=1; i<=parent_count; i++) if (!(parents[i] in has_subtest)) print parents[i]
                 }
               ')
-              error_msg="$error_msg. Flaky tests: $(echo "$filtered_flaky" | while read test; do jq -r --arg test "$test" '.[] | select(.name==$test) | "\(.name) (failed \(.fail)/\(.pass+.fail) times)"' json/flaky.json; done | paste -sd', ' -)"
+              # Build the filtered flaky tests with their failure info
+              flaky_details=""
+              while IFS= read -r test; do
+                if [ -n "$test" ]; then
+                  detail=$(jq -r --arg test "$test" '.[] | select(.name==$test) | "\(.name) (failed \(.fail)/\(.pass+.fail) times)"' json/flaky.json)
+                  if [ -n "$flaky_details" ]; then
+                    flaky_details="$flaky_details, $detail"
+                  else
+                    flaky_details="$detail"
+                  fi
+                fi
+              done <<< "$filtered_flaky"
+              error_msg="$error_msg. Flaky tests: $flaky_details"
             fi
             if [ "$fail_count" -gt 0 ]; then
               error_msg="$error_msg. Consistently failing tests: $(jq -r '.[].name' json/failing.json | paste -sd', ' -)"
