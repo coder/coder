@@ -14,7 +14,6 @@ import type { ProxyContextValue } from "contexts/ProxyContext";
 import { useWebpushNotifications } from "contexts/useWebpushNotifications";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
-import { data } from "pages/TasksPage/TasksPage";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { NavLink, useLocation } from "react-router";
@@ -191,15 +190,11 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 			process.env.STORYBOOK,
 	);
 	const filter = {
-		user: {
-			label: user.username,
-			value: user.username,
-			avatarUrl: user.avatar_url,
-		},
+		username: user.username,
 	};
 	const { data: idleCount } = useQuery({
 		queryKey: ["tasks", filter],
-		queryFn: () => data.fetchTasks(filter),
+		queryFn: () => API.experimental.getTasks(filter),
 		refetchInterval: 1_000 * 60,
 		enabled: canSeeTasks,
 		refetchOnWindowFocus: true,
