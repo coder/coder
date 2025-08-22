@@ -14,7 +14,6 @@ import type { ProxyContextValue } from "contexts/ProxyContext";
 import { useWebpushNotifications } from "contexts/useWebpushNotifications";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
-import type { Task } from "modules/tasks/tasks";
 import { data } from "pages/TasksPage/TasksPage";
 import type { FC } from "react";
 import { useQuery } from "react-query";
@@ -161,7 +160,7 @@ const NavItems: FC<NavItemsProps> = ({ className, user }) => {
 					if (location.pathname.startsWith("/@")) {
 						isActive = true;
 					}
-					return cn(linkStyles.default, isActive ? linkStyles.active : "");
+					return cn(linkStyles.default, { [linkStyles.active]: isActive });
 				}}
 				to="/workspaces"
 			>
@@ -169,7 +168,7 @@ const NavItems: FC<NavItemsProps> = ({ className, user }) => {
 			</NavLink>
 			<NavLink
 				className={({ isActive }) => {
-					return cn(linkStyles.default, isActive ? linkStyles.active : "");
+					return cn(linkStyles.default, { [linkStyles.active]: isActive });
 				}}
 				to="/templates"
 			>
@@ -198,37 +197,31 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 			avatarUrl: user.avatar_url,
 		},
 	};
-	const { data: idleTasks } = useQuery({
+	const { data: idleCount } = useQuery({
 		queryKey: ["tasks", filter],
 		queryFn: () => data.fetchTasks(filter),
 		refetchInterval: 1_000 * 60,
 		enabled: canSeeTasks,
 		refetchOnWindowFocus: true,
+		initialData: [],
 		select: (data) =>
-			data.filter((task) => task.workspace.latest_app_status?.state === "idle"),
+			data.filter((task) => task.workspace.latest_app_status?.state === "idle")
+				.length,
 	});
 
 	if (!canSeeTasks) {
 		return null;
 	}
 
-	const search =
-		idleTasks && idleTasks.length > 0
-			? new URLSearchParams({
-					username: user.username,
-					tab: "waiting-for-input",
-				}).toString()
-			: undefined;
-
 	return (
 		<NavLink
-			to={{ pathname: "/tasks", search }}
+			to="/tasks"
 			className={({ isActive }) => {
-				return cn(linkStyles.default, isActive ? linkStyles.active : "");
+				return cn(linkStyles.default, { [linkStyles.active]: isActive });
 			}}
 		>
 			Tasks
-			{idleTasks && idleTasks.length > 0 && (
+			{idleCount > 0 && (
 				<TooltipProvider>
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -236,12 +229,12 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 								variant="info"
 								size="xs"
 								className="ml-2"
-								aria-label={idleTasksLabel(idleTasks)}
+								aria-label={idleTasksLabel(idleCount)}
 							>
-								{idleTasks.length}
+								{idleCount}
 							</Badge>
 						</TooltipTrigger>
-						<TooltipContent>{idleTasksLabel(idleTasks)}</TooltipContent>
+						<TooltipContent>{idleTasksLabel(idleCount)}</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
 			)}
@@ -249,7 +242,6 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 	);
 };
 
-function idleTasksLabel(idleTasks: Task[]) {
-	const count = idleTasks.length;
+function idleTasksLabel(count: number) {
 	return `You have ${count} ${count === 1 ? "task" : "tasks"} waiting for input`;
 }
