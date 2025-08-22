@@ -674,7 +674,7 @@ type WorkspaceGroup struct {
 }
 
 type WorkspaceUser struct {
-	User
+	MinimalUser
 	Role WorkspaceRole `json:"role" enums:"admin,use"`
 }
 

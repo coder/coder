@@ -2204,24 +2204,12 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For context see https://github.com/coder/coder/pull/19375
-	// nolint:gocritic
-	orgIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-	organizationIDsByUserID := map[uuid.UUID][]uuid.UUID{}
-	for _, organizationIDsByMemberIDsRow := range orgIDsByMemberIDsRows {
-		organizationIDsByUserID[organizationIDsByMemberIDsRow.UserID] = organizationIDsByMemberIDsRow.OrganizationIDs
-	}
-
 	// Convert the db types to the codersdk.WorkspaceUser type
 	users := make([]codersdk.WorkspaceUser, 0, len(dbUsers))
 	for _, it := range dbUsers {
 		users = append(users, codersdk.WorkspaceUser{
-			User: db2sdk.User(it, organizationIDsByUserID[it.ID]),
-			Role: convertToWorkspaceRole(workspaceACL.Users[it.ID.String()].Permissions),
+			MinimalUser: db2sdk.MinimalUser(it),
+			Role:        convertToWorkspaceRole(workspaceACL.Users[it.ID.String()].Permissions),
 		})
 	}
 
