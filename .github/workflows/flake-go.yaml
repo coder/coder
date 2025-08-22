@@ -135,7 +135,23 @@ jobs:
           if [ "$flaky_count" -gt 0 ] || [ "$fail_count" -gt 0 ]; then
             error_msg="Flaky or failing tests detected: flaky=$flaky_count failing=$fail_count"
             if [ "$flaky_count" -gt 0 ]; then
-              error_msg="$error_msg. Flaky tests: $(jq -r '.[] | "\(.name) (failed \(.fail)/\(.pass+.fail) times)"' json/flaky.json | paste -sd', ' -)"
+              # Filter flaky tests to only show subtests when both parent and subtest are flaky
+              filtered_flaky=$(jq -r '.[] | .name' json/flaky.json | awk '
+                {
+                  if (index($0, "/")) {
+                    subtests[++subtest_count] = $0
+                    parent = substr($0, 1, index($0, "/")-1)
+                    has_subtest[parent] = 1
+                  } else {
+                    parents[++parent_count] = $0
+                  }
+                }
+                END {
+                  for (i=1; i<=subtest_count; i++) print subtests[i]
+                  for (i=1; i<=parent_count; i++) if (!(parents[i] in has_subtest)) print parents[i]
+                }
+              ')
+              error_msg="$error_msg. Flaky tests: $(echo "$filtered_flaky" | while read test; do jq -r --arg test "$test" '.[] | select(.name==$test) | "\(.name) (failed \(.fail)/\(.pass+.fail) times)"' json/flaky.json; done | paste -sd', ' -)"
             fi
             if [ "$fail_count" -gt 0 ]; then
               error_msg="$error_msg. Consistently failing tests: $(jq -r '.[].name' json/failing.json | paste -sd', ' -)"
@@ -145,7 +161,7 @@ jobs:
           fi
 
       - name: Upload artifacts
-        if: always()
+        if: ${{ always() && steps.gometa.outputs.skip != 'true' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: go-flake-json
