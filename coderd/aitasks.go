@@ -199,28 +199,39 @@ type tasksListResponse struct {
 }
 
 func mapTaskStatus(ws codersdk.Workspace) codersdk.TaskStatus {
-	if ws.LatestAppStatus != nil {
-		switch ws.LatestAppStatus.State {
-		case codersdk.WorkspaceAppStatusStateWorking:
-			return codersdk.TaskStatusWorking
-		case codersdk.WorkspaceAppStatusStateIdle:
-			return codersdk.TaskStatusIdle
-		case codersdk.WorkspaceAppStatusStateComplete:
-			return codersdk.TaskStatusCompleted
-		case codersdk.WorkspaceAppStatusStateFailure:
-			return codersdk.TaskStatusFailed
-		}
-	}
-
 	switch ws.LatestBuild.Status {
-	case codersdk.WorkspaceStatusPending, codersdk.WorkspaceStatusStarting, codersdk.WorkspaceStatusRunning:
-		return codersdk.TaskStatusWorking
-	case codersdk.WorkspaceStatusStopping, codersdk.WorkspaceStatusStopped, codersdk.WorkspaceStatusDeleting, codersdk.WorkspaceStatusDeleted:
-		return codersdk.TaskStatusCompleted
+	case codersdk.WorkspaceStatusPending:
+		return codersdk.TaskStatusPending
+
+	case codersdk.WorkspaceStatusStarting:
+		return codersdk.TaskStatusStarting
+
+	case codersdk.WorkspaceStatusRunning:
+		if ws.LatestAppStatus != nil {
+			switch ws.LatestAppStatus.State {
+			case codersdk.WorkspaceAppStatusStateWorking:
+				return codersdk.TaskStatusWorking
+			case codersdk.WorkspaceAppStatusStateIdle:
+				return codersdk.TaskStatusIdle
+			case codersdk.WorkspaceAppStatusStateComplete:
+				return codersdk.TaskStatusCompleted
+			case codersdk.WorkspaceAppStatusStateFailure:
+				return codersdk.TaskStatusFailed
+			}
+		}
+		return codersdk.TaskStatusStarting
+
+	case codersdk.WorkspaceStatusStopping, codersdk.WorkspaceStatusStopped:
+		return codersdk.TaskStatusStopping
+
+	case codersdk.WorkspaceStatusDeleting, codersdk.WorkspaceStatusDeleted:
+		return codersdk.TaskStatusDeleting
+
 	case codersdk.WorkspaceStatusFailed, codersdk.WorkspaceStatusCanceling, codersdk.WorkspaceStatusCanceled:
 		return codersdk.TaskStatusFailed
+
 	default:
-		return codersdk.TaskStatusWorking
+		return codersdk.TaskStatusPending
 	}
 }
 

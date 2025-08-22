@@ -78,10 +78,12 @@ func (c *ExperimentalClient) CreateTask(ctx context.Context, user string, reques
 type TaskStatus string
 
 const (
-	TaskStatusQueued    TaskStatus = "queued"
+	TaskStatusPending   TaskStatus = "pending"
+	TaskStatusStarting  TaskStatus = "starting"
+	TaskStatusStopping  TaskStatus = "stopping"
+	TaskStatusDeleting  TaskStatus = "deleting"
 	TaskStatusWorking   TaskStatus = "working"
 	TaskStatusIdle      TaskStatus = "idle"
-	TaskStatusPaused    TaskStatus = "paused"
 	TaskStatusCompleted TaskStatus = "completed"
 	TaskStatusFailed    TaskStatus = "failed"
 )
@@ -105,7 +107,7 @@ type Task struct {
 	TemplateID     uuid.UUID     `json:"template_id" format:"uuid"`
 	WorkspaceID    uuid.NullUUID `json:"workspace_id" format:"uuid"`
 	Prompt         string        `json:"prompt"`
-	Status         TaskStatus    `json:"status" enum:"queued,working,idle,paused,completed,failed"`
+	Status         TaskStatus    `json:"status" enum:"pending,starting,stopping,deleting,working,idle,completed,failed"`
 	CreatedAt      time.Time     `json:"created_at" format:"date-time"`
 	UpdatedAt      time.Time     `json:"updated_at" format:"date-time"`
 }
