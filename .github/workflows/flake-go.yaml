@@ -88,7 +88,7 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          echo "regex=^(${tests})$" >> "$GITHUB_OUTPUT"
+          echo "regex=^(${tests})(/.*)?$" >> "$GITHUB_OUTPUT"
 
       - name: Run repeated tests to detect flakiness
         if: steps.gometa.outputs.skip != 'true'
@@ -131,7 +131,14 @@ jobs:
           else
             jq -r '.[] | "  \(.name): fail=\(.fail)"' json/failing.json >> "$GITHUB_STEP_SUMMARY"
           fi
-          
+
+          flaky_count=$(jq 'length' json/flaky.json)
+          fail_count=$(jq 'length' json/failing.json)
+          if [ "$flaky_count" -gt 0 ] || [ "$fail_count" -gt 0 ]; then
+            echo "::error::Flaky or failing tests detected: flaky=$flaky_count failing=$fail_count"
+            exit 1
+          fi
+
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
