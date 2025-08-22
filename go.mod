@@ -469,6 +469,7 @@ require github.com/coder/clistat v1.0.0
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/coder/aibridge v0.0.0
+	github.com/dgraph-io/ristretto/v2 v2.3.0
 )
 
 require (
@@ -516,7 +517,6 @@ require (
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/charmbracelet/x/exp/slice v0.0.0-20250327172914-2fdc97757edf // indirect
 	github.com/cncf/xds/go v0.0.0-20250501225837-2ac532fd4443 // indirect
-	github.com/dgryski/go-farm v0.0.0-20240924180020-3414d57e47da // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.32.4 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
 	github.com/esiqveland/notify v0.13.3 // indirect

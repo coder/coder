@@ -34,7 +34,6 @@ func NewServer(lifecycleCtx context.Context, store database.Store, logger slog.L
 	}, nil
 }
 
-// RecordSession implements proto.DRPCStoreServer.
 func (s *Server) RecordSession(ctx context.Context, in *proto.RecordSessionRequest) (*proto.RecordSessionResponse, error) {
 	sessID, err := uuid.Parse(in.GetSessionId())
 	if err != nil {
@@ -119,7 +118,7 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 }
 
 func (s *Server) marshalMetadata(in map[string]*anypb.Any) []byte {
-	mdMap := map[string]interface{}{}
+	mdMap := make(map[string]any, len(in))
 	for k, v := range in {
 		if v == nil {
 			continue
