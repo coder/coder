@@ -146,7 +146,7 @@ func TestAITasksPrompts(t *testing.T) {
 func TestTasks(t *testing.T) {
 	t.Parallel()
 
-	createAITemplate := func(t *testing.T, client *coderdtest.Client, user coderdtest.User) codersdk.Template {
+	createAITemplate := func(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse) codersdk.Template {
 		t.Helper()
 
 		// Create a template version that supports AI tasks with the AI Prompt parameter.

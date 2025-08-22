@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
@@ -198,7 +199,7 @@ func (api *API) tasksFromWorkspaces(ctx context.Context, apiWorkspaces []codersd
 	// Enforce that only AI task workspaces are given.
 	for _, ws := range apiWorkspaces {
 		if ws.LatestBuild.HasAITask == nil || !*ws.LatestBuild.HasAITask {
-			return nil, fmt.Errorf("workspace %s is not an AI task workspace", ws.ID)
+			return nil, xerrors.Errorf("workspace %s is not an AI task workspace", ws.ID)
 		}
 	}
 
