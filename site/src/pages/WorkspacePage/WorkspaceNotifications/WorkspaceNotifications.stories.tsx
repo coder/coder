@@ -12,7 +12,7 @@ import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { WorkspaceNotifications } from "./WorkspaceNotifications";
 
-const defaultPermissions: WorkspacePermissions = {
+export const defaultPermissions: WorkspacePermissions = {
 	readWorkspace: true,
 	updateWorkspaceVersion: true,
 	updateWorkspace: true,

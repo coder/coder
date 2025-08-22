@@ -8372,13 +8372,13 @@ const getProvisionerDaemonsWithStatusByOrganization = `-- name: GetProvisionerDa
 SELECT
 	pd.id, pd.created_at, pd.name, pd.provisioners, pd.replica_id, pd.tags, pd.last_seen_at, pd.version, pd.api_version, pd.organization_id, pd.key_id,
 	CASE
-		WHEN pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - ($1::bigint || ' ms')::interval)
-		THEN 'offline'
-		ELSE CASE
-			WHEN current_job.id IS NOT NULL THEN 'busy'
-			ELSE 'idle'
-		END
-	END::provisioner_daemon_status AS status,
+		WHEN current_job.id IS NOT NULL THEN 'busy'::provisioner_daemon_status
+		WHEN (COALESCE($1::bool, false) = true
+		      OR 'offline'::provisioner_daemon_status = ANY($2::provisioner_daemon_status[]))
+		     AND (pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - ($3::bigint || ' ms')::interval))
+		THEN 'offline'::provisioner_daemon_status
+		ELSE 'idle'::provisioner_daemon_status
+	END AS status,
 	pk.name AS key_name,
 	-- NOTE(mafredri): sqlc.embed doesn't support nullable tables nor renaming them.
 	current_job.id AS current_job_id,
@@ -8445,21 +8445,56 @@ LEFT JOIN
 		AND previous_template.organization_id = pd.organization_id
 	)
 WHERE
-	pd.organization_id = $2::uuid
-	AND (COALESCE(array_length($3::uuid[], 1), 0) = 0 OR pd.id = ANY($3::uuid[]))
-	AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, $4::tagset))
+	pd.organization_id = $4::uuid
+	AND (COALESCE(array_length($5::uuid[], 1), 0) = 0 OR pd.id = ANY($5::uuid[]))
+	AND ($6::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, $6::tagset))
+	-- Filter by max age if provided
+	AND (
+		$7::bigint IS NULL
+		OR pd.last_seen_at IS NULL 
+		OR pd.last_seen_at >= (NOW() - ($7::bigint || ' ms')::interval)
+	)
+	AND (
+		-- Always include online daemons
+		(pd.last_seen_at IS NOT NULL AND pd.last_seen_at >= (NOW() - ($3::bigint || ' ms')::interval))
+		-- Include offline daemons if offline param is true or 'offline' status is requested
+		OR (
+			(pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - ($3::bigint || ' ms')::interval))
+			AND (
+				COALESCE($1::bool, false) = true
+				OR 'offline'::provisioner_daemon_status = ANY($2::provisioner_daemon_status[])
+			)
+		)
+	)
+	AND (
+		-- Filter daemons by any statuses if provided
+		COALESCE(array_length($2::provisioner_daemon_status[], 1), 0) = 0
+		OR (current_job.id IS NOT NULL AND 'busy'::provisioner_daemon_status = ANY($2::provisioner_daemon_status[]))
+		OR (current_job.id IS NULL AND 'idle'::provisioner_daemon_status = ANY($2::provisioner_daemon_status[]))
+		OR (
+		    'offline'::provisioner_daemon_status = ANY($2::provisioner_daemon_status[])
+		    AND (pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - ($3::bigint || ' ms')::interval))
+		)
+		OR (
+		    COALESCE($1::bool, false) = true
+		    AND (pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - ($3::bigint || ' ms')::interval))
+		)
+	)
 ORDER BY
 	pd.created_at DESC
 LIMIT
-	$5::int
+	$8::int
 `
 
 type GetProvisionerDaemonsWithStatusByOrganizationParams struct {
-	StaleIntervalMS int64         `db:"stale_interval_ms" json:"stale_interval_ms"`
-	OrganizationID  uuid.UUID     `db:"organization_id" json:"organization_id"`
-	IDs             []uuid.UUID   `db:"ids" json:"ids"`
-	Tags            StringMap     `db:"tags" json:"tags"`
-	Limit           sql.NullInt32 `db:"limit" json:"limit"`
+	Offline         sql.NullBool              `db:"offline" json:"offline"`
+	Statuses        []ProvisionerDaemonStatus `db:"statuses" json:"statuses"`
+	StaleIntervalMS int64                     `db:"stale_interval_ms" json:"stale_interval_ms"`
+	OrganizationID  uuid.UUID                 `db:"organization_id" json:"organization_id"`
+	IDs             []uuid.UUID               `db:"ids" json:"ids"`
+	Tags            StringMap                 `db:"tags" json:"tags"`
+	MaxAgeMs        sql.NullInt64             `db:"max_age_ms" json:"max_age_ms"`
+	Limit           sql.NullInt32             `db:"limit" json:"limit"`
 }
 
 type GetProvisionerDaemonsWithStatusByOrganizationRow struct {
@@ -8482,10 +8517,13 @@ type GetProvisionerDaemonsWithStatusByOrganizationRow struct {
 // Previous job information.
 func (q *sqlQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.Context, arg GetProvisionerDaemonsWithStatusByOrganizationParams) ([]GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
 	rows, err := q.db.QueryContext(ctx, getProvisionerDaemonsWithStatusByOrganization,
+		arg.Offline,
+		pq.Array(arg.Statuses),
 		arg.StaleIntervalMS,
 		arg.OrganizationID,
 		pq.Array(arg.IDs),
 		arg.Tags,
+		arg.MaxAgeMs,
 		arg.Limit,
 	)
 	if err != nil {

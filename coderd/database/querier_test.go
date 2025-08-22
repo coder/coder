@@ -397,6 +397,7 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
 			OrganizationID: org.ID,
 			IDs:            []uuid.UUID{matchingDaemon0.ID, matchingDaemon1.ID},
+			Offline:        sql.NullBool{Bool: true, Valid: true},
 		})
 		require.NoError(t, err)
 		require.Len(t, daemons, 2)
@@ -430,6 +431,7 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
 			OrganizationID: org.ID,
 			Tags:           database.StringMap{"foo": "bar"},
+			Offline:        sql.NullBool{Bool: true, Valid: true},
 		})
 		require.NoError(t, err)
 		require.Len(t, daemons, 1)
@@ -463,6 +465,7 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
 			OrganizationID:  org.ID,
 			StaleIntervalMS: 45 * time.Minute.Milliseconds(),
+			Offline:         sql.NullBool{Bool: true, Valid: true},
 		})
 		require.NoError(t, err)
 		require.Len(t, daemons, 2)
@@ -474,6 +477,230 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 		require.Equal(t, daemon2.ID, daemons[1].ProvisionerDaemon.ID)
 		require.Equal(t, database.ProvisionerDaemonStatusOffline, daemons[0].Status)
 		require.Equal(t, database.ProvisionerDaemonStatusIdle, daemons[1].Status)
+	})
+
+	t.Run("ExcludeOffline", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "offline-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-time.Hour),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-time.Hour),
+			},
+		})
+		fooDaemon := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "foo-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-(30 * time.Minute)),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-(30 * time.Minute)),
+			},
+		})
+
+		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+			OrganizationID:  org.ID,
+			StaleIntervalMS: 45 * time.Minute.Milliseconds(),
+		})
+		require.NoError(t, err)
+		require.Len(t, daemons, 1)
+
+		require.Equal(t, fooDaemon.ID, daemons[0].ProvisionerDaemon.ID)
+		require.Equal(t, database.ProvisionerDaemonStatusIdle, daemons[0].Status)
+	})
+
+	t.Run("IncludeOffline", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "offline-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-time.Hour),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-time.Hour),
+			},
+		})
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "foo-daemon",
+			OrganizationID: org.ID,
+			Tags: database.StringMap{
+				"foo": "bar",
+			},
+		})
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "bar-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-(30 * time.Minute)),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-(30 * time.Minute)),
+			},
+		})
+
+		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+			OrganizationID:  org.ID,
+			StaleIntervalMS: 45 * time.Minute.Milliseconds(),
+			Offline:         sql.NullBool{Bool: true, Valid: true},
+		})
+		require.NoError(t, err)
+		require.Len(t, daemons, 3)
+
+		statusCounts := make(map[database.ProvisionerDaemonStatus]int)
+		for _, daemon := range daemons {
+			statusCounts[daemon.Status]++
+		}
+
+		require.Equal(t, 2, statusCounts[database.ProvisionerDaemonStatusIdle])
+		require.Equal(t, 1, statusCounts[database.ProvisionerDaemonStatusOffline])
+	})
+
+	t.Run("MatchesStatuses", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "offline-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-time.Hour),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-time.Hour),
+			},
+		})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "foo-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-(30 * time.Minute)),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-(30 * time.Minute)),
+			},
+		})
+
+		type testCase struct {
+			name        string
+			statuses    []database.ProvisionerDaemonStatus
+			expectedNum int
+		}
+
+		tests := []testCase{
+			{
+				name: "Get idle and offline",
+				statuses: []database.ProvisionerDaemonStatus{
+					database.ProvisionerDaemonStatusOffline,
+					database.ProvisionerDaemonStatusIdle,
+				},
+				expectedNum: 2,
+			},
+			{
+				name: "Get offline",
+				statuses: []database.ProvisionerDaemonStatus{
+					database.ProvisionerDaemonStatusOffline,
+				},
+				expectedNum: 1,
+			},
+			// Offline daemons should not be included without Offline param
+			{
+				name:        "Get idle - empty statuses",
+				statuses:    []database.ProvisionerDaemonStatus{},
+				expectedNum: 1,
+			},
+			{
+				name:        "Get idle - nil statuses",
+				statuses:    nil,
+				expectedNum: 1,
+			},
+		}
+
+		for _, tc := range tests {
+			//nolint:tparallel,paralleltest
+			t.Run(tc.name, func(t *testing.T) {
+				daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+					OrganizationID:  org.ID,
+					StaleIntervalMS: 45 * time.Minute.Milliseconds(),
+					Statuses:        tc.statuses,
+				})
+				require.NoError(t, err)
+				require.Len(t, daemons, tc.expectedNum)
+			})
+		}
+	})
+
+	t.Run("FilterByMaxAge", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "foo-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-(45 * time.Minute)),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-(45 * time.Minute)),
+			},
+		})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "bar-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-(25 * time.Minute)),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-(25 * time.Minute)),
+			},
+		})
+
+		type testCase struct {
+			name        string
+			maxAge      sql.NullInt64
+			expectedNum int
+		}
+
+		tests := []testCase{
+			{
+				name:        "Max age 1 hour",
+				maxAge:      sql.NullInt64{Int64: time.Hour.Milliseconds(), Valid: true},
+				expectedNum: 2,
+			},
+			{
+				name:        "Max age 30 minutes",
+				maxAge:      sql.NullInt64{Int64: (30 * time.Minute).Milliseconds(), Valid: true},
+				expectedNum: 1,
+			},
+			{
+				name:        "Max age 15 minutes",
+				maxAge:      sql.NullInt64{Int64: (15 * time.Minute).Milliseconds(), Valid: true},
+				expectedNum: 0,
+			},
+			{
+				name:        "No max age",
+				maxAge:      sql.NullInt64{Valid: false},
+				expectedNum: 2,
+			},
+		}
+		for _, tc := range tests {
+			//nolint:tparallel,paralleltest
+			t.Run(tc.name, func(t *testing.T) {
+				daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+					OrganizationID:  org.ID,
+					StaleIntervalMS: 60 * time.Minute.Milliseconds(),
+					MaxAgeMs:        tc.maxAge,
+				})
+				require.NoError(t, err)
+				require.Len(t, daemons, tc.expectedNum)
+			})
+		}
 	})
 }
 
@@ -1552,8 +1779,11 @@ func TestUpdateSystemUser(t *testing.T) {
 
 	// When: attempting to update a system user's name.
 	_, err = db.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
-		ID:   systemUser.ID,
-		Name: "not prebuilds",
+		ID:        systemUser.ID,
+		Email:     systemUser.Email,
+		Username:  systemUser.Username,
+		AvatarURL: systemUser.AvatarURL,
+		Name:      "not prebuilds",
 	})
 	// Then: the attempt is rejected by a postgres trigger.
 	// require.ErrorContains(t, err, "Cannot modify or delete system users")
