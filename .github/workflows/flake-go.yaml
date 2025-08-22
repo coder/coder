@@ -99,9 +99,11 @@ jobs:
           regex='${{ steps.gometa.outputs.regex }}'
           pkgs='${{ steps.gometa.outputs.pkgs }}'
 
-          for p in $pkgs; do
-            go test -json -run "$regex" -count=${ATTEMPTS} -shuffle=on "$p" \
-              | tee "json/run-$(echo "$p" | tr '/.' '__').json" >/dev/null || true
+          for i in $(seq 1 ${ATTEMPTS}); do
+            for p in $pkgs; do
+              go test -json -run "$regex" -count=1 -shuffle=on "$p" \
+                | tee "json/run-$i-$(echo "$p" | tr '/.' '__').json" >/dev/null || true
+            done
           done
 
           jq -s '
