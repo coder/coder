@@ -12,21 +12,6 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) tasksCommand() *serpent.Command {
-	cmd := &serpent.Command{
-		Use:     "task",
-		Aliases: []string{"tasks"},
-		Short:   "Experimental task commands.",
-		Handler: func(i *serpent.Invocation) error {
-			return i.Command.HelpHandler(i)
-		},
-		Children: []*serpent.Command{
-			r.tasksListCmd(),
-		},
-	}
-	return cmd
-}
-
 type taskListRow struct {
 	Task codersdk.Task `table:"t,recursive_inline"`
 
@@ -46,7 +31,7 @@ func taskListRowFromTask(now time.Time, t codersdk.Task) taskListRow {
 	}
 }
 
-func (r *RootCmd) tasksListCmd() *serpent.Command {
+func (r *RootCmd) taskList() *serpent.Command {
 	var (
 		statusFilter string
 		all          bool
