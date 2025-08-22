@@ -8,6 +8,8 @@ import (
 )
 
 func (r *RootCmd) sharing() *serpent.Command {
+	orgContext := NewOrganizationContext()
+
 	cmd := &serpent.Command{
 		Use:     "sharing [subcommand]",
 		Short:   "Commands for managing shared workspaces",
@@ -15,13 +17,14 @@ func (r *RootCmd) sharing() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*serpent.Command{r.shareWorkspace()},
+		Children: []*serpent.Command{r.shareWorkspace(orgContext)},
 	}
 
+	orgContext.AttachOptions(cmd)
 	return cmd
 }
 
-func (r *RootCmd) shareWorkspace() *serpent.Command {
+func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Command {
 	var (
 		client            = new(codersdk.Client)
 		userAndGroupRegex = regexp.MustCompile(`([A-Za-z0-9]+)(?::([A-Za-z0-9]+))?`)
@@ -54,6 +57,8 @@ func (r *RootCmd) shareWorkspace() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			workspaceAndOwner := workspaceRegex.FindStringSubmatch(inv.Args[0])
 
+			// Assume the workspace is being given in the format <owner>/<workspace>
+			// If the owner is an empty string assume just a workspace name was given
 			ownerUsername := workspaceAndOwner[1]
 			workspaceName := workspaceAndOwner[2]
 			if workspaceName == "" {
@@ -65,7 +70,7 @@ func (r *RootCmd) shareWorkspace() *serpent.Command {
 			if ownerUsername != "" {
 				owner, err := client.User(inv.Context(), ownerUsername)
 				if err != nil {
-					return xerrors.Errorf("could not workspace owner with username %s.", ownerUsername)
+					return xerrors.Errorf("could not fetch the workspace owner with the username %s.", ownerUsername)
 				}
 
 				ownerId = owner.ID.String()
@@ -75,7 +80,7 @@ func (r *RootCmd) shareWorkspace() *serpent.Command {
 				IncludeDeleted: false,
 			})
 			if err != nil {
-				return xerrors.Errorf("could not fetch workspace %s.", workspaceName)
+				return xerrors.Errorf("could not fetch the workspace %s.", workspaceName)
 			}
 
 			userRoles := make(map[string]codersdk.WorkspaceRole, len(users))
@@ -97,26 +102,45 @@ func (r *RootCmd) shareWorkspace() *serpent.Command {
 				userRoles[user.ID.String()] = workspaceRole
 			}
 
-			// groupRoles := make(map[string]codersdk.WorkspaceRole)
-			// for _, group := range groups {
-			// 	groupAndRole := userAndGroupRegex.FindStringSubmatch(group)
-			// 	groupname := groupAndRole[1]
-			// 	role := groupAndRole[2]
+			groupRoles := make(map[string]codersdk.WorkspaceRole)
 
-			// 	group, err := client.Groups()
+			org, err := orgContext.Selected(inv, client)
+			if err != nil {
+				return err
+			}
+			orgGroups, err := client.Groups(inv.Context(), codersdk.GroupArguments{
+				Organization: org.ID.String(),
+			})
 
-			// 	workspaceRole, err := stringToWorkspaceRole(role)
-			// 	if err != nil {
-			// 		return err
-			// 	}
+			for _, group := range groups {
+				groupAndRole := userAndGroupRegex.FindStringSubmatch(group)
+				groupName := groupAndRole[1]
+				role := groupAndRole[2]
 
-			// 	groupRoles[groupname] = workspaceRole
+				var orgGroup *codersdk.Group
+				for _, g := range orgGroups {
+					if g.Name == groupName {
+						orgGroup = &g
+						break
+					}
+				}
 
-			// }
+				if orgGroup == nil {
+					return xerrors.Errorf("Could not find group named %s belonging to the organization %s", groupName, org.Name)
+				}
+
+				workspaceRole, err := stringToWorkspaceRole(role)
+				if err != nil {
+					return err
+				}
+
+				groupRoles[orgGroup.ID.String()] = workspaceRole
+
+			}
 
 			err = client.UpdateWorkspaceACL(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceACL{
-				UserRoles: userRoles,
-				// GroupRoles: groupRoles,
+				UserRoles:  userRoles,
+				GroupRoles: groupRoles,
 			})
 			if err != nil {
 				return err
