@@ -953,6 +953,8 @@ func New(options *Options) *API {
 			r.Get("/authorize", api.OAuth2Provider.ShowAuthorizationPage(api.AccessURL))
 			r.Post("/authorize", api.OAuth2Provider.AuthEndpoint)
 		})
+		r.Get("/introspect", api.OAuth2Provider.IntrospectionEndpoint)
+		r.Post("/revoke", api.OAuth2Provider.RevokeEndpoint)
 		r.Post("/tokens", api.OAuth2Provider.TokenEndpoint)
 	})
 
