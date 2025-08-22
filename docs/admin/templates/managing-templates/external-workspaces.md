@@ -1,27 +1,31 @@
-# External workspaces
+# External Workspaces
 
-External workspaces allow you to connect agents running on external infrastructure to your Coder deployment. This feature enables you to bring existing servers, on-premises infrastructure, or any machine that can run the Coder agent into your development environment without requiring Coder to provision the compute resources.
+External workspaces allow you to seamlessly connect externally managed infrastructure as Coder workspaces. This enables you to integrate existing servers, on-premises systems, or any capable machine with the Coder environment, ensuring a smooth and efficient development workflow without requiring Coder to provision additional compute resources.
 
 ## Prerequisites
 
 - Access to external compute resources (VMs, bare-metal servers, Kubernetes nodes, etc.) that can run the Coder agent.
-- Networking configured so the external agent can reach your Coder deployment.
-- A workspace template that includes a coder_external_agent resource.
-- To import the template and begin configuring it, follow the [documentation in the Coder Registry](https://registry.coder.com/templates/coder-labs/externally-managed-workspace)
+- Networking access to your Coder deployment.
+- A workspace template that includes a [`coder_external_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/external_agent) resource.
 
-## Benefits of external workspaces
 
-External workspaces provide flexibility and control in complex environments:
+We provide an example template on how to set up external workspaces in the [Coder Registry](https://registry.coder.com/templates/coder-labs/externally-managed-workspace)
+
+## Benefits
+
+External workspaces offer flexibility and control in complex environments:
 
 - **Incremental adoption of Coder**
 
-  Connect existing infrastructure without migrating everything at once.
+  Integrate with existing infrastructure gradually without needing to migrate everything at once.
+
 - **Flexibility**
 
-  Attach cloud, hybrid, or on-prem machines as developer workspaces.
+  Attach cloud, hybrid, or on-premises machines as developer workspaces.
+
 - **Separation of concerns**
 
-  Provision compute resources externally (your existing IaC or manual processes) while still using Terraform to manage workspace configuration (apps, scripts).
+  Provision compute resources externally (using your existing IaC or manual processes) while managing workspace configuration (apps, scripts) with Terraform.
 
 ## Use cases
 
