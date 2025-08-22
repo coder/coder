@@ -192,8 +192,16 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 }
 
 // tasksFromWorkspaces converts a slice of API workspaces into tasks, fetching
-// prompts and mapping status/state.
+// prompts and mapping status/state. This method enforces that only AI task
+// workspaces are given.
 func (api *API) tasksFromWorkspaces(ctx context.Context, apiWorkspaces []codersdk.Workspace) ([]codersdk.Task, error) {
+	// Enforce that only AI task workspaces are given.
+	for _, ws := range apiWorkspaces {
+		if ws.LatestBuild.HasAITask == nil || !*ws.LatestBuild.HasAITask {
+			return nil, fmt.Errorf("workspace %s is not an AI task workspace", ws.ID)
+		}
+	}
+
 	// Fetch prompts for each workspace build and map by build ID.
 	buildIDs := make([]uuid.UUID, 0, len(apiWorkspaces))
 	for _, ws := range apiWorkspaces {
