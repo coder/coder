@@ -99,6 +99,7 @@ jobs:
           regex='${{ steps.gometa.outputs.regex }}'
           pkgs='${{ steps.gometa.outputs.pkgs }}'
 
+          # Run ATTEMPTS times, fresh process each time for new shuffle seed and per-attempt JSON events
           for i in $(seq 1 ${ATTEMPTS}); do
             for p in $pkgs; do
               go test -json -run "$regex" -count=1 -shuffle=on "$p" \
@@ -106,6 +107,7 @@ jobs:
             done
           done
 
+          # Aggregate pass/fail counts per test or subtest
           jq -s '
             map(select(.Action=="pass" or .Action=="fail") | select(.Test)) as $events
             | reduce $events[] as $e ({}; .[$e.Test] = (
@@ -115,62 +117,99 @@ jobs:
             )
           ' json/*.json > json/counts.json
 
+          # Build unfiltered lists
           jq 'to_entries | map(select(.value.fail>0 and .value.pass>0) | {name:.key, pass:.value.pass, fail:.value.fail})' json/counts.json > json/flaky.json
           jq 'to_entries | map(select(.value.fail>0 and ((.value.pass//0)==0)) | {name:.key, fail:.value.fail})' json/counts.json > json/failing.json
 
-          echo "Go flaky tests (changed files) after ${ATTEMPTS} runs:" >> "$GITHUB_STEP_SUMMARY"
-          if jq -e 'length==0' json/flaky.json >/dev/null; then
-            echo "  none" >> "$GITHUB_STEP_SUMMARY"
-          else
-            jq -r '.[] | "  \(.name): fail=\(.fail) pass=\(.pass)"' json/flaky.json >> "$GITHUB_STEP_SUMMARY"
-          fi
+          # Filter out parent tests if any subtests exist, for both flaky and failing lists
+          filtered_flaky=$(
+            jq -r '.[] | .name' json/flaky.json | awk '
+              {
+                if (index($0, "/")) {
+                  subtests[++subtest_count] = $0
+                  parent = substr($0, 1, index($0, "/")-1)
+                  has_subtest[parent] = 1
+                } else {
+                  parents[++parent_count] = $0
+                }
+              }
+              END {
+                for (i=1; i<=subtest_count; i++) print subtests[i]
+                for (i=1; i<=parent_count; i++) if (!(parents[i] in has_subtest)) print parents[i]
+              }
+            '
+          )
 
-          echo "\nConsistently failing tests:" >> "$GITHUB_STEP_SUMMARY"
-          if jq -e 'length==0' json/failing.json >/dev/null; then
-            echo "  none" >> "$GITHUB_STEP_SUMMARY"
-          else
-            jq -r '.[] | "  \(.name): fail=\(.fail)"' json/failing.json >> "$GITHUB_STEP_SUMMARY"
-          fi
+          filtered_failing=$(
+            jq -r '.[].name' json/failing.json | awk '
+              {
+                if (index($0, "/")) {
+                  subtests[++subtest_count] = $0
+                  parent = substr($0, 1, index($0, "/")-1)
+                  has_subtest[parent] = 1
+                } else {
+                  parents[++parent_count] = $0
+                }
+              }
+              END {
+                for (i=1; i<=subtest_count; i++) print subtests[i]
+                for (i=1; i<=parent_count; i++) if (!(parents[i] in has_subtest)) print parents[i]
+              }
+            '
+          )
 
-          flaky_count=$(jq 'length' json/flaky.json)
-          fail_count=$(jq 'length' json/failing.json)
+          # Counts based on filtered lists (avoid double-counting parents)
+          flaky_count=$(printf "%s\n" "$filtered_flaky" | sed '/^$/d' | wc -l | tr -d ' ')
+          fail_count=$(printf "%s\n" "$filtered_failing" | sed '/^$/d' | wc -l | tr -d ' ')
+
+          # Build "name (failed x/y times)" details from counts.json
+          build_details() {
+            input_list="$1"
+            out=""
+            while IFS= read -r test; do
+              [ -z "$test" ] && continue
+              detail=$(jq -r --arg test "$test" '
+                to_entries
+                | map(select(.key==$test))
+                | if length>0 then
+                    .[0].value
+                    | "\($test) (failed \(.fail)/\(.pass+.fail) times)"
+                  else empty end
+              ' json/counts.json)
+              if [ -n "$detail" ]; then
+                if [ -n "$out" ]; then out="$out, $detail"; else out="$detail"; fi
+              fi
+            done <<< "$input_list"
+            printf "%s" "$out"
+          }
+
+          flaky_details=$(build_details "$filtered_flaky")
+          failing_details=$(build_details "$filtered_failing")
+
+          # Print single-line header and clean sections (no literal "\n")
           if [ "$flaky_count" -gt 0 ] || [ "$fail_count" -gt 0 ]; then
-            error_msg="Flaky or failing tests detected: flaky=$flaky_count failing=$fail_count"
-            if [ "$flaky_count" -gt 0 ]; then
-              # Filter flaky tests to only show subtests when both parent and subtest are flaky
-              filtered_flaky=$(jq -r '.[] | .name' json/flaky.json | awk '
-                {
-                  if (index($0, "/")) {
-                    subtests[++subtest_count] = $0
-                    parent = substr($0, 1, index($0, "/")-1)
-                    has_subtest[parent] = 1
-                  } else {
-                    parents[++parent_count] = $0
-                  }
-                }
-                END {
-                  for (i=1; i<=subtest_count; i++) print subtests[i]
-                  for (i=1; i<=parent_count; i++) if (!(parents[i] in has_subtest)) print parents[i]
-                }
-              ')
-              # Build the filtered flaky tests with their failure info
-              flaky_details=""
-              while IFS= read -r test; do
-                if [ -n "$test" ]; then
-                  detail=$(jq -r --arg test "$test" '.[] | select(.name==$test) | "\(.name) (failed \(.fail)/\(.pass+.fail) times)"' json/flaky.json)
-                  if [ -n "$flaky_details" ]; then
-                    flaky_details="$flaky_details, $detail"
-                  else
-                    flaky_details="$detail"
-                  fi
-                fi
-              done <<< "$filtered_flaky"
-              error_msg="$error_msg. Flaky tests: $flaky_details"
+            printf "Flaky or failing tests detected after %s runs: flaky=%s failing=%s\n" "$ATTEMPTS" "$flaky_count" "$fail_count" >> "$GITHUB_STEP_SUMMARY"
+            if [ -n "$flaky_details" ]; then
+              printf "Flaky tests: %s\n" "$flaky_details" >> "$GITHUB_STEP_SUMMARY"
             fi
-            if [ "$fail_count" -gt 0 ]; then
-              error_msg="$error_msg. Consistently failing tests: $(jq -r '.[].name' json/failing.json | paste -sd', ' -)"
+            if [ -n "$failing_details" ]; then
+              printf "Consistently failing tests: %s\n" "$failing_details" >> "$GITHUB_STEP_SUMMARY"
             fi
-            echo "::error::$error_msg"
+          else
+            printf "No flaky or failing tests detected after %s runs.\n" "$ATTEMPTS" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          # Raw fail event count from go test -json to ensure we fail when any test failed at least once
+          raw_fail_count=$(
+            jq -s 'map(select(.Action=="fail" and .Test)) | map(.Test) | unique | length' json/run-*.json
+          )
+
+          # Emit error and fail the job if instability found
+          if [ "$raw_fail_count" -gt 0 ] || [ "$flaky_count" -gt 0 ] || [ "$fail_count" -gt 0 ]; then
+            err="Flaky or failing tests detected after ${ATTEMPTS} runs: raw_fail=${raw_fail_count} flaky=${flaky_count} failing=${fail_count}"
+            if [ -n "$flaky_details" ]; then err="$err. Flaky tests: $flaky_details"; fi
+            if [ -n "$failing_details" ]; then err="$err. Consistently failing tests: $failing_details"; fi
+            echo "::error::$err"
             exit 1
           fi
 
