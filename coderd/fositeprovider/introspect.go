@@ -4,12 +4,11 @@ import (
 	"net/http"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/coderd/database"
 )
 
 func (p *Provider) IntrospectionEndpoint(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	mySessionData := p.newSession(database.APIKey{})
+	mySessionData := p.EmptySession()
 	ir, err := p.provider.NewIntrospectionRequest(ctx, req, mySessionData)
 	if err != nil {
 		p.logger.Error(ctx, "error occurred in NewIntrospectionRequest", slog.Error(err))

@@ -3,8 +3,6 @@ package fositeprovider
 import (
 	"log"
 	"net/http"
-
-	"github.com/coder/coder/v2/coderd/database"
 )
 
 // TODO: Not sure how TokenEndpoint works with sessions.
@@ -14,7 +12,7 @@ func (p *Provider) TokenEndpoint(rw http.ResponseWriter, req *http.Request) {
 
 	// Create an empty session object which will be passed to the request handlers
 	// TODO: Why do we need an empty session here?
-	mySessionData := p.newSession(database.APIKey{})
+	mySessionData := p.EmptySession()
 
 	// This will create an access request object and iterate through the registered TokenEndpointHandlers to validate the request.
 	accessRequest, err := p.provider.NewAccessRequest(ctx, req, mySessionData)

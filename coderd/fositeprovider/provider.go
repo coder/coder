@@ -82,3 +82,19 @@ func (p *Provider) newSession(key database.APIKey) *openid.DefaultSession {
 		},
 	}
 }
+
+func (p *Provider) EmptySession() *openid.DefaultSession {
+	return &openid.DefaultSession{
+		Claims: &jwt.IDTokenClaims{
+			Issuer:      "https://fosite.my-application.com",
+			Audience:    []string{"https://my-client.my-application.com"},
+			ExpiresAt:   time.Now().Add(time.Hour * 6),
+			IssuedAt:    time.Now(),
+			RequestedAt: time.Now(),
+			AuthTime:    time.Now(),
+		},
+		Headers: &jwt.Headers{
+			Extra: make(map[string]interface{}),
+		},
+	}
+}
