@@ -43,6 +43,9 @@ type IssueTokenRequest struct {
 	AppQuery string `json:"app_query"`
 	// SessionToken is the session token provided by the user.
 	SessionToken string `json:"session_token"`
+	// OmitAgentNameInSubdomain controls whether generated subdomain URLs should
+	// include the agent name segment. Default false (include agent name).
+	OmitAgentNameInSubdomain bool `json:"omit_agent_name_in_subdomain"`
 }
 
 // AppBaseURL returns the base URL of this specific app request. An error is
@@ -73,7 +76,8 @@ func (r IssueTokenRequest) AppBaseURL() (*url.URL, error) {
 			WorkspaceName: r.AppRequest.WorkspaceNameOrID,
 			Username:      r.AppRequest.UsernameOrID,
 		}
-		u.Host = strings.Replace(r.AppHostname, "*", appHost.String(), 1)
+		useAgent := !r.OmitAgentNameInSubdomain
+		u.Host = strings.Replace(r.AppHostname, "*", appHost.StringWithAgent(useAgent), 1)
 		u.Path = r.AppRequest.BasePath
 		return u, nil
 	default:

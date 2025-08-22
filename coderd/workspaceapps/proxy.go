@@ -119,6 +119,15 @@ type Server struct {
 
 	websocketWaitMutex sync.Mutex
 	websocketWaitGroup sync.WaitGroup
+
+	// AllowOptionalAgentInSubdomain enables parsing subdomain app URLs without
+	// the agent segment when the first segment is an app slug. Defaults to false
+	// (agent segment required) to preserve existing behavior.
+	AllowOptionalAgentInSubdomain bool
+	// GenerateSubdomainWithoutAgent controls whether generated subdomain URLs
+	// omit the agent segment for slug-based apps. Defaults to false to preserve
+	// existing behavior.
+	GenerateSubdomainWithoutAgent bool
 }
 
 // Close waits for all reconnecting-pty WebSocket connections to drain before
@@ -357,39 +366,6 @@ func (s *Server) determineCORSBehavior(token *SignedToken, app appurl.Applicatio
 
 // HandleSubdomain handles subdomain-based application proxy requests (aka.
 // DevURLs in Coder V1).
-//
-// There are a lot of paths here:
-//  1. If api.Hostname is not set then we pass on.
-//  2. If we can't read the request hostname then we return a 400.
-//  3. If the request hostname matches api.AccessURL then we pass on.
-//  5. We split the subdomain into the subdomain and the "rest". If there are no
-//     periods in the hostname then we pass on.
-//  5. We parse the subdomain into a appurl.ApplicationURL struct. If we
-//     encounter an error:
-//     a. If the "rest" does not match api.Hostname then we pass on;
-//     b. Otherwise, we return a 400.
-//  6. Finally, we verify that the "rest" matches api.Hostname, else we
-//     return a 404.
-//
-// Rationales for each of the above steps:
-//  1. We pass on if api.Hostname is not set to avoid returning any errors if
-//     `--app-hostname` is not configured.
-//  2. Every request should have a valid Host header anyways.
-//  3. We pass on if the request hostname matches api.AccessURL so we can
-//     support having the access URL be at the same level as the application
-//     base hostname.
-//  4. We pass on if there are no periods in the hostname as application URLs
-//     must be a subdomain of a hostname, which implies there must be at least
-//     one period.
-//  5. a. If the request subdomain is not a valid application URL, and the
-//     "rest" does not match api.Hostname, then it is very unlikely that
-//     the request was intended for this handler. We pass on.
-//     b. If the request subdomain is not a valid application URL, but the
-//     "rest" matches api.Hostname, then we return a 400 because the
-//     request is probably a typo or something.
-//  6. We finally verify that the "rest" matches api.Hostname for security
-//     purposes regarding re-authentication and application proxy session
-//     tokens.
 func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -448,6 +424,7 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 				},
 				AppPath:  r.URL.Path,
 				AppQuery: r.URL.RawQuery,
+				OmitAgentNameInSubdomain: s.GenerateSubdomainWithoutAgent,
 			})
 			if !ok {
 				return
@@ -500,7 +477,15 @@ func (s *Server) parseHostname(rw http.ResponseWriter, r *http.Request, next htt
 	}
 
 	// Parse the application URL from the subdomain.
-	app, err := appurl.ParseSubdomainAppURL(subdomain)
+	var (
+		app appurl.ApplicationURL
+		err error
+	)
+	if s.AllowOptionalAgentInSubdomain {
+		app, err = appurl.ParseSubdomainAppURLAllowOptionalAgent(subdomain)
+	} else {
+		app, err = appurl.ParseSubdomainAppURL(subdomain)
+	}
 	if err != nil {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       http.StatusBadRequest,

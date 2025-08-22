@@ -18,6 +18,10 @@ var (
 		// {PORT/APP_SLUG}--{AGENT_NAME}--{WORKSPACE_NAME}--{USERNAME}
 		`^(?P<AppSlug>%[1]s)--(?P<AgentName>%[1]s)--(?P<WorkspaceName>%[1]s)--(?P<Username>%[1]s)$`,
 		nameRegex))
+	appURLOptionalAgent = regexp.MustCompile(fmt.Sprintf(
+		// {PORT/APP_SLUG}--[AGENT_NAME]--{WORKSPACE_NAME}--{USERNAME}
+		`^(?P<AppSlug>%[1]s)--(?:(?P<AgentName>%[1]s)--)?(?P<WorkspaceName>%[1]s)--(?P<Username>%[1]s)$`,
+		nameRegex))
 
 	validHostnameLabelRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 )
@@ -74,6 +78,24 @@ func (a ApplicationURL) String() string {
 	_, _ = appURL.WriteString("--")
 	_, _ = appURL.WriteString(a.Username)
 	return appURL.String()
+}
+
+// StringWithAgent returns the application URL hostname with control over
+// including the AgentName segment. When useAgent is false, the AgentName
+// segment is omitted.
+func (a ApplicationURL) StringWithAgent(useAgent bool) string {
+	var b strings.Builder
+	_, _ = b.WriteString(a.Prefix)
+	_, _ = b.WriteString(a.AppSlugOrPort)
+	_, _ = b.WriteString("--")
+	if useAgent {
+		_, _ = b.WriteString(a.AgentName)
+		_, _ = b.WriteString("--")
+	}
+	_, _ = b.WriteString(a.WorkspaceName)
+	_, _ = b.WriteString("--")
+	_, _ = b.WriteString(a.Username)
+	return b.String()
 }
 
 // Path is a helper function to get the url path of the app if it is not served
@@ -182,6 +204,43 @@ func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 	}, nil
 }
 
+// ParseSubdomainAppURLAllowOptionalAgent parses an ApplicationURL from the
+// given subdomain and allows the agent name segment to be omitted when the
+// first segment is an app slug (not a port). If the app segment is a port,
+// the agent name is still required.
+func ParseSubdomainAppURLAllowOptionalAgent(subdomain string) (ApplicationURL, error) {
+	var (
+		prefixSegments = strings.Split(subdomain, "---")
+		prefix         = ""
+	)
+	if len(prefixSegments) > 1 {
+		prefix = strings.Join(prefixSegments[:len(prefixSegments)-1], "---") + "---"
+		subdomain = prefixSegments[len(prefixSegments)-1]
+	}
+
+	matches := appURLOptionalAgent.FindAllStringSubmatch(subdomain, -1)
+	if len(matches) == 0 {
+		return ApplicationURL{}, xerrors.Errorf("invalid application url format: %q", subdomain)
+	}
+	m := matches[0]
+	app := ApplicationURL{
+		Prefix:        prefix,
+		AppSlugOrPort: m[appURLOptionalAgent.SubexpIndex("AppSlug")],
+		AgentName:     m[appURLOptionalAgent.SubexpIndex("AgentName")],
+		WorkspaceName: m[appURLOptionalAgent.SubexpIndex("WorkspaceName")],
+		Username:      m[appURLOptionalAgent.SubexpIndex("Username")],
+	}
+
+	// Disallow omitting agent for port-based URLs.
+	if app.AgentName == "" {
+		_, _, isPort := app.PortInfo()
+		if isPort {
+			return ApplicationURL{}, xerrors.New("agent is required when using a port-based URL")
+		}
+	}
+	return app, nil
+}
+
 // HostnamesMatch returns true if the hostnames are equal, disregarding
 // capitalization, extra leading or trailing periods, and ports.
 func HostnamesMatch(a, b string) bool {
@@ -261,16 +320,16 @@ func CompileHostnamePattern(pattern string) (*regexp.Regexp, error) {
 	}
 
 	// Replace periods with escaped periods.
-	regexPattern := strings.ReplaceAll(pattern, ".", "\\.")
+	regexPattern := strings.ReplaceAll(pattern, ".", `\.`)
 
 	// Capture wildcard match.
 	regexPattern = strings.Replace(regexPattern, "*", "([^.]+)", 1)
 
 	// Allow trailing period.
-	regexPattern += "\\.?"
+	regexPattern += `\.?`
 
 	// Allow optional port number.
-	regexPattern += "(:\\d+)?"
+	regexPattern += `(:\d+)?`
 
 	// Allow leading and trailing whitespace.
 	regexPattern = `^\s*` + regexPattern + `\s*$`

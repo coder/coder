@@ -35,6 +35,10 @@ type ResolveRequestOptions struct {
 	AppPath string
 	// AppQuery is the raw query of the request.
 	AppQuery string
+
+	// OmitAgentNameInSubdomain controls whether generated subdomain URLs should
+	// include the agent name segment. Default false (include agent name).
+	OmitAgentNameInSubdomain bool
 }
 
 func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequestOptions) (*SignedToken, bool) {
@@ -61,6 +65,7 @@ func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequest
 		SessionToken:   AppConnectSessionTokenFromRequest(r, appReq.AccessMethod),
 		AppPath:        opts.AppPath,
 		AppQuery:       opts.AppQuery,
+		OmitAgentNameInSubdomain: opts.OmitAgentNameInSubdomain,
 	}
 
 	token, tokenStr, ok := opts.SignedTokenProvider.Issue(r.Context(), rw, r, issueReq)
