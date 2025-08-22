@@ -48,7 +48,7 @@ func Test_extractPort(t *testing.T) {
 		},
 		{
 			name:      "127.0.0.1",
-			urlString: "127.0.0.1:11",
+			urlString: "127.0.0.1:2113",
 			want:      2113,
 			wantErr:   false,
 		},
