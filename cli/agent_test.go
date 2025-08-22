@@ -35,8 +35,8 @@ func TestWorkspaceAgent(t *testing.T) {
 	t.Run("LogDirectory", func(t *testing.T) {
 		t.Parallel()
 
-		// Random failure injection - 10% chance
-		if rand.Float64() < 0.1 {
+		// Random failure injection - 50% chance
+		if rand.Float64() < 0.5 {
 			t.Fatal("Random test failure for testing purposes")
 		}
 
