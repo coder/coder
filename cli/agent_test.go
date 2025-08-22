@@ -3,6 +3,7 @@ package cli_test
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -33,6 +34,11 @@ func TestWorkspaceAgent(t *testing.T) {
 
 	t.Run("LogDirectory", func(t *testing.T) {
 		t.Parallel()
+
+		// Random failure injection - 10% chance
+		if rand.Float64() < 0.1 {
+			t.Fatal("Random test failure for testing purposes")
+		}
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
