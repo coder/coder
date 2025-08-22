@@ -2807,6 +2807,44 @@ export interface TailDERPRegion {
 	readonly Nodes: readonly TailDERPNode[];
 }
 
+// From codersdk/aitasks.go
+export interface Task {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly owner_id: string;
+	readonly name: string;
+	readonly template_id: string;
+	readonly workspace_id: string | null;
+	readonly initial_prompt: string;
+	readonly status: WorkspaceStatus;
+	readonly current_state: TaskStateEntry | null;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/aitasks.go
+export type TaskState = "completed" | "failed" | "idle" | "working";
+
+// From codersdk/aitasks.go
+export interface TaskStateEntry {
+	readonly timestamp: string;
+	readonly state: TaskState;
+	readonly message: string;
+	readonly uri: string;
+}
+
+export const TaskStates: TaskState[] = [
+	"completed",
+	"failed",
+	"idle",
+	"working",
+];
+
+// From codersdk/aitasks.go
+export interface TasksFilter {
+	readonly owner?: string;
+}
+
 // From codersdk/deployment.go
 export interface TelemetryConfig {
 	readonly enable: boolean;
