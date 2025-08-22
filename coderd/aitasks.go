@@ -374,7 +374,10 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspace, err := api.Database.GetWorkspaceByID(ctx, taskID)
+	// For now, taskID = workspaceID, once we have a task data model in
+	// the DB, we can change this lookup.
+	workspaceID := taskID
+	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
