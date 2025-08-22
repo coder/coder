@@ -2821,18 +2821,22 @@ export interface Task {
 // From codersdk/aitasks.go
 export type TaskStatus =
 	| "completed"
+	| "deleting"
 	| "failed"
 	| "idle"
-	| "paused"
-	| "queued"
+	| "pending"
+	| "starting"
+	| "stopping"
 	| "working";
 
 export const TaskStatuses: TaskStatus[] = [
 	"completed",
+	"deleting",
 	"failed",
 	"idle",
-	"paused",
-	"queued",
+	"pending",
+	"starting",
+	"stopping",
 	"working",
 ];
 

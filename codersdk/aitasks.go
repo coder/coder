@@ -72,21 +72,44 @@ func (c *ExperimentalClient) CreateTask(ctx context.Context, user string, reques
 	return workspace, nil
 }
 
-// TaskStatus represents the high-level lifecycle of a task.
+// TaskState represents the high-level lifecycle of a task.
 //
 // Experimental: This type is experimental and may change in the future.
-type TaskStatus string
+type TaskState string
 
 const (
-	TaskStatusPending   TaskStatus = "pending"
-	TaskStatusStarting  TaskStatus = "starting"
-	TaskStatusStopping  TaskStatus = "stopping"
-	TaskStatusDeleting  TaskStatus = "deleting"
-	TaskStatusWorking   TaskStatus = "working"
-	TaskStatusIdle      TaskStatus = "idle"
-	TaskStatusCompleted TaskStatus = "completed"
-	TaskStatusFailed    TaskStatus = "failed"
+	TaskStateWorking   TaskState = "working"
+	TaskStateIdle      TaskState = "idle"
+	TaskStateCompleted TaskState = "completed"
+	TaskStateFailed    TaskState = "failed"
 )
+
+// Task represents a task.
+//
+// Experimental: This type is experimental and may change in the future.
+type Task struct {
+	ID             uuid.UUID       `json:"id" format:"uuid"`
+	OrganizationID uuid.UUID       `json:"organization_id" format:"uuid"`
+	OwnerID        uuid.UUID       `json:"owner_id" format:"uuid"`
+	Name           string          `json:"name"`
+	TemplateID     uuid.UUID       `json:"template_id" format:"uuid"`
+	WorkspaceID    uuid.NullUUID   `json:"workspace_id" format:"uuid"`
+	Prompt         string          `json:"prompt"`
+	Status         WorkspaceStatus `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
+	CurrentState   *TaskStateEntry `json:"current_state"`
+	CreatedAt      time.Time       `json:"created_at" format:"date-time"`
+	UpdatedAt      time.Time       `json:"updated_at" format:"date-time"`
+}
+
+// TaskStateEntry represents a single entry in the task's state history.
+//
+// Experimental: This type is experimental and may change in the future.
+type TaskStateEntry struct {
+	Timestamp time.Time `json:"timestamp" format:"date-time"`
+	State     TaskState `json:"state" enum:"working,idle,completed,failed"`
+	Message   string    `json:"message"`
+	URI       string    `json:"uri"`
+}
 
 // TasksFilter filters the list of tasks.
 //
@@ -94,22 +117,6 @@ const (
 type TasksFilter struct {
 	// Owner can be a username, UUID, or "me"
 	Owner string `json:"owner,omitempty"`
-}
-
-// Task represents a task.
-//
-// Experimental: This type is experimental and may change in the future.
-type Task struct {
-	ID             uuid.UUID     `json:"id" format:"uuid"`
-	OrganizationID uuid.UUID     `json:"organization_id" format:"uuid"`
-	OwnerID        uuid.UUID     `json:"owner_id" format:"uuid"`
-	Name           string        `json:"name"`
-	TemplateID     uuid.UUID     `json:"template_id" format:"uuid"`
-	WorkspaceID    uuid.NullUUID `json:"workspace_id" format:"uuid"`
-	Prompt         string        `json:"prompt"`
-	Status         TaskStatus    `json:"status" enum:"pending,starting,stopping,deleting,working,idle,completed,failed"`
-	CreatedAt      time.Time     `json:"created_at" format:"date-time"`
-	UpdatedAt      time.Time     `json:"updated_at" format:"date-time"`
 }
 
 // Tasks lists all tasks belonging to the user or specified owner.

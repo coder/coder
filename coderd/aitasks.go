@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -190,49 +191,60 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	createWorkspace(ctx, aReq, apiKey.UserID, api, owner, createReq, rw, r)
 }
 
+// tasksFromWorkspaces converts a slice of API workspaces into tasks, fetching
+// prompts and mapping status/state.
+func (api *API) tasksFromWorkspaces(ctx context.Context, apiWorkspaces []codersdk.Workspace) ([]codersdk.Task, error) {
+	// Fetch prompts for each workspace build and map by build ID.
+	buildIDs := make([]uuid.UUID, 0, len(apiWorkspaces))
+	for _, ws := range apiWorkspaces {
+		buildIDs = append(buildIDs, ws.LatestBuild.ID)
+	}
+	parameters, err := api.Database.GetWorkspaceBuildParametersByBuildIDs(ctx, buildIDs)
+	if err != nil {
+		return nil, err
+	}
+	promptsByBuildID := make(map[uuid.UUID]string, len(parameters))
+	for _, p := range parameters {
+		if p.Name == codersdk.AITaskPromptParameterName {
+			promptsByBuildID[p.WorkspaceBuildID] = p.Value
+		}
+	}
+
+	tasks := make([]codersdk.Task, 0, len(apiWorkspaces))
+	for _, ws := range apiWorkspaces {
+		var currentState *codersdk.TaskStateEntry
+		if ws.LatestAppStatus != nil {
+			currentState = &codersdk.TaskStateEntry{
+				Timestamp: ws.LatestAppStatus.CreatedAt,
+				State:     codersdk.TaskState(ws.LatestAppStatus.State),
+				Message:   ws.LatestAppStatus.Message,
+				URI:       ws.LatestAppStatus.URI,
+			}
+		}
+		tasks = append(tasks, codersdk.Task{
+			ID:             ws.ID,
+			OrganizationID: ws.OrganizationID,
+			OwnerID:        ws.OwnerID,
+			Name:           ws.Name,
+			TemplateID:     ws.TemplateID,
+			WorkspaceID:    uuid.NullUUID{Valid: true, UUID: ws.ID},
+			CreatedAt:      ws.CreatedAt,
+			UpdatedAt:      ws.UpdatedAt,
+			Prompt:         promptsByBuildID[ws.LatestBuild.ID],
+			Status:         ws.LatestBuild.Status,
+			CurrentState:   currentState,
+		})
+	}
+
+	return tasks, nil
+}
+
 // tasksListResponse wraps a list of experimental tasks.
 //
 // Experimental: Response shape is experimental and may change.
 type tasksListResponse struct {
 	Tasks []codersdk.Task `json:"tasks"`
 	Count int             `json:"count"`
-}
-
-func mapTaskStatus(ws codersdk.Workspace) codersdk.TaskStatus {
-	switch ws.LatestBuild.Status {
-	case codersdk.WorkspaceStatusPending:
-		return codersdk.TaskStatusPending
-
-	case codersdk.WorkspaceStatusStarting:
-		return codersdk.TaskStatusStarting
-
-	case codersdk.WorkspaceStatusRunning:
-		if ws.LatestAppStatus != nil {
-			switch ws.LatestAppStatus.State {
-			case codersdk.WorkspaceAppStatusStateWorking:
-				return codersdk.TaskStatusWorking
-			case codersdk.WorkspaceAppStatusStateIdle:
-				return codersdk.TaskStatusIdle
-			case codersdk.WorkspaceAppStatusStateComplete:
-				return codersdk.TaskStatusCompleted
-			case codersdk.WorkspaceAppStatusStateFailure:
-				return codersdk.TaskStatusFailed
-			}
-		}
-		return codersdk.TaskStatusStarting
-
-	case codersdk.WorkspaceStatusStopping, codersdk.WorkspaceStatusStopped:
-		return codersdk.TaskStatusStopping
-
-	case codersdk.WorkspaceStatusDeleting, codersdk.WorkspaceStatusDeleted:
-		return codersdk.TaskStatusDeleting
-
-	case codersdk.WorkspaceStatusFailed, codersdk.WorkspaceStatusCanceling, codersdk.WorkspaceStatusCanceled:
-		return codersdk.TaskStatusFailed
-
-	default:
-		return codersdk.TaskStatusPending
-	}
 }
 
 // tasksList is an experimental endpoint to list AI tasks by mapping
@@ -323,40 +335,13 @@ func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch prompts for each workspace build and map by build ID.
-	buildIDs := make([]uuid.UUID, 0, len(apiWorkspaces))
-	for _, ws := range apiWorkspaces {
-		buildIDs = append(buildIDs, ws.LatestBuild.ID)
-	}
-	parameters, err := api.Database.GetWorkspaceBuildParametersByBuildIDs(ctx, buildIDs)
+	tasks, err := api.tasksFromWorkspaces(ctx, apiWorkspaces)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching task prompts.",
+			Message: "Internal error fetching task prompts and states.",
 			Detail:  err.Error(),
 		})
 		return
-	}
-	promptsByBuildID := make(map[uuid.UUID]string, len(parameters))
-	for _, p := range parameters {
-		if p.Name == codersdk.AITaskPromptParameterName {
-			promptsByBuildID[p.WorkspaceBuildID] = p.Value
-		}
-	}
-
-	tasks := make([]codersdk.Task, 0, len(apiWorkspaces))
-	for _, ws := range apiWorkspaces {
-		tasks = append(tasks, codersdk.Task{
-			ID:             ws.ID,
-			OrganizationID: ws.OrganizationID,
-			OwnerID:        ws.OwnerID,
-			Name:           ws.Name,
-			TemplateID:     ws.TemplateID,
-			WorkspaceID:    uuid.NullUUID{Valid: true, UUID: ws.ID},
-			Prompt:         promptsByBuildID[ws.LatestBuild.ID],
-			Status:         mapTaskStatus(ws),
-			CreatedAt:      ws.CreatedAt,
-			UpdatedAt:      ws.UpdatedAt,
-		})
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, tasksListResponse{
@@ -432,35 +417,14 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch the AI prompt from the build parameters.
-	params, err := api.Database.GetWorkspaceBuildParametersByBuildIDs(ctx, []uuid.UUID{ws.LatestBuild.ID})
+	tasks, err := api.tasksFromWorkspaces(ctx, []codersdk.Workspace{ws})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching task prompt.",
+			Message: "Internal error fetching task prompt and state.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	prompt := ""
-	for _, p := range params {
-		if p.Name == codersdk.AITaskPromptParameterName {
-			prompt = p.Value
-			break
-		}
-	}
 
-	resp := codersdk.Task{
-		ID:             ws.ID,
-		OrganizationID: ws.OrganizationID,
-		OwnerID:        ws.OwnerID,
-		Name:           ws.Name,
-		TemplateID:     ws.TemplateID,
-		WorkspaceID:    uuid.NullUUID{Valid: true, UUID: ws.ID},
-		Prompt:         prompt,
-		Status:         mapTaskStatus(ws),
-		CreatedAt:      ws.CreatedAt,
-		UpdatedAt:      ws.UpdatedAt,
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, resp)
+	httpapi.Write(ctx, rw, http.StatusOK, tasks[0])
 }
