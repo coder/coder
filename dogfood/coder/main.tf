@@ -254,7 +254,7 @@ data "coder_parameter" "ai_prompt" {
   name        = "AI Prompt"
   default     = ""
   description = "Prompt for Claude Code"
-  mutable     = true // MUST be mutable, otherwise claiming a prebuild may fail.
+  mutable     = true // You may wish to change the prompt, so mutability here is desirable.
 }
 
 provider "docker" {
