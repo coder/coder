@@ -1,7 +1,7 @@
 # Prebuilt workspaces
 
 Prebuilt workspaces (prebuilds) reduce workspace creation time with an automatically-maintained pool of
-ready-to-use workspaces.
+ready-to-use workspaces for specific parameter presets.
 
 The template administrator defines the prebuilt workspace's parameters and number of instances to keep provisioned.
 When a developer creates a new workspace that matches the definition, Coder assigns them an existing prebuilt workspace.
