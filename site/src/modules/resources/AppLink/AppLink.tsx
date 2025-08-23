@@ -1,5 +1,6 @@
 import type * as TypesGen from "api/typesGenerated";
 import { DropdownMenuItem } from "components/DropdownMenu/DropdownMenu";
+import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -11,7 +12,7 @@ import { useProxy } from "contexts/ProxyContext";
 import { CircleAlertIcon } from "lucide-react";
 import { isExternalApp, needsSessionToken } from "modules/apps/apps";
 import { useAppLink } from "modules/apps/useAppLink";
-import { type FC, useState } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { AgentButton } from "../AgentButton";
 import { BaseIcon } from "./BaseIcon";
 import { ShareIcon } from "./ShareIcon";
@@ -41,6 +42,7 @@ export const AppLink: FC<AppLinkProps> = ({
 	const host = proxy.preferredWildcardHostname;
 	const [iconError, setIconError] = useState(false);
 	const link = useAppLink(app, { agent, workspace });
+	const subdomain = new URL(link.href).hostname.split(".")[0];
 
 	// canClick is ONLY false when it's a subdomain app and the admin hasn't
 	// enabled wildcard access URL or the session token is being fetched.
@@ -48,7 +50,7 @@ export const AppLink: FC<AppLinkProps> = ({
 	// To avoid bugs in the healthcheck code locking users out of apps, we no
 	// longer block access to apps if they are unhealthy/initializing.
 	let canClick = true;
-	let primaryTooltip = "";
+	let primaryTooltip: ReactNode = "";
 	let icon = !iconError && (
 		<BaseIcon app={app} onIconPathError={() => setIconError(true)} />
 	);
@@ -78,6 +80,28 @@ export const AppLink: FC<AppLinkProps> = ({
 		);
 		primaryTooltip =
 			"Your admin has not configured subdomain application access";
+	}
+
+	if (subdomain.length > 63) {
+		icon = (
+			<CircleAlertIcon
+				aria-hidden="true"
+				className="size-icon-sm text-content-warning"
+			/>
+		);
+		primaryTooltip = (
+			<>
+				Port forwarding will not work because hostname is too long, see the{" "}
+				<Link
+					href="https://coder.com/docs/user-guides/workspace-access/port-forwarding#dashboard"
+					target="_blank"
+					size="sm"
+				>
+					documentation
+				</Link>{" "}
+				for more details
+			</>
+		);
 	}
 
 	if (isExternalApp(app) && needsSessionToken(app) && !link.hasToken) {
