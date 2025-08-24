@@ -88,6 +88,8 @@ type sqlcQuerier interface {
 	DeleteCoordinator(ctx context.Context, id uuid.UUID) error
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
+	DeleteExpiredOAuth2ProviderAppCodes(ctx context.Context) error
+	DeleteExpiredOAuth2ProviderAppTokens(ctx context.Context) error
 	DeleteExpiredOAuth2ProviderDeviceCodes(ctx context.Context) error
 	DeleteExternalAuthLink(ctx context.Context, arg DeleteExternalAuthLinkParams) error
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error

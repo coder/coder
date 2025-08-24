@@ -525,6 +525,34 @@ func (mr *MockStoreMockRecorder) DeleteCustomRole(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCustomRole", reflect.TypeOf((*MockStore)(nil).DeleteCustomRole), ctx, arg)
 }
 
+// DeleteExpiredOAuth2ProviderAppCodes mocks base method.
+func (m *MockStore) DeleteExpiredOAuth2ProviderAppCodes(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteExpiredOAuth2ProviderAppCodes", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteExpiredOAuth2ProviderAppCodes indicates an expected call of DeleteExpiredOAuth2ProviderAppCodes.
+func (mr *MockStoreMockRecorder) DeleteExpiredOAuth2ProviderAppCodes(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredOAuth2ProviderAppCodes", reflect.TypeOf((*MockStore)(nil).DeleteExpiredOAuth2ProviderAppCodes), ctx)
+}
+
+// DeleteExpiredOAuth2ProviderAppTokens mocks base method.
+func (m *MockStore) DeleteExpiredOAuth2ProviderAppTokens(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteExpiredOAuth2ProviderAppTokens", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteExpiredOAuth2ProviderAppTokens indicates an expected call of DeleteExpiredOAuth2ProviderAppTokens.
+func (mr *MockStoreMockRecorder) DeleteExpiredOAuth2ProviderAppTokens(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredOAuth2ProviderAppTokens", reflect.TypeOf((*MockStore)(nil).DeleteExpiredOAuth2ProviderAppTokens), ctx)
+}
+
 // DeleteExpiredOAuth2ProviderDeviceCodes mocks base method.
 func (m *MockStore) DeleteExpiredOAuth2ProviderDeviceCodes(ctx context.Context) error {
 	m.ctrl.T.Helper()
