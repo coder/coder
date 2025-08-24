@@ -221,3 +221,54 @@ func revokeAPIKeyInTx(ctx context.Context, db database.Store, token string, appI
 
 	return nil
 }
+
+// RevokeAppTokens implements bulk revocation of all OAuth2 tokens and codes for a specific app and user
+func RevokeAppTokens(db database.Store) http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := httpmw.APIKey(r)
+		app := httpmw.OAuth2ProviderApp(r)
+
+		err := db.InTx(func(tx database.Store) error {
+			// Delete all authorization codes for this app and user
+			err := tx.DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx, database.DeleteOAuth2ProviderAppCodesByAppAndUserIDParams{
+				AppID:  app.ID,
+				UserID: apiKey.UserID,
+			})
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+
+			// Delete all tokens for this app and user (handles authorization code flow)
+			err = tx.DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, database.DeleteOAuth2ProviderAppTokensByAppAndUserIDParams{
+				AppID:  app.ID,
+				UserID: apiKey.UserID,
+			})
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+
+			// For client credentials flow: if the app has an owner, also delete tokens for the app owner
+			// Client credentials tokens are created with UserID = app.UserID.UUID (the app owner)
+			if app.UserID.Valid && app.UserID.UUID != apiKey.UserID {
+				// Delete client credentials tokens that belong to the app owner
+				err = tx.DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, database.DeleteOAuth2ProviderAppTokensByAppAndUserIDParams{
+					AppID:  app.ID,
+					UserID: app.UserID.UUID,
+				})
+				if err != nil && !errors.Is(err, sql.ErrNoRows) {
+					return err
+				}
+			}
+
+			return nil
+		}, nil)
+		if err != nil {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError, "server_error", "Internal server error")
+			return
+		}
+
+		// Successful revocation returns HTTP 204 No Content
+		rw.WriteHeader(http.StatusNoContent)
+	}
+}
