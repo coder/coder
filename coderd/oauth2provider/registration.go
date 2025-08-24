@@ -87,7 +87,6 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 			UpdatedAt:               now,
 			Name:                    clientName,
 			Icon:                    req.LogoURI,
-			CallbackURL:             req.RedirectURIs[0], // Primary redirect URI
 			RedirectUris:            req.RedirectURIs,
 			ClientType:              sql.NullString{String: req.DetermineClientType(), Valid: true},
 			DynamicallyRegistered:   sql.NullBool{Bool: true, Valid: true},
@@ -307,7 +306,6 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			UpdatedAt:               now,
 			Name:                    req.GenerateClientName(),
 			Icon:                    req.LogoURI,
-			CallbackURL:             req.RedirectURIs[0], // Primary redirect URI
 			RedirectUris:            req.RedirectURIs,
 			ClientType:              sql.NullString{String: req.DetermineClientType(), Valid: true},
 			ClientSecretExpiresAt:   sql.NullTime{}, // No expiration for now

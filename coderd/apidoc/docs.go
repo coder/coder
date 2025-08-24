@@ -2474,7 +2474,7 @@ const docTemplate = `{
         "/oauth2/device": {
             "post": {
                 "consumes": [
-                    "application/json"
+                    "application/x-www-form-urlencoded"
                 ],
                 "produces": [
                     "application/json"
@@ -14434,9 +14434,6 @@ const docTemplate = `{
         "codersdk.OAuth2ProviderApp": {
             "type": "object",
             "properties": {
-                "callback_url": {
-                    "type": "string"
-                },
                 "endpoints": {
                     "description": "Endpoints are included in the app response for easier discovery. The OAuth2\nspec does not have a defined place to find these (for comparison, OIDC has\na '/.well-known/openid-configuration' endpoint).",
                     "allOf": [
@@ -14454,6 +14451,12 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "redirect_uris": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -15047,18 +15050,22 @@ const docTemplate = `{
         "codersdk.PostOAuth2ProviderAppRequest": {
             "type": "object",
             "required": [
-                "callback_url",
-                "name"
+                "name",
+                "redirect_uris"
             ],
             "properties": {
-                "callback_url": {
-                    "type": "string"
-                },
                 "icon": {
                     "type": "string"
                 },
                 "name": {
                     "type": "string"
+                },
+                "redirect_uris": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -15787,18 +15794,22 @@ const docTemplate = `{
         "codersdk.PutOAuth2ProviderAppRequest": {
             "type": "object",
             "required": [
-                "callback_url",
-                "name"
+                "name",
+                "redirect_uris"
             ],
             "properties": {
-                "callback_url": {
-                    "type": "string"
-                },
                 "icon": {
                     "type": "string"
                 },
                 "name": {
                     "type": "string"
+                },
+                "redirect_uris": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

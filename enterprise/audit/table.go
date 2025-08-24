@@ -273,7 +273,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"updated_at":             ActionIgnore,
 		"name":                   ActionTrack,
 		"icon":                   ActionTrack,
-		"callback_url":           ActionTrack,
 		"redirect_uris":          ActionTrack,
 		"client_type":            ActionTrack,
 		"dynamically_registered": ActionTrack,
