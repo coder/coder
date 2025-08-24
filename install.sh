@@ -585,7 +585,7 @@ with_terraform() {
 	fi
 	# Prepare /usr/local/bin/ and the binary for copying
 	"$sh_c" mkdir -p "$TERRAFORM_INSTALL_PREFIX/bin"
-	"$sh_c" unzip -d "$CACHE_DIR" -o "$CACHE_DIR/terraform_${TERRAFORM_VERSION}_${OS}_${TERRAFORM_ARCH}.zip"
+	"$sh_c" unzip -d "$CACHE_DIR" -o "$CACHE_DIR/terraform_${TERRAFORM_VERSION}_${OS}_${ARCH}.zip"
 	COPY_LOCATION="$TERRAFORM_INSTALL_PREFIX/bin/terraform"
 
 	# Remove the file if it already exists to
