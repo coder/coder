@@ -26,13 +26,13 @@ func TestSubjectEqual(t *testing.T) {
 				ID:     "id",
 				Roles:  rbac.RoleIdentifiers{rbac.RoleMember()},
 				Groups: []string{"group"},
-				Scope:  rbac.ScopeAll,
+				Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 			},
 			B: rbac.Subject{
 				ID:     "id",
 				Roles:  rbac.RoleIdentifiers{rbac.RoleMember()},
 				Groups: []string{"group"},
-				Scope:  rbac.ScopeAll,
+				Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 			},
 			Expected: true,
 		},
@@ -109,10 +109,10 @@ func TestSubjectEqual(t *testing.T) {
 		{
 			Name: "DifferentScope",
 			A: rbac.Subject{
-				Scope: rbac.ScopeAll,
+				Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 			},
 			B: rbac.Subject{
-				Scope: rbac.ScopeApplicationConnect,
+				Scopes: []rbac.ExpandableScope{rbac.ScopeApplicationConnect},
 			},
 			Expected: false,
 		},

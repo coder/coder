@@ -58,10 +58,33 @@ func WorkspaceAgentScope(params WorkspaceAgentScopeParams) Scope {
 }
 
 const (
+	// Existing scopes (unchanged)
 	ScopeAll                ScopeName = "all"
 	ScopeApplicationConnect ScopeName = "application_connect"
 	ScopeNoUserData         ScopeName = "no_user_data"
+
+	// New granular scopes
+	ScopeUserRead          ScopeName = "user:read"
+	ScopeUserWrite         ScopeName = "user:write"
+	ScopeWorkspaceRead     ScopeName = "workspace:read"
+	ScopeWorkspaceWrite    ScopeName = "workspace:write"
+	ScopeWorkspaceSSH      ScopeName = "workspace:ssh"
+	ScopeWorkspaceApps     ScopeName = "workspace:apps"
+	ScopeTemplateRead      ScopeName = "template:read"
+	ScopeTemplateWrite     ScopeName = "template:write"
+	ScopeOrganizationRead  ScopeName = "organization:read"
+	ScopeOrganizationWrite ScopeName = "organization:write"
+	ScopeAuditRead         ScopeName = "audit:read"
+	ScopeSystemRead        ScopeName = "system:read"
+	ScopeSystemWrite       ScopeName = "system:write"
 )
+
+// AdditionalPermissions represents additional permissions for write scopes
+type AdditionalPermissions struct {
+	Site map[string][]policy.Action // Site-level permissions
+	Org  map[string][]Permission    // Organization-level permissions
+	User []Permission               // User-level permissions
+}
 
 // TODO: Support passing in scopeID list for allowlisting resources.
 var builtinScopes = map[ScopeName]Scope{
@@ -100,6 +123,213 @@ var builtinScopes = map[ScopeName]Scope{
 			Site:        allPermsExcept(ResourceUser),
 			Org:         map[string][]Permission{},
 			User:        []Permission{},
+		},
+		AllowIDList: []string{policy.WildcardSymbol},
+	},
+
+	// User scopes (read + write pair)
+	ScopeUserRead: {
+		Role: Role{
+			Identifier:  RoleIdentifier{Name: "Scope_user:read"},
+			DisplayName: "Read user profile",
+			Site: Permissions(map[string][]policy.Action{
+				ResourceUser.Type: {policy.ActionReadPersonal},
+			}),
+			Org:  map[string][]Permission{},
+			User: []Permission{},
+		},
+		AllowIDList: []string{policy.WildcardSymbol},
+	},
+
+	ScopeUserWrite: {
+		Role: Role{
+			Identifier:  RoleIdentifier{Name: "Scope_user:write"},
+			DisplayName: "Manage user profile",
+			Site: Permissions(map[string][]policy.Action{
+				ResourceUser.Type: {policy.ActionReadPersonal, policy.ActionUpdatePersonal},
+			}),
+			Org:  map[string][]Permission{},
+			User: []Permission{},
+		},
+		AllowIDList: []string{policy.WildcardSymbol},
+	},
+
+	// Workspace scopes (read + write pair)
+	ScopeWorkspaceRead: {
+		Role: Role{
+			Identifier:  RoleIdentifier{Name: "Scope_workspace:read"},
+			DisplayName: "Read workspaces",
+			Site: Permissions(map[string][]policy.Action{
+				ResourceWorkspace.Type: {policy.ActionRead},
+			}),
+			Org: map[string][]Permission{
+				ResourceWorkspace.Type: {{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead}},
+			},
+			User: []Permission{},
+		},
+		AllowIDList: []string{policy.WildcardSymbol},
+	},
+
+	ScopeWorkspaceWrite: {
+		Role: Role{
+			Identifier:  RoleIdentifier{Name: "Scope_workspace:write"},
+			DisplayName: "Manage workspaces",
+			Site: Permissions(map[string][]policy.Action{
+				ResourceWorkspace.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+			}),
+			Org: map[string][]Permission{
+				ResourceWorkspace.Type: {
+					{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead},
+					{ResourceType: ResourceWorkspace.Type, Action: policy.ActionCreate},
+					{ResourceType: ResourceWorkspace.Type, Action: policy.ActionUpdate},
+					{ResourceType: ResourceWorkspace.Type, Action: policy.ActionDelete},
+				},
+			},
+			User: []Permission{},
+		},
+		AllowIDList: []string{policy.WildcardSymbol},
+	},
+
+	// Workspace special scopes (SSH and Apps)
+	ScopeWorkspaceSSH: {
+		Role: Role{
+			Identifier:  RoleIdentifier{Name: "Scope_workspace:ssh"},
+			DisplayName: "SSH to workspaces",
+			Site: Permissions(map[string][]policy.Action{
+				ResourceWorkspace.Type: {policy.ActionSSH},
+			}),
+			Org: map[string][]Permission{
+				ResourceWorkspace.Type: {{ResourceType: ResourceWorkspace.Type, Action: policy.ActionSSH}},
+			},
+			User: []Permission{},
+		},
+		AllowIDList: []string{policy.WildcardSymbol},
+	},
+
+	ScopeWorkspaceApps: {
+		Role: Role{
+			Identifier:  RoleIdentifier{Name: "Scope_workspace:apps"},
+			DisplayName: "Connect to workspace applications",
+			Site: Permissions(map[string][]policy.Action{
+				ResourceWorkspace.Type: {policy.ActionApplicationConnect},
+			}),
+			Org: map[string][]Permission{
+				ResourceWorkspace.Type: {{ResourceType: ResourceWorkspace.Type, Action: policy.ActionApplicationConnect}},
+			},
+			User: []Permission{},
+		},
+		AllowIDList: []string{policy.WildcardSymbol},
+	},
+
+	// Template scopes (read + write pair)
+	ScopeTemplateRead: {
+		Role: Role{
+			Identifier:  RoleIdentifier{Name: "Scope_template:read"},
+			DisplayName: "Read templates",
+			Site: Permissions(map[string][]policy.Action{
+				ResourceTemplate.Type: {policy.ActionRead},
+			}),
+			Org: map[string][]Permission{
+				ResourceTemplate.Type: {{ResourceType: ResourceTemplate.Type, Action: policy.ActionRead}},
+			},
+			User: []Permission{},
+		},
+		AllowIDList: []string{policy.WildcardSymbol},
+	},
+
+	ScopeTemplateWrite: {
+		Role: Role{
+			Identifier:  RoleIdentifier{Name: "Scope_template:write"},
+			DisplayName: "Manage templates",
+			Site: Permissions(map[string][]policy.Action{
+				ResourceTemplate.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+			}),
+			Org: map[string][]Permission{
+				ResourceTemplate.Type: {
+					{ResourceType: ResourceTemplate.Type, Action: policy.ActionRead},
+					{ResourceType: ResourceTemplate.Type, Action: policy.ActionCreate},
+					{ResourceType: ResourceTemplate.Type, Action: policy.ActionUpdate},
+					{ResourceType: ResourceTemplate.Type, Action: policy.ActionDelete},
+				},
+			},
+			User: []Permission{},
+		},
+		AllowIDList: []string{policy.WildcardSymbol},
+	},
+
+	// Organization scopes (read + write pair)
+	ScopeOrganizationRead: {
+		Role: Role{
+			Identifier:  RoleIdentifier{Name: "Scope_organization:read"},
+			DisplayName: "Read organization",
+			Site: Permissions(map[string][]policy.Action{
+				ResourceOrganization.Type: {policy.ActionRead},
+			}),
+			Org: map[string][]Permission{
+				ResourceOrganization.Type: {{ResourceType: ResourceOrganization.Type, Action: policy.ActionRead}},
+			},
+			User: []Permission{},
+		},
+		AllowIDList: []string{policy.WildcardSymbol},
+	},
+
+	ScopeOrganizationWrite: {
+		Role: Role{
+			Identifier:  RoleIdentifier{Name: "Scope_organization:write"},
+			DisplayName: "Manage organization",
+			Site: Permissions(map[string][]policy.Action{
+				ResourceOrganization.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+			}),
+			Org: map[string][]Permission{
+				ResourceOrganization.Type: {
+					{ResourceType: ResourceOrganization.Type, Action: policy.ActionRead},
+					{ResourceType: ResourceOrganization.Type, Action: policy.ActionCreate},
+					{ResourceType: ResourceOrganization.Type, Action: policy.ActionUpdate},
+					{ResourceType: ResourceOrganization.Type, Action: policy.ActionDelete},
+				},
+			},
+			User: []Permission{},
+		},
+		AllowIDList: []string{policy.WildcardSymbol},
+	},
+
+	// Audit scopes (read only - no write needed)
+	ScopeAuditRead: {
+		Role: Role{
+			Identifier:  RoleIdentifier{Name: "Scope_audit:read"},
+			DisplayName: "Read audit logs",
+			Site: Permissions(map[string][]policy.Action{
+				ResourceAuditLog.Type: {policy.ActionRead},
+			}),
+			Org:  map[string][]Permission{},
+			User: []Permission{},
+		},
+		AllowIDList: []string{policy.WildcardSymbol},
+	},
+
+	// System scopes (read + write pair)
+	ScopeSystemRead: {
+		Role: Role{
+			Identifier:  RoleIdentifier{Name: "Scope_system:read"},
+			DisplayName: "Read system information",
+			Site: Permissions(map[string][]policy.Action{
+				ResourceSystem.Type: {policy.ActionRead},
+			}),
+			Org:  map[string][]Permission{},
+			User: []Permission{},
+		},
+		AllowIDList: []string{policy.WildcardSymbol},
+	},
+
+	ScopeSystemWrite: {
+		Role: Role{
+			Identifier:  RoleIdentifier{Name: "Scope_system:write"},
+			DisplayName: "Manage system",
+			Site: Permissions(map[string][]policy.Action{
+				ResourceSystem.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+			}),
+			Org:  map[string][]Permission{},
+			User: []Permission{},
 		},
 		AllowIDList: []string{policy.WildcardSymbol},
 	},

@@ -30,7 +30,7 @@ func TestInsertCustomRoles(t *testing.T) {
 			ID:           userID.String(),
 			Roles:        roles,
 			Groups:       nil,
-			Scope:        rbac.ScopeAll,
+			Scopes:       []rbac.ExpandableScope{rbac.ScopeAll},
 		}
 	}
 

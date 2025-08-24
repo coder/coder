@@ -92,7 +92,7 @@ func TestInTX(t *testing.T) {
 		ID:     uuid.NewString(),
 		Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
 		Groups: []string{},
-		Scope:  rbac.ScopeAll,
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	}
 	u := dbgen.User(t, db, database.User{})
 	o := dbgen.Organization(t, db, database.Organization{})
@@ -165,7 +165,7 @@ func TestDBAuthzRecursive(t *testing.T) {
 		ID:     uuid.NewString(),
 		Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
 		Groups: []string{},
-		Scope:  rbac.ScopeAll,
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	}
 	for i := 0; i < reflect.TypeOf(q).NumMethod(); i++ {
 		var ins []reflect.Value
@@ -263,7 +263,7 @@ func (s *MethodTestSuite) TestAPIKey() {
 		check.Args(database.InsertAPIKeyParams{
 			UserID:    u.ID,
 			LoginType: database.LoginTypePassword,
-			Scope:     database.APIKeyScopeAll,
+			Scopes:    []database.APIKeyScope{database.APIKeyScopeAll},
 			IPAddress: defaultIPAddress(),
 		}).Asserts(rbac.ResourceApiKey.WithOwner(u.ID.String()), policy.ActionCreate)
 	}))
@@ -280,7 +280,7 @@ func (s *MethodTestSuite) TestAPIKey() {
 	s.Run("DeleteApplicationConnectAPIKeysByUserID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		a, _ := dbgen.APIKey(s.T(), db, database.APIKey{
-			Scope: database.APIKeyScopeApplicationConnect,
+			Scopes: []database.APIKeyScope{database.APIKeyScopeApplicationConnect},
 		})
 		check.Args(a.UserID).Asserts(rbac.ResourceApiKey.WithOwner(a.UserID.String()), policy.ActionDelete).Returns()
 	}))
@@ -5276,7 +5276,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 				GrantTypes:              app1.GrantTypes,
 				ResponseTypes:           app1.ResponseTypes,
 				TokenEndpointAuthMethod: app1.TokenEndpointAuthMethod,
-				Scope:                   app1.Scope,
+				Scopes:                  app1.Scopes,
 				Contacts:                app1.Contacts,
 				ClientUri:               app1.ClientUri,
 				LogoUri:                 app1.LogoUri,
@@ -5306,7 +5306,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 				GrantTypes:              app2.GrantTypes,
 				ResponseTypes:           app2.ResponseTypes,
 				TokenEndpointAuthMethod: app2.TokenEndpointAuthMethod,
-				Scope:                   app2.Scope,
+				Scopes:                  app2.Scopes,
 				Contacts:                app2.Contacts,
 				ClientUri:               app2.ClientUri,
 				LogoUri:                 app2.LogoUri,
@@ -5346,7 +5346,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 			GrantTypes:              app.GrantTypes,
 			ResponseTypes:           app.ResponseTypes,
 			TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
-			Scope:                   app.Scope,
+			Scopes:                  app.Scopes,
 			Contacts:                app.Contacts,
 			ClientUri:               app.ClientUri,
 			LogoUri:                 app.LogoUri,
@@ -5413,6 +5413,18 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 			GrantTypes:              []string{"authorization_code", "refresh_token"},
 			ResponseTypes:           []string{"code"},
 			TokenEndpointAuthMethod: sql.NullString{String: "client_secret_basic", Valid: true},
+			Scopes:                  []database.APIKeyScope{},
+			Contacts:                []string{},
+			ClientUri:               sql.NullString{},
+			LogoUri:                 sql.NullString{},
+			TosUri:                  sql.NullString{},
+			PolicyUri:               sql.NullString{},
+			JwksUri:                 sql.NullString{},
+			Jwks:                    pqtype.NullRawMessage{},
+			SoftwareID:              sql.NullString{},
+			SoftwareVersion:         sql.NullString{},
+			RegistrationAccessToken: sql.NullString{},
+			RegistrationClientUri:   sql.NullString{},
 		}).Asserts(rbac.ResourceOauth2App, policy.ActionCreate)
 	}))
 	s.Run("UpdateOAuth2ProviderAppByID", s.Subtest(func(db database.Store, check *expects) {
@@ -5431,7 +5443,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 			GrantTypes:              app.GrantTypes,
 			ResponseTypes:           app.ResponseTypes,
 			TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
-			Scope:                   app.Scope,
+			Scopes:                  app.Scopes,
 			Contacts:                app.Contacts,
 			ClientUri:               app.ClientUri,
 			LogoUri:                 app.LogoUri,
@@ -5478,7 +5490,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 				GrantTypes:              app1.GrantTypes,
 				ResponseTypes:           app1.ResponseTypes,
 				TokenEndpointAuthMethod: app1.TokenEndpointAuthMethod,
-				Scope:                   app1.Scope,
+				Scopes:                  app1.Scopes,
 				Contacts:                app1.Contacts,
 				ClientUri:               app1.ClientUri,
 				LogoUri:                 app1.LogoUri,
@@ -5508,7 +5520,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 				GrantTypes:              app2.GrantTypes,
 				ResponseTypes:           app2.ResponseTypes,
 				TokenEndpointAuthMethod: app2.TokenEndpointAuthMethod,
-				Scope:                   app2.Scope,
+				Scopes:                  app2.Scopes,
 				Contacts:                app2.Contacts,
 				ClientUri:               app2.ClientUri,
 				LogoUri:                 app2.LogoUri,
@@ -5556,7 +5568,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 			GrantTypes:              app.GrantTypes,
 			ResponseTypes:           app.ResponseTypes,
 			TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
-			Scope:                   app.Scope,
+			Scopes:                  app.Scopes,
 			Contacts:                app.Contacts,
 			ClientUri:               app.ClientUri,
 			LogoUri:                 app.LogoUri,

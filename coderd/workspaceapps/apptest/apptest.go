@@ -2007,7 +2007,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			sessionTokens := []string{client.SessionToken()}
 			if client.SessionToken() != "" {
 				token, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
-					Scope: codersdk.APIKeyScopeApplicationConnect,
+					Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeApplicationConnect},
 				})
 				require.NoError(t, err)
 

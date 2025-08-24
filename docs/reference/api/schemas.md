@@ -345,7 +345,9 @@
   "last_used": "2019-08-24T14:15:22Z",
   "lifetime_seconds": 0,
   "login_type": "password",
-  "scope": "all",
+  "scopes": [
+    "all"
+  ],
   "token_name": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
@@ -354,29 +356,27 @@
 
 ### Properties
 
-| Name               | Type                                         | Required | Restrictions | Description |
-|--------------------|----------------------------------------------|----------|--------------|-------------|
-| `created_at`       | string                                       | true     |              |             |
-| `expires_at`       | string                                       | true     |              |             |
-| `id`               | string                                       | true     |              |             |
-| `last_used`        | string                                       | true     |              |             |
-| `lifetime_seconds` | integer                                      | true     |              |             |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)     | true     |              |             |
-| `scope`            | [codersdk.APIKeyScope](#codersdkapikeyscope) | true     |              |             |
-| `token_name`       | string                                       | true     |              |             |
-| `updated_at`       | string                                       | true     |              |             |
-| `user_id`          | string                                       | true     |              |             |
+| Name               | Type                                                  | Required | Restrictions | Description     |
+|--------------------|-------------------------------------------------------|----------|--------------|-----------------|
+| `created_at`       | string                                                | true     |              |                 |
+| `expires_at`       | string                                                | true     |              |                 |
+| `id`               | string                                                | true     |              |                 |
+| `last_used`        | string                                                | true     |              |                 |
+| `lifetime_seconds` | integer                                               | true     |              |                 |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)              | true     |              |                 |
+| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | true     |              | New array field |
+| `token_name`       | string                                                | true     |              |                 |
+| `updated_at`       | string                                                | true     |              |                 |
+| `user_id`          | string                                                | true     |              |                 |
 
 #### Enumerated Values
 
-| Property     | Value                 |
-|--------------|-----------------------|
-| `login_type` | `password`            |
-| `login_type` | `github`              |
-| `login_type` | `oidc`                |
-| `login_type` | `token`               |
-| `scope`      | `all`                 |
-| `scope`      | `application_connect` |
+| Property     | Value      |
+|--------------|------------|
+| `login_type` | `password` |
+| `login_type` | `github`   |
+| `login_type` | `oidc`     |
+| `login_type` | `token`    |
 
 ## codersdk.APIKeyScope
 
@@ -392,6 +392,19 @@
 |-----------------------|
 | `all`                 |
 | `application_connect` |
+| `user:read`           |
+| `user:write`          |
+| `workspace:read`      |
+| `workspace:write`     |
+| `workspace:ssh`       |
+| `workspace:apps`      |
+| `template:read`       |
+| `template:write`      |
+| `organization:read`   |
+| `organization:write`  |
+| `audit:read`          |
+| `system:read`         |
+| `system:write`        |
 
 ## codersdk.AddLicenseRequest
 
@@ -1663,25 +1676,20 @@ This is required on creation to enable a user-flow of validating a template work
 ```json
 {
   "lifetime": 0,
-  "scope": "all",
+  "scopes": [
+    "all"
+  ],
   "token_name": "string"
 }
 ```
 
 ### Properties
 
-| Name         | Type                                         | Required | Restrictions | Description |
-|--------------|----------------------------------------------|----------|--------------|-------------|
-| `lifetime`   | integer                                      | false    |              |             |
-| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
-| `token_name` | string                                       | false    |              |             |
-
-#### Enumerated Values
-
-| Property | Value                 |
-|----------|-----------------------|
-| `scope`  | `all`                 |
-| `scope`  | `application_connect` |
+| Name         | Type                                                  | Required | Restrictions | Description |
+|--------------|-------------------------------------------------------|----------|--------------|-------------|
+| `lifetime`   | integer                                               | false    |              |             |
+| `scopes`     | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
+| `token_name` | string                                                | false    |              |             |
 
 ## codersdk.CreateUserRequestWithOrgs
 

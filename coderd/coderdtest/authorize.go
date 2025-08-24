@@ -63,12 +63,17 @@ func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsse
 	roleNames, err := roles.RoleNames()
 	require.NoError(t, err)
 
+	scopes := make([]rbac.ExpandableScope, len(key.Scopes))
+	for i, scope := range key.Scopes {
+		scopes[i] = rbac.ScopeName(scope)
+	}
+
 	return RBACAsserter{
 		Subject: rbac.Subject{
 			ID:     key.UserID.String(),
 			Roles:  rbac.RoleIdentifiers(roleNames),
 			Groups: roles.Groups,
-			Scope:  rbac.ScopeName(key.Scope),
+			Scopes: scopes,
 		},
 		Recorder: recorder,
 	}
@@ -472,7 +477,7 @@ func RandomRBACSubject() rbac.Subject {
 		ID:     uuid.NewString(),
 		Roles:  rbac.RoleIdentifiers{rbac.RoleMember()},
 		Groups: []string{namesgenerator.GetRandomName(1)},
-		Scope:  rbac.ScopeAll,
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	}
 }
 

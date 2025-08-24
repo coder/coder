@@ -220,7 +220,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"login_type":       ActionIgnore,
 		"lifetime_seconds": ActionIgnore,
 		"ip_address":       ActionIgnore,
-		"scope":            ActionIgnore,
+		"scopes":           ActionTrack, // New array field for granular scopes
 		"token_name":       ActionIgnore,
 	},
 	&database.AuditOAuthConvertState{}: {
@@ -283,7 +283,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"grant_types":                ActionTrack,  // Security relevant - authorization capabilities
 		"response_types":             ActionTrack,  // Security relevant - response flow types
 		"token_endpoint_auth_method": ActionTrack,  // Security relevant - auth method
-		"scope":                      ActionTrack,  // Security relevant - permissions scope
+		"scopes":                     ActionTrack,  // Security relevant - permissions scope array
 		"contacts":                   ActionTrack,  // Contact info for responsible parties
 		"client_uri":                 ActionTrack,  // Client identification info
 		"logo_uri":                   ActionTrack,  // Client branding

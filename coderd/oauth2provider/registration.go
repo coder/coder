@@ -32,6 +32,19 @@ const (
 	displaySecretLength = 6  // Length of visible part in UI (last 6 characters)
 )
 
+// convertScopesToStrings converts a slice of APIKeyScope to a slice of strings
+func convertScopesToStrings(scopes []database.APIKeyScope) []string {
+	if len(scopes) == 0 {
+		return []string{}
+	}
+
+	result := make([]string, len(scopes))
+	for i, scope := range scopes {
+		result[i] = string(scope)
+	}
+	return result
+}
+
 // CreateDynamicClientRegistration returns an http.HandlerFunc that handles POST /oauth2/register
 func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, auditor *audit.Auditor, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
@@ -96,7 +109,7 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 			GrantTypes:              req.GrantTypes,
 			ResponseTypes:           req.ResponseTypes,
 			TokenEndpointAuthMethod: sql.NullString{String: req.TokenEndpointAuthMethod, Valid: true},
-			Scope:                   sql.NullString{String: req.Scope, Valid: true},
+			Scopes:                  parseScopeString(req.Scope), // Parse scope string into array
 			Contacts:                req.Contacts,
 			ClientUri:               sql.NullString{String: req.ClientURI, Valid: req.ClientURI != ""},
 			LogoUri:                 sql.NullString{String: req.LogoURI, Valid: req.LogoURI != ""},
@@ -166,7 +179,7 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 			GrantTypes:              app.GrantTypes,
 			ResponseTypes:           app.ResponseTypes,
 			TokenEndpointAuthMethod: app.TokenEndpointAuthMethod.String,
-			Scope:                   app.Scope.String,
+			Scope:                   strings.Join(convertScopesToStrings(app.Scopes), " "),
 			Contacts:                app.Contacts,
 			RegistrationAccessToken: registrationToken,
 			RegistrationClientURI:   app.RegistrationClientUri.String,
@@ -229,7 +242,7 @@ func GetClientConfiguration(db database.Store) http.HandlerFunc {
 			GrantTypes:              app.GrantTypes,
 			ResponseTypes:           app.ResponseTypes,
 			TokenEndpointAuthMethod: app.TokenEndpointAuthMethod.String,
-			Scope:                   app.Scope.String,
+			Scope:                   strings.Join(convertScopesToStrings(app.Scopes), " "),
 			Contacts:                app.Contacts,
 			RegistrationAccessToken: "", // RFC 7592: Not returned in GET responses for security
 			RegistrationClientURI:   app.RegistrationClientUri.String,
@@ -314,7 +327,7 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			GrantTypes:              req.GrantTypes,
 			ResponseTypes:           req.ResponseTypes,
 			TokenEndpointAuthMethod: sql.NullString{String: req.TokenEndpointAuthMethod, Valid: true},
-			Scope:                   sql.NullString{String: req.Scope, Valid: true},
+			Scopes:                  parseScopeString(req.Scope), // Parse scope string into array
 			Contacts:                req.Contacts,
 			ClientUri:               sql.NullString{String: req.ClientURI, Valid: req.ClientURI != ""},
 			LogoUri:                 sql.NullString{String: req.LogoURI, Valid: req.LogoURI != ""},
@@ -352,7 +365,7 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			GrantTypes:              updatedApp.GrantTypes,
 			ResponseTypes:           updatedApp.ResponseTypes,
 			TokenEndpointAuthMethod: updatedApp.TokenEndpointAuthMethod.String,
-			Scope:                   updatedApp.Scope.String,
+			Scope:                   strings.Join(convertScopesToStrings(updatedApp.Scopes), " "),
 			Contacts:                updatedApp.Contacts,
 			RegistrationAccessToken: updatedApp.RegistrationAccessToken.String,
 			RegistrationClientURI:   updatedApp.RegistrationClientUri.String,

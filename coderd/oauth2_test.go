@@ -2625,7 +2625,7 @@ func TestOAuth2DeviceAuthorizationRBAC(t *testing.T) {
 				ID:     user.ID.String(),
 				Roles:  rbac.RoleIdentifiers{rbac.RoleMember()},
 				Groups: []string{user.OrganizationIDs[0].String()},
-				Scope:  rbac.ScopeAll,
+				Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 			})
 
 			// Extract the actual prefix from device code format: cdr_device_{prefix}_{secret}
@@ -2661,7 +2661,7 @@ func TestOAuth2DeviceAuthorizationRBAC(t *testing.T) {
 				ID:     user.ID.String(),
 				Roles:  rbac.RoleIdentifiers{rbac.RoleMember()},
 				Groups: []string{user.OrganizationIDs[0].String()},
-				Scope:  rbac.ScopeAll,
+				Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 			})
 
 			// Extract the actual prefix from device code format: cdr_device_{prefix}_{secret}
