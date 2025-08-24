@@ -173,6 +173,18 @@ const UserOAuth2ProviderSettingsPage = lazy(
 	() =>
 		import("./pages/UserSettingsPage/OAuth2ProviderPage/OAuth2ProviderPage"),
 );
+const CreateClientCredentialsAppPage = lazy(
+	() =>
+		import(
+			"./pages/UserSettingsPage/OAuth2ProviderPage/CreateClientCredentialsAppPage"
+		),
+);
+const ManageClientCredentialsAppPage = lazy(
+	() =>
+		import(
+			"./pages/UserSettingsPage/OAuth2ProviderPage/ManageClientCredentialsAppPage"
+		),
+);
 const TemplateVersionPage = lazy(
 	() => import("./pages/TemplateVersionPage/TemplateVersionPage"),
 );
@@ -527,10 +539,14 @@ export const router = createBrowserRouter(
 							path="external-auth"
 							element={<UserExternalAuthSettingsPage />}
 						/>
-						<Route
-							path="oauth2-provider"
-							element={<UserOAuth2ProviderSettingsPage />}
-						/>
+						<Route path="oauth2-provider">
+							<Route index element={<UserOAuth2ProviderSettingsPage />} />
+							<Route path="new" element={<CreateClientCredentialsAppPage />} />
+							<Route
+								path=":appId"
+								element={<ManageClientCredentialsAppPage />}
+							/>
+						</Route>
 						<Route path="tokens">
 							<Route index element={<TokensPage />} />
 							<Route path="new" element={<CreateTokenPage />} />

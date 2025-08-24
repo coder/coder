@@ -652,12 +652,12 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
-		another, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		_, _ = coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// No apps yet.
-		apps, err := another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{})
+		apps, err := client.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{})
 		require.NoError(t, err)
 		require.Len(t, apps, 0)
 
@@ -669,7 +669,7 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 		}
 
 		// Should get all the apps now.
-		apps, err = another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{})
+		apps, err = client.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{})
 		require.NoError(t, err)
 		require.Len(t, apps, 5)
 		require.Equal(t, expectedOrder, apps)
@@ -703,7 +703,7 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 		require.Equal(t, expectedApps.Default.ID, newApp.ID)
 
 		// Should be able to get a single app.
-		got, err := another.OAuth2ProviderApp(ctx, expectedApps.Default.ID)
+		got, err := client.OAuth2ProviderApp(ctx, expectedApps.Default.ID)
 		require.NoError(t, err)
 		require.Equal(t, newApp, got)
 
@@ -713,7 +713,7 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should show the new count.
-		newApps, err := another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{})
+		newApps, err := client.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{})
 		require.NoError(t, err)
 		require.Len(t, newApps, 4)
 
@@ -724,10 +724,10 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
-		another, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		_, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_ = generateApps(ctx, t, client, "by-user")
-		apps, err := another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{
+		apps, err := client.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{
 			UserID: user.ID,
 		})
 		require.NoError(t, err)
@@ -769,4 +769,163 @@ func generateApps(ctx context.Context, t *testing.T, client *codersdk.Client, su
 			create("app-y", "http://10.localhost:3000"),
 		},
 	}
+}
+
+// TestOAuth2ProviderAppNonAdminClientCredentials tests that non-admin users can create
+// client credentials OAuth2 apps (regression test for authorization bug).
+func TestOAuth2ProviderAppNonAdminClientCredentials(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Create a non-admin user (member role)
+	memberClient, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+	// Test that member can create client credentials app
+	app, err := memberClient.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+		Name:         "member-client-credentials-app",
+		RedirectURIs: []string{}, // Empty for client credentials
+		GrantTypes:   []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeClientCredentials},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "member-client-credentials-app", app.Name)
+	require.Equal(t, memberUser.ID, app.UserID)
+	require.Contains(t, app.GrantTypes, string(codersdk.OAuth2ProviderGrantTypeClientCredentials))
+
+	// Test that member can create a secret for their app
+	secret, err := memberClient.PostOAuth2ProviderAppSecret(ctx, app.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, secret.ClientSecretFull)
+
+	// Test that member can list secrets for their own app
+	secrets, err := memberClient.OAuth2ProviderAppSecrets(ctx, app.ID)
+	require.NoError(t, err)
+	require.Len(t, secrets, 1)
+	require.Equal(t, secret.ID, secrets[0].ID)
+
+	// Test that member can get their own app
+	retrievedApp, err := memberClient.OAuth2ProviderApp(ctx, app.ID)
+	require.NoError(t, err)
+	require.Equal(t, app.ID, retrievedApp.ID)
+	require.Equal(t, memberUser.ID, retrievedApp.UserID)
+
+	// Test that member can use client credentials flow
+	conf := clientcredentials.Config{
+		ClientID:     retrievedApp.ID.String(),
+		ClientSecret: secret.ClientSecretFull,
+		TokenURL:     memberClient.URL.String() + "/oauth2/token",
+	}
+
+	token, err := conf.Token(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, token.AccessToken)
+	require.Equal(t, "Bearer", token.TokenType)
+
+	// Test that member cannot create system-level apps (authorization code flow)
+	_, err = memberClient.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+		Name:         "member-system-app",
+		RedirectURIs: []string{"http://localhost:3000"},
+		GrantTypes:   []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeAuthorizationCode},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "You are not authorized to create this type of OAuth2 application")
+}
+
+// TestOAuth2ProviderAppOwnershipAuthorization tests that users can only access their own OAuth2 apps
+func TestOAuth2ProviderAppOwnershipAuthorization(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Create two non-admin users
+	user1Client, user1 := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	user2Client, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+	// User1 creates a client credentials app
+	user1App, err := user1Client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+		Name:         "user1-app",
+		RedirectURIs: []string{},
+		GrantTypes:   []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeClientCredentials},
+	})
+	require.NoError(t, err)
+	require.Equal(t, user1.ID, user1App.UserID)
+
+	// User1 creates a secret for their app
+	user1Secret, err := user1Client.PostOAuth2ProviderAppSecret(ctx, user1App.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, user1Secret.ClientSecretFull)
+
+	// Test that user1 can access their own app
+	retrievedApp, err := user1Client.OAuth2ProviderApp(ctx, user1App.ID)
+	require.NoError(t, err)
+	require.Equal(t, user1App.ID, retrievedApp.ID)
+
+	// Test that user1 can list secrets for their own app
+	secrets, err := user1Client.OAuth2ProviderAppSecrets(ctx, user1App.ID)
+	require.NoError(t, err)
+	require.Len(t, secrets, 1)
+	require.Equal(t, user1Secret.ID, secrets[0].ID)
+
+	// Test that user2 cannot access user1's app
+	_, err = user2Client.OAuth2ProviderApp(ctx, user1App.ID)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not found")
+
+	// Test that user2 cannot list secrets for user1's app
+	_, err = user2Client.OAuth2ProviderAppSecrets(ctx, user1App.ID)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not found")
+
+	// Test that user2 cannot create a secret for user1's app
+	_, err = user2Client.PostOAuth2ProviderAppSecret(ctx, user1App.ID)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not found")
+
+	// Test that user2 cannot delete user1's app
+	err = user2Client.DeleteOAuth2ProviderApp(ctx, user1App.ID)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not found")
+
+	// Test that user2 cannot update user1's app
+	_, err = user2Client.PutOAuth2ProviderApp(ctx, user1App.ID, codersdk.PutOAuth2ProviderAppRequest{
+		Name:         "hacked-app",
+		RedirectURIs: []string{"http://localhost:8080"},
+		Icon:         "evil",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not found")
+
+	// Test that user2 cannot delete user1's app secret
+	err = user2Client.DeleteOAuth2ProviderAppSecret(ctx, user1App.ID, user1Secret.ID)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not found")
+
+	// Test that user1 CAN delete their own app secret
+	err = user1Client.DeleteOAuth2ProviderAppSecret(ctx, user1App.ID, user1Secret.ID)
+	require.NoError(t, err)
+
+	// Test that user1 CAN update their own app
+	updatedApp, err := user1Client.PutOAuth2ProviderApp(ctx, user1App.ID, codersdk.PutOAuth2ProviderAppRequest{
+		Name:         "updated-app",
+		RedirectURIs: []string{},
+		Icon:         "new-icon",
+		GrantTypes:   []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeClientCredentials},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "updated-app", updatedApp.Name)
+	require.Equal(t, "new-icon", updatedApp.Icon)
+
+	// Test that user1 CAN delete their own app
+	err = user1Client.DeleteOAuth2ProviderApp(ctx, user1App.ID)
+	require.NoError(t, err)
+
+	// Verify app is gone
+	_, err = user1Client.OAuth2ProviderApp(ctx, user1App.ID)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not found")
 }

@@ -81,19 +81,21 @@ interface SidebarNavItemProps {
 	children?: ReactNode;
 	icon: ElementType;
 	href: string;
+	end?: boolean;
 }
 
 export const SidebarNavItem: FC<SidebarNavItemProps> = ({
 	children,
 	href,
 	icon: Icon,
+	end = true,
 }) => {
 	const link = useClassName(classNames.link, []);
 	const activeLink = useClassName(classNames.activeLink, []);
 
 	return (
 		<NavLink
-			end
+			end={end}
 			to={href}
 			className={({ isActive }) => cx([link, isActive && activeLink])}
 		>

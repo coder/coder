@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
@@ -25,6 +26,11 @@ type OAuth2ProviderApp struct {
 	Name         string    `json:"name"`
 	RedirectURIs []string  `json:"redirect_uris"`
 	Icon         string    `json:"icon"`
+	CreatedAt    time.Time `json:"created_at" format:"date-time"`
+	GrantTypes   []string  `json:"grant_types"`
+	UserID       uuid.UUID `json:"user_id,omitempty" format:"uuid"`
+	Username     string    `json:"username,omitempty"`
+	Email        string    `json:"email,omitempty"`
 
 	// Endpoints are included in the app response for easier discovery. The OAuth2
 	// spec does not have a defined place to find these (for comparison, OIDC has
@@ -41,7 +47,8 @@ type OAuth2AppEndpoints struct {
 }
 
 type OAuth2ProviderAppFilter struct {
-	UserID uuid.UUID `json:"user_id,omitempty" format:"uuid"`
+	UserID  uuid.UUID `json:"user_id,omitempty" format:"uuid"`
+	OwnerID uuid.UUID `json:"owner_id,omitempty" format:"uuid"`
 }
 
 // OAuth2ProviderApps returns the applications configured to authenticate using
@@ -49,11 +56,14 @@ type OAuth2ProviderAppFilter struct {
 func (c *Client) OAuth2ProviderApps(ctx context.Context, filter OAuth2ProviderAppFilter) ([]OAuth2ProviderApp, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/oauth2-provider/apps", nil,
 		func(r *http.Request) {
+			q := r.URL.Query()
 			if filter.UserID != uuid.Nil {
-				q := r.URL.Query()
 				q.Set("user_id", filter.UserID.String())
-				r.URL.RawQuery = q.Encode()
 			}
+			if filter.OwnerID != uuid.Nil {
+				q.Set("owner_id", filter.OwnerID.String())
+			}
+			r.URL.RawQuery = q.Encode()
 		})
 	if err != nil {
 		return []OAuth2ProviderApp{}, err
@@ -83,7 +93,7 @@ func (c *Client) OAuth2ProviderApp(ctx context.Context, id uuid.UUID) (OAuth2Pro
 
 type PostOAuth2ProviderAppRequest struct {
 	Name         string                    `json:"name" validate:"required,oauth2_app_display_name"`
-	RedirectURIs []string                  `json:"redirect_uris" validate:"required,min=1,dive,http_url"`
+	RedirectURIs []string                  `json:"redirect_uris" validate:"dive,http_url"`
 	Icon         string                    `json:"icon" validate:"omitempty"`
 	GrantTypes   []OAuth2ProviderGrantType `json:"grant_types,omitempty" validate:"dive,oneof=authorization_code refresh_token client_credentials urn:ietf:params:oauth:grant-type:device_code"`
 }
@@ -140,7 +150,7 @@ func (c *Client) PostOAuth2ProviderApp(ctx context.Context, app PostOAuth2Provid
 
 type PutOAuth2ProviderAppRequest struct {
 	Name         string                    `json:"name" validate:"required,oauth2_app_display_name"`
-	RedirectURIs []string                  `json:"redirect_uris" validate:"required,min=1,dive,http_url"`
+	RedirectURIs []string                  `json:"redirect_uris" validate:"dive,http_url"`
 	Icon         string                    `json:"icon" validate:"omitempty"`
 	GrantTypes   []OAuth2ProviderGrantType `json:"grant_types,omitempty" validate:"dive,oneof=authorization_code refresh_token client_credentials urn:ietf:params:oauth:grant-type:device_code"`
 }
@@ -186,6 +196,7 @@ type OAuth2ProviderAppSecretFull struct {
 
 type OAuth2ProviderAppSecret struct {
 	ID                    uuid.UUID `json:"id" format:"uuid"`
+	CreatedAt             time.Time `json:"created_at" format:"date-time"`
 	LastUsedAt            NullTime  `json:"last_used_at"`
 	ClientSecretTruncated string    `json:"client_secret_truncated"`
 }

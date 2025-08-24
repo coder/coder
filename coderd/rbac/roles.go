@@ -289,9 +289,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Identifier:  RoleMember(),
 		DisplayName: "Member",
 		Site: Permissions(map[string][]policy.Action{
-			ResourceAssignRole.Type: {policy.ActionRead},
-			// All users can see OAuth2 provider applications.
-			ResourceOauth2App.Type:      {policy.ActionRead},
+			ResourceAssignRole.Type:     {policy.ActionRead},
 			ResourceWorkspaceProxy.Type: {policy.ActionRead},
 		}),
 		Org: map[string][]Permission{},
@@ -306,6 +304,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				ResourceOrganizationMember.Type: {policy.ActionRead},
 				// Users can create provisioner daemons scoped to themselves.
 				ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+				// Users can create OAuth2 apps scoped to themselves.
+				ResourceOauth2App.Type:          {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+				ResourceOauth2AppSecret.Type:    {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+				ResourceOauth2AppCodeToken.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			})...,
 		),
 	}.withCachedRegoValue()
