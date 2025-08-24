@@ -3314,6 +3314,7 @@ type OAuth2ProviderApp struct {
 	RegistrationAccessToken sql.NullString `db:"registration_access_token" json:"registration_access_token"`
 	// RFC 7592: URI for client configuration endpoint
 	RegistrationClientUri sql.NullString `db:"registration_client_uri" json:"registration_client_uri"`
+	UserID                uuid.NullUUID  `db:"user_id" json:"user_id"`
 }
 
 // Codes are meant to be exchanged for access tokens.

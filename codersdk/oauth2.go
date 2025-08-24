@@ -82,9 +82,45 @@ func (c *Client) OAuth2ProviderApp(ctx context.Context, id uuid.UUID) (OAuth2Pro
 }
 
 type PostOAuth2ProviderAppRequest struct {
-	Name         string   `json:"name" validate:"required,oauth2_app_display_name"`
-	RedirectURIs []string `json:"redirect_uris" validate:"required,min=1,dive,http_url"`
-	Icon         string   `json:"icon" validate:"omitempty"`
+	Name         string                    `json:"name" validate:"required,oauth2_app_display_name"`
+	RedirectURIs []string                  `json:"redirect_uris" validate:"required,min=1,dive,http_url"`
+	Icon         string                    `json:"icon" validate:"omitempty"`
+	GrantTypes   []OAuth2ProviderGrantType `json:"grant_types,omitempty" validate:"dive,oneof=authorization_code refresh_token client_credentials urn:ietf:params:oauth:grant-type:device_code"`
+}
+
+// validateOAuth2ProviderAppRequest validates grant types and redirect URI requirements
+// for OAuth2 provider app requests (shared between POST and PUT)
+func validateOAuth2ProviderAppRequest(grantTypes []OAuth2ProviderGrantType, redirectURIs []string) error {
+	// Validate each grant type is supported
+	for _, grantType := range grantTypes {
+		switch grantType {
+		case OAuth2ProviderGrantTypeAuthorizationCode, OAuth2ProviderGrantTypeRefreshToken, OAuth2ProviderGrantTypeClientCredentials, OAuth2ProviderGrantTypeDeviceCode:
+			// Valid grant type
+		default:
+			return xerrors.Errorf("unsupported grant type: %s", grantType)
+		}
+	}
+
+	// Check if redirect URIs are required based on grant types
+	// Empty grant types defaults to authorization_code + refresh_token, which need redirect URIs
+	needsRedirectURIs := len(grantTypes) == 0 // Default case needs redirect URIs
+	for _, grantType := range grantTypes {
+		if grantType == OAuth2ProviderGrantTypeAuthorizationCode || grantType == OAuth2ProviderGrantTypeDeviceCode {
+			needsRedirectURIs = true
+			break
+		}
+	}
+
+	if needsRedirectURIs && len(redirectURIs) == 0 {
+		return xerrors.New("redirect_uris required for authorization code or device code flows")
+	}
+
+	return nil
+}
+
+// Validate validates OAuth2 app creation request
+func (req *PostOAuth2ProviderAppRequest) Validate() error {
+	return validateOAuth2ProviderAppRequest(req.GrantTypes, req.RedirectURIs)
 }
 
 // PostOAuth2ProviderApp adds an application that can authenticate using Coder
@@ -103,9 +139,15 @@ func (c *Client) PostOAuth2ProviderApp(ctx context.Context, app PostOAuth2Provid
 }
 
 type PutOAuth2ProviderAppRequest struct {
-	Name         string   `json:"name" validate:"required,oauth2_app_display_name"`
-	RedirectURIs []string `json:"redirect_uris" validate:"required,min=1,dive,http_url"`
-	Icon         string   `json:"icon" validate:"omitempty"`
+	Name         string                    `json:"name" validate:"required,oauth2_app_display_name"`
+	RedirectURIs []string                  `json:"redirect_uris" validate:"required,min=1,dive,http_url"`
+	Icon         string                    `json:"icon" validate:"omitempty"`
+	GrantTypes   []OAuth2ProviderGrantType `json:"grant_types,omitempty" validate:"dive,oneof=authorization_code refresh_token client_credentials urn:ietf:params:oauth:grant-type:device_code"`
+}
+
+// Validate validates OAuth2 app update request
+func (req *PutOAuth2ProviderAppRequest) Validate() error {
+	return validateOAuth2ProviderAppRequest(req.GrantTypes, req.RedirectURIs)
 }
 
 // PutOAuth2ProviderApp updates an application that can authenticate using Coder
@@ -198,14 +240,24 @@ const (
 	OAuth2ProviderGrantTypeAuthorizationCode OAuth2ProviderGrantType = "authorization_code"
 	OAuth2ProviderGrantTypeRefreshToken      OAuth2ProviderGrantType = "refresh_token"
 	OAuth2ProviderGrantTypeDeviceCode        OAuth2ProviderGrantType = "urn:ietf:params:oauth:grant-type:device_code"
+	OAuth2ProviderGrantTypeClientCredentials OAuth2ProviderGrantType = "client_credentials"
 )
 
 func (e OAuth2ProviderGrantType) Valid() bool {
 	switch e {
-	case OAuth2ProviderGrantTypeAuthorizationCode, OAuth2ProviderGrantTypeRefreshToken, OAuth2ProviderGrantTypeDeviceCode:
+	case OAuth2ProviderGrantTypeAuthorizationCode, OAuth2ProviderGrantTypeRefreshToken, OAuth2ProviderGrantTypeDeviceCode, OAuth2ProviderGrantTypeClientCredentials:
 		return true
 	}
 	return false
+}
+
+// OAuth2ProviderGrantTypesToStrings converts a slice of OAuth2ProviderGrantType to a slice of strings
+func OAuth2ProviderGrantTypesToStrings(grantTypes []OAuth2ProviderGrantType) []string {
+	result := make([]string, len(grantTypes))
+	for i, t := range grantTypes {
+		result[i] = string(t)
+	}
+	return result
 }
 
 type OAuth2ProviderResponseType string
@@ -221,6 +273,15 @@ func (e OAuth2ProviderResponseType) Valid() bool {
 		return true
 	}
 	return false
+}
+
+// OAuth2ProviderResponseTypesToStrings converts a slice of OAuth2ProviderResponseType to a slice of strings
+func OAuth2ProviderResponseTypesToStrings(responseTypes []OAuth2ProviderResponseType) []string {
+	result := make([]string, len(responseTypes))
+	for i, t := range responseTypes {
+		result[i] = string(t)
+	}
+	return result
 }
 
 // RevokeOAuth2Token revokes a specific OAuth2 token using RFC 7009 token revocation.
@@ -252,16 +313,16 @@ type OAuth2DeviceFlowCallbackResponse struct {
 
 // OAuth2AuthorizationServerMetadata represents RFC 8414 OAuth 2.0 Authorization Server Metadata
 type OAuth2AuthorizationServerMetadata struct {
-	Issuer                            string   `json:"issuer"`
-	AuthorizationEndpoint             string   `json:"authorization_endpoint"`
-	TokenEndpoint                     string   `json:"token_endpoint"`
-	DeviceAuthorizationEndpoint       string   `json:"device_authorization_endpoint,omitempty"` // RFC 8628
-	RegistrationEndpoint              string   `json:"registration_endpoint,omitempty"`
-	ResponseTypesSupported            []string `json:"response_types_supported"`
-	GrantTypesSupported               []string `json:"grant_types_supported"`
-	CodeChallengeMethodsSupported     []string `json:"code_challenge_methods_supported"`
-	ScopesSupported                   []string `json:"scopes_supported,omitempty"`
-	TokenEndpointAuthMethodsSupported []string `json:"token_endpoint_auth_methods_supported,omitempty"`
+	Issuer                            string                       `json:"issuer"`
+	AuthorizationEndpoint             string                       `json:"authorization_endpoint"`
+	TokenEndpoint                     string                       `json:"token_endpoint"`
+	DeviceAuthorizationEndpoint       string                       `json:"device_authorization_endpoint,omitempty"` // RFC 8628
+	RegistrationEndpoint              string                       `json:"registration_endpoint,omitempty"`
+	ResponseTypesSupported            []OAuth2ProviderResponseType `json:"response_types_supported"`
+	GrantTypesSupported               []OAuth2ProviderGrantType    `json:"grant_types_supported"`
+	CodeChallengeMethodsSupported     []string                     `json:"code_challenge_methods_supported"`
+	ScopesSupported                   []string                     `json:"scopes_supported,omitempty"`
+	TokenEndpointAuthMethodsSupported []string                     `json:"token_endpoint_auth_methods_supported,omitempty"`
 }
 
 // OAuth2ProtectedResourceMetadata represents RFC 9728 OAuth 2.0 Protected Resource Metadata
