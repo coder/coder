@@ -863,9 +863,7 @@ func New(options *Options) *API {
 			expvar.Publish("derp", api.DERPServer.ExpVar())
 		}
 	})
-	regularCors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
-	permissiveCors := httpmw.PermissiveCors()
-	cors := httpmw.ConditionalCors("/api/v2/aibridge", regularCors, permissiveCors)
+	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
 
 	r.Use(
