@@ -86,39 +86,46 @@ func (s StoreMembershipReconciler) ReconcileAll(ctx context.Context, userID uuid
 			}
 		}
 
-		// Create a "prebuilds" group in the organization and add the system user to it
-		// This group will have a quota of 0 by default, which users can adjust based on their needs
-		prebuildsGroup, err := s.store.InsertGroup(ctx, database.InsertGroupParams{
-			ID:             uuid.New(),
-			Name:           PrebuiltWorkspacesGroupName,
-			DisplayName:    PrebuiltWorkspacesGroupDisplayName,
+		// determine whether the org already has a prebuilds group
+		prebuildsGroupExists := true
+		prebuildsGroup, err := s.store.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
 			OrganizationID: preset.OrganizationID,
-			AvatarURL:      "",
-			QuotaAllowance: 0, // Default quota of 0, users should set this based on their needs
+			Name:           PrebuiltWorkspacesGroupName,
 		})
 		if err != nil {
-			// If the group already exists, try to get it
-			if !database.IsUniqueViolation(err) {
-				membershipInsertionErrors = errors.Join(membershipInsertionErrors, xerrors.Errorf("create prebuilds group: %w", err))
+			if !xerrors.Is(err, sql.ErrNoRows) {
+				membershipInsertionErrors = errors.Join(membershipInsertionErrors, xerrors.Errorf("get prebuilds group: %w", err))
 				continue
 			}
-			prebuildsGroup, err = s.store.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
-				OrganizationID: preset.OrganizationID,
+			prebuildsGroupExists = false
+		}
+
+		// if the prebuilds group does not exist, create it
+		if !prebuildsGroupExists {
+			// create a "prebuilds" group in the organization and add the system user to it
+			// this group will have a quota of 0 by default, which users can adjust based on their needs
+			prebuildsGroup, err = s.store.InsertGroup(ctx, database.InsertGroupParams{
+				ID:             uuid.New(),
 				Name:           PrebuiltWorkspacesGroupName,
+				DisplayName:    PrebuiltWorkspacesGroupDisplayName,
+				OrganizationID: preset.OrganizationID,
+				AvatarURL:      "",
+				QuotaAllowance: 0, // Default quota of 0, users should set this based on their needs
 			})
+
 			if err != nil {
-				membershipInsertionErrors = errors.Join(membershipInsertionErrors, xerrors.Errorf("get existing prebuilds group: %w", err))
+				membershipInsertionErrors = errors.Join(membershipInsertionErrors, xerrors.Errorf("create prebuilds group: %w", err))
 				continue
 			}
 		}
 
-		// Add the system user to the prebuilds group
+		// add the system user to the prebuilds group
 		err = s.store.InsertGroupMember(ctx, database.InsertGroupMemberParams{
 			GroupID: prebuildsGroup.ID,
 			UserID:  userID,
 		})
 		if err != nil {
-			// Ignore unique violation errors as the user might already be in the group
+			// ignore unique violation errors as the user might already be in the group
 			if !database.IsUniqueViolation(err) {
 				membershipInsertionErrors = errors.Join(membershipInsertionErrors, xerrors.Errorf("add system user to prebuilds group: %w", err))
 			}
