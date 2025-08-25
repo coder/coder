@@ -3,6 +3,7 @@ package aibridged
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/dgraph-io/ristretto/v2"
@@ -18,14 +19,15 @@ import (
 )
 
 const (
-	bridgeCacheTTL = time.Second * 5 // TODO: configurable. // This is intentionally short right now, should probably be 1hr by default or something.
-	cacheCost      = 1               // We can't know the actual size in bytes of the value (it'll change over time).
+	bridgeCacheTTL = time.Hour // TODO: configurable.
+	cacheCost      = 1         // We can't know the actual size in bytes of the value (it'll change over time).
 )
 
 // pooler describes a pool of *aibridge.RequestBridge instances from which instances can be retrieved.
 // One *aibridge.RequestBridge instance is created per given key.
 type pooler interface {
 	Acquire(ctx context.Context, req Request, clientFn func() (aibridge.Recorder, error)) (*aibridge.RequestBridge, error)
+	Shutdown(ctx context.Context) error
 }
 
 type CachedBridgePool struct {
@@ -35,6 +37,8 @@ type CachedBridgePool struct {
 	logger    slog.Logger
 
 	singleflight *singleflight.Group[string, *aibridge.RequestBridge]
+
+	shuttingDown atomic.Bool
 }
 
 func NewCachedBridgePool(cfg codersdk.AIBridgeConfig, instances int64, mcpCfg MCPConfigurator, logger slog.Logger) (*CachedBridgePool, error) {
@@ -43,6 +47,15 @@ func NewCachedBridgePool(cfg codersdk.AIBridgeConfig, instances int64, mcpCfg MC
 		NumCounters: instances * 10,        // Docs suggest setting this 10x number of keys.
 		MaxCost:     instances * cacheCost, // Up to n instances.
 		BufferItems: 64,                    // Sticking with recommendation from docs.
+		OnEvict: func(item *ristretto.Item[*aibridge.RequestBridge]) {
+			if item.Value == nil {
+				return
+			}
+
+			// TODO: implement graceful shutdown. This should block the Shutdown func of CachedBridgePool from completing.
+			// However it should give up after the context is canceled.
+			_ = item.Value.Close()
+		},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create cache: %w", err)
@@ -70,6 +83,10 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn fu
 		return nil, xerrors.Errorf("acquire: %w", err)
 	}
 
+	if p.shuttingDown.Load() {
+		return nil, xerrors.New("pool shutting down")
+	}
+
 	// Fast path.
 	bridge, ok := p.cache.Get(req.SessionKey)
 	if ok && bridge != nil {
@@ -95,7 +112,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn fu
 			p.logger.Warn(ctx, "failed to load tools", slog.Error(err))
 		}
 
-		bridge, err = aibridge.NewRequestBridge(p.providers, p.logger, clientFn, aibridge.NewInjectedToolManager(tools))
+		bridge, err = aibridge.NewRequestBridge(ctx, p.providers, p.logger, clientFn, aibridge.NewInjectedToolManager(tools))
 		if err != nil {
 			return nil, xerrors.Errorf("create new request bridge: %w", err)
 		}
@@ -157,4 +174,15 @@ func (p *CachedBridgePool) fetchTools(ctx context.Context, key string, userID uu
 	}
 
 	return proxies, nil
+}
+
+// Shutdown will close the cache which will trigger eviction of all the Bridge entries.
+func (p *CachedBridgePool) Shutdown(_ context.Context) error {
+	// Prevent new requests from being served.
+	p.shuttingDown.Store(true)
+
+	// Closes the cache, which will evict all entries and trigger their onEvict handlers.
+	p.cache.Close()
+
+	return nil
 }

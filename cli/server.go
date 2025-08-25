@@ -1101,16 +1101,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}()
 
-			defer func() {
-				// TODO: ensure cleanup is correct.
-				if coderAPI.AIBridgeServer != nil {
-					_ = coderAPI.AIBridgeServer.Close()
-				}
-			}()
-
 			// Built in aibridge daemons.
 			if vals.AI.BridgeConfig.Enabled {
-				srv, err := newAIBridgeServer(ctx, coderAPI)
+				// NOTE: this shares the same context as the HTTP API server because it gets wired into it.
+				// See coderd/aibridge.go.
+				srv, err := newAIBridgeServer(shutdownConnsCtx, coderAPI)
 				if err != nil {
 					return xerrors.Errorf("create aibridged: %w", err)
 				}
@@ -1170,11 +1165,28 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				cliui.Errorf(inv.Stderr, "Notify systemd failed: %s", err)
 			}
 
+			// Stop accepting new connections to AI Bridge without interrupting in-flight requests.
+			//
+			// We have to shut down AI Bridge server before the API server, because AI Bridge server is wired into
+			// API server and therefore share a context.
+			if coderAPI.AIBridgeServer != nil {
+				r.Verbosef(inv, "Shutting down aibridge daemon...")
+
+				// Give in-flight requests 5 seconds to complete before shutting down.
+				err = shutdownWithTimeout(coderAPI.AIBridgeServer.Shutdown, 5*time.Second)
+				if err != nil {
+					cliui.Errorf(inv.Stderr, "Shutdown aibridge daemon failed: %s\n", err)
+				} else {
+					_ = coderAPI.AIBridgeServer.Close()
+					r.Verbosef(inv, "Gracefully shut down aibridge daemon")
+				}
+			}
+
 			// Stop accepting new connections without interrupting
 			// in-flight requests, give in-flight requests 5 seconds to
 			// complete.
 			cliui.Info(inv.Stdout, "Shutting down API server..."+"\n")
-			err = shutdownWithTimeout(httpServer.Shutdown, 3*time.Second)
+			err = shutdownWithTimeout(httpServer.Shutdown, 3*time.Second) // TODO: why do we call shutdownWithTimeout on httpServer.Shutdown *twice*?
 			if err != nil {
 				cliui.Errorf(inv.Stderr, "API server shutdown took longer than 3s: %s\n", err)
 			} else {
@@ -1342,7 +1354,7 @@ func newAIBridgeServer(ctx context.Context, coderAPI *coderd.API) (*aibridged.Se
 		coderAPI.DeploymentValues.AccessURL.String(), coderAPI.Database,
 		coderAPI.Options.ExternalAuthConfigs, coderAPI.Logger.Named("aibridged.mcp"),
 	)
-	pool, err := aibridged.NewCachedBridgePool(coderAPI.DeploymentValues.AI.BridgeConfig, 100, mcpCfg, coderAPI.Logger.Named("aibridge-manager")) // TODO: configurable size.
+	pool, err := aibridged.NewCachedBridgePool(coderAPI.DeploymentValues.AI.BridgeConfig, 100, mcpCfg, coderAPI.Logger.Named("aibridge-pool")) // TODO: configurable size.
 	if err != nil {
 		return nil, xerrors.Errorf("create aibridge pool: %w", err)
 	}

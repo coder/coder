@@ -25,15 +25,15 @@ func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	sessionKey, ok := r.Context().Value(aibridged.ContextKeyBridgeAPIKey{}).(string)
+	sessionKey, ok := ctx.Value(aibridged.ContextKeyBridgeAPIKey{}).(string)
 	if sessionKey == "" || !ok {
 		http.Error(rw, "unable to retrieve request session key", http.StatusBadRequest)
 		return
 	}
 
-	initiatorID, ok := r.Context().Value(aibridged.ContextKeyBridgeUserID{}).(uuid.UUID)
+	initiatorID, ok := ctx.Value(aibridged.ContextKeyBridgeUserID{}).(uuid.UUID)
 	if !ok {
-		api.Logger.Error(r.Context(), "missing initiator ID in context")
+		api.Logger.Error(ctx, "missing initiator ID in context")
 		http.Error(rw, "unable to retrieve initiator", http.StatusBadRequest)
 		return
 	}

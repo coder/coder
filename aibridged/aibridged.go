@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hashicorp/yamux"
@@ -38,19 +39,17 @@ type Server struct {
 	initConnectionCh   chan struct{}
 	initConnectionOnce sync.Once
 
-	// mutex protects all subsequent fields
-	mutex sync.Mutex
 	// closeContext is canceled when we start closing.
 	closeContext context.Context
 	closeCancel  context.CancelFunc
+	closeOnce    sync.Once
 	// closeError stores the error when closing to return to subsequent callers
 	closeError error
 	// closingB is set to true when we start closing
-	closingB bool
-	// closedCh will receive when we complete closing
-	closedCh chan struct{}
+	closing atomic.Bool
 	// shuttingDownB is set to true when we start graceful shutdown
-	shuttingDownB bool
+	shuttingDown atomic.Bool
+	shutdownOnce sync.Once
 	// shuttingDownCh will receive when we start graceful shutdown
 	shuttingDownCh chan struct{}
 }
@@ -70,9 +69,8 @@ func New(rpcDialer Dialer, requestBridgePool pooler, logger slog.Logger) (*Serve
 		clientCh:          make(chan proto.DRPCRecorderClient),
 		closeContext:      ctx,
 		closeCancel:       cancel,
-		closedCh:          make(chan struct{}),
-		shuttingDownCh:    make(chan struct{}),
 		initConnectionCh:  make(chan struct{}),
+		shuttingDownCh:    make(chan struct{}),
 	}
 
 	daemon.wg.Add(1)
@@ -166,7 +164,7 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 		return nil, xerrors.Errorf("acquire request bridge: %w", err)
 	}
 
-	return reqBridge.Handler(), nil
+	return reqBridge, nil
 }
 
 func (s *Server) RecordSession(ctx context.Context, in *proto.RecordSessionRequest) (*proto.RecordSessionResponse, error) {
@@ -253,29 +251,17 @@ func (s *Server) isClosed() bool {
 	}
 }
 
-// closeWithError closes the provisioner; subsequent reads/writes will return the error err.
+// closeWithError closes aibridged once; subsequent calls will return the error err.
 func (s *Server) closeWithError(err error) error {
-	s.mutex.Lock()
-	first := false
-	if !s.closingB {
-		first = true
-		s.closingB = true
-	}
-	// don't hold the mutex while doing I/O.
-	s.mutex.Unlock()
-
-	if first {
+	s.closing.Store(true)
+	s.closeOnce.Do(func() {
 		s.closeCancel()
 		s.logger.Debug(context.Background(), "waiting for goroutines to exit")
 		s.wg.Wait()
 		s.logger.Debug(context.Background(), "closing server with error", slog.Error(err))
 		s.closeError = err
-		close(s.closedCh)
-		return err
-	}
-	s.logger.Debug(s.closeContext, "waiting for first closer to complete")
-	<-s.closedCh
-	s.logger.Debug(s.closeContext, "first closer completed")
+	})
+
 	return s.closeError
 }
 
@@ -286,18 +272,36 @@ func (s *Server) Close() error {
 	}
 
 	s.logger.Info(s.closeContext, "closing aibridged")
-	// TODO: invalidate all running requests (canceling context should be enough?).
-	errMsg := "aibridged closed gracefully"
-	err := s.closeWithError(nil)
-	if err != nil {
-		errMsg = err.Error()
-	}
-	s.logger.Warn(s.closeContext, errMsg)
-
-	return err
+	return s.closeWithError(nil)
 }
 
+// Shutdown waits for all exiting in-flight requests to complete, or the context to expire, whichever comes first.
 func (s *Server) Shutdown(ctx context.Context) error {
-	// TODO: implement or remove.
-	return nil
+	if s == nil {
+		return nil
+	}
+
+	s.shuttingDown.Store(true)
+
+	var err error
+	s.shutdownOnce.Do(func() {
+		close(s.shuttingDownCh)
+
+		select {
+		case <-ctx.Done():
+			s.logger.Warn(ctx, "graceful shutdown failed", slog.Error(ctx.Err()))
+			err = ctx.Err()
+			return
+		default:
+		}
+
+		s.logger.Info(ctx, "shutting down aibridged pool")
+		if err = s.requestBridgePool.Shutdown(ctx); err != nil && errors.Is(err, http.ErrServerClosed) {
+			s.logger.Error(ctx, "shutdown failed with error", slog.Error(err))
+			return
+		}
+
+		s.logger.Info(ctx, "gracefully shutdown")
+	})
+	return err
 }

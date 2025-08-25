@@ -48,8 +48,8 @@ service Recorder {
   rpc RecordToolUsage(RecordToolUsageRequest) returns (RecordToolUsageResponse);
 }
 
-// TODO: flesh this out; just leaving some ideas here.
-// The point is that this will be a *separate* service from Recorder, not to be accepted by Bridge but by some other component.
+// Just leaving some ideas here.
+// The point is that this will be a *separate* service from Recorder, not to be accepted by RequestBridge but by some other component.
 //
 // service Stats {
 //   rpc AggregateTokenUsageByUser(TokenAggregationRequest) returns (TokenAggregationResponse);
