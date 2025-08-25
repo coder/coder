@@ -1,4 +1,3 @@
-version: "3.9"
 services:
   coder:
     # This MUST be stable for our documentation and

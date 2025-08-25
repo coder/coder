@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -396,6 +397,7 @@ func (p *tallymanPublisher) sendPublishRequest(ctx context.Context, deploymentID
 	if err != nil {
 		return usagetypes.TallymanV1IngestResponse{}, err
 	}
+	r.Header.Set("User-Agent", "coderd/"+buildinfo.Version())
 	r.Header.Set(usagetypes.TallymanCoderLicenseKeyHeader, licenseJwt)
 	r.Header.Set(usagetypes.TallymanCoderDeploymentIDHeader, deploymentID.String())
 

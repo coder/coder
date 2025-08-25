@@ -13,6 +13,7 @@ package usagetypes
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -22,6 +23,10 @@ import (
 // type `usage_event_type`.
 type UsageEventType string
 
+// All event types.
+//
+// When adding a new event type, ensure you add it to the Valid method and the
+// ParseEventWithType function.
 const (
 	UsageEventTypeDCManagedAgentsV1 UsageEventType = "dc_managed_agents_v1"
 )
@@ -43,38 +48,56 @@ func (e UsageEventType) IsHeartbeat() bool {
 	return e.Valid() && strings.HasPrefix(string(e), "hb_")
 }
 
-// ParseEvent parses the raw event data into the specified Go type. It fails if
-// there is any unknown fields or extra data after the event. The returned event
-// is validated.
-func ParseEvent[T Event](data json.RawMessage) (T, error) {
+// ParseEvent parses the raw event data into the provided event. It fails if
+// there is any unknown fields or extra data at the end of the JSON. The
+// returned event is validated.
+func ParseEvent(data json.RawMessage, out Event) error {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
 
-	var event T
-	err := dec.Decode(&event)
+	err := dec.Decode(out)
 	if err != nil {
-		return event, xerrors.Errorf("unmarshal %T event: %w", event, err)
+		return xerrors.Errorf("unmarshal %T event: %w", out, err)
 	}
 	if dec.More() {
-		return event, xerrors.Errorf("extra data after %T event", event)
+		return xerrors.Errorf("extra data after %T event", out)
 	}
-	err = event.Valid()
+	err = out.Valid()
 	if err != nil {
-		return event, xerrors.Errorf("invalid %T event: %w", event, err)
+		return xerrors.Errorf("invalid %T event: %w", out, err)
 	}
 
-	return event, nil
+	return nil
+}
+
+// UnknownEventTypeError is returned by ParseEventWithType when an unknown event
+// type is encountered.
+type UnknownEventTypeError struct {
+	EventType string
+}
+
+var _ error = UnknownEventTypeError{}
+
+// Error implements error.
+func (e UnknownEventTypeError) Error() string {
+	return fmt.Sprintf("unknown usage event type: %q", e.EventType)
 }
 
 // ParseEventWithType parses the raw event data into the specified Go type. It
 // fails if there is any unknown fields or extra data after the event. The
 // returned event is validated.
+//
+// If the event type is unknown, UnknownEventTypeError is returned.
 func ParseEventWithType(eventType UsageEventType, data json.RawMessage) (Event, error) {
 	switch eventType {
 	case UsageEventTypeDCManagedAgentsV1:
-		return ParseEvent[DCManagedAgentsV1](data)
+		var event DCManagedAgentsV1
+		if err := ParseEvent(data, &event); err != nil {
+			return nil, err
+		}
+		return event, nil
 	default:
-		return nil, xerrors.Errorf("unknown event type: %s", eventType)
+		return nil, UnknownEventTypeError{EventType: string(eventType)}
 	}
 }
 

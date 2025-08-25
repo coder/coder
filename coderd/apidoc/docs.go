@@ -9988,6 +9988,39 @@ const docTemplate = `{
             }
         },
         "/workspaces/{workspace}/acl": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Get workspace ACLs",
+                "operationId": "get-workspace-acls",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceACL"
+                        }
+                    }
+                }
+            },
             "patch": {
                 "security": [
                     {
@@ -17293,7 +17326,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "group_perms": {
-                    "description": "GroupPerms should be a mapping of group id to role.",
+                    "description": "GroupPerms is a mapping from valid group UUIDs to the template role they\nshould be granted. To remove a group from the template, use \"\" as the role\n(available as a constant named codersdk.TemplateRoleDeleted)",
                     "type": "object",
                     "additionalProperties": {
                         "$ref": "#/definitions/codersdk.TemplateRole"
@@ -17304,7 +17337,7 @@ const docTemplate = `{
                     }
                 },
                 "user_perms": {
-                    "description": "UserPerms should be a mapping of user id to role. The user id must be the\nuuid of the user, not a username or email address.",
+                    "description": "UserPerms is a mapping from valid user UUIDs to the template role they\nshould be granted. To remove a user from the template, use \"\" as the role\n(available as a constant named codersdk.TemplateRoleDeleted)",
                     "type": "object",
                     "additionalProperties": {
                         "$ref": "#/definitions/codersdk.TemplateRole"
@@ -17469,13 +17502,14 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "group_roles": {
+                    "description": "GroupRoles is a mapping from valid group UUIDs to the workspace role they\nshould be granted. To remove a group from the workspace, use \"\" as the role\n(available as a constant named codersdk.WorkspaceRoleDeleted)",
                     "type": "object",
                     "additionalProperties": {
                         "$ref": "#/definitions/codersdk.WorkspaceRole"
                     }
                 },
                 "user_roles": {
-                    "description": "Keys must be valid UUIDs. To remove a user/group from the ACL use \"\" as the\nrole name (available as a constant named ` + "`" + `codersdk.WorkspaceRoleDeleted` + "`" + `)",
+                    "description": "UserRoles is a mapping from valid user UUIDs to the workspace role they\nshould be granted. To remove a user from the workspace, use \"\" as the role\n(available as a constant named codersdk.WorkspaceRoleDeleted)",
                     "type": "object",
                     "additionalProperties": {
                         "$ref": "#/definitions/codersdk.WorkspaceRole"
@@ -18085,6 +18119,23 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.WorkspaceACL": {
+            "type": "object",
+            "properties": {
+                "group": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceGroup"
+                    }
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceUser"
+                    }
                 }
             }
         },
@@ -19042,6 +19093,62 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceGroup": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ReducedUser"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_display_name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organization_name": {
+                    "type": "string"
+                },
+                "quota_allowance": {
+                    "type": "integer"
+                },
+                "role": {
+                    "enum": [
+                        "admin",
+                        "use"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceRole"
+                        }
+                    ]
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.GroupSource"
+                },
+                "total_member_count": {
+                    "description": "How many members are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than ` + "`" + `len(Group.Members)` + "`" + `.",
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.WorkspaceHealth": {
             "type": "object",
             "properties": {
@@ -19270,6 +19377,37 @@ const docTemplate = `{
                 "WorkspaceTransitionStop",
                 "WorkspaceTransitionDelete"
             ]
+        },
+        "codersdk.WorkspaceUser": {
+            "type": "object",
+            "required": [
+                "id",
+                "username"
+            ],
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "role": {
+                    "enum": [
+                        "admin",
+                        "use"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceRole"
+                        }
+                    ]
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.WorkspacesResponse": {
             "type": "object",

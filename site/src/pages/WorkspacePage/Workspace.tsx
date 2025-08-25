@@ -21,6 +21,8 @@ import {
 	WorkspaceBuildProgress,
 } from "./WorkspaceBuildProgress";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
+import { NotificationActionButton } from "./WorkspaceNotifications/Notifications";
+import { findTroubleshootingURL } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
 interface WorkspaceProps {
@@ -97,6 +99,8 @@ export const Workspace: FC<WorkspaceProps> = ({
 		(workspace.latest_build.matched_provisioners?.available ?? 1) > 0;
 	const shouldShowProvisionerAlert =
 		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
+	const troubleshootingURL = findTroubleshootingURL(workspace.latest_build);
+	const hasActions = permissions.updateWorkspace || troubleshootingURL;
 
 	return (
 		<div className="flex flex-col flex-1 min-h-0">
@@ -191,6 +195,41 @@ export const Workspace: FC<WorkspaceProps> = ({
 							<Alert severity="error">
 								<AlertTitle>Workspace build failed</AlertTitle>
 								<AlertDetail>{workspace.latest_build.job.error}</AlertDetail>
+							</Alert>
+						)}
+
+						{!workspace.health.healthy && (
+							<Alert severity="warning">
+								<AlertTitle>Workspace is unhealthy</AlertTitle>
+								<AlertDetail>
+									<p>
+										Your workspace is running but{" "}
+										{workspace.health.failing_agents.length > 1
+											? `${workspace.health.failing_agents.length} agents are unhealthy`
+											: "1 agent is unhealthy"}
+										.
+									</p>
+									{hasActions && (
+										<div className="flex items-center gap-2">
+											{permissions.updateWorkspace && (
+												<NotificationActionButton
+													onClick={() => handleRestart()}
+												>
+													Restart
+												</NotificationActionButton>
+											)}
+											{troubleshootingURL && (
+												<NotificationActionButton
+													onClick={() =>
+														window.open(troubleshootingURL, "_blank")
+													}
+												>
+													Troubleshooting
+												</NotificationActionButton>
+											)}
+										</div>
+									)}
+								</AlertDetail>
 							</Alert>
 						)}
 

@@ -22,6 +22,7 @@ prometheus:
             values: ["${nodepool}"]
   prometheusSpec:
     externalLabels:
+      deployment_name: "${deployment_name}"
       cluster: "${cluster}"
     podMonitorSelectorNilUsesHelmValues: false
     serviceMonitorSelectorNilUsesHelmValues: false
