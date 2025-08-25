@@ -1,11 +1,20 @@
 package cli
 
 import (
+	"fmt"
+	"regexp"
+
+	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 	"golang.org/x/xerrors"
-	"regexp"
 )
+
+type workspaceShareRow struct {
+	User  string                 `table:"user"`
+	Group string                 `table:"group,default_sort"`
+	Role  codersdk.WorkspaceRole `table:"workspace_role"`
+}
 
 func (r *RootCmd) sharing() *serpent.Command {
 	orgContext := NewOrganizationContext()
@@ -30,6 +39,11 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 		userAndGroupRegex = regexp.MustCompile(`([A-Za-z0-9]+)(?::([A-Za-z0-9]+))?`)
 		users             []string
 		groups            []string
+		formatter         = cliui.NewOutputFormatter(
+			cliui.TableFormat(
+				[]workspaceShareRow{}, []string{"User", "Group", "Role"}),
+			cliui.JSONFormat(),
+		)
 	)
 
 	cmd := &serpent.Command{
@@ -122,7 +136,36 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 				return err
 			}
 
-			return nil
+			workspaceAcl, err := client.WorkspaceACL(inv.Context(), workspace.ID)
+			if err != nil {
+				return xerrors.Errorf("Could not fetch current workspace ACL after sharing %w", err)
+			}
+
+			outputRows := make([]workspaceShareRow, 0)
+			for _, user := range workspaceAcl.Users {
+				outputRows = append(outputRows, workspaceShareRow{
+					User:  user.Username,
+					Group: "-",
+					Role:  user.Role,
+				})
+			}
+			for _, group := range workspaceAcl.Groups {
+				for _, user := range group.Members {
+					outputRows = append(outputRows, workspaceShareRow{
+						User:  user.Username,
+						Group: group.Name,
+						Role:  group.Role,
+					})
+				}
+			}
+
+			out, err := formatter.Format(inv.Context(), outputRows)
+			if err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprintln(inv.Stdout, out)
+			return err
 		},
 	}
 
