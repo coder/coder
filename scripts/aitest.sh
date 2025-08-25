@@ -196,24 +196,18 @@ run_tests() {
 
 	# Run Go tests if needed
 	if [[ "$go_tests" == "true" ]]; then
-		log "Running Go tests..."
-		if ! go_output=$(make test 2>&1); then
-			failed=true
-			output+="=== GO TEST FAILURES ===\n$go_output\n\n"
-		else
-			# Get updated coverage profile after tests pass
-			log "Getting updated coverage profile..."
-			if get_coverage "$CURRENT_COVERAGE"; then
-				# Check for coverage decrease
-				if coverage_diff=$(check_coverage_change "$BASELINE_COVERAGE" "$CURRENT_COVERAGE"); then
-					log "Coverage maintained or improved"
-				else
-					failed=true
-					output+="=== COVERAGE DECREASED ===\n$coverage_diff\n\n"
-				fi
+		log "Running Go tests with coverage..."
+		if get_coverage "$CURRENT_COVERAGE"; then
+			# Check for coverage decrease
+			if coverage_diff=$(check_coverage_change "$BASELINE_COVERAGE" "$CURRENT_COVERAGE"); then
+				log "Coverage maintained or improved"
 			else
-				warn "Failed to get updated coverage profile, but continuing..."
+				failed=true
+				output+="=== COVERAGE DECREASED ===\n$coverage_diff\n\n"
 			fi
+		else
+			failed=true
+			output+="=== GO TEST FAILURES ===\nTests failed during coverage collection\n\n"
 		fi
 	fi
 
