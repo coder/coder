@@ -69,3 +69,30 @@ export const NoAvailableProvisionersInLogs: Story = {
 		variant: AlertVariant.Inline,
 	},
 };
+
+export const WithQueuePosition: Story = {
+	args: {
+		matchingProvisioners: 1,
+		availableProvisioners: 1,
+		queuePosition: 3,
+		queueSize: 5,
+	},
+};
+
+export const FirstInQueue: Story = {
+	args: {
+		matchingProvisioners: 1,
+		availableProvisioners: 1,
+		queuePosition: 1,
+		queueSize: 10,
+	},
+};
+
+export const LargeQueue: Story = {
+	args: {
+		matchingProvisioners: 1,
+		availableProvisioners: 1,
+		queuePosition: 42,
+		queueSize: 100,
+	},
+};

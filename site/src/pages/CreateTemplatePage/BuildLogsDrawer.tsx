@@ -94,6 +94,8 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 							matchingProvisioners={matchingProvisioners}
 							availableProvisioners={availableProvisioners}
 							tags={templateVersion?.job.tags ?? {}}
+							queuePosition={templateVersion?.job.queue_position}
+							queueSize={templateVersion?.job.queue_size}
 							variant={AlertVariant.Inline}
 						/>
 						<Loader />
