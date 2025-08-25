@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -6577,5 +6578,77 @@ func TestWorkspaceBuildDeadlineConstraint(t *testing.T) {
 			require.Error(t, err)
 			require.True(t, database.IsCheckViolation(err, database.CheckWorkspaceBuildsDeadlineBelowMaxDeadline))
 		}
+	}
+}
+
+// TestGetLatestWorkspaceBuildsByWorkspaceIDs populates the database with
+// workspaces and builds. It then tests that
+// GetLatestWorkspaceBuildsByWorkspaceIDs returns the latest build for some
+// subset of the workspaces.
+func TestGetLatestWorkspaceBuildsByWorkspaceIDs(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	admin := dbgen.User(t, db, database.User{})
+
+	tv := dbfake.TemplateVersion(t, db).
+		Seed(database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      admin.ID,
+		}).
+		Do()
+
+	users := make([]database.User, 5)
+	wrks := make([][]database.WorkspaceTable, len(users))
+	exp := make(map[uuid.UUID]database.WorkspaceBuild)
+	for i := range users {
+		users[i] = dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         users[i].ID,
+			OrganizationID: org.ID,
+		})
+
+		// Each user gets 2 workspaces.
+		wrks[i] = make([]database.WorkspaceTable, 2)
+		for wi := range wrks[i] {
+			wrks[i][wi] = dbgen.Workspace(t, db, database.WorkspaceTable{
+				TemplateID: tv.Template.ID,
+				OwnerID:    users[i].ID,
+			})
+
+			// Choose a deterministic number of builds per workspace
+			// No more than 5 builds though, that would be excessive.
+			for j := int32(1); int(j) <= (i+wi)%5; j++ {
+				wb := dbfake.WorkspaceBuild(t, db, wrks[i][wi]).
+					Seed(database.WorkspaceBuild{
+						WorkspaceID: wrks[i][wi].ID,
+						BuildNumber: j + 1,
+					}).
+					Do()
+
+				exp[wrks[i][wi].ID] = wb.Build // Save the final workspace build
+			}
+		}
+	}
+
+	// Only take half the users. And only take 1 workspace per user for the test.
+	// The others are just noice. This just queries a subset of workspaces and builds
+	// to make sure the noise doesn't interfere with the results.
+	assertWrks := wrks[:len(users)/2]
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ids := slice.Convert[[]database.WorkspaceTable, uuid.UUID](assertWrks, func(pair []database.WorkspaceTable) uuid.UUID {
+		return pair[0].ID
+	})
+
+	require.Greater(t, len(ids), 0, "expected some workspace ids for test")
+	builds, err := db.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, ids)
+	require.NoError(t, err)
+	for _, b := range builds {
+		expB, ok := exp[b.WorkspaceID]
+		require.Truef(t, ok, "unexpected workspace build for workspace id %s", b.WorkspaceID)
+		require.Equalf(t, expB.ID, b.ID, "unexpected workspace build id for workspace id %s", b.WorkspaceID)
+		require.Equal(t, expB.BuildNumber, b.BuildNumber, "unexpected build number")
 	}
 }
