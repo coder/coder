@@ -1028,12 +1028,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			provisionerdMetrics.Runner.NumDaemons.Set(float64(len(provisionerDaemons)))
 
-			// Since errCh only has one buffered slot, all routines
-			// sending on it must be wrapped in a select/default to
-			// avoid leaving dangling goroutines waiting for the
-			// channel to be consumed.
-			errCh = make(chan error, 1)
-
 			shutdownConnsCtx, shutdownConns := context.WithCancel(ctx)
 			defer shutdownConns()
 

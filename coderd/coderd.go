@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/aibridged"
-	"github.com/coder/coder/v2/aibridged/proto"
+	aibridgedproto "github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/prebuilds"
@@ -47,7 +47,7 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"github.com/coder/coder/v2/coderd/aibridgedserver"
-	provisionerdproto "github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionerd/proto"
 
 	"cdr.dev/slog"
 	"github.com/coder/quartz"
@@ -638,7 +638,7 @@ func New(options *Options) *API {
 		ExternalURL:           buildinfo.ExternalURL(),
 		Version:               buildinfo.Version(),
 		AgentAPIVersion:       AgentAPIVersionREST,
-		ProvisionerAPIVersion: provisionerdproto.CurrentVersion.String(),
+		ProvisionerAPIVersion: proto.CurrentVersion.String(),
 		DashboardURL:          api.AccessURL.String(),
 		WorkspaceProxy:        false,
 		UpgradeMessage:        api.DeploymentValues.CLIUpgradeMessage.String(),
@@ -700,7 +700,7 @@ func New(options *Options) *API {
 				},
 				ProvisionerDaemons: healthcheck.ProvisionerDaemonsReportDeps{
 					CurrentVersion:         buildinfo.Version(),
-					CurrentAPIMajorVersion: provisionerdproto.CurrentMajor,
+					CurrentAPIMajorVersion: proto.CurrentMajor,
 					Store:                  options.Database,
 					StaleInterval:          provisionerdserver.StaleInterval,
 					// TimeNow set to default, see healthcheck/provisioner.go
@@ -1692,7 +1692,7 @@ type API struct {
 	TailnetClientService              *tailnet.ClientService
 	// WebpushDispatcher is a way to send notifications to users via Web Push.
 	WebpushDispatcher webpush.Dispatcher
-	QuotaCommitter    atomic.Pointer[provisionerdproto.QuotaCommitter]
+	QuotaCommitter    atomic.Pointer[proto.QuotaCommitter]
 	AppearanceFetcher atomic.Pointer[appearance.Fetcher]
 	// WorkspaceProxyHostsFn returns the hosts of healthy workspace proxies
 	// for header reasons.
@@ -1856,11 +1856,11 @@ type memoryProvisionerDaemonOptions struct {
 
 // CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.
 // Useful when starting coderd and provisionerd in the same process.
-func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType) (client provisionerdproto.DRPCProvisionerDaemonClient, err error) {
+func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType) (client proto.DRPCProvisionerDaemonClient, err error) {
 	return api.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, provisionerTypes, nil)
 }
 
-func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType, provisionerTags map[string]string, opts ...MemoryProvisionerDaemonOption) (client provisionerdproto.DRPCProvisionerDaemonClient, err error) {
+func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType, provisionerTags map[string]string, opts ...MemoryProvisionerDaemonOption) (client proto.DRPCProvisionerDaemonClient, err error) {
 	options := &memoryProvisionerDaemonOptions{}
 	for _, opt := range opts {
 		opt(options)
@@ -1892,7 +1892,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		return nil, xerrors.Errorf("failed to parse built-in provisioner key ID: %w", err)
 	}
 
-	apiVersion := provisionerdproto.CurrentVersion.String()
+	apiVersion := proto.CurrentVersion.String()
 	if options.versionOverride != "" && flag.Lookup("test.v") != nil {
 		// This should only be usable for unit testing. To fake a different provisioner version
 		apiVersion = options.versionOverride
@@ -1948,7 +1948,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	if err != nil {
 		return nil, err
 	}
-	err = provisionerdproto.DRPCRegisterProvisionerDaemon(mux, srv)
+	err = proto.DRPCRegisterProvisionerDaemon(mux, srv)
 	if err != nil {
 		return nil, err
 	}
@@ -1983,10 +1983,10 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		_ = serverSession.Close()
 	}()
 
-	return provisionerdproto.NewDRPCProvisionerDaemonClient(clientSession), nil
+	return proto.NewDRPCProvisionerDaemonClient(clientSession), nil
 }
 
-func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context) (client proto.DRPCRecorderClient, err error) {
+func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context) (client aibridgedproto.DRPCRecorderClient, err error) {
 	// TODO(dannyk): implement options.
 	// TODO(dannyk): implement tracing.
 
@@ -2007,7 +2007,7 @@ func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context) (client pr
 	if err != nil {
 		return nil, err
 	}
-	err = proto.DRPCRegisterRecorder(mux, srv)
+	err = aibridgedproto.DRPCRegisterRecorder(mux, srv)
 	if err != nil {
 		return nil, err
 	}
@@ -2040,7 +2040,7 @@ func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context) (client pr
 		_ = serverSession.Close()
 	}()
 
-	return proto.NewDRPCRecorderClient(clientSession), nil
+	return aibridgedproto.NewDRPCRecorderClient(clientSession), nil
 }
 
 func (api *API) DERPMap() *tailcfg.DERPMap {
