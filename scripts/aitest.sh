@@ -196,11 +196,13 @@ run_tests() {
 		fi
 	fi
 
-	# Always run lint
-	log "Running lint..."
-	if ! lint_output=$(make lint 2>&1); then
-		failed=true
-		output+="=== LINT FAILURES ===\n$lint_output\n\n"
+	# Only run lint if tests succeeded to avoid overwhelming context
+	if [[ "$failed" == "false" ]]; then
+		log "Running lint..."
+		if ! lint_output=$(make lint 2>&1); then
+			failed=true
+			output+="=== LINT FAILURES ===\n$lint_output\n\n"
+		fi
 	fi
 
 	if [[ "$failed" == "true" ]]; then
