@@ -98,6 +98,12 @@ export const WaitingOnStatus: Story = {
 			workspace: {
 				...MockWorkspace,
 				latest_app_status: null,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					resources: [
+						{ ...MockWorkspaceResource, agents: [MockWorkspaceAgentReady] },
+					],
+				},
 			},
 		});
 	},
