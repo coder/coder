@@ -1652,8 +1652,36 @@ func MustWaitForAnyProvisioner(t *testing.T, db database.Store) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
+// MustWaitForProvisionersUnavailable waits for provisioners to become unavailable for a specific workspace
+func MustWaitForProvisionersUnavailable(t *testing.T, db database.Store, workspace codersdk.Workspace, tags map[string]string, checkTime time.Time) {
+	t.Helper()
+	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitShort))
+
+	require.Eventually(t, func() bool {
+		// Use the same logic as hasValidProvisioner but expect false
+		provisionerDaemons, err := db.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
+			OrganizationID: workspace.OrganizationID,
+			WantTags:       tags,
+		})
+		if err != nil {
+			return false
+		}
+
+		// Check if NO provisioners are active (all are stale or gone)
+		for _, pd := range provisionerDaemons {
+			if pd.LastSeenAt.Valid {
+				age := checkTime.Sub(pd.LastSeenAt.Time)
+				if age <= provisionerdserver.StaleInterval {
+					return false // Found an active provisioner, keep waiting
+				}
+			}
+		}
+		return true // No active provisioners found
+	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
 // MustWaitForProvisionersAvailable waits for provisioners to be available for a specific workspace.
-func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace codersdk.Workspace) uuid.UUID {
+func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace codersdk.Workspace, ts time.Time) uuid.UUID {
 	t.Helper()
 	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitShort))
 	id := uuid.UUID{}
@@ -1686,10 +1714,9 @@ func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace
 		}
 
 		// Check if any provisioners are active (not stale)
-		now := time.Now()
 		for _, pd := range provisionerDaemons {
 			if pd.LastSeenAt.Valid {
-				age := now.Sub(pd.LastSeenAt.Time)
+				age := ts.Sub(pd.LastSeenAt.Time)
 				if age <= provisionerdserver.StaleInterval {
 					id = pd.ID
 					return true // Found an active provisioner

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -1720,19 +1721,32 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 	// Stop the workspace while provisioner is available
 	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
-	// Wait for provisioner to be available for this specific workspace
-	coderdtest.MustWaitForProvisionersAvailable(t, db, workspace)
 	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
 	require.NoError(t, err, "Error getting provisioner for workspace")
 
-	daemon1Closer.Close()
+	var wg sync.WaitGroup
+	wg.Add(2)
 
-	// Ensure the provisioner is stale
-	staleTime := sched.Next(workspace.LatestBuild.CreatedAt).Add((-1 * provisionerdserver.StaleInterval) + -10*time.Second)
-	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, staleTime)
+	next := sched.Next(workspace.LatestBuild.CreatedAt)
+	go func() {
+		defer wg.Done()
+		// Ensure the provisioner is stale
+		staleTime := next.Add(-(provisionerdserver.StaleInterval * 2))
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, staleTime)
+		p, err = coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
+		assert.NoError(t, err, "Error getting provisioner for workspace")
+		assert.Eventually(t, func() bool { return p.LastSeenAt.Time.UnixNano() == staleTime.UnixNano() }, testutil.WaitMedium, testutil.IntervalFast)
+	}()
 
-	// Trigger autobuild
-	tickCh <- sched.Next(workspace.LatestBuild.CreatedAt)
+	go func() {
+		defer wg.Done()
+		// Ensure the provisioner is gone or stale before triggering the autobuild
+		coderdtest.MustWaitForProvisionersUnavailable(t, db, workspace, provisionerDaemonTags, next)
+		// Trigger autobuild
+		tickCh <- next
+	}()
+
+	wg.Wait()
 
 	stats := <-statsCh
 
@@ -1758,5 +1772,5 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 	}()
 	stats = <-statsCh
 
-	assert.Len(t, stats.Transitions, 1, "should not create builds when no provisioners available")
+	assert.Len(t, stats.Transitions, 1, "should create builds when provisioners are available")
 }
