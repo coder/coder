@@ -112,7 +112,6 @@ func (s StoreMembershipReconciler) ReconcileAll(ctx context.Context, userID uuid
 				AvatarURL:      "",
 				QuotaAllowance: 0, // Default quota of 0, users should set this based on their needs
 			})
-
 			if err != nil {
 				membershipInsertionErrors = errors.Join(membershipInsertionErrors, xerrors.Errorf("create prebuilds group: %w", err))
 				continue
