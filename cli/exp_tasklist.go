@@ -15,7 +15,7 @@ import (
 type taskListRow struct {
 	Task codersdk.Task `table:"t,recursive_inline"`
 
-	StateChanged string `table:"state changed"`
+	StateChangedAgo string `table:"state changed"`
 }
 
 func taskListRowFromTask(now time.Time, t codersdk.Task) taskListRow {
@@ -27,7 +27,7 @@ func taskListRowFromTask(now time.Time, t codersdk.Task) taskListRow {
 	return taskListRow{
 		Task: t,
 
-		StateChanged: stateAgo,
+		StateChangedAgo: stateAgo,
 	}
 }
 
