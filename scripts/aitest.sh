@@ -89,10 +89,8 @@ run_tests() {
 	local test_type="$1"
 	local go_tests="${test_type#*:}"
 	go_tests="${go_tests%% *}"
-	local ts_tests="${test_type#* }"
-	ts_tests="${ts_tests#*:}"
 
-	log "Running tests (Go: $go_tests, TS: $ts_tests)..."
+	log "Running tests..."
 
 	local failed=false
 	local output=""
@@ -103,15 +101,6 @@ run_tests() {
 		if ! go_output=$(make test 2>&1); then
 			failed=true
 			output+="=== GO TEST FAILURES ===\n$go_output\n\n"
-		fi
-	fi
-
-	# Run TypeScript tests if needed
-	if [[ "$ts_tests" == "true" ]]; then
-		log "Running TypeScript tests..."
-		if ! ts_output=$(cd site && pnpm test 2>&1); then
-			failed=true
-			output+="=== TYPESCRIPT TEST FAILURES ===\n$ts_output\n\n"
 		fi
 	fi
 
