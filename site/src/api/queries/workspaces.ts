@@ -3,7 +3,6 @@ import { DetailedError, isApiValidationError } from "api/errors";
 import type {
 	CreateWorkspaceRequest,
 	ProvisionerLogLevel,
-	UpdateWorkspaceACL,
 	UsageAppName,
 	Workspace,
 	WorkspaceAgentLog,
@@ -419,14 +418,6 @@ export const workspacePermissions = (workspace?: Workspace) => {
 		queryKey: ["workspaces", workspace?.id, "permissions"],
 		enabled: !!workspace,
 		staleTime: Number.POSITIVE_INFINITY,
-	};
-};
-
-export const updateWorkspaceACL = (workspaceId: string) => {
-	return {
-		mutationFn: async (patch: UpdateWorkspaceACL) => {
-			await API.updateWorkspaceACL(workspaceId, patch);
-		},
 	};
 };
 

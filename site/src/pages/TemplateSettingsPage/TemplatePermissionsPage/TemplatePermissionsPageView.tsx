@@ -210,7 +210,7 @@ export const TemplatePermissionsPageView: FC<
 
 	return (
 		<>
-			<PageHeader css={styles.pageHeader}>
+			<PageHeader className="pt-0">
 				<PageHeaderTitle>Permissions</PageHeaderTitle>
 			</PageHeader>
 
@@ -419,8 +419,4 @@ const styles = {
 		fontSize: 14,
 		color: theme.palette.text.secondary,
 	}),
-
-	pageHeader: {
-		paddingTop: 0,
-	},
 } satisfies Record<string, Interpolation<Theme>>;
