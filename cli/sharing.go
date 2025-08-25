@@ -35,11 +35,13 @@ func (r *RootCmd) sharing() *serpent.Command {
 
 func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Command {
 	var (
-		client            = new(codersdk.Client)
-		userAndGroupRegex = regexp.MustCompile(`([A-Za-z0-9]+)(?::([A-Za-z0-9]+))?`)
-		users             []string
-		groups            []string
-		formatter         = cliui.NewOutputFormatter(
+		// Username regex taken from codersdk/name.go
+		userAndGroupRegex = regexp.MustCompile(`(^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*)+(?::([A-Za-z0-9-]+))?`)
+
+		client    = new(codersdk.Client)
+		users     []string
+		groups    []string
+		formatter = cliui.NewOutputFormatter(
 			cliui.TableFormat(
 				[]workspaceShareRow{}, []string{"User", "Group", "Role"}),
 			cliui.JSONFormat(),
