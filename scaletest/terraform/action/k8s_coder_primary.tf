@@ -4,7 +4,7 @@ locals {
   coder_admin_email         = "admin@coder.com"
   coder_admin_full_name     = "Coder Admin"
   coder_admin_user          = "coder"
-  coder_admin_password      = "SomeSecurePassword!"
+  coder_admin_password      = random_password.coder_admin_password.result
   coder_helm_repo           = "https://helm.coder.com/v2"
   coder_helm_chart          = "coder"
   coder_namespace           = "coder"
@@ -16,6 +16,11 @@ locals {
 
 resource "random_password" "provisionerd_psk" {
   length = 26
+}
+
+resource "random_password" "coder_admin_password" {
+  length  = 16
+  special = true
 }
 
 resource "kubernetes_namespace" "coder_primary" {
@@ -146,4 +151,10 @@ resource "helm_release" "provisionerd_primary" {
   })]
 
   depends_on = [null_resource.license]
+}
+
+output "coder_admin_password" {
+  description = "Randomly generated Coder admin password"
+  value       = random_password.coder_admin_password.result
+  # Deliberately not sensitive, so it appears in terraform apply logs
 }

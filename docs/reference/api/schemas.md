@@ -8192,12 +8192,12 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name               | Type                                           | Required | Restrictions | Description                                                                                                                   |
-|--------------------|------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------|
-| `group_perms`      | object                                         | false    |              | Group perms should be a mapping of group ID to role.                                                                          |
-| » `[any property]` | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |                                                                                                                               |
-| `user_perms`       | object                                         | false    |              | User perms should be a mapping of user ID to role. The user ID must be the uuid of the user, not a username or email address. |
-| » `[any property]` | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |                                                                                                                               |
+| Name               | Type                                           | Required | Restrictions | Description                                                                                                                                                                                                       |
+|--------------------|------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `group_perms`      | object                                         | false    |              | Group perms is a mapping from valid group UUIDs to the template role they should be granted. To remove a group from the template, use "" as the role (available as a constant named codersdk.TemplateRoleDeleted) |
+| » `[any property]` | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |                                                                                                                                                                                                                   |
+| `user_perms`       | object                                         | false    |              | User perms is a mapping from valid user UUIDs to the template role they should be granted. To remove a user from the template, use "" as the role (available as a constant named codersdk.TemplateRoleDeleted)    |
+| » `[any property]` | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |                                                                                                                                                                                                                   |
 
 ## codersdk.UpdateTemplateMeta
 
@@ -8363,12 +8363,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                             | Required | Restrictions | Description                                                                                                                                           |
-|--------------------|--------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `group_roles`      | object                                           | false    |              |                                                                                                                                                       |
-| » `[any property]` | [codersdk.WorkspaceRole](#codersdkworkspacerole) | false    |              |                                                                                                                                                       |
-| `user_roles`       | object                                           | false    |              | Keys must be valid UUIDs. To remove a user/group from the ACL use "" as the role name (available as a constant named `codersdk.WorkspaceRoleDeleted`) |
-| » `[any property]` | [codersdk.WorkspaceRole](#codersdkworkspacerole) | false    |              |                                                                                                                                                       |
+| Name               | Type                                             | Required | Restrictions | Description                                                                                                                                                                                                          |
+|--------------------|--------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `group_roles`      | object                                           | false    |              | Group roles is a mapping from valid group UUIDs to the workspace role they should be granted. To remove a group from the workspace, use "" as the role (available as a constant named codersdk.WorkspaceRoleDeleted) |
+| » `[any property]` | [codersdk.WorkspaceRole](#codersdkworkspacerole) | false    |              |                                                                                                                                                                                                                      |
+| `user_roles`       | object                                           | false    |              | User roles is a mapping from valid user UUIDs to the workspace role they should be granted. To remove a user from the workspace, use "" as the role (available as a constant named codersdk.WorkspaceRoleDeleted)    |
+| » `[any property]` | [codersdk.WorkspaceRole](#codersdkworkspacerole) | false    |              |                                                                                                                                                                                                                      |
 
 ## codersdk.UpdateWorkspaceAutomaticUpdatesRequest
 
@@ -9269,6 +9269,58 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |---------------------|----------|
 | `automatic_updates` | `always` |
 | `automatic_updates` | `never`  |
+
+## codersdk.WorkspaceACL
+
+```json
+{
+  "group": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "admin",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "role": "admin",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                        | Required | Restrictions | Description |
+|---------|-------------------------------------------------------------|----------|--------------|-------------|
+| `group` | array of [codersdk.WorkspaceGroup](#codersdkworkspacegroup) | false    |              |             |
+| `users` | array of [codersdk.WorkspaceUser](#codersdkworkspaceuser)   | false    |              |             |
 
 ## codersdk.WorkspaceAgent
 
@@ -10481,6 +10533,63 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `stopped`               | integer                                                                        | false    |              |             |
 | `tx_bytes`              | integer                                                                        | false    |              |             |
 
+## codersdk.WorkspaceGroup
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "quota_allowance": 0,
+  "role": "admin",
+  "source": "user",
+  "total_member_count": 0
+}
+```
+
+### Properties
+
+| Name                        | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
+|-----------------------------|-------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`                | string                                                | false    |              |                                                                                                                                                                       |
+| `display_name`              | string                                                | false    |              |                                                                                                                                                                       |
+| `id`                        | string                                                | false    |              |                                                                                                                                                                       |
+| `members`                   | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
+| `name`                      | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_display_name` | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_id`           | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_name`         | string                                                | false    |              |                                                                                                                                                                       |
+| `quota_allowance`           | integer                                               | false    |              |                                                                                                                                                                       |
+| `role`                      | [codersdk.WorkspaceRole](#codersdkworkspacerole)      | false    |              |                                                                                                                                                                       |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
+| `total_member_count`        | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+#### Enumerated Values
+
+| Property | Value   |
+|----------|---------|
+| `role`   | `admin` |
+| `role`   | `use`   |
+
 ## codersdk.WorkspaceHealth
 
 ```json
@@ -10826,6 +10935,33 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `start`  |
 | `stop`   |
 | `delete` |
+
+## codersdk.WorkspaceUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "role": "admin",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name         | Type                                             | Required | Restrictions | Description |
+|--------------|--------------------------------------------------|----------|--------------|-------------|
+| `avatar_url` | string                                           | false    |              |             |
+| `id`         | string                                           | true     |              |             |
+| `role`       | [codersdk.WorkspaceRole](#codersdkworkspacerole) | false    |              |             |
+| `username`   | string                                           | true     |              |             |
+
+#### Enumerated Values
+
+| Property | Value   |
+|----------|---------|
+| `role`   | `admin` |
+| `role`   | `use`   |
 
 ## codersdk.WorkspacesResponse
 

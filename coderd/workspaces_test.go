@@ -4836,6 +4836,12 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+
+		workspaceACL, err := client.WorkspaceACL(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Len(t, workspaceACL.Users, 1)
+		require.Equal(t, workspaceACL.Users[0].ID, friend.ID)
+		require.Equal(t, workspaceACL.Users[0].Role, codersdk.WorkspaceRoleAdmin)
 	})
 
 	t.Run("UnknownUserID", func(t *testing.T) {
