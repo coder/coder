@@ -18,6 +18,8 @@ import (
 type fositeStorage interface {
 	fosite.ClientManager
 	oauth2.CoreStorage
+	// TODO: Add support for database transactions.
+	//storage.Transactional
 }
 
 var _ fositeStorage = (*Storage)(nil)
