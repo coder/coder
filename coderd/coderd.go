@@ -1017,6 +1017,8 @@ func New(options *Options) *API {
 			r.Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
 
+				r.Get("/", api.tasksList)
+				r.Get("/{id}", api.taskGet)
 				r.Post("/", api.tasksCreate)
 			})
 		})
