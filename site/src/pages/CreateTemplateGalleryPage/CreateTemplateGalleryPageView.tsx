@@ -24,7 +24,7 @@ export const CreateTemplateGalleryPageView: FC<
 	CreateTemplateGalleryPageViewProps
 > = ({ starterTemplatesByTag, error }) => {
 	return (
-		<Margins>
+		<Margins className="pb-12">
 			<PageHeader
 				actions={
 					<Button asChild size="sm" variant="outline">

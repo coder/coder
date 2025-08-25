@@ -21,6 +21,7 @@ import {
 	terminalFontLabels,
 	terminalFonts,
 } from "theme/constants";
+import { cn } from "utils/cn";
 import { Section } from "../Section";
 
 interface AppearanceFormProps {
@@ -164,7 +165,7 @@ const AutoThemePreviewButton: FC<AutoThemePreviewButtonProps> = ({
 				onChange={onSelect}
 				css={{ ...visuallyHidden }}
 			/>
-			<label htmlFor={displayName} className={className}>
+			<label htmlFor={displayName} className={cn("relative", className)}>
 				<ThemePreview
 					css={{
 						// This half is absolute to not advance the layout (which would offset the second half)

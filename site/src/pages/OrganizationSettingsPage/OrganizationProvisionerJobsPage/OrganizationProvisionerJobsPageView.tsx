@@ -99,7 +99,7 @@ const OrganizationProvisionerJobsPageView: FC<
 	}
 
 	return (
-		<>
+		<div className="w-full max-w-screen-2xl pb-10">
 			<Helmet>
 				<title>
 					{pageTitle(
@@ -227,7 +227,7 @@ const OrganizationProvisionerJobsPageView: FC<
 					</TableBody>
 				</Table>
 			</section>
-		</>
+		</div>
 	);
 };
 

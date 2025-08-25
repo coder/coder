@@ -58,7 +58,7 @@ const CustomRolesPage: FC = () => {
 	}
 
 	return (
-		<>
+		<div className="w-full max-w-screen-2xl pb-10">
 			<Helmet>
 				<title>
 					{pageTitle(
@@ -116,7 +116,7 @@ const CustomRolesPage: FC = () => {
 					}}
 				/>
 			</RequirePermission>
-		</>
+		</div>
 	);
 };
 

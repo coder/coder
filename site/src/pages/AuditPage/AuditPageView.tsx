@@ -57,7 +57,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 	const isEmpty = !isLoading && auditLogs?.length === 0;
 
 	return (
-		<Margins>
+		<Margins className="pb-12">
 			<PageHeader>
 				<PageHeaderTitle>
 					<Stack direction="row" spacing={1} alignItems="center">

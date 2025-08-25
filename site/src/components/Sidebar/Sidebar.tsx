@@ -5,10 +5,11 @@ import { cn } from "utils/cn";
 
 interface SidebarProps {
 	children?: ReactNode;
+	className?: string;
 }
 
-export const Sidebar: FC<SidebarProps> = ({ children }) => {
-	return <nav className="w-60 flex-shrink-0">{children}</nav>;
+export const Sidebar: FC<SidebarProps> = ({ className, children }) => {
+	return <nav className={cn("w-60 flex-shrink-0", className)}>{children}</nav>;
 };
 
 interface SidebarHeaderProps {

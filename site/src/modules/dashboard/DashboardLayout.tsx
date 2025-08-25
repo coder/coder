@@ -23,10 +23,10 @@ export const DashboardLayout: FC = () => {
 			{canViewDeployment && <LicenseBanner />}
 			<AnnouncementBanners />
 
-			<div className="flex flex-col min-h-screen">
+			<div className="flex flex-col h-screen justify-between">
 				<Navbar />
 
-				<div className="flex flex-col flex-1 min-h-0 pb-12">
+				<div className="flex flex-col flex-1 min-h-0 overflow-y-auto">
 					<Suspense fallback={<Loader />}>
 						<Outlet />
 					</Suspense>
