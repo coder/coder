@@ -3,8 +3,8 @@ import {
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
 	MockWorkspace,
-	MockWorkspaceAgent,
 	MockWorkspaceAgentLogSource,
+	MockWorkspaceAgentReady,
 	MockWorkspaceAgentStarting,
 	MockWorkspaceApp,
 	MockWorkspaceAppStatus,
@@ -254,7 +254,7 @@ const mockResources = (
 		...MockWorkspaceResource,
 		agents: [
 			{
-				...MockWorkspaceAgent,
+				...MockWorkspaceAgentReady,
 				apps: [
 					...(props?.apps ?? []),
 					{
