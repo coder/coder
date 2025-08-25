@@ -69,7 +69,7 @@ log "Logging Claude output to: $LOG_FILE"
 get_coverage() {
 	local output_file="$1"
 	log "Getting test coverage profile..."
-	if ! gotestsum --packages="./..." --rerun-fails=1 -- --coverprofile="$output_file" >/dev/null 2>&1; then
+	if ! GOMAXPROCS=4 gotestsum --packages="./..." --rerun-fails=1 -- --coverprofile="$output_file" >/dev/null 2>&1; then
 		return 1
 	fi
 	return 0
