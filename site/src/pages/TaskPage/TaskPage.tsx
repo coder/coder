@@ -262,7 +262,7 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ agent }) => {
 				<div className="flex flex-col gap-8 items-center w-full">
 					<header className="flex flex-col items-center text-center">
 						<h3 className="m-0 font-medium text-content-primary text-xl">
-							Running your apps
+							Running startup scripts
 						</h3>
 						<div className="text-content-secondary">
 							Your task will be running in a few moments

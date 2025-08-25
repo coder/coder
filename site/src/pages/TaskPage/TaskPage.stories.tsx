@@ -2,17 +2,17 @@ import {
 	MockFailedWorkspace,
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
-	MockTemplate,
 	MockWorkspace,
 	MockWorkspaceAgent,
+	MockWorkspaceAgentLogSource,
+	MockWorkspaceAgentStarting,
 	MockWorkspaceApp,
 	MockWorkspaceAppStatus,
 	MockWorkspaceResource,
 	mockApiError,
 } from "testHelpers/entities";
-import { withProxyProvider } from "testHelpers/storybook";
+import { withProxyProvider, withWebSocket } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
 import type {
 	Workspace,
 	WorkspaceApp,
@@ -61,28 +61,6 @@ export const WaitingOnBuild: Story = {
 	},
 };
 
-export const WaitingOnBuildWithTemplate: Story = {
-	beforeEach: () => {
-		spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: MockStartingWorkspace,
-		});
-	},
-};
-
-export const WaitingOnStatus: Story = {
-	beforeEach: () => {
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: {
-				...MockWorkspace,
-				latest_app_status: null,
-			},
-		});
-	},
-};
-
 export const FailedBuild: Story = {
 	beforeEach: () => {
 		spyOn(data, "fetchTask").mockResolvedValue({
@@ -110,6 +88,59 @@ export const TerminatedBuildWithStatus: Story = {
 				latest_app_status: MockWorkspaceAppStatus,
 			},
 		});
+	},
+};
+
+export const WaitingOnStatus: Story = {
+	beforeEach: () => {
+		spyOn(data, "fetchTask").mockResolvedValue({
+			prompt: "Create competitors page",
+			workspace: {
+				...MockWorkspace,
+				latest_app_status: null,
+			},
+		});
+	},
+};
+
+export const WaitingStartupScripts: Story = {
+	beforeEach: () => {
+		spyOn(data, "fetchTask").mockResolvedValue({
+			prompt: "Create competitors page",
+			workspace: {
+				...MockWorkspace,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					has_ai_task: true,
+					resources: [
+						{ ...MockWorkspaceResource, agents: [MockWorkspaceAgentStarting] },
+					],
+				},
+			},
+		});
+	},
+	decorators: [withWebSocket],
+	parameters: {
+		webSocket: [
+			{
+				event: "message",
+				data: JSON.stringify(
+					[
+						"\x1b[91mCloning Git repository...",
+						"\x1b[2;37;41mStarting Docker Daemon...",
+						"\x1b[1;95mAdding some 🧙magic🧙...",
+						"Starting VS Code...",
+						"\r  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\r100  1475    0  1475    0     0   4231      0 --:--:-- --:--:-- --:--:--  4238",
+					].map((line, index) => ({
+						id: index,
+						level: "info",
+						output: line,
+						source_id: MockWorkspaceAgentLogSource.id,
+						created_at: new Date().toISOString(),
+					})),
+				),
+			},
+		],
 	},
 };
 
