@@ -14,6 +14,7 @@ func (r *RootCmd) tasksCommand() *serpent.Command {
 		},
 		Children: []*serpent.Command{
 			r.taskList(),
+			r.taskStatus(),
 		},
 	}
 	return cmd
