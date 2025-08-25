@@ -457,6 +457,11 @@ export interface CreateGroupRequest {
 	readonly quota_allowance: number;
 }
 
+// From codersdk/immortalstreams.go
+export interface CreateImmortalStreamRequest {
+	readonly tcp_port: number;
+}
+
 // From codersdk/organizations.go
 export interface CreateOrganizationRequest {
 	readonly name: string;
@@ -1185,6 +1190,16 @@ export interface HTTPCookieConfig {
 	readonly same_site?: string;
 }
 
+// From codersdk/immortalstreams.go
+export const HeaderConnection = "Connection";
+
+// From codersdk/immortalstreams.go
+export const HeaderImmortalStreamSequenceNum =
+	"X-Coder-Immortal-Stream-Sequence-Num";
+
+// From codersdk/immortalstreams.go
+export const HeaderUpgrade = "Upgrade";
+
 // From health/model.go
 export type HealthCode =
 	| "EACS03"
@@ -1301,6 +1316,16 @@ export interface HealthcheckReport {
 export interface IDPSyncMapping<ResourceIdType extends string | string> {
 	readonly Given: string;
 	readonly Gets: ResourceIdType;
+}
+
+// From codersdk/immortalstreams.go
+export interface ImmortalStream {
+	readonly id: string;
+	readonly name: string;
+	readonly tcp_port: number;
+	readonly created_at: string;
+	readonly last_connection_at: string;
+	readonly last_disconnection_at?: string;
 }
 
 // From codersdk/inboxnotification.go
@@ -3327,6 +3352,9 @@ export interface UpdateWorkspaceRequest {
 export interface UpdateWorkspaceTTLRequest {
 	readonly ttl_ms: number | null;
 }
+
+// From codersdk/immortalstreams.go
+export const UpgradeImmortalStream = "coder-immortal-stream";
 
 // From codersdk/files.go
 export interface UploadResponse {
