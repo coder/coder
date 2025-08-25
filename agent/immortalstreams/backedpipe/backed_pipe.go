@@ -49,15 +49,17 @@ const (
 // Implementations should:
 // 1. Establish a new connection to the remote side
 // 2. Exchange sequence numbers with the remote side
-// 3. Return the new connection and the remote's current sequence number
+// 3. Return the new connection and the remote's reader sequence number
 //
-// The writerSeqNum parameter is the local writer's current sequence number,
-// which should be sent to the remote side so it knows where to resume reading from.
+// The readerSeqNum parameter is the local reader's current sequence number
+// (total bytes successfully read from the remote). This must be sent to the
+// remote so it can replay its data to us starting from this number.
 //
-// The returned readerSeqNum should be the remote side's current sequence number,
-// which indicates where the local reader should resume from.
+// The returned remoteReaderSeqNum should be the remote side's reader sequence
+// number (how many bytes of our outbound data it has successfully read). This
+// informs our writer where to resume (i.e., which bytes to replay to the remote).
 type Reconnector interface {
-	Reconnect(ctx context.Context, writerSeqNum uint64) (conn io.ReadWriteCloser, readerSeqNum uint64, err error)
+	Reconnect(ctx context.Context, readerSeqNum uint64) (conn io.ReadWriteCloser, remoteReaderSeqNum uint64, err error)
 }
 
 // BackedPipe provides a reliable bidirectional byte stream over unreliable network connections.
@@ -77,7 +79,7 @@ type BackedPipe struct {
 	connGen uint64 // Increments on each successful reconnection
 
 	// Unified error handling with generation filtering
-	errorChan chan ErrorEvent
+	errChan chan ErrorEvent
 
 	// singleflight group to dedupe concurrent ForceReconnect calls
 	sf singleflight.Group
@@ -91,7 +93,7 @@ type BackedPipe struct {
 func NewBackedPipe(ctx context.Context, reconnector Reconnector) *BackedPipe {
 	pipeCtx, cancel := context.WithCancel(ctx)
 
-	errorChan := make(chan ErrorEvent, 10) // Buffered for async error reporting
+	errChan := make(chan ErrorEvent, 1)
 
 	bp := &BackedPipe{
 		ctx:         pipeCtx,
@@ -99,12 +101,12 @@ func NewBackedPipe(ctx context.Context, reconnector Reconnector) *BackedPipe {
 		reconnector: reconnector,
 		state:       disconnected,
 		connGen:     0, // Start with generation 0
-		errorChan:   errorChan,
+		errChan:     errChan,
 	}
 
 	// Create reader and writer with typed error channel for generation-aware error reporting
-	bp.reader = NewBackedReader(errorChan)
-	bp.writer = NewBackedWriter(DefaultBufferSize, errorChan)
+	bp.reader = NewBackedReader(errChan)
+	bp.writer = NewBackedWriter(DefaultBufferSize, errChan)
 
 	// Start error handler goroutine
 	go bp.handleErrors()
@@ -221,16 +223,29 @@ func (bp *BackedPipe) reconnectLocked() error {
 		bp.conn = nil
 	}
 
-	// Get current writer sequence number to send to remote
+	// Gather local sequence numbers:
+	// - readerSeqNum: how many bytes we've successfully read from remote (send to remote)
+	// - writerSeqNum: how many bytes we've written so far (used for validation)
+	readerSeqNum := bp.reader.SequenceNum()
 	writerSeqNum := bp.writer.SequenceNum()
 
-	conn, readerSeqNum, err := bp.reconnector.Reconnect(bp.ctx, writerSeqNum)
+	// Increment the generation and update both reader and writer.
+	// We do it now to track even the connections that fail during
+	// Reconnect.
+	bp.connGen++
+	bp.reader.SetGeneration(bp.connGen)
+	bp.writer.SetGeneration(bp.connGen)
+
+	// Send our reader sequence number to the remote and receive its reader sequence
+	// number. We will replay our outbound data from that point and backed pipe on the other
+	// side will replay from our reader sequence number.
+	conn, remoteReaderSeqNum, err := bp.reconnector.Reconnect(bp.ctx, readerSeqNum)
 	if err != nil {
 		return ErrReconnectFailed
 	}
 
 	// Validate sequence numbers
-	if readerSeqNum > writerSeqNum {
+	if remoteReaderSeqNum > writerSeqNum {
 		_ = conn.Close()
 		return ErrInvalidSequenceNumber
 	}
@@ -245,20 +260,16 @@ func (bp *BackedPipe) reconnectLocked() error {
 	<-seqNum
 	newR <- conn
 
-	err = bp.writer.Reconnect(readerSeqNum, conn)
+	// Replay our outbound data from the remote's reader sequence number
+	err = bp.writer.Reconnect(remoteReaderSeqNum, conn)
 	if err != nil {
 		_ = conn.Close()
 		return ErrReconnectWriterFailed
 	}
 
-	// Success - update state and increment connection generation
+	// Success - update state
 	bp.conn = conn
-	bp.connGen++
 	bp.state = connected
-
-	// Update the generation on reader and writer for error reporting
-	bp.reader.SetGeneration(bp.connGen)
-	bp.writer.SetGeneration(bp.connGen)
 
 	return nil
 }
@@ -271,7 +282,7 @@ func (bp *BackedPipe) handleErrors() {
 		select {
 		case <-bp.ctx.Done():
 			return
-		case errorEvt := <-bp.errorChan:
+		case errorEvt := <-bp.errChan:
 			bp.handleConnectionError(errorEvt)
 		}
 	}
