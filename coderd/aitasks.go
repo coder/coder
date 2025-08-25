@@ -280,7 +280,7 @@ func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 	// Ensure that we only include AI task workspaces in the results.
 	filter.HasAITask = sql.NullBool{Valid: true, Bool: true}
 
-	if filter.OwnerUsername == "me" || filter.OwnerUsername == "" {
+	if filter.OwnerUsername == "me" {
 		filter.OwnerID = apiKey.UserID
 		filter.OwnerUsername = ""
 	}

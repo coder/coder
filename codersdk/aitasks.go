@@ -88,35 +88,41 @@ const (
 //
 // Experimental: This type is experimental and may change in the future.
 type Task struct {
-	ID             uuid.UUID       `json:"id" format:"uuid"`
-	OrganizationID uuid.UUID       `json:"organization_id" format:"uuid"`
-	OwnerID        uuid.UUID       `json:"owner_id" format:"uuid"`
-	Name           string          `json:"name"`
-	TemplateID     uuid.UUID       `json:"template_id" format:"uuid"`
-	WorkspaceID    uuid.NullUUID   `json:"workspace_id" format:"uuid"`
-	InitialPrompt  string          `json:"initial_prompt"`
-	Status         WorkspaceStatus `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
-	CurrentState   *TaskStateEntry `json:"current_state"`
-	CreatedAt      time.Time       `json:"created_at" format:"date-time"`
-	UpdatedAt      time.Time       `json:"updated_at" format:"date-time"`
+	ID             uuid.UUID       `json:"id" format:"uuid" table:"id"`
+	OrganizationID uuid.UUID       `json:"organization_id" format:"uuid" table:"organization id"`
+	OwnerID        uuid.UUID       `json:"owner_id" format:"uuid" table:"owner id"`
+	Name           string          `json:"name" table:"name,default_sort"`
+	TemplateID     uuid.UUID       `json:"template_id" format:"uuid" table:"template id"`
+	WorkspaceID    uuid.NullUUID   `json:"workspace_id" format:"uuid" table:"workspace id"`
+	InitialPrompt  string          `json:"initial_prompt" table:"initial prompt"`
+	Status         WorkspaceStatus `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted" table:"status"`
+	CurrentState   *TaskStateEntry `json:"current_state" table:"cs,recursive_inline"`
+	CreatedAt      time.Time       `json:"created_at" format:"date-time" table:"created at"`
+	UpdatedAt      time.Time       `json:"updated_at" format:"date-time" table:"updated at"`
 }
 
 // TaskStateEntry represents a single entry in the task's state history.
 //
 // Experimental: This type is experimental and may change in the future.
 type TaskStateEntry struct {
-	Timestamp time.Time `json:"timestamp" format:"date-time"`
-	State     TaskState `json:"state" enum:"working,idle,completed,failed"`
-	Message   string    `json:"message"`
-	URI       string    `json:"uri"`
+	Timestamp time.Time `json:"timestamp" format:"date-time" table:"-"`
+	State     TaskState `json:"state" enum:"working,idle,completed,failed" table:"state"`
+	Message   string    `json:"message" table:"message"`
+	URI       string    `json:"uri" table:"-"`
 }
 
 // TasksFilter filters the list of tasks.
 //
 // Experimental: This type is experimental and may change in the future.
 type TasksFilter struct {
-	// Owner can be a username, UUID, or "me"
+	// Owner can be a username, UUID, or "me".
 	Owner string `json:"owner,omitempty"`
+	// Status is a task status.
+	Status string `json:"status,omitempty" typescript:"-"`
+	// Offset is the number of tasks to skip before returning results.
+	Offset int `json:"offset,omitempty" typescript:"-"`
+	// Limit is a limit on the number of tasks returned.
+	Limit int `json:"limit,omitempty" typescript:"-"`
 }
 
 // Tasks lists all tasks belonging to the user or specified owner.
@@ -126,12 +132,16 @@ func (c *ExperimentalClient) Tasks(ctx context.Context, filter *TasksFilter) ([]
 	if filter == nil {
 		filter = &TasksFilter{}
 	}
-	user := filter.Owner
-	if user == "" {
-		user = "me"
+
+	var wsFilter WorkspaceFilter
+	wsFilter.Owner = filter.Owner
+	wsFilter.Status = filter.Status
+	page := Pagination{
+		Offset: filter.Offset,
+		Limit:  filter.Limit,
 	}
 
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/tasks/%s", user), nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/tasks", nil, wsFilter.asRequestOption(), page.asRequestOption())
 	if err != nil {
 		return nil, err
 	}
