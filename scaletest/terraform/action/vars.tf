@@ -1,5 +1,9 @@
 variable "name" {
-  description = "The name all resources will be prefixed with"
+  description = "The name all resources will be prefixed with. Must be one of alpha, bravo, or charlie."
+  validation {
+    condition     = contains(["alpha", "bravo", "charlie"], var.name)
+    error_message = "Name must be one of alpha, bravo, or charlie."
+  }
 }
 
 variable "scenario" {
@@ -80,6 +84,26 @@ variable "provisionerd_image_repo" {
 variable "provisionerd_image_tag" {
   description = "Tag to use for Provisionerd image."
   default     = "latest"
+}
+
+variable "observability_cluster_name" {
+  description = "Name of the observability GKE cluster."
+  default     = "observability"
+}
+
+variable "observability_cluster_location" {
+  description = "Location of the observability GKE cluster."
+  default     = "us-east1-b"
+}
+
+variable "observability_cluster_vpc" {
+  description = "Name of the observability cluster VPC network to peer with."
+  default     = "default"
+}
+
+variable "cloudflare_api_token_secret" {
+  description = "Name of the Google Secret Manager secret containing the Cloudflare API token."
+  default     = "cloudflare-api-token-dns"
 }
 
 // Prometheus

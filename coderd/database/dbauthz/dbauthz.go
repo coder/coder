@@ -3243,6 +3243,17 @@ func (q *querier) GetWebpushVAPIDKeys(ctx context.Context) (database.GetWebpushV
 	return q.db.GetWebpushVAPIDKeys(ctx)
 }
 
+func (q *querier) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceACLByIDRow, error) {
+	workspace, err := q.db.GetWorkspaceByID(ctx, id)
+	if err != nil {
+		return database.GetWorkspaceACLByIDRow{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionCreate, workspace); err != nil {
+		return database.GetWorkspaceACLByIDRow{}, err
+	}
+	return q.db.GetWorkspaceACLByID(ctx, id)
+}
+
 func (q *querier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	// This is a system function
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {

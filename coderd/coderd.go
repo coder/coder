@@ -1011,10 +1011,10 @@ func New(options *Options) *API {
 		r.Route("/tasks", func(r chi.Router) {
 			r.Use(apiRateLimiter)
 
+			r.Get("/", api.tasksList)
+
 			r.Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
-
-				r.Get("/", api.tasksList)
 				r.Get("/{id}", api.taskGet)
 				r.Post("/", api.tasksCreate)
 			})
@@ -1451,6 +1451,7 @@ func New(options *Options) *API {
 						httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentWorkspaceSharing),
 					)
 
+					r.Get("/", api.workspaceACL)
 					r.Patch("/", api.patchWorkspaceACL)
 				})
 			})

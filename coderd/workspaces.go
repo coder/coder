@@ -39,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -2155,6 +2156,110 @@ func (api *API) workspaceTimings(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, timings)
 }
 
+// @Summary Get workspace ACLs
+// @ID get-workspace-acls
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Success 200 {object} codersdk.WorkspaceACL
+// @Router /workspaces/{workspace}/acl [get]
+func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx       = r.Context()
+		workspace = httpmw.WorkspaceParam(r)
+	)
+
+	// Fetch the ACL data.
+	workspaceACL, err := api.Database.GetWorkspaceACLByID(ctx, workspace.ID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	// This is largely based on the template ACL implementation, and is far from
+	// ideal. Usually, when we use the System context it's because we need to
+	// run some query that won't actually be exposed to the user. That is not
+	// the case here. This data goes directly to an unauthorized user. We are
+	// just straight up breaking security promises.
+	//
+	// Fine for now while behind the shared-workspaces experiment, but needs to
+	// be fixed before GA.
+
+	// Fetch all of the users and their organization memberships
+	userIDs := make([]uuid.UUID, 0, len(workspaceACL.Users))
+	for userID := range workspaceACL.Users {
+		id, err := uuid.Parse(userID)
+		if err != nil {
+			api.Logger.Warn(ctx, "found invalid user uuid in workspace acl", slog.Error(err), slog.F("workspace_id", workspace.ID))
+			continue
+		}
+		userIDs = append(userIDs, id)
+	}
+	// For context see https://github.com/coder/coder/pull/19375
+	// nolint:gocritic
+	dbUsers, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	// Convert the db types to the codersdk.WorkspaceUser type
+	users := make([]codersdk.WorkspaceUser, 0, len(dbUsers))
+	for _, it := range dbUsers {
+		users = append(users, codersdk.WorkspaceUser{
+			MinimalUser: db2sdk.MinimalUser(it),
+			Role:        convertToWorkspaceRole(workspaceACL.Users[it.ID.String()].Permissions),
+		})
+	}
+
+	// Fetch all of the groups
+	groupIDs := make([]uuid.UUID, 0, len(workspaceACL.Groups))
+	for groupID := range workspaceACL.Groups {
+		id, err := uuid.Parse(groupID)
+		if err != nil {
+			api.Logger.Warn(ctx, "found invalid group uuid in workspace acl", slog.Error(err), slog.F("workspace_id", workspace.ID))
+			continue
+		}
+		groupIDs = append(groupIDs, id)
+	}
+	// For context see https://github.com/coder/coder/pull/19375
+	// nolint:gocritic
+	dbGroups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	groups := make([]codersdk.WorkspaceGroup, 0, len(dbGroups))
+	for _, it := range dbGroups {
+		var members []database.GroupMember
+		// For context see https://github.com/coder/coder/pull/19375
+		// nolint:gocritic
+		members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
+			GroupID:       it.Group.ID,
+			IncludeSystem: false,
+		})
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		groups = append(groups, codersdk.WorkspaceGroup{
+			Group: db2sdk.Group(database.GetGroupsRow{
+				Group:                   it.Group,
+				OrganizationName:        it.OrganizationName,
+				OrganizationDisplayName: it.OrganizationDisplayName,
+			}, members, len(members)),
+			Role: convertToWorkspaceRole(workspaceACL.Groups[it.Group.ID.String()].Permissions),
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceACL{
+		Users:  users,
+		Groups: groups,
+	})
+}
+
 // @Summary Update workspace ACL
 // @ID update-workspace-acl
 // @Security CoderSessionToken
@@ -2612,14 +2717,13 @@ func (WorkspaceACLUpdateValidator) ValidateRole(role codersdk.WorkspaceRole) err
 	return nil
 }
 
-// TODO: This will go here
-// func convertToWorkspaceRole(actions []policy.Action) codersdk.TemplateRole {
-// 	switch {
-// 	case len(actions) == 2 && slice.SameElements(actions, []policy.Action{policy.ActionUse, policy.ActionRead}):
-// 		return codersdk.TemplateRoleUse
-// 	case len(actions) == 1 && actions[0] == policy.WildcardSymbol:
-// 		return codersdk.TemplateRoleAdmin
-// 	}
+func convertToWorkspaceRole(actions []policy.Action) codersdk.WorkspaceRole {
+	switch {
+	case slice.SameElements(actions, db2sdk.WorkspaceRoleActions(codersdk.WorkspaceRoleAdmin)):
+		return codersdk.WorkspaceRoleAdmin
+	case slice.SameElements(actions, db2sdk.WorkspaceRoleActions(codersdk.WorkspaceRoleUse)):
+		return codersdk.WorkspaceRoleUse
+	}
 
-// 	return ""
-// }
+	return codersdk.WorkspaceRoleDeleted
+}

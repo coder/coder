@@ -43,6 +43,23 @@ resource "kubernetes_secret" "proxy_token_europe" {
   }
 }
 
+resource "kubernetes_secret" "coder_tls_europe" {
+  provider = kubernetes.europe
+
+  type = "kubernetes.io/tls"
+  metadata {
+    name      = "coder-tls"
+    namespace = kubernetes_namespace.coder_europe.metadata.0.name
+  }
+  data = {
+    "tls.crt" = data.kubernetes_secret.coder_tls["europe"].data["tls.crt"]
+    "tls.key" = data.kubernetes_secret.coder_tls["europe"].data["tls.key"]
+  }
+  lifecycle {
+    ignore_changes = [timeouts, wait_for_service_account_token]
+  }
+}
+
 resource "helm_release" "coder_europe" {
   provider = helm.europe
 
@@ -52,25 +69,27 @@ resource "helm_release" "coder_europe" {
   version    = var.coder_chart_version
   namespace  = kubernetes_namespace.coder_europe.metadata.0.name
   values = [templatefile("${path.module}/coder_helm_values.tftpl", {
-    workspace_proxy  = true,
-    provisionerd     = false,
-    primary_url      = local.deployments.primary.url,
-    proxy_token      = kubernetes_secret.proxy_token_europe.metadata.0.name,
-    db_secret        = null,
-    ip_address       = google_compute_address.coder["europe"].address,
-    provisionerd_psk = null,
-    access_url       = local.deployments.europe.url,
-    node_pool        = google_container_node_pool.node_pool["europe_coder"].name,
-    release_name     = local.coder_release_name,
-    experiments      = var.coder_experiments,
-    image_repo       = var.coder_image_repo,
-    image_tag        = var.coder_image_tag,
-    replicas         = local.scenarios[var.scenario].coder.replicas,
-    cpu_request      = local.scenarios[var.scenario].coder.cpu_request,
-    mem_request      = local.scenarios[var.scenario].coder.mem_request,
-    cpu_limit        = local.scenarios[var.scenario].coder.cpu_limit,
-    mem_limit        = local.scenarios[var.scenario].coder.mem_limit,
-    deployment       = "europe",
+    workspace_proxy     = true,
+    provisionerd        = false,
+    primary_url         = local.deployments.primary.url,
+    proxy_token         = kubernetes_secret.proxy_token_europe.metadata.0.name,
+    db_secret           = null,
+    ip_address          = google_compute_address.coder["europe"].address,
+    provisionerd_psk    = null,
+    access_url          = local.deployments.europe.url,
+    wildcard_access_url = local.deployments.europe.wildcard_access_url,
+    node_pool           = google_container_node_pool.node_pool["europe_coder"].name,
+    release_name        = local.coder_release_name,
+    experiments         = var.coder_experiments,
+    image_repo          = var.coder_image_repo,
+    image_tag           = var.coder_image_tag,
+    replicas            = local.scenarios[var.scenario].coder.replicas,
+    cpu_request         = local.scenarios[var.scenario].coder.cpu_request,
+    mem_request         = local.scenarios[var.scenario].coder.mem_request,
+    cpu_limit           = local.scenarios[var.scenario].coder.cpu_limit,
+    mem_limit           = local.scenarios[var.scenario].coder.mem_limit,
+    deployment          = "europe",
+    tls_secret_name     = kubernetes_secret.coder_tls_europe.metadata.0.name,
   })]
 
   depends_on = [null_resource.license]
@@ -85,25 +104,27 @@ resource "helm_release" "provisionerd_europe" {
   version    = var.provisionerd_chart_version
   namespace  = kubernetes_namespace.coder_europe.metadata.0.name
   values = [templatefile("${path.module}/coder_helm_values.tftpl", {
-    workspace_proxy  = false,
-    provisionerd     = true,
-    primary_url      = null,
-    proxy_token      = null,
-    db_secret        = null,
-    ip_address       = null,
-    provisionerd_psk = kubernetes_secret.provisionerd_psk_europe.metadata.0.name,
-    access_url       = local.deployments.primary.url,
-    node_pool        = google_container_node_pool.node_pool["europe_coder"].name,
-    release_name     = local.coder_release_name,
-    experiments      = var.coder_experiments,
-    image_repo       = var.coder_image_repo,
-    image_tag        = var.coder_image_tag,
-    replicas         = local.scenarios[var.scenario].provisionerd.replicas,
-    cpu_request      = local.scenarios[var.scenario].provisionerd.cpu_request,
-    mem_request      = local.scenarios[var.scenario].provisionerd.mem_request,
-    cpu_limit        = local.scenarios[var.scenario].provisionerd.cpu_limit,
-    mem_limit        = local.scenarios[var.scenario].provisionerd.mem_limit,
-    deployment       = "europe",
+    workspace_proxy     = false,
+    provisionerd        = true,
+    primary_url         = null,
+    proxy_token         = null,
+    db_secret           = null,
+    ip_address          = null,
+    provisionerd_psk    = kubernetes_secret.provisionerd_psk_europe.metadata.0.name,
+    access_url          = local.deployments.primary.url,
+    wildcard_access_url = null,
+    node_pool           = google_container_node_pool.node_pool["europe_coder"].name,
+    release_name        = local.coder_release_name,
+    experiments         = var.coder_experiments,
+    image_repo          = var.coder_image_repo,
+    image_tag           = var.coder_image_tag,
+    replicas            = local.scenarios[var.scenario].provisionerd.replicas,
+    cpu_request         = local.scenarios[var.scenario].provisionerd.cpu_request,
+    mem_request         = local.scenarios[var.scenario].provisionerd.mem_request,
+    cpu_limit           = local.scenarios[var.scenario].provisionerd.cpu_limit,
+    mem_limit           = local.scenarios[var.scenario].provisionerd.mem_limit,
+    deployment          = "europe",
+    tls_secret_name     = null,
   })]
 
   depends_on = [null_resource.license]
