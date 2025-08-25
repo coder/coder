@@ -116,7 +116,7 @@ coder:
     # When enabled, Roles and RoleBindings will be created in each listed namespace 
     # binding to this service account in the release namespace.
     workspaceNamespaces:
-      enabled: true
+      enabled: false
       namespaces: []
       # - dev
       # - staging
