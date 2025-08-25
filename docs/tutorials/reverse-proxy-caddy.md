@@ -6,12 +6,12 @@ certificates, you'll need a domain name that resolves to your Caddy server.
 
 ## Getting started
 
-### With docker-compose
+### With `docker compose`
 
 1. [Install Docker](https://docs.docker.com/engine/install/) and
    [Docker Compose](https://docs.docker.com/compose/install/)
 
-2. Create a `docker-compose.yaml` file and add the following:
+2. Create a `compose.yaml` file and add the following:
 
    ```yaml
    services:
@@ -212,7 +212,7 @@ Caddy modules.
    - Docker:
      [Build an custom Caddy image](https://github.com/docker-library/docs/tree/master/caddy#adding-custom-caddy-modules)
      with the module for your DNS provider. Be sure to reference the new image
-     in the `docker-compose.yaml`.
+     in the `compose.yaml`.
 
    - Standalone:
      [Download a custom Caddy build](https://caddyserver.com/download) with the
