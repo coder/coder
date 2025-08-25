@@ -14,7 +14,7 @@ import (
 func TestSharingShare(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShareWithUser+Simple", func(t *testing.T) {
+	t.Run("ShareWithUsers+Simple", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -36,6 +36,48 @@ func TestSharingShare(t *testing.T) {
 
 		// TODO: Test updated ACL
 
-		assert.Equal(t, 1, 0)
+		assert.True(t, false)
+	})
+
+	t.Run("ShareWithUsers+Multiple", func(t *testing.T) {
+		t.Parallel()
+
+		assert.True(t, false)
+	})
+
+	t.Run("ShareWithUsers+UseRole", func(t *testing.T) {
+		t.Parallel()
+
+		assert.True(t, false)
+	})
+
+	t.Run("ShareWithUsers+AdminRole", func(t *testing.T) {
+		t.Parallel()
+
+		assert.True(t, false)
+	})
+
+	t.Run("ShareWithGroups+Simple", func(t *testing.T) {
+		t.Parallel()
+
+		assert.True(t, false)
+	})
+
+	t.Run("ShareWithGroups+Mutliple", func(t *testing.T) {
+		t.Parallel()
+
+		assert.True(t, false)
+	})
+
+	t.Run("ShareWithGroups+UseRole", func(t *testing.T) {
+		t.Parallel()
+
+		assert.True(t, false)
+	})
+
+	t.Run("ShareWithGroups+AdminRole", func(t *testing.T) {
+		t.Parallel()
+
+		assert.True(t, false)
 	})
 }
