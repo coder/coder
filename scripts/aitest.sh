@@ -2,6 +2,12 @@
 
 set -euo pipefail
 
+# shellcheck source=scripts/lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+# Check required dependencies
+dependencies claude gotestsum awk go
+
 # Default timeout in seconds (10 minutes)
 TIMEOUT=${1:-600}
 MAX_ITERATIONS=10
@@ -47,12 +53,6 @@ warn() {
 	echo -e "${YELLOW}[aitest WARN]${NC} $1" >&2
 }
 
-# Check if claude command is available
-if ! command -v claude >/dev/null 2>&1; then
-	error "claude command not found. Please install Claude CLI."
-	exit 1
-fi
-
 # Read prompt from stdin
 log "Reading prompt from stdin..."
 prompt=$(cat)
@@ -69,7 +69,7 @@ log "Logging Claude output to: $LOG_FILE"
 get_coverage() {
 	local output_file="$1"
 	log "Getting test coverage profile..."
-	if ! GOMAXPROCS=4 gotestsum --packages="./..." --rerun-fails=1 -- --coverprofile="$output_file" >/dev/null 2>&1; then
+	if ! GOMAXPROCS=4 gotestsum --packages="./..." --rerun-fails=1 -- --covermode=atomic --coverprofile="$output_file" >/dev/null 2>&1; then
 		return 1
 	fi
 	return 0
@@ -109,17 +109,15 @@ check_coverage_change() {
 
 	log "Coverage: baseline ${baseline_pct}%, current ${current_pct}%"
 
-	# Compare coverage (using bc for floating point comparison)
-	if command -v bc >/dev/null 2>&1; then
-		local decreased
-		decreased=$(echo "$current_pct < $baseline_pct" | bc -l)
-		if [[ "$decreased" == "1" ]]; then
-			warn "Coverage decreased from ${baseline_pct}% to ${current_pct}%"
+	# Compare coverage using awk for floating point comparison
+	local decreased
+	decreased=$(awk -v current="$current_pct" -v baseline="$baseline_pct" 'BEGIN { print (current < baseline) ? 1 : 0 }')
+	if [[ "$decreased" == "1" ]]; then
+		warn "Coverage decreased from ${baseline_pct}% to ${current_pct}%"
 
-			# Generate coverage diff
-			local diff_output=""
-			if command -v go >/dev/null 2>&1; then
-				diff_output="Coverage decreased from ${baseline_pct}% to ${current_pct}%
+		# Generate coverage diff
+		local diff_output
+		diff_output="Coverage decreased from ${baseline_pct}% to ${current_pct}%
 
 === BASELINE COVERAGE ===
 $(go tool cover -func="$baseline_file")
@@ -128,15 +126,9 @@ $(go tool cover -func="$baseline_file")
 $(go tool cover -func="$current_file")
 
 Please fix the code to maintain or improve test coverage."
-			else
-				diff_output="Coverage decreased from ${baseline_pct}% to ${current_pct}%. Please fix the code to maintain or improve test coverage."
-			fi
 
-			echo "$diff_output"
-			return 1
-		fi
-	else
-		warn "bc command not available, skipping precise coverage comparison"
+		echo "$diff_output"
+		return 1
 	fi
 
 	return 0
