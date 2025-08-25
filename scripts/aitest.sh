@@ -161,7 +161,7 @@ while ((iteration < MAX_ITERATIONS)); do
 	} >>"$LOG_FILE"
 
 	# Send to Claude and capture output
-	if ! claude_output=$(echo "$prompt" | claude -p 2>&1); then
+	if ! claude_output=$(echo "$prompt" | claude -p --dangerously-skip-permissions 2>&1); then
 		error "Claude command failed"
 		echo "Claude command failed: $claude_output" >>"$LOG_FILE"
 		exit 1
