@@ -18,8 +18,10 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
-var safeParams = []string{"page", "limit", "offset"}
-var countParams = []string{"ids", "template_ids"}
+var (
+	safeParams  = []string{"page", "limit", "offset"}
+	countParams = []string{"ids", "template_ids"}
+)
 
 func safeQueryParams(params url.Values) []slog.Field {
 	if len(params) == 0 {
