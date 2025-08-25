@@ -241,7 +241,6 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 					ID:                buildID,
 					CreatedAt:         dbtime.Now(),
 					UpdatedAt:         dbtime.Now(),
-					BuildNumber:       buildNumber,
 					InitiatorID:       user.ID,
 					Reason:            database.BuildReasonInitiator,
 					WorkspaceID:       ws.ID,

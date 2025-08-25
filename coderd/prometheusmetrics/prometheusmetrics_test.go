@@ -893,7 +893,6 @@ func insertRunning(t *testing.T, db database.Store, u database.User, org databas
 		ID:                uuid.New(),
 		WorkspaceID:       workspace.ID,
 		JobID:             job.ID,
-		BuildNumber:       1,
 		Transition:        database.WorkspaceTransitionStart,
 		Reason:            database.BuildReasonInitiator,
 		TemplateVersionID: templateVersionID,
