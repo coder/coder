@@ -17,6 +17,7 @@ resource "helm_release" "prometheus_chart_primary" {
   name       = local.prometheus_release_name
   namespace  = kubernetes_namespace.coder_primary.metadata.0.name
   values = [templatefile("${path.module}/prometheus_helm_values.tftpl", {
+    deployment_name                       = var.name,
     nodepool                              = google_container_node_pool.node_pool["primary_misc"].name,
     cluster                               = "primary",
     prometheus_remote_write_url           = var.prometheus_remote_write_url,
@@ -104,6 +105,7 @@ resource "helm_release" "prometheus_chart_europe" {
   name       = local.prometheus_release_name
   namespace  = kubernetes_namespace.coder_europe.metadata.0.name
   values = [templatefile("${path.module}/prometheus_helm_values.tftpl", {
+    deployment_name                       = var.name,
     nodepool                              = google_container_node_pool.node_pool["europe_misc"].name,
     cluster                               = "europe",
     prometheus_remote_write_url           = var.prometheus_remote_write_url,
@@ -141,6 +143,7 @@ resource "helm_release" "prometheus_chart_asia" {
   name       = local.prometheus_release_name
   namespace  = kubernetes_namespace.coder_asia.metadata.0.name
   values = [templatefile("${path.module}/prometheus_helm_values.tftpl", {
+    deployment_name                       = var.name,
     nodepool                              = google_container_node_pool.node_pool["asia_misc"].name,
     cluster                               = "asia",
     prometheus_remote_write_url           = var.prometheus_remote_write_url,
