@@ -8,6 +8,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 # Check required dependencies
 dependencies claude gotestsum awk go
 
+# Ensure we're in the project root
+cdroot
+
 # Default timeout in seconds (10 minutes)
 TIMEOUT=${1:-600}
 MAX_ITERATIONS=10
@@ -30,20 +33,10 @@ cleanup() {
 # Set up cleanup on exit
 trap cleanup EXIT
 
-# Colors for output
-RED='\033[0;31m'
+# Colors for output (keeping these for success/warn which lib.sh doesn't have)
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
 NC='\033[0m' # No Color
-
-log() {
-	echo -e "${BLUE}[aitest]${NC} $1" >&2
-}
-
-error() {
-	echo -e "${RED}[aitest ERROR]${NC} $1" >&2
-}
 
 success() {
 	echo -e "${GREEN}[aitest SUCCESS]${NC} $1" >&2
