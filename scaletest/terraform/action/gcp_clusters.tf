@@ -6,25 +6,31 @@ data "google_compute_default_service_account" "default" {
 locals {
   deployments = {
     primary = {
-      subdomain = "${var.name}-scaletest"
-      url       = "http://${var.name}-scaletest.${var.cloudflare_domain}"
-      region    = "us-east1"
-      zone      = "us-east1-c"
-      subnet    = "scaletest"
+      subdomain           = "primary.${var.name}"
+      wildcard_subdomain  = "*.primary.${var.name}"
+      url                 = "https://primary.${var.name}.${var.cloudflare_domain}"
+      wildcard_access_url = "*.primary.${var.name}.${var.cloudflare_domain}"
+      region              = "us-east1"
+      zone                = "us-east1-c"
+      subnet              = "scaletest"
     }
     europe = {
-      subdomain = "${var.name}-europe-scaletest"
-      url       = "http://${var.name}-europe-scaletest.${var.cloudflare_domain}"
-      region    = "europe-west1"
-      zone      = "europe-west1-b"
-      subnet    = "scaletest"
+      subdomain           = "europe.${var.name}"
+      wildcard_subdomain  = "*.europe.${var.name}"
+      url                 = "https://europe.${var.name}.${var.cloudflare_domain}"
+      wildcard_access_url = "*.europe.${var.name}.${var.cloudflare_domain}"
+      region              = "europe-west1"
+      zone                = "europe-west1-b"
+      subnet              = "scaletest"
     }
     asia = {
-      subdomain = "${var.name}-asia-scaletest"
-      url       = "http://${var.name}-asia-scaletest.${var.cloudflare_domain}"
-      region    = "asia-southeast1"
-      zone      = "asia-southeast1-a"
-      subnet    = "scaletest"
+      subdomain           = "asia.${var.name}"
+      wildcard_subdomain  = "*.asia.${var.name}"
+      url                 = "https://asia.${var.name}.${var.cloudflare_domain}"
+      wildcard_access_url = "*.asia.${var.name}.${var.cloudflare_domain}"
+      region              = "asia-southeast1"
+      zone                = "asia-southeast1-a"
+      subnet              = "scaletest"
     }
   }
   node_pools = {
@@ -146,6 +152,11 @@ resource "google_container_node_pool" "node_pool" {
     }
   }
   lifecycle {
-    ignore_changes = [management[0].auto_repair, management[0].auto_upgrade, timeouts]
+    ignore_changes = [
+      management[0].auto_repair,
+      management[0].auto_upgrade,
+      timeouts,
+      node_config[0].resource_labels
+    ]
   }
 }
