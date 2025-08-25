@@ -113,7 +113,7 @@ type mockReconnector struct {
 }
 
 // Reconnect implements the Reconnector interface
-func (m *mockReconnector) Reconnect(ctx context.Context, writerSeqNum uint64) (io.ReadWriteCloser, uint64, error) {
+func (m *mockReconnector) Reconnect(ctx context.Context, readerSeqNum uint64) (io.ReadWriteCloser, uint64, error) {
 	m.callCount++
 
 	if m.connectionIndex >= len(m.connections) {
@@ -131,18 +131,19 @@ func (m *mockReconnector) Reconnect(ctx context.Context, writerSeqNum uint64) (i
 		}
 	}
 
-	// Determine readerSeqNum based on call count
-	var readerSeqNum uint64
+	// Determine remoteReaderSeqNum (how many bytes of our outbound data the remote has read)
+	var remoteReaderSeqNum uint64
 	switch {
 	case m.callCount == 1:
-		readerSeqNum = 0
+		remoteReaderSeqNum = 0
 	case conn.seqNum != 0:
-		readerSeqNum = conn.seqNum
+		remoteReaderSeqNum = conn.seqNum
 	default:
-		readerSeqNum = writerSeqNum
+		// Default to 0 if unspecified
+		remoteReaderSeqNum = 0
 	}
 
-	return conn, readerSeqNum, nil
+	return conn, remoteReaderSeqNum, nil
 }
 
 // mockReconnectFunc creates a unified reconnector with all behaviors enabled
@@ -168,7 +169,7 @@ type blockingReconnector struct {
 	signalOnce  sync.Once // Ensure we only signal once for the first actual reconnect
 }
 
-func (b *blockingReconnector) Reconnect(ctx context.Context, writerSeqNum uint64) (io.ReadWriteCloser, uint64, error) {
+func (b *blockingReconnector) Reconnect(ctx context.Context, readerSeqNum uint64) (io.ReadWriteCloser, uint64, error) {
 	b.mu.Lock()
 	b.callCount++
 	currentCall := b.callCount
@@ -197,7 +198,7 @@ func (b *blockingReconnector) Reconnect(ctx context.Context, writerSeqNum uint64
 		return nil, 0, ctx.Err()
 	}
 
-	return b.conn2, writerSeqNum, nil
+	return b.conn2, 0, nil
 }
 
 func mockBlockingReconnectFunc(conn1, conn2 *mockConnection, blockChan <-chan struct{}) (backedpipe.Reconnector, *int, chan struct{}) {
@@ -219,7 +220,7 @@ type eofTestReconnector struct {
 	callCount *int
 }
 
-func (e *eofTestReconnector) Reconnect(ctx context.Context, writerSeqNum uint64) (io.ReadWriteCloser, uint64, error) {
+func (e *eofTestReconnector) Reconnect(ctx context.Context, readerSeqNum uint64) (io.ReadWriteCloser, uint64, error) {
 	*e.callCount++
 
 	if *e.callCount == 1 {
@@ -227,7 +228,8 @@ func (e *eofTestReconnector) Reconnect(ctx context.Context, writerSeqNum uint64)
 	}
 	if *e.callCount == 2 {
 		// Second call is the reconnection after EOF
-		return e.conn2, writerSeqNum, nil // conn2 already has the reader sequence at writerSeqNum
+		// Return 5 to indicate remote has read all 5 bytes of "hello"
+		return e.conn2, 5, nil
 	}
 
 	return nil, 0, xerrors.New("no more connections")
@@ -518,6 +520,8 @@ func TestBackedPipe_ForceReconnect(t *testing.T) {
 	ctx := context.Background()
 	conn1 := newMockConnection()
 	conn2 := newMockConnection()
+	// Set conn2 sequence number to 9 to indicate remote has read all 9 bytes of "test data"
+	conn2.seqNum = 9
 	reconnectFn, callCount, _ := mockReconnectFunc(conn1, conn2)
 
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
@@ -540,7 +544,7 @@ func TestBackedPipe_ForceReconnect(t *testing.T) {
 	require.True(t, bp.Connected())
 	require.Equal(t, 2, *callCount)
 
-	// Since the mock now returns the proper sequence number, no data should be replayed
+	// Since the mock returns the proper sequence number, no data should be replayed
 	// The new connection should be empty
 	require.Equal(t, "", conn2.ReadString())
 
