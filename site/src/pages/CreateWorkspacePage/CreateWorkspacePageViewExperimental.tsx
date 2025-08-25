@@ -37,7 +37,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { docs } from "utils/docs";
 import { nameValidator } from "utils/formUtils";
 import type { AutofillBuildParameter } from "utils/richParameters";
@@ -104,9 +104,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 	owner,
 	setOwner,
 }) => {
-	const [suggestedName, setSuggestedName] = useState(() =>
-		generateWorkspaceName(),
-	);
+	const [suggestedName, setSuggestedName] = useState(generateWorkspaceName);
 	const [showPresetParameters, setShowPresetParameters] = useState(false);
 	const id = useId();
 	const workspaceNameInputRef = useRef<HTMLInputElement>(null);
@@ -120,14 +118,8 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 	// Only touched fields are sent to the websocket
 	// Autofilled parameters are marked as touched since they have been modified
-	const initialTouched = parameters.reduce(
-		(touched, parameter) => {
-			if (autofillByName[parameter.name] !== undefined) {
-				touched[parameter.name] = true;
-			}
-			return touched;
-		},
-		{} as Record<string, boolean>,
+	const initialTouched = Object.fromEntries(
+		parameters.filter((p) => autofillByName[p.name]).map((p) => [p, true]),
 	);
 
 	// The form parameters values hold the working state of the parameters that will be submitted when creating a workspace
@@ -210,6 +202,36 @@ export const CreateWorkspacePageViewExperimental: FC<
 		[],
 	);
 
+	// include any modified parameters and all touched parameters to the websocket request
+	const sendDynamicParamsRequest = useCallback(
+		(
+			parameters: Array<{ parameter: PreviewParameter; value: string }>,
+			ownerId?: string,
+		) => {
+			const formInputs: Record<string, string> = {};
+			const formParameters = form.values.rich_parameter_values ?? [];
+
+			for (const { parameter, value } of parameters) {
+				formInputs[parameter.name] = value;
+			}
+
+			for (const [fieldName, isTouched] of Object.entries(form.touched)) {
+				if (
+					isTouched &&
+					!parameters.some((p) => p.parameter.name === fieldName)
+				) {
+					const param = formParameters.find((p) => p.name === fieldName);
+					if (param?.value) {
+						formInputs[fieldName] = param.value;
+					}
+				}
+			}
+
+			sendMessage(formInputs, ownerId);
+		},
+		[form.touched, form.values.rich_parameter_values, sendMessage],
+	);
+
 	useEffect(() => {
 		const selectedPresetOption = presetOptions[selectedPresetIndex];
 		let selectedPreset: TypesGen.Preset | undefined;
@@ -282,34 +304,8 @@ export const CreateWorkspacePageViewExperimental: FC<
 		form.setFieldTouched,
 		parameters,
 		form.values.rich_parameter_values,
+		sendDynamicParamsRequest,
 	]);
-
-	// include any modified parameters and all touched parameters to the websocket request
-	const sendDynamicParamsRequest = (
-		parameters: Array<{ parameter: PreviewParameter; value: string }>,
-		ownerId?: string,
-	) => {
-		const formInputs: Record<string, string> = {};
-		const formParameters = form.values.rich_parameter_values ?? [];
-
-		for (const { parameter, value } of parameters) {
-			formInputs[parameter.name] = value;
-		}
-
-		for (const [fieldName, isTouched] of Object.entries(form.touched)) {
-			if (
-				isTouched &&
-				!parameters.some((p) => p.parameter.name === fieldName)
-			) {
-				const param = formParameters.find((p) => p.name === fieldName);
-				if (param?.value) {
-					formInputs[fieldName] = param.value;
-				}
-			}
-		}
-
-		sendMessage(formInputs, ownerId);
-	};
 
 	const handleOwnerChange = (user: TypesGen.User) => {
 		setOwner(user);

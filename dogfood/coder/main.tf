@@ -38,6 +38,7 @@ locals {
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
   repo_dir       = replace(try(module.git-clone[0].repo_dir, ""), "/^~\\//", "/home/coder/")
   container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+  has_ai_prompt  = data.coder_parameter.ai_prompt.value != ""
 }
 
 data "coder_workspace_preset" "cpt" {
@@ -150,6 +151,13 @@ data "coder_parameter" "image_type" {
   }
 }
 
+variable "anthropic_api_key" {
+  type        = string
+  description = "The API key used to authenticate with the Anthropic API."
+  default     = ""
+  sensitive   = true
+}
+
 locals {
   default_regions = {
     // keys should match group names
@@ -166,7 +174,6 @@ locals {
     local.default_regions[g] if contains(keys(local.default_regions), g)
   ], ["us-pittsburgh"])[0]
 }
-
 
 data "coder_parameter" "region" {
   type    = "string"
@@ -242,6 +249,14 @@ data "coder_parameter" "devcontainer_autostart" {
   mutable     = true
 }
 
+data "coder_parameter" "ai_prompt" {
+  type        = "string"
+  name        = "AI Prompt"
+  default     = ""
+  description = "Prompt for Claude Code"
+  mutable     = true // Workaround for issue with claiming a prebuild from a preset that does not include this parameter.
+}
+
 provider "docker" {
   host = lookup(local.docker_host, data.coder_parameter.region.value)
 }
@@ -261,6 +276,74 @@ data "coder_workspace_tags" "tags" {
   }
 }
 
+data "coder_parameter" "ide_choices" {
+  type        = "list(string)"
+  name        = "Select IDEs"
+  form_type   = "multi-select"
+  mutable     = true
+  description = "Choose one or more IDEs to enable in your workspace"
+  default     = jsonencode(["vscode", "code-server", "cursor"])
+  option {
+    name  = "VS Code Desktop"
+    value = "vscode"
+    icon  = "/icon/code.svg"
+  }
+  option {
+    name  = "code-server"
+    value = "code-server"
+    icon  = "/icon/code.svg"
+  }
+  option {
+    name  = "VS Code Web"
+    value = "vscode-web"
+    icon  = "/icon/code.svg"
+  }
+  option {
+    name  = "JetBrains IDEs"
+    value = "jetbrains"
+    icon  = "/icon/jetbrains.svg"
+  }
+  option {
+    name  = "JetBrains Fleet"
+    value = "fleet"
+    icon  = "/icon/fleet.svg"
+  }
+  option {
+    name  = "Cursor"
+    value = "cursor"
+    icon  = "/icon/cursor.svg"
+  }
+  option {
+    name  = "Windsurf"
+    value = "windsurf"
+    icon  = "/icon/windsurf.svg"
+  }
+  option {
+    name  = "Zed"
+    value = "zed"
+    icon  = "/icon/zed.svg"
+  }
+}
+
+data "coder_parameter" "vscode_channel" {
+  count       = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") ? 1 : 0
+  type        = "string"
+  name        = "VS Code Desktop channel"
+  description = "Choose the VS Code Desktop channel"
+  mutable     = true
+  default     = "stable"
+  option {
+    value = "stable"
+    name  = "Stable"
+    icon  = "/icon/code.svg"
+  }
+  option {
+    value = "insiders"
+    name  = "Insiders"
+    icon  = "/icon/code-insiders.svg"
+  }
+}
+
 module "slackme" {
   count            = data.coder_workspace.me.start_count
   source           = "dev.registry.coder.com/coder/slackme/coder"
@@ -276,10 +359,17 @@ module "dotfiles" {
   agent_id = coder_agent.dev.id
 }
 
+module "git-config" {
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/coder/git-config/coder"
+  version  = "1.0.31"
+  agent_id = coder_agent.dev.id
+}
+
 module "git-clone" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/git-clone/coder"
-  version  = "1.1.0"
+  version  = "1.1.1"
   agent_id = coder_agent.dev.id
   url      = "https://github.com/coder/coder"
   base_dir = local.repo_base_dir
@@ -293,7 +383,7 @@ module "personalize" {
 }
 
 module "code-server" {
-  count                   = data.coder_workspace.me.start_count
+  count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
   version                 = "1.3.1"
   agent_id                = coder_agent.dev.id
@@ -303,9 +393,9 @@ module "code-server" {
 }
 
 module "vscode-web" {
-  count                   = data.coder_workspace.me.start_count
+  count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode-web") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
-  version                 = "1.3.1"
+  version                 = "1.4.1"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   extensions              = ["github.copilot"]
@@ -315,9 +405,9 @@ module "vscode-web" {
 }
 
 module "jetbrains" {
-  count         = data.coder_workspace.me.start_count
+  count         = contains(jsondecode(data.coder_parameter.ide_choices.value), "jetbrains") ? data.coder_workspace.me.start_count : 0
   source        = "dev.registry.coder.com/coder/jetbrains/coder"
-  version       = "1.0.0"
+  version       = "1.0.3"
   agent_id      = coder_agent.dev.id
   agent_name    = "dev"
   folder        = local.repo_dir
@@ -340,15 +430,15 @@ module "coder-login" {
 }
 
 module "cursor" {
-  count    = data.coder_workspace.me.start_count
+  count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "cursor") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/cursor/coder"
-  version  = "1.2.1"
+  version  = "1.3.1"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
 
 module "windsurf" {
-  count    = data.coder_workspace.me.start_count
+  count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "windsurf") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/windsurf/coder"
   version  = "1.1.1"
   agent_id = coder_agent.dev.id
@@ -356,16 +446,16 @@ module "windsurf" {
 }
 
 module "zed" {
-  count      = data.coder_workspace.me.start_count
+  count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "zed") ? data.coder_workspace.me.start_count : 0
   source     = "dev.registry.coder.com/coder/zed/coder"
-  version    = "1.0.1"
+  version    = "1.1.0"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
   folder     = local.repo_dir
 }
 
 module "jetbrains-fleet" {
-  count      = data.coder_workspace.me.start_count
+  count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "fleet") ? data.coder_workspace.me.start_count : 0
   source     = "registry.coder.com/coder/jetbrains-fleet/coder"
   version    = "1.0.1"
   agent_id   = coder_agent.dev.id
@@ -380,6 +470,24 @@ module "devcontainers-cli" {
   agent_id = coder_agent.dev.id
 }
 
+module "claude-code" {
+  count               = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  source              = "dev.registry.coder.com/coder/claude-code/coder"
+  version             = "2.1.0"
+  agent_id            = coder_agent.dev.id
+  folder              = local.repo_dir
+  install_claude_code = true
+  claude_code_version = "latest"
+  order               = 999
+
+  experiment_report_tasks        = true
+  experiment_post_install_script = <<-EOT
+    claude mcp add playwright npx -- @playwright/mcp@latest --headless --isolated --no-sandbox
+    claude mcp add desktop-commander npx -- @wonderwhy-er/desktop-commander@latest
+  EOT
+}
+
+
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
@@ -388,6 +496,11 @@ resource "coder_agent" "dev" {
     OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
   }
   startup_script_behavior = "blocking"
+
+  display_apps {
+    vscode          = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") && try(data.coder_parameter.vscode_channel[0].value, "stable") == "stable"
+    vscode_insiders = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") && try(data.coder_parameter.vscode_channel[0].value, "stable") == "insiders"
+  }
 
   # The following metadata blocks are optional. They are used to display
   # information about your workspace in the dashboard. You can remove them
@@ -709,5 +822,131 @@ resource "coder_metadata" "container_info" {
   item {
     key   = "region"
     value = data.coder_parameter.region.option[index(data.coder_parameter.region.option.*.value, data.coder_parameter.region.value)].name
+  }
+  item {
+    key   = "ai_task"
+    value = local.has_ai_prompt ? "yes" : "no"
+  }
+}
+
+resource "coder_env" "claude_system_prompt" {
+  count    = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  agent_id = coder_agent.dev.id
+  name     = "CODER_MCP_CLAUDE_SYSTEM_PROMPT"
+  value    = <<-EOT
+    <system>
+    -- Framing --
+    You are a helpful Coding assistant. Aim to autonomously investigate
+    and solve issues the user gives you and test your work, whenever possible.
+
+    Avoid shortcuts like mocking tests. When you get stuck, you can ask the user
+    but opt for autonomy.
+
+    -- Tool Selection --
+    - coder_report_task: providing status updates or requesting user input.
+    - playwright: previewing your changes after you made them
+      to confirm it worked as expected
+    -	desktop-commander - use only for commands that keep running
+      (servers, dev watchers, GUI apps).
+    -	Built-in tools - use for everything else:
+      (file operations, git commands, builds & installs, one-off shell commands)
+
+    Remember this decision rule:
+    - Stays running? → desktop-commander
+    - Finishes immediately? → built-in tools
+
+    -- Task Reporting --
+    Report all tasks to Coder, following these EXACT guidelines:
+    1. Be granular. If you are investigating with multiple steps, report each step
+    to coder.
+    2. IMMEDIATELY report status after receiving ANY user message
+    3. Use "state": "working" when actively processing WITHOUT needing
+    additional user input
+    4. Use "state": "complete" only when finished with a task
+    5. Use "state": "failure" when you need ANY user input, lack sufficient
+    details, or encounter blockers
+
+    In your summary:
+    - Be specific about what you're doing
+    - Clearly indicate what information you need from the user when in
+    "failure" state
+    - Keep it under 160 characters
+    - Make it actionable
+
+    -- Context --
+    There is an existing application in the current directory.
+    Be sure to read CLAUDE.md before making any changes.
+
+    This is a real-world production application. As such, make sure to think carefully, use TODO lists, and plan carefully before making changes.
+    </system>
+  EOT
+}
+
+resource "coder_env" "claude_task_prompt" {
+  count    = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  agent_id = coder_agent.dev.id
+  name     = "CODER_MCP_CLAUDE_TASK_PROMPT"
+  value    = data.coder_parameter.ai_prompt.value
+}
+
+# coder exp mcp configure claude-code reads from CLAUDE_API_KEY
+resource "coder_env" "claude_api_key" {
+  count    = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  agent_id = coder_agent.dev.id
+  name     = "CLAUDE_API_KEY"
+  value    = var.anthropic_api_key
+}
+
+resource "coder_app" "develop_sh" {
+  count        = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  agent_id     = coder_agent.dev.id
+  slug         = "develop-sh"
+  display_name = "develop.sh"
+  icon         = "${data.coder_workspace.me.access_url}/emojis/1f4bb.png" // 💻
+  command      = "screen -x develop_sh"
+  share        = "authenticated"
+  subdomain    = true
+  open_in      = "tab"
+  order        = 0
+}
+
+resource "coder_script" "develop_sh" {
+  count              = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  display_name       = "develop.sh"
+  agent_id           = coder_agent.dev.id
+  run_on_start       = true
+  start_blocks_login = false
+  icon               = "${data.coder_workspace.me.access_url}/emojis/1f4bb.png" // 💻
+  script             = <<-EOT
+    #!/usr/bin/env bash
+    set -eux -o pipefail
+
+    # Wait for the agent startup script to finish.
+    for attempt in {1..60}; do
+      if [[ -f /tmp/.coder-startup-script.done ]]; then
+        break
+      fi
+      echo "Waiting for agent startup script to finish... ($attempt/60)"
+      sleep 10
+    done
+    cd "${local.repo_dir}" && screen -dmS develop_sh /bin/sh -c 'while true; do ./scripts/develop.sh --; echo "develop.sh exited with code $? restarting in 30s"; sleep 30; done'
+  EOT
+}
+
+resource "coder_app" "preview" {
+  count        = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  agent_id     = coder_agent.dev.id
+  slug         = "preview"
+  display_name = "Preview"
+  icon         = "${data.coder_workspace.me.access_url}/emojis/1f50e.png" // 🔎
+  url          = "http://localhost:8080"
+  share        = "authenticated"
+  subdomain    = true
+  open_in      = "tab"
+  order        = 1
+  healthcheck {
+    url       = "http://localhost:8080/healthz"
+    interval  = 5
+    threshold = 15
   }
 }

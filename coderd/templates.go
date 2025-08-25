@@ -38,8 +38,8 @@ import (
 
 // Returns a single template.
 //
-// @Summary Get template metadata by ID
-// @ID get-template-metadata-by-id
+// @Summary Get template settings by ID
+// @ID get-template-settings-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
@@ -544,9 +544,10 @@ func (api *API) templatesByOrganization() http.HandlerFunc {
 func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTemplatesWithFilterParams)) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+		key := httpmw.APIKey(r)
 
 		queryStr := r.URL.Query().Get("q")
-		filter, errs := searchquery.Templates(ctx, api.Database, queryStr)
+		filter, errs := searchquery.Templates(ctx, api.Database, key.UserID, queryStr)
 		if len(errs) > 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message:     "Invalid template search query.",
@@ -628,12 +629,14 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(template))
 }
 
-// @Summary Update template metadata by ID
-// @ID update-template-metadata-by-id
+// @Summary Update template settings by ID
+// @ID update-template-settings-by-id
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
+// @Param request body codersdk.UpdateTemplateMeta true "Patch template settings request"
 // @Success 200 {object} codersdk.Template
 // @Router /templates/{template} [patch]
 func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
@@ -770,12 +773,16 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		classicTemplateFlow = *req.UseClassicParameterFlow
 	}
 
+	displayName := ptr.NilToDefault(req.DisplayName, template.DisplayName)
+	description := ptr.NilToDefault(req.Description, template.Description)
+	icon := ptr.NilToDefault(req.Icon, template.Icon)
+
 	var updated database.Template
 	err = api.Database.InTx(func(tx database.Store) error {
 		if req.Name == template.Name &&
-			req.Description == template.Description &&
-			req.DisplayName == template.DisplayName &&
-			req.Icon == template.Icon &&
+			description == template.Description &&
+			displayName == template.DisplayName &&
+			icon == template.Icon &&
 			req.AllowUserAutostart == template.AllowUserAutostart &&
 			req.AllowUserAutostop == template.AllowUserAutostop &&
 			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
@@ -826,9 +833,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			ID:                           template.ID,
 			UpdatedAt:                    dbtime.Now(),
 			Name:                         name,
-			DisplayName:                  req.DisplayName,
-			Description:                  req.Description,
-			Icon:                         req.Icon,
+			DisplayName:                  displayName,
+			Description:                  description,
+			Icon:                         icon,
 			AllowUserCancelWorkspaceJobs: req.AllowUserCancelWorkspaceJobs,
 			GroupACL:                     groupACL,
 			MaxPortSharingLevel:          maxPortShareLevel,

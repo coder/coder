@@ -1,9 +1,9 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { spyOn, userEvent, within } from "@storybook/test";
+import { MockNotificationTemplates } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import { selectTemplatesByGroup } from "api/queries/notifications";
 import type { DeploymentValues } from "api/typesGenerated";
-import { MockNotificationTemplates } from "testHelpers/entities";
+import { spyOn, userEvent, within } from "storybook/test";
 import { NotificationEvents } from "./NotificationEvents";
 import { baseMeta } from "./storybookUtils";
 

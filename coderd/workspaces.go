@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
@@ -45,8 +46,8 @@ import (
 )
 
 var (
-	ttlMin = time.Minute //nolint:revive // min here means 'minimum' not 'minutes'
-	ttlMax = 30 * 24 * time.Hour
+	ttlMinimum = time.Minute
+	ttlMaximum = 30 * 24 * time.Hour
 
 	errTTLMin              = xerrors.New("time until shutdown must be at least one minute")
 	errTTLMax              = xerrors.New("time until shutdown must be less than 30 days")
@@ -137,7 +138,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent."
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.WorkspacesResponse
@@ -634,10 +635,38 @@ func createWorkspace(
 			claimedWorkspace *database.Workspace
 		)
 
-		// If a template preset was chosen, try claim a prebuilt workspace.
-		if req.TemplateVersionPresetID != uuid.Nil {
+		// Use injected Clock to allow time mocking in tests
+		now := dbtime.Time(api.Clock.Now())
+
+		templateVersionPresetID := req.TemplateVersionPresetID
+
+		// If no preset was chosen, look for a matching preset by parameter values.
+		if templateVersionPresetID == uuid.Nil {
+			parameterNames := make([]string, len(req.RichParameterValues))
+			parameterValues := make([]string, len(req.RichParameterValues))
+			for i, parameter := range req.RichParameterValues {
+				parameterNames[i] = parameter.Name
+				parameterValues[i] = parameter.Value
+			}
+			var err error
+			templateVersionID := req.TemplateVersionID
+			if templateVersionID == uuid.Nil {
+				templateVersionID = template.ActiveVersionID
+			}
+			templateVersionPresetID, err = prebuilds.FindMatchingPresetID(ctx, db, templateVersionID, parameterNames, parameterValues)
+			if err != nil {
+				return xerrors.Errorf("find matching preset: %w", err)
+			}
+		}
+
+		// Try to claim a prebuilt workspace.
+		if templateVersionPresetID != uuid.Nil {
 			// Try and claim an eligible prebuild, if available.
-			claimedWorkspace, err = claimPrebuild(ctx, prebuildsClaimer, db, api.Logger, req, owner)
+			// On successful claim, initialize all lifecycle fields from template and workspace-level config
+			// so the newly claimed workspace is properly managed by the lifecycle executor.
+			claimedWorkspace, err = claimPrebuild(
+				ctx, prebuildsClaimer, db, api.Logger, now, req.Name, owner,
+				templateVersionPresetID, dbAutostartSchedule, nextStartAt, dbTTL)
 			// If claiming fails with an expected error (no claimable prebuilds or AGPL does not support prebuilds),
 			// we fall back to creating a new workspace. Otherwise, propagate the unexpected error.
 			if err != nil {
@@ -646,7 +675,7 @@ func createWorkspace(
 				fields := []any{
 					slog.Error(err),
 					slog.F("workspace_name", req.Name),
-					slog.F("template_version_preset_id", req.TemplateVersionPresetID),
+					slog.F("template_version_preset_id", templateVersionPresetID),
 				}
 
 				if !isExpectedError {
@@ -665,7 +694,6 @@ func createWorkspace(
 
 		// No prebuild found; regular flow.
 		if claimedWorkspace == nil {
-			now := dbtime.Now()
 			// Workspaces are created without any versions.
 			minimumWorkspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
 				ID:                uuid.New(),
@@ -680,7 +708,7 @@ func createWorkspace(
 				Ttl:               dbTTL,
 				// The workspaces page will sort by last used at, and it's useful to
 				// have the newly created workspace at the top of the list!
-				LastUsedAt:       dbtime.Now(),
+				LastUsedAt:       now,
 				AutomaticUpdates: dbAU,
 			})
 			if err != nil {
@@ -711,8 +739,8 @@ func createWorkspace(
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
 		}
-		if req.TemplateVersionPresetID != uuid.Nil {
-			builder = builder.TemplateVersionPresetID(req.TemplateVersionPresetID)
+		if templateVersionPresetID != uuid.Nil {
+			builder = builder.TemplateVersionPresetID(templateVersionPresetID)
 		}
 		if claimedWorkspace != nil {
 			builder = builder.MarkPrebuiltWorkspaceClaim()
@@ -871,8 +899,20 @@ func requestTemplate(ctx context.Context, rw http.ResponseWriter, req codersdk.C
 	return template, true
 }
 
-func claimPrebuild(ctx context.Context, claimer prebuilds.Claimer, db database.Store, logger slog.Logger, req codersdk.CreateWorkspaceRequest, owner workspaceOwner) (*database.Workspace, error) {
-	claimedID, err := claimer.Claim(ctx, owner.ID, req.Name, req.TemplateVersionPresetID)
+func claimPrebuild(
+	ctx context.Context,
+	claimer prebuilds.Claimer,
+	db database.Store,
+	logger slog.Logger,
+	now time.Time,
+	name string,
+	owner workspaceOwner,
+	templateVersionPresetID uuid.UUID,
+	autostartSchedule sql.NullString,
+	nextStartAt sql.NullTime,
+	ttl sql.NullInt64,
+) (*database.Workspace, error) {
+	claimedID, err := claimer.Claim(ctx, now, owner.ID, name, templateVersionPresetID, autostartSchedule, nextStartAt, ttl)
 	if err != nil {
 		// TODO: enhance this by clarifying whether this *specific* prebuild failed or whether there are none to claim.
 		return nil, xerrors.Errorf("claim prebuild: %w", err)
@@ -1071,6 +1111,17 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Autostart configuration is not supported for prebuilt workspaces.
+	// Prebuild lifecycle is managed by the reconciliation loop, with scheduling behavior
+	// defined per preset at the template level, not per workspace.
+	if workspace.IsPrebuild() {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Autostart is not supported for prebuilt workspaces",
+			Detail:  "Prebuilt workspace scheduling is configured per preset at the template level. Workspace-level overrides are not supported.",
+		})
+		return
+	}
+
 	dbSched, err := validWorkspaceSchedule(req.Schedule)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1097,12 +1148,20 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Use injected Clock to allow time mocking in tests
+	now := api.Clock.Now()
+
 	nextStartAt := sql.NullTime{}
 	if dbSched.Valid {
-		next, err := schedule.NextAllowedAutostart(dbtime.Now(), dbSched.String, templateSchedule)
-		if err == nil {
-			nextStartAt = sql.NullTime{Valid: true, Time: dbtime.Time(next.UTC())}
+		next, err := schedule.NextAllowedAutostart(now, dbSched.String, templateSchedule)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error calculating workspace autostart schedule.",
+				Detail:  err.Error(),
+			})
+			return
 		}
+		nextStartAt = sql.NullTime{Valid: true, Time: dbtime.Time(next.UTC())}
 	}
 
 	err = api.Database.UpdateWorkspaceAutostart(ctx, database.UpdateWorkspaceAutostartParams{
@@ -1155,6 +1214,17 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TTL updates are not supported for prebuilt workspaces.
+	// Prebuild lifecycle is managed by the reconciliation loop, with TTL behavior
+	// defined per preset at the template level, not per workspace.
+	if workspace.IsPrebuild() {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "TTL updates are not supported for prebuilt workspaces",
+			Detail:  "Prebuilt workspace TTL is configured per preset at the template level. Workspace-level overrides are not supported.",
+		})
+		return
+	}
+
 	var dbTTL sql.NullInt64
 
 	err := api.Database.InTx(func(s database.Store) error {
@@ -1180,6 +1250,9 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("update workspace time until shutdown: %w", err)
 		}
 
+		// Use injected Clock to allow time mocking in tests
+		now := api.Clock.Now()
+
 		// If autostop has been disabled, we want to remove the deadline from the
 		// existing workspace build (if there is one).
 		if !dbTTL.Valid {
@@ -1190,10 +1263,24 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 
 			if build.Transition == database.WorkspaceTransitionStart {
 				if err = s.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-					ID:          build.ID,
-					Deadline:    time.Time{},
+					ID: build.ID,
+					// Use the max_deadline as the new build deadline. It will
+					// either be zero (our target), or a non-zero value that we
+					// need to abide by anyway due to template policy.
+					//
+					// Previously, we would always set the deadline to zero,
+					// which was incorrect behavior. When max_deadline is
+					// non-zero, deadline must be set to a non-zero value that
+					// is less than max_deadline.
+					//
+					// Disabling TTL autostop (at a workspace or template level)
+					// does not trump the template's autostop requirement.
+					//
+					// Refer to the comments on schedule.CalculateAutostop for
+					// more information.
+					Deadline:    build.MaxDeadline,
 					MaxDeadline: build.MaxDeadline,
-					UpdatedAt:   dbtime.Time(api.Clock.Now()),
+					UpdatedAt:   dbtime.Time(now),
 				}); err != nil {
 					return xerrors.Errorf("update workspace build deadline: %w", err)
 				}
@@ -1257,17 +1344,30 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Dormancy configuration is not supported for prebuilt workspaces.
+	// Prebuilds are managed by the reconciliation loop and are not subject to dormancy.
+	if oldWorkspace.IsPrebuild() {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Dormancy updates are not supported for prebuilt workspaces",
+			Detail:  "Prebuilt workspaces are not subject to dormancy. Dormancy behavior is only applicable to regular workspaces",
+		})
+		return
+	}
+
 	// If the workspace is already in the desired state do nothing!
 	if oldWorkspace.DormantAt.Valid == req.Dormant {
 		rw.WriteHeader(http.StatusNotModified)
 		return
 	}
 
+	// Use injected Clock to allow time mocking in tests
+	now := api.Clock.Now()
+
 	dormantAt := sql.NullTime{
 		Valid: req.Dormant,
 	}
 	if req.Dormant {
-		dormantAt.Time = dbtime.Now()
+		dormantAt.Time = dbtime.Time(now)
 	}
 
 	newWorkspace, err := api.Database.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{
@@ -1307,7 +1407,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if initiatorErr == nil && tmplErr == nil {
-			dormantTime := dbtime.Now().Add(time.Duration(tmpl.TimeTilDormant))
+			dormantTime := dbtime.Time(now).Add(time.Duration(tmpl.TimeTilDormant))
 			_, err = api.NotificationsEnqueuer.Enqueue(
 				// nolint:gocritic // Need notifier actor to enqueue notifications
 				dbauthz.AsNotifier(ctx),
@@ -1401,6 +1501,17 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Deadline extensions are not supported for prebuilt workspaces.
+	// Prebuilds are managed by the reconciliation loop and must always have
+	// Deadline and MaxDeadline unset.
+	if workspace.IsPrebuild() {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Deadline extension is not supported for prebuilt workspaces",
+			Detail:  "Prebuilt workspaces do not support user deadline modifications. Deadline extension is only applicable to regular workspaces",
+		})
+		return
+	}
+
 	code := http.StatusOK
 	resp := codersdk.Response{}
 
@@ -1437,8 +1548,11 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("workspace shutdown is manual")
 		}
 
+		// Use injected Clock to allow time mocking in tests
+		now := api.Clock.Now()
+
 		newDeadline := req.Deadline.UTC()
-		if err := validWorkspaceDeadline(job.CompletedAt.Time, newDeadline); err != nil {
+		if err := validWorkspaceDeadline(now, job.CompletedAt.Time, newDeadline); err != nil {
 			// NOTE(Cian): Putting the error in the Message field on request from the FE folks.
 			// Normally, we would put the validation error in Validations, but this endpoint is
 			// not tied to a form or specific named user input on the FE.
@@ -1454,7 +1568,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 		if err := s.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 			ID:          build.ID,
-			UpdatedAt:   dbtime.Now(),
+			UpdatedAt:   dbtime.Time(now),
 			Deadline:    newDeadline,
 			MaxDeadline: build.MaxDeadline,
 		}); err != nil {
@@ -2072,17 +2186,10 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validErrs := validateWorkspaceACLPerms(ctx, api.Database, req.UserRoles, "user_roles")
-	validErrs = append(validErrs, validateWorkspaceACLPerms(
-		ctx,
-		api.Database,
-		req.GroupRoles,
-		"group_roles",
-	)...)
-
+	validErrs := acl.Validate(ctx, api.Database, WorkspaceACLUpdateValidator(req))
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid request to update template metadata!",
+			Message:     "Invalid request to update workspace ACL",
 			Validations: validErrs,
 		})
 		return
@@ -2391,11 +2498,11 @@ func validWorkspaceTTLMillis(millis *int64, templateDefault time.Duration) (sql.
 
 	dur := time.Duration(*millis) * time.Millisecond
 	truncated := dur.Truncate(time.Minute)
-	if truncated < ttlMin {
+	if truncated < ttlMinimum {
 		return sql.NullInt64{}, errTTLMin
 	}
 
-	if truncated > ttlMax {
+	if truncated > ttlMaximum {
 		return sql.NullInt64{}, errTTLMax
 	}
 
@@ -2416,8 +2523,8 @@ func validWorkspaceAutomaticUpdates(updates codersdk.AutomaticUpdates) (database
 	return dbAU, nil
 }
 
-func validWorkspaceDeadline(startedAt, newDeadline time.Time) error {
-	soon := time.Now().Add(29 * time.Minute)
+func validWorkspaceDeadline(now, startedAt, newDeadline time.Time) error {
+	soon := now.Add(29 * time.Minute)
 	if newDeadline.Before(soon) {
 		return errDeadlineTooSoon
 	}
@@ -2478,50 +2585,28 @@ func (api *API) publishWorkspaceAgentLogsUpdate(ctx context.Context, workspaceAg
 	}
 }
 
-func validateWorkspaceACLPerms(ctx context.Context, db database.Store, perms map[string]codersdk.WorkspaceRole, field string) []codersdk.ValidationError {
-	// nolint:gocritic // Validate requires full read access to users and groups
-	ctx = dbauthz.AsSystemRestricted(ctx)
-	var validErrs []codersdk.ValidationError
-	for idStr, role := range perms {
-		if err := validateWorkspaceRole(role); err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: err.Error()})
-			continue
-		}
+type WorkspaceACLUpdateValidator codersdk.UpdateWorkspaceACL
 
-		id, err := uuid.Parse(idStr)
-		if err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: idStr + "is not a valid UUID."})
-			continue
-		}
+var (
+	workspaceACLUpdateUsersFieldName  = "user_roles"
+	workspaceACLUpdateGroupsFieldName = "group_roles"
+)
 
-		switch field {
-		case "user_roles":
-			// TODO(lilac): put this back after Kirby button shenanigans are over
-			// This could get slow if we get a ton of user perm updates.
-			// _, err = db.GetUserByID(ctx, id)
-			// if err != nil {
-			// 	validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: fmt.Sprintf("Failed to find resource with ID %q: %v", idStr, err.Error())})
-			// 	continue
-			// }
-		case "group_roles":
-			// This could get slow if we get a ton of group perm updates.
-			_, err = db.GetGroupByID(ctx, id)
-			if err != nil {
-				validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: fmt.Sprintf("Failed to find resource with ID %q: %v", idStr, err.Error())})
-				continue
-			}
-		default:
-			validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: "invalid field"})
-		}
-	}
+// WorkspaceACLUpdateValidator implements acl.UpdateValidator[codersdk.WorkspaceRole]
+var _ acl.UpdateValidator[codersdk.WorkspaceRole] = WorkspaceACLUpdateValidator{}
 
-	return validErrs
+func (w WorkspaceACLUpdateValidator) Users() (map[string]codersdk.WorkspaceRole, string) {
+	return w.UserRoles, workspaceACLUpdateUsersFieldName
 }
 
-func validateWorkspaceRole(role codersdk.WorkspaceRole) error {
+func (w WorkspaceACLUpdateValidator) Groups() (map[string]codersdk.WorkspaceRole, string) {
+	return w.GroupRoles, workspaceACLUpdateGroupsFieldName
+}
+
+func (WorkspaceACLUpdateValidator) ValidateRole(role codersdk.WorkspaceRole) error {
 	actions := db2sdk.WorkspaceRoleActions(role)
 	if len(actions) == 0 && role != codersdk.WorkspaceRoleDeleted {
-		return xerrors.Errorf("role %q is not a valid Workspace role", role)
+		return xerrors.Errorf("role %q is not a valid workspace role", role)
 	}
 
 	return nil

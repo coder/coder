@@ -1,8 +1,8 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, within } from "@storybook/test";
-import { useState } from "react";
 import { chromatic } from "testHelpers/chromatic";
 import { MockTemplateVersion } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 
 const meta: Meta<typeof ProvisionerTagsPopover> = {

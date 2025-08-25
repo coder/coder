@@ -46,8 +46,19 @@ terraform {
 provider "google" {
 }
 
+data "google_secret_manager_secret_version_access" "cloudflare_api_token_dns" {
+  secret  = "cloudflare-api-token-dns"
+  project = var.project_id
+}
+
 provider "cloudflare" {
-  api_token = var.cloudflare_api_token
+  api_token = coalesce(var.cloudflare_api_token, data.google_secret_manager_secret_version_access.cloudflare_api_token_dns.secret_data)
+}
+
+data "google_container_cluster" "observability" {
+  name     = var.observability_cluster_name
+  location = var.observability_cluster_location
+  project  = var.project_id
 }
 
 provider "kubernetes" {
@@ -68,6 +79,13 @@ provider "kubernetes" {
   alias                  = "asia"
   host                   = "https://${google_container_cluster.cluster["asia"].endpoint}"
   cluster_ca_certificate = base64decode(google_container_cluster.cluster["asia"].master_auth.0.cluster_ca_certificate)
+  token                  = data.google_client_config.default.access_token
+}
+
+provider "kubernetes" {
+  alias                  = "observability"
+  host                   = "https://${data.google_container_cluster.observability.endpoint}"
+  cluster_ca_certificate = base64decode(data.google_container_cluster.observability.master_auth.0.cluster_ca_certificate)
   token                  = data.google_client_config.default.access_token
 }
 

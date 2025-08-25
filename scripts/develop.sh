@@ -72,9 +72,25 @@ if [ -n "${CODER_AGENT_URL:-}" ]; then
 fi
 
 # Preflight checks: ensure we have our required dependencies, and make sure nothing is listening on port 3000 or 8080
-dependencies curl git go make pnpm
-curl --fail http://127.0.0.1:3000 >/dev/null 2>&1 && echo '== ERROR: something is listening on port 3000. Kill it and re-run this script.' && exit 1
-curl --fail http://127.0.0.1:8080 >/dev/null 2>&1 && echo '== ERROR: something is listening on port 8080. Kill it and re-run this script.' && exit 1
+dependencies curl git go jq make pnpm
+
+if curl --silent --fail http://127.0.0.1:3000; then
+	# Check if this is the Coder development server.
+	if curl --silent --fail http://127.0.0.1:3000/api/v2/buildinfo 2>&1 | jq -r '.version' >/dev/null 2>&1; then
+		echo '== INFO: Coder development server is already running on port 3000!' && exit 0
+	else
+		echo '== ERROR: something is listening on port 3000. Kill it and re-run this script.' && exit 1
+	fi
+fi
+
+if curl --fail http://127.0.0.1:8080 >/dev/null 2>&1; then
+	# Check if this is the Coder development frontend.
+	if curl --silent --fail http://127.0.0.1:8080/api/v2/buildinfo 2>&1 | jq -r '.version' >/dev/null 2>&1; then
+		echo '== INFO: Coder development frontend is already running on port 8080!' && exit 0
+	else
+		echo '== ERROR: something is listening on port 8080. Kill it and re-run this script.' && exit 1
+	fi
+fi
 
 # Compile the CLI binary. This should also compile the frontend and refresh
 # node_modules if necessary.

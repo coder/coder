@@ -22,9 +22,9 @@ import { ChevronDown, Info, X } from "lucide-react";
 import {
 	type ComponentProps,
 	type ComponentPropsWithoutRef,
+	forwardRef,
 	type KeyboardEvent,
 	type ReactNode,
-	forwardRef,
 	useCallback,
 	useEffect,
 	useImperativeHandle,
@@ -104,6 +104,8 @@ interface MultiSelectComboboxProps {
 	>;
 	/** hide or show the button that clears all the selected options. */
 	hideClearAllButton?: boolean;
+	/** Test ID for testing purposes */
+	"data-testid"?: string;
 }
 
 interface MultiSelectComboboxRef {
@@ -205,6 +207,7 @@ export const MultiSelectCombobox = forwardRef<
 			commandProps,
 			inputProps,
 			hideClearAllButton = false,
+			"data-testid": dataTestId,
 		}: MultiSelectComboboxProps,
 		ref,
 	) => {
@@ -454,6 +457,7 @@ export const MultiSelectCombobox = forwardRef<
 			<Command
 				ref={dropdownRef}
 				{...commandProps}
+				data-testid={dataTestId}
 				onKeyDown={(e) => {
 					handleKeyDown(e);
 					commandProps?.onKeyDown?.(e);

@@ -37,8 +37,8 @@ jobs:
       - name: Disable Spotlight Indexing
         if: runner.os == 'macOS'
         run: |
-          enabled=$(sudo mdutil -a -s | grep "Indexing enabled" | wc -l)
-          if [ $enabled -eq 0 ]; then
+          enabled=$(sudo mdutil -a -s | { grep -Fc "Indexing enabled" || true; })
+          if [ "$enabled" -eq 0 ]; then
             echo "Spotlight indexing is already disabled"
             exit 0
           fi
@@ -50,12 +50,13 @@ jobs:
       # a separate repository to allow its use before actions/checkout.
       - name: Setup RAM Disks
         if: runner.os == 'Windows'
-        uses: coder/setup-ramdisk-action@e1100847ab2d7bcd9d14bcda8f2d1b0f07b36f1b
+        uses: coder/setup-ramdisk-action@e1100847ab2d7bcd9d14bcda8f2d1b0f07b36f1b # v0.1.0
 
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -185,15 +186,15 @@ jobs:
                 "fields": [
                   {
                     "type": "mrkdwn",
-                    "text": "*Workflow:*\n${{ github.workflow }}"
+                    "text": "*Workflow:*\n'"${GITHUB_WORKFLOW}"'"
                   },
                   {
                     "type": "mrkdwn",
-                    "text": "*Committer:*\n${{ github.actor }}"
+                    "text": "*Committer:*\n'"${GITHUB_ACTOR}"'"
                   },
                   {
                     "type": "mrkdwn",
-                    "text": "*Commit:*\n${{ github.sha }}"
+                    "text": "*Commit:*\n'"${GITHUB_SHA}"'"
                   }
                 ]
               },
@@ -201,8 +202,18 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "*View failure:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Click here>"
+                  "text": "*View failure:* <'"${RUN_URL}"'|Click here>"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "<@U08TJ4YNCA3> investigate this CI failure. Check logs, search for existing issues, use git blame to find who last modified failing tests, create issue in coder/internal (not public repo), use title format \"flake: TestName\" for flaky tests, and assign to the person from git blame."
                 }
               }
             ]
-          }' ${{ secrets.CI_FAILURE_SLACK_WEBHOOK }}
+          }' "${SLACK_WEBHOOK}"
+        env:
+          SLACK_WEBHOOK: ${{ secrets.CI_FAILURE_SLACK_WEBHOOK }}
+          RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

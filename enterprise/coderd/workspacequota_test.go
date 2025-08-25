@@ -721,7 +721,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +------------------------------+------------------+
 		// pq: could not serialize access due to concurrent update
 		ctx := testutil.Context(t, testutil.WaitLong)
-		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -779,7 +778,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +------------------------------+------------------+
 		// Works!
 		ctx := testutil.Context(t, testutil.WaitLong)
-		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -848,7 +846,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +---------------------+----------------------------------+
 		// pq: could not serialize access due to concurrent update
 		ctx := testutil.Context(t, testutil.WaitShort)
-		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -901,7 +898,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  | CommitTx()          |                                  |
 		//  +---------------------+----------------------------------+
 		ctx := testutil.Context(t, testutil.WaitShort)
-		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -945,7 +941,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +---------------------+----------------------------------+
 		// Works!
 		ctx := testutil.Context(t, testutil.WaitShort)
-		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 		var err error
 
@@ -1000,7 +995,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  |                     | CommitTx()          |
 		//  +---------------------+---------------------+
 		ctx := testutil.Context(t, testutil.WaitLong)
-		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -1058,7 +1052,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  |                     | CommitTx()          |
 		//  +---------------------+---------------------+
 		ctx := testutil.Context(t, testutil.WaitLong)
-		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -1119,7 +1112,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +---------------------+---------------------+
 		// pq: could not serialize access due to read/write dependencies among transactions
 		ctx := testutil.Context(t, testutil.WaitLong)
-		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{

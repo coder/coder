@@ -126,13 +126,8 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 
 	// update prometheus metrics
 	if r.opts.UpdateAgentMetricsFn != nil {
-		user, err := r.opts.Database.GetUserByID(ctx, workspace.OwnerID)
-		if err != nil {
-			return xerrors.Errorf("get user: %w", err)
-		}
-
 		r.opts.UpdateAgentMetricsFn(ctx, prometheusmetrics.AgentMetricLabels{
-			Username:      user.Username,
+			Username:      workspace.OwnerUsername,
 			WorkspaceName: workspace.Name,
 			AgentName:     workspaceAgent.Name,
 			TemplateName:  templateName,
@@ -149,33 +144,36 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 		return nil
 	}
 
-	// check next autostart
-	var nextAutostart time.Time
-	if workspace.AutostartSchedule.String != "" {
-		templateSchedule, err := (*(r.opts.TemplateScheduleStore.Load())).Get(ctx, r.opts.Database, workspace.TemplateID)
-		// If the template schedule fails to load, just default to bumping
-		// without the next transition and log it.
-		switch {
-		case err == nil:
-			next, allowed := schedule.NextAutostart(now, workspace.AutostartSchedule.String, templateSchedule)
-			if allowed {
-				nextAutostart = next
+	// Prebuilds are not subject to activity-based deadline bumps
+	if !workspace.IsPrebuild() {
+		// check next autostart
+		var nextAutostart time.Time
+		if workspace.AutostartSchedule.String != "" {
+			templateSchedule, err := (*(r.opts.TemplateScheduleStore.Load())).Get(ctx, r.opts.Database, workspace.TemplateID)
+			// If the template schedule fails to load, just default to bumping
+			// without the next transition and log it.
+			switch {
+			case err == nil:
+				next, allowed := schedule.NextAutostart(now, workspace.AutostartSchedule.String, templateSchedule)
+				if allowed {
+					nextAutostart = next
+				}
+			case database.IsQueryCanceledError(err):
+				r.opts.Logger.Debug(ctx, "query canceled while loading template schedule",
+					slog.F("workspace_id", workspace.ID),
+					slog.F("template_id", workspace.TemplateID))
+			default:
+				r.opts.Logger.Error(ctx, "failed to load template schedule bumping activity, defaulting to bumping by 60min",
+					slog.F("workspace_id", workspace.ID),
+					slog.F("template_id", workspace.TemplateID),
+					slog.Error(err),
+				)
 			}
-		case database.IsQueryCanceledError(err):
-			r.opts.Logger.Debug(ctx, "query canceled while loading template schedule",
-				slog.F("workspace_id", workspace.ID),
-				slog.F("template_id", workspace.TemplateID))
-		default:
-			r.opts.Logger.Error(ctx, "failed to load template schedule bumping activity, defaulting to bumping by 60min",
-				slog.F("workspace_id", workspace.ID),
-				slog.F("template_id", workspace.TemplateID),
-				slog.Error(err),
-			)
 		}
-	}
 
-	// bump workspace activity
-	ActivityBumpWorkspace(ctx, r.opts.Logger.Named("activity_bump"), r.opts.Database, workspace.ID, nextAutostart)
+		// bump workspace activity
+		ActivityBumpWorkspace(ctx, r.opts.Logger.Named("activity_bump"), r.opts.Database, workspace.ID, nextAutostart)
+	}
 
 	// bump workspace last_used_at
 	r.opts.UsageTracker.Add(workspace.ID)

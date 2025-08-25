@@ -205,7 +205,6 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			if opts.DefaultTTL != 0 {
 				ttl = sql.NullInt64{Valid: true, Int64: int64(opts.DefaultTTL)}
 			}
-
 			if err = tx.UpdateWorkspacesTTLByTemplateID(ctx, database.UpdateWorkspacesTTLByTemplateIDParams{
 				TemplateID: template.ID,
 				Ttl:        ttl,
@@ -243,6 +242,10 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		nextStartAts := []time.Time{}
 
 		for _, workspace := range workspaces {
+			// Skip prebuilt workspaces
+			if workspace.IsPrebuild() {
+				continue
+			}
 			nextStartAt := time.Time{}
 			if workspace.AutostartSchedule.Valid {
 				next, err := agpl.NextAllowedAutostart(s.now(), workspace.AutostartSchedule.String, templateSchedule)
@@ -255,7 +258,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			nextStartAts = append(nextStartAts, nextStartAt)
 		}
 
-		//nolint:gocritic // We need to be able to update information about all workspaces.
+		//nolint:gocritic // We need to be able to update information about regular user workspaces.
 		if err := db.BatchUpdateWorkspaceNextStartAt(dbauthz.AsSystemRestricted(ctx), database.BatchUpdateWorkspaceNextStartAtParams{
 			IDs:          workspaceIDs,
 			NextStartAts: nextStartAts,
@@ -335,6 +338,11 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 		return xerrors.Errorf("get workspace %q: %w", build.WorkspaceID, err)
 	}
 
+	// Skip lifecycle updates for prebuilt workspaces
+	if workspace.IsPrebuild() {
+		return nil
+	}
+
 	job, err := db.GetProvisionerJobByID(ctx, build.JobID)
 	if err != nil {
 		return xerrors.Errorf("get provisioner job %q: %w", build.JobID, err)
@@ -350,14 +358,23 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 		return nil
 	}
 
+	// Calculate the new autostop max_deadline from the workspace. Since
+	// autostop is always calculated from the build completion time, we don't
+	// want to use the returned autostop.Deadline property as it will likely be
+	// in the distant past.
+	//
+	// The only exception is if the newly calculated workspace TTL is now zero,
+	// which means the workspace can now stay on indefinitely.
+	//
+	// This also matches the behavior of updating a workspace's TTL, where we
+	// don't apply the changes until the workspace is rebuilt.
 	autostop, err := agpl.CalculateAutostop(ctx, agpl.CalculateAutostopParams{
 		Database:                    db,
 		TemplateScheduleStore:       s,
 		UserQuietHoursScheduleStore: *s.UserQuietHoursScheduleStore.Load(),
-		// Use the job completion time as the time we calculate autostop from.
-		Now:                job.CompletedAt.Time,
-		Workspace:          workspace.WorkspaceTable(),
-		WorkspaceAutostart: workspace.AutostartSchedule.String,
+		WorkspaceBuildCompletedAt:   job.CompletedAt.Time,
+		Workspace:                   workspace.WorkspaceTable(),
+		WorkspaceAutostart:          workspace.AutostartSchedule.String,
 	})
 	if err != nil {
 		return xerrors.Errorf("calculate new autostop for workspace %q: %w", workspace.ID, err)
@@ -389,9 +406,24 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 		autostop.MaxDeadline = now.Add(time.Hour * 2)
 	}
 
+	// If the new deadline is zero, the workspace can now stay on indefinitely.
+	// Otherwise, we want to discard the new value as per the comment above the
+	// CalculateAutostop call.
+	//
+	// We could potentially calculate a new deadline based on the TTL setting
+	// (on either the workspace or the template based on the template's policy)
+	// against the current time, but doing nothing here matches the current
+	// behavior of the workspace TTL update endpoint.
+	//
+	// Per the documentation of CalculateAutostop, the deadline is not intended
+	// as a policy measure, so it's fine that we don't update it when the
+	// template schedule changes.
+	if !autostop.Deadline.IsZero() {
+		autostop.Deadline = build.Deadline
+	}
+
 	// If the current deadline on the build is after the new max_deadline, then
 	// set it to the max_deadline.
-	autostop.Deadline = build.Deadline
 	if !autostop.MaxDeadline.IsZero() && autostop.Deadline.After(autostop.MaxDeadline) {
 		autostop.Deadline = autostop.MaxDeadline
 	}

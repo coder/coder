@@ -44,15 +44,17 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { ExternalLinkIcon, FileIcon, StarIcon } from "lucide-react";
-import { EllipsisVertical } from "lucide-react";
 import {
 	BanIcon,
 	CloudIcon,
+	EllipsisVertical,
+	ExternalLinkIcon,
+	FileIcon,
 	PlayIcon,
 	RefreshCcwIcon,
 	SquareIcon,
 	SquareTerminalIcon,
+	StarIcon,
 } from "lucide-react";
 import {
 	getTerminalHref,
@@ -61,6 +63,7 @@ import {
 } from "modules/apps/apps";
 import { useAppLink } from "modules/apps/useAppLink";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { abilitiesByWorkspaceStatus } from "modules/workspaces/actions";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { WorkspaceBuildCancelDialog } from "modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
@@ -68,10 +71,9 @@ import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/Wo
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import { WorkspaceStatusIndicator } from "modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
 import {
-	WorkspaceUpdateDialogs,
 	useWorkspaceUpdate,
+	WorkspaceUpdateDialogs,
 } from "modules/workspaces/WorkspaceUpdateDialogs";
-import { abilitiesByWorkspaceStatus } from "modules/workspaces/actions";
 import type React from "react";
 import {
 	type FC,
@@ -81,7 +83,7 @@ import {
 	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { cn } from "utils/cn";
 import {
 	getDisplayWorkspaceTemplateName,

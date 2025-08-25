@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { MockWorkspace } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { TerminalLink } from "./TerminalLink";
 
 const meta: Meta<typeof TerminalLink> = {

@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -15,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
@@ -208,17 +208,10 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validErrs := validateTemplateACLPerms(ctx, api.Database, req.UserPerms, "user_perms")
-	validErrs = append(validErrs, validateTemplateACLPerms(
-		ctx,
-		api.Database,
-		req.GroupPerms,
-		"group_perms",
-	)...)
-
+	validErrs := acl.Validate(ctx, api.Database, TemplateACLUpdateValidator(req))
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid request to update template metadata!",
+			Message:     "Invalid request to update template ACL",
 			Validations: validErrs,
 		})
 		return
@@ -273,43 +266,31 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func validateTemplateACLPerms(ctx context.Context, db database.Store, perms map[string]codersdk.TemplateRole, field string) []codersdk.ValidationError {
-	// nolint:gocritic // Validate requires full read access to users and groups
-	ctx = dbauthz.AsSystemRestricted(ctx)
-	var validErrs []codersdk.ValidationError
-	for idStr, role := range perms {
-		if err := validateTemplateRole(role); err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: err.Error()})
-			continue
-		}
+type TemplateACLUpdateValidator codersdk.UpdateTemplateACL
 
-		id, err := uuid.Parse(idStr)
-		if err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: idStr + "is not a valid UUID."})
-			continue
-		}
+var (
+	templateACLUpdateUsersFieldName  = "user_perms"
+	templateACLUpdateGroupsFieldName = "group_perms"
+)
 
-		switch field {
-		case "user_perms":
-			// This could get slow if we get a ton of user perm updates.
-			_, err = db.GetUserByID(ctx, id)
-			if err != nil {
-				validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: fmt.Sprintf("Failed to find resource with ID %q: %v", idStr, err.Error())})
-				continue
-			}
-		case "group_perms":
-			// This could get slow if we get a ton of group perm updates.
-			_, err = db.GetGroupByID(ctx, id)
-			if err != nil {
-				validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: fmt.Sprintf("Failed to find resource with ID %q: %v", idStr, err.Error())})
-				continue
-			}
-		default:
-			validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: "invalid field"})
-		}
+// TemplateACLUpdateValidator implements acl.UpdateValidator[codersdk.TemplateRole]
+var _ acl.UpdateValidator[codersdk.TemplateRole] = TemplateACLUpdateValidator{}
+
+func (w TemplateACLUpdateValidator) Users() (map[string]codersdk.TemplateRole, string) {
+	return w.UserPerms, templateACLUpdateUsersFieldName
+}
+
+func (w TemplateACLUpdateValidator) Groups() (map[string]codersdk.TemplateRole, string) {
+	return w.GroupPerms, templateACLUpdateGroupsFieldName
+}
+
+func (TemplateACLUpdateValidator) ValidateRole(role codersdk.TemplateRole) error {
+	actions := db2sdk.TemplateRoleActions(role)
+	if len(actions) == 0 && role != codersdk.TemplateRoleDeleted {
+		return xerrors.Errorf("role %q is not a valid template role", role)
 	}
 
-	return validErrs
+	return nil
 }
 
 func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.UUID][]uuid.UUID) []codersdk.TemplateUser {
@@ -323,15 +304,6 @@ func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.
 	}
 
 	return users
-}
-
-func validateTemplateRole(role codersdk.TemplateRole) error {
-	actions := db2sdk.TemplateRoleActions(role)
-	if len(actions) == 0 && role != codersdk.TemplateRoleDeleted {
-		return xerrors.Errorf("role %q is not a valid Template role", role)
-	}
-
-	return nil
 }
 
 func convertToTemplateRole(actions []policy.Action) codersdk.TemplateRole {

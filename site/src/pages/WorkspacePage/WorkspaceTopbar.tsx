@@ -6,6 +6,7 @@ import type * as TypesGen from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { CopyButton } from "components/CopyButton/CopyButton";
+import { Popover, PopoverTrigger } from "components/deprecated/Popover/Popover";
 import {
 	Topbar,
 	TopbarAvatar,
@@ -15,16 +16,13 @@ import {
 	TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
-import { Popover, PopoverTrigger } from "components/deprecated/Popover/Popover";
-import { ChevronLeftIcon } from "lucide-react";
-import { CircleDollarSign } from "lucide-react";
-import { TrashIcon } from "lucide-react";
+import { ChevronLeftIcon, CircleDollarSign, TrashIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { WorkspaceStatusIndicator } from "modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { displayDormantDeletion } from "utils/dormant";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";

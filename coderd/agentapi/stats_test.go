@@ -41,11 +41,12 @@ func TestUpdateStates(t *testing.T) {
 			Name: "tpl",
 		}
 		workspace = database.Workspace{
-			ID:           uuid.New(),
-			OwnerID:      user.ID,
-			TemplateID:   template.ID,
-			Name:         "xyz",
-			TemplateName: template.Name,
+			ID:            uuid.New(),
+			OwnerID:       user.ID,
+			OwnerUsername: user.Username,
+			TemplateID:    template.ID,
+			Name:          "xyz",
+			TemplateName:  template.Name,
 		}
 		agent = database.WorkspaceAgent{
 			ID:   uuid.New(),
@@ -137,9 +138,6 @@ func TestUpdateStates(t *testing.T) {
 
 		// Workspace gets fetched.
 		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
-
-		// User gets fetched to hit the UpdateAgentMetricsFn.
-		dbM.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
 
 		// We expect an activity bump because ConnectionCount > 0.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
@@ -380,9 +378,6 @@ func TestUpdateStates(t *testing.T) {
 			LastUsedAt: now.UTC(),
 		}).Return(nil)
 
-		// User gets fetched to hit the UpdateAgentMetricsFn.
-		dbM.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
-
 		resp, err := api.UpdateStats(context.Background(), req)
 		require.NoError(t, err)
 		require.Equal(t, &agentproto.UpdateStatsResponse{
@@ -497,9 +492,6 @@ func TestUpdateStates(t *testing.T) {
 			IDs:        []uuid.UUID{workspace.ID},
 			LastUsedAt: now,
 		}).Return(nil)
-
-		// User gets fetched to hit the UpdateAgentMetricsFn.
-		dbM.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
 
 		// Ensure that pubsub notifications are sent.
 		notifyDescription := make(chan struct{})

@@ -1,9 +1,9 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
-import type { FC, PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
 import { MockUpdateCheck } from "testHelpers/entities";
 import { server } from "testHelpers/server";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
+import type { FC, PropsWithChildren } from "react";
+import { QueryClient, QueryClientProvider } from "react-query";
 import { useUpdateCheck } from "./useUpdateCheck";
 
 const createWrapper = (): FC<PropsWithChildren> => {

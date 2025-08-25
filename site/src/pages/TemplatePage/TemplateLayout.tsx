@@ -11,14 +11,14 @@ import {
 	workspacePermissionChecks,
 } from "modules/permissions/workspaces";
 import {
+	createContext,
 	type FC,
 	type PropsWithChildren,
 	Suspense,
-	createContext,
 	useContext,
 } from "react";
 import { useQuery } from "react-query";
-import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { TemplatePageHeader } from "./TemplatePageHeader";
 
 const templatePermissions = (

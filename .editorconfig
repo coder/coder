@@ -7,7 +7,7 @@ trim_trailing_whitespace = true
 insert_final_newline = true
 indent_style = tab
 
-[*.{yaml,yml,tf,tfvars,nix}]
+[*.{yaml,yml,tf,tftpl,tfvars,nix}]
 indent_style = space
 indent_size = 2
 
@@ -17,4 +17,12 @@ indent_size = 2
 
 [coderd/database/dump.sql]
 indent_style = space
+indent_size = 4
+
+[coderd/database/queries/*.sql]
+indent_style = tab
+indent_size = 4
+
+[coderd/database/migrations/*.sql]
+indent_style = tab
 indent_size = 4

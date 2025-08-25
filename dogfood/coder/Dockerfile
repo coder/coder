@@ -11,8 +11,8 @@ RUN cargo install jj-cli typos-cli watchexec-cli
 FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97 AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.24.4
-ARG GO_CHECKSUM="77e5da33bb72aeaef1ba4418b6fe511bc4d041873cbf82e5aa6318740df98717"
+ARG GO_VERSION=1.24.6
+ARG GO_CHECKSUM="bbca37cc395c974ffa4893ee35819ad23ebb27426df87af92e93a9ec66ef8712"
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -257,7 +257,7 @@ RUN source $NVM_DIR/nvm.sh && \
 ENV PATH=$NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
 RUN corepack enable && \
 	corepack prepare npm@10.8.1 --activate && \
-	corepack prepare pnpm@9.15.1 --activate
+	corepack prepare pnpm@10.14.0 --activate
 
 RUN pnpx playwright@1.47.0 install --with-deps chromium
 
