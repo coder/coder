@@ -96,6 +96,11 @@ variable "observability_cluster_location" {
   default     = "us-east1-b"
 }
 
+variable "observability_cluster_vpc" {
+  description = "Name of the observability cluster VPC network to peer with."
+  default     = "default"
+}
+
 variable "cloudflare_api_token_secret" {
   description = "Name of the Google Secret Manager secret containing the Cloudflare API token."
   default     = "cloudflare-api-token-dns"
