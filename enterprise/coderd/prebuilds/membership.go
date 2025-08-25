@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	PrebuiltWorkspacesGroupName        = "coder_prebuilt_workspaces"
+	PrebuiltWorkspacesGroupName        = "coderprebuiltworkspaces"
 	PrebuiltWorkspacesGroupDisplayName = "Prebuilt Workspaces"
 )
 
