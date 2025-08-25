@@ -111,6 +111,16 @@ coder:
     #     - update
     #     - watch
 
+    # coder.serviceAccount.workspaceNamespaces -- Grant this service account permissions 
+    # to manage Coder workspaces in specific namespaces without using ClusterRoles. 
+    # When enabled, Roles and RoleBindings will be created in each listed namespace 
+    # binding to this service account in the release namespace.
+    workspaceNamespaces:
+      enabled: true
+      namespaces: []
+      # - dev
+      # - staging
+
     # coder.serviceAccount.annotations -- The Coder service account annotations.
     annotations: {}
     # coder.serviceAccount.name -- The service account name
