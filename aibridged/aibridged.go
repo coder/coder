@@ -46,9 +46,7 @@ type Server struct {
 	// closeError stores the error when closing to return to subsequent callers
 	closeError error
 	// closingB is set to true when we start closing
-	closing atomic.Bool
-	// shuttingDownB is set to true when we start graceful shutdown
-	shuttingDown atomic.Bool
+	closing      atomic.Bool
 	shutdownOnce sync.Once
 	// shuttingDownCh will receive when we start graceful shutdown
 	shuttingDownCh chan struct{}
@@ -147,6 +145,7 @@ func (s *Server) Client() (proto.DRPCRecorderClient, error) {
 	}
 }
 
+// GetRequestHandler retrieves a (possibly reused) *aibridge.RequestBridge from the pool, for the given user.
 func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handler, error) {
 	if s.requestBridgePool == nil {
 		return nil, xerrors.New("nil requestBridgePool")
@@ -280,8 +279,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	if s == nil {
 		return nil
 	}
-
-	s.shuttingDown.Store(true)
 
 	var err error
 	s.shutdownOnce.Do(func() {

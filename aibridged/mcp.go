@@ -93,24 +93,28 @@ func (m *StoreMCPConfigurator) getExternalAuthMCPServerConfigs(ctx context.Conte
 		for _, eac := range externalAuthConfigs {
 			if eac.ID == link.ProviderID {
 				externalAuthConfig = eac
+				break
 			}
-
-			if externalAuthConfig == nil {
-				logger.Warn(ctx, "failed to find external auth config matching known external auth link", slog.F("id", link.ProviderID))
-				continue
-			}
-
-			cfgs = append(cfgs, &MCPServerConfig{
-				Name:        link.ProviderID,
-				URL:         externalAuthConfig.MCPURL,
-				AccessToken: link.OAuthAccessToken,
-				ValidateFn: func(ctx context.Context) (bool, error) {
-					valid, _, err := externalAuthConfig.ValidateToken(ctx, link.OAuthToken())
-					return valid, xerrors.Errorf("validate token for %q MCP init: %w", link.ProviderID, err)
-				},
-				// TODO: implement RefreshFn.
-			})
 		}
+
+		if externalAuthConfig == nil {
+			logger.Warn(ctx, "failed to find external auth config matching known external auth link", slog.F("id", link.ProviderID))
+			continue
+		}
+
+		cfgs = append(cfgs, &MCPServerConfig{
+			Name:        link.ProviderID,
+			URL:         externalAuthConfig.MCPURL,
+			AccessToken: link.OAuthAccessToken,
+			ValidateFn: func(ctx context.Context) (bool, error) {
+				valid, _, err := externalAuthConfig.ValidateToken(ctx, link.OAuthToken())
+				if err != nil {
+					return false, xerrors.Errorf("validate token for %q MCP init: %w", link.ProviderID, err)
+				}
+				return valid, nil
+			},
+			// TODO: implement RefreshFn.
+		})
 	}
 
 	return cfgs, nil

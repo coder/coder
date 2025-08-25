@@ -3,7 +3,7 @@ package aibridged
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/dgraph-io/ristretto/v2"
@@ -38,7 +38,8 @@ type CachedBridgePool struct {
 
 	singleflight *singleflight.Group[string, *aibridge.RequestBridge]
 
-	shuttingDown atomic.Bool
+	shutDownOnce   sync.Once
+	shuttingDownCh chan struct{}
 }
 
 func NewCachedBridgePool(cfg codersdk.AIBridgeConfig, instances int64, mcpCfg MCPConfigurator, logger slog.Logger) (*CachedBridgePool, error) {
@@ -71,6 +72,8 @@ func NewCachedBridgePool(cfg codersdk.AIBridgeConfig, instances int64, mcpCfg MC
 		logger: logger,
 
 		singleflight: &singleflight.Group[string, *aibridge.RequestBridge]{},
+
+		shuttingDownCh: make(chan struct{}),
 	}, nil
 }
 
@@ -83,12 +86,14 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn fu
 		return nil, xerrors.Errorf("acquire: %w", err)
 	}
 
-	if p.shuttingDown.Load() {
+	select {
+	case <-p.shuttingDownCh:
 		return nil, xerrors.New("pool shutting down")
+	default:
 	}
 
 	// Fast path.
-	bridge, ok := p.cache.Get(req.SessionKey)
+	bridge, ok := p.cache.Get(req.InitiatorID.String())
 	if ok && bridge != nil {
 		// TODO: remove.
 		p.logger.Debug(ctx, "reusing existing bridge", slog.F("ptr", fmt.Sprintf("%p", bridge)))
@@ -98,14 +103,14 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn fu
 		// It's possible that two calls can race here, but since they'll both be setting the same value and
 		// approximately the same TTL, we don't really care. We could debounce this to prevent unnecessary writes
 		// but it'll likely never be an issue.
-		p.cache.SetWithTTL(req.SessionKey, bridge, cacheCost, bridgeCacheTTL)
+		p.cache.SetWithTTL(req.InitiatorID.String(), bridge, cacheCost, bridgeCacheTTL)
 
 		return bridge, nil
 	}
 
 	// Slow path.
 	// Creating an *aibridge.RequestBridge may take some time, so gate all subsequent callers behind the initial request and return the resulting value.
-	instance, err, _ := p.singleflight.Do(req.SessionKey, func() (*aibridge.RequestBridge, error) {
+	instance, err, _ := p.singleflight.Do(req.InitiatorID.String(), func() (*aibridge.RequestBridge, error) {
 		// TODO: track startup time since it adds latency to first request (histogram count will also help us see how often this occurs).
 		tools, err := p.fetchTools(ctx, req.SessionKey, req.InitiatorID)
 		if err != nil {
@@ -119,7 +124,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn fu
 		// TODO: remove.
 		p.logger.Debug(ctx, "created new request bridge", slog.F("ptr", fmt.Sprintf("%p", bridge)))
 
-		p.cache.SetWithTTL(req.SessionKey, bridge, cacheCost, bridgeCacheTTL)
+		p.cache.SetWithTTL(req.InitiatorID.String(), bridge, cacheCost, bridgeCacheTTL)
 
 		return bridge, nil
 	})
@@ -178,11 +183,13 @@ func (p *CachedBridgePool) fetchTools(ctx context.Context, key string, userID uu
 
 // Shutdown will close the cache which will trigger eviction of all the Bridge entries.
 func (p *CachedBridgePool) Shutdown(_ context.Context) error {
-	// Prevent new requests from being served.
-	p.shuttingDown.Store(true)
+	p.shutDownOnce.Do(func() {
+		// Prevent new requests from being served.
+		close(p.shuttingDownCh)
 
-	// Closes the cache, which will evict all entries and trigger their onEvict handlers.
-	p.cache.Close()
+		// Closes the cache, which will evict all entries and trigger their onEvict handlers.
+		p.cache.Close()
+	})
 
 	return nil
 }

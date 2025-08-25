@@ -1588,7 +1588,7 @@ func New(options *Options) *API {
 		r.Route("/aibridge", func(r chi.Router) {
 			r.Use(
 				httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentAIBridge),
-				aibridged.AuthMiddleware(api.Database),
+				aibridged.AuthMiddleware(api.Database, api.Logger),
 			)
 			r.HandleFunc("/openai/*", api.bridgeAIRequest)
 			r.HandleFunc("/anthropic/*", api.bridgeAIRequest)
