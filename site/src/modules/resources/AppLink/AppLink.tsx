@@ -42,7 +42,6 @@ export const AppLink: FC<AppLinkProps> = ({
 	const host = proxy.preferredWildcardHostname;
 	const [iconError, setIconError] = useState(false);
 	const link = useAppLink(app, { agent, workspace });
-	const subdomain = new URL(link.href).hostname.split(".")[0];
 
 	// canClick is ONLY false when it's a subdomain app and the admin hasn't
 	// enabled wildcard access URL or the session token is being fetched.
@@ -82,7 +81,7 @@ export const AppLink: FC<AppLinkProps> = ({
 			"Your admin has not configured subdomain application access";
 	}
 
-	if (subdomain.length > 63) {
+	if (app.subdomain_name && app.subdomain_name.length > 63) {
 		icon = (
 			<CircleAlertIcon
 				aria-hidden="true"
