@@ -86,7 +86,7 @@ func (r *RootCmd) immortalStreamListCmd() *serpent.Command {
 			ctx := inv.Context()
 			workspaceName := inv.Args[0]
 
-			workspace, workspaceAgent, _, err := getWorkspaceAndAgent(ctx, inv, client, false, workspaceName)
+			workspace, workspaceAgent, _, err := GetWorkspaceAndAgent(ctx, inv, client, false, workspaceName)
 			if err != nil {
 				return err
 			}
@@ -131,7 +131,7 @@ func (r *RootCmd) immortalStreamDeleteCmd() *serpent.Command {
 			workspaceName := inv.Args[0]
 			streamName := inv.Args[1]
 
-			workspace, workspaceAgent, _, err := getWorkspaceAndAgent(ctx, inv, client, false, workspaceName)
+			workspace, workspaceAgent, _, err := GetWorkspaceAndAgent(ctx, inv, client, false, workspaceName)
 			if err != nil {
 				return err
 			}

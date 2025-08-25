@@ -67,6 +67,11 @@ type AgentConn interface {
 	SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn, error)
 	Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error)
 	WatchContainers(ctx context.Context, logger slog.Logger) (<-chan codersdk.WorkspaceAgentListContainersResponse, io.Closer, error)
+
+	// Agent HTTP API: Immortal Streams
+	ImmortalStreams(ctx context.Context) ([]codersdk.ImmortalStream, error)
+	CreateImmortalStream(ctx context.Context, req codersdk.CreateImmortalStreamRequest) (codersdk.ImmortalStream, error)
+	DeleteImmortalStream(ctx context.Context, streamID uuid.UUID) error
 }
 
 // AgentConn represents a connection to a workspace agent.
@@ -314,7 +319,7 @@ func (c *agentConn) ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgent
 }
 
 // ImmortalStreams lists the immortal streams that are currently active in the workspace.
-func (c *AgentConn) ImmortalStreams(ctx context.Context) ([]codersdk.ImmortalStream, error) {
+func (c *agentConn) ImmortalStreams(ctx context.Context) ([]codersdk.ImmortalStream, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/immortal-stream", nil)
@@ -331,7 +336,7 @@ func (c *AgentConn) ImmortalStreams(ctx context.Context) ([]codersdk.ImmortalStr
 }
 
 // CreateImmortalStream creates a new immortal stream to the specified port.
-func (c *AgentConn) CreateImmortalStream(ctx context.Context, req codersdk.CreateImmortalStreamRequest) (codersdk.ImmortalStream, error) {
+func (c *agentConn) CreateImmortalStream(ctx context.Context, req codersdk.CreateImmortalStreamRequest) (codersdk.ImmortalStream, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -363,7 +368,7 @@ func (c *AgentConn) CreateImmortalStream(ctx context.Context, req codersdk.Creat
 }
 
 // DeleteImmortalStream deletes an immortal stream by ID.
-func (c *AgentConn) DeleteImmortalStream(ctx context.Context, streamID uuid.UUID) error {
+func (c *agentConn) DeleteImmortalStream(ctx context.Context, streamID uuid.UUID) error {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 

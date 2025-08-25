@@ -48,7 +48,6 @@ import (
 	"github.com/coder/quartz"
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
-	"github.com/coder/websocket"
 )
 
 const (
@@ -437,8 +436,23 @@ func (r *RootCmd) ssh() *serpent.Command {
 						streamID = &stream.ID
 						logger.Info(ctx, "created immortal stream for SSH", slog.F("stream_name", stream.Name), slog.F("stream_id", stream.ID))
 
-						// Connect to the immortal stream via WebSocket
-						rawSSH, err = connectToImmortalStreamWebSocket(ctx, conn, stream.ID, logger)
+                        // Connect to the immortal stream via WebSocket
+                        // Provide a refresh callback to recreate the stream if the agent indicates it's invalid
+                        refresh := func(rctx context.Context) (uuid.UUID, error) {
+                            // Try to create a replacement stream to SSH port 1
+                            s, rerr := immortalStreamClient.createStream(rctx, 1)
+                            if rerr != nil {
+                                logger.Error(rctx, "failed to refresh immortal stream id", slog.Error(rerr))
+                                return uuid.UUID{}, rerr
+                            }
+                            logger.Info(rctx, "refreshed immortal stream id", slog.F("old", stream.ID), slog.F("new", s.ID))
+                            // Note: we intentionally do not delete the old stream; if the agent restarted it no longer exists.
+                            // If it still exists, users can gc via list/delete commands.
+                            // Update outer streamID for signal-based cleanup routing
+                            stream.ID = s.ID
+                            return s.ID, nil
+                        }
+                        rawSSH, err = newImmortalReconnectingConn(ctx, conn, stream.ID, logger, refresh)
 						if err != nil {
 							// Only clean up the stream if it's a permanent failure
 							if !isNetworkError(err) {
@@ -556,8 +570,18 @@ func (r *RootCmd) ssh() *serpent.Command {
 					streamID = &stream.ID
 					logger.Info(ctx, "created immortal stream for SSH", slog.F("stream_name", stream.Name), slog.F("stream_id", stream.ID))
 
-					// Connect to the immortal stream and create SSH client
-					rawConn, err := connectToImmortalStreamWebSocket(ctx, conn, stream.ID, logger)
+                        // Connect to the immortal stream and create SSH client
+                        refresh := func(rctx context.Context) (uuid.UUID, error) {
+                            s, rerr := immortalStreamClient.createStream(rctx, 1)
+                            if rerr != nil {
+                                logger.Error(rctx, "failed to refresh immortal stream id", slog.Error(rerr))
+                                return uuid.UUID{}, rerr
+                            }
+                            logger.Info(rctx, "refreshed immortal stream id", slog.F("old", stream.ID), slog.F("new", s.ID))
+                            stream.ID = s.ID
+                            return s.ID, nil
+                        }
+                        rawConn, err := newImmortalReconnectingConn(ctx, conn, stream.ID, logger, refresh)
 					if err != nil {
 						// Only clean up the stream if it's a permanent failure
 						if !isNetworkError(err) {
@@ -930,36 +954,11 @@ func (r *RootCmd) ssh() *serpent.Command {
 	return cmd
 }
 
-// connectToImmortalStreamWebSocket connects to an immortal stream via WebSocket
-// The immortal stream infrastructure handles reconnection automatically
-func connectToImmortalStreamWebSocket(ctx context.Context, agentConn *workspacesdk.AgentConn, streamID uuid.UUID, logger slog.Logger) (net.Conn, error) {
-	// Build the target address for the agent's HTTP API server
-	apiServerAddr := fmt.Sprintf("127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort)
-	wsURL := fmt.Sprintf("ws://%s/api/v0/immortal-stream/%s", apiServerAddr, streamID)
-
-	// Create WebSocket connection using the agent's tailnet connection
-	dialOptions := &websocket.DialOptions{
-		HTTPClient: &http.Client{
-			Transport: &http.Transport{
-				DialContext: func(dialCtx context.Context, network, addr string) (net.Conn, error) {
-					return agentConn.DialContext(dialCtx, network, addr)
-				},
-			},
-		},
-		CompressionMode: websocket.CompressionDisabled,
-	}
-
-	// Connect to the WebSocket endpoint
-	conn, _, err := websocket.Dial(ctx, wsURL, dialOptions)
-	if err != nil {
-		return nil, xerrors.Errorf("dial immortal stream WebSocket: %w", err)
-	}
-
-	// Convert WebSocket to net.Conn for SSH usage
-	// The immortal stream's BackedPipe handles reconnection automatically
-	netConn := websocket.NetConn(ctx, conn, websocket.MessageBinary)
-
-	return netConn, nil
+// connectToImmortalStreamWebSocket connects to an immortal stream via a reconnecting wrapper.
+func connectToImmortalStreamWebSocket(ctx context.Context, agentConn workspacesdk.AgentConn, streamID uuid.UUID, logger slog.Logger) (net.Conn, error) {
+    // No generic way to recreate the stream here without knowing the target port.
+    // The SSH caller provides a refresh callback using the known target port (1).
+    return newImmortalReconnectingConn(ctx, agentConn, streamID, logger, nil)
 }
 
 // isNetworkError checks if an error is a temporary network error
