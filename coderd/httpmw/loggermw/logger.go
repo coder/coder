@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,7 +18,8 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
-var sensitivePatterns = []string{"code", "token", "key", "secret", "password", "auth", "credential", "api_key"}
+var safeParams = []string{"page", "limit", "offset"}
+var countParams = []string{"ids", "template_ids"}
 
 func safeQueryParams(params url.Values) []slog.Field {
 	if len(params) == 0 {
@@ -26,25 +28,42 @@ func safeQueryParams(params url.Values) []slog.Field {
 
 	fields := make([]slog.Field, 0, len(params))
 	for key, values := range params {
-		sensitive := false
+		// Check if this parameter should be included
+		for _, pattern := range safeParams {
+			if strings.EqualFold(key, pattern) {
+				// Prepend query parameters in the log line to ensure we don't have issues with collisions
+				// in case any other internal logging fields already log fields with similar names
+				fieldName := "query_" + key
 
-		// Check if this parameter should be redacted
-		for _, pattern := range sensitivePatterns {
-			if strings.Contains(strings.ToLower(key), pattern) {
-				sensitive = true
+				// Log the actual values for non-sensitive parameters
+				if len(values) == 1 {
+					fields = append(fields, slog.F(fieldName, values[0]))
+					continue
+				}
+				fields = append(fields, slog.F(fieldName, values))
 			}
 		}
-		if !sensitive {
+		// Some query params we just want to log the count of the params length
+		for _, pattern := range countParams {
+			if !strings.EqualFold(key, pattern) {
+				continue
+			}
+			count := 0
+
 			// Prepend query parameters in the log line to ensure we don't have issues with collisions
 			// in case any other internal logging fields already log fields with similar names
 			fieldName := "query_" + key
 
-			// Log the actual values for non-sensitive parameters
-			if len(values) == 1 {
-				fields = append(fields, slog.F(fieldName, values[0]))
-				continue
+			// Count comma-separated values for CSV format
+			for _, v := range values {
+				if strings.Contains(v, ",") {
+					count += len(strings.Split(v, ","))
+					continue
+				}
+				count++
 			}
-			fields = append(fields, slog.F(fieldName, values))
+			// For logging we always want strings
+			fields = append(fields, slog.F(fieldName+"_count", strconv.Itoa(count)))
 		}
 	}
 	return fields

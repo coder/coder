@@ -304,20 +304,24 @@ func TestSafeQueryParams(t *testing.T) {
 		{
 			name: "safe parameters",
 			params: url.Values{
-				"page":   []string{"1"},
-				"limit":  []string{"10"},
-				"filter": []string{"active"},
-				"sort":   []string{"name"},
+				"page":         []string{"1"},
+				"limit":        []string{"10"},
+				"filter":       []string{"active"},
+				"sort":         []string{"name"},
+				"offset":       []string{"2"},
+				"ids":          []string{"some-id,another-id", "second-param"},
+				"template_ids": []string{"some-id,another-id", "second-param"},
 			},
 			expected: map[string]interface{}{
-				"query_page":   "1",
-				"query_limit":  "10",
-				"query_filter": "active",
-				"query_sort":   "name",
+				"query_page":               "1",
+				"query_limit":              "10",
+				"query_offset":             "2",
+				"query_ids_count":          "3",
+				"query_template_ids_count": "3",
 			},
 		},
 		{
-			name: "sensitive parameters",
+			name: "unknown/sensitive parameters",
 			params: url.Values{
 				"token":                             []string{"secret-token"},
 				"api_key":                           []string{"secret-key"},
@@ -336,8 +340,7 @@ func TestSafeQueryParams(t *testing.T) {
 				"filter": []string{"active"},
 			},
 			expected: map[string]interface{}{
-				"query_page":   "1",
-				"query_filter": "active",
+				"query_page": "1",
 			},
 		},
 	}
