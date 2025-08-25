@@ -3571,6 +3571,12 @@ export interface Workspace {
 	readonly is_prebuild: boolean;
 }
 
+// From codersdk/workspaces.go
+export interface WorkspaceACL {
+	readonly users: readonly WorkspaceUser[];
+	readonly group: readonly WorkspaceGroup[];
+}
+
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgent {
 	readonly id: string;
@@ -3970,6 +3976,11 @@ export interface WorkspaceFilter {
 }
 
 // From codersdk/workspaces.go
+export interface WorkspaceGroup extends Group {
+	readonly role: WorkspaceRole;
+}
+
+// From codersdk/workspaces.go
 export interface WorkspaceHealth {
 	readonly healthy: boolean;
 	readonly failing_agents: readonly string[];
@@ -4077,6 +4088,11 @@ export const WorkspaceTransitions: WorkspaceTransition[] = [
 	"start",
 	"stop",
 ];
+
+// From codersdk/workspaces.go
+export interface WorkspaceUser extends MinimalUser {
+	readonly role: WorkspaceRole;
+}
 
 // From codersdk/workspaces.go
 export interface WorkspacesRequest extends Pagination {

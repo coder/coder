@@ -1448,6 +1448,7 @@ func New(options *Options) *API {
 						httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentWorkspaceSharing),
 					)
 
+					r.Get("/", api.workspaceACL)
 					r.Patch("/", api.patchWorkspaceACL)
 				})
 			})
