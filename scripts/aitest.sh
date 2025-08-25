@@ -9,6 +9,21 @@ MAX_ITERATIONS=10
 # Log file for Claude output
 LOG_FILE="aitest-$(date +%Y%m%d-%H%M%S).log"
 
+# Coverage tracking - use temporary directory
+COVERAGE_DIR=$(mktemp -d)
+BASELINE_COVERAGE="$COVERAGE_DIR/baseline.out"
+CURRENT_COVERAGE="$COVERAGE_DIR/current.out"
+
+# Cleanup function
+cleanup() {
+	if [[ -d "$COVERAGE_DIR" ]]; then
+		rm -rf "$COVERAGE_DIR"
+	fi
+}
+
+# Set up cleanup on exit
+trap cleanup EXIT
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -49,6 +64,90 @@ fi
 
 log "Received prompt (${#prompt} characters)"
 log "Logging Claude output to: $LOG_FILE"
+
+# Function to get coverage profile
+get_coverage() {
+	local output_file="$1"
+	log "Getting test coverage profile..."
+	if ! gotestsum --packages="./..." --rerun-fails=1 -- --coverprofile="$output_file" >/dev/null 2>&1; then
+		return 1
+	fi
+	return 0
+}
+
+# Function to extract coverage percentage from profile
+get_coverage_percentage() {
+	local profile_file="$1"
+	if [[ ! -f "$profile_file" ]]; then
+		echo "0.0"
+		return
+	fi
+
+	# Use go tool cover to get coverage percentage
+	go tool cover -func="$profile_file" | tail -n 1 | awk '{print $3}' | sed 's/%//'
+}
+
+# Function to compare coverage and generate diff if decreased
+check_coverage_change() {
+	local baseline_file="$1"
+	local current_file="$2"
+
+	if [[ ! -f "$baseline_file" ]]; then
+		log "No baseline coverage file found, skipping coverage comparison"
+		return 0
+	fi
+
+	if [[ ! -f "$current_file" ]]; then
+		warn "No current coverage file found, skipping coverage comparison"
+		return 0
+	fi
+
+	local baseline_pct
+	baseline_pct=$(get_coverage_percentage "$baseline_file")
+	local current_pct
+	current_pct=$(get_coverage_percentage "$current_file")
+
+	log "Coverage: baseline ${baseline_pct}%, current ${current_pct}%"
+
+	# Compare coverage (using bc for floating point comparison)
+	if command -v bc >/dev/null 2>&1; then
+		local decreased
+		decreased=$(echo "$current_pct < $baseline_pct" | bc -l)
+		if [[ "$decreased" == "1" ]]; then
+			warn "Coverage decreased from ${baseline_pct}% to ${current_pct}%"
+
+			# Generate coverage diff
+			local diff_output=""
+			if command -v go >/dev/null 2>&1; then
+				diff_output="Coverage decreased from ${baseline_pct}% to ${current_pct}%
+
+=== BASELINE COVERAGE ===
+$(go tool cover -func="$baseline_file")
+
+=== CURRENT COVERAGE ===
+$(go tool cover -func="$current_file")
+
+Please fix the code to maintain or improve test coverage."
+			else
+				diff_output="Coverage decreased from ${baseline_pct}% to ${current_pct}%. Please fix the code to maintain or improve test coverage."
+			fi
+
+			echo "$diff_output"
+			return 1
+		fi
+	else
+		warn "bc command not available, skipping precise coverage comparison"
+	fi
+
+	return 0
+}
+
+# Get baseline coverage before starting
+log "Getting baseline coverage profile..."
+if ! get_coverage "$BASELINE_COVERAGE"; then
+	error "Failed to get baseline coverage profile"
+	exit 1
+fi
 
 # Initialize log file with header
 {
@@ -101,6 +200,20 @@ run_tests() {
 		if ! go_output=$(make test 2>&1); then
 			failed=true
 			output+="=== GO TEST FAILURES ===\n$go_output\n\n"
+		else
+			# Get updated coverage profile after tests pass
+			log "Getting updated coverage profile..."
+			if get_coverage "$CURRENT_COVERAGE"; then
+				# Check for coverage decrease
+				if coverage_diff=$(check_coverage_change "$BASELINE_COVERAGE" "$CURRENT_COVERAGE"); then
+					log "Coverage maintained or improved"
+				else
+					failed=true
+					output+="=== COVERAGE DECREASED ===\n$coverage_diff\n\n"
+				fi
+			else
+				warn "Failed to get updated coverage profile, but continuing..."
+			fi
 		fi
 	fi
 
