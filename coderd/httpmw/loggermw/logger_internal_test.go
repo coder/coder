@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -288,6 +289,73 @@ func TestRequestLogger_RouteParamsLogging(t *testing.T) {
 				}
 				require.True(t, slices.Contains(tt.expectedFields, field), "unexpected field %q in log", field)
 			}
+		})
+	}
+}
+
+func TestSafeQueryParams(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		params   url.Values
+		expected map[string]interface{}
+	}{
+		{
+			name: "safe parameters",
+			params: url.Values{
+				"page":   []string{"1"},
+				"limit":  []string{"10"},
+				"filter": []string{"active"},
+				"sort":   []string{"name"},
+			},
+			expected: map[string]interface{}{
+				"query_page":   "1",
+				"query_limit":  "10",
+				"query_filter": "active",
+				"query_sort":   "name",
+			},
+		},
+		{
+			name: "sensitive parameters",
+			params: url.Values{
+				"token":                             []string{"secret-token"},
+				"api_key":                           []string{"secret-key"},
+				"coder_signed_app_token":            []string{"jwt-token"},
+				"coder_application_connect_api_key": []string{"encrypted-key"},
+				"client_secret":                     []string{"oauth-secret"},
+				"code":                              []string{"auth-code"},
+			},
+			expected: map[string]interface{}{},
+		},
+		{
+			name: "mixed parameters",
+			params: url.Values{
+				"page":   []string{"1"},
+				"token":  []string{"secret"},
+				"filter": []string{"active"},
+			},
+			expected: map[string]interface{}{
+				"query_page":   "1",
+				"query_filter": "active",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fields := safeQueryParams(tt.params)
+
+			// Convert fields to map for easier comparison
+			result := make(map[string]interface{})
+			for _, field := range fields {
+				result[field.Name] = field.Value
+			}
+
+			require.Equal(t, tt.expected, result)
 		})
 	}
 }

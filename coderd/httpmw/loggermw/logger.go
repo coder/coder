@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +16,39 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
+
+var sensitivePatterns = []string{"code", "token", "key", "secret", "password", "auth", "credential", "api_key"}
+
+func safeQueryParams(params url.Values) []slog.Field {
+	if len(params) == 0 {
+		return nil
+	}
+
+	fields := make([]slog.Field, 0, len(params))
+	for key, values := range params {
+		sensitive := false
+
+		// Check if this parameter should be redacted
+		for _, pattern := range sensitivePatterns {
+			if strings.Contains(strings.ToLower(key), pattern) {
+				sensitive = true
+			}
+		}
+		if !sensitive {
+			// Prepend query parameters in the log line to ensure we don't have issues with collisions
+			// in case any other internal logging fields already log fields with similar names
+			fieldName := "query_" + key
+
+			// Log the actual values for non-sensitive parameters
+			if len(values) == 1 {
+				fields = append(fields, slog.F(fieldName, values[0]))
+				continue
+			}
+			fields = append(fields, slog.F(fieldName, values))
+		}
+	}
+	return fields
+}
 
 func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -38,6 +73,11 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 				// trying to compute the value).
 				slog.F("start", start),
 			)
+
+			// Add safe query parameters to the log
+			if queryFields := safeQueryParams(r.URL.Query()); len(queryFields) > 0 {
+				httplog = httplog.With(queryFields...)
+			}
 
 			logContext := NewRequestLogger(httplog, r.Method, start)
 
