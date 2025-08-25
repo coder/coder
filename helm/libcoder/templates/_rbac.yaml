@@ -62,8 +62,9 @@ roleRef:
   name: {{ .Values.coder.serviceAccount.name }}-workspace-perms
 {{- end }}
 
-{{- if and .Values.coder.serviceAccount.workspaceNamespaces .Values.coder.serviceAccount.workspaceNamespaces.enabled }}
-{{- range $ns := .Values.coder.serviceAccount.workspaceNamespaces.namespaces }}
+{{- with .Values.coder.serviceAccount.workspaceNamespaces }}
+{{- if .enabled }}
+{{- range $ns := .namespaces }}
 {{- if and $ns (ne $ns $.Release.Namespace) }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -128,5 +129,6 @@ roleRef:
   name: {{ $.Values.coder.serviceAccount.name }}-workspace-perms
 {{- end }}
 {{- end }}
-{{- end -}}
+{{- end }}
+{{- end }}
 {{- end -}}
