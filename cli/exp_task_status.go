@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -70,16 +71,20 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 		Handler: func(i *serpent.Invocation) error {
 			ctx := i.Context()
 			ec := codersdk.NewExperimentalClient(client)
-			id := i.Args[0]
+			identifier := i.Args[0]
 
-			// TODO: right now tasks are still "workspaces" under the hood.
-			// We should update this once we have a proper task model.
-			ws, err := namedWorkspace(ctx, client, id)
+			taskID, err := uuid.Parse(identifier)
 			if err != nil {
-				return err
+				// Try to resolve the task as a named workspace
+				// TODO: right now tasks are still "workspaces" under the hood.
+				// We should update this once we have a proper task model.
+				ws, err := namedWorkspace(ctx, client, identifier)
+				if err != nil {
+					return err
+				}
+				taskID = ws.ID
 			}
-
-			task, err := ec.TaskByID(ctx, ws.ID)
+			task, err := ec.TaskByID(ctx, taskID)
 			if err != nil {
 				return err
 			}
@@ -100,7 +105,7 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 			defer t.Stop()
 			// TODO: implement streaming updates instead of polling
 			for range t.C {
-				task, err := ec.TaskByID(ctx, ws.ID)
+				task, err := ec.TaskByID(ctx, taskID)
 				if err != nil {
 					return err
 				}
