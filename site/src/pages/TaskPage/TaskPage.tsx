@@ -151,7 +151,7 @@ const TaskPage = () => {
 	return (
 		<>
 			<Helmet>
-				<title>{pageTitle(ellipsizeText(task.prompt, 64))}</title>
+				<title>{pageTitle(task.workspace.name)}</title>
 			</Helmet>
 
 			<div className="flex flex-col h-full">
@@ -264,8 +264,4 @@ export const data = {
 			prompt,
 		} satisfies Task;
 	},
-};
-
-const ellipsizeText = (text: string, maxLength = 80): string => {
-	return text.length <= maxLength ? text : `${text.slice(0, maxLength - 3)}...`;
 };
