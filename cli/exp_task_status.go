@@ -2,17 +2,33 @@ package cli
 
 import (
 	"fmt"
-	"io"
+	"strings"
 	"time"
 
+	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) taskStatus() *serpent.Command {
 	var (
-		client   = new(codersdk.Client)
-		watchArg bool
+		client    = new(codersdk.Client)
+		formatter = cliui.NewOutputFormatter(
+			cliui.TableFormat(
+				[]taskStatusRow{},
+				[]string{
+					"state changed",
+					"status",
+					"state",
+					"message",
+				},
+			),
+			cliui.JSONFormat(),
+		)
+		watchArg         bool
+		watchIntervalArg time.Duration
 	)
 	cmd := &serpent.Command{
 		Short:   "Show the status of a task.",
@@ -25,6 +41,14 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 				Flag:        "watch",
 				Name:        "watch",
 				Value:       serpent.BoolOf(&watchArg),
+			},
+			{
+				Default:     "1s",
+				Description: "Interval to poll the task for updates. Only used in tests.",
+				Hidden:      true,
+				Flag:        "watch-interval",
+				Name:        "watch-interval",
+				Value:       serpent.DurationOf(&watchIntervalArg),
 			},
 		},
 		Middleware: serpent.Chain(
@@ -48,14 +72,19 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 				return err
 			}
 
-			printTaskStatus(i.Stdout, task)
+			out, err := formatter.Format(ctx, toStatusRow(task))
+			if err != nil {
+				return xerrors.Errorf("format task status: %w", err)
+			}
+			_, _ = fmt.Fprintln(i.Stdout, out)
+
 			if !watchArg {
 				return nil
 			}
 
 			lastStatus := task.Status
 			lastState := task.CurrentState
-			t := time.NewTicker(1 * time.Second)
+			t := time.NewTicker(watchIntervalArg)
 			defer t.Stop()
 			// TODO: implement streaming updates instead of polling
 			for range t.C {
@@ -63,13 +92,18 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 				if err != nil {
 					return err
 				}
-				if lastStatus == task.Status {
+				if lastStatus == task.Status && taskStatusEqual(lastState, task.CurrentState) {
 					continue
 				}
-				if taskStatusEqual(lastState, task.CurrentState) {
-					continue
+				out, err := formatter.Format(ctx, toStatusRow(task))
+				if err != nil {
+					return xerrors.Errorf("format task status: %w", err)
 				}
-				printTaskStatus(i.Stdout, task)
+				// hack: skip the extra column header from formatter
+				if formatter.FormatID() != cliui.JSONFormat().ID() {
+					out = strings.SplitN(out, "\n", 2)[1]
+				}
+				_, _ = fmt.Fprintln(i.Stdout, out)
 
 				if task.Status == codersdk.WorkspaceStatusStopped {
 					return nil
@@ -80,6 +114,7 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 			return nil
 		},
 	}
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
 
@@ -93,13 +128,25 @@ func taskStatusEqual(s1, s2 *codersdk.TaskStateEntry) bool {
 	return s1.State == s2.State
 }
 
-func printTaskStatus(w io.Writer, t codersdk.Task) {
-	_, _ = fmt.Fprint(w, t.Status)
-	_, _ = fmt.Fprint(w, ", ")
-	if t.CurrentState != nil {
-		_, _ = fmt.Fprint(w, t.CurrentState.State)
-	} else {
-		_, _ = fmt.Fprint(w, "unknown")
+type taskStatusRow struct {
+	ChangedAgo string    `json:"-" table:"state changed,default_sort"`
+	Timestamp  time.Time `json:"ts" table:"-"`
+	TaskStatus string    `json:"status" table:"status"`
+	TaskState  string    `json:"state" table:"state"`
+	Message    string    `json:"msg" table:"message"`
+}
+
+func toStatusRow(task codersdk.Task) []taskStatusRow {
+	tsr := taskStatusRow{
+		ChangedAgo: time.Since(task.UpdatedAt).Truncate(time.Second).String() + " ago",
+		Timestamp:  task.UpdatedAt,
+		TaskStatus: string(task.Status),
 	}
-	_, _ = fmt.Fprintln(w)
+	if task.CurrentState != nil {
+		tsr.ChangedAgo = time.Since(task.CurrentState.Timestamp).Truncate(time.Second).String() + " ago"
+		tsr.Timestamp = task.CurrentState.Timestamp
+		tsr.TaskState = string(task.CurrentState.State)
+		tsr.Message = task.CurrentState.Message
+	}
+	return []taskStatusRow{tsr}
 }

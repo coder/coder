@@ -7,9 +7,12 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -24,12 +27,12 @@ func Test_TaskStatus(t *testing.T) {
 		args         []string
 		expectOutput string
 		expectError  string
-		hf           func(context.Context) func(http.ResponseWriter, *http.Request)
+		hf           func(context.Context, time.Time) func(http.ResponseWriter, *http.Request)
 	}{
 		{
 			args:        []string{"doesnotexist"},
 			expectError: httpapi.ResourceNotFoundResponse.Message,
-			hf: func(ctx context.Context) func(w http.ResponseWriter, r *http.Request) {
+			hf: func(ctx context.Context, _ time.Time) func(w http.ResponseWriter, r *http.Request) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/api/v2/users/me/workspace/doesnotexist":
@@ -43,7 +46,7 @@ func Test_TaskStatus(t *testing.T) {
 		{
 			args:        []string{"err-fetching-workspace"},
 			expectError: assert.AnError.Error(),
-			hf: func(ctx context.Context) func(w http.ResponseWriter, r *http.Request) {
+			hf: func(ctx context.Context, _ time.Time) func(w http.ResponseWriter, r *http.Request) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/api/v2/users/me/workspace/err-fetching-workspace":
@@ -59,9 +62,10 @@ func Test_TaskStatus(t *testing.T) {
 			},
 		},
 		{
-			args:         []string{"exists"},
-			expectOutput: "frobnicating, unknown\n",
-			hf: func(ctx context.Context) func(w http.ResponseWriter, r *http.Request) {
+			args: []string{"exists"},
+			expectOutput: `STATE CHANGED  STATUS   STATE    MESSAGE
+0s ago         running  working  Thinking furiously...`,
+			hf: func(ctx context.Context, now time.Time) func(w http.ResponseWriter, r *http.Request) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/api/v2/users/me/workspace/exists":
@@ -70,8 +74,15 @@ func Test_TaskStatus(t *testing.T) {
 						})
 					case "/api/experimental/tasks/me/11111111-1111-1111-1111-111111111111":
 						httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
-							ID:     uuid.MustParse("11111111-1111-1111-1111-111111111111"),
-							Status: codersdk.WorkspaceStatus("frobnicating"),
+							ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+							Status:    codersdk.WorkspaceStatusRunning,
+							CreatedAt: now,
+							UpdatedAt: now,
+							CurrentState: &codersdk.TaskStateEntry{
+								State:     codersdk.TaskStateWorking,
+								Timestamp: now,
+								Message:   "Thinking furiously...",
+							},
 						})
 					default:
 						t.Errorf("unexpected path: %s", r.URL.Path)
@@ -80,37 +91,93 @@ func Test_TaskStatus(t *testing.T) {
 			},
 		},
 		{
-			args:         []string{"exists", "--watch"},
-			expectOutput: "running, working\nstopped, completed\n",
-			hf: func(ctx context.Context) func(http.ResponseWriter, *http.Request) {
-				var c atomic.Int64
+			args: []string{"exists", "--watch"},
+			expectOutput: `
+STATE CHANGED  STATUS   STATE  MESSAGE
+4s ago         running
+3s ago         running  working  Reticulating splines...
+2s ago         running  completed  Splines reticulated successfully!
+2s ago         stopping  completed  Splines reticulated successfully!
+2s ago         stopped  completed  Splines reticulated successfully!`,
+			hf: func(ctx context.Context, now time.Time) func(http.ResponseWriter, *http.Request) {
+				var calls atomic.Int64
 				return func(w http.ResponseWriter, r *http.Request) {
+					defer calls.Add(1)
 					switch r.URL.Path {
 					case "/api/v2/users/me/workspace/exists":
 						httpapi.Write(ctx, w, http.StatusOK, codersdk.Workspace{
 							ID: uuid.MustParse("11111111-1111-1111-1111-111111111111"),
 						})
 					case "/api/experimental/tasks/me/11111111-1111-1111-1111-111111111111":
-						if c.Load() < 2 {
+						switch calls.Load() {
+						case 0:
 							httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
-								ID:     uuid.MustParse("11111111-1111-1111-1111-111111111111"),
-								Status: codersdk.WorkspaceStatusRunning,
+								ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+								Status:    codersdk.WorkspaceStatusPending,
+								CreatedAt: now.Add(-5 * time.Second),
+								UpdatedAt: now.Add(-5 * time.Second),
+							})
+						case 1:
+							httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
+								ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+								Status:    codersdk.WorkspaceStatusRunning,
+								CreatedAt: now.Add(-5 * time.Second),
+								UpdatedAt: now.Add(-4 * time.Second),
+							})
+						case 2:
+							httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
+								ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+								Status:    codersdk.WorkspaceStatusRunning,
+								CreatedAt: now.Add(-5 * time.Second),
+								UpdatedAt: now.Add(-4 * time.Second),
 								CurrentState: &codersdk.TaskStateEntry{
-									State: codersdk.TaskStateWorking,
+									State:     codersdk.TaskStateWorking,
+									Timestamp: now.Add(-3 * time.Second),
+									Message:   "Reticulating splines...",
 								},
 							})
-							c.Add(1)
+						case 3:
+							httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
+								ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+								Status:    codersdk.WorkspaceStatusRunning,
+								CreatedAt: now.Add(-5 * time.Second),
+								UpdatedAt: now.Add(-4 * time.Second),
+								CurrentState: &codersdk.TaskStateEntry{
+									State:     codersdk.TaskStateCompleted,
+									Timestamp: now.Add(-2 * time.Second),
+									Message:   "Splines reticulated successfully!",
+								},
+							})
+						case 4:
+							httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
+								ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+								Status:    codersdk.WorkspaceStatusStopping,
+								CreatedAt: now.Add(-5 * time.Second),
+								UpdatedAt: now.Add(-1 * time.Second),
+								CurrentState: &codersdk.TaskStateEntry{
+									State:     codersdk.TaskStateCompleted,
+									Timestamp: now.Add(-2 * time.Second),
+									Message:   "Splines reticulated successfully!",
+								},
+							})
+						case 5:
+							httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
+								ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+								Status:    codersdk.WorkspaceStatusStopped,
+								CreatedAt: now.Add(-5 * time.Second),
+								UpdatedAt: now,
+								CurrentState: &codersdk.TaskStateEntry{
+									State:     codersdk.TaskStateCompleted,
+									Timestamp: now.Add(-2 * time.Second),
+									Message:   "Splines reticulated successfully!",
+								},
+							})
+						default:
+							httpapi.InternalServerError(w, xerrors.New("too many calls!"))
 							return
 						}
-						httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
-							ID:     uuid.MustParse("11111111-1111-1111-1111-111111111111"),
-							Status: codersdk.WorkspaceStatusStopped,
-							CurrentState: &codersdk.TaskStateEntry{
-								State: codersdk.TaskStateCompleted,
-							},
-						})
 					default:
-						t.Errorf("unexpected path: %s", r.URL.Path)
+						httpapi.InternalServerError(w, xerrors.Errorf("too many calls: %d", calls.Load()))
 					}
 				}
 			},
@@ -121,10 +188,11 @@ func Test_TaskStatus(t *testing.T) {
 
 			var (
 				ctx    = testutil.Context(t, testutil.WaitShort)
-				srv    = httptest.NewServer(http.HandlerFunc(tc.hf(ctx)))
+				now    = time.Now().UTC() // TODO: replace with quartz
+				srv    = httptest.NewServer(http.HandlerFunc(tc.hf(ctx, now)))
 				client = new(codersdk.Client)
 				sb     = strings.Builder{}
-				args   = []string{"exp", "task", "status"}
+				args   = []string{"exp", "task", "status", "--watch-interval", testutil.IntervalFast.String()}
 			)
 
 			t.Cleanup(srv.Close)
@@ -140,7 +208,17 @@ func Test_TaskStatus(t *testing.T) {
 			} else {
 				assert.ErrorContains(t, err, tc.expectError)
 			}
-			assert.Equal(t, tc.expectOutput, sb.String())
+			if diff := tableDiff(tc.expectOutput, sb.String()); diff != "" {
+				t.Errorf("unexpected output diff (-want +got):\n%s", diff)
+			}
 		})
 	}
+}
+
+func tableDiff(want, got string) string {
+	var gotTrimmed strings.Builder
+	for _, line := range strings.Split(got, "\n") {
+		_, _ = gotTrimmed.WriteString(strings.TrimRight(line, " ") + "\n")
+	}
+	return cmp.Diff(strings.TrimSpace(want), strings.TrimSpace(gotTrimmed.String()))
 }
