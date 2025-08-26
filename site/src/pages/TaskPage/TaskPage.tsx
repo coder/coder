@@ -219,6 +219,12 @@ const TaskBuildingWorkspace: FC<TaskBuildingWorkspaceProps> = ({ task }) => {
 					</header>
 
 					<div className="w-full max-w-screen-lg flex flex-col gap-4 overflow-hidden">
+						<WorkspaceBuildProgress
+							workspace={task.workspace}
+							transitionStats={transitionStats}
+							variant="task"
+						/>
+
 						<ScrollArea
 							ref={scrollAreaRef}
 							className="h-96 border border-solid border-border rounded-lg"
@@ -229,12 +235,6 @@ const TaskBuildingWorkspace: FC<TaskBuildingWorkspaceProps> = ({ task }) => {
 								logs={buildLogs ?? []}
 							/>
 						</ScrollArea>
-
-						<WorkspaceBuildProgress
-							workspace={task.workspace}
-							transitionStats={transitionStats}
-							variant="task"
-						/>
 					</div>
 				</div>
 			</div>
