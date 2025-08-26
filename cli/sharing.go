@@ -27,6 +27,7 @@ func (r *RootCmd) sharing() *serpent.Command {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*serpent.Command{r.shareWorkspace(orgContext)},
+		Hidden:   true,
 	}
 
 	orgContext.AttachOptions(cmd)
