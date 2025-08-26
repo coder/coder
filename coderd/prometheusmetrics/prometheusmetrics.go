@@ -170,7 +170,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 			Namespace: "coderd",
 			Subsystem: "api",
 			Name:      "workspace_creation_total",
-			Help:      "Total regular workspace (without prebuild) creations by organization, template and preset.",
+			Help:      "Total regular (non-prebuilt) workspace creations by organization, template, and preset.",
 		},
 		[]string{"organization_name", "template_name", "preset_name"},
 	)
@@ -182,7 +182,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Namespace: "coderd",
 		Subsystem: "provisionerd",
 		Name:      "workspace_creation_duration_seconds",
-		Help:      "Time to create a workspace (regular or prebuild).",
+		Help:      "Time to create a workspace by organization, template, preset, and type (regular or prebuild).",
 		Buckets: []float64{
 			1, // 1s
 			10,
@@ -201,7 +201,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		// Treat tiny values as zero (helps with noisy near-zero latencies).
 		NativeHistogramZeroThreshold:    0,
 		NativeHistogramMaxZeroThreshold: 0,
-	}, []string{"organization_name", "template_name", "preset_name", "source"})
+	}, []string{"organization_name", "template_name", "preset_name", "type"})
 	if err := registerer.Register(workspaceCreationTimings); err != nil {
 		return nil, nil, err
 	}
@@ -210,7 +210,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Namespace: "coderd",
 		Subsystem: "provisionerd",
 		Name:      "workspace_claim_duration_seconds",
-		Help:      "Time to claim a prebuilt workspace.",
+		Help:      "Time to claim a prebuilt workspace by organization, template, and preset.",
 		Buckets: []float64{
 			1, // 1s
 			10,
