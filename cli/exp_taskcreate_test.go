@@ -32,9 +32,9 @@ func TestTaskCreate(t *testing.T) {
 	)
 
 	templateAndVersionFoundHandler := func(t *testing.T, ctx context.Context, templateName, templateVersionName, presetName, prompt string) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
-			t.Log(r.URL.Path)
+		t.Helper()
 
+		return func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
 			case "/api/v2/users/me/organizations":
 				httpapi.Write(ctx, w, http.StatusOK, []codersdk.Organization{
@@ -64,13 +64,13 @@ func TestTaskCreate(t *testing.T) {
 					return
 				}
 
-				assert.Equal(t, prompt, req.Prompt)
-				assert.Equal(t, templateVersionID, req.TemplateVersionID, "template version id not expected")
+				assert.Equal(t, prompt, req.Prompt, "prompt mismatch")
+				assert.Equal(t, templateVersionID, req.TemplateVersionID, "template version mismatch")
 
 				if presetName == "" {
 					assert.Equal(t, uuid.Nil, req.TemplateVersionPresetID, "expected no template preset id")
 				} else {
-					assert.Equal(t, templateVersionPresetID, req.TemplateVersionPresetID, "template version preset id not expected")
+					assert.Equal(t, templateVersionPresetID, req.TemplateVersionPresetID, "template version preset id mismatch")
 				}
 
 				httpapi.Write(ctx, w, http.StatusCreated, codersdk.Workspace{
