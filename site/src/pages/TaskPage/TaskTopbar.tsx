@@ -22,7 +22,7 @@ type TaskTopbarProps = { task: Task };
 
 export const TaskTopbar: FC<TaskTopbarProps> = ({ task }) => {
 	return (
-		<header className="flex items-center px-3 py-4 border-solid border-border border-0 border-b">
+		<header className="flex flex-shrink-0 items-center px-3 py-4 border-solid border-border border-0 border-b">
 			<TooltipProvider>
 				<Tooltip>
 					<TooltipTrigger asChild>
