@@ -33,9 +33,6 @@ func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Identify the initiator using a header known to aibridge lib.
-	r.Header.Set(aibridge.InitiatorHeaderKey, actor.ID)
-
 	userID, err := uuid.Parse(actor.ID)
 	if err != nil {
 		api.Logger.Error(ctx, "actor ID is not a uuid", slog.Error(err), slog.F("user_id", actor.ID))
@@ -48,6 +45,9 @@ func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, "unable to retrieve request session key", http.StatusBadRequest)
 		return
 	}
+
+	// Rewire request context to include actor.
+	r = r.WithContext(aibridge.AsActor(ctx, actor.ID, aibridge.Metadata{"email": actor.Email}))
 
 	handler, err := srv.GetRequestHandler(ctx, aibridged.Request{
 		SessionKey:  sessionKey,

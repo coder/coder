@@ -151,7 +151,7 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 		return nil, xerrors.New("nil requestBridgePool")
 	}
 
-	reqBridge, err := s.requestBridgePool.Acquire(ctx, req, func() (aibridge.Recorder, error) {
+	recorder := aibridge.NewRecorder(s.logger.Named("recorder"), func() (aibridge.Recorder, error) {
 		client, err := s.Client()
 		if err != nil {
 			return nil, xerrors.Errorf("acquire client: %w", err)
@@ -159,6 +159,8 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 
 		return &translator{client: client}, nil
 	})
+
+	reqBridge, err := s.requestBridgePool.Acquire(ctx, req, recorder)
 	if err != nil {
 		return nil, xerrors.Errorf("acquire request bridge: %w", err)
 	}

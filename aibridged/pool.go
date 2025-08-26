@@ -26,7 +26,7 @@ const (
 // pooler describes a pool of *aibridge.RequestBridge instances from which instances can be retrieved.
 // One *aibridge.RequestBridge instance is created per given key.
 type pooler interface {
-	Acquire(ctx context.Context, req Request, clientFn func() (aibridge.Recorder, error)) (*aibridge.RequestBridge, error)
+	Acquire(ctx context.Context, req Request, recorder aibridge.Recorder) (*aibridge.RequestBridge, error)
 	Shutdown(ctx context.Context) error
 }
 
@@ -48,15 +48,6 @@ func NewCachedBridgePool(cfg codersdk.AIBridgeConfig, instances int64, mcpCfg MC
 		NumCounters: instances * 10,        // Docs suggest setting this 10x number of keys.
 		MaxCost:     instances * cacheCost, // Up to n instances.
 		BufferItems: 64,                    // Sticking with recommendation from docs.
-		OnEvict: func(item *ristretto.Item[*aibridge.RequestBridge]) {
-			if item.Value == nil {
-				return
-			}
-
-			// TODO: implement graceful shutdown. This should block the Shutdown func of CachedBridgePool from completing.
-			// However it should give up after the context is canceled.
-			_ = item.Value.Close()
-		},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create cache: %w", err)
@@ -81,7 +72,7 @@ func NewCachedBridgePool(cfg codersdk.AIBridgeConfig, instances int64, mcpCfg MC
 //
 // Each returned Bridge is safe for concurrent use.
 // Each Bridge is stateful because it has MCP clients which maintain sessions to the configured MCP server.
-func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn func() (aibridge.Recorder, error)) (*aibridge.RequestBridge, error) {
+func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, recorder aibridge.Recorder) (*aibridge.RequestBridge, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, xerrors.Errorf("acquire: %w", err)
 	}
@@ -110,14 +101,14 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn fu
 
 	// Slow path.
 	// Creating an *aibridge.RequestBridge may take some time, so gate all subsequent callers behind the initial request and return the resulting value.
+	// TODO: track startup time since it adds latency to first request (histogram count will also help us see how often this occurs).
 	instance, err, _ := p.singleflight.Do(req.InitiatorID.String(), func() (*aibridge.RequestBridge, error) {
-		// TODO: track startup time since it adds latency to first request (histogram count will also help us see how often this occurs).
-		tools, err := p.fetchTools(ctx, req.SessionKey, req.InitiatorID)
+		tools, err := p.setupMCPServerProxies(ctx, req.SessionKey, req.InitiatorID)
 		if err != nil {
 			p.logger.Warn(ctx, "failed to load tools", slog.Error(err))
 		}
 
-		bridge, err = aibridge.NewRequestBridge(ctx, p.providers, p.logger, clientFn, aibridge.NewInjectedToolManager(tools))
+		bridge, err = aibridge.NewRequestBridge(ctx, p.providers, p.logger, recorder, aibridge.NewInjectedToolManager(tools))
 		if err != nil {
 			return nil, xerrors.Errorf("create new request bridge: %w", err)
 		}
@@ -132,7 +123,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn fu
 	return instance, err
 }
 
-func (p *CachedBridgePool) fetchTools(ctx context.Context, key string, userID uuid.UUID) ([]*aibridge.MCPServerProxy, error) {
+func (p *CachedBridgePool) setupMCPServerProxies(ctx context.Context, key string, userID uuid.UUID) ([]*aibridge.MCPServerProxy, error) {
 	var (
 		proxies []*aibridge.MCPServerProxy
 		eg      errgroup.Group
@@ -187,7 +178,6 @@ func (p *CachedBridgePool) Shutdown(_ context.Context) error {
 		// Prevent new requests from being served.
 		close(p.shuttingDownCh)
 
-		// Closes the cache, which will evict all entries and trigger their onEvict handlers.
 		p.cache.Close()
 	})
 
