@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -118,7 +117,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				inv.Stdout,
 				"The task %s has been created at %s!\n",
 				cliui.Keyword(workspace.Name),
-				cliui.Timestamp(time.Now()),
+				cliui.Timestamp(workspace.CreatedAt),
 			)
 
 			return nil
