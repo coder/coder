@@ -9,7 +9,6 @@ import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { DeprecatedBadge } from "components/Badges/Badges";
 import { Button } from "components/Button/Button";
-import type { useFilter } from "components/Filter/Filter";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
