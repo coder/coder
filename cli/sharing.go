@@ -37,11 +37,10 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 	var (
 		// Username regex taken from codersdk/name.go
 		userAndGroupRegex = regexp.MustCompile(`(^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*)+(?::([A-Za-z0-9-]+))?`)
-
-		client    = new(codersdk.Client)
-		users     []string
-		groups    []string
-		formatter = cliui.NewOutputFormatter(
+		client            = new(codersdk.Client)
+		users             []string
+		groups            []string
+		formatter         = cliui.NewOutputFormatter(
 			cliui.TableFormat(
 				[]workspaceShareRow{}, []string{"User", "Group", "Role"}),
 			cliui.JSONFormat(),
@@ -178,7 +177,6 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 					})
 				}
 			}
-
 			out, err := formatter.Format(inv.Context(), outputRows)
 			if err != nil {
 				return err
