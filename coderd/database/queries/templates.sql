@@ -42,10 +42,16 @@ WHERE
 			lower(t.name) ILIKE '%' || lower(@fuzzy_name) || '%'
 		ELSE true
 	END
-	-- Filter by display_name, matching on substring
+	-- Filter by display_name, matching on substring (fallback to name if display_name is empty)
 	AND CASE
 		WHEN @fuzzy_display_name :: text != '' THEN
-			lower(t.display_name) ILIKE '%' || lower(@fuzzy_display_name) || '%'
+			CASE
+				WHEN t.display_name IS NOT NULL AND t.display_name != '' THEN
+					lower(t.display_name) ILIKE '%' || lower(@fuzzy_display_name) || '%'
+				ELSE
+					-- Remove spaces if present since 't.name' cannot have any spaces
+					lower(t.name) ILIKE '%' || REPLACE(lower(@fuzzy_display_name), ' ', '') || '%'
+			END
 		ELSE true
 	END
 	-- Filter by ids

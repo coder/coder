@@ -686,7 +686,6 @@ func TestSearchTemplates(t *testing.T) {
 			Name:  "OnlyName",
 			Query: "foobar",
 			Expected: database.GetTemplatesWithFilterParams{
-				FuzzyName:        "foobar",
 				FuzzyDisplayName: "foobar",
 			},
 		},
@@ -759,10 +758,9 @@ func TestSearchTemplates(t *testing.T) {
 			},
 		},
 		{
-			Name:  "SearchOnNameAndDisplayName",
+			Name:  "SearchOnDisplayName",
 			Query: "test name",
 			Expected: database.GetTemplatesWithFilterParams{
-				FuzzyName:        "test name",
 				FuzzyDisplayName: "test name",
 			},
 		},
@@ -785,7 +783,6 @@ func TestSearchTemplates(t *testing.T) {
 			Query: `foo bar exact_name:"test display name"`,
 			Expected: database.GetTemplatesWithFilterParams{
 				ExactName:        "test display name",
-				FuzzyName:        "foo bar",
 				FuzzyDisplayName: "foo bar",
 			},
 		},
@@ -794,7 +791,6 @@ func TestSearchTemplates(t *testing.T) {
 			Query: "deprecated:false test template",
 			Expected: database.GetTemplatesWithFilterParams{
 				Deprecated:       sql.NullBool{Bool: false, Valid: true},
-				FuzzyName:        "test template",
 				FuzzyDisplayName: "test template",
 			},
 		},

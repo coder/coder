@@ -268,8 +268,7 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
-		// Default to the template name and display name
-		values.Add("name", term)
+		// Default to the display name
 		values.Add("display_name", term)
 		return nil
 	})

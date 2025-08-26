@@ -12196,10 +12196,16 @@ WHERE
 			lower(t.name) ILIKE '%' || lower($5) || '%'
 		ELSE true
 	END
-	-- Filter by display_name, matching on substring
+	-- Filter by display_name, matching on substring (fallback to name if display_name is empty)
 	AND CASE
 		WHEN $6 :: text != '' THEN
-			lower(t.display_name) ILIKE '%' || lower($6) || '%'
+			CASE
+				WHEN t.display_name IS NOT NULL AND t.display_name != '' THEN
+					lower(t.display_name) ILIKE '%' || lower($6) || '%'
+				ELSE
+					-- Remove spaces if present since 't.name' cannot have any spaces
+					lower(t.name) ILIKE '%' || REPLACE(lower($6), ' ', '') || '%'
+			END
 		ELSE true
 	END
 	-- Filter by ids
