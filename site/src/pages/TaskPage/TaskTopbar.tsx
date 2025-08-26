@@ -37,7 +37,7 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task }) => {
 				</Tooltip>
 			</TooltipProvider>
 
-			<h1 className="m-0 ml-2 text-base font-medium truncate">
+			<h1 className="m-0 pl-2 text-base font-medium truncate">
 				{task.workspace.name}
 			</h1>
 
@@ -48,7 +48,7 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task }) => {
 			)}
 
 			<div className="ml-auto gap-2 flex items-center">
-				<TooltipProvider delayDuration={0}>
+				<TooltipProvider delayDuration={250}>
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button variant="outline" size="sm">
