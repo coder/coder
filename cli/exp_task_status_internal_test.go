@@ -21,7 +21,7 @@ func Test_PrintTaskStatus(t *testing.T) {
 			in: codersdk.Task{
 				Status: codersdk.WorkspaceStatus("frobnicating"),
 			},
-			expected: "frobnicating, unknown",
+			expected: "frobnicating, unknown\n",
 		},
 		{
 			in: codersdk.Task{
@@ -30,7 +30,7 @@ func Test_PrintTaskStatus(t *testing.T) {
 					State: codersdk.TaskState("reticulating splines"),
 				},
 			},
-			expected: "frobnicating, reticulating splines",
+			expected: "frobnicating, reticulating splines\n",
 		},
 	} {
 		t.Run(tc.expected, func(t *testing.T) {
