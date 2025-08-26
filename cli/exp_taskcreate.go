@@ -23,7 +23,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 		taskInput           string
 	)
 
-	return &serpent.Command{
+	cmd := &serpent.Command{
 		Use:   "create [template]",
 		Short: "Create an experimental task",
 		Middleware: serpent.Chain(
@@ -123,4 +123,6 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 			return nil
 		},
 	}
+	orgContext.AttachOptions(cmd)
+	return cmd
 }

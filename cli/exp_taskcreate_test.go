@@ -29,12 +29,13 @@ func TestTaskCreate(t *testing.T) {
 		taskCreatedAt = time.Now()
 
 		organizationID          = uuid.New()
+		anotherOrganizationID   = uuid.New()
 		templateID              = uuid.New()
 		templateVersionID       = uuid.New()
 		templateVersionPresetID = uuid.New()
 	)
 
-	templateAndVersionFoundHandler := func(t *testing.T, ctx context.Context, templateName, templateVersionName, presetName, prompt string) http.HandlerFunc {
+	templateAndVersionFoundHandler := func(t *testing.T, ctx context.Context, orgID uuid.UUID, templateName, templateVersionName, presetName, prompt string) http.HandlerFunc {
 		t.Helper()
 
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -42,14 +43,14 @@ func TestTaskCreate(t *testing.T) {
 			case "/api/v2/users/me/organizations":
 				httpapi.Write(ctx, w, http.StatusOK, []codersdk.Organization{
 					{MinimalOrganization: codersdk.MinimalOrganization{
-						ID: organizationID,
+						ID: orgID,
 					}},
 				})
-			case fmt.Sprintf("/api/v2/organizations/%s/templates/my-template/versions/my-template-version", organizationID):
+			case fmt.Sprintf("/api/v2/organizations/%s/templates/my-template/versions/my-template-version", orgID):
 				httpapi.Write(ctx, w, http.StatusOK, codersdk.TemplateVersion{
 					ID: templateVersionID,
 				})
-			case fmt.Sprintf("/api/v2/organizations/%s/templates/my-template", organizationID):
+			case fmt.Sprintf("/api/v2/organizations/%s/templates/my-template", orgID):
 				httpapi.Write(ctx, w, http.StatusOK, codersdk.Template{
 					ID:              templateID,
 					ActiveVersionID: templateVersionID,
@@ -94,47 +95,47 @@ func TestTaskCreate(t *testing.T) {
 		handler      func(t *testing.T, ctx context.Context) http.HandlerFunc
 	}{
 		{
-			args:         []string{"my-template@my-template-version", "--input", "my custom prompt"},
+			args:         []string{"my-template@my-template-version", "--input", "my custom prompt", "--org", organizationID.String()},
 			expectOutput: fmt.Sprintf("The task %s has been created at %s!", cliui.Keyword("task-wild-goldfish-27"), cliui.Timestamp(taskCreatedAt)),
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "", "my custom prompt")
+				return templateAndVersionFoundHandler(t, ctx, organizationID, "my-template", "my-template-version", "", "my custom prompt")
 			},
 		},
 		{
-			args:         []string{"my-template", "--input", "my custom prompt"},
+			args:         []string{"my-template", "--input", "my custom prompt", "--org", organizationID.String()},
 			env:          []string{"CODER_TASK_TEMPLATE_VERSION=my-template-version"},
 			expectOutput: fmt.Sprintf("The task %s has been created at %s!", cliui.Keyword("task-wild-goldfish-27"), cliui.Timestamp(taskCreatedAt)),
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "", "my custom prompt")
+				return templateAndVersionFoundHandler(t, ctx, organizationID, "my-template", "my-template-version", "", "my custom prompt")
 			},
 		},
 		{
-			args:         []string{"--input", "my custom prompt"},
+			args:         []string{"--input", "my custom prompt", "--org", organizationID.String()},
 			env:          []string{"CODER_TASK_TEMPLATE_NAME=my-template", "CODER_TASK_TEMPLATE_VERSION=my-template-version"},
 			expectOutput: fmt.Sprintf("The task %s has been created at %s!", cliui.Keyword("task-wild-goldfish-27"), cliui.Timestamp(taskCreatedAt)),
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "", "my custom prompt")
+				return templateAndVersionFoundHandler(t, ctx, organizationID, "my-template", "my-template-version", "", "my custom prompt")
 			},
 		},
 		{
-			env:          []string{"CODER_TASK_TEMPLATE_NAME=my-template", "CODER_TASK_TEMPLATE_VERSION=my-template-version", "CODER_TASK_INPUT=my custom prompt"},
+			env:          []string{"CODER_TASK_TEMPLATE_NAME=my-template", "CODER_TASK_TEMPLATE_VERSION=my-template-version", "CODER_TASK_INPUT=my custom prompt", "CODER_ORGANIZATION=" + organizationID.String()},
 			expectOutput: fmt.Sprintf("The task %s has been created at %s!", cliui.Keyword("task-wild-goldfish-27"), cliui.Timestamp(taskCreatedAt)),
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "", "my custom prompt")
+				return templateAndVersionFoundHandler(t, ctx, organizationID, "my-template", "my-template-version", "", "my custom prompt")
 			},
 		},
 		{
-			args:         []string{"my-template", "--input", "my custom prompt"},
+			args:         []string{"my-template", "--input", "my custom prompt", "--org", organizationID.String()},
 			expectOutput: fmt.Sprintf("The task %s has been created at %s!", cliui.Keyword("task-wild-goldfish-27"), cliui.Timestamp(taskCreatedAt)),
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return templateAndVersionFoundHandler(t, ctx, "my-template", "", "", "my custom prompt")
+				return templateAndVersionFoundHandler(t, ctx, organizationID, "my-template", "", "", "my custom prompt")
 			},
 		},
 		{
-			args:         []string{"my-template", "--input", "my custom prompt", "--preset", "my-preset"},
+			args:         []string{"my-template", "--input", "my custom prompt", "--preset", "my-preset", "--org", organizationID.String()},
 			expectOutput: fmt.Sprintf("The task %s has been created at %s!", cliui.Keyword("task-wild-goldfish-27"), cliui.Timestamp(taskCreatedAt)),
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return templateAndVersionFoundHandler(t, ctx, "my-template", "", "my-preset", "my custom prompt")
+				return templateAndVersionFoundHandler(t, ctx, organizationID, "my-template", "", "my-preset", "my custom prompt")
 			},
 		},
 		{
@@ -142,14 +143,14 @@ func TestTaskCreate(t *testing.T) {
 			env:          []string{"CODER_TASK_PRESET_NAME=my-preset"},
 			expectOutput: fmt.Sprintf("The task %s has been created at %s!", cliui.Keyword("task-wild-goldfish-27"), cliui.Timestamp(taskCreatedAt)),
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return templateAndVersionFoundHandler(t, ctx, "my-template", "", "my-preset", "my custom prompt")
+				return templateAndVersionFoundHandler(t, ctx, organizationID, "my-template", "", "my-preset", "my custom prompt")
 			},
 		},
 		{
 			args:        []string{"my-template", "--input", "my custom prompt", "--preset", "not-real-preset"},
 			expectError: `preset "not-real-preset" not found`,
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return templateAndVersionFoundHandler(t, ctx, "my-template", "", "my-preset", "my custom prompt")
+				return templateAndVersionFoundHandler(t, ctx, organizationID, "my-template", "", "my-preset", "my custom prompt")
 			},
 		},
 		{
@@ -173,7 +174,7 @@ func TestTaskCreate(t *testing.T) {
 			},
 		},
 		{
-			args:        []string{"not-real-template", "--input", "my custom prompt"},
+			args:        []string{"not-real-template", "--input", "my custom prompt", "--org", organizationID.String()},
 			expectError: httpapi.ResourceNotFoundResponse.Message,
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
@@ -186,6 +187,40 @@ func TestTaskCreate(t *testing.T) {
 						})
 					case fmt.Sprintf("/api/v2/organizations/%s/templates/not-real-template", organizationID):
 						httpapi.ResourceNotFound(w)
+					default:
+						t.Errorf("unexpected path: %s", r.URL.Path)
+					}
+				}
+			},
+		},
+		{
+			args:        []string{"template-in-different-org", "--input", "my-custom-prompt", "--org", anotherOrganizationID.String()},
+			expectError: httpapi.ResourceNotFoundResponse.Message,
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case "/api/v2/users/me/organizations":
+						httpapi.Write(ctx, w, http.StatusOK, []codersdk.Organization{
+							{MinimalOrganization: codersdk.MinimalOrganization{
+								ID: anotherOrganizationID,
+							}},
+						})
+					case fmt.Sprintf("/api/v2/organizations/%s/templates/template-in-different-org", anotherOrganizationID):
+						httpapi.ResourceNotFound(w)
+					default:
+						t.Errorf("unexpected path: %s", r.URL.Path)
+					}
+				}
+			},
+		},
+		{
+			args:        []string{"no-org", "--input", "my-custom-prompt"},
+			expectError: "Must select an organization with --org=<org_name>",
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case "/api/v2/users/me/organizations":
+						httpapi.Write(ctx, w, http.StatusOK, []codersdk.Organization{})
 					default:
 						t.Errorf("unexpected path: %s", r.URL.Path)
 					}
