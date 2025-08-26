@@ -80,7 +80,7 @@ func Test_TaskStatus(t *testing.T) {
 			},
 		},
 		{
-			args:         []string{"exists", "--follow"},
+			args:         []string{"exists", "--watch"},
 			expectOutput: "running, working\nstopped, completed\n",
 			hf: func(ctx context.Context) func(http.ResponseWriter, *http.Request) {
 				var c atomic.Int64

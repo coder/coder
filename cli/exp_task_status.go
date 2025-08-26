@@ -11,8 +11,8 @@ import (
 
 func (r *RootCmd) taskStatus() *serpent.Command {
 	var (
-		client = new(codersdk.Client)
-		follow bool
+		client   = new(codersdk.Client)
+		watchArg bool
 	)
 	cmd := &serpent.Command{
 		Aliases: []string{"stat", "st"},
@@ -34,7 +34,7 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 			}
 
 			printTaskStatus(i.Stdout, task)
-			if !follow {
+			if !watchArg {
 				return nil
 			}
 
@@ -59,9 +59,6 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 				if task.Status == codersdk.WorkspaceStatusStopped {
 					return nil
 				}
-				if task.CurrentState != nil && task.CurrentState.State != codersdk.TaskStateWorking {
-					return nil
-				}
 				lastStatus = task.Status
 				lastState = task.CurrentState
 			}
@@ -73,12 +70,11 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 		),
 		Options: serpent.OptionSet{
 			{
-				Default:       "false",
-				Description:   "Follow the task status output. This will stream updates to the terminal until the task completes.",
-				Flag:          "follow",
-				FlagShorthand: "f",
-				Name:          "follow",
-				Value:         serpent.BoolOf(&follow),
+				Default:     "false",
+				Description: "Watch the task status output. This will stream updates to the terminal until the underlying workspace is stopped.",
+				Flag:        "watch",
+				Name:        "watch",
+				Value:       serpent.BoolOf(&watchArg),
 			},
 		},
 		Short: "Show the status of a task.",
