@@ -115,12 +115,15 @@ export const WithFilteredAllTemplates: Story = {
 	args: {
 		...WithTemplates.args,
 		templates: [],
-		...getDefaultFilterProps({
-			query: "deprecated:false searchnotfound",
-			menus: {},
-			values: {},
-			used: true,
-		}),
+		filterState: {
+			filter: {
+				...defaultFilterProps.filter,
+				query: "deprecated:false searchnotfound",
+				values: {},
+				used: true,
+			},
+			menus: defaultFilterProps.menus,
+		},
 	},
 };
 
