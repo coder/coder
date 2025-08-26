@@ -192,6 +192,27 @@ func TestTaskCreate(t *testing.T) {
 				}
 			},
 		},
+		{
+			args:        []string{"template-in-different-org", "--org", "another-org", "--input", "my-custom-prompt"},
+			expectError: httpapi.ResourceNotFoundResponse.Message,
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case "/api/v2/users/me/organizations":
+						httpapi.Write(ctx, w, http.StatusOK, []codersdk.Organization{
+							{MinimalOrganization: codersdk.MinimalOrganization{
+								ID:   organizationID,
+								Name: "another-org",
+							}},
+						})
+					case fmt.Sprintf("/api/v2/organizations/%s/templates/template-in-different-org", organizationID):
+						httpapi.ResourceNotFound(w)
+					default:
+						t.Errorf("unexpected path: %s", r.URL.Path)
+					}
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
