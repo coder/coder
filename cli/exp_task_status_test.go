@@ -177,7 +177,7 @@ STATE CHANGED  STATUS   STATE  MESSAGE
 							return
 						}
 					default:
-						httpapi.InternalServerError(w, xerrors.Errorf("too many calls: %d", calls.Load()))
+						httpapi.InternalServerError(w, xerrors.Errorf("unexpected path: %q", r.URL.Path))
 					}
 				}
 			},
