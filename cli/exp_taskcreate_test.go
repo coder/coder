@@ -1,119 +1,190 @@
 package cli_test
 
 import (
+	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 
-	"github.com/coder/coder/v2/cli/clitest"
-	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/provisioner/echo"
-	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/coder/v2/testutil"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestTaskCreate(t *testing.T) {
 	t.Parallel()
 
-	createAITemplate := func(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse) (codersdk.TemplateVersion, codersdk.Template) {
-		t.Helper()
+	var (
+		organizationID    = uuid.New()
+		templateID        = uuid.New()
+		templateVersionID = uuid.New()
+	)
 
-		taskAppID := uuid.New()
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionPlan: []*proto.Response{
-				{
-					Type: &proto.Response_Plan{
-						Plan: &proto.PlanComplete{
-							Parameters: []*proto.RichParameter{{Name: codersdk.AITaskPromptParameterName, Type: "string"}},
-							HasAiTasks: true,
-							AiTasks:    []*proto.AITask{},
-						},
-					},
-				},
-			},
-			ProvisionApply: []*proto.Response{
-				{
-					Type: &proto.Response_Apply{
-						Apply: &proto.ApplyComplete{
-							Resources: []*proto.Resource{{
-								Name: "example",
-								Type: "aws_instance",
-								Agents: []*proto.Agent{{
-									Id:   uuid.NewString(),
-									Name: "example",
-									Apps: []*proto.App{
-										{
-											Id:          taskAppID.String(),
-											Slug:        "task-sidebar",
-											DisplayName: "Task Sidebar",
-										},
-									},
-								}},
-							}},
-							Parameters: []*proto.RichParameter{{Name: codersdk.AITaskPromptParameterName, Type: "string"}},
-							AiTasks: []*proto.AITask{{
-								SidebarApp: &proto.AITaskSidebarApp{
-									Id: taskAppID.String(),
-								},
-							}},
-						},
-					},
-				},
-			},
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	templateAndVersionFoundHandler := func(t *testing.T, ctx context.Context, templateName, templateVersionName, prompt string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			t.Log(r.URL.Path)
 
-		return version, template
+			switch r.URL.Path {
+			case "/api/v2/users/me/organizations":
+				httpapi.Write(ctx, w, http.StatusOK, []codersdk.Organization{
+					{MinimalOrganization: codersdk.MinimalOrganization{
+						ID: organizationID,
+					}},
+				})
+			case fmt.Sprintf("/api/v2/organizations/%s/templates/my-template/versions/my-template-version", organizationID):
+				httpapi.Write(ctx, w, http.StatusOK, codersdk.TemplateVersion{
+					ID: templateVersionID,
+				})
+			case fmt.Sprintf("/api/v2/organizations/%s/templates/my-template", organizationID):
+				httpapi.Write(ctx, w, http.StatusOK, codersdk.Template{
+					ID:              templateID,
+					ActiveVersionID: templateVersionID,
+				})
+			case "/api/experimental/tasks/me":
+				var req codersdk.CreateTaskRequest
+				if !httpapi.Read(ctx, w, r, &req) {
+					return
+				}
+
+				assert.Equal(t, prompt, req.Prompt)
+
+				httpapi.Write(ctx, w, http.StatusCreated, codersdk.Workspace{
+					Name: "task-wild-goldfish-27",
+				})
+			default:
+				t.Errorf("unexpected path: %s", r.URL.Path)
+			}
+		}
 	}
 
-	t.Run("CreateWithTemplateNameAndVersion", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		args         []string
+		env          []string
+		expectError  string
+		expectOutput string
+		handler      func(t *testing.T, ctx context.Context) http.HandlerFunc
+	}{
+		{
+			args:         []string{"my-template@my-template-version", "--input", "my custom prompt"},
+			expectOutput: fmt.Sprintf("The task %s has been created", cliui.Keyword("task-wild-goldfish-27")),
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "my custom prompt")
+			},
+		},
+		{
+			args:         []string{"my-template", "--input", "my custom prompt"},
+			env:          []string{"CODER_TEMPLATE_VERSION=my-template-version"},
+			expectOutput: fmt.Sprintf("The task %s has been created", cliui.Keyword("task-wild-goldfish-27")),
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "my custom prompt")
+			},
+		},
+		{
+			env:          []string{"CODER_TEMPLATE_NAME=my-template", "CODER_TEMPLATE_VERSION=my-template-version", "CODER_TASK_INPUT=my custom prompt"},
+			expectOutput: fmt.Sprintf("The task %s has been created", cliui.Keyword("task-wild-goldfish-27")),
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "my custom prompt")
+			},
+		},
+		{
+			args:         []string{"--input", "my custom prompt"},
+			env:          []string{"CODER_TEMPLATE_NAME=my-template", "CODER_TEMPLATE_VERSION=my-template-version"},
+			expectOutput: fmt.Sprintf("The task %s has been created", cliui.Keyword("task-wild-goldfish-27")),
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "my custom prompt")
+			},
+		},
+		{
+			args:         []string{"my-template", "--input", "my custom prompt"},
+			expectOutput: fmt.Sprintf("The task %s has been created", cliui.Keyword("task-wild-goldfish-27")),
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return templateAndVersionFoundHandler(t, ctx, "my-template", "", "my custom prompt")
+			},
+		},
+		{
+			args:        []string{"my-template@not-real-template-version", "--input", "my custom prompt"},
+			expectError: httpapi.ResourceNotFoundResponse.Message,
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case "/api/v2/users/me/organizations":
+						httpapi.Write(ctx, w, http.StatusOK, []codersdk.Organization{
+							{MinimalOrganization: codersdk.MinimalOrganization{
+								ID: organizationID,
+							}},
+						})
+					case fmt.Sprintf("/api/v2/organizations/%s/templates/my-template/versions/not-real-template-version", organizationID):
+						httpapi.ResourceNotFound(w)
+					default:
+						t.Errorf("unexpected path: %s", r.URL.Path)
+					}
+				}
+			},
+		},
+		{
+			args:        []string{"not-real-template", "--input", "my custom prompt"},
+			expectError: httpapi.ResourceNotFoundResponse.Message,
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case "/api/v2/users/me/organizations":
+						httpapi.Write(ctx, w, http.StatusOK, []codersdk.Organization{
+							{MinimalOrganization: codersdk.MinimalOrganization{
+								ID: organizationID,
+							}},
+						})
+					case fmt.Sprintf("/api/v2/organizations/%s/templates/not-real-template", organizationID):
+						httpapi.ResourceNotFound(w)
+					default:
+						t.Errorf("unexpected path: %s", r.URL.Path)
+					}
+				}
+			},
+		},
+	}
 
-		var (
-			ctx = testutil.Context(t, testutil.WaitShort)
+	for _, tt := range tests {
+		t.Run(strings.Join(tt.args, ","), func(t *testing.T) {
+			t.Parallel()
 
-			prompt = "Task prompt"
-		)
+			var (
+				ctx    = testutil.Context(t, testutil.WaitShort)
+				srv    = httptest.NewServer(tt.handler(t, ctx))
+				client = new(codersdk.Client)
+				args   = []string{"exp", "task", "create"}
+				sb     strings.Builder
+				err    error
+			)
 
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
-		templateVersion, template := createAITemplate(t, client, owner)
+			t.Cleanup(srv.Close)
 
-		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		expMember := codersdk.NewExperimentalClient(member)
+			client.URL, err = url.Parse(srv.URL)
+			require.NoError(t, err)
 
-		tasks, err := expMember.Tasks(ctx, nil)
-		require.NoError(t, err)
-		require.Empty(t, tasks)
+			inv, root := clitest.New(t, append(args, tt.args...)...)
+			inv.Environ = serpent.ParseEnviron(tt.env, "")
+			inv.Stdout = &sb
+			inv.Stderr = &sb
+			clitest.SetupConfig(t, client, root)
 
-		args := []string{
-			"exp",
-			"task",
-			"create",
-			fmt.Sprintf("%s@%s", template.Name, templateVersion.Name),
-			"--input", prompt,
-		}
+			err = inv.WithContext(ctx).Run()
+			if tt.expectError == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorContains(t, err, tt.expectError)
+			}
 
-		inv, root := clitest.New(t, args...)
-		clitest.SetupConfig(t, member, root)
-
-		err = inv.Run()
-		require.NoError(t, err)
-
-		workspaces, err := member.Workspaces(ctx, codersdk.WorkspaceFilter{FilterQuery: "has-ai-task:true"})
-		require.NoError(t, err)
-		require.Len(t, workspaces.Workspaces, 1)
-
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, workspaces.Workspaces[0].LatestBuild.ID)
-
-		tasks, err = expMember.Tasks(ctx, nil)
-		require.NoError(t, err)
-		require.Len(t, tasks, 1)
-
-		require.Equal(t, prompt, tasks[0].InitialPrompt)
-	})
+			assert.Contains(t, sb.String(), tt.expectOutput)
+		})
+	}
 }

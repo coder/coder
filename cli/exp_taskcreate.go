@@ -2,16 +2,15 @@ package cli
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
-	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/util/slice"
-	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/serpent"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) taskCreate() *serpent.Command {
@@ -73,55 +72,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 			}
 
 			if templateName == "" {
-				templates, err := client.Templates(ctx, codersdk.TemplateFilter{SearchQuery: "has-ai-task:true"})
-				if err != nil {
-					return xerrors.Errorf("get templates: %w", err)
-				}
-
-				slices.SortFunc(templates, func(a, b codersdk.Template) int {
-					return slice.Descending(a.ActiveUserCount, b.ActiveUserCount)
-				})
-
-				templateNames := make([]string, 0, len(templates))
-				templateByName := make(map[string]codersdk.Template, len(templates))
-
-				// If more than 1 organization exists in the list of templates,
-				// then include the organization name in the select options.
-				uniqueOrganizations := make(map[uuid.UUID]bool)
-				for _, template := range templates {
-					uniqueOrganizations[template.OrganizationID] = true
-				}
-
-				for _, template := range templates {
-					templateName := template.Name
-					if len(uniqueOrganizations) > 1 {
-						templateName += cliui.Placeholder(
-							fmt.Sprintf(
-								" (%s)",
-								template.OrganizationName,
-							),
-						)
-					}
-
-					if template.ActiveUserCount > 0 {
-						templateName += cliui.Placeholder(
-							fmt.Sprintf(
-								" used by %s",
-								formatActiveDevelopers(template.ActiveUserCount),
-							),
-						)
-					}
-
-					templateNames = append(templateNames, templateName)
-					templateByName[templateName] = template
-				}
-
-				option, err := cliui.Select(inv, cliui.SelectOptions{
-					Options:    templateNames,
-					HideSearch: true,
-				})
-
-				templateName = templateByName[option].Name
+				return xerrors.Errorf("template name not provided")
 			}
 
 			if templateVersionName != "" {
@@ -159,6 +110,9 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				TemplateVersionPresetID: templateVersionPresetID,
 				Prompt:                  taskInput,
 			})
+			if err != nil {
+				return xerrors.Errorf("create task: %w", err)
+			}
 
 			_, _ = fmt.Fprintf(
 				inv.Stdout,
