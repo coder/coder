@@ -64,9 +64,10 @@ Usage:
 	  Installs Terraform binary from https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/ source
 	  alongside coder.
 	  This is great for if you are having issues with Coder installing terraform, or if you
-	  just want it on your base system aswell.
+	  just want it on your base system as well.
 	  This supports most systems, however if you are unsure yours is supported you can check
 	  the link above.
+
   --net-admin
 	  Adds \`CAP_NET_ADMIN\` to the installed binary. This allows Coder to
 	  increase network speeds, but has security implications.
@@ -157,11 +158,11 @@ Coder ${channel}release v${VERSION} installed. ${advisory}See our releases docum
 
 The Coder binary has been placed in the following location:
 
-  $STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME
+  $STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_PLATFORM_BINARY_NAME
 
 EOF
 
-	CODER_COMMAND="$(command -v "$STANDALONE_BINARY_NAME" || true)"
+	CODER_COMMAND="$(command -v "$STANDALONE_PLATFORM_BINARY_NAME" || true)"
 
 	if [ -z "${CODER_COMMAND}" ]; then
 		cath <<EOF
@@ -176,11 +177,11 @@ EOF
 		cath <<EOF
 To run a Coder server:
 
-  $ $STANDALONE_BINARY_NAME server
+  $ $STANDALONE_PLATFORM_BINARY_NAME server
 
 To connect to a Coder deployment:
 
-  $ $STANDALONE_BINARY_NAME login <deployment url>
+  $ $STANDALONE_PLATFORM_BINARY_NAME login <deployment url>
 
 EOF
 	fi
@@ -396,6 +397,10 @@ main() {
 	ARCH=${ARCH:-$(arch)}
 	TERRAFORM_ARCH=${TERRAFORM_ARCH:-$(terraform_arch)}
 
+	# The above OS detection usually fails on Windows because the OS environment variable
+	# is unpredictable. The is_windows function should account for this.
+	if is_windows; then OS="windows"; fi
+
 	# If we've been provided a flag which is specific to the standalone installation
 	# method, we should "detect" standalone to be the appropriate installation method.
 	# This check needs to occur before we set these variables with defaults.
@@ -424,7 +429,8 @@ main() {
 	CACHE_DIR=$(echo_cache_dir)
 	TERRAFORM_INSTALL_PREFIX=${TERRAFORM_INSTALL_PREFIX:-/usr/local}
 	STANDALONE_INSTALL_PREFIX=${STANDALONE_INSTALL_PREFIX:-/usr/local}
-	STANDALONE_BINARY_NAME=${STANDALONE_BINARY_NAME:-coder}
+	STANDALONE_PLATFORM_BINARY_NAME=$(format_platform_filename "${STANDALONE_BINARY_NAME:-coder}")
+
 	STABLE_VERSION=$(echo_latest_stable_version)
 	if [ "${MAINLINE}" = 1 ]; then
 		VERSION=$(echo_latest_mainline_version)
@@ -482,6 +488,7 @@ main() {
 	# We don't have GitHub releases that work on Alpine or FreeBSD so we have no
 	# choice but to use npm here.
 	alpine) install_apk ;;
+	windows) install_windows ;;
 	# For anything else we'll try to install standalone but fall back to npm if
 	# we don't have releases for the architecture.
 	*)
@@ -494,6 +501,11 @@ main() {
 	if [ "${CAP_NET_ADMIN:-}" ]; then
 		cap_net_admin
 	fi
+}
+
+is_windows() {
+	# shellcheck disable=SC3028
+	[ "$OSTYPE" = "msys" ] || [ "$OSTYPE" = "cygwin" ] || [ "$OSTYPE" = "win32" ] || [ "$COMSPEC" != "" ]
 }
 
 cap_net_admin() {
@@ -570,7 +582,7 @@ with_terraform() {
 		echoerr "Please install unzip to use this function"
 		exit 1
 	fi
-	echoh "Installing Terraform version $TERRAFORM_VERSION $TERRAFORM_ARCH from the HashiCorp release repository."
+	echoh "Installing Terraform version $TERRAFORM_VERSION for $OS/$TERRAFORM_ARCH from the HashiCorp release repository."
 	echoh
 
 	# Download from official source and save it to cache
@@ -586,7 +598,8 @@ with_terraform() {
 	# Prepare /usr/local/bin/ and the binary for copying
 	"$sh_c" mkdir -p "$TERRAFORM_INSTALL_PREFIX/bin"
 	"$sh_c" unzip -d "$CACHE_DIR" -o "$CACHE_DIR/terraform_${TERRAFORM_VERSION}_${OS}_${ARCH}.zip"
-	COPY_LOCATION="$TERRAFORM_INSTALL_PREFIX/bin/terraform"
+	TERRAFORM_PLATFORM_BINARY_NAME=$(format_platform_filename "terraform")
+	COPY_LOCATION="$TERRAFORM_INSTALL_PREFIX/bin/$TERRAFORM_PLATFORM_BINARY_NAME"
 
 	# Remove the file if it already exists to
 	# avoid https://github.com/coder/coder/issues/2086
@@ -595,7 +608,19 @@ with_terraform() {
 	fi
 
 	# Copy the binary to the correct location.
-	"$sh_c" cp "$CACHE_DIR/terraform" "$COPY_LOCATION"
+	"$sh_c" cp "$CACHE_DIR/${TERRAFORM_PLATFORM_BINARY_NAME}" "$COPY_LOCATION"
+}
+
+format_platform_filename() {
+	IN_FILENAME="$1"
+	PLATFORM_SUFFIX=""
+	if is_windows; then PLATFORM_SUFFIX=".exe"; fi
+	printf "%s%s" "$IN_FILENAME" "$PLATFORM_SUFFIX"
+}
+
+install_windows() {
+	# This function allows for Chocolatey as an installation source in the future.
+	install_standalone
 }
 
 install_macos() {
@@ -649,12 +674,12 @@ install_apk() {
 }
 
 install_standalone() {
-	echoh "Installing v$VERSION of the $ARCH release from GitHub."
+	echoh "Installing v$VERSION of the $OS/$ARCH release from GitHub."
 	echoh
 
 	# macOS releases are packaged as .zip
 	case $OS in
-	darwin) STANDALONE_ARCHIVE_FORMAT=zip ;;
+	darwin | windows) STANDALONE_ARCHIVE_FORMAT=zip ;;
 	*) STANDALONE_ARCHIVE_FORMAT=tar.gz ;;
 	esac
 
@@ -672,7 +697,7 @@ install_standalone() {
 		sh_c unzip -d "$CACHE_DIR/tmp" -o "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.zip"
 	fi
 
-	STANDALONE_BINARY_LOCATION="$STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME"
+	STANDALONE_PLATFORM_BINARY_LOCATION="$STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_PLATFORM_BINARY_NAME"
 
 	sh_c="sh_c"
 	if [ ! -w "$STANDALONE_INSTALL_PREFIX" ]; then
@@ -683,12 +708,14 @@ install_standalone() {
 
 	# Remove the file if it already exists to
 	# avoid https://github.com/coder/coder/issues/2086
-	if [ -f "$STANDALONE_BINARY_LOCATION" ]; then
-		"$sh_c" rm "$STANDALONE_BINARY_LOCATION"
+	if [ -f "$STANDALONE_PLATFORM_BINARY_LOCATION" ]; then
+		"$sh_c" rm "$STANDALONE_PLATFORM_BINARY_LOCATION"
 	fi
 
+	SOURCE_PLATFORM_BINARY_NAME=$(format_platform_filename "coder")
+
 	# Copy the binary to the correct location.
-	"$sh_c" cp "$CACHE_DIR/tmp/coder" "$STANDALONE_BINARY_LOCATION"
+	"$sh_c" cp "$CACHE_DIR/tmp/$SOURCE_PLATFORM_BINARY_NAME" "$STANDALONE_PLATFORM_BINARY_LOCATION"
 
 	# Clean up the extracted files (note, not using sudo: $sh_c -> sh_c).
 	sh_c rm -rv "$CACHE_DIR/tmp"
@@ -710,6 +737,10 @@ has_standalone() {
 }
 
 os() {
+	if is_windows; then
+		echo windows
+		return
+	fi
 	uname="$(uname)"
 	case $uname in
 	Linux) echo linux ;;
@@ -732,10 +763,12 @@ os() {
 #
 # Inspired by https://github.com/docker/docker-install/blob/26ff363bcf3b3f5a00498ac43694bf1c7d9ce16c/install.sh#L111-L120.
 distro() {
-	if [ "$OS" = "darwin" ] || [ "$OS" = "freebsd" ]; then
+	case "$OS" in
+	darwin | freebsd | windows)
 		echo "$OS"
 		return
-	fi
+		;;
+	esac
 
 	if [ -f /etc/os-release ]; then
 		(
@@ -761,6 +794,11 @@ distro() {
 distro_name() {
 	if [ "$(uname)" = "Darwin" ]; then
 		echo "macOS v$(sw_vers -productVersion)"
+		return
+	fi
+
+	if is_windows; then
+		echo "Windows"
 		return
 	fi
 
