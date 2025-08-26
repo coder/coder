@@ -1647,7 +1647,7 @@ func MustWaitForAnyProvisioner(t *testing.T, db database.Store) {
 	t.Helper()
 	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitShort))
 	// testutil.Eventually(t, func)
-	testutil.Eventually(ctx,t, func(ctx context.Context) (done bool) {
+	testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
 		daemons, err := db.GetProvisionerDaemons(ctx)
 		return err == nil && len(daemons) > 0
 	}, testutil.IntervalFast, "no provisioner daemons found")
@@ -1658,7 +1658,7 @@ func MustWaitForProvisionersUnavailable(t *testing.T, db database.Store, workspa
 	t.Helper()
 	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitMedium))
 
-	testutil.Eventually(ctx ,t, func(ctx context.Context) (done bool) {
+	testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
 		// Use the same logic as hasValidProvisioner but expect false
 		provisionerDaemons, err := db.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
 			OrganizationID: workspace.OrganizationID,
