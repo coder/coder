@@ -185,12 +185,23 @@ STATE CHANGED  STATUS   STATE  MESSAGE
 		{
 			args: []string{"exists", "--output", "json"},
 			expectOutput: `{
-  "ts": "2025-08-26T12:34:57Z",
+  "id": "11111111-1111-1111-1111-111111111111",
+  "organization_id": "00000000-0000-0000-0000-000000000000",
+  "owner_id": "00000000-0000-0000-0000-000000000000",
+  "name": "",
+  "template_id": "00000000-0000-0000-0000-000000000000",
+  "workspace_id": null,
+  "initial_prompt": "",
   "status": "running",
-  "state": "working",
-  "msg": "Thinking furiously..."
-}
-`,
+  "current_state": {
+    "timestamp": "2025-08-26T12:34:57Z",
+    "state": "working",
+    "message": "Thinking furiously...",
+    "uri": ""
+  },
+  "created_at": "2025-08-26T12:34:56Z",
+  "updated_at": "2025-08-26T12:34:56Z"
+}`,
 			hf: func(ctx context.Context, _ time.Time) func(w http.ResponseWriter, r *http.Request) {
 				ts := time.Date(2025, 8, 26, 12, 34, 56, 0, time.UTC)
 				return func(w http.ResponseWriter, r *http.Request) {

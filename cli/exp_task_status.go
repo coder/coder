@@ -141,15 +141,17 @@ func taskStatusEqual(s1, s2 *codersdk.TaskStateEntry) bool {
 }
 
 type taskStatusRow struct {
-	ChangedAgo string    `json:"-" table:"state changed,default_sort"`
-	Timestamp  time.Time `json:"ts" table:"-"`
-	TaskStatus string    `json:"status" table:"status"`
-	TaskState  string    `json:"state" table:"state"`
-	Message    string    `json:"msg" table:"message"`
+	codersdk.Task `table:"-"`
+	ChangedAgo    string    `json:"-" table:"state changed,default_sort"`
+	Timestamp     time.Time `json:"-" table:"-"`
+	TaskStatus    string    `json:"-" table:"status"`
+	TaskState     string    `json:"-" table:"state"`
+	Message       string    `json:"-" table:"message"`
 }
 
 func toStatusRow(task codersdk.Task) []taskStatusRow {
 	tsr := taskStatusRow{
+		Task:       task,
 		ChangedAgo: time.Since(task.UpdatedAt).Truncate(time.Second).String() + " ago",
 		Timestamp:  task.UpdatedAt,
 		TaskStatus: string(task.Status),
