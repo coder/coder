@@ -40,7 +40,7 @@ func TestSharingShare(t *testing.T) {
 		)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		var inv, root = clitest.New(t, "sharing", "share", workspace.Name, "--org", orgOwner.OrganizationID.String(), "--user", toShareWithUser.Username)
+		inv, root := clitest.New(t, "sharing", "share", workspace.Name, "--org", orgOwner.OrganizationID.String(), "--user", toShareWithUser.Username)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
 		out := bytes.NewBuffer(nil)
@@ -49,7 +49,7 @@ func TestSharingShare(t *testing.T) {
 		require.NoError(t, err)
 
 		acl, err := workspaceOwnerClient.WorkspaceACL(inv.Context(), workspace.ID)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Contains(t, acl.Users, codersdk.WorkspaceUser{
 			MinimalUser: codersdk.MinimalUser{
 				ID:        toShareWithUser.ID,
@@ -83,7 +83,7 @@ func TestSharingShare(t *testing.T) {
 		)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		var inv, root = clitest.New(t,
+		inv, root := clitest.New(t,
 			"sharing",
 			"share", workspace.Name, "--org", orgOwner.OrganizationID.String(),
 			fmt.Sprintf("--user=%s,%s", toShareWithUser1.Username, toShareWithUser2.Username),
@@ -96,7 +96,7 @@ func TestSharingShare(t *testing.T) {
 		require.NoError(t, err)
 
 		acl, err := workspaceOwnerClient.WorkspaceACL(inv.Context(), workspace.ID)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Contains(t, acl.Users, codersdk.WorkspaceUser{
 			MinimalUser: codersdk.MinimalUser{
 				ID:        toShareWithUser1.ID,
@@ -147,7 +147,7 @@ func TestSharingShare(t *testing.T) {
 		)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		var inv, root = clitest.New(t, "sharing", "share", workspace.Name,
+		inv, root := clitest.New(t, "sharing", "share", workspace.Name,
 			"--org", orgOwner.OrganizationID.String(),
 			"--user", fmt.Sprintf("%s:admin", toShareWithUser.Username),
 		)
@@ -159,7 +159,7 @@ func TestSharingShare(t *testing.T) {
 		require.NoError(t, err)
 
 		acl, err := workspaceOwnerClient.WorkspaceACL(inv.Context(), workspace.ID)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Contains(t, acl.Users, codersdk.WorkspaceUser{
 			MinimalUser: codersdk.MinimalUser{
 				ID:        toShareWithUser.ID,

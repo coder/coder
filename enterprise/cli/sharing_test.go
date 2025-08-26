@@ -2,6 +2,9 @@ package cli_test
 
 import (
 	"bytes"
+	"context"
+	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/coder/coder/v2/cli/clitest"
@@ -13,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -47,17 +51,10 @@ func TestSharingShareEnterprise(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		group, err := client.CreateGroup(ctx, orgOwner.OrganizationID, codersdk.CreateGroupRequest{
-			Name:        "new-group",
-			DisplayName: "new-group",
-		})
-		require.NoError(t, err)
-		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
-			AddUsers: []string{orgMember.ID.String()},
-		})
+		group, err := createGroupWithMembers(client, ctx, orgOwner.OrganizationID, "new-group", []uuid.UUID{orgMember.ID})
 		require.NoError(t, err)
 
-		var inv, root = clitest.New(t, "sharing", "share", workspace.Name, "--org", orgOwner.OrganizationID.String(), "--group", group.Name)
+		inv, root := clitest.New(t, "sharing", "share", workspace.Name, "--org", orgOwner.OrganizationID.String(), "--group", group.Name)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
 		out := bytes.NewBuffer(nil)
@@ -70,5 +67,86 @@ func TestSharingShareEnterprise(t *testing.T) {
 		assert.Len(t, acl.Groups, 1)
 		assert.Equal(t, acl.Groups[0].Group.ID, group.ID)
 		assert.Equal(t, acl.Groups[0].Role, codersdk.WorkspaceRoleUse)
+		assert.Contains(t, acl.Groups, codersdk.WorkspaceGroup{
+			Role:  codersdk.WorkspaceRoleUse,
+			Group: group,
+		})
+
+		assert.Contains(t, out.String(), group.Name)
+	})
+
+	t.Run("ShareWithGroups_Multiple", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					DeploymentValues: dv,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureTemplateRBAC: 1,
+					},
+				},
+			})
+
+			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			workspace                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+
+			_, wibbleMember = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+			_, wobbleMember = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+		)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		wibbleGroup, err := createGroupWithMembers(client, ctx, orgOwner.OrganizationID, "wibble", []uuid.UUID{wibbleMember.ID})
+		require.NoError(t, err)
+
+		wobbleGroup, err := createGroupWithMembers(client, ctx, orgOwner.OrganizationID, "wobble", []uuid.UUID{wobbleMember.ID})
+		require.NoError(t, err)
+
+		inv, root := clitest.New(t, "sharing", "share", workspace.Name, "--org", orgOwner.OrganizationID.String(),
+			fmt.Sprintf("--group=%s,%s", wibbleGroup.Name, wobbleGroup.Name))
+		clitest.SetupConfig(t, workspaceOwnerClient, root)
+
+		out := bytes.NewBuffer(nil)
+		inv.Stdout = out
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		acl, err := workspaceOwnerClient.WorkspaceACL(inv.Context(), workspace.ID)
+		require.NoError(t, err)
+		assert.Len(t, acl.Groups, 2)
+
+		type workspaceGroup []codersdk.WorkspaceGroup
+		assert.NotEqual(t, -1, slices.IndexFunc(workspaceGroup(acl.Groups), func(g codersdk.WorkspaceGroup) bool {
+			return g.Group.ID == wibbleGroup.ID
+		}))
+		assert.NotEqual(t, -1, slices.IndexFunc(workspaceGroup(acl.Groups), func(g codersdk.WorkspaceGroup) bool {
+			return g.Group.ID == wobbleGroup.ID
+		}))
+
+	})
+}
+
+func createGroupWithMembers(client *codersdk.Client, ctx context.Context, orgId uuid.UUID, name string, memberIds []uuid.UUID) (codersdk.Group, error) {
+	group, err := client.CreateGroup(ctx, orgId, codersdk.CreateGroupRequest{
+		Name:        name,
+		DisplayName: name,
+	})
+	if err != nil {
+		return codersdk.Group{}, err
+	}
+
+	ids := make([]string, len(memberIds))
+	for i, id := range memberIds {
+		ids[i] = id.String()
+	}
+
+	return client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+		AddUsers: ids,
 	})
 }
