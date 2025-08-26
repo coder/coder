@@ -15,7 +15,22 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 		watchArg bool
 	)
 	cmd := &serpent.Command{
-		Aliases: []string{"stat", "st"},
+		Short:   "Show the status of a task.",
+		Use:     "status",
+		Aliases: []string{"stat"},
+		Options: serpent.OptionSet{
+			{
+				Default:     "false",
+				Description: "Watch the task status output. This will stream updates to the terminal until the underlying workspace is stopped.",
+				Flag:        "watch",
+				Name:        "watch",
+				Value:       serpent.BoolOf(&watchArg),
+			},
+		},
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
+			r.InitClient(client),
+		),
 		Handler: func(i *serpent.Invocation) error {
 			ctx := i.Context()
 			ec := codersdk.NewExperimentalClient(client)
@@ -64,21 +79,6 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 			}
 			return nil
 		},
-		Middleware: serpent.Chain(
-			serpent.RequireNArgs(1),
-			r.InitClient(client),
-		),
-		Options: serpent.OptionSet{
-			{
-				Default:     "false",
-				Description: "Watch the task status output. This will stream updates to the terminal until the underlying workspace is stopped.",
-				Flag:        "watch",
-				Name:        "watch",
-				Value:       serpent.BoolOf(&watchArg),
-			},
-		},
-		Short: "Show the status of a task.",
-		Use:   "status",
 	}
 	return cmd
 }
