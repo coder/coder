@@ -103,7 +103,7 @@ func TestSharingShare(t *testing.T) {
 				Username:  toShareWithUser1.Username,
 				AvatarURL: toShareWithUser1.AvatarURL,
 			},
-			Role: codersdk.WorkspaceRole("use"),
+			Role: codersdk.WorkspaceRoleUse,
 		})
 		assert.Contains(t, acl.Users, codersdk.WorkspaceUser{
 			MinimalUser: codersdk.MinimalUser{
@@ -111,7 +111,7 @@ func TestSharingShare(t *testing.T) {
 				Username:  toShareWithUser2.Username,
 				AvatarURL: toShareWithUser2.AvatarURL,
 			},
-			Role: codersdk.WorkspaceRole("use"),
+			Role: codersdk.WorkspaceRoleUse,
 		})
 
 		// Test that the users appeart in the output
@@ -126,43 +126,56 @@ func TestSharingShare(t *testing.T) {
 				}
 			}
 
-			assert.True(t, found, fmt.Sprintf("Expected to find username %s in output", username))
+			assert.True(t, found, fmt.Sprintf("Expected to find the username %s in the command output: %s", username, out.String()))
 		}
 	})
 
-	// t.Run("ShareWithUsers_Roles", func(t *testing.T) {
-	// 	t.Parallel()
+	t.Run("ShareWithUsers_Roles", func(t *testing.T) {
+		t.Parallel()
 
-	// 	assert.True(t, false)
-	// })
+		var (
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				DeploymentValues: dv,
+			})
+			orgOwner                             = coderdtest.CreateFirstUser(t, client)
+			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			workspace                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_, toShareWithUser = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+		)
 
-	// t.Run("ShareWithUsers+AdminRole", func(t *testing.T) {
-	// 	t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		var inv, root = clitest.New(t, "sharing", "share", workspace.Name,
+			"--org", orgOwner.OrganizationID.String(),
+			"--user", fmt.Sprintf("%s:admin", toShareWithUser.Username),
+		)
+		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
-	// 	assert.True(t, false)
-	// })
+		out := bytes.NewBuffer(nil)
+		inv.Stdout = out
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
 
-	// t.Run("ShareWithGroups+Simple", func(t *testing.T) {
-	// 	t.Parallel()
+		acl, err := workspaceOwnerClient.WorkspaceACL(inv.Context(), workspace.ID)
+		assert.NoError(t, err)
+		assert.Contains(t, acl.Users, codersdk.WorkspaceUser{
+			MinimalUser: codersdk.MinimalUser{
+				ID:        toShareWithUser.ID,
+				Username:  toShareWithUser.Username,
+				AvatarURL: toShareWithUser.AvatarURL,
+			},
+			Role: codersdk.WorkspaceRoleAdmin,
+		})
 
-	// 	assert.True(t, false)
-	// })
-
-	// t.Run("ShareWithGroups+Mutliple", func(t *testing.T) {
-	// 	t.Parallel()
-
-	// 	assert.True(t, false)
-	// })
-
-	// t.Run("ShareWithGroups+UseRole", func(t *testing.T) {
-	// 	t.Parallel()
-
-	// 	assert.True(t, false)
-	// })
-
-	// t.Run("ShareWithGroups+AdminRole", func(t *testing.T) {
-	// 	t.Parallel()
-
-	// 	assert.True(t, false)
-	// })
+		found := false
+		for _, line := range strings.Split(out.String(), "\n") {
+			if strings.Contains(line, toShareWithUser.Username) && strings.Contains(line, string(codersdk.WorkspaceRoleAdmin)) {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, fmt.Sprintf("expected to find the username %s and role %s in the command: %s", toShareWithUser.Username, codersdk.WorkspaceRoleAdmin, out.String()))
+	})
 }
