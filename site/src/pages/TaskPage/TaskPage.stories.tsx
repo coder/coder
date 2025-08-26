@@ -142,7 +142,7 @@ export const WaitingStartupScripts: Story = {
 						level: "info",
 						output: line,
 						source_id: MockWorkspaceAgentLogSource.id,
-						created_at: new Date().toISOString(),
+						created_at: new Date("2024-01-01T12:00:00Z").toISOString(),
 					})),
 				),
 			},

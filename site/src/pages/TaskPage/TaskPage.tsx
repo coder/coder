@@ -17,7 +17,7 @@ import { AgentLogs } from "modules/resources/AgentLogs/AgentLogs";
 import { useAgentLogs } from "modules/resources/useAgentLogs";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { type FC, type ReactNode, useEffect, useRef } from "react";
+import { type FC, type ReactNode, useLayoutEffect, useRef } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -192,7 +192,7 @@ const TaskBuildingWorkspace: FC<TaskBuildingWorkspaceProps> = ({ task }) => {
 
 	const scrollAreaRef = useRef<HTMLDivElement>(null);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: this effect should run when build logs change
-	useEffect(() => {
+	useLayoutEffect(() => {
 		if (isChromatic()) {
 			return;
 		}
@@ -206,16 +206,16 @@ const TaskBuildingWorkspace: FC<TaskBuildingWorkspaceProps> = ({ task }) => {
 	}, [buildLogs]);
 
 	return (
-		<section className="flex-1 p-16 overflow-y-auto">
+		<section className="p-16 overflow-y-auto">
 			<div className="flex justify-center items-center w-full">
 				<div className="flex flex-col gap-6 items-center w-full">
 					<header className="flex flex-col items-center text-center">
 						<h3 className="m-0 font-medium text-content-primary text-xl">
 							Starting your workspace
 						</h3>
-						<div className="text-content-secondary">
+						<p className="text-content-secondary m-0">
 							Your task will be running in a few moments
-						</div>
+						</p>
 					</header>
 
 					<div className="w-full max-w-screen-lg flex flex-col gap-4 overflow-hidden">
@@ -250,23 +250,23 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ agent }) => {
 	const logs = useAgentLogs(agent, true);
 	const listRef = useRef<FixedSizeList>(null);
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		if (listRef.current) {
 			listRef.current.scrollToItem(logs.length - 1, "end");
 		}
 	}, [logs]);
 
 	return (
-		<section className="flex-1 p-16 overflow-y-auto">
+		<section className="p-16 overflow-y-auto">
 			<div className="flex justify-center items-center w-full">
 				<div className="flex flex-col gap-8 items-center w-full">
 					<header className="flex flex-col items-center text-center">
 						<h3 className="m-0 font-medium text-content-primary text-xl">
 							Running startup scripts
 						</h3>
-						<div className="text-content-secondary">
+						<p className="text-content-secondary m-0">
 							Your task will be running in a few moments
-						</div>
+						</p>
 					</header>
 
 					<div className="w-full max-w-screen-lg flex flex-col gap-4 overflow-hidden">
