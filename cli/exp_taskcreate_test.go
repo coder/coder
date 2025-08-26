@@ -98,14 +98,7 @@ func TestTaskCreate(t *testing.T) {
 		},
 		{
 			args:         []string{"my-template", "--input", "my custom prompt"},
-			env:          []string{"CODER_TEMPLATE_VERSION=my-template-version"},
-			expectOutput: fmt.Sprintf("The task %s has been created", cliui.Keyword("task-wild-goldfish-27")),
-			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "", "my custom prompt")
-			},
-		},
-		{
-			env:          []string{"CODER_TEMPLATE_NAME=my-template", "CODER_TEMPLATE_VERSION=my-template-version", "CODER_TASK_INPUT=my custom prompt"},
+			env:          []string{"CODER_TASK_TEMPLATE_VERSION=my-template-version"},
 			expectOutput: fmt.Sprintf("The task %s has been created", cliui.Keyword("task-wild-goldfish-27")),
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
 				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "", "my custom prompt")
@@ -113,7 +106,14 @@ func TestTaskCreate(t *testing.T) {
 		},
 		{
 			args:         []string{"--input", "my custom prompt"},
-			env:          []string{"CODER_TEMPLATE_NAME=my-template", "CODER_TEMPLATE_VERSION=my-template-version"},
+			env:          []string{"CODER_TASK_TEMPLATE_NAME=my-template", "CODER_TASK_TEMPLATE_VERSION=my-template-version"},
+			expectOutput: fmt.Sprintf("The task %s has been created", cliui.Keyword("task-wild-goldfish-27")),
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "", "my custom prompt")
+			},
+		},
+		{
+			env:          []string{"CODER_TASK_TEMPLATE_NAME=my-template", "CODER_TASK_TEMPLATE_VERSION=my-template-version", "CODER_TASK_INPUT=my custom prompt"},
 			expectOutput: fmt.Sprintf("The task %s has been created", cliui.Keyword("task-wild-goldfish-27")),
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
 				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "", "my custom prompt")
@@ -135,7 +135,7 @@ func TestTaskCreate(t *testing.T) {
 		},
 		{
 			args:         []string{"my-template", "--input", "my custom prompt"},
-			env:          []string{"CODER_PRESET_NAME=my-preset"},
+			env:          []string{"CODER_TASK_PRESET_NAME=my-preset"},
 			expectOutput: fmt.Sprintf("The task %s has been created", cliui.Keyword("task-wild-goldfish-27")),
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
 				return templateAndVersionFoundHandler(t, ctx, "my-template", "", "my-preset", "my custom prompt")

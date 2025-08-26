@@ -25,7 +25,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 	)
 
 	return &serpent.Command{
-		Use:   "create [task]",
+		Use:   "create [template]",
 		Short: "Create an experimental task",
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 1),
@@ -39,16 +39,16 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				Required: true,
 			},
 			{
-				Env:   "CODER_TEMPLATE_NAME",
+				Env:   "CODER_TASK_TEMPLATE_NAME",
 				Value: serpent.StringOf(&templateName),
 			},
 			{
-				Env:   "CODER_TEMPLATE_VERSION",
+				Env:   "CODER_TASK_TEMPLATE_VERSION",
 				Value: serpent.StringOf(&templateVersionName),
 			},
 			{
 				Flag:    "preset",
-				Env:     "CODER_PRESET_NAME",
+				Env:     "CODER_TASK_PRESET_NAME",
 				Value:   serpent.StringOf(&presetName),
 				Default: PresetNone,
 			},
