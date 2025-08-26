@@ -67,7 +67,7 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 		},
 		Middleware: serpent.Chain(
 			r.InitClient(client),
-			serpent.RequireRangeArgs(1, -1),
+			// serpent.RequireRangeArgs(1, -1),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
@@ -75,59 +75,77 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 				return xerrors.Errorf("could not fetch the workspace %s: %w", inv.Args[0], err)
 			}
 
-			userRoles := make(map[string]codersdk.WorkspaceRole, len(users))
-			for _, user := range users {
-				userAndRole := userAndGroupRegex.FindStringSubmatch(user)
-				username := userAndRole[1]
-				role := userAndRole[2]
-
-				user, err := client.User(inv.Context(), username)
-				if err != nil {
-					return err
-				}
-
-				workspaceRole, err := stringToWorkspaceRole(role)
-				if err != nil {
-					return err
-				}
-
-				userRoles[user.ID.String()] = workspaceRole
-			}
-
-			groupRoles := make(map[string]codersdk.WorkspaceRole)
-
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
 			}
-			orgGroups, err := client.Groups(inv.Context(), codersdk.GroupArguments{
-				Organization: org.ID.String(),
-			})
 
-			for _, group := range groups {
-				groupAndRole := userAndGroupRegex.FindStringSubmatch(group)
-				groupName := groupAndRole[1]
-				role := groupAndRole[2]
-
-				var orgGroup *codersdk.Group
-				for _, g := range orgGroups {
-					if g.Name == groupName {
-						orgGroup = &g
-						break
-					}
-				}
-
-				if orgGroup == nil {
-					return xerrors.Errorf("Could not find group named %s belonging to the organization %s", groupName, org.Name)
-				}
-
-				workspaceRole, err := stringToWorkspaceRole(role)
+			userRoles := make(map[string]codersdk.WorkspaceRole, len(users))
+			if len(users) > 0 {
+				orgMembers, err := client.OrganizationMembers(inv.Context(), org.ID)
 				if err != nil {
 					return err
 				}
 
-				groupRoles[orgGroup.ID.String()] = workspaceRole
+				for _, user := range users {
+					userAndRole := userAndGroupRegex.FindStringSubmatch(user)
+					username := userAndRole[1]
+					role := userAndRole[2]
 
+					userId := ""
+					for _, member := range orgMembers {
+						if member.Username == username {
+							userId = member.UserID.String()
+							break
+						}
+					}
+					if userId == "" {
+						return xerrors.Errorf("Could not find user %s in the organization %s", username, org.Name)
+					}
+
+					workspaceRole, err := stringToWorkspaceRole(role)
+					if err != nil {
+						return err
+					}
+
+					userRoles[userId] = workspaceRole
+				}
+			}
+
+			groupRoles := make(map[string]codersdk.WorkspaceRole)
+			if len(groups) > 0 {
+				orgGroups, err := client.Groups(inv.Context(), codersdk.GroupArguments{
+					Organization: org.ID.String(),
+				})
+				if err != nil {
+					return err
+				}
+
+				for _, group := range groups {
+					groupAndRole := userAndGroupRegex.FindStringSubmatch(group)
+					groupName := groupAndRole[1]
+					role := groupAndRole[2]
+
+					var orgGroup *codersdk.Group
+					for _, g := range orgGroups {
+						if g.Name == groupName {
+							orgGroup = &g
+							break
+						}
+					}
+
+					if orgGroup == nil {
+						return xerrors.Errorf("Could not find group named %s belonging to the organization %s", groupName, org.Name)
+					}
+
+					workspaceRole, err := stringToWorkspaceRole(role)
+					if err != nil {
+						return err
+					}
+
+					groupRoles[orgGroup.ID.String()] = workspaceRole
+
+				}
 			}
 
 			err = client.UpdateWorkspaceACL(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceACL{

@@ -31,7 +31,7 @@ func TestSharingShare(t *testing.T) {
 		)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		var inv, root = clitest.New(t, "sharing", "share", workspace.Name, "--user", toShareWithUser.Username)
+		var inv, root = clitest.New(t, "sharing", "share", workspace.Name, "--org", orgOwner.OrganizationID.String(), "--user", toShareWithUser.Username)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
 		err := inv.WithContext(ctx).Run()
