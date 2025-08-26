@@ -25,12 +25,13 @@ func TestTaskCreate(t *testing.T) {
 	t.Parallel()
 
 	var (
-		organizationID    = uuid.New()
-		templateID        = uuid.New()
-		templateVersionID = uuid.New()
+		organizationID          = uuid.New()
+		templateID              = uuid.New()
+		templateVersionID       = uuid.New()
+		templateVersionPresetID = uuid.New()
 	)
 
-	templateAndVersionFoundHandler := func(t *testing.T, ctx context.Context, templateName, templateVersionName, prompt string) http.HandlerFunc {
+	templateAndVersionFoundHandler := func(t *testing.T, ctx context.Context, templateName, templateVersionName, presetName, prompt string) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			t.Log(r.URL.Path)
 
@@ -50,6 +51,13 @@ func TestTaskCreate(t *testing.T) {
 					ID:              templateID,
 					ActiveVersionID: templateVersionID,
 				})
+			case fmt.Sprintf("/api/v2/templateversions/%s/presets", templateVersionID):
+				httpapi.Write(ctx, w, http.StatusOK, []codersdk.Preset{
+					{
+						ID:   templateVersionPresetID,
+						Name: presetName,
+					},
+				})
 			case "/api/experimental/tasks/me":
 				var req codersdk.CreateTaskRequest
 				if !httpapi.Read(ctx, w, r, &req) {
@@ -57,6 +65,13 @@ func TestTaskCreate(t *testing.T) {
 				}
 
 				assert.Equal(t, prompt, req.Prompt)
+				assert.Equal(t, templateVersionID, req.TemplateVersionID, "template version id not expected")
+
+				if presetName == "" {
+					assert.Equal(t, uuid.Nil, req.TemplateVersionPresetID, "expected no template preset id")
+				} else {
+					assert.Equal(t, templateVersionPresetID, req.TemplateVersionPresetID, "template version preset id not expected")
+				}
 
 				httpapi.Write(ctx, w, http.StatusCreated, codersdk.Workspace{
 					Name: "task-wild-goldfish-27",
@@ -78,7 +93,7 @@ func TestTaskCreate(t *testing.T) {
 			args:         []string{"my-template@my-template-version", "--input", "my custom prompt"},
 			expectOutput: fmt.Sprintf("The task %s has been created", cliui.Keyword("task-wild-goldfish-27")),
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "my custom prompt")
+				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "", "my custom prompt")
 			},
 		},
 		{
@@ -86,14 +101,14 @@ func TestTaskCreate(t *testing.T) {
 			env:          []string{"CODER_TEMPLATE_VERSION=my-template-version"},
 			expectOutput: fmt.Sprintf("The task %s has been created", cliui.Keyword("task-wild-goldfish-27")),
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "my custom prompt")
+				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "", "my custom prompt")
 			},
 		},
 		{
 			env:          []string{"CODER_TEMPLATE_NAME=my-template", "CODER_TEMPLATE_VERSION=my-template-version", "CODER_TASK_INPUT=my custom prompt"},
 			expectOutput: fmt.Sprintf("The task %s has been created", cliui.Keyword("task-wild-goldfish-27")),
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "my custom prompt")
+				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "", "my custom prompt")
 			},
 		},
 		{
@@ -101,14 +116,36 @@ func TestTaskCreate(t *testing.T) {
 			env:          []string{"CODER_TEMPLATE_NAME=my-template", "CODER_TEMPLATE_VERSION=my-template-version"},
 			expectOutput: fmt.Sprintf("The task %s has been created", cliui.Keyword("task-wild-goldfish-27")),
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "my custom prompt")
+				return templateAndVersionFoundHandler(t, ctx, "my-template", "my-template-version", "", "my custom prompt")
 			},
 		},
 		{
 			args:         []string{"my-template", "--input", "my custom prompt"},
 			expectOutput: fmt.Sprintf("The task %s has been created", cliui.Keyword("task-wild-goldfish-27")),
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return templateAndVersionFoundHandler(t, ctx, "my-template", "", "my custom prompt")
+				return templateAndVersionFoundHandler(t, ctx, "my-template", "", "", "my custom prompt")
+			},
+		},
+		{
+			args:         []string{"my-template", "--input", "my custom prompt", "--preset", "my-preset"},
+			expectOutput: fmt.Sprintf("The task %s has been created", cliui.Keyword("task-wild-goldfish-27")),
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return templateAndVersionFoundHandler(t, ctx, "my-template", "", "my-preset", "my custom prompt")
+			},
+		},
+		{
+			args:         []string{"my-template", "--input", "my custom prompt"},
+			env:          []string{"CODER_PRESET_NAME=my-preset"},
+			expectOutput: fmt.Sprintf("The task %s has been created", cliui.Keyword("task-wild-goldfish-27")),
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return templateAndVersionFoundHandler(t, ctx, "my-template", "", "my-preset", "my custom prompt")
+			},
+		},
+		{
+			args:        []string{"my-template", "--input", "my custom prompt", "--preset", "not-real-preset"},
+			expectError: `preset "not-real-preset" not found`,
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return templateAndVersionFoundHandler(t, ctx, "my-template", "", "my-preset", "my custom prompt")
 			},
 		},
 		{

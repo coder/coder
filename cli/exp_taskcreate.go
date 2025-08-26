@@ -102,7 +102,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 					return xerrors.Errorf("resolve preset: %w", err)
 				}
 
-				templateVersionID = preset.ID
+				templateVersionPresetID = preset.ID
 			}
 
 			workspace, err := expClient.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
