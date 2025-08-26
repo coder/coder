@@ -182,6 +182,41 @@ STATE CHANGED  STATUS   STATE  MESSAGE
 				}
 			},
 		},
+		{
+			args: []string{"exists", "--output", "json"},
+			expectOutput: `{
+  "ts": "2025-08-26T12:34:57Z",
+  "status": "running",
+  "state": "working",
+  "msg": "Thinking furiously..."
+}
+`,
+			hf: func(ctx context.Context, _ time.Time) func(w http.ResponseWriter, r *http.Request) {
+				ts := time.Date(2025, 8, 26, 12, 34, 56, 0, time.UTC)
+				return func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case "/api/v2/users/me/workspace/exists":
+						httpapi.Write(ctx, w, http.StatusOK, codersdk.Workspace{
+							ID: uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+						})
+					case "/api/experimental/tasks/me/11111111-1111-1111-1111-111111111111":
+						httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
+							ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+							Status:    codersdk.WorkspaceStatusRunning,
+							CreatedAt: ts,
+							UpdatedAt: ts,
+							CurrentState: &codersdk.TaskStateEntry{
+								State:     codersdk.TaskStateWorking,
+								Timestamp: ts.Add(time.Second),
+								Message:   "Thinking furiously...",
+							},
+						})
+					default:
+						t.Errorf("unexpected path: %s", r.URL.Path)
+					}
+				}
+			},
+		},
 	} {
 		t.Run(strings.Join(tc.args, ","), func(t *testing.T) {
 			t.Parallel()

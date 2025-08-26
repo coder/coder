@@ -25,7 +25,19 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 					"message",
 				},
 			),
-			cliui.JSONFormat(),
+			cliui.ChangeFormatterData(
+				cliui.JSONFormat(),
+				func(data any) (any, error) {
+					rows, ok := data.([]taskStatusRow)
+					if !ok {
+						return nil, xerrors.Errorf("expected []taskStatusRow, got %T", data)
+					}
+					if len(rows) != 1 {
+						return nil, xerrors.Errorf("expected exactly 1 row, got %d", len(rows))
+					}
+					return rows[0], nil
+				},
+			),
 		)
 		watchArg         bool
 		watchIntervalArg time.Duration
