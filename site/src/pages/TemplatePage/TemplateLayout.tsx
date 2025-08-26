@@ -108,7 +108,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 
 	if (error || workspacePermissionsQuery.error) {
 		return (
-			<div className="m-4">
+			<div className="p-4">
 				<ErrorAlert error={error} />
 			</div>
 		);
