@@ -328,29 +328,24 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 					templateVersionName = "unknown"
 				}
 
-				user, err := db.GetUserByID(ctx, workspace.OwnerID)
-				if err != nil {
-					logger.Error(ctx, "can't get user from the database", slog.F("user_id", workspace.OwnerID), slog.Error(err))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
-					continue
-				}
+				// username :=
 
 				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
 				if err != nil {
 					logger.Error(ctx, "can't get workspace agents", slog.F("workspace_id", workspace.ID), slog.Error(err))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 0, workspace.OwnerUsername, workspace.Name, templateName, templateVersionName)
 					continue
 				}
 
 				if len(agents) == 0 {
 					logger.Debug(ctx, "workspace agents are unavailable", slog.F("workspace_id", workspace.ID))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 0, workspace.OwnerUsername, workspace.Name, templateName, templateVersionName)
 					continue
 				}
 
 				for _, agent := range agents {
 					// Collect information about agents
-					agentsGauge.WithLabelValues(VectorOperationAdd, 1, user.Username, workspace.Name, templateName, templateVersionName)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 1, workspace.OwnerUsername, workspace.Name, templateName, templateVersionName)
 
 					connectionStatus := agent.Status(agentInactiveDisconnectTimeout)
 					node := (*coordinator.Load()).Node(agent.ID)
@@ -360,7 +355,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 						tailnetNode = node.ID.String()
 					}
 
-					agentsConnectionsGauge.WithLabelValues(VectorOperationSet, 1, agent.Name, user.Username, workspace.Name, string(connectionStatus.Status), string(agent.LifecycleState), tailnetNode)
+					agentsConnectionsGauge.WithLabelValues(VectorOperationSet, 1, agent.Name, workspace.OwnerUsername, workspace.Name, string(connectionStatus.Status), string(agent.LifecycleState), tailnetNode)
 
 					if node == nil {
 						logger.Debug(ctx, "can't read in-memory node for agent", slog.F("agent_id", agent.ID))
@@ -385,7 +380,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 								}
 							}
 
-							agentsConnectionLatenciesGauge.WithLabelValues(VectorOperationSet, latency, agent.Name, user.Username, workspace.Name, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID))
+							agentsConnectionLatenciesGauge.WithLabelValues(VectorOperationSet, latency, agent.Name, workspace.OwnerUsername, workspace.Name, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID))
 						}
 					}
 
@@ -397,7 +392,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 					}
 
 					for _, app := range apps {
-						agentsAppsGauge.WithLabelValues(VectorOperationAdd, 1, agent.Name, user.Username, workspace.Name, app.DisplayName, string(app.Health))
+						agentsAppsGauge.WithLabelValues(VectorOperationAdd, 1, agent.Name, workspace.OwnerUsername, workspace.Name, app.DisplayName, string(app.Health))
 					}
 				}
 			}

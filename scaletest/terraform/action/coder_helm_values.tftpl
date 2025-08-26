@@ -22,6 +22,8 @@ coder:
     %{~ if workspace_proxy ~}
     - name: "CODER_ACCESS_URL"
       value: "${access_url}"
+    - name: "CODER_WILDCARD_ACCESS_URL"
+      value: "${wildcard_access_url}"
     - name: CODER_PRIMARY_ACCESS_URL
       value: "${primary_url}"
     - name: CODER_PROXY_SESSION_TOKEN
@@ -45,6 +47,8 @@ coder:
     %{~ if !workspace_proxy && !provisionerd ~}
     - name: "CODER_ACCESS_URL"
       value: "${access_url}"
+    - name: "CODER_WILDCARD_ACCESS_URL"
+      value: "${wildcard_access_url}"
     - name: "CODER_PG_CONNECTION_URL"
       valueFrom:
         secretKeyRef:
@@ -109,3 +113,8 @@ coder:
   - emptyDir:
       sizeLimit: 1024Mi
     name: cache
+  %{~ if !provisionerd ~}
+  tls:
+    secretNames:
+      - "${tls_secret_name}"
+  %{~ endif ~}

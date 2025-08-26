@@ -25,11 +25,7 @@ export const Latency: FC<LatencyProps> = ({
 	if (isLoading) {
 		return (
 			<Tooltip title="Loading latency...">
-				<CircularProgress
-					size={size}
-					css={{ marginLeft: "auto" }}
-					style={{ color }}
-				/>
+				<CircularProgress size={size} className="ml-auto" style={{ color }} />
 			</Tooltip>
 		);
 	}
@@ -38,22 +34,20 @@ export const Latency: FC<LatencyProps> = ({
 		const notAvailableText = "Latency not available";
 		return (
 			<Tooltip title={notAvailableText}>
-				<CircleHelpIcon
-					className="size-icon-sm"
-					css={{
-						marginLeft: "auto",
-					}}
-					style={{ color }}
-				/>
+				<>
+					<span css={{ ...visuallyHidden }}>{notAvailableText}</span>
+
+					<CircleHelpIcon className="ml-auto size-icon-sm" style={{ color }} />
+				</>
 			</Tooltip>
 		);
 	}
 
 	return (
-		<p css={{ fontSize: 13, margin: "0 0 0 auto" }} style={{ color }}>
+		<div className="ml-auto text-sm" style={{ color }}>
 			<span css={{ ...visuallyHidden }}>Latency: </span>
 			{latency.toFixed(0)}
 			<Abbr title="milliseconds">ms</Abbr>
-		</p>
+		</div>
 	);
 };

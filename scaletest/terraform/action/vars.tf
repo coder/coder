@@ -1,5 +1,9 @@
 variable "name" {
-  description = "The name all resources will be prefixed with"
+  description = "The name all resources will be prefixed with. Must be one of alpha, bravo, or charlie."
+  validation {
+    condition     = contains(["alpha", "bravo", "charlie"], var.name)
+    error_message = "Name must be one of alpha, bravo, or charlie."
+  }
 }
 
 variable "scenario" {
@@ -13,6 +17,7 @@ variable "scenario" {
 // GCP
 variable "project_id" {
   description = "The project in which to provision resources"
+  default     = "coder-scaletest"
 }
 
 variable "k8s_version" {
@@ -24,19 +29,14 @@ variable "k8s_version" {
 variable "cloudflare_api_token" {
   description = "Cloudflare API token."
   sensitive   = true
-}
-
-variable "cloudflare_email" {
-  description = "Cloudflare email address."
-  sensitive   = true
+  # only override if you want to change the cloudflare_domain; pulls the token for scaletest.dev from Google Secrets
+  # Manager if null.
+  default = null
 }
 
 variable "cloudflare_domain" {
   description = "Cloudflare coder domain."
-}
-
-variable "cloudflare_zone_id" {
-  description = "Cloudflare zone ID."
+  default     = "scaletest.dev"
 }
 
 // Coder
@@ -84,6 +84,26 @@ variable "provisionerd_image_repo" {
 variable "provisionerd_image_tag" {
   description = "Tag to use for Provisionerd image."
   default     = "latest"
+}
+
+variable "observability_cluster_name" {
+  description = "Name of the observability GKE cluster."
+  default     = "observability"
+}
+
+variable "observability_cluster_location" {
+  description = "Location of the observability GKE cluster."
+  default     = "us-east1-b"
+}
+
+variable "observability_cluster_vpc" {
+  description = "Name of the observability cluster VPC network to peer with."
+  default     = "default"
+}
+
+variable "cloudflare_api_token_secret" {
+  description = "Name of the Google Secret Manager secret containing the Cloudflare API token."
+  default     = "cloudflare-api-token-dns"
 }
 
 // Prometheus
