@@ -16,7 +16,9 @@ import (
 	"github.com/coder/aisdk-go"
 
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 // Tool name constants to avoid hardcoded strings
@@ -40,6 +42,7 @@ const (
 	ToolNameWorkspaceBash               = "coder_workspace_bash"
 	ToolNameChatGPTSearch               = "search"
 	ToolNameChatGPTFetch                = "fetch"
+	ToolNameWorkspaceReadFile           = "coder_workspace_read_file"
 )
 
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
@@ -207,6 +210,7 @@ var All = []GenericTool{
 	WorkspaceBash.Generic(),
 	ChatGPTSearch.Generic(),
 	ChatGPTFetch.Generic(),
+	WorkspaceReadFile.Generic(),
 }
 
 type ReportTaskArgs struct {
@@ -1361,6 +1365,62 @@ type MinimalTemplate struct {
 	Description     string    `json:"description"`
 	ActiveVersionID uuid.UUID `json:"active_version_id"`
 	ActiveUserCount int       `json:"active_user_count"`
+}
+
+type WorkspaceReadFileArgs struct {
+	Workspace string `json:"workspace"`
+	Path      string `json:"path"`
+	Offset    int64  `json:"offset"`
+	Limit     int64  `json:"limit"`
+}
+
+type WorkspaceReadFileResponse struct {
+	// Content is the base64-encoded bytes from the file.
+	Content  []byte `json:"content"`
+	MimeType string `json:"mimeType"`
+}
+
+var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameWorkspaceReadFile,
+		Description: `Read from a file in a workspace.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used.",
+				},
+				"path": map[string]any{
+					"type":        "string",
+					"description": "The absolute path of the file to read in the workspace.",
+				},
+				"offset": map[string]any{
+					"type":        "integer",
+					"description": "A byte offset indicating where in the file to start reading. Defaults to zero. An empty string indicates the end of the file has been reached.",
+				},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "The number of bytes to read. Cannot exceed 1 MiB. Defaults to the full size of the file or 1 MiB, whichever is lower.",
+				},
+			},
+			Required: []string{"path", "workspace"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceReadFileArgs) (WorkspaceReadFileResponse, error) {
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		if err != nil {
+			return WorkspaceReadFileResponse{}, err
+		}
+		defer conn.Close()
+
+		bytes, mimeType, err := conn.ReadFile(ctx, args.Path, args.Offset, args.Limit)
+		if err != nil {
+			return WorkspaceReadFileResponse{}, err
+		}
+
+		return WorkspaceReadFileResponse{Content: bytes, MimeType: mimeType}, nil
+	},
 }
 
 // NormalizeWorkspaceInput converts workspace name input to standard format.

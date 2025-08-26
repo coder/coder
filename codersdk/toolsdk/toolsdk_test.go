@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"sync"
@@ -11,12 +12,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
 	"github.com/coder/aisdk-go"
 
+	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -449,6 +452,91 @@ func TestTools(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 0, result.ExitCode)
 		require.Equal(t, "owner format works", result.Output)
+	})
+
+	t.Run("WorkspaceReadFile", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		fs := afero.NewMemMapFs()
+		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
+			opts.Filesystem = fs
+		})
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		tmpdir := os.TempDir()
+		filePath := filepath.Join(tmpdir, "file")
+		err = afero.WriteFile(fs, filePath, []byte("content"), 0o644)
+		require.NoError(t, err)
+
+		imagePath := filepath.Join(tmpdir, "file.png")
+		err = afero.WriteFile(fs, imagePath, []byte("not really an image"), 0o644)
+		require.NoError(t, err)
+
+		tests := []struct {
+			name     string
+			path     string
+			limit    int64
+			offset   int64
+			mimeType string
+			bytes    []byte
+			error    string
+		}{
+			{
+				name:  "NonExistent",
+				path:  filepath.Join(tmpdir, "does-not-exist"),
+				error: "file does not exist",
+			},
+			{
+				name:     "Exists",
+				path:     filePath,
+				bytes:    []byte("content"),
+				mimeType: "application/octet-stream",
+			},
+			{
+				name:     "Limit1Offset2",
+				path:     filePath,
+				limit:    1,
+				offset:   2,
+				bytes:    []byte("n"),
+				mimeType: "application/octet-stream",
+			},
+			{
+				name:  "MaxLimit",
+				path:  filePath,
+				limit: 1 << 21,
+				error: "limit must be 1048576 or less, got 2097152",
+			},
+			{
+				name:     "ImageMimeType",
+				path:     imagePath,
+				bytes:    []byte("not really an image"),
+				mimeType: "image/png",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				resp, err := testTool(t, toolsdk.WorkspaceReadFile, tb, toolsdk.WorkspaceReadFileArgs{
+					Workspace: workspace.Name,
+					Path:      tt.path,
+					Limit:     tt.limit,
+					Offset:    tt.offset,
+				})
+				if tt.error != "" {
+					require.Error(t, err)
+					require.Contains(t, err.Error(), tt.error)
+				} else {
+					require.NoError(t, err)
+					require.Equal(t, tt.bytes, resp.Content)
+					require.Equal(t, tt.mimeType, resp.MimeType)
+				}
+			})
+		}
 	})
 }
 
