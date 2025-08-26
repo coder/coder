@@ -1646,18 +1646,19 @@ func UpdateProvisionerLastSeenAt(t *testing.T, db database.Store, id uuid.UUID, 
 func MustWaitForAnyProvisioner(t *testing.T, db database.Store) {
 	t.Helper()
 	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitShort))
-	require.Eventually(t, func() bool {
+	// testutil.Eventually(t, func)
+	testutil.Eventually(ctx,t, func(ctx context.Context) (done bool) {
 		daemons, err := db.GetProvisionerDaemons(ctx)
 		return err == nil && len(daemons) > 0
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast, "no provisioner daemons found")
 }
 
 // MustWaitForProvisionersUnavailable waits for provisioners to become unavailable for a specific workspace
 func MustWaitForProvisionersUnavailable(t *testing.T, db database.Store, workspace codersdk.Workspace, tags map[string]string, checkTime time.Time) {
 	t.Helper()
-	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitShort))
+	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitMedium))
 
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx ,t, func(ctx context.Context) (done bool) {
 		// Use the same logic as hasValidProvisioner but expect false
 		provisionerDaemons, err := db.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
 			OrganizationID: workspace.OrganizationID,
@@ -1677,16 +1678,16 @@ func MustWaitForProvisionersUnavailable(t *testing.T, db database.Store, workspa
 			}
 		}
 		return true // No active provisioners found
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast, "there are still provisioners available for workspace, expected none")
 }
 
 // MustWaitForProvisionersAvailable waits for provisioners to be available for a specific workspace.
 func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace codersdk.Workspace, ts time.Time) uuid.UUID {
 	t.Helper()
-	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitShort))
+	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitLong))
 	id := uuid.UUID{}
 	// Get the workspace from the database
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
 		ws, err := db.GetWorkspaceByID(ctx, workspace.ID)
 		if err != nil {
 			return false
@@ -1724,7 +1725,7 @@ func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace
 			}
 		}
 		return false // No active provisioners found
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast, "no active provisioners available for workspace, expected at least one (non-stale)")
 
 	return id
 }
