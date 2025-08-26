@@ -9,7 +9,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func Test_PrintTaskStatus(t *testing.T) {
+func Test_printTaskStatus(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
