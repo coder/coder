@@ -1,4 +1,4 @@
-package paralleltest
+package paralleltest_test
 
 import (
 	"strconv"
