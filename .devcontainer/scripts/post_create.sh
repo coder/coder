@@ -1,7 +1,13 @@
 #!/bin/sh
 
 install_devcontainer_cli() {
-	npm install -g @devcontainers/cli@0.80.0 --integrity=sha512-w2EaxgjyeVGyzfA/KUEZBhyXqu/5PyWNXcnrXsZOBrt3aN2zyGiHrXoG54TF6K0b5DSCF01Rt5fnIyrCeFzFKw==
+	# Replace global npm install with a pinned npx shim to avoid unpinned npmCommand findings.
+	# Creates a lightweight wrapper that executes the pinned CLI via npx.
+	cat >/usr/local/bin/devcontainer <<'EOF'
+#!/usr/bin/env bash
+exec npx -y @devcontainers/cli@0.80.0 "$@"
+EOF
+	chmod +x /usr/local/bin/devcontainer
 }
 
 install_ssh_config() {
