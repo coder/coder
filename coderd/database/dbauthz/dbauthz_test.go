@@ -4625,28 +4625,25 @@ func (s *MethodTestSuite) TestNotifications() {
 
 	s.Run("GetInboxNotificationsByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		notifID := uuid.New()
-		notif := testutil.Fake(s.T(), faker, database.InboxNotification{ID: notifID, UserID: u.ID, TemplateID: notifications.TemplateWorkspaceAutoUpdated})
+		notif := testutil.Fake(s.T(), faker, database.InboxNotification{UserID: u.ID, TemplateID: notifications.TemplateWorkspaceAutoUpdated})
 		arg := database.GetInboxNotificationsByUserIDParams{UserID: u.ID, ReadStatus: database.InboxNotificationReadStatusAll}
 		dbm.EXPECT().GetInboxNotificationsByUserID(gomock.Any(), arg).Return([]database.InboxNotification{notif}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
+		check.Args(arg).Asserts(rbac.ResourceInboxNotification.WithID(notif.ID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
 	}))
 
 	s.Run("GetFilteredInboxNotificationsByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		notifID := uuid.New()
-		notif := testutil.Fake(s.T(), faker, database.InboxNotification{ID: notifID, UserID: u.ID, TemplateID: notifications.TemplateWorkspaceAutoUpdated, Targets: []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}})
+		notif := testutil.Fake(s.T(), faker, database.InboxNotification{UserID: u.ID, TemplateID: notifications.TemplateWorkspaceAutoUpdated, Targets: []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}})
 		arg := database.GetFilteredInboxNotificationsByUserIDParams{UserID: u.ID, Templates: []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated}, Targets: []uuid.UUID{u.ID}, ReadStatus: database.InboxNotificationReadStatusAll}
 		dbm.EXPECT().GetFilteredInboxNotificationsByUserID(gomock.Any(), arg).Return([]database.InboxNotification{notif}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
+		check.Args(arg).Asserts(rbac.ResourceInboxNotification.WithID(notif.ID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
 	}))
 
 	s.Run("GetInboxNotificationByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		notifID := uuid.New()
-		notif := testutil.Fake(s.T(), faker, database.InboxNotification{ID: notifID, UserID: u.ID, TemplateID: notifications.TemplateWorkspaceAutoUpdated, Targets: []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}})
-		dbm.EXPECT().GetInboxNotificationByID(gomock.Any(), notifID).Return(notif, nil).AnyTimes()
-		check.Args(notifID).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns(notif)
+		notif := testutil.Fake(s.T(), faker, database.InboxNotification{UserID: u.ID, TemplateID: notifications.TemplateWorkspaceAutoUpdated, Targets: []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}})
+		dbm.EXPECT().GetInboxNotificationByID(gomock.Any(), notif.ID).Return(notif, nil).AnyTimes()
+		check.Args(notif.ID).Asserts(rbac.ResourceInboxNotification.WithID(notif.ID).WithOwner(u.ID.String()), policy.ActionRead).Returns(notif)
 	}))
 
 	s.Run("CountUnreadInboxNotificationsByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -4665,13 +4662,12 @@ func (s *MethodTestSuite) TestNotifications() {
 
 	s.Run("UpdateInboxNotificationReadStatus", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		notifID := uuid.New()
-		readAt := dbtestutil.NowInDefaultTimezone()
-		arg := database.UpdateInboxNotificationReadStatusParams{ID: notifID, ReadAt: sql.NullTime{Time: readAt, Valid: true}}
-		notif := testutil.Fake(s.T(), faker, database.InboxNotification{ID: notifID, UserID: u.ID})
-		dbm.EXPECT().GetInboxNotificationByID(gomock.Any(), notifID).Return(notif, nil).AnyTimes()
+		notif := testutil.Fake(s.T(), faker, database.InboxNotification{UserID: u.ID})
+		arg := database.UpdateInboxNotificationReadStatusParams{ID: notif.ID}
+
+		dbm.EXPECT().GetInboxNotificationByID(gomock.Any(), notif.ID).Return(notif, nil).AnyTimes()
 		dbm.EXPECT().UpdateInboxNotificationReadStatus(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionUpdate)
+		check.Args(arg).Asserts(notif, policy.ActionUpdate)
 	}))
 
 	s.Run("MarkAllInboxNotificationsAsRead", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
