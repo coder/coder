@@ -110,10 +110,10 @@ module "code-server" {
   order    = 1
 }
 
-# See https://registry.coder.com/modules/coder/jetbrains-gateway
+# See https://registry.coder.com/modules/coder/jetbrains
 module "jetbrains_gateway" {
   count  = data.coder_workspace.me.start_count
-  source = "registry.coder.com/coder/jetbrains-gateway/coder"
+  source = "registry.coder.com/modules/coder/jetbrains/coder"
 
   # JetBrains IDEs to make available for the user to select
   jetbrains_ides = ["IU", "PY", "WS", "PS", "RD", "CL", "GO", "RM"]
