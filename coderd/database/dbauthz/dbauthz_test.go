@@ -613,7 +613,10 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 	}))
 	s.Run("TemplateVersionNoTemplate/UpdateProvisionerJobWithCancelByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeTemplateVersionImport})
-		v := testutil.Fake(s.T(), faker, database.TemplateVersion{JobID: j.ID, TemplateID: uuid.NullUUID{UUID: uuid.Nil, Valid: false}})
+		v := testutil.Fake(s.T(), faker, database.TemplateVersion{JobID: j.ID})
+		// uuid.NullUUID{Valid: false} is a zero value. faker overwrites zero values
+		// with random data, so we need to set TemplateID after faker is done with it.
+		v.TemplateID = uuid.NullUUID{UUID: uuid.Nil, Valid: false}
 		arg := database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}
 		dbm.EXPECT().GetProvisionerJobByID(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
 		dbm.EXPECT().GetTemplateVersionByJobID(gomock.Any(), j.ID).Return(v, nil).AnyTimes()
@@ -644,7 +647,7 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 		check.Args(ids).Asserts(
 			rbac.ResourceProvisionerJobs.InOrg(org.ID), policy.ActionRead,
 			rbac.ResourceProvisionerJobs.InOrg(org2.ID), policy.ActionRead,
-		).Returns(slice.New(a, b))
+		).OutOfOrder().Returns(slice.New(a, b))
 	}))
 	s.Run("GetProvisionerLogsAfterID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
