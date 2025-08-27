@@ -168,7 +168,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	workspaceCreationTotal := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "coderd",
-			Subsystem: "api",
+			Subsystem: "",
 			Name:      "workspace_creation_total",
 			Help:      "Total regular (non-prebuilt) workspace creations by organization, template, and preset.",
 		},
@@ -180,7 +180,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 
 	workspaceCreationTimings := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "coderd",
-		Subsystem: "provisionerd",
+		Subsystem: "",
 		Name:      "workspace_creation_duration_seconds",
 		Help:      "Time to create a workspace by organization, template, preset, and type (regular or prebuild).",
 		Buckets: []float64{
@@ -208,18 +208,20 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 
 	workspaceClaimTimings := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "coderd",
-		Subsystem: "provisionerd",
-		Name:      "workspace_claim_duration_seconds",
+		Subsystem: "",
+		Name:      "prebuilt_workspace_claim_duration_seconds",
 		Help:      "Time to claim a prebuilt workspace by organization, template, and preset.",
 		Buckets: []float64{
 			1, // 1s
+			5,
 			10,
+			20,
 			30,
-			60, // 1min
-			60 * 5,
-			60 * 10,
-			60 * 30, // 30min
-			60 * 60, // 1hr
+			60,  // 1m
+			120, // 2m
+			180, // 3m
+			240, // 4m
+			300, // 5m
 		},
 		NativeHistogramBucketFactor: 1.1,
 		// Max number of native buckets kept at once to bound memory.
