@@ -72,12 +72,12 @@ func TestSharingShareEnterprise(t *testing.T) {
 
 		found := false
 		for _, line := range strings.Split(out.String(), "\n") {
-			found = strings.Contains(line, group.Name) && strings.Contains(line, string(codersdk.WorkspaceRoleAdmin))
+			found = strings.Contains(line, group.Name) && strings.Contains(line, string(codersdk.WorkspaceRoleUse))
 			if found {
 				break
 			}
 		}
-		assert.True(t, found, "Expected to find group name %s and role %s in output: %s", group.Name, codersdk.WorkspaceRoleAdmin, out.String())
+		assert.True(t, found, "Expected to find group name %s and role %s in output: %s", group.Name, codersdk.WorkspaceRoleUse, out.String())
 	})
 
 	t.Run("ShareWithGroups_Multiple", func(t *testing.T) {
