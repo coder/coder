@@ -4584,6 +4584,7 @@ func (q *querier) UpdatePresetPrebuildStatus(ctx context.Context, arg database.U
 		return err
 	}
 
+	// TODO: This does not check the acl list on the template. Should it?
 	object := rbac.ResourceTemplate.
 		WithID(preset.TemplateID.UUID).
 		InOrg(preset.OrganizationID)

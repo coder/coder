@@ -4529,402 +4529,208 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 
 func (s *MethodTestSuite) TestNotifications() {
 	// System functions
-	s.Run("AcquireNotificationMessages", s.Subtest(func(_ database.Store, check *expects) {
+	s.Run("AcquireNotificationMessages", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().AcquireNotificationMessages(gomock.Any(), database.AcquireNotificationMessagesParams{}).Return([]database.AcquireNotificationMessagesRow{}, nil).AnyTimes()
 		check.Args(database.AcquireNotificationMessagesParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
 	}))
-	s.Run("BulkMarkNotificationMessagesFailed", s.Subtest(func(_ database.Store, check *expects) {
+	s.Run("BulkMarkNotificationMessagesFailed", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().BulkMarkNotificationMessagesFailed(gomock.Any(), database.BulkMarkNotificationMessagesFailedParams{}).Return(int64(0), nil).AnyTimes()
 		check.Args(database.BulkMarkNotificationMessagesFailedParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
 	}))
-	s.Run("BulkMarkNotificationMessagesSent", s.Subtest(func(_ database.Store, check *expects) {
+	s.Run("BulkMarkNotificationMessagesSent", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().BulkMarkNotificationMessagesSent(gomock.Any(), database.BulkMarkNotificationMessagesSentParams{}).Return(int64(0), nil).AnyTimes()
 		check.Args(database.BulkMarkNotificationMessagesSentParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
 	}))
-	s.Run("DeleteOldNotificationMessages", s.Subtest(func(_ database.Store, check *expects) {
+	s.Run("DeleteOldNotificationMessages", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().DeleteOldNotificationMessages(gomock.Any()).Return(nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceNotificationMessage, policy.ActionDelete)
 	}))
-	s.Run("EnqueueNotificationMessage", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
+	s.Run("EnqueueNotificationMessage", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.EnqueueNotificationMessageParams{Method: database.NotificationMethodWebhook, Payload: []byte("{}")}
+		dbm.EXPECT().EnqueueNotificationMessage(gomock.Any(), arg).Return(nil).AnyTimes()
 		// TODO: update this test once we have a specific role for notifications
-		check.Args(database.EnqueueNotificationMessageParams{
-			Method:  database.NotificationMethodWebhook,
-			Payload: []byte("{}"),
-		}).Asserts(rbac.ResourceNotificationMessage, policy.ActionCreate)
+		check.Args(arg).Asserts(rbac.ResourceNotificationMessage, policy.ActionCreate)
 	}))
-	s.Run("FetchNewMessageMetadata", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
+	s.Run("FetchNewMessageMetadata", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		dbm.EXPECT().FetchNewMessageMetadata(gomock.Any(), database.FetchNewMessageMetadataParams{UserID: u.ID}).Return(database.FetchNewMessageMetadataRow{}, nil).AnyTimes()
 		check.Args(database.FetchNewMessageMetadataParams{UserID: u.ID}).
-			Asserts(rbac.ResourceNotificationMessage, policy.ActionRead).
-			ErrorsWithPG(sql.ErrNoRows)
+			Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
 	}))
-	s.Run("GetNotificationMessagesByStatus", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args(database.GetNotificationMessagesByStatusParams{
-			Status: database.NotificationMessageStatusLeased,
-			Limit:  10,
-		}).Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
+	s.Run("GetNotificationMessagesByStatus", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetNotificationMessagesByStatusParams{Status: database.NotificationMessageStatusLeased, Limit: 10}
+		dbm.EXPECT().GetNotificationMessagesByStatus(gomock.Any(), arg).Return([]database.NotificationMessage{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
 	}))
 
 	// webpush subscriptions
-	s.Run("GetWebpushSubscriptionsByUserID", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
+	s.Run("GetWebpushSubscriptionsByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		dbm.EXPECT().GetWebpushSubscriptionsByUserID(gomock.Any(), user.ID).Return([]database.WebpushSubscription{}, nil).AnyTimes()
 		check.Args(user.ID).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionRead)
 	}))
-	s.Run("InsertWebpushSubscription", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
-		check.Args(database.InsertWebpushSubscriptionParams{
-			UserID: user.ID,
-		}).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionCreate)
+	s.Run("InsertWebpushSubscription", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.InsertWebpushSubscriptionParams{UserID: user.ID}
+		dbm.EXPECT().InsertWebpushSubscription(gomock.Any(), arg).Return(testutil.Fake(s.T(), faker, database.WebpushSubscription{UserID: user.ID}), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionCreate)
 	}))
-	s.Run("DeleteWebpushSubscriptions", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
-		push := dbgen.WebpushSubscription(s.T(), db, database.InsertWebpushSubscriptionParams{
-			UserID: user.ID,
-		})
+	s.Run("DeleteWebpushSubscriptions", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		push := testutil.Fake(s.T(), faker, database.WebpushSubscription{UserID: user.ID})
+		dbm.EXPECT().DeleteWebpushSubscriptions(gomock.Any(), []uuid.UUID{push.ID}).Return(nil).AnyTimes()
 		check.Args([]uuid.UUID{push.ID}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
-	s.Run("DeleteWebpushSubscriptionByUserIDAndEndpoint", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
-		push := dbgen.WebpushSubscription(s.T(), db, database.InsertWebpushSubscriptionParams{
-			UserID: user.ID,
-		})
-		check.Args(database.DeleteWebpushSubscriptionByUserIDAndEndpointParams{
-			UserID:   user.ID,
-			Endpoint: push.Endpoint,
-		}).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionDelete)
+	s.Run("DeleteWebpushSubscriptionByUserIDAndEndpoint", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		push := testutil.Fake(s.T(), faker, database.WebpushSubscription{UserID: user.ID})
+		arg := database.DeleteWebpushSubscriptionByUserIDAndEndpointParams{UserID: user.ID, Endpoint: push.Endpoint}
+		dbm.EXPECT().DeleteWebpushSubscriptionByUserIDAndEndpoint(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceWebpushSubscription.WithOwner(user.ID.String()), policy.ActionDelete)
 	}))
-	s.Run("DeleteAllWebpushSubscriptions", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args().
-			Asserts(rbac.ResourceWebpushSubscription, policy.ActionDelete)
+	s.Run("DeleteAllWebpushSubscriptions", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().DeleteAllWebpushSubscriptions(gomock.Any()).Return(nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceWebpushSubscription, policy.ActionDelete)
 	}))
 
 	// Notification templates
-	s.Run("GetNotificationTemplateByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		user := dbgen.User(s.T(), db, database.User{})
-		check.Args(user.ID).Asserts(rbac.ResourceNotificationTemplate, policy.ActionRead).
-			ErrorsWithPG(sql.ErrNoRows)
+	s.Run("GetNotificationTemplateByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		tpl := testutil.Fake(s.T(), faker, database.NotificationTemplate{})
+		dbm.EXPECT().GetNotificationTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+		check.Args(tpl.ID).Asserts(rbac.ResourceNotificationTemplate, policy.ActionRead)
 	}))
-	s.Run("GetNotificationTemplatesByKind", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.NotificationTemplateKindSystem).
-			Asserts()
+	s.Run("GetNotificationTemplatesByKind", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetNotificationTemplatesByKind(gomock.Any(), database.NotificationTemplateKindSystem).Return([]database.NotificationTemplate{}, nil).AnyTimes()
+		check.Args(database.NotificationTemplateKindSystem).Asserts()
 		// TODO(dannyk): add support for other database.NotificationTemplateKind types once implemented.
 	}))
-	s.Run("UpdateNotificationTemplateMethodByID", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.UpdateNotificationTemplateMethodByIDParams{
-			Method: database.NullNotificationMethod{NotificationMethod: database.NotificationMethodWebhook, Valid: true},
-			ID:     notifications.TemplateWorkspaceDormant,
-		}).Asserts(rbac.ResourceNotificationTemplate, policy.ActionUpdate)
+	s.Run("UpdateNotificationTemplateMethodByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateNotificationTemplateMethodByIDParams{Method: database.NullNotificationMethod{NotificationMethod: database.NotificationMethodWebhook, Valid: true}, ID: notifications.TemplateWorkspaceDormant}
+		dbm.EXPECT().UpdateNotificationTemplateMethodByID(gomock.Any(), arg).Return(database.NotificationTemplate{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceNotificationTemplate, policy.ActionUpdate)
 	}))
 
 	// Notification preferences
-	s.Run("GetUserNotificationPreferences", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
-		check.Args(user.ID).
-			Asserts(rbac.ResourceNotificationPreference.WithOwner(user.ID.String()), policy.ActionRead)
+	s.Run("GetUserNotificationPreferences", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		dbm.EXPECT().GetUserNotificationPreferences(gomock.Any(), user.ID).Return([]database.NotificationPreference{}, nil).AnyTimes()
+		check.Args(user.ID).Asserts(rbac.ResourceNotificationPreference.WithOwner(user.ID.String()), policy.ActionRead)
 	}))
-	s.Run("UpdateUserNotificationPreferences", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
-		check.Args(database.UpdateUserNotificationPreferencesParams{
-			UserID:                  user.ID,
-			NotificationTemplateIds: []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated, notifications.TemplateWorkspaceDeleted},
-			Disableds:               []bool{true, false},
-		}).Asserts(rbac.ResourceNotificationPreference.WithOwner(user.ID.String()), policy.ActionUpdate)
+	s.Run("UpdateUserNotificationPreferences", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.UpdateUserNotificationPreferencesParams{UserID: user.ID, NotificationTemplateIds: []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated, notifications.TemplateWorkspaceDeleted}, Disableds: []bool{true, false}}
+		dbm.EXPECT().UpdateUserNotificationPreferences(gomock.Any(), arg).Return(int64(2), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceNotificationPreference.WithOwner(user.ID.String()), policy.ActionUpdate)
 	}))
 
-	s.Run("GetInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-
-		notifID := uuid.New()
-
-		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
-			ID:         notifID,
-			UserID:     u.ID,
-			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
-			Title:      "test title",
-			Content:    "test content notification",
-			Icon:       "https://coder.com/favicon.ico",
-			Actions:    json.RawMessage("{}"),
-		})
-
-		check.Args(database.GetInboxNotificationsByUserIDParams{
-			UserID:     u.ID,
-			ReadStatus: database.InboxNotificationReadStatusAll,
-		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
+	s.Run("GetInboxNotificationsByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		notif := testutil.Fake(s.T(), faker, database.InboxNotification{UserID: u.ID, TemplateID: notifications.TemplateWorkspaceAutoUpdated})
+		arg := database.GetInboxNotificationsByUserIDParams{UserID: u.ID, ReadStatus: database.InboxNotificationReadStatusAll}
+		dbm.EXPECT().GetInboxNotificationsByUserID(gomock.Any(), arg).Return([]database.InboxNotification{notif}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceInboxNotification.WithID(notif.ID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
 	}))
 
-	s.Run("GetFilteredInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-
-		notifID := uuid.New()
-
-		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
-
-		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
-			ID:         notifID,
-			UserID:     u.ID,
-			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
-			Targets:    targets,
-			Title:      "test title",
-			Content:    "test content notification",
-			Icon:       "https://coder.com/favicon.ico",
-			Actions:    json.RawMessage("{}"),
-		})
-
-		check.Args(database.GetFilteredInboxNotificationsByUserIDParams{
-			UserID:     u.ID,
-			Templates:  []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated},
-			Targets:    []uuid.UUID{u.ID},
-			ReadStatus: database.InboxNotificationReadStatusAll,
-		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
+	s.Run("GetFilteredInboxNotificationsByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		notif := testutil.Fake(s.T(), faker, database.InboxNotification{UserID: u.ID, TemplateID: notifications.TemplateWorkspaceAutoUpdated, Targets: []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}})
+		arg := database.GetFilteredInboxNotificationsByUserIDParams{UserID: u.ID, Templates: []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated}, Targets: []uuid.UUID{u.ID}, ReadStatus: database.InboxNotificationReadStatusAll}
+		dbm.EXPECT().GetFilteredInboxNotificationsByUserID(gomock.Any(), arg).Return([]database.InboxNotification{notif}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceInboxNotification.WithID(notif.ID).WithOwner(u.ID.String()), policy.ActionRead).Returns([]database.InboxNotification{notif})
 	}))
 
-	s.Run("GetInboxNotificationByID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-
-		notifID := uuid.New()
-
-		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
-
-		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
-			ID:         notifID,
-			UserID:     u.ID,
-			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
-			Targets:    targets,
-			Title:      "test title",
-			Content:    "test content notification",
-			Icon:       "https://coder.com/favicon.ico",
-			Actions:    json.RawMessage("{}"),
-		})
-
-		check.Args(notifID).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionRead).Returns(notif)
+	s.Run("GetInboxNotificationByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		notif := testutil.Fake(s.T(), faker, database.InboxNotification{UserID: u.ID, TemplateID: notifications.TemplateWorkspaceAutoUpdated, Targets: []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}})
+		dbm.EXPECT().GetInboxNotificationByID(gomock.Any(), notif.ID).Return(notif, nil).AnyTimes()
+		check.Args(notif.ID).Asserts(rbac.ResourceInboxNotification.WithID(notif.ID).WithOwner(u.ID.String()), policy.ActionRead).Returns(notif)
 	}))
 
-	s.Run("CountUnreadInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-
-		notifID := uuid.New()
-
-		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
-
-		_ = dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
-			ID:         notifID,
-			UserID:     u.ID,
-			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
-			Targets:    targets,
-			Title:      "test title",
-			Content:    "test content notification",
-			Icon:       "https://coder.com/favicon.ico",
-			Actions:    json.RawMessage("{}"),
-		})
-
+	s.Run("CountUnreadInboxNotificationsByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		dbm.EXPECT().CountUnreadInboxNotificationsByUserID(gomock.Any(), u.ID).Return(int64(1), nil).AnyTimes()
 		check.Args(u.ID).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionRead).Returns(int64(1))
 	}))
 
-	s.Run("InsertInboxNotification", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-
+	s.Run("InsertInboxNotification", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
 		notifID := uuid.New()
-
-		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
-
-		check.Args(database.InsertInboxNotificationParams{
-			ID:         notifID,
-			UserID:     u.ID,
-			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
-			Targets:    targets,
-			Title:      "test title",
-			Content:    "test content notification",
-			Icon:       "https://coder.com/favicon.ico",
-			Actions:    json.RawMessage("{}"),
-		}).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionCreate)
+		arg := database.InsertInboxNotificationParams{ID: notifID, UserID: u.ID, TemplateID: notifications.TemplateWorkspaceAutoUpdated, Targets: []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}, Title: "test title", Content: "test content notification", Icon: "https://coder.com/favicon.ico", Actions: json.RawMessage("{}")}
+		dbm.EXPECT().InsertInboxNotification(gomock.Any(), arg).Return(testutil.Fake(s.T(), faker, database.InboxNotification{ID: notifID, UserID: u.ID}), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionCreate)
 	}))
 
-	s.Run("UpdateInboxNotificationReadStatus", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
+	s.Run("UpdateInboxNotificationReadStatus", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		notif := testutil.Fake(s.T(), faker, database.InboxNotification{UserID: u.ID})
+		arg := database.UpdateInboxNotificationReadStatusParams{ID: notif.ID}
 
-		notifID := uuid.New()
-
-		targets := []uuid.UUID{u.ID, notifications.TemplateWorkspaceAutoUpdated}
-		readAt := dbtestutil.NowInDefaultTimezone()
-
-		notif := dbgen.NotificationInbox(s.T(), db, database.InsertInboxNotificationParams{
-			ID:         notifID,
-			UserID:     u.ID,
-			TemplateID: notifications.TemplateWorkspaceAutoUpdated,
-			Targets:    targets,
-			Title:      "test title",
-			Content:    "test content notification",
-			Icon:       "https://coder.com/favicon.ico",
-			Actions:    json.RawMessage("{}"),
-		})
-
-		notif.ReadAt = sql.NullTime{Time: readAt, Valid: true}
-
-		check.Args(database.UpdateInboxNotificationReadStatusParams{
-			ID:     notifID,
-			ReadAt: sql.NullTime{Time: readAt, Valid: true},
-		}).Asserts(rbac.ResourceInboxNotification.WithID(notifID).WithOwner(u.ID.String()), policy.ActionUpdate)
+		dbm.EXPECT().GetInboxNotificationByID(gomock.Any(), notif.ID).Return(notif, nil).AnyTimes()
+		dbm.EXPECT().UpdateInboxNotificationReadStatus(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(notif, policy.ActionUpdate)
 	}))
 
-	s.Run("MarkAllInboxNotificationsAsRead", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-
-		check.Args(database.MarkAllInboxNotificationsAsReadParams{
-			UserID: u.ID,
-			ReadAt: sql.NullTime{Time: dbtestutil.NowInDefaultTimezone(), Valid: true},
-		}).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionUpdate)
+	s.Run("MarkAllInboxNotificationsAsRead", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.MarkAllInboxNotificationsAsReadParams{UserID: u.ID, ReadAt: sql.NullTime{Time: dbtestutil.NowInDefaultTimezone(), Valid: true}}
+		dbm.EXPECT().MarkAllInboxNotificationsAsRead(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceInboxNotification.WithOwner(u.ID.String()), policy.ActionUpdate)
 	}))
 }
 
 func (s *MethodTestSuite) TestPrebuilds() {
-	s.Run("GetPresetByWorkspaceBuildID", s.Subtest(func(db database.Store, check *expects) {
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		user := dbgen.User(s.T(), db, database.User{})
-		template := dbgen.Template(s.T(), db, database.Template{
-			CreatedBy:      user.ID,
-			OrganizationID: org.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		preset, err := db.InsertPreset(context.Background(), database.InsertPresetParams{
-			TemplateVersionID: templateVersion.ID,
-			Name:              "test",
-		})
-		require.NoError(s.T(), err)
-		workspace := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
-			OrganizationID: org.ID,
-			OwnerID:        user.ID,
-			TemplateID:     template.ID,
-		})
-		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			OrganizationID: org.ID,
-		})
-		workspaceBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
-			WorkspaceID:             workspace.ID,
-			TemplateVersionID:       templateVersion.ID,
-			TemplateVersionPresetID: uuid.NullUUID{UUID: preset.ID, Valid: true},
-			InitiatorID:             user.ID,
-			JobID:                   job.ID,
-		})
-		_, err = db.GetPresetByWorkspaceBuildID(context.Background(), workspaceBuild.ID)
-		require.NoError(s.T(), err)
-		check.Args(workspaceBuild.ID).Asserts(rbac.ResourceTemplate, policy.ActionRead)
+	s.Run("GetPresetByWorkspaceBuildID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		wbID := uuid.New()
+		dbm.EXPECT().GetPresetByWorkspaceBuildID(gomock.Any(), wbID).Return(testutil.Fake(s.T(), faker, database.TemplateVersionPreset{}), nil).AnyTimes()
+		check.Args(wbID).Asserts(rbac.ResourceTemplate, policy.ActionRead)
 	}))
-	s.Run("GetPresetParametersByTemplateVersionID", s.Subtest(func(db database.Store, check *expects) {
-		ctx := context.Background()
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		user := dbgen.User(s.T(), db, database.User{})
-		template := dbgen.Template(s.T(), db, database.Template{
-			CreatedBy:      user.ID,
-			OrganizationID: org.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		preset, err := db.InsertPreset(ctx, database.InsertPresetParams{
-			TemplateVersionID: templateVersion.ID,
-			Name:              "test",
-		})
-		require.NoError(s.T(), err)
-		insertedParameters, err := db.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
-			TemplateVersionPresetID: preset.ID,
-			Names:                   []string{"test"},
-			Values:                  []string{"test"},
-		})
-		require.NoError(s.T(), err)
-		check.
-			Args(templateVersion.ID).
-			Asserts(template.RBACObject(), policy.ActionRead).
-			Returns(insertedParameters)
-	}))
-	s.Run("GetPresetParametersByPresetID", s.Subtest(func(db database.Store, check *expects) {
-		ctx := context.Background()
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		user := dbgen.User(s.T(), db, database.User{})
-		template := dbgen.Template(s.T(), db, database.Template{
-			CreatedBy:      user.ID,
-			OrganizationID: org.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		preset, err := db.InsertPreset(ctx, database.InsertPresetParams{
-			TemplateVersionID: templateVersion.ID,
-			Name:              "test",
-		})
-		require.NoError(s.T(), err)
-		insertedParameters, err := db.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
-			TemplateVersionPresetID: preset.ID,
-			Names:                   []string{"test"},
-			Values:                  []string{"test"},
-		})
-		require.NoError(s.T(), err)
-		check.
-			Args(preset.ID).
-			Asserts(template.RBACObject(), policy.ActionRead).
-			Returns(insertedParameters)
-	}))
-	s.Run("GetActivePresetPrebuildSchedules", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().
-			Asserts(rbac.ResourceTemplate.All(), policy.ActionRead).
-			Returns([]database.TemplateVersionPresetPrebuildSchedule{})
-	}))
-	s.Run("GetPresetsByTemplateVersionID", s.Subtest(func(db database.Store, check *expects) {
-		ctx := context.Background()
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		user := dbgen.User(s.T(), db, database.User{})
-		template := dbgen.Template(s.T(), db, database.Template{
-			CreatedBy:      user.ID,
-			OrganizationID: org.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
+	s.Run("GetPresetParametersByTemplateVersionID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		tpl := testutil.Fake(s.T(), faker, database.Template{})
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, OrganizationID: tpl.OrganizationID, CreatedBy: tpl.CreatedBy})
+		resp := []database.TemplateVersionPresetParameter{testutil.Fake(s.T(), faker, database.TemplateVersionPresetParameter{})}
 
-		_, err := db.InsertPreset(ctx, database.InsertPresetParams{
-			TemplateVersionID: templateVersion.ID,
-			Name:              "test",
-		})
-		require.NoError(s.T(), err)
-
-		presets, err := db.GetPresetsByTemplateVersionID(ctx, templateVersion.ID)
-		require.NoError(s.T(), err)
-
-		check.Args(templateVersion.ID).Asserts(template.RBACObject(), policy.ActionRead).Returns(presets)
+		dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), tv.ID).Return(tv, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+		dbm.EXPECT().GetPresetParametersByTemplateVersionID(gomock.Any(), tv.ID).Return(resp, nil).AnyTimes()
+		check.Args(tv.ID).Asserts(tpl.RBACObject(), policy.ActionRead).Returns(resp)
 	}))
-	s.Run("ClaimPrebuiltWorkspace", s.Subtest(func(db database.Store, check *expects) {
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		user := dbgen.User(s.T(), db, database.User{})
-		template := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{
-				UUID:  template.ID,
-				Valid: true,
-			},
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		preset := dbgen.Preset(s.T(), db, database.InsertPresetParams{
-			TemplateVersionID: templateVersion.ID,
-		})
-		check.Args(database.ClaimPrebuiltWorkspaceParams{
-			NewUserID: user.ID,
-			NewName:   "",
-			PresetID:  preset.ID,
-		}).Asserts(
-			rbac.ResourceWorkspace.WithOwner(user.ID.String()).InOrg(org.ID), policy.ActionCreate,
-			template, policy.ActionRead,
-			template, policy.ActionUse,
+	s.Run("GetPresetParametersByPresetID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		tpl := testutil.Fake(s.T(), faker, database.Template{})
+		prow := database.GetPresetByIDRow{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, OrganizationID: tpl.OrganizationID}
+		resp := []database.TemplateVersionPresetParameter{testutil.Fake(s.T(), faker, database.TemplateVersionPresetParameter{})}
+
+		dbm.EXPECT().GetPresetByID(gomock.Any(), prow.ID).Return(prow, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+		dbm.EXPECT().GetPresetParametersByPresetID(gomock.Any(), prow.ID).Return(resp, nil).AnyTimes()
+		check.Args(prow.ID).Asserts(tpl.RBACObject(), policy.ActionRead).Returns(resp)
+	}))
+	s.Run("GetActivePresetPrebuildSchedules", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetActivePresetPrebuildSchedules(gomock.Any()).Return([]database.TemplateVersionPresetPrebuildSchedule{}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceTemplate.All(), policy.ActionRead).Returns([]database.TemplateVersionPresetPrebuildSchedule{})
+	}))
+	s.Run("GetPresetsByTemplateVersionID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		tpl := testutil.Fake(s.T(), faker, database.Template{})
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, OrganizationID: tpl.OrganizationID, CreatedBy: tpl.CreatedBy})
+		presets := []database.TemplateVersionPreset{testutil.Fake(s.T(), faker, database.TemplateVersionPreset{TemplateVersionID: tv.ID})}
+
+		dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), tv.ID).Return(tv, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+		dbm.EXPECT().GetPresetsByTemplateVersionID(gomock.Any(), tv.ID).Return(presets, nil).AnyTimes()
+		check.Args(tv.ID).Asserts(tpl.RBACObject(), policy.ActionRead).Returns(presets)
+	}))
+	s.Run("ClaimPrebuiltWorkspace", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		tpl := testutil.Fake(s.T(), faker, database.Template{CreatedBy: user.ID})
+		arg := database.ClaimPrebuiltWorkspaceParams{NewUserID: user.ID, NewName: "", PresetID: uuid.New()}
+		prow := database.GetPresetByIDRow{ID: arg.PresetID, TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, OrganizationID: tpl.OrganizationID}
+
+		dbm.EXPECT().GetPresetByID(gomock.Any(), arg.PresetID).Return(prow, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+		dbm.EXPECT().ClaimPrebuiltWorkspace(gomock.Any(), arg).Return(database.ClaimPrebuiltWorkspaceRow{}, sql.ErrNoRows).AnyTimes()
+		check.Args(arg).Asserts(
+			rbac.ResourceWorkspace.WithOwner(user.ID.String()).InOrg(tpl.OrganizationID), policy.ActionCreate,
+			tpl, policy.ActionRead,
+			tpl, policy.ActionUse,
 		).Errors(sql.ErrNoRows)
 	}))
 	s.Run("FindMatchingPresetID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -4943,95 +4749,61 @@ func (s *MethodTestSuite) TestPrebuilds() {
 			ParameterValues:   []string{"test"},
 		}).Asserts(tv.RBACObject(t1), policy.ActionRead).Returns(uuid.Nil)
 	}))
-	s.Run("GetPrebuildMetrics", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args().
-			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
+	s.Run("GetPrebuildMetrics", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetPrebuildMetrics(gomock.Any()).Return([]database.GetPrebuildMetricsRow{}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
 	}))
-	s.Run("GetPrebuildsSettings", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetPrebuildsSettings", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetPrebuildsSettings(gomock.Any()).Return("{}", nil).AnyTimes()
 		check.Args().Asserts()
 	}))
-	s.Run("UpsertPrebuildsSettings", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpsertPrebuildsSettings", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().UpsertPrebuildsSettings(gomock.Any(), "foo").Return(nil).AnyTimes()
 		check.Args("foo").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
-	s.Run("CountInProgressPrebuilds", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args().
-			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
+	s.Run("CountInProgressPrebuilds", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().CountInProgressPrebuilds(gomock.Any()).Return([]database.CountInProgressPrebuildsRow{}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
 	}))
-	s.Run("GetPresetsAtFailureLimit", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args(int64(0)).
-			Asserts(rbac.ResourceTemplate.All(), policy.ActionViewInsights)
+	s.Run("GetPresetsAtFailureLimit", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetPresetsAtFailureLimit(gomock.Any(), int64(0)).Return([]database.GetPresetsAtFailureLimitRow{}, nil).AnyTimes()
+		check.Args(int64(0)).Asserts(rbac.ResourceTemplate.All(), policy.ActionViewInsights)
 	}))
-	s.Run("GetPresetsBackoff", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args(time.Time{}).
-			Asserts(rbac.ResourceTemplate.All(), policy.ActionViewInsights)
+	s.Run("GetPresetsBackoff", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		t0 := time.Time{}
+		dbm.EXPECT().GetPresetsBackoff(gomock.Any(), t0).Return([]database.GetPresetsBackoffRow{}, nil).AnyTimes()
+		check.Args(t0).Asserts(rbac.ResourceTemplate.All(), policy.ActionViewInsights)
 	}))
-	s.Run("GetRunningPrebuiltWorkspaces", s.Subtest(func(_ database.Store, check *expects) {
-		check.Args().
-			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
+	s.Run("GetRunningPrebuiltWorkspaces", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetRunningPrebuiltWorkspaces(gomock.Any()).Return([]database.GetRunningPrebuiltWorkspacesRow{}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
 	}))
-	s.Run("GetTemplatePresetsWithPrebuilds", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
-		check.Args(uuid.NullUUID{UUID: user.ID, Valid: true}).
-			Asserts(rbac.ResourceTemplate.All(), policy.ActionRead)
+	s.Run("GetTemplatePresetsWithPrebuilds", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := uuid.NullUUID{UUID: uuid.New(), Valid: true}
+		dbm.EXPECT().GetTemplatePresetsWithPrebuilds(gomock.Any(), arg).Return([]database.GetTemplatePresetsWithPrebuildsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceTemplate.All(), policy.ActionRead)
 	}))
-	s.Run("GetPresetByID", s.Subtest(func(db database.Store, check *expects) {
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		user := dbgen.User(s.T(), db, database.User{})
-		template := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{
-				UUID:  template.ID,
-				Valid: true,
-			},
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		preset := dbgen.Preset(s.T(), db, database.InsertPresetParams{
-			TemplateVersionID: templateVersion.ID,
-		})
-		check.Args(preset.ID).
-			Asserts(template, policy.ActionRead).
-			Returns(database.GetPresetByIDRow{
-				ID:                preset.ID,
-				TemplateVersionID: preset.TemplateVersionID,
-				Name:              preset.Name,
-				CreatedAt:         preset.CreatedAt,
-				TemplateID: uuid.NullUUID{
-					UUID:  template.ID,
-					Valid: true,
-				},
-				InvalidateAfterSecs: preset.InvalidateAfterSecs,
-				OrganizationID:      org.ID,
-				PrebuildStatus:      database.PrebuildStatusHealthy,
-			})
+	s.Run("GetPresetByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		tpl := testutil.Fake(s.T(), faker, database.Template{OrganizationID: org.ID})
+		presetID := uuid.New()
+		prow := database.GetPresetByIDRow{ID: presetID, TemplateVersionID: uuid.New(), Name: "test", TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, InvalidateAfterSecs: sql.NullInt32{}, OrganizationID: org.ID, PrebuildStatus: database.PrebuildStatusHealthy}
+
+		dbm.EXPECT().GetPresetByID(gomock.Any(), presetID).Return(prow, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+		check.Args(presetID).Asserts(tpl, policy.ActionRead).Returns(prow)
 	}))
-	s.Run("UpdatePresetPrebuildStatus", s.Subtest(func(db database.Store, check *expects) {
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		user := dbgen.User(s.T(), db, database.User{})
-		template := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{
-				UUID:  template.ID,
-				Valid: true,
-			},
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		preset := dbgen.Preset(s.T(), db, database.InsertPresetParams{
-			TemplateVersionID: templateVersion.ID,
-		})
-		req := database.UpdatePresetPrebuildStatusParams{
-			PresetID: preset.ID,
-			Status:   database.PrebuildStatusHealthy,
-		}
-		check.Args(req).
-			Asserts(rbac.ResourceTemplate.WithID(template.ID).InOrg(org.ID), policy.ActionUpdate)
+	s.Run("UpdatePresetPrebuildStatus", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		tpl := testutil.Fake(s.T(), faker, database.Template{OrganizationID: org.ID})
+		presetID := uuid.New()
+		prow := database.GetPresetByIDRow{ID: presetID, TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, OrganizationID: org.ID}
+		req := database.UpdatePresetPrebuildStatusParams{PresetID: presetID, Status: database.PrebuildStatusHealthy}
+
+		dbm.EXPECT().GetPresetByID(gomock.Any(), presetID).Return(prow, nil).AnyTimes()
+		dbm.EXPECT().UpdatePresetPrebuildStatus(gomock.Any(), req).Return(nil).AnyTimes()
+		// TODO: This does not check the acl list on the template. Should it?
+		check.Args(req).Asserts(rbac.ResourceTemplate.WithID(tpl.ID).InOrg(org.ID), policy.ActionUpdate)
 	}))
 }
 
