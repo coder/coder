@@ -3,6 +3,7 @@ package agenttest
 import (
 	"context"
 	"io"
+	"net/http"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -28,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/websocket"
 )
 
 const statsInterval = 500 * time.Millisecond
@@ -90,6 +92,20 @@ type Client struct {
 	logs           []agentsdk.Log
 	derpMapUpdates chan *tailcfg.DERPMap
 	derpMapOnce    sync.Once
+}
+
+func (*Client) AsRequestOption() codersdk.RequestOption {
+	return func(_ *http.Request) {}
+}
+
+func (*Client) SetDialOption(*websocket.DialOptions) {}
+
+func (*Client) GetSessionToken() string {
+	return "agenttest-token"
+}
+
+func (*Client) RefreshToken(context.Context) error {
+	return nil
 }
 
 func (*Client) RewriteDERPMap(*tailcfg.DERPMap) {}

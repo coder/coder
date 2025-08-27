@@ -228,8 +228,7 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(r.AgentToken))
 		err := agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
 			Logs: []agentsdk.Log{
 				{
@@ -269,8 +268,7 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(r.AgentToken))
 		err := agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
 			Logs: []agentsdk.Log{
 				{
@@ -314,8 +312,7 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 		updates, err := client.WatchWorkspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(r.AgentToken))
 		err = agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
 			Logs: []agentsdk.Log{{
 				CreatedAt: dbtime.Now(),
@@ -360,8 +357,7 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		return a
 	}).Do()
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(r.AgentToken)
+	agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(r.AgentToken))
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -542,8 +538,7 @@ func TestWorkspaceAgentConnectRPC(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild.ID)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(authToken))
 
 		_, err = agentClient.ConnectRPC(ctx)
 		require.Error(t, err)
@@ -568,8 +563,7 @@ func TestWorkspaceAgentConnectRPC(t *testing.T) {
 		)
 		require.NoError(t, err)
 		// Then: the agent token should no longer be valid
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(wsb.AgentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken((wsb.AgentToken)))
 		_, err = agentClient.ConnectRPC(ctx)
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
@@ -890,8 +884,7 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	// Verify that the manifest has DisableDirectConnections set to true.
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(r.AgentToken)
+	agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(r.AgentToken))
 	rpc, err := agentClient.ConnectRPC(ctx)
 	require.NoError(t, err)
 	defer func() {
@@ -1742,8 +1735,7 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(r.AgentToken)
+	agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(r.AgentToken))
 	conn, err := agentClient.ConnectRPC(ctx)
 	require.NoError(t, err)
 	defer func() {
@@ -1818,8 +1810,7 @@ func TestWorkspaceAgentPostLogSource(t *testing.T) {
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(r.AgentToken))
 
 		req := agentsdk.PostLogSourceRequest{
 			ID:          uuid.New(),
@@ -1867,8 +1858,7 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 			}
 		}
 
-		ac := agentsdk.New(client.URL)
-		ac.SetSessionToken(r.AgentToken)
+		ac := agentsdk.New(client.URL, agentsdk.UsingFixedToken(r.AgentToken))
 		conn, err := ac.ConnectRPC(ctx)
 		require.NoError(t, err)
 		defer func() {
@@ -1965,8 +1955,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 		}
 	}
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(r.AgentToken)
+	agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(r.AgentToken))
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	conn, err := agentClient.ConnectRPC(ctx)
@@ -2229,8 +2218,7 @@ func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
 		}
 	}
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(r.AgentToken)
+	agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(r.AgentToken))
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	conn, err := agentClient.ConnectRPC(ctx)
@@ -2335,8 +2323,7 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(r.AgentToken))
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
@@ -2382,8 +2369,7 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(r.AgentToken))
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
@@ -2547,8 +2533,7 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 			return agents
 		}).Do()
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(r.AgentToken))
 
 		// We need to include an invalid oauth token that is not expired.
 		dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
@@ -3028,8 +3013,7 @@ func TestReinit(t *testing.T) {
 	pubsubSpy.Unlock()
 
 	agentCtx := testutil.Context(t, testutil.WaitShort)
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(r.AgentToken)
+	agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(r.AgentToken))
 
 	agentReinitializedCh := make(chan *agentsdk.ReinitializationEvent)
 	go func() {

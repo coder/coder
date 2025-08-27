@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestGitAskpass(t *testing.T) {
@@ -32,6 +33,7 @@ func TestGitAskpass(t *testing.T) {
 		url := srv.URL
 		inv, _ := clitest.New(t, "--agent-url", url, "Username for 'https://github.com':")
 		inv.Environ.Set("GIT_PREFIX", "/")
+		inv.Environ.Set("CODER_AGENT_TOKEN", "fake-token")
 		pty := ptytest.New(t)
 		inv.Stdout = pty.Output()
 		clitest.Start(t, inv)
@@ -39,6 +41,7 @@ func TestGitAskpass(t *testing.T) {
 
 		inv, _ = clitest.New(t, "--agent-url", url, "Password for 'https://potato@github.com':")
 		inv.Environ.Set("GIT_PREFIX", "/")
+		inv.Environ.Set("CODER_AGENT_TOKEN", "fake-token")
 		pty = ptytest.New(t)
 		inv.Stdout = pty.Output()
 		clitest.Start(t, inv)
@@ -56,6 +59,7 @@ func TestGitAskpass(t *testing.T) {
 		url := srv.URL
 		inv, _ := clitest.New(t, "--agent-url", url, "--no-open", "Username for 'https://github.com':")
 		inv.Environ.Set("GIT_PREFIX", "/")
+		inv.Environ.Set("CODER_AGENT_TOKEN", "fake-token")
 		pty := ptytest.New(t)
 		inv.Stderr = pty.Output()
 		err := inv.Run()
@@ -65,6 +69,7 @@ func TestGitAskpass(t *testing.T) {
 
 	t.Run("Poll", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		resp := atomic.Pointer[agentsdk.ExternalAuthResponse]{}
 		resp.Store(&agentsdk.ExternalAuthResponse{
 			URL: "https://something.org",
@@ -86,6 +91,7 @@ func TestGitAskpass(t *testing.T) {
 
 		inv, _ := clitest.New(t, "--agent-url", url, "--no-open", "Username for 'https://github.com':")
 		inv.Environ.Set("GIT_PREFIX", "/")
+		inv.Environ.Set("CODER_AGENT_TOKEN", "fake-token")
 		stdout := ptytest.New(t)
 		inv.Stdout = stdout.Output()
 		stderr := ptytest.New(t)
@@ -94,7 +100,7 @@ func TestGitAskpass(t *testing.T) {
 			err := inv.Run()
 			assert.NoError(t, err)
 		}()
-		<-poll
+		testutil.RequireReceive(ctx, t, poll)
 		stderr.ExpectMatch("Open the following URL to authenticate")
 		resp.Store(&agentsdk.ExternalAuthResponse{
 			Username: "username",

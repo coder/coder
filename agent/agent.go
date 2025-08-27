@@ -74,7 +74,6 @@ type Options struct {
 	LogDir                       string
 	TempDir                      string
 	ScriptDataDir                string
-	ExchangeToken                func(ctx context.Context) (string, error)
 	Client                       Client
 	ReconnectingPTYTimeout       time.Duration
 	EnvironmentVariables         map[string]string
@@ -99,6 +98,7 @@ type Client interface {
 		proto.DRPCAgentClient26, tailnetproto.DRPCTailnetClient26, error,
 	)
 	tailnet.DERPMapRewriter
+	agentsdk.RefreshableSessionTokenProvider
 }
 
 type Agent interface {
@@ -130,11 +130,6 @@ func New(options Options) Agent {
 			options.Logger.Debug(context.Background(), "using script data dir", slog.F("script_data_dir", options.ScriptDataDir))
 		}
 		options.ScriptDataDir = options.TempDir
-	}
-	if options.ExchangeToken == nil {
-		options.ExchangeToken = func(_ context.Context) (string, error) {
-			return "", nil
-		}
 	}
 	if options.ReportMetadataInterval == 0 {
 		options.ReportMetadataInterval = time.Second
@@ -172,7 +167,6 @@ func New(options Options) Agent {
 		coordDisconnected:                  make(chan struct{}),
 		environmentVariables:               options.EnvironmentVariables,
 		client:                             options.Client,
-		exchangeToken:                      options.ExchangeToken,
 		filesystem:                         options.Filesystem,
 		logDir:                             options.LogDir,
 		tempDir:                            options.TempDir,
@@ -203,7 +197,6 @@ func New(options Options) Agent {
 	// coordinator during shut down.
 	close(a.coordDisconnected)
 	a.announcementBanners.Store(new([]codersdk.BannerConfig))
-	a.sessionToken.Store(new(string))
 	a.init()
 	return a
 }
@@ -212,7 +205,6 @@ type agent struct {
 	clock             quartz.Clock
 	logger            slog.Logger
 	client            Client
-	exchangeToken     func(ctx context.Context) (string, error)
 	tailnetListenPort uint16
 	filesystem        afero.Fs
 	logDir            string
@@ -254,7 +246,6 @@ type agent struct {
 	scriptRunner                       *agentscripts.Runner
 	announcementBanners                atomic.Pointer[[]codersdk.BannerConfig] // announcementBanners is atomic because it is periodically updated.
 	announcementBannersRefreshInterval time.Duration
-	sessionToken                       atomic.Pointer[string]
 	sshServer                          *agentssh.Server
 	sshMaxTimeout                      time.Duration
 	blockFileTransfer                  bool
@@ -916,11 +907,10 @@ func (a *agent) run() (retErr error) {
 	// This allows the agent to refresh its token if necessary.
 	// For instance identity this is required, since the instance
 	// may not have re-provisioned, but a new agent ID was created.
-	sessionToken, err := a.exchangeToken(a.hardCtx)
+	err := a.client.RefreshToken(a.hardCtx)
 	if err != nil {
-		return xerrors.Errorf("exchange token: %w", err)
+		return xerrors.Errorf("refresh token: %w", err)
 	}
-	a.sessionToken.Store(&sessionToken)
 
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs
 	aAPI, tAPI, err := a.client.ConnectRPC26(a.hardCtx)
@@ -1359,7 +1349,7 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 		"CODER_WORKSPACE_OWNER_NAME": manifest.OwnerName,
 
 		// Specific Coder subcommands require the agent token exposed!
-		"CODER_AGENT_TOKEN": *a.sessionToken.Load(),
+		"CODER_AGENT_TOKEN": a.client.GetSessionToken(),
 
 		// Git on Windows resolves with UNIX-style paths.
 		// If using backslashes, it's unable to find the executable.

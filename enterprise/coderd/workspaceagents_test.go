@@ -319,7 +319,7 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-	agentClient := agentsdk.New(client.URL)
+	agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(authToken))
 	agentClient.SDK.HTTPClient = &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
@@ -328,7 +328,6 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 			},
 		},
 	}
-	agentClient.SetSessionToken(authToken)
 	agnt := agent.New(agent.Options{
 		Client: agentClient,
 		Logger: testutil.Logger(t).Named("agent"),
