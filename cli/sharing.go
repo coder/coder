@@ -38,11 +38,11 @@ func (r *RootCmd) sharing() *serpent.Command {
 func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Command {
 	var (
 		// Username regex taken from codersdk/name.go
-		userAndGroupRegex = regexp.MustCompile(`(^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*)+(?::([A-Za-z0-9-]+))?`)
-		client            = new(codersdk.Client)
-		users             []string
-		groups            []string
-		formatter         = cliui.NewOutputFormatter(
+		nameRoleRegex = regexp.MustCompile(`(^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*)+(?::([A-Za-z0-9-]+))?`)
+		client        = new(codersdk.Client)
+		users         []string
+		groups        []string
+		formatter     = cliui.NewOutputFormatter(
 			cliui.TableFormat(
 				[]workspaceShareRow{}, []string{"User", "Group", "Role"}),
 			cliui.JSONFormat(),
@@ -92,7 +92,7 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 				}
 
 				for _, user := range users {
-					userAndRole := userAndGroupRegex.FindStringSubmatch(user)
+					userAndRole := nameRoleRegex.FindStringSubmatch(user)
 					username := userAndRole[1]
 					role := userAndRole[2]
 
@@ -126,7 +126,7 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 				}
 
 				for _, group := range groups {
-					groupAndRole := userAndGroupRegex.FindStringSubmatch(group)
+					groupAndRole := nameRoleRegex.FindStringSubmatch(group)
 					groupName := groupAndRole[1]
 					role := groupAndRole[2]
 
@@ -203,14 +203,13 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 }
 
 func stringToWorkspaceRole(role string) (codersdk.WorkspaceRole, error) {
-	if role != "" && role != string(codersdk.WorkspaceRoleAdmin) && role != string(codersdk.WorkspaceRoleUse) {
-		return "", xerrors.Errorf("invalid role %s. Expected %s, or %s", role, codersdk.WorkspaceRoleAdmin, codersdk.WorkspaceRoleUse)
+	switch role {
+	case "", string(codersdk.WorkspaceRoleUse):
+		return codersdk.WorkspaceRoleUse, nil
+	case string(codersdk.WorkspaceRoleAdmin):
+		return codersdk.WorkspaceRoleAdmin, nil
+	default:
+		return "", xerrors.Errorf("invalid role %q: expected %q or %q",
+			role, codersdk.WorkspaceRoleAdmin, codersdk.WorkspaceRoleUse)
 	}
-
-	workspaceRole := codersdk.WorkspaceRoleUse
-	if role == string(codersdk.WorkspaceRoleAdmin) {
-		workspaceRole = codersdk.WorkspaceRoleAdmin
-	}
-
-	return workspaceRole, nil
 }
