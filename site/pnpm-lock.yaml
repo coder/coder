@@ -12,6 +12,7 @@ overrides:
   esbuild: ^0.25.0
   form-data: 4.0.4
   prismjs: 1.30.0
+  dompurify: 3.2.6
 
 importers:
 
