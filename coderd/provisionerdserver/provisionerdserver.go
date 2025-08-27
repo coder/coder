@@ -1995,6 +1995,37 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			sidebarAppID = uuid.NullUUID{UUID: id, Valid: true}
 		}
 
+		// This is a hacky workaround for the issue with tasks 'disappearing' on stop:
+		// reuse has_ai_task and sidebar_app_id from the previous build.
+		// This workaround should be removed as soon as possible.
+		if workspaceBuild.Transition == database.WorkspaceTransitionStop && workspaceBuild.BuildNumber > 1 {
+			if prevBuild, err := s.Database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
+				WorkspaceID: workspaceBuild.WorkspaceID,
+				BuildNumber: workspaceBuild.BuildNumber - 1,
+			}); err == nil {
+				hasAITask = prevBuild.HasAITask.Bool
+				sidebarAppID = prevBuild.AITaskSidebarAppID
+				warnUnknownSidebarAppID = false
+				s.Logger.Debug(ctx, "task workaround: reused has_ai_task and sidebar_app_id from previous build to keep track of task",
+					slog.F("job_id", job.ID.String()),
+					slog.F("build_number", prevBuild.BuildNumber),
+					slog.F("workspace_id", workspace.ID),
+					slog.F("workspace_build_id", workspaceBuild.ID),
+					slog.F("transition", string(workspaceBuild.Transition)),
+					slog.F("sidebar_app_id", sidebarAppID.UUID),
+					slog.F("has_ai_task", hasAITask),
+				)
+			} else {
+				s.Logger.Error(ctx, "task workaround: tracking via has_ai_task and sidebar_app from previous build failed",
+					slog.Error(err),
+					slog.F("job_id", job.ID.String()),
+					slog.F("workspace_id", workspace.ID),
+					slog.F("workspace_build_id", workspaceBuild.ID),
+					slog.F("transition", string(workspaceBuild.Transition)),
+				)
+			}
+		}
+
 		if warnUnknownSidebarAppID {
 			// Ref: https://github.com/coder/coder/issues/18776
 			// This can happen for a number of reasons:
