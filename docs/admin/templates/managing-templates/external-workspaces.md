@@ -58,9 +58,11 @@ Use external workspaces if:
 
 You can create and manage external workspaces using either the **CLI** or the **UI**.
 
-### CLI workflow
+<div class="tabs">
 
-#### 1. Create an external workspace
+## CLI
+
+### 1. Create an external workspace
 
 ```bash
 coder external-workspaces create hello-world \
@@ -72,7 +74,7 @@ coder external-workspaces create hello-world \
 
 ---
 
-#### 2. List external workspaces
+### 2. List external workspaces
 
 ```bash
 coder external-workspaces list
@@ -87,7 +89,7 @@ hello-world      externally-managed-workspace Started  true     15m         happ
 
 ---
 
-#### 3. Retrieve agent connection instructions
+### 3. Retrieve agent connection instructions
 
 Use this command to query the script you must run on the external machine:
 
@@ -119,7 +121,7 @@ coder external-workspaces agent-instructions hello-world --output=json
 }
 ```
 
-### UI workflow
+## UI
 
 1. Import the external workspace template (see prerequisites).
 2. In the Coder UI, go to **Workspaces → New workspace** and select the imported template.
@@ -129,3 +131,5 @@ coder external-workspaces agent-instructions hello-world --output=json
    - Users are provided with instructions for launching the agent manually on the external machine.
 
 ![External Workspace View](../../../images/admin/templates/external-workspace.png)
+
+</div>
