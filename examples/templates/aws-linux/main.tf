@@ -207,11 +207,12 @@ module "code-server" {
 
 # See https://registry.coder.com/modules/coder/jetbrains
 module "jetbrains" {
-  count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/coder/jetbrains/coder"
-  version  = "~> 1.0"
-  agent_id = coder_agent.dev[0].id
-  folder   = "/home/coder"
+  count      = data.coder_workspace.me.start_count
+  source     = "registry.coder.com/coder/jetbrains/coder"
+  version    = "~> 1.0"
+  agent_id   = coder_agent.dev[0].id
+  agent_name = "dev"
+  folder     = "/home/coder"
 }
 
 locals {

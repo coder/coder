@@ -58,11 +58,12 @@ module "code-server" {
 
 # See https://registry.coder.com/modules/coder/jetbrains
 module "jetbrains" {
-  count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/coder/jetbrains/coder"
-  version  = "~> 1.0"
-  agent_id = coder_agent.main.id
-  folder   = "/home/coder"
+  count      = data.coder_workspace.me.start_count
+  source     = "registry.coder.com/coder/jetbrains/coder"
+  version    = "~> 1.0"
+  agent_id   = coder_agent.main.id
+  agent_name = "main"
+  folder     = "/home/coder"
 }
 
 # See https://registry.terraform.io/modules/terraform-google-modules/container-vm
