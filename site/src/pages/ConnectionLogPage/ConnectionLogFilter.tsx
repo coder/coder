@@ -8,7 +8,11 @@ import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
-import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
+import {
+	DEFAULT_USER_FILTER_WIDTH,
+	type UserFilterMenu,
+	UserMenu,
+} from "components/Filter/UserFilter";
 import capitalize from "lodash/capitalize";
 import {
 	type OrganizationsFilterMenu,
@@ -42,8 +46,6 @@ export const ConnectionLogFilter: FC<ConnectionLogFilterProps> = ({
 	error,
 	menus,
 }) => {
-	const width = menus.organization ? 175 : undefined;
-
 	return (
 		<Filter
 			learnMoreLink={docs(
@@ -55,11 +57,14 @@ export const ConnectionLogFilter: FC<ConnectionLogFilterProps> = ({
 			error={error}
 			options={
 				<>
-					<UserMenu placeholder="All owners" menu={menus.user} width={width} />
-					<StatusMenu menu={menus.status} width={width} />
-					<TypeMenu menu={menus.type} width={width} />
+					<UserMenu placeholder="All owners" menu={menus.user} />
+					<StatusMenu menu={menus.status} width={DEFAULT_USER_FILTER_WIDTH} />
+					<TypeMenu menu={menus.type} width={DEFAULT_USER_FILTER_WIDTH} />
 					{menus.organization && (
-						<OrganizationsMenu menu={menus.organization} width={width} />
+						<OrganizationsMenu
+							menu={menus.organization}
+							width={DEFAULT_USER_FILTER_WIDTH}
+						/>
 					)}
 				</>
 			}

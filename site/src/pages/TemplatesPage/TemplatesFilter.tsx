@@ -16,7 +16,6 @@ import {
 	type UserFilterMenu,
 	UserMenu,
 } from "../../components/Filter/UserFilter";
-import { useDashboard } from "../../modules/dashboard/useDashboard";
 
 interface TemplatesFilterProps {
 	filter: UseFilterResult;
@@ -30,8 +29,6 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 	error,
 	userMenu,
 }) => {
-	const { showOrganizations } = useDashboard();
-	const width = showOrganizations ? 175 : undefined;
 	const organizationMenu = useFilterMenu({
 		onChange: (option) =>
 			filter.update({ ...filter.values, organization: option?.value }),
@@ -65,7 +62,7 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 			error={error}
 			options={
 				<>
-					{userMenu && <UserMenu width={width} menu={userMenu} />}
+					{userMenu && <UserMenu menu={userMenu} />}
 					<SelectFilter
 						placeholder="All organizations"
 						label="Select an organization"

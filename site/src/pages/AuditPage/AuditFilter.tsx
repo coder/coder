@@ -8,7 +8,11 @@ import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
-import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
+import {
+	DEFAULT_USER_FILTER_WIDTH,
+	type UserFilterMenu,
+	UserMenu,
+} from "components/Filter/UserFilter";
 import capitalize from "lodash/capitalize";
 import {
 	type OrganizationsFilterMenu,
@@ -47,8 +51,6 @@ interface AuditFilterProps {
 }
 
 export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
-	const width = menus.organization ? 175 : undefined;
-
 	return (
 		<Filter
 			learnMoreLink={docs("/admin/security/audit-logs#filtering-logs")}
@@ -58,11 +60,17 @@ export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
 			error={error}
 			options={
 				<>
-					<ResourceTypeMenu width={width} menu={menus.resourceType} />
-					<ActionMenu width={width} menu={menus.action} />
-					<UserMenu width={width} menu={menus.user} />
+					<ResourceTypeMenu
+						width={DEFAULT_USER_FILTER_WIDTH}
+						menu={menus.resourceType}
+					/>
+					<ActionMenu width={DEFAULT_USER_FILTER_WIDTH} menu={menus.action} />
+					<UserMenu menu={menus.user} />
 					{menus.organization && (
-						<OrganizationsMenu width={width} menu={menus.organization} />
+						<OrganizationsMenu
+							width={DEFAULT_USER_FILTER_WIDTH}
+							menu={menus.organization}
+						/>
 					)}
 				</>
 			}
