@@ -529,10 +529,10 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 	s.Run("ArchiveUnusedTemplateVersions", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		tpl := testutil.Fake(s.T(), faker, database.Template{})
 		v := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
-		arg := database.ArchiveUnusedTemplateVersionsParams{UpdatedAt: dbtime.Now(), TemplateID: tpl.ID, TemplateVersionID: uuid.Nil, JobStatus: database.NullProvisionerJobStatus{}}
+		arg := database.ArchiveUnusedTemplateVersionsParams{UpdatedAt: dbtime.Now(), TemplateID: tpl.ID, TemplateVersionID: v.ID, JobStatus: database.NullProvisionerJobStatus{}}
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
 		dbm.EXPECT().ArchiveUnusedTemplateVersions(gomock.Any(), arg).Return([]uuid.UUID{}, nil).AnyTimes()
-		check.Args(arg).Asserts(v.RBACObject(tpl), policy.ActionUpdate)
+		check.Args(arg).Asserts(tpl.RBACObject(), policy.ActionUpdate)
 	}))
 	s.Run("UnarchiveTemplateVersion", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		tpl := testutil.Fake(s.T(), faker, database.Template{})
@@ -541,12 +541,12 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 		dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), v.ID).Return(v, nil).AnyTimes()
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
 		dbm.EXPECT().UnarchiveTemplateVersion(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(v.RBACObject(tpl), policy.ActionUpdate)
+		check.Args(arg).Asserts(tpl.RBACObject(), policy.ActionUpdate)
 	}))
 	s.Run("Build/GetProvisionerJobByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
-		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{WorkspaceID: ws.ID})
 		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeWorkspaceBuild})
+		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: j.ID})
 		dbm.EXPECT().GetProvisionerJobByID(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
 		dbm.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), j.ID).Return(build, nil).AnyTimes()
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), build.WorkspaceID).Return(ws, nil).AnyTimes()
@@ -554,8 +554,8 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 	}))
 	s.Run("TemplateVersion/GetProvisionerJobByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		tpl := testutil.Fake(s.T(), faker, database.Template{})
-		v := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
 		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeTemplateVersionImport})
+		v := testutil.Fake(s.T(), faker, database.TemplateVersion{JobID: j.ID, TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
 		dbm.EXPECT().GetProvisionerJobByID(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
 		dbm.EXPECT().GetTemplateVersionByJobID(gomock.Any(), j.ID).Return(v, nil).AnyTimes()
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
@@ -563,8 +563,8 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 	}))
 	s.Run("TemplateVersionDryRun/GetProvisionerJobByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		tpl := testutil.Fake(s.T(), faker, database.Template{})
-		v := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
 		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeTemplateVersionDryRun})
+		v := testutil.Fake(s.T(), faker, database.TemplateVersion{JobID: j.ID, TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
 		j.Input = must(json.Marshal(struct {
 			TemplateVersionID uuid.UUID `json:"template_version_id"`
 		}{TemplateVersionID: v.ID}))
@@ -576,12 +576,13 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 	s.Run("Build/UpdateProvisionerJobWithCancelByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		tpl := testutil.Fake(s.T(), faker, database.Template{AllowUserCancelWorkspaceJobs: true})
 		ws := testutil.Fake(s.T(), faker, database.Workspace{TemplateID: tpl.ID})
-		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{WorkspaceID: ws.ID})
 		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeWorkspaceBuild})
+		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: ws.ID})
 		arg := database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}
+
 		dbm.EXPECT().GetProvisionerJobByID(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
 		dbm.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), j.ID).Return(build, nil).AnyTimes()
-		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), build.WorkspaceID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
 		dbm.EXPECT().UpdateProvisionerJobWithCancelByID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(ws, policy.ActionUpdate).Returns()
@@ -589,20 +590,20 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 	s.Run("BuildFalseCancel/UpdateProvisionerJobWithCancelByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		tpl := testutil.Fake(s.T(), faker, database.Template{AllowUserCancelWorkspaceJobs: false})
 		ws := testutil.Fake(s.T(), faker, database.Workspace{TemplateID: tpl.ID})
-		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{WorkspaceID: ws.ID})
 		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeWorkspaceBuild})
+		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: ws.ID})
 		arg := database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}
 		dbm.EXPECT().GetProvisionerJobByID(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
 		dbm.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), j.ID).Return(build, nil).AnyTimes()
-		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), build.WorkspaceID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
 		dbm.EXPECT().UpdateProvisionerJobWithCancelByID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(ws, policy.ActionUpdate).Returns()
 	}))
 	s.Run("TemplateVersion/UpdateProvisionerJobWithCancelByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		tpl := testutil.Fake(s.T(), faker, database.Template{})
-		v := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
 		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeTemplateVersionImport})
+		v := testutil.Fake(s.T(), faker, database.TemplateVersion{JobID: j.ID, TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
 		arg := database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}
 		dbm.EXPECT().GetProvisionerJobByID(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
 		dbm.EXPECT().GetTemplateVersionByJobID(gomock.Any(), j.ID).Return(v, nil).AnyTimes()
@@ -611,8 +612,8 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 		check.Args(arg).Asserts(v.RBACObject(tpl), []policy.Action{policy.ActionRead, policy.ActionUpdate}).Returns()
 	}))
 	s.Run("TemplateVersionNoTemplate/UpdateProvisionerJobWithCancelByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		v := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: uuid.Nil, Valid: false}})
 		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeTemplateVersionImport})
+		v := testutil.Fake(s.T(), faker, database.TemplateVersion{JobID: j.ID, TemplateID: uuid.NullUUID{UUID: uuid.Nil, Valid: false}})
 		arg := database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}
 		dbm.EXPECT().GetProvisionerJobByID(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
 		dbm.EXPECT().GetTemplateVersionByJobID(gomock.Any(), j.ID).Return(v, nil).AnyTimes()
@@ -621,8 +622,8 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 	}))
 	s.Run("TemplateVersionDryRun/UpdateProvisionerJobWithCancelByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		tpl := testutil.Fake(s.T(), faker, database.Template{})
-		v := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
 		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeTemplateVersionDryRun})
+		v := testutil.Fake(s.T(), faker, database.TemplateVersion{JobID: j.ID, TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
 		j.Input = must(json.Marshal(struct {
 			TemplateVersionID uuid.UUID `json:"template_version_id"`
 		}{TemplateVersionID: v.ID}))
@@ -635,20 +636,24 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 	}))
 	s.Run("GetProvisionerJobsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		org := testutil.Fake(s.T(), faker, database.Organization{})
+		org2 := testutil.Fake(s.T(), faker, database.Organization{})
 		a := testutil.Fake(s.T(), faker, database.ProvisionerJob{OrganizationID: org.ID})
-		b := testutil.Fake(s.T(), faker, database.ProvisionerJob{OrganizationID: org.ID})
+		b := testutil.Fake(s.T(), faker, database.ProvisionerJob{OrganizationID: org2.ID})
 		ids := []uuid.UUID{a.ID, b.ID}
 		dbm.EXPECT().GetProvisionerJobsByIDs(gomock.Any(), ids).Return([]database.ProvisionerJob{a, b}, nil).AnyTimes()
-		check.Args(ids).Asserts(rbac.ResourceProvisionerJobs.InOrg(org.ID), policy.ActionRead).Returns(slice.New(a, b))
+		check.Args(ids).Asserts(
+			rbac.ResourceProvisionerJobs.InOrg(org.ID), policy.ActionRead,
+			rbac.ResourceProvisionerJobs.InOrg(org2.ID), policy.ActionRead,
+		).Returns(slice.New(a, b))
 	}))
 	s.Run("GetProvisionerLogsAfterID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
-		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{WorkspaceID: ws.ID})
 		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeWorkspaceBuild})
+		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: ws.ID})
 		arg := database.GetProvisionerLogsAfterIDParams{JobID: j.ID}
 		dbm.EXPECT().GetProvisionerJobByID(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
 		dbm.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), j.ID).Return(build, nil).AnyTimes()
-		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), build.WorkspaceID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
 		dbm.EXPECT().GetProvisionerLogsAfterID(gomock.Any(), arg).Return([]database.ProvisionerJobLog{}, nil).AnyTimes()
 		check.Args(arg).Asserts(ws, policy.ActionRead).Returns([]database.ProvisionerJobLog{})
 	}))
