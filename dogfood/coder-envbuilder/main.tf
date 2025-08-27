@@ -138,7 +138,7 @@ module "code-server" {
 module "jetbrains" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/jetbrains/coder"
-  version  = "1.0.3"
+  version  = "~> 1.0"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
