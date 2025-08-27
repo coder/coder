@@ -100,7 +100,7 @@ by using the `coder-preview:latest` image tag.
 This image is automatically updated with the latest changes from the `main` branch.
 
 Replace `ghcr.io/coder/coder:latest` in the `docker run` command in the
-[steps above](#install-coder-via-docker-run) with `ghcr.io/coder/coder-preview:latest`.
+[installation methods above](#installation-methods) with `ghcr.io/coder/coder-preview:latest`.
 
 ## Troubleshooting
 
