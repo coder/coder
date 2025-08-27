@@ -1997,7 +1997,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 
 		// This is a hacky workaround for the issue with tasks 'disappearing' on stop:
 		// reuse has_ai_task and sidebar_app_id from the previous build.
-		// It should be removed as soon as possible.
+		// This workaround should be removed as soon as possible.
 		if workspaceBuild.Transition == database.WorkspaceTransitionStop && workspaceBuild.BuildNumber > 1 {
 			if prevBuild, err := s.Database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
 				WorkspaceID: workspaceBuild.WorkspaceID,
@@ -2006,7 +2006,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				hasAITask = prevBuild.HasAITask.Bool
 				sidebarAppID = prevBuild.AITaskSidebarAppID
 				warnUnknownSidebarAppID = false
-				s.Logger.Warn(ctx, "hacky task workaround: reused has_ai_task and sidebar_app_id from previous build",
+				s.Logger.Debug(ctx, "task workaround: reused has_ai_task and sidebar_app_id from previous build to keep track of task",
 					slog.F("job_id", job.ID.String()),
 					slog.F("build_number", prevBuild.BuildNumber),
 					slog.F("workspace_id", workspace.ID),
@@ -2016,7 +2016,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 					slog.F("has_ai_task", hasAITask),
 				)
 			} else {
-				s.Logger.Error(ctx, "hacky task workaround failed",
+				s.Logger.Error(ctx, "task workaround: tracking via has_ai_task and sidebar_app from previous build failed",
 					slog.Error(err),
 					slog.F("job_id", job.ID.String()),
 					slog.F("workspace_id", workspace.ID),

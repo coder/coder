@@ -2842,7 +2842,7 @@ func TestCompleteJob(t *testing.T) {
 		// has_ai_task has a default value of nil, but once the workspace build completes it will have a value;
 		// it is set to "true" if the related template has any coder_ai_task resources defined, and its sidebar app ID
 		// will be set as well in that case.
-		// HACK: we also set it to "true" if any _previous_ workspace builds ever had it set to "true".
+		// HACK(johnstcn): we also set it to "true" if any _previous_ workspace builds ever had it set to "true".
 		// This is to avoid tasks "disappearing" when you stop them.
 		t.Run("WorkspaceBuild", func(t *testing.T) {
 			type testcase struct {
