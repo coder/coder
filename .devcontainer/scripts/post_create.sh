@@ -1,23 +1,28 @@
 #!/bin/sh
 
 install_devcontainer_cli() {
-	# Install @devcontainers/cli via a pinned, hash-verified lockfile using npm ci.
+	# Install @devcontainers/cli from a pinned commit hash (Scorecard-approved) by cloning and building.
 	set -e
-	cd "$(dirname "$0")/../tools/devcontainer-cli" 2>/dev/null || true
-	if [ -f package-lock.json ]; then
-		npm ci --omit=dev
-		ln -sf "$(pwd)/node_modules/.bin/devcontainer" /usr/local/bin/devcontainer
-		return
-	fi
+	SHA="2d577908f9357dd79d309b84e73d55daff828066" # devcontainers/cli commit
+	PREFIX="/opt/devcontainers-cli-src"
 
-	# Fallback: if lockfile is missing in the image, create it deterministically.
-	mkdir -p /opt/devcontainer-cli
-	cd /opt/devcontainer-cli
-	npm init -y >/dev/null 2>&1 || true
-	npm pkg set private=true >/dev/null 2>&1 || true
-	npm i --package-lock-only @devcontainers/cli@0.80.0
-	npm ci --omit=dev
-	ln -sf /opt/devcontainer-cli/node_modules/.bin/devcontainer /usr/local/bin/devcontainer
+	if [ ! -d "$PREFIX" ]; then
+		git clone https://github.com/devcontainers/cli.git "$PREFIX"
+	fi
+	cd "$PREFIX"
+	git fetch --all --tags --prune
+	git checkout --force "$SHA"
+
+	# Build the CLI (produces dist/ consumed by devcontainer.js)
+	npm ci
+	npm run compile-prod
+
+	# Wrapper to invoke the built CLI
+	cat >/usr/local/bin/devcontainer <<'EOF'
+#!/usr/bin/env bash
+exec node /opt/devcontainers-cli-src/devcontainer.js "$@"
+EOF
+	chmod +x /usr/local/bin/devcontainer
 }
 
 install_ssh_config() {
