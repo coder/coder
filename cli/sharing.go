@@ -112,7 +112,6 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 			}
 
 			groupRoles := make(map[string]codersdk.WorkspaceRole)
-			fmt.Printf("%v\n", groups)
 			if len(groups) > 0 {
 				orgGroups, err := client.Groups(inv.Context(), codersdk.GroupArguments{
 					Organization: org.ID.String(),
