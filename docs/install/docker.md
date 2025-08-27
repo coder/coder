@@ -13,41 +13,12 @@ You can install and run Coder using the official Docker images published on
 
 - 2 CPU cores and 4 GB memory free on your machine.
 
-## Install Coder via `docker run`
+## Installation Methods
 
-### Built-in database (quick)
+<Tabs>
+<TabItem value="docker-compose" label="Docker Compose" default>
 
-For proof-of-concept deployments, you can run a complete Coder instance with the
-following command.
-
-```shell
-export CODER_DATA=$HOME/.config/coderv2-docker
-export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
-mkdir -p $CODER_DATA
-docker run --rm -it \
-  -v $CODER_DATA:/home/coder/.config \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  --group-add $DOCKER_GROUP \
-  ghcr.io/coder/coder:latest
-```
-
-### External database (recommended)
-
-For production deployments, we recommend using an external PostgreSQL database
-(version 13 or higher). Set `CODER_ACCESS_URL` to the external URL that users
-and workspaces will use to connect to Coder.
-
-```shell
-export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
-docker run --rm -it \
-  -e CODER_ACCESS_URL="https://coder.example.com" \
-  -e CODER_PG_CONNECTION_URL="postgresql://username:password@database/coder" \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  --group-add $DOCKER_GROUP \
-  ghcr.io/coder/coder:latest
-```
-
-## Install Coder via `docker compose`
+### Install Coder via `docker compose`
 
 Coder's publishes a
 [docker compose example](https://github.com/coder/coder/blob/main/compose.yaml)
@@ -76,6 +47,47 @@ which includes an PostgreSQL container and volume.
 
 Coder configuration is defined via environment variables. Learn more about
 Coder's [configuration options](../admin/setup/index.md).
+
+</TabItem>
+<TabItem value="docker-run-builtin" label="Docker Run (Built-in DB)">
+
+### Built-in database (quick)
+
+For proof-of-concept deployments, you can run a complete Coder instance with the
+following command.
+
+```shell
+export CODER_DATA=$HOME/.config/coderv2-docker
+export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
+mkdir -p $CODER_DATA
+docker run --rm -it \
+  -v $CODER_DATA:/home/coder/.config \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  --group-add $DOCKER_GROUP \
+  ghcr.io/coder/coder:latest
+```
+
+</TabItem>
+<TabItem value="docker-run-external" label="Docker Run (External DB)">
+
+### External database (recommended)
+
+For production deployments, we recommend using an external PostgreSQL database
+(version 13 or higher). Set `CODER_ACCESS_URL` to the external URL that users
+and workspaces will use to connect to Coder.
+
+```shell
+export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
+docker run --rm -it \
+  -e CODER_ACCESS_URL="https://coder.example.com" \
+  -e CODER_PG_CONNECTION_URL="postgresql://username:password@database/coder" \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  --group-add $DOCKER_GROUP \
+  ghcr.io/coder/coder:latest
+```
+
+</TabItem>
+</Tabs>
 
 ## Install the preview release
 
