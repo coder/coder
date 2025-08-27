@@ -1830,10 +1830,11 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("GetWorkspaceBuildsByWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		b1 := testutil.Fake(s.T(), faker, database.WorkspaceBuild{})
 		arg := database.GetWorkspaceBuildsByWorkspaceIDParams{WorkspaceID: ws.ID}
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
-		dbm.EXPECT().GetWorkspaceBuildsByWorkspaceID(gomock.Any(), arg).Return([]database.WorkspaceBuild{}, nil).AnyTimes()
-		check.Args(arg).Asserts(ws, policy.ActionRead)
+		dbm.EXPECT().GetWorkspaceBuildsByWorkspaceID(gomock.Any(), arg).Return([]database.WorkspaceBuild{b1}, nil).AnyTimes()
+		check.Args(arg).Asserts(ws, policy.ActionRead).Returns([]database.WorkspaceBuild{b1})
 	}))
 	s.Run("GetWorkspaceByAgentID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
