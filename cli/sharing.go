@@ -67,7 +67,7 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 		},
 		Middleware: serpent.Chain(
 			r.InitClient(client),
-			// serpent.RequireRangeArgs(1, -1),
+			serpent.RequireRangeArgs(1, -1),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
