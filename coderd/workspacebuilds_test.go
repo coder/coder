@@ -578,10 +578,11 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 			return assert.NoError(t, err) && build.Job.Status == codersdk.ProvisionerJobRunning
 		}, testutil.WaitShort, testutil.IntervalFast)
 
-		time.Sleep(testutil.IntervalMedium)
+		require.Eventually(t, func() bool {
+			err := client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
+			return assert.NoError(t, err)
+		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		err := client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
-		require.NoError(t, err)
 		require.Eventually(t, func() bool {
 			var err error
 			build, err = client.WorkspaceBuild(ctx, build.ID)
