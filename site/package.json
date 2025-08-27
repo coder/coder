@@ -204,7 +204,8 @@
 			"@babel/helpers": "7.26.10",
 			"esbuild": "^0.25.0",
 			"form-data": "4.0.4",
-			"prismjs": "1.30.0"
+			"prismjs": "1.30.0",
+			"dompurify": "3.2.6"
 		},
 		"ignoredBuiltDependencies": [
 			"storybook-addon-remix-react-router"
