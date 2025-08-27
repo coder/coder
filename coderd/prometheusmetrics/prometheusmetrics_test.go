@@ -277,7 +277,7 @@ func TestWorkspaceLatestBuildTotals(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
-			closeFunc, _, err := prometheusmetrics.Workspaces(context.Background(), testutil.Logger(t).Leveled(slog.LevelWarn), registry, tc.Database(), testutil.IntervalFast)
+			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), testutil.Logger(t).Leveled(slog.LevelWarn), registry, tc.Database(), testutil.IntervalFast)
 			require.NoError(t, err)
 			t.Cleanup(closeFunc)
 
@@ -380,7 +380,7 @@ func TestWorkspaceLatestBuildStatuses(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
-			closeFunc, _, err := prometheusmetrics.Workspaces(context.Background(), testutil.Logger(t), registry, tc.Database(), testutil.IntervalFast)
+			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), testutil.Logger(t), registry, tc.Database(), testutil.IntervalFast)
 			require.NoError(t, err)
 			t.Cleanup(closeFunc)
 

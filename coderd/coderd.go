@@ -241,8 +241,7 @@ type Options struct {
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
 
-	// Function to update workspace timing metrics from provisionerdserver
-	UpdateWorkspaceTimingMetricsFn prometheusmetrics.UpdateWorkspaceTimingMetricsFn
+	ProvisionerdServerMetrics *provisionerdserver.Metrics
 
 	// WorkspaceAppAuditSessionTimeout allows changing the timeout for audit
 	// sessions. Raising or lowering this value will directly affect the write
@@ -1927,13 +1926,13 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		api.UsageInserter,
 		api.DeploymentValues,
 		provisionerdserver.Options{
-			OIDCConfig:                     api.OIDCConfig,
-			ExternalAuthConfigs:            api.ExternalAuthConfigs,
-			Clock:                          api.Clock,
-			UpdateWorkspaceTimingMetricsFn: api.UpdateWorkspaceTimingMetricsFn,
+			OIDCConfig:          api.OIDCConfig,
+			ExternalAuthConfigs: api.ExternalAuthConfigs,
+			Clock:               api.Clock,
 		},
 		api.NotificationsEnqueuer,
 		&api.PrebuildsReconciler,
+		api.ProvisionerdServerMetrics,
 	)
 	if err != nil {
 		return nil, err

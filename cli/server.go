@@ -53,6 +53,8 @@ import (
 	"gopkg.in/yaml.v3"
 	"tailscale.com/tailcfg"
 
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/pproflabel"
@@ -236,12 +238,11 @@ func enablePrometheus(
 	}
 	afterCtx(ctx, closeUsersFunc)
 
-	closeWorkspacesFunc, updateWorkspaceTimingsMetrics, err := prometheusmetrics.Workspaces(ctx, options.Logger.Named("workspaces_metrics"), options.PrometheusRegistry, options.Database, 0)
+	closeWorkspacesFunc, err := prometheusmetrics.Workspaces(ctx, options.Logger.Named("workspaces_metrics"), options.PrometheusRegistry, options.Database, 0)
 	if err != nil {
 		return nil, xerrors.Errorf("register workspaces prometheus metric: %w", err)
 	}
 	afterCtx(ctx, closeWorkspacesFunc)
-	options.UpdateWorkspaceTimingMetricsFn = updateWorkspaceTimingsMetrics
 
 	insightsMetricsCollector, err := insights.NewMetricsCollector(options.Database, options.Logger, 0, 0)
 	if err != nil {
@@ -280,6 +281,12 @@ func enablePrometheus(
 			return nil, xerrors.Errorf("can't register metrics aggregator as collector: %w", err)
 		}
 	}
+
+	provisionerdserverMetrics := provisionerdserver.NewMetrics(logger)
+	if err := provisionerdserverMetrics.Register(options.PrometheusRegistry); err != nil {
+		return nil, xerrors.Errorf("failed to register provisionerd_server metrics: %w", err)
+	}
+	options.ProvisionerdServerMetrics = provisionerdserverMetrics
 
 	//nolint:revive
 	return ServeHandler(

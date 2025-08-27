@@ -355,13 +355,13 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		api.AGPL.UsageInserter,
 		api.DeploymentValues,
 		provisionerdserver.Options{
-			ExternalAuthConfigs:            api.ExternalAuthConfigs,
-			OIDCConfig:                     api.OIDCConfig,
-			Clock:                          api.Clock,
-			UpdateWorkspaceTimingMetricsFn: api.UpdateWorkspaceTimingMetricsFn,
+			ExternalAuthConfigs: api.ExternalAuthConfigs,
+			OIDCConfig:          api.OIDCConfig,
+			Clock:               api.Clock,
 		},
 		api.NotificationsEnqueuer,
 		&api.AGPL.PrebuildsReconciler,
+		api.ProvisionerdServerMetrics,
 	)
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {

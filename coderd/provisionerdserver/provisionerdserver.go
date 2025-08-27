@@ -37,7 +37,6 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
-	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -93,9 +92,6 @@ type Options struct {
 	// The default function just calls UpdateProvisionerDaemonLastSeenAt.
 	// This is mainly used for testing.
 	HeartbeatFn func(context.Context) error
-
-	// Function to update workspace timing metrics
-	UpdateWorkspaceTimingMetricsFn prometheusmetrics.UpdateWorkspaceTimingMetricsFn
 }
 
 type server struct {
@@ -134,8 +130,7 @@ type server struct {
 	heartbeatInterval time.Duration
 	heartbeatFn       func(ctx context.Context) error
 
-	// Function to update workspace timing metrics
-	UpdateWorkspaceTimingMetricsFn prometheusmetrics.UpdateWorkspaceTimingMetricsFn
+	metrics *Metrics
 }
 
 // We use the null byte (0x00) in generating a canonical map key for tags, so
@@ -185,6 +180,7 @@ func NewServer(
 	options Options,
 	enqueuer notifications.Enqueuer,
 	prebuildsOrchestrator *atomic.Pointer[prebuilds.ReconciliationOrchestrator],
+	metrics *Metrics,
 ) (proto.DRPCProvisionerDaemonServer, error) {
 	// Fail-fast if pointers are nil
 	if lifecycleCtx == nil {
@@ -228,34 +224,34 @@ func NewServer(
 	}
 
 	s := &server{
-		lifecycleCtx:                   lifecycleCtx,
-		apiVersion:                     apiVersion,
-		AccessURL:                      accessURL,
-		ID:                             id,
-		OrganizationID:                 organizationID,
-		Logger:                         logger,
-		Provisioners:                   provisioners,
-		ExternalAuthConfigs:            options.ExternalAuthConfigs,
-		Tags:                           tags,
-		Database:                       db,
-		Pubsub:                         ps,
-		Acquirer:                       acquirer,
-		NotificationsEnqueuer:          enqueuer,
-		Telemetry:                      tel,
-		Tracer:                         tracer,
-		QuotaCommitter:                 quotaCommitter,
-		Auditor:                        auditor,
-		TemplateScheduleStore:          templateScheduleStore,
-		UserQuietHoursScheduleStore:    userQuietHoursScheduleStore,
-		DeploymentValues:               deploymentValues,
-		OIDCConfig:                     options.OIDCConfig,
-		Clock:                          options.Clock,
-		acquireJobLongPollDur:          options.AcquireJobLongPollDur,
-		heartbeatInterval:              options.HeartbeatInterval,
-		heartbeatFn:                    options.HeartbeatFn,
-		PrebuildsOrchestrator:          prebuildsOrchestrator,
-		UsageInserter:                  usageInserter,
-		UpdateWorkspaceTimingMetricsFn: options.UpdateWorkspaceTimingMetricsFn,
+		lifecycleCtx:                lifecycleCtx,
+		apiVersion:                  apiVersion,
+		AccessURL:                   accessURL,
+		ID:                          id,
+		OrganizationID:              organizationID,
+		Logger:                      logger,
+		Provisioners:                provisioners,
+		ExternalAuthConfigs:         options.ExternalAuthConfigs,
+		Tags:                        tags,
+		Database:                    db,
+		Pubsub:                      ps,
+		Acquirer:                    acquirer,
+		NotificationsEnqueuer:       enqueuer,
+		Telemetry:                   tel,
+		Tracer:                      tracer,
+		QuotaCommitter:              quotaCommitter,
+		Auditor:                     auditor,
+		TemplateScheduleStore:       templateScheduleStore,
+		UserQuietHoursScheduleStore: userQuietHoursScheduleStore,
+		DeploymentValues:            deploymentValues,
+		OIDCConfig:                  options.OIDCConfig,
+		Clock:                       options.Clock,
+		acquireJobLongPollDur:       options.AcquireJobLongPollDur,
+		heartbeatInterval:           options.HeartbeatInterval,
+		heartbeatFn:                 options.HeartbeatFn,
+		PrebuildsOrchestrator:       prebuildsOrchestrator,
+		UsageInserter:               usageInserter,
+		metrics:                     metrics,
 	}
 
 	if s.heartbeatFn == nil {
@@ -2290,7 +2286,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 	}
 
 	// Update workspace (regular and prebuild) timing metrics
-	if s.UpdateWorkspaceTimingMetricsFn != nil {
+	if s.metrics != nil {
 		// Get the updated job to report the metrics with correct data
 		updatedJob, err := s.Database.GetProvisionerJobByID(ctx, jobID)
 		if err != nil {
@@ -2310,12 +2306,10 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			// Only consider succeeded provisioner jobs
 			if updatedJob.JobStatus == database.ProvisionerJobStatusSucceeded {
 				buildTime := updatedJob.CompletedAt.Time.Sub(updatedJob.StartedAt.Time).Seconds()
-				s.UpdateWorkspaceTimingMetricsFn(
-					prometheusmetrics.GetTimingType(
-						input.PrebuiltWorkspaceBuildStage.IsPrebuild(),
-						input.PrebuiltWorkspaceBuildStage.IsPrebuiltWorkspaceClaim(),
-						workspaceBuild.BuildNumber == 1,
-					),
+				s.metrics.UpdateWorkspaceTimingsMetrics(
+					input.PrebuiltWorkspaceBuildStage.IsPrebuild(),
+					input.PrebuiltWorkspaceBuildStage.IsPrebuiltWorkspaceClaim(),
+					workspaceBuild.BuildNumber == 1,
 					workspace.OrganizationName,
 					workspace.TemplateName,
 					presetName,
