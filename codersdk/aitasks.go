@@ -183,3 +183,18 @@ func (c *ExperimentalClient) TaskByID(ctx context.Context, id uuid.UUID) (Task, 
 
 	return task, nil
 }
+
+// DeleteTask deletes a task by its ID.
+//
+// Experimental: This method is experimental and may change in the future.
+func (c *ExperimentalClient) DeleteTask(ctx context.Context, user string, id uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/tasks/%s/%s", user, id.String()), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusAccepted {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}

@@ -1,8 +1,10 @@
 package coderd
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -440,3 +442,122 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(ctx, rw, http.StatusOK, tasks[0])
 }
+
+// taskDelete is an experimental endpoint to delete a task by ID (workspace ID).
+// It creates a delete workspace build and returns 202 Accepted if the build was created.
+func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	idStr := chi.URLParam(r, "id")
+	taskID, err := uuid.Parse(idStr)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Invalid UUID %q for task ID.", idStr),
+		})
+		return
+	}
+
+	// For now, taskID = workspaceID, once we have a task data model in
+	// the DB, we can change this lookup.
+	workspaceID := taskID
+	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace resources.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(data.builds) == 0 || len(data.templates) == 0 {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if data.builds[0].HasAITask == nil || !*data.builds[0].HasAITask {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Construct a request to the workspace build creation handler to initiate deletion.
+	buildReq := codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionDelete,
+	}
+	body, err := json.Marshal(buildReq)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error marshaling delete request.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/builds", workspace.ID.String()), bytes.NewReader(body))
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error creating request.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Inject the "workspace" URL param so ExtractWorkspaceParam can
+	// resolve the workspace.
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("workspace", workspace.ID.String())
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	// Call the existing workspace build handler via middleware.
+	rc := &responseWriterCapture{}
+	handler := httpmw.ExtractWorkspaceParam(api.Database)(http.HandlerFunc(api.postWorkspaceBuilds))
+	handler.ServeHTTP(rc, req)
+
+	status := rc.status
+	if status == 0 {
+		status = http.StatusOK
+	}
+
+	if status != http.StatusCreated {
+		// Propagate the error response from the workspace build handler.
+		for k, vs := range rc.Header() {
+			for _, v := range vs {
+				rw.Header().Add(k, v)
+			}
+		}
+		rw.WriteHeader(status)
+		_, _ = rw.Write(rc.body.Bytes())
+		return
+	}
+
+	// Delete build created successfully.
+	rw.WriteHeader(http.StatusAccepted)
+}
+
+type responseWriterCapture struct {
+	header http.Header
+	status int
+	body   bytes.Buffer
+}
+
+func (w *responseWriterCapture) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+	return w.header
+}
+
+func (w *responseWriterCapture) Write(b []byte) (int, error) { return w.body.Write(b) }
+
+func (w *responseWriterCapture) WriteHeader(statusCode int) { w.status = statusCode }
