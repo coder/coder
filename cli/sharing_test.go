@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -114,19 +115,15 @@ func TestSharingShare(t *testing.T) {
 			Role: codersdk.WorkspaceRoleUse,
 		})
 
-		// Test that the users appeart in the output
+		// Test that the users appear in the output
 		outputLines := strings.Split(out.String(), "\n")
 		userNames := []string{toShareWithUser1.Username, toShareWithUser2.Username}
 		for _, username := range userNames {
-			found := false
-			for _, line := range outputLines {
-				if strings.Contains(line, username) {
-					found = true
-					break
-				}
-			}
+			index := slices.IndexFunc(outputLines, func(line string) bool {
+				return strings.Contains(line, username)
+			})
 
-			assert.True(t, found, fmt.Sprintf("Expected to find the username %s in the command output: %s", username, out.String()))
+			assert.True(t, index != -1, fmt.Sprintf("Expected to find the username %s in the command output: %s", username, out.String()))
 		}
 	})
 
