@@ -11,6 +11,8 @@ import (
 	"github.com/coder/serpent"
 )
 
+const defaultGroupDisplay = "-"
+
 type workspaceShareRow struct {
 	User  string                 `table:"user"`
 	Group string                 `table:"group,default_sort"`
@@ -172,7 +174,7 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 
 				outputRows = append(outputRows, workspaceShareRow{
 					User:  user.Username,
-					Group: "-",
+					Group: defaultGroupDisplay,
 					Role:  user.Role,
 				})
 			}

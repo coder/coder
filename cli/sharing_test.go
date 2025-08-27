@@ -3,7 +3,6 @@ package cli_test
 import (
 	"bytes"
 	"fmt"
-	"slices"
 	"strings"
 	"testing"
 
