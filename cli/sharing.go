@@ -112,6 +112,7 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 			}
 
 			groupRoles := make(map[string]codersdk.WorkspaceRole)
+			fmt.Printf("%v\n", groups)
 			if len(groups) > 0 {
 				orgGroups, err := client.Groups(inv.Context(), codersdk.GroupArguments{
 					Organization: org.ID.String(),
@@ -162,6 +163,10 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 
 			outputRows := make([]workspaceShareRow, 0)
 			for _, user := range workspaceAcl.Users {
+				if user.Role == codersdk.WorkspaceRoleDeleted {
+					continue
+				}
+
 				outputRows = append(outputRows, workspaceShareRow{
 					User:  user.Username,
 					Group: "-",
@@ -169,6 +174,10 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 				})
 			}
 			for _, group := range workspaceAcl.Groups {
+				if group.Role == codersdk.WorkspaceRoleDeleted {
+					continue
+				}
+
 				for _, user := range group.Members {
 					outputRows = append(outputRows, workspaceShareRow{
 						User:  user.Username,
