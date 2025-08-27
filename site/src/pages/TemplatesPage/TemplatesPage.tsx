@@ -1,6 +1,6 @@
 import { workspacePermissionsByOrganization } from "api/queries/organizations";
 import { templateExamples, templates } from "api/queries/templates";
-import { useFilter } from "components/Filter/Filter";
+import { type UseFilterResult, useFilter } from "components/Filter/Filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { useAuthenticated } from "hooks";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -60,7 +60,7 @@ const TemplatesPage: FC = () => {
 export default TemplatesPage;
 
 export type TemplateFilterState = {
-	filter: ReturnType<typeof useFilter>;
+	filter: UseFilterResult;
 	menus: {
 		user?: ReturnType<typeof useUserFilterMenu>;
 	};
