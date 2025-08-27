@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"regexp"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
-	"golang.org/x/xerrors"
 )
 
 type workspaceShareRow struct {
@@ -91,14 +92,14 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 					username := userAndRole[1]
 					role := userAndRole[2]
 
-					userId := ""
+					userID := ""
 					for _, member := range orgMembers {
 						if member.Username == username {
-							userId = member.UserID.String()
+							userID = member.UserID.String()
 							break
 						}
 					}
-					if userId == "" {
+					if userID == "" {
 						return xerrors.Errorf("Could not find user %s in the organization %s", username, org.Name)
 					}
 
@@ -107,7 +108,7 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 						return err
 					}
 
-					userRoles[userId] = workspaceRole
+					userRoles[userID] = workspaceRole
 				}
 			}
 
@@ -143,7 +144,6 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 					}
 
 					groupRoles[orgGroup.ID.String()] = workspaceRole
-
 				}
 			}
 
@@ -155,13 +155,13 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 				return err
 			}
 
-			workspaceAcl, err := client.WorkspaceACL(inv.Context(), workspace.ID)
+			workspaceACL, err := client.WorkspaceACL(inv.Context(), workspace.ID)
 			if err != nil {
 				return xerrors.Errorf("Could not fetch current workspace ACL after sharing %w", err)
 			}
 
 			outputRows := make([]workspaceShareRow, 0)
-			for _, user := range workspaceAcl.Users {
+			for _, user := range workspaceACL.Users {
 				if user.Role == codersdk.WorkspaceRoleDeleted {
 					continue
 				}
@@ -172,7 +172,7 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 					Role:  user.Role,
 				})
 			}
-			for _, group := range workspaceAcl.Groups {
+			for _, group := range workspaceACL.Groups {
 				if group.Role == codersdk.WorkspaceRoleDeleted {
 					continue
 				}
@@ -199,7 +199,6 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 }
 
 func stringToWorkspaceRole(role string) (codersdk.WorkspaceRole, error) {
-
 	if role != "" && role != string(codersdk.WorkspaceRoleAdmin) && role != string(codersdk.WorkspaceRoleUse) {
 		return "", xerrors.Errorf("invalid role %s. Expected %s, or %s", role, codersdk.WorkspaceRoleAdmin, codersdk.WorkspaceRoleUse)
 	}

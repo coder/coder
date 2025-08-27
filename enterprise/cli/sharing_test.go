@@ -8,6 +8,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -17,9 +21,6 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSharingShareEnterprise(t *testing.T) {
@@ -52,7 +53,7 @@ func TestSharingShareEnterprise(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		group, err := createGroupWithMembers(client, ctx, orgOwner.OrganizationID, "new-group", []uuid.UUID{orgMember.ID})
+		group, err := createGroupWithMembers(ctx, client, orgOwner.OrganizationID, "new-group", []uuid.UUID{orgMember.ID})
 		require.NoError(t, err)
 
 		inv, root := clitest.New(t, "sharing", "share", workspace.Name, "--org", orgOwner.OrganizationID.String(), "--group", group.Name)
@@ -106,10 +107,10 @@ func TestSharingShareEnterprise(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		wibbleGroup, err := createGroupWithMembers(client, ctx, orgOwner.OrganizationID, "wibble", []uuid.UUID{wibbleMember.ID})
+		wibbleGroup, err := createGroupWithMembers(ctx, client, orgOwner.OrganizationID, "wibble", []uuid.UUID{wibbleMember.ID})
 		require.NoError(t, err)
 
-		wobbleGroup, err := createGroupWithMembers(client, ctx, orgOwner.OrganizationID, "wobble", []uuid.UUID{wobbleMember.ID})
+		wobbleGroup, err := createGroupWithMembers(ctx, client, orgOwner.OrganizationID, "wobble", []uuid.UUID{wobbleMember.ID})
 		require.NoError(t, err)
 
 		inv, root := clitest.New(t, "sharing", "share", workspace.Name, "--org", orgOwner.OrganizationID.String(),
@@ -157,7 +158,7 @@ func TestSharingShareEnterprise(t *testing.T) {
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
 
-			group, err := createGroupWithMembers(client, ctx, orgOwner.OrganizationID, "new-group", []uuid.UUID{orgMember.ID})
+			group, err := createGroupWithMembers(ctx, client, orgOwner.OrganizationID, "new-group", []uuid.UUID{orgMember.ID})
 			require.NoError(t, err)
 
 			inv, root := clitest.New(t, "sharing", "share", workspace.Name, "--org", orgOwner.OrganizationID.String(), "--group", fmt.Sprintf("%s:admin", group.Name))
@@ -186,8 +187,8 @@ func TestSharingShareEnterprise(t *testing.T) {
 	})
 }
 
-func createGroupWithMembers(client *codersdk.Client, ctx context.Context, orgId uuid.UUID, name string, memberIds []uuid.UUID) (codersdk.Group, error) {
-	group, err := client.CreateGroup(ctx, orgId, codersdk.CreateGroupRequest{
+func createGroupWithMembers(ctx context.Context, client *codersdk.Client, orgID uuid.UUID, name string, memberIDs []uuid.UUID) (codersdk.Group, error) {
+	group, err := client.CreateGroup(ctx, orgID, codersdk.CreateGroupRequest{
 		Name:        name,
 		DisplayName: name,
 	})
@@ -195,8 +196,8 @@ func createGroupWithMembers(client *codersdk.Client, ctx context.Context, orgId 
 		return codersdk.Group{}, err
 	}
 
-	ids := make([]string, len(memberIds))
-	for i, id := range memberIds {
+	ids := make([]string, len(memberIDs))
+	for i, id := range memberIDs {
 		ids[i] = id.String()
 	}
 
