@@ -19,7 +19,6 @@ const TemplatesPage: FC = () => {
 	const filterState = useTemplatesFilter({
 		searchParams,
 		onSearchParamsChange: setSearchParams,
-		onFilterChange: () => {},
 	});
 
 	const templatesQuery = useQuery(templates({ q: filterState.filter.query }));
@@ -70,19 +69,16 @@ export type TemplateFilterState = {
 type UseTemplatesFilterOptions = {
 	searchParams: URLSearchParams;
 	onSearchParamsChange: (params: URLSearchParams) => void;
-	onFilterChange: () => void;
 };
 
 const useTemplatesFilter = ({
 	searchParams,
 	onSearchParamsChange,
-	onFilterChange,
 }: UseTemplatesFilterOptions): TemplateFilterState => {
 	const filter = useFilter({
 		fallbackFilter: "deprecated:false",
 		searchParams,
 		onSearchParamsChange,
-		onUpdate: onFilterChange,
 	});
 
 	const { permissions } = useAuthenticated();
