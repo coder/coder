@@ -62,60 +62,60 @@ You can create and manage external workspaces using either the **CLI** or the **
 
 ## CLI
 
-**Create an external workspace**
+1. **Create an external workspace**
 
-```bash
-coder external-workspaces create hello-world \
-	--template=externally-managed-workspace -y
-```
+   ```bash
+   coder external-workspaces create hello-world \
+     --template=externally-managed-workspace -y
+   ```
 
-- Validates that the template includes a `coder_external_agent` resource.
-- Once created, the workspace is registered in Coder but marked as requiring an external agent.
+   - Validates that the template includes a `coder_external_agent` resource.
+   - Once created, the workspace is registered in Coder but marked as requiring an external agent.
 
-**List external workspaces**
+2. **List external workspaces**
 
-```bash
-coder external-workspaces list
-```
+   ```bash
+   coder external-workspaces list
+   ```
 
-Example output:
+   Example output:
 
-```bash
-WORKSPACE        TEMPLATE                     STATUS   HEALTHY  LAST BUILT  CURRENT VERSION  OUTDATED
-hello-world      externally-managed-workspace Started  true     15m         happy_mendel9    false
-```
+   ```bash
+   WORKSPACE        TEMPLATE                     STATUS   HEALTHY  LAST BUILT  CURRENT VERSION  OUTDATED
+   hello-world      externally-managed-workspace Started  true     15m         happy_mendel9    false
+   ```
 
-**Retrieve agent connection instructions**
+3. **Retrieve agent connection instructions**
 
-Use this command to query the script you must run on the external machine:
+   Use this command to query the script you must run on the external machine:
 
-```bash
-coder external-workspaces agent-instructions hello-world
-```
+   ```bash
+   coder external-workspaces agent-instructions hello-world
+   ```
 
-Example:
+   Example:
 
-```bash
-Please run the following command to attach external agent to the workspace hello-world:
+   ```bash
+   Please run the following command to attach external agent to the workspace hello-world:
 
-curl -fsSL "https://<DEPLOYMENT_URL>/api/v2/init-script/linux/amd64" | CODER_AGENT_TOKEN="<token>" sh
-```
+   curl -fsSL "https://<DEPLOYMENT_URL>/api/v2/init-script/linux/amd64" | CODER_AGENT_TOKEN="<token>" sh
+   ```
 
-You can also output JSON for automation:
+   You can also output JSON for automation:
 
-```bash
-coder external-workspaces agent-instructions hello-world --output=json
-```
+   ```bash
+   coder external-workspaces agent-instructions hello-world --output=json
+   ```
 
-```json
-{
-	"workspace_name": "hello-world",
-	"agent_name": "main",
-	"auth_type": "token",
-	"auth_token": "<token>",
-	"init_script": "curl -fsSL \"https://<DEPLOYMENT_URL>/api/v2/init-script/linux/arm64\" | CODER_AGENT_TOKEN=\"<token>\" sh"
-}
-```
+   ```json
+   {
+     "workspace_name": "hello-world",
+     "agent_name": "main",
+     "auth_type": "token",
+     "auth_token": "<token>",
+     "init_script": "curl -fsSL \"https://<DEPLOYMENT_URL>/api/v2/init-script/linux/arm64\" | CODER_AGENT_TOKEN=\"<token>\" sh"
+   }
+   ```
 
 ## UI
 
