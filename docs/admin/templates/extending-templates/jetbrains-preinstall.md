@@ -40,15 +40,31 @@ Add the following command to your template's `startup_script`:
 
 ## Configure JetBrains Gateway Module
 
-If you are using our [jetbrains](https://registry.coder.com/modules/coder/jetbrains) module, you can configure it by adding the following snippet to your template:
+If you are using our [jetbrains-gateway](https://registry.coder.com/modules/coder/jetbrains-gateway) module, you can configure it by adding the following snippet to your template:
 
 ```tf
-module "jetbrains" {
-  count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/modules/jetbrains/coder"
-  version  = "1.0.3"
-  agent_id = coder_agent.main.id
-  folder   = "/home/coder/example"
+module "jetbrains_gateway" {
+  count          = data.coder_workspace.me.start_count
+  source         = "registry.coder.com/modules/jetbrains-gateway/coder"
+  version        = "1.0.29"
+  agent_id       = coder_agent.main.id
+  folder         = "/home/coder/example"
+  jetbrains_ides = ["IU"]
+  default        = "IU"
+  latest         = false
+  jetbrains_ide_versions = {
+    "IU" = {
+      build_number = "251.25410.129"
+      version      = "2025.1"
+    }
+  }
+}
+
+resource "coder_agent" "main" {
+    ...
+    startup_script = <<-EOF
+    ~/JetBrains/*/bin/remote-dev-server.sh registerBackendLocationForGateway
+    EOF
 }
 ```
 

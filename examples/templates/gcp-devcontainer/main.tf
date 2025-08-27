@@ -301,7 +301,7 @@ module "jetbrains" {
   source   = "registry.coder.com/coder/jetbrains/coder"
   version  = "1.0.3"
   agent_id = coder_agent.main.id
-  folder   = "/home/coder"
+  folder   = "/workspaces"
 }
 
 # Create metadata for the workspace and home disk.
