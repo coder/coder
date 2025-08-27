@@ -67,7 +67,7 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 		},
 		Middleware: serpent.Chain(
 			r.InitClient(client),
-			serpent.RequireRangeArgs(1, -1),
+			serpent.RequireNArgs(1),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			if len(users) == 0 && len(groups) == 0 {
