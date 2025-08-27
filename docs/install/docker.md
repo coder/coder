@@ -13,12 +13,9 @@ You can install and run Coder using the official Docker images published on
 
 - 2 CPU cores and 4 GB memory free on your machine.
 
-## Installation Methods
+<div class="tabs">
 
-<Tabs>
-<TabItem value="docker-compose" label="Docker Compose" default>
-
-### Install Coder via `docker compose`
+## Install Coder via `docker compose`
 
 Coder's publishes a
 [docker compose example](https://github.com/coder/coder/blob/main/compose.yaml)
@@ -48,8 +45,7 @@ which includes an PostgreSQL container and volume.
 Coder configuration is defined via environment variables. Learn more about
 Coder's [configuration options](../admin/setup/index.md).
 
-</TabItem>
-<TabItem value="docker-run-builtin" label="Docker Run (Built-in DB)">
+## Install Coder via `docker run`
 
 ### Built-in database (quick)
 
@@ -67,9 +63,6 @@ docker run --rm -it \
   ghcr.io/coder/coder:latest
 ```
 
-</TabItem>
-<TabItem value="docker-run-external" label="Docker Run (External DB)">
-
 ### External database (recommended)
 
 For production deployments, we recommend using an external PostgreSQL database
@@ -86,8 +79,7 @@ docker run --rm -it \
   ghcr.io/coder/coder:latest
 ```
 
-</TabItem>
-</Tabs>
+</div>
 
 ## Install the preview release
 
@@ -100,7 +92,7 @@ by using the `coder-preview:latest` image tag.
 This image is automatically updated with the latest changes from the `main` branch.
 
 Replace `ghcr.io/coder/coder:latest` in the `docker run` command in the
-[installation methods above](#installation-methods) with `ghcr.io/coder/coder-preview:latest`.
+[steps above](#install-coder-via-docker-run) with `ghcr.io/coder/coder-preview:latest`.
 
 ## Troubleshooting
 
