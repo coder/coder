@@ -29,8 +29,3 @@ func init() {
 		_ = par.Value.Set(fmt.Sprintf("%d", MaxTestParallelism))
 	}
 }
-
-func init() {
-	testing.Init()
-	flag.Set("test.parallel", "1") // Disable test parallelism
-}
