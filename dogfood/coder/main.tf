@@ -742,6 +742,8 @@ resource "docker_container" "workspace" {
       name,
       hostname,
       labels,
+      env,
+      image
     ]
   }
   count = data.coder_workspace.me.start_count
