@@ -807,7 +807,7 @@ func (s *MethodTestSuite) TestOrganization() {
 		}
 		dbm.EXPECT().GetOrganizationIDsByMemberIDs(gomock.Any(), ids).Return(rows, nil).AnyTimes()
 		check.Args(ids).
-			Asserts(rbac.ResourceUserObject(ua.ID), policy.ActionRead, rbac.ResourceUserObject(ub.ID), policy.ActionRead).
+			Asserts(rows[0].RBACObject(), policy.ActionRead, rows[1].RBACObject(), policy.ActionRead).
 			OutOfOrder()
 	}))
 	s.Run("GetOrganizations", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -872,8 +872,9 @@ func (s *MethodTestSuite) TestOrganization() {
 	}))
 	s.Run("UpdateOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		o := testutil.Fake(s.T(), faker, database.Organization{Name: "something-unique"})
-		dbm.EXPECT().GetOrganizationByID(gomock.Any(), o.ID).Return(o, nil).AnyTimes()
 		arg := database.UpdateOrganizationParams{ID: o.ID, Name: "something-different"}
+
+		dbm.EXPECT().GetOrganizationByID(gomock.Any(), o.ID).Return(o, nil).AnyTimes()
 		dbm.EXPECT().UpdateOrganization(gomock.Any(), arg).Return(o, nil).AnyTimes()
 		check.Args(arg).Asserts(o, policy.ActionUpdate)
 	}))
