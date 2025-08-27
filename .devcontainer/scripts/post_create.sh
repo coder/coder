@@ -2,9 +2,10 @@
 
 install_devcontainer_cli() {
 	set -e
+	echo "🔧 Installing DevContainer CLI..."
 	cd "$(dirname "$0")/../tools/devcontainer-cli"
 	npm ci --omit=dev
-	sudo ln -sf "$(pwd)/node_modules/.bin/devcontainer" /usr/local/bin/devcontainer
+	ln -sf "$(pwd)/node_modules/.bin/devcontainer" "$(npm config get prefix)/bin/devcontainer"
 }
 
 install_ssh_config() {
