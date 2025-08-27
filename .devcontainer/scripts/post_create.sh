@@ -1,13 +1,23 @@
 #!/bin/sh
 
 install_devcontainer_cli() {
-	# Replace global npm install with a pinned npx shim to avoid unpinned npmCommand findings.
-	# Creates a lightweight wrapper that executes the pinned CLI via npx.
-	cat >/usr/local/bin/devcontainer <<'EOF'
-#!/usr/bin/env bash
-exec npx -y @devcontainers/cli@0.80.0 "$@"
-EOF
-	chmod +x /usr/local/bin/devcontainer
+	# Install @devcontainers/cli via a pinned, hash-verified lockfile using npm ci.
+	set -e
+	cd "$(dirname "$0")/../tools/devcontainer-cli" 2>/dev/null || true
+	if [ -f package-lock.json ]; then
+		npm ci --omit=dev
+		ln -sf "$(pwd)/node_modules/.bin/devcontainer" /usr/local/bin/devcontainer
+		return
+	fi
+
+	# Fallback: if lockfile is missing in the image, create it deterministically.
+	mkdir -p /opt/devcontainer-cli
+	cd /opt/devcontainer-cli
+	npm init -y >/dev/null 2>&1 || true
+	npm pkg set private=true >/dev/null 2>&1 || true
+	npm i --package-lock-only @devcontainers/cli@0.80.0
+	npm ci --omit=dev
+	ln -sf /opt/devcontainer-cli/node_modules/.bin/devcontainer /usr/local/bin/devcontainer
 }
 
 install_ssh_config() {
