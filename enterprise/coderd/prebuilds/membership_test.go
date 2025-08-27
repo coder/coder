@@ -87,7 +87,7 @@ func TestReconcileAll(t *testing.T) {
 							defaultOrg, err := db.GetDefaultOrganization(ctx)
 							require.NoError(t, err)
 
-							// introduce an unrelated organization to ensure that the membership reconciler don't interfere with it.
+							// introduce an unrelated organization to ensure that the membership reconciler doesn't interfere with it.
 							unrelatedOrg := dbgen.Organization(t, db, database.Organization{})
 							targetOrg := dbgen.Organization(t, db, database.Organization{})
 
