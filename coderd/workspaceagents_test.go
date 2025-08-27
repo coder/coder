@@ -1610,63 +1610,77 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 		)
 
 		for _, tc := range []struct {
-			name               string
-			devcontainerID     string
-			setupDevcontainers []codersdk.WorkspaceAgentDevcontainer
-			setupMock          func(mccli *acmock.MockContainerCLI, mdccli *acmock.MockDevcontainerCLI) (status int)
+			name            string
+			devcontainerID  string
+			devcontainers   []codersdk.WorkspaceAgentDevcontainer
+			containers      []codersdk.WorkspaceAgentContainer
+			expectRecreate  bool
+			expectErrorCode int
 		}{
 			{
-				name:               "Recreate",
-				devcontainerID:     devcontainerID.String(),
-				setupDevcontainers: []codersdk.WorkspaceAgentDevcontainer{devcontainer},
-				setupMock: func(mccli *acmock.MockContainerCLI, mdccli *acmock.MockDevcontainerCLI) int {
-					mccli.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
-						Containers: []codersdk.WorkspaceAgentContainer{devContainer},
-					}, nil).AnyTimes()
-					// DetectArchitecture always returns "<none>" for this test to disable agent injection.
-					mccli.EXPECT().DetectArchitecture(gomock.Any(), devContainer.ID).Return("<none>", nil).AnyTimes()
-					mdccli.EXPECT().ReadConfig(gomock.Any(), workspaceFolder, configFile, gomock.Any()).Return(agentcontainers.DevcontainerConfig{}, nil).AnyTimes()
-					mdccli.EXPECT().Up(gomock.Any(), workspaceFolder, configFile, gomock.Any()).Return("someid", nil).Times(1)
-					return 0
-				},
+				name:           "Recreate",
+				devcontainerID: devcontainerID.String(),
+				devcontainers:  []codersdk.WorkspaceAgentDevcontainer{devcontainer},
+				containers:     []codersdk.WorkspaceAgentContainer{devContainer},
+				expectRecreate: true,
 			},
 			{
-				name:               "Devcontainer does not exist",
-				devcontainerID:     uuid.NewString(),
-				setupDevcontainers: nil,
-				setupMock: func(mccli *acmock.MockContainerCLI, mdccli *acmock.MockDevcontainerCLI) int {
-					mccli.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{}, nil).AnyTimes()
-					return http.StatusNotFound
-				},
+				name:            "Devcontainer does not exist",
+				devcontainerID:  uuid.NewString(),
+				devcontainers:   nil,
+				containers:      []codersdk.WorkspaceAgentContainer{},
+				expectErrorCode: http.StatusNotFound,
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				ctrl := gomock.NewController(t)
-				mccli := acmock.NewMockContainerCLI(ctrl)
-				mdccli := acmock.NewMockDevcontainerCLI(ctrl)
-				wantStatus := tc.setupMock(mccli, mdccli)
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-				client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-					Logger: &logger,
-				})
-				user := coderdtest.CreateFirstUser(t, client)
-				r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-					OrganizationID: user.OrganizationID,
-					OwnerID:        user.UserID,
-				}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
-					return agents
-				}).Do()
+				var (
+					ctx        = testutil.Context(t, testutil.WaitLong)
+					mCtrl      = gomock.NewController(t)
+					mCCLI      = acmock.NewMockContainerCLI(mCtrl)
+					mDCCLI     = acmock.NewMockDevcontainerCLI(mCtrl)
+					logger     = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+					client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+						Logger: &logger,
+					})
+					user = coderdtest.CreateFirstUser(t, client)
+					r    = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+						OrganizationID: user.OrganizationID,
+						OwnerID:        user.UserID,
+					}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+						return agents
+					}).Do()
+				)
+
+				mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+					Containers: tc.containers,
+				}, nil).AnyTimes()
+
+				var upCalled chan struct{}
+
+				if tc.expectRecreate {
+					upCalled = make(chan struct{})
+
+					// DetectArchitecture always returns "<none>" for this test to disable agent injection.
+					mCCLI.EXPECT().DetectArchitecture(gomock.Any(), devContainer.ID).Return("<none>", nil).AnyTimes()
+					mDCCLI.EXPECT().ReadConfig(gomock.Any(), workspaceFolder, configFile, gomock.Any()).Return(agentcontainers.DevcontainerConfig{}, nil).AnyTimes()
+					mDCCLI.EXPECT().Up(gomock.Any(), workspaceFolder, configFile, gomock.Any()).
+						DoAndReturn(func(_ context.Context, _, _ string, _ ...agentcontainers.DevcontainerCLIUpOptions) (string, error) {
+							close(upCalled)
+
+							return "someid", nil
+						}).Times(1)
+				}
 
 				devcontainerAPIOptions := []agentcontainers.Option{
-					agentcontainers.WithContainerCLI(mccli),
-					agentcontainers.WithDevcontainerCLI(mdccli),
+					agentcontainers.WithContainerCLI(mCCLI),
+					agentcontainers.WithDevcontainerCLI(mDCCLI),
 					agentcontainers.WithWatcher(watcher.NewNoop()),
 				}
-				if tc.setupDevcontainers != nil {
+				if tc.devcontainers != nil {
 					devcontainerAPIOptions = append(devcontainerAPIOptions,
-						agentcontainers.WithDevcontainers(tc.setupDevcontainers, nil))
+						agentcontainers.WithDevcontainers(tc.devcontainers, nil))
 				}
 
 				_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
@@ -1679,15 +1693,14 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 				require.Len(t, resources[0].Agents, 1, "expected one agent")
 				agentID := resources[0].Agents[0].ID
 
-				ctx := testutil.Context(t, testutil.WaitLong)
-
 				_, err := client.WorkspaceAgentRecreateDevcontainer(ctx, agentID, tc.devcontainerID)
-				if wantStatus > 0 {
+				if tc.expectErrorCode > 0 {
 					cerr, ok := codersdk.AsError(err)
 					require.True(t, ok, "expected error to be a coder error")
-					assert.Equal(t, wantStatus, cerr.StatusCode())
+					assert.Equal(t, tc.expectErrorCode, cerr.StatusCode())
 				} else {
 					require.NoError(t, err, "failed to recreate devcontainer")
+					testutil.TryReceive(ctx, t, upCalled)
 				}
 			})
 		}

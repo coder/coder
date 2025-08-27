@@ -2842,9 +2842,12 @@ func TestCompleteJob(t *testing.T) {
 		// has_ai_task has a default value of nil, but once the workspace build completes it will have a value;
 		// it is set to "true" if the related template has any coder_ai_task resources defined, and its sidebar app ID
 		// will be set as well in that case.
+		// HACK(johnstcn): we also set it to "true" if any _previous_ workspace builds ever had it set to "true".
+		// This is to avoid tasks "disappearing" when you stop them.
 		t.Run("WorkspaceBuild", func(t *testing.T) {
 			type testcase struct {
 				name             string
+				seedFunc         func(context.Context, testing.TB, database.Store) error // If you need to insert other resources
 				transition       database.WorkspaceTransition
 				input            *proto.CompletedJob_WorkspaceBuild
 				expectHasAiTask  bool
@@ -2944,6 +2947,17 @@ func TestCompleteJob(t *testing.T) {
 					expectHasAiTask:  true,
 					expectUsageEvent: false,
 				},
+				{
+					name:       "current build does not have ai task but previous build did",
+					seedFunc:   seedPreviousWorkspaceStartWithAITask,
+					transition: database.WorkspaceTransitionStop,
+					input: &proto.CompletedJob_WorkspaceBuild{
+						AiTasks:   []*sdkproto.AITask{},
+						Resources: []*sdkproto.Resource{},
+					},
+					expectHasAiTask:  true,
+					expectUsageEvent: false,
+				},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					t.Parallel()
@@ -2980,6 +2994,9 @@ func TestCompleteJob(t *testing.T) {
 					})
 
 					ctx := testutil.Context(t, testutil.WaitShort)
+					if tc.seedFunc != nil {
+						require.NoError(t, tc.seedFunc(ctx, t, db))
+					}
 
 					buildJobID := uuid.New()
 					wsBuildID := uuid.New()
@@ -2999,8 +3016,13 @@ func TestCompleteJob(t *testing.T) {
 						Tags:          pd.Tags,
 					})
 					require.NoError(t, err)
+					var buildNum int32
+					if latestBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceTable.ID); err == nil {
+						buildNum = latestBuild.BuildNumber
+					}
 					build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 						ID:                wsBuildID,
+						BuildNumber:       buildNum + 1,
 						JobID:             buildJobID,
 						WorkspaceID:       workspaceTable.ID,
 						TemplateVersionID: version.ID,
@@ -3038,7 +3060,7 @@ func TestCompleteJob(t *testing.T) {
 					require.True(t, build.HasAITask.Valid) // We ALWAYS expect a value to be set, therefore not nil, i.e. valid = true.
 					require.Equal(t, tc.expectHasAiTask, build.HasAITask.Bool)
 
-					if tc.expectHasAiTask {
+					if tc.expectHasAiTask && build.Transition != database.WorkspaceTransitionStop {
 						require.Equal(t, sidebarAppID, build.AITaskSidebarAppID.UUID.String())
 					}
 
@@ -4242,5 +4264,65 @@ func newFakeUsageInserter() (*fakeUsageInserter, *atomic.Pointer[usage.Inserter]
 
 func (f *fakeUsageInserter) InsertDiscreteUsageEvent(_ context.Context, _ database.Store, event usagetypes.DiscreteEvent) error {
 	f.collectedEvents = append(f.collectedEvents, event)
+	return nil
+}
+
+func seedPreviousWorkspaceStartWithAITask(ctx context.Context, t testing.TB, db database.Store) error {
+	t.Helper()
+	// If the below looks slightly convoluted, that's because it is.
+	// The workspace doesn't yet have a latest build, so querying all
+	// workspaces will fail.
+	tpls, err := db.GetTemplates(ctx)
+	if err != nil {
+		return xerrors.Errorf("seedFunc: get template: %w", err)
+	}
+	if len(tpls) != 1 {
+		return xerrors.Errorf("seedFunc: expected exactly one template, got %d", len(tpls))
+	}
+	ws, err := db.GetWorkspacesByTemplateID(ctx, tpls[0].ID)
+	if err != nil {
+		return xerrors.Errorf("seedFunc: get workspaces: %w", err)
+	}
+	if len(ws) != 1 {
+		return xerrors.Errorf("seedFunc: expected exactly one workspace, got %d", len(ws))
+	}
+	w := ws[0]
+	prevJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: w.OrganizationID,
+		InitiatorID:    w.OwnerID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	})
+	tvs, err := db.GetTemplateVersionsByTemplateID(ctx, database.GetTemplateVersionsByTemplateIDParams{
+		TemplateID: tpls[0].ID,
+	})
+	if err != nil {
+		return xerrors.Errorf("seedFunc: get template version: %w", err)
+	}
+	if len(tvs) != 1 {
+		return xerrors.Errorf("seedFunc: expected exactly one template version, got %d", len(tvs))
+	}
+	if tpls[0].ActiveVersionID == uuid.Nil {
+		return xerrors.Errorf("seedFunc: active version id is nil")
+	}
+	res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID: prevJob.ID,
+	})
+	agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID: res.ID,
+	})
+	wa := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
+		AgentID: agt.ID,
+	})
+	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		BuildNumber:        1,
+		HasAITask:          sql.NullBool{Valid: true, Bool: true},
+		AITaskSidebarAppID: uuid.NullUUID{Valid: true, UUID: wa.ID},
+		ID:                 w.ID,
+		InitiatorID:        w.OwnerID,
+		JobID:              prevJob.ID,
+		TemplateVersionID:  tvs[0].ID,
+		Transition:         database.WorkspaceTransitionStart,
+		WorkspaceID:        w.ID,
+	})
 	return nil
 }
