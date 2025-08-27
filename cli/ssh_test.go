@@ -20,6 +20,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1348,6 +1349,8 @@ func TestSSH(t *testing.T) {
 		require.NoError(t, err)
 		defer l.Close()
 		testutil.Go(t, func() {
+			var wg sync.WaitGroup
+			defer wg.Wait()
 			for {
 				fd, err := l.Accept()
 				if err != nil {
@@ -1357,10 +1360,12 @@ func TestSSH(t *testing.T) {
 					return
 				}
 
-				testutil.Go(t, func() {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
 					defer fd.Close()
 					agentssh.Bicopy(ctx, fd, fd)
-				})
+				}()
 			}
 		})
 
@@ -1409,6 +1414,8 @@ func TestSSH(t *testing.T) {
 		require.NoError(t, err)
 		defer l.Close()
 		testutil.Go(t, func() {
+			var wg sync.WaitGroup
+			defer wg.Wait()
 			for {
 				fd, err := l.Accept()
 				if err != nil {
@@ -1418,10 +1425,12 @@ func TestSSH(t *testing.T) {
 					return
 				}
 
-				testutil.Go(t, func() {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
 					defer fd.Close()
 					agentssh.Bicopy(ctx, fd, fd)
-				})
+				}()
 			}
 		})
 
@@ -1554,6 +1563,8 @@ func TestSSH(t *testing.T) {
 			require.NoError(t, err)
 			defer l.Close() //nolint:revive // Defer is fine in this loop, we only run it twice.
 			testutil.Go(t, func() {
+				var wg sync.WaitGroup
+				defer wg.Wait()
 				for {
 					fd, err := l.Accept()
 					if err != nil {
@@ -1563,10 +1574,12 @@ func TestSSH(t *testing.T) {
 						return
 					}
 
-					testutil.Go(t, func() {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
 						defer fd.Close()
 						agentssh.Bicopy(ctx, fd, fd)
-					})
+					}()
 				}
 			})
 
