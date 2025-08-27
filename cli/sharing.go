@@ -104,7 +104,7 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 						}
 					}
 					if userID == "" {
-						return xerrors.Errorf("Could not find user %s in the organization %s", username, org.Name)
+						return xerrors.Errorf("could not find user %s in the organization %s", username, org.Name)
 					}
 
 					workspaceRole, err := stringToWorkspaceRole(role)
@@ -139,7 +139,7 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 					}
 
 					if orgGroup == nil {
-						return xerrors.Errorf("Could not find group named %s belonging to the organization %s", groupName, org.Name)
+						return xerrors.Errorf("could not find group named %s belonging to the organization %s", groupName, org.Name)
 					}
 
 					workspaceRole, err := stringToWorkspaceRole(role)
@@ -161,7 +161,7 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 
 			workspaceACL, err := client.WorkspaceACL(inv.Context(), workspace.ID)
 			if err != nil {
-				return xerrors.Errorf("Could not fetch current workspace ACL after sharing %w", err)
+				return xerrors.Errorf("could not fetch current workspace ACL after sharing %w", err)
 			}
 
 			outputRows := make([]workspaceShareRow, 0)
