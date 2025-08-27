@@ -1772,11 +1772,12 @@ func (s *MethodTestSuite) TestWorkspace() {
 	s.Run("GetWorkspaceAgentLogsAfter", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
 		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
+		log := testutil.Fake(s.T(), faker, database.WorkspaceAgentLog{})
 		arg := database.GetWorkspaceAgentLogsAfterParams{AgentID: agt.ID}
 		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(ws, nil).AnyTimes()
 		dbm.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agt.ID).Return(agt, nil).AnyTimes()
-		dbm.EXPECT().GetWorkspaceAgentLogsAfter(gomock.Any(), arg).Return([]database.WorkspaceAgentLog{}, nil).AnyTimes()
-		check.Args(arg).Asserts(ws, policy.ActionRead).Returns([]database.WorkspaceAgentLog{})
+		dbm.EXPECT().GetWorkspaceAgentLogsAfter(gomock.Any(), arg).Return([]database.WorkspaceAgentLog{log}, nil).AnyTimes()
+		check.Args(arg).Asserts(ws, policy.ActionRead).Returns([]database.WorkspaceAgentLog{log})
 	}))
 	s.Run("GetWorkspaceAppByAgentIDAndSlug", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
