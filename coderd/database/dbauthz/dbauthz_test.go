@@ -1857,7 +1857,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			Name:    ws.Name,
 		}
 		dbm.EXPECT().GetWorkspaceByOwnerIDAndName(gomock.Any(), arg).Return(ws, nil).AnyTimes()
-		check.Args(arg).Asserts(ws, policy.ActionRead)
+		check.Args(arg).Asserts(ws, policy.ActionRead).Returns(ws)
 	}))
 	s.Run("GetWorkspaceResourceByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
