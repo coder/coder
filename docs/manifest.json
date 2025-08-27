@@ -521,7 +521,7 @@
 									"path": "./admin/templates/managing-templates/schedule.md"
 								},
 								{
-									"title": "Early Access External Workspaces",
+									"title": "External Workspaces",
 									"description": "Learn how to manage external workspaces",
 									"path": "./admin/templates/managing-templates/external-workspaces.md",
 									"state": ["early access"]
