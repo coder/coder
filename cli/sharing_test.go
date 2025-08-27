@@ -116,16 +116,8 @@ func TestSharingShare(t *testing.T) {
 			Role: codersdk.WorkspaceRoleUse,
 		})
 
-		// Test that the users appear in the output
-		outputLines := strings.Split(out.String(), "\n")
-		userNames := []string{toShareWithUser1.Username, toShareWithUser2.Username}
-		for _, username := range userNames {
-			index := slices.IndexFunc(outputLines, func(line string) bool {
-				return strings.Contains(line, username)
-			})
-
-			assert.True(t, index != -1, fmt.Sprintf("Expected to find the username %s in the command output: %s", username, out.String()))
-		}
+		assert.Contains(t, out.String(), toShareWithUser1.Username)
+		assert.Contains(t, out.String(), toShareWithUser2.Username)
 	})
 
 	t.Run("ShareWithUsers_Roles", func(t *testing.T) {

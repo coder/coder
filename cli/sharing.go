@@ -131,9 +131,9 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 					role := groupAndRole[2]
 
 					var orgGroup *codersdk.Group
-					for _, g := range orgGroups {
-						if g.Name == groupName {
-							orgGroup = &g
+					for _, group := range orgGroups {
+						if group.Name == groupName {
+							orgGroup = &group
 							break
 						}
 					}
