@@ -70,6 +70,10 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 			serpent.RequireRangeArgs(1, -1),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			if len(users) == 0 && len(groups) == 0 {
+				return xerrors.New("at least one user or group must be provided")
+			}
+
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("could not fetch the workspace %s: %w", inv.Args[0], err)
