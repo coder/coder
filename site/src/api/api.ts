@@ -2704,12 +2704,14 @@ class ExperimentalApiMethods {
 
 		const workspaces = await API.getWorkspaces({
 			q: queryExpressions.join(" "),
-		});
+		}).then((res) =>
+			res.workspaces.filter((workspace) => !workspace.is_prebuild),
+		);
 		const prompts = await API.experimental.getAITasksPrompts(
-			workspaces.workspaces.map((workspace) => workspace.latest_build.id),
+			workspaces.map((workspace) => workspace.latest_build.id),
 		);
 
-		return workspaces.workspaces.map((workspace) => ({
+		return workspaces.map((workspace) => ({
 			workspace,
 			prompt: prompts.prompts[workspace.latest_build.id],
 		}));
