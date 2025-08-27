@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/coder/coder/v2/cli/clitest"
@@ -67,12 +68,15 @@ func TestSharingShareEnterprise(t *testing.T) {
 		assert.Len(t, acl.Groups, 1)
 		assert.Equal(t, acl.Groups[0].Group.ID, group.ID)
 		assert.Equal(t, acl.Groups[0].Role, codersdk.WorkspaceRoleUse)
-		assert.Contains(t, acl.Groups, codersdk.WorkspaceGroup{
-			Role:  codersdk.WorkspaceRoleUse,
-			Group: group,
-		})
 
-		assert.Contains(t, out.String(), group.Name)
+		found := false
+		for _, line := range strings.Split(out.String(), "\n") {
+			found = strings.Contains(line, group.Name) && strings.Contains(line, string(codersdk.WorkspaceRoleAdmin))
+			if found {
+				break
+			}
+		}
+		assert.True(t, found, "Expected to find group name %s and role %s in output: %s", group.Name, codersdk.WorkspaceRoleAdmin, out.String())
 	})
 
 	t.Run("ShareWithGroups_Multiple", func(t *testing.T) {
@@ -129,6 +133,56 @@ func TestSharingShareEnterprise(t *testing.T) {
 			return g.Group.ID == wobbleGroup.ID
 		}))
 
+		t.Run("ShareWithGroups_Role", func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+					Options: &coderdtest.Options{
+						DeploymentValues: dv,
+					},
+					LicenseOptions: &coderdenttest.LicenseOptions{
+						Features: license.Features{
+							codersdk.FeatureTemplateRBAC: 1,
+						},
+					},
+				})
+				workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+				workspace                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OwnerID:        workspaceOwner.ID,
+					OrganizationID: orgOwner.OrganizationID,
+				}).Do().Workspace
+				_, orgMember = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+			)
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+
+			group, err := createGroupWithMembers(client, ctx, orgOwner.OrganizationID, "new-group", []uuid.UUID{orgMember.ID})
+			require.NoError(t, err)
+
+			inv, root := clitest.New(t, "sharing", "share", workspace.Name, "--org", orgOwner.OrganizationID.String(), "--group", fmt.Sprintf("%s:admin", group.Name))
+			clitest.SetupConfig(t, workspaceOwnerClient, root)
+
+			out := bytes.NewBuffer(nil)
+			inv.Stdout = out
+			err = inv.WithContext(ctx).Run()
+			require.NoError(t, err)
+
+			acl, err := workspaceOwnerClient.WorkspaceACL(inv.Context(), workspace.ID)
+			require.NoError(t, err)
+			assert.Len(t, acl.Groups, 1)
+			assert.Equal(t, acl.Groups[0].Group.ID, group.ID)
+			assert.Equal(t, acl.Groups[0].Role, codersdk.WorkspaceRoleAdmin)
+
+			found := false
+			for _, line := range strings.Split(out.String(), "\n") {
+				found = strings.Contains(line, group.Name) && strings.Contains(line, string(codersdk.WorkspaceRoleAdmin))
+				if found {
+					break
+				}
+			}
+			assert.True(t, found, "Expected to find group name %s and role %s in output: %s", group.Name, codersdk.WorkspaceRoleAdmin, out.String())
+		})
 	})
 }
 
