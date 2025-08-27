@@ -482,8 +482,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 		require.Equal(t, appURL.String(), app.SubdomainName)
 	}
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
+	agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(authToken))
 
 	// TODO (@dean): currently, the primary app host is used when generating
 	// the port URL we tell the agent to use. We don't have any plans to change

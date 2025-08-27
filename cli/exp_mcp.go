@@ -148,7 +148,7 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				binPath = testBinaryName
 			}
 			configureClaudeEnv := map[string]string{}
-			agentClient, err := r.createAgentClient()
+			agentClient, err := r.createAgentClient(inv.Context())
 			if err != nil {
 				cliui.Warnf(inv.Stderr, "failed to create agent client: %s", err)
 			} else {
@@ -494,7 +494,7 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 			}
 
 			// Try to create an agent client for status reporting.  Not validated.
-			agentClient, err := r.createAgentClient()
+			agentClient, err := r.createAgentClient(inv.Context())
 			if err == nil {
 				cliui.Infof(inv.Stderr, "Agent URL      : %s", agentClient.SDK.URL.String())
 				srv.agentClient = agentClient

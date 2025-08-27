@@ -153,15 +153,13 @@ func TestAnnouncementBanners(t *testing.T) {
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(r.AgentToken))
 		banners := requireGetAnnouncementBanners(ctx, t, agentClient)
 		require.Equal(t, cfg.AnnouncementBanners, banners)
 
 		// Create an AGPL Coderd against the same database
 		agplClient := coderdtest.New(t, &coderdtest.Options{Database: store, Pubsub: ps})
-		agplAgentClient := agentsdk.New(agplClient.URL)
-		agplAgentClient.SetSessionToken(r.AgentToken)
+		agplAgentClient := agentsdk.New(agplClient.URL, agentsdk.UsingFixedToken(r.AgentToken))
 		banners = requireGetAnnouncementBanners(ctx, t, agplAgentClient)
 		require.Equal(t, []codersdk.BannerConfig{}, banners)
 

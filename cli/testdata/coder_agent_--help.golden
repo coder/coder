@@ -24,9 +24,6 @@ OPTIONS:
           requests. The command must output each header as `key=value` on its
           own line.
 
-      --auth string, $CODER_AGENT_AUTH (default: token)
-          Specify the authentication type to use for the agent.
-
       --block-file-transfer bool, $CODER_AGENT_BLOCK_FILE_TRANSFER (default: false)
           Block file transfer using known applications: nc,rsync,scp,sftp.
 

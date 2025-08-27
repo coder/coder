@@ -875,8 +875,7 @@ func prepareWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersd
 	})
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-	ac := agentsdk.New(client.URL)
-	ac.SetSessionToken(authToken)
+	ac := agentsdk.New(client.URL, agentsdk.UsingFixedToken(authToken))
 	conn, err := ac.ConnectRPC(ctx)
 	require.NoError(t, err)
 	agentAPI := agentproto.NewDRPCAgentClient(conn)
