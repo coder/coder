@@ -6,14 +6,16 @@ import {
 	useTheme,
 } from "@emotion/react";
 import Link from "@mui/material/Link";
+import type {
+	HoverCardContentProps,
+	HoverCardProps,
+} from "@radix-ui/react-hover-card";
+import { usePopover } from "components/deprecated/Popover/Popover";
 import {
-	Popover,
-	PopoverContent,
-	type PopoverContentProps,
-	type PopoverProps,
-	PopoverTrigger,
-	usePopover,
-} from "components/deprecated/Popover/Popover";
+	HoverCard,
+	HoverCardContent,
+	HoverCardTrigger,
+} from "components/HoverCard/HoverCard";
 import { Stack } from "components/Stack/Stack";
 import { CircleHelpIcon, ExternalLinkIcon } from "lucide-react";
 import {
@@ -30,25 +32,13 @@ type Size = "small" | "medium";
 
 export const HelpTooltipIcon = CircleHelpIcon;
 
-export const HelpTooltip: FC<PopoverProps> = (props) => {
-	return <Popover mode="hover" {...props} />;
+export const HelpTooltip: FC<HoverCardProps> = (props) => {
+	return <HoverCard openDelay={0} closeDelay={0} {...props} />;
 };
 
-export const HelpTooltipContent: FC<PopoverContentProps> = (props) => {
-	const theme = useTheme();
-
+export const HelpTooltipContent: FC<HoverCardContentProps> = (props) => {
 	return (
-		<PopoverContent
-			{...props}
-			css={{
-				"& .MuiPaper-root": {
-					fontSize: 14,
-					width: 304,
-					padding: 20,
-					color: theme.palette.text.secondary,
-				},
-			}}
-		/>
+		<HoverCardContent align="start" {...props} className="p-5 w-[320px]" />
 	);
 };
 
@@ -76,7 +66,7 @@ export const HelpTooltipTrigger = forwardRef<
 	});
 
 	return (
-		<PopoverTrigger>
+		<HoverCardTrigger>
 			<button
 				{...buttonProps}
 				aria-label="More info"
@@ -102,7 +92,7 @@ export const HelpTooltipTrigger = forwardRef<
 			>
 				{children}
 			</button>
-		</PopoverTrigger>
+		</HoverCardTrigger>
 	);
 });
 
@@ -155,6 +145,7 @@ export const HelpTooltipAction: FC<HelpTooltipActionProps> = ({
 	onClick,
 	ariaLabel,
 }) => {
+	// TODO dismiss hovercard
 	const popover = usePopover();
 
 	return (

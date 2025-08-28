@@ -1,12 +1,12 @@
 import { type Theme, useTheme } from "@emotion/react";
 import type { DERPRegion, WorkspaceAgent } from "api/typesGenerated";
-import { PopoverTrigger } from "components/deprecated/Popover/Popover";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
+import { HoverCardTrigger } from "components/HoverCard/HoverCard";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
 import { getLatencyColor } from "utils/latency";
@@ -44,7 +44,7 @@ export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 
 	return (
 		<HelpTooltip>
-			<PopoverTrigger>
+			<HoverCardTrigger asChild>
 				<span
 					role="presentation"
 					aria-label="latency"
@@ -52,7 +52,7 @@ export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 				>
 					{Math.round(latency.latency_ms)}ms
 				</span>
-			</PopoverTrigger>
+			</HoverCardTrigger>
 			<HelpTooltipContent>
 				<HelpTooltipTitle>Latency</HelpTooltipTitle>
 				<HelpTooltipText>
