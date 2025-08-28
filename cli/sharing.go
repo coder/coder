@@ -52,8 +52,9 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 	)
 
 	cmd := &serpent.Command{
-		Use:   "share <workspace> --user <user>:<role> --group <group>:<role>",
-		Short: "Share a workspace with a user or group.",
+		Use:     "add <workspace> --user <user>:<role> --group <group>:<role>",
+		Aliases: []string{"share"},
+		Short:   "Share a workspace with a user or group.",
 		Options: serpent.OptionSet{
 			{
 				Name:        "user",

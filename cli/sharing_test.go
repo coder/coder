@@ -41,7 +41,7 @@ func TestSharingShare(t *testing.T) {
 		)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		inv, root := clitest.New(t, "sharing", "share", workspace.Name, "--org", orgOwner.OrganizationID.String(), "--user", toShareWithUser.Username)
+		inv, root := clitest.New(t, "sharing", "add", workspace.Name, "--org", orgOwner.OrganizationID.String(), "--user", toShareWithUser.Username)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
 		out := bytes.NewBuffer(nil)
@@ -86,7 +86,7 @@ func TestSharingShare(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv, root := clitest.New(t,
 			"sharing",
-			"share", workspace.Name, "--org", orgOwner.OrganizationID.String(),
+			"add", workspace.Name, "--org", orgOwner.OrganizationID.String(),
 			fmt.Sprintf("--user=%s,%s", toShareWithUser1.Username, toShareWithUser2.Username),
 		)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
@@ -136,7 +136,7 @@ func TestSharingShare(t *testing.T) {
 		)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		inv, root := clitest.New(t, "sharing", "share", workspace.Name,
+		inv, root := clitest.New(t, "sharing", "add", workspace.Name,
 			"--org", orgOwner.OrganizationID.String(),
 			"--user", fmt.Sprintf("%s:admin", toShareWithUser.Username),
 		)
