@@ -2297,7 +2297,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				preset, err := s.Database.GetPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
 				if err != nil {
 					if !errors.Is(err, sql.ErrNoRows) {
-						s.Logger.Error(ctx, "get preset by ID", slog.Error(err))
+						s.Logger.Error(ctx, "get preset by ID for workspace timing metrics", slog.Error(err))
 					}
 				} else {
 					presetName = preset.Name

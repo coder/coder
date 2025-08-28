@@ -43,7 +43,6 @@ func NewMetrics(logger slog.Logger) *Metrics {
 		logger: log,
 		workspaceCreationTimings: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "coderd",
-			Subsystem: "",
 			Name:      "workspace_creation_duration_seconds",
 			Help:      "Time to create a workspace by organization, template, preset, and type (regular or prebuild).",
 			Buckets: []float64{
@@ -67,7 +66,6 @@ func NewMetrics(logger slog.Logger) *Metrics {
 		}, []string{"organization_name", "template_name", "preset_name", "type"}),
 		workspaceClaimTimings: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "coderd",
-			Subsystem: "",
 			Name:      "prebuilt_workspace_claim_duration_seconds",
 			Help:      "Time to claim a prebuilt workspace by organization, template, and preset.",
 			Buckets: []float64{

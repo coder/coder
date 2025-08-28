@@ -168,7 +168,6 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	workspaceCreationTotal := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "coderd",
-			Subsystem: "",
 			Name:      "workspace_creation_total",
 			Help:      "Total regular (non-prebuilt) workspace creations by organization, template, and preset.",
 		},
