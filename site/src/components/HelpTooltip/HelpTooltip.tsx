@@ -5,11 +5,12 @@ import {
 	type Theme,
 } from "@emotion/react";
 import Link from "@mui/material/Link";
-import { TooltipContentProps, TooltipProps } from "@radix-ui/react-tooltip";
+import { TooltipProps } from "@radix-ui/react-tooltip";
 import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
+	type TooltipContentProps,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { CircleHelpIcon, ExternalLinkIcon } from "lucide-react";
