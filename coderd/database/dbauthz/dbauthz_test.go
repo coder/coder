@@ -73,7 +73,9 @@ func TestAsNoActor(t *testing.T) {
 func TestPing(t *testing.T) {
 	t.Parallel()
 
-	db, _ := dbtestutil.NewDB(t)
+	db := dbmock.NewMockStore(gomock.NewController(t))
+	db.EXPECT().Wrappers().Times(1).Return([]string{})
+	db.EXPECT().Ping(gomock.Any()).Times(1).Return(time.Second, nil)
 	q := dbauthz.New(db, &coderdtest.RecordingAuthorizer{}, slog.Make(), coderdtest.AccessControlStorePointer())
 	_, err := q.Ping(context.Background())
 	require.NoError(t, err, "must not error")
@@ -83,34 +85,39 @@ func TestPing(t *testing.T) {
 func TestInTX(t *testing.T) {
 	t.Parallel()
 
-	db, _ := dbtestutil.NewDB(t)
+	var (
+		ctrl  = gomock.NewController(t)
+		db    = dbmock.NewMockStore(ctrl)
+		mTx   = dbmock.NewMockStore(ctrl) // to record the 'in tx' calls
+		faker = gofakeit.New(0)
+		w     = testutil.Fake(t, faker, database.Workspace{})
+		actor = rbac.Subject{
+			ID:     uuid.NewString(),
+			Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
+			Groups: []string{},
+			Scope:  rbac.ScopeAll,
+		}
+		ctx = dbauthz.As(context.Background(), actor)
+	)
+
+	db.EXPECT().Wrappers().Times(1).Return([]string{}) // called by dbauthz.New
 	q := dbauthz.New(db, &coderdtest.RecordingAuthorizer{
 		Wrapped: (&coderdtest.FakeAuthorizer{}).AlwaysReturn(xerrors.New("custom error")),
 	}, slog.Make(), coderdtest.AccessControlStorePointer())
-	actor := rbac.Subject{
-		ID:     uuid.NewString(),
-		Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
-		Groups: []string{},
-		Scope:  rbac.ScopeAll,
-	}
-	u := dbgen.User(t, db, database.User{})
-	o := dbgen.Organization(t, db, database.Organization{})
-	tpl := dbgen.Template(t, db, database.Template{
-		CreatedBy:      u.ID,
-		OrganizationID: o.ID,
-	})
-	w := dbgen.Workspace(t, db, database.WorkspaceTable{
-		OwnerID:        u.ID,
-		TemplateID:     tpl.ID,
-		OrganizationID: o.ID,
-	})
-	ctx := dbauthz.As(context.Background(), actor)
+
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+		func(f func(database.Store) error, _ *database.TxOptions) error {
+			return f(mTx)
+		},
+	)
+	mTx.EXPECT().Wrappers().Times(1).Return([]string{})
+	mTx.EXPECT().GetWorkspaceByID(gomock.Any(), gomock.Any()).Times(1).Return(w, nil)
 	err := q.InTx(func(tx database.Store) error {
 		// The inner tx should use the parent's authz
 		_, err := tx.GetWorkspaceByID(ctx, w.ID)
 		return err
 	}, nil)
-	require.Error(t, err, "must error")
+	require.ErrorContains(t, err, "custom error", "must be our custom error")
 	require.ErrorAs(t, err, &dbauthz.NotAuthorizedError{}, "must be an authorized error")
 	require.True(t, dbauthz.IsNotAuthorizedError(err), "must be an authorized error")
 }
@@ -120,24 +127,18 @@ func TestNew(t *testing.T) {
 	t.Parallel()
 
 	var (
-		db, _ = dbtestutil.NewDB(t)
+		ctrl  = gomock.NewController(t)
+		db    = dbmock.NewMockStore(ctrl)
+		faker = gofakeit.New(0)
 		rec   = &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{},
 		}
 		subj = rbac.Subject{}
 		ctx  = dbauthz.As(context.Background(), rbac.Subject{})
 	)
-	u := dbgen.User(t, db, database.User{})
-	org := dbgen.Organization(t, db, database.Organization{})
-	tpl := dbgen.Template(t, db, database.Template{
-		OrganizationID: org.ID,
-		CreatedBy:      u.ID,
-	})
-	exp := dbgen.Workspace(t, db, database.WorkspaceTable{
-		OwnerID:        u.ID,
-		OrganizationID: org.ID,
-		TemplateID:     tpl.ID,
-	})
+	db.EXPECT().Wrappers().Times(1).Return([]string{}).Times(2) // two calls to New()
+	exp := testutil.Fake(t, faker, database.Workspace{})
+	db.EXPECT().GetWorkspaceByID(gomock.Any(), exp.ID).Times(1).Return(exp, nil)
 	// Double wrap should not cause an actual double wrap. So only 1 rbac call
 	// should be made.
 	az := dbauthz.New(db, rec, slog.Make(), coderdtest.AccessControlStorePointer())
@@ -145,7 +146,7 @@ func TestNew(t *testing.T) {
 
 	w, err := az.GetWorkspaceByID(ctx, exp.ID)
 	require.NoError(t, err, "must not error")
-	require.Equal(t, exp, w.WorkspaceTable(), "must be equal")
+	require.Equal(t, exp, w, "must be equal")
 
 	rec.AssertActor(t, subj, rec.Pair(policy.ActionRead, exp))
 	require.NoError(t, rec.AllAsserted(), "should only be 1 rbac call")
@@ -154,6 +155,8 @@ func TestNew(t *testing.T) {
 // TestDBAuthzRecursive is a simple test to search for infinite recursion
 // bugs. It isn't perfect, and only catches a subset of the possible bugs
 // as only the first db call will be made. But it is better than nothing.
+// This can be removed when all tests in this package are migrated to
+// dbmock as it will immediately detect recursive calls.
 func TestDBAuthzRecursive(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
