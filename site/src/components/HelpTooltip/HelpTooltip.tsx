@@ -3,7 +3,6 @@ import {
 	css,
 	type Interpolation,
 	type Theme,
-	useTheme,
 } from "@emotion/react";
 import Link from "@mui/material/Link";
 import type {
@@ -146,7 +145,8 @@ export const HelpTooltipAction: FC<HelpTooltipActionProps> = ({
 	ariaLabel,
 }) => {
 	// TODO dismiss hovercard
-	const popover = usePopover();
+	//   usePopover causes the page to crash, but we should probably use shadcn's Tooltip instead of HoverCard
+	// const popover = usePopover();
 
 	return (
 		<button

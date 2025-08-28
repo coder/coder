@@ -1,5 +1,4 @@
 import type { WorkspaceAgent } from "api/typesGenerated";
-import { PopoverTrigger } from "components/deprecated/Popover/Popover";
 import {
 	HelpTooltip,
 	HelpTooltipAction,
@@ -7,6 +6,7 @@ import {
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 	HelpTooltipTitle,
+	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
 import { RotateCcwIcon } from "lucide-react";
@@ -38,11 +38,11 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 
 	return (
 		<HelpTooltip>
-			<PopoverTrigger>
+			<HelpTooltipTrigger>
 				<span role="status" className="cursor-pointer">
 					{status === agentVersionStatus.Outdated ? "Outdated" : "Deprecated"}
 				</span>
-			</PopoverTrigger>
+			</HelpTooltipTrigger>
 			<HelpTooltipContent>
 				<Stack spacing={1}>
 					<div>
