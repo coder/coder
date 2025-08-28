@@ -73,7 +73,7 @@ export const HelpTooltipTrigger = forwardRef<
 	});
 
 	return (
-		<TooltipTrigger>
+		<TooltipTrigger asChild>
 			<button
 				{...buttonProps}
 				aria-label="More info"
