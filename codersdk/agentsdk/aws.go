@@ -81,7 +81,7 @@ func (a *awsSessionTokenExchanger) exchange(ctx context.Context) (AuthenticateRe
 	}
 
 	// request without the token to avoid re-entering this function
-	res, err = a.client.RequestNoSessionToken(ctx, http.MethodPost, "/api/v2/workspaceagents/aws-instance-identity", AWSInstanceIdentityToken{
+	res, err = a.client.RequestWithoutSessionToken(ctx, http.MethodPost, "/api/v2/workspaceagents/aws-instance-identity", AWSInstanceIdentityToken{
 		Signature: string(signature),
 		Document:  string(document),
 	})

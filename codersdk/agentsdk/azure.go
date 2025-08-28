@@ -47,7 +47,7 @@ func (a *azureSessionTokenExchanger) exchange(ctx context.Context) (Authenticate
 		return AuthenticateResponse{}, err
 	}
 
-	res, err = a.client.RequestNoSessionToken(ctx, http.MethodPost, "/api/v2/workspaceagents/azure-instance-identity", token)
+	res, err = a.client.RequestWithoutSessionToken(ctx, http.MethodPost, "/api/v2/workspaceagents/azure-instance-identity", token)
 	if err != nil {
 		return AuthenticateResponse{}, err
 	}
