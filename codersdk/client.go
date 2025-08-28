@@ -202,10 +202,13 @@ func prefixLines(prefix, s []byte) []byte {
 // responsible for closing the response body.
 func (c *Client) Request(ctx context.Context, method, path string, body interface{}, opts ...RequestOption) (*http.Response, error) {
 	opts = append([]RequestOption{c.SessionTokenProvider.AsRequestOption()}, opts...)
-	return c.RequestNoSessionToken(ctx, method, path, body, opts...)
+	return c.RequestWithoutSessionToken(ctx, method, path, body, opts...)
 }
 
-func (c *Client) RequestNoSessionToken(ctx context.Context, method, path string, body interface{}, opts ...RequestOption) (*http.Response, error) {
+// RequestWithoutSessionToken performs a HTTP request. It is similar to Request, but does not set
+// the session token in the request header, nor does it make a call to the SessionTokenProvider.
+// This allows session token providers to call this method without causing reentrancy issues.
+func (c *Client) RequestWithoutSessionToken(ctx context.Context, method, path string, body interface{}, opts ...RequestOption) (*http.Response, error) {
 	if ctx == nil {
 		return nil, xerrors.Errorf("context should not be nil")
 	}
