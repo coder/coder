@@ -13,16 +13,23 @@ import {
 	SidebarMenuItem,
 	SidebarMenuSkeleton,
 	SidebarTrigger,
-	useSidebar,
 } from "components/LayotuSidebar/LayoutSidebar";
 import { useAuthenticated } from "hooks";
+import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { SquarePenIcon } from "lucide-react";
+import { UsersCombobox } from "pages/TasksPage/UsersCombobox";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useParams } from "react-router";
 import { cn } from "utils/cn";
 
 export const TasksSidebar: FC = () => {
+	const { user, permissions } = useAuthenticated();
+	const usernameParam = useSearchParamsKey({
+		key: "username",
+		defaultValue: user.username,
+	});
+
 	return (
 		<Sidebar collapsible="icon">
 			<TasksSidebarHeader />
@@ -43,15 +50,30 @@ export const TasksSidebar: FC = () => {
 					</SidebarGroupContent>
 				</SidebarGroup>
 
-				<TasksSidebarGroup />
+				{permissions.viewAllUsers && (
+					<SidebarGroup className="transition-[margin,opacity] group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0">
+						<SidebarGroupContent>
+							<UsersCombobox
+								value={usernameParam.value}
+								onValueChange={(username) => {
+									if (username === usernameParam.value) {
+										usernameParam.setValue("");
+										return;
+									}
+									usernameParam.setValue(username);
+								}}
+							/>
+						</SidebarGroupContent>
+					</SidebarGroup>
+				)}
+
+				<TasksSidebarGroup username={usernameParam.value} />
 			</SidebarContent>
 		</Sidebar>
 	);
 };
 
 const TasksSidebarHeader: FC = () => {
-	const sidebar = useSidebar();
-
 	return (
 		<SidebarHeader>
 			<div className="flex items-center ">
@@ -60,7 +82,7 @@ const TasksSidebarHeader: FC = () => {
 					variant="subtle"
 					className={cn([
 						"size-8 p-0 transition-[margin,opacity] ml-1",
-						{ "-ml-10 opacity-0": !sidebar.open },
+						"group-data-[collapsible=icon]:-ml-10 group-data-[collapsible=icon]:opacity-0",
 					])}
 				>
 					<CoderIcon className="fill-content-primary !size-6 !p-0" />
@@ -71,11 +93,13 @@ const TasksSidebarHeader: FC = () => {
 	);
 };
 
-const TasksSidebarGroup: FC = () => {
-	const sidebar = useSidebar();
-	const { user } = useAuthenticated();
+type TasksSidebarGroupProps = {
+	username: string;
+};
+
+const TasksSidebarGroup: FC<TasksSidebarGroupProps> = ({ username }) => {
 	const { workspace } = useParams<{ workspace: string }>();
-	const filter = { username: user.username };
+	const filter = { username };
 	const tasksQuery = useQuery({
 		queryKey: ["tasks", filter],
 		queryFn: () => API.experimental.getTasks(filter),
@@ -85,8 +109,7 @@ const TasksSidebarGroup: FC = () => {
 	return (
 		<SidebarGroup
 			className={cn([
-				"transition-[opacity] opacity-0",
-				{ "opacity-100": sidebar.open },
+				"transition-[opacity] group-data-[collapsible=icon]:opacity-0",
 			])}
 		>
 			<SidebarGroupLabel>Tasks</SidebarGroupLabel>
@@ -100,7 +123,10 @@ const TasksSidebarGroup: FC = () => {
 										asChild
 									>
 										<RouterLink
-											to={`/tasks/${t.workspace.owner_name}/${t.workspace.name}`}
+											to={{
+												pathname: `/tasks/${t.workspace.owner_name}/${t.workspace.name}`,
+												search: window.location.search,
+											}}
 										>
 											<span>{t.workspace.name}</span>
 										</RouterLink>
