@@ -55,29 +55,23 @@ FROM
 	provisioner_daemons pd
 JOIN
 	provisioner_keys pk ON pk.id = pd.key_id
-LEFT JOIN
-	provisioner_jobs current_job ON (
-		current_job.worker_id = pd.id
-		AND current_job.organization_id = pd.organization_id
-		AND current_job.completed_at IS NULL
-	)
-LEFT JOIN
-	provisioner_jobs previous_job ON (
-		previous_job.id = (
-			SELECT
-				id
-			FROM
-				provisioner_jobs
-			WHERE
-				worker_id = pd.id
-				AND organization_id = pd.organization_id
-				AND completed_at IS NOT NULL
-			ORDER BY
-				completed_at DESC
-			LIMIT 1
-		)
-		AND previous_job.organization_id = pd.organization_id
-	)
+LEFT JOIN LATERAL (
+	SELECT id, job_status, input, organization_id
+	FROM provisioner_jobs
+	WHERE worker_id = pd.id
+	  AND organization_id = pd.organization_id
+	  AND completed_at IS NULL
+	LIMIT 1
+) AS current_job ON TRUE
+LEFT JOIN LATERAL (
+	SELECT id, job_status, input, organization_id
+	FROM provisioner_jobs
+	WHERE worker_id = pd.id
+	  AND organization_id = pd.organization_id
+	  AND completed_at IS NOT NULL
+	ORDER BY completed_at DESC
+	LIMIT 1
+) AS previous_job ON TRUE
 -- Current job information.
 LEFT JOIN
 	workspace_builds current_build ON current_build.id = CASE WHEN current_job.input ? 'workspace_build_id' THEN (current_job.input->>'workspace_build_id')::uuid END
