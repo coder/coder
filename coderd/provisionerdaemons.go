@@ -45,7 +45,8 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	p := httpapi.NewQueryParamParser()
 	limit := p.PositiveInt32(qp, 50, "limit")
 	ids := p.UUIDs(qp, nil, "ids")
-	tags := p.JSONStringMap(qp, database.StringMap{}, "tags")
+	// Default tags to nil (not empty map) so DB can short-circuit when not provided
+	rawTags := p.JSONStringMap(qp, nil, "tags")
 	includeOffline := p.NullableBoolean(qp, sql.NullBool{}, "offline")
 	statuses := p.ProvisionerDaemonStatuses(qp, []codersdk.ProvisionerDaemonStatus{}, "status")
 	maxAge := p.Duration(qp, 0, "max_age")
@@ -70,7 +71,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 			Statuses:        dbStatuses,
 			MaxAgeMs:        sql.NullInt64{Int64: maxAge.Milliseconds(), Valid: maxAge > 0},
 			IDs:             ids,
-			Tags:            tags,
+			Tags:            database.StringMap(rawTags),
 		},
 	)
 	if err != nil {
