@@ -2702,10 +2702,12 @@ class ExperimentalApiMethods {
 			queryExpressions.push(`owner:${filter.username}`);
 		}
 
-		const workspaces = await API.getWorkspaces({
+		const res = await API.getWorkspaces({
 			q: queryExpressions.join(" "),
-		}).then((res) =>
-			res.workspaces.filter((workspace) => !workspace.is_prebuild),
+		});
+		// Exclude prebuild workspaces as they are not user-facing.
+		const workspaces = res.workspaces.filter(
+			(workspace) => !workspace.is_prebuild,
 		);
 		const prompts = await API.experimental.getAITasksPrompts(
 			workspaces.map((workspace) => workspace.latest_build.id),
