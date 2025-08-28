@@ -6,13 +6,13 @@ import type {
 	WorkspaceAgentDevcontainer,
 } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { PopoverTrigger } from "components/deprecated/Popover/Popover";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
+import { TooltipProvider, TooltipTrigger } from "components/Tooltip/Tooltip";
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 
@@ -62,9 +62,9 @@ interface DevcontainerStatusProps {
 const StartTimeoutLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 	return (
 		<HelpTooltip>
-			<PopoverTrigger role="status" aria-label="Agent timeout">
+			<TooltipTrigger asChild role="status" aria-label="Agent timeout">
 				<TriangleAlertIcon css={styles.timeoutWarning} />
-			</PopoverTrigger>
+			</TooltipTrigger>
 
 			<HelpTooltipContent>
 				<HelpTooltipTitle>Agent is taking too long to start</HelpTooltipTitle>
@@ -87,9 +87,9 @@ const StartTimeoutLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 const StartErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 	return (
 		<HelpTooltip>
-			<PopoverTrigger role="status" aria-label="Start error">
+			<TooltipTrigger asChild role="status" aria-label="Start error">
 				<TriangleAlertIcon css={styles.errorWarning} />
-			</PopoverTrigger>
+			</TooltipTrigger>
 			<HelpTooltipContent>
 				<HelpTooltipTitle>Error starting the agent</HelpTooltipTitle>
 				<HelpTooltipText>
@@ -123,9 +123,9 @@ const ShuttingDownLifecycle: FC = () => {
 const ShutdownTimeoutLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 	return (
 		<HelpTooltip>
-			<PopoverTrigger role="status" aria-label="Stop timeout">
+			<TooltipTrigger asChild role="status" aria-label="Stop timeout">
 				<TriangleAlertIcon css={styles.timeoutWarning} />
-			</PopoverTrigger>
+			</TooltipTrigger>
 			<HelpTooltipContent>
 				<HelpTooltipTitle>Agent is taking too long to stop</HelpTooltipTitle>
 				<HelpTooltipText>
@@ -147,9 +147,9 @@ const ShutdownTimeoutLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 const ShutdownErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 	return (
 		<HelpTooltip>
-			<PopoverTrigger role="status" aria-label="Stop error">
+			<TooltipTrigger asChild role="status" aria-label="Stop error">
 				<TriangleAlertIcon css={styles.errorWarning} />
-			</PopoverTrigger>
+			</TooltipTrigger>
 			<HelpTooltipContent>
 				<HelpTooltipTitle>Error stopping the agent</HelpTooltipTitle>
 				<HelpTooltipText>
@@ -243,9 +243,9 @@ const ConnectingStatus: FC = () => {
 const TimeoutStatus: FC<AgentStatusProps> = ({ agent }) => {
 	return (
 		<HelpTooltip>
-			<PopoverTrigger role="status" aria-label="Timeout">
+			<TooltipTrigger asChild role="status" aria-label="Timeout">
 				<TriangleAlertIcon css={styles.timeoutWarning} />
-			</PopoverTrigger>
+			</TooltipTrigger>
 			<HelpTooltipContent>
 				<HelpTooltipTitle>Agent is taking too long to connect</HelpTooltipTitle>
 				<HelpTooltipText>
@@ -266,20 +266,22 @@ const TimeoutStatus: FC<AgentStatusProps> = ({ agent }) => {
 
 export const AgentStatus: FC<AgentStatusProps> = ({ agent }) => {
 	return (
-		<ChooseOne>
-			<Cond condition={agent.status === "connected"}>
-				<ConnectedStatus agent={agent} />
-			</Cond>
-			<Cond condition={agent.status === "disconnected"}>
-				<DisconnectedStatus />
-			</Cond>
-			<Cond condition={agent.status === "timeout"}>
-				<TimeoutStatus agent={agent} />
-			</Cond>
-			<Cond>
-				<ConnectingStatus />
-			</Cond>
-		</ChooseOne>
+		<TooltipProvider>
+			<ChooseOne>
+				<Cond condition={agent.status === "connected"}>
+					<ConnectedStatus agent={agent} />
+				</Cond>
+				<Cond condition={agent.status === "disconnected"}>
+					<DisconnectedStatus />
+				</Cond>
+				<Cond condition={agent.status === "timeout"}>
+					<TimeoutStatus agent={agent} />
+				</Cond>
+				<Cond>
+					<ConnectingStatus />
+				</Cond>
+			</ChooseOne>
+		</TooltipProvider>
 	);
 };
 
@@ -308,9 +310,9 @@ const SubAgentStatus: FC<SubAgentStatusProps> = ({ agent }) => {
 const DevcontainerStartError: FC<AgentStatusProps> = ({ agent }) => {
 	return (
 		<HelpTooltip>
-			<PopoverTrigger role="status" aria-label="Start error">
+			<TooltipTrigger asChild role="status" aria-label="Start error">
 				<TriangleAlertIcon css={styles.errorWarning} />
-			</PopoverTrigger>
+			</TooltipTrigger>
 			<HelpTooltipContent>
 				<HelpTooltipTitle>
 					Error starting the devcontainer agent
