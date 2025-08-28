@@ -212,7 +212,7 @@ coder:
 
 </div>
 
-## Offline docs
+## Air-gapped docs
 
 Coder also provides offline documentation in case you want to host it on your
 own server. The docs are exported as static files that you can host on any web
