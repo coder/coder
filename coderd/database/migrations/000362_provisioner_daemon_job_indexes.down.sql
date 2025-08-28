@@ -1,0 +1,3 @@
+DROP INDEX IF EXISTS idx_provisioner_daemons_org_created_at;
+DROP INDEX IF EXISTS idx_provisioner_jobs_worker_completed_at_desc;
+DROP INDEX IF EXISTS idx_provisioner_jobs_worker_open;
