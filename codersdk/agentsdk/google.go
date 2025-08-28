@@ -56,7 +56,7 @@ func (g *googleSessionTokenExchanger) exchange(ctx context.Context) (Authenticat
 		return AuthenticateResponse{}, xerrors.Errorf("get metadata identity: %w", err)
 	}
 	// request without the token to avoid re-entering this function
-	res, err := g.client.RequestNoSessionToken(ctx, http.MethodPost, "/api/v2/workspaceagents/google-instance-identity", GoogleInstanceIdentityToken{
+	res, err := g.client.RequestWithoutSessionToken(ctx, http.MethodPost, "/api/v2/workspaceagents/google-instance-identity", GoogleInstanceIdentityToken{
 		JSONWebToken: jwt,
 	})
 	if err != nil {
