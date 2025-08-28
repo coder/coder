@@ -118,7 +118,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			)}
 			options={
 				<>
-					{userMenu && <UserMenu menu={userMenu} />}
+					{userMenu && <UserMenu width={width} menu={userMenu} />}
 					<TemplateMenu width={width} menu={templateMenu} />
 					<StatusMenu width={width} menu={statusMenu} />
 					{organizationsActive && (

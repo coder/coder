@@ -58,7 +58,7 @@ export const ConnectionLogFilter: FC<ConnectionLogFilterProps> = ({
 			error={error}
 			options={
 				<>
-					<UserMenu placeholder="All owners" menu={menus.user} />
+					<UserMenu placeholder="All owners" menu={menus.user} width={width} />
 					<StatusMenu menu={menus.status} width={width} />
 					<TypeMenu menu={menus.type} width={width} />
 					{menus.organization && (

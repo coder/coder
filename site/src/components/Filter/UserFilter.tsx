@@ -85,9 +85,10 @@ export type UserFilterMenu = ReturnType<typeof useUserFilterMenu>;
 interface UserMenuProps {
 	menu: UserFilterMenu;
 	placeholder?: string;
+	width?: number;
 }
 
-export const UserMenu: FC<UserMenuProps> = ({ menu, placeholder }) => {
+export const UserMenu: FC<UserMenuProps> = ({ menu, width, placeholder }) => {
 	return (
 		<SelectFilter
 			label="Select user"
@@ -104,7 +105,7 @@ export const UserMenu: FC<UserMenuProps> = ({ menu, placeholder }) => {
 					onChange={menu.setQuery}
 				/>
 			}
-			width={DEFAULT_USER_FILTER_WIDTH}
+			width={width}
 		/>
 	);
 };
