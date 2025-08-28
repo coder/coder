@@ -61,17 +61,11 @@ export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
 			error={error}
 			options={
 				<>
-					<ResourceTypeMenu
-						width={width}
-						menu={menus.resourceType}
-					/>
+					<ResourceTypeMenu width={width} menu={menus.resourceType} />
 					<ActionMenu width={width} menu={menus.action} />
 					<UserMenu menu={menus.user} />
 					{menus.organization && (
-						<OrganizationsMenu
-							width={width}
-							menu={menus.organization}
-						/>
+						<OrganizationsMenu width={width} menu={menus.organization} />
 					)}
 				</>
 			}

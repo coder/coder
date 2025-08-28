@@ -62,10 +62,7 @@ export const ConnectionLogFilter: FC<ConnectionLogFilterProps> = ({
 					<StatusMenu menu={menus.status} width={width} />
 					<TypeMenu menu={menus.type} width={width} />
 					{menus.organization && (
-						<OrganizationsMenu
-							menu={menus.organization}
-							width={width}
-						/>
+						<OrganizationsMenu menu={menus.organization} width={width} />
 					)}
 				</>
 			}

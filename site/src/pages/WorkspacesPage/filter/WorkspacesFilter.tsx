@@ -122,10 +122,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 					<TemplateMenu width={width} menu={templateMenu} />
 					<StatusMenu width={width} menu={statusMenu} />
 					{organizationsActive && (
-						<OrganizationsMenu
-							width={width}
-							menu={organizationsMenu}
-						/>
+						<OrganizationsMenu width={width} menu={organizationsMenu} />
 					)}
 				</>
 			}
