@@ -1,4 +1,3 @@
-import Skeleton from "@mui/material/Skeleton";
 import { users } from "api/queries/users";
 import type { User } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
@@ -45,7 +44,7 @@ export const UsersCombobox: FC<UsersComboboxProps> = ({
 	const [search, setSearch] = useState("");
 	const debouncedSearch = useDebouncedValue(search, 250);
 	const { user } = useAuthenticated();
-	const { data: options } = useQuery({
+	const { data: options, isFetched } = useQuery({
 		...users({ q: debouncedSearch }),
 		select: (res) => mapUsersToOptions(res.users, user, value),
 		placeholderData: keepPreviousData,
@@ -56,25 +55,29 @@ export const UsersCombobox: FC<UsersComboboxProps> = ({
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
 				<Button
-					disabled={!options}
-					variant="outline"
+					disabled={!isFetched}
 					role="combobox"
 					aria-expanded={open}
-					className="w-[280px] justify-between"
+					className={`
+						justify-between rounded-full bg-surface-tertiary border border-border hover:bg-surface-quaternary text-content-primary
+						pl-3
+					`}
+					size="sm"
 				>
-					{options ? (
+					{isFetched ? (
 						selectedOption ? (
-							<UserItem option={selectedOption} className="-ml-1" />
+							<UserItem option={selectedOption} className="-ml-2" />
 						) : (
-							"Select user..."
+							"All users"
 						)
 					) : (
-						<Skeleton variant="text" className="w-[120px] h-3" />
+						"Loading users..."
 					)}
-					<ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+
+					<ChevronsUpDownIcon className="h-4 w-4 shrink-0 opacity-50" />
 				</Button>
 			</PopoverTrigger>
-			<PopoverContent className="w-[280px] p-0">
+			<PopoverContent className="w-[280px] p-0 " side="bottom" align="start">
 				<Command>
 					<CommandInput
 						placeholder="Search user..."
@@ -120,7 +123,11 @@ type UserItemProps = {
 const UserItem: FC<UserItemProps> = ({ option, className }) => {
 	return (
 		<div className={cn("flex flex-1 items-center gap-2", className)}>
-			<Avatar src={option.avatarUrl} fallback={option.label} />
+			<Avatar
+				src={option.avatarUrl}
+				fallback={option.label}
+				className="rounded-full"
+			/>
 			{option.label}
 		</div>
 	);
