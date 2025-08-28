@@ -1,12 +1,12 @@
-# Offline Deployments
+# Air-gapped Deployments
 
-All Coder features are supported in offline / behind firewalls / in air-gapped
+All Coder features are supported in air-gapped / behind firewalls / disconnected / offline
 environments. However, some changes to your configuration are necessary.
 
 This is a general comparison. Keep reading for a full tutorial running Coder
-offline with Kubernetes or Docker.
+air-gapped with Kubernetes or Docker.
 
-|                    | Public deployments                                                                                                                                                                                                                                                 | Offline deployments                                                                                                                                                                                                                                                                                  |
+|                    | Public deployments                                                                                                                                                                                                                                                 | Air-gapped deployments                                                                                                                                                                                                                                                                                  |
 |--------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Terraform binary   | By default, Coder downloads Terraform binary from [releases.hashicorp.com](https://releases.hashicorp.com)                                                                                                                                                         | Terraform binary must be included in `PATH` for the VM or container image. [Supported versions](https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24)                                                                                                                   |
 | Terraform registry | Coder templates will attempt to download providers from [registry.terraform.io](https://registry.terraform.io) or [custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) specified in each template | [Custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) can be specified in each Coder template, or a custom registry/mirror can be used. More details below                                                                           |
@@ -16,7 +16,7 @@ offline with Kubernetes or Docker.
 | Telemetry          | Telemetry is on by default, and [can be disabled](../reference/cli/server.md#--telemetry)                                                                                                                                                                          | Telemetry [can be disabled](../reference/cli/server.md#--telemetry)                                                                                                                                                                                                                                  |
 | Update check       | By default, Coder checks for updates from [GitHub releases](https://github.com/coder/coder/releases)                                                                                                                                                               | Update checks [can be disabled](../reference/cli/server.md#--update-check)                                                                                                                                                                                                                           |
 
-## Offline container images
+## Air-gapped container images
 
 The following instructions walk you through how to build a custom Coder server
 image for Docker or Kubernetes
