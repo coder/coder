@@ -184,6 +184,8 @@ type Options struct {
 	OIDCConvertKeyCache                cryptokeys.SigningKeycache
 	Clock                              quartz.Clock
 	TelemetryReporter                  telemetry.Reporter
+
+	ProvisionerdServerMetrics *provisionerdserver.Metrics
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -604,6 +606,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			Clock:                              options.Clock,
 			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
 			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
+			ProvisionerdServerMetrics:          options.ProvisionerdServerMetrics,
 		}
 }
 
@@ -1646,19 +1649,48 @@ func UpdateProvisionerLastSeenAt(t *testing.T, db database.Store, id uuid.UUID, 
 func MustWaitForAnyProvisioner(t *testing.T, db database.Store) {
 	t.Helper()
 	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitShort))
-	require.Eventually(t, func() bool {
+	// testutil.Eventually(t, func)
+	testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
 		daemons, err := db.GetProvisionerDaemons(ctx)
 		return err == nil && len(daemons) > 0
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast, "no provisioner daemons found")
+}
+
+// MustWaitForProvisionersUnavailable waits for provisioners to become unavailable for a specific workspace
+func MustWaitForProvisionersUnavailable(t *testing.T, db database.Store, workspace codersdk.Workspace, tags map[string]string, checkTime time.Time) {
+	t.Helper()
+	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitMedium))
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+		// Use the same logic as hasValidProvisioner but expect false
+		provisionerDaemons, err := db.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
+			OrganizationID: workspace.OrganizationID,
+			WantTags:       tags,
+		})
+		if err != nil {
+			return false
+		}
+
+		// Check if NO provisioners are active (all are stale or gone)
+		for _, pd := range provisionerDaemons {
+			if pd.LastSeenAt.Valid {
+				age := checkTime.Sub(pd.LastSeenAt.Time)
+				if age <= provisionerdserver.StaleInterval {
+					return false // Found an active provisioner, keep waiting
+				}
+			}
+		}
+		return true // No active provisioners found
+	}, testutil.IntervalFast, "there are still provisioners available for workspace, expected none")
 }
 
 // MustWaitForProvisionersAvailable waits for provisioners to be available for a specific workspace.
-func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace codersdk.Workspace) uuid.UUID {
+func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace codersdk.Workspace, ts time.Time) uuid.UUID {
 	t.Helper()
-	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitShort))
+	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitLong))
 	id := uuid.UUID{}
 	// Get the workspace from the database
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
 		ws, err := db.GetWorkspaceByID(ctx, workspace.ID)
 		if err != nil {
 			return false
@@ -1686,10 +1718,9 @@ func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace
 		}
 
 		// Check if any provisioners are active (not stale)
-		now := time.Now()
 		for _, pd := range provisionerDaemons {
 			if pd.LastSeenAt.Valid {
-				age := now.Sub(pd.LastSeenAt.Time)
+				age := ts.Sub(pd.LastSeenAt.Time)
 				if age <= provisionerdserver.StaleInterval {
 					id = pd.ID
 					return true // Found an active provisioner
@@ -1697,7 +1728,7 @@ func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace
 			}
 		}
 		return false // No active provisioners found
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.IntervalFast, "no active provisioners available for workspace, expected at least one (non-stale)")
 
 	return id
 }

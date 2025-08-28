@@ -487,6 +487,16 @@ var (
 					rbac.ResourceFile.Type: {
 						policy.ActionRead,
 					},
+					// Needs to be able to add the prebuilds system user to the "prebuilds" group in each organization that needs prebuilt workspaces
+					// so that prebuilt workspaces can be scheduled and owned in those organizations.
+					rbac.ResourceGroup.Type: {
+						policy.ActionRead,
+						policy.ActionCreate,
+						policy.ActionUpdate,
+					},
+					rbac.ResourceGroupMember.Type: {
+						policy.ActionRead,
+					},
 				}),
 			},
 		}),
@@ -2689,6 +2699,13 @@ func (q *querier) GetQuotaConsumedForUser(ctx context.Context, params database.G
 	return q.db.GetQuotaConsumedForUser(ctx, params)
 }
 
+func (q *querier) GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]database.GetRegularWorkspaceCreateMetricsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetRegularWorkspaceCreateMetrics(ctx)
+}
+
 func (q *querier) GetReplicaByID(ctx context.Context, id uuid.UUID) (database.Replica, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.Replica{}, err
@@ -4574,6 +4591,7 @@ func (q *querier) UpdatePresetPrebuildStatus(ctx context.Context, arg database.U
 		return err
 	}
 
+	// TODO: This does not check the acl list on the template. Should it?
 	object := rbac.ResourceTemplate.
 		WithID(preset.TemplateID.UUID).
 		InOrg(preset.OrganizationID)

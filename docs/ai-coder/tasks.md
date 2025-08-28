@@ -82,6 +82,10 @@ If a workspace app has the special `"preview"` slug, a navbar will appear above 
 
 We plan to introduce more customization options in future releases.
 
+## Automatically name your tasks
+
+Coder can automatically generate a name your tasks if you set the `ANTHROPIC_API_KEY` environment variable on the Coder server. Otherwise, tasks will be given randomly generated names.
+
 ## Opting out of Tasks
 
 If you tried Tasks and decided you don't want to use it, you can hide the Tasks tab by starting `coder server` with the `CODER_HIDE_AI_TASKS=true` environment variable or the `--hide-ai-tasks` flag.
