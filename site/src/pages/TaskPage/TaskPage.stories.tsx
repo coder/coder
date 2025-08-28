@@ -2,6 +2,8 @@ import {
 	MockFailedWorkspace,
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
+	MockTasks,
+	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgentLogSource,
 	MockWorkspaceAgentReady,
@@ -13,20 +15,46 @@ import {
 } from "testHelpers/entities";
 import { withProxyProvider, withWebSocket } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { API } from "api/api";
+import { getAuthorizationKey } from "api/queries/authCheck";
+import { meKey } from "api/queries/users";
 import type {
 	Workspace,
 	WorkspaceApp,
 	WorkspaceResource,
 } from "api/typesGenerated";
+import { AuthProvider } from "contexts/auth/AuthProvider";
+import { permissionChecks } from "modules/permissions";
+import TasksLayout from "pages/TasksLayout/TasksLayout";
 import { expect, spyOn, within } from "storybook/test";
+import {
+	reactRouterNestedAncestors,
+	reactRouterParameters,
+} from "storybook-addon-remix-react-router";
 import TaskPage, { data, WorkspaceDoesNotHaveAITaskError } from "./TaskPage";
 
 const meta: Meta<typeof TaskPage> = {
 	title: "pages/TaskPage",
 	component: TaskPage,
 	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+	},
 	parameters: {
 		layout: "fullscreen",
+		queries: [
+			{ key: meKey, data: MockUserOwner },
+			{ key: getAuthorizationKey({ checks: permissionChecks }), data: {} },
+		],
+		reactRouter: reactRouterParameters({
+			routing: reactRouterNestedAncestors({
+				element: (
+					<AuthProvider>
+						<TasksLayout />
+					</AuthProvider>
+				),
+			}),
+		}),
 	},
 };
 
