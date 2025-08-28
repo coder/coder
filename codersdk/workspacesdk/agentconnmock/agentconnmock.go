@@ -141,6 +141,20 @@ func (mr *MockAgentConnMockRecorder) DialContext(ctx, network, addr any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DialContext", reflect.TypeOf((*MockAgentConn)(nil).DialContext), ctx, network, addr)
 }
 
+// EditFile mocks base method.
+func (m *MockAgentConn) EditFile(ctx context.Context, path string, edits workspacesdk.FileEditRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EditFile", ctx, path, edits)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// EditFile indicates an expected call of EditFile.
+func (mr *MockAgentConnMockRecorder) EditFile(ctx, path, edits any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EditFile", reflect.TypeOf((*MockAgentConn)(nil).EditFile), ctx, path, edits)
+}
+
 // GetPeerDiagnostics mocks base method.
 func (m *MockAgentConn) GetPeerDiagnostics() tailnet.PeerDiagnostics {
 	m.ctrl.T.Helper()

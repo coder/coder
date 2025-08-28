@@ -13,11 +13,13 @@ import (
 
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -89,6 +91,13 @@ func (fs *testFs) MkdirAll(name string, mode os.FileMode) error {
 		}
 	}
 	return fs.Fs.MkdirAll(name, mode)
+}
+
+func (fs *testFs) Rename(oldName, newName string) error {
+	if err := fs.intercept("rename", newName); err != nil {
+		return err
+	}
+	return fs.Fs.Rename(oldName, newName)
 }
 
 func TestReadFile(t *testing.T) {
@@ -372,6 +381,162 @@ func TestWriteFile(t *testing.T) {
 				b, err := afero.ReadFile(fs, tt.path)
 				require.NoError(t, err)
 				require.Equal(t, tt.bytes, b)
+			}
+		})
+	}
+}
+
+func TestEditFile(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	noPermsFilePath := filepath.Join(tmpdir, "no-perms-file")
+	failRenameFilePath := filepath.Join(tmpdir, "fail-rename")
+	//nolint:dogsled
+	conn, _, _, fs, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, opts *agent.Options) {
+		opts.Filesystem = newTestFs(opts.Filesystem, func(call, file string) error {
+			if file == noPermsFilePath {
+				return os.ErrPermission
+			} else if file == failRenameFilePath && call == "rename" {
+				return xerrors.New("rename failed")
+			}
+			return nil
+		})
+	})
+
+	dirPath := filepath.Join(tmpdir, "directory")
+	err := fs.MkdirAll(dirPath, 0o755)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		path     string
+		contents string
+		edits    []workspacesdk.FileEdit
+		expected string
+		errCode  int
+		error    string
+	}{
+		{
+			name:    "NoPath",
+			errCode: http.StatusBadRequest,
+			error:   "\"path\" is required",
+		},
+		{
+			name:    "RelativePath",
+			path:    "./relative",
+			errCode: http.StatusBadRequest,
+			error:   "file path must be absolute",
+		},
+		{
+			name:    "RelativePath",
+			path:    "also-relative",
+			errCode: http.StatusBadRequest,
+			error:   "file path must be absolute",
+		},
+		{
+			name:    "NonExistent",
+			path:    filepath.Join(tmpdir, "does-not-exist"),
+			errCode: http.StatusNotFound,
+			error:   "file does not exist",
+		},
+		{
+			name:    "IsDir",
+			path:    dirPath,
+			errCode: http.StatusBadRequest,
+			error:   "not a file",
+		},
+		{
+			name:    "NoPermissions",
+			path:    noPermsFilePath,
+			errCode: http.StatusForbidden,
+			error:   "permission denied",
+		},
+		{
+			name:     "NoEdits",
+			path:     filepath.Join(tmpdir, "no-edits"),
+			contents: "foo bar",
+			errCode:  http.StatusBadRequest,
+			error:    "must specify at least one edit",
+		},
+		{
+			name:     "FailRename",
+			path:     failRenameFilePath,
+			contents: "foo bar",
+			edits: []workspacesdk.FileEdit{
+				{
+					Search:  "foo",
+					Replace: "bar",
+				},
+			},
+			errCode: http.StatusInternalServerError,
+			error:   "rename failed",
+		},
+		{
+			name:     "Edit1",
+			path:     filepath.Join(tmpdir, "edit1"),
+			contents: "foo bar",
+			edits: []workspacesdk.FileEdit{
+				{
+					Search:  "foo",
+					Replace: "bar",
+				},
+			},
+			expected: "bar bar",
+		},
+		{
+			name:     "EditEdit", // Edits affect previous edits.
+			path:     filepath.Join(tmpdir, "edit-edit"),
+			contents: "foo bar",
+			edits: []workspacesdk.FileEdit{
+				{
+					Search:  "foo",
+					Replace: "bar",
+				},
+				{
+					Search:  "bar",
+					Replace: "qux",
+				},
+			},
+			expected: "qux qux",
+		},
+		{
+			name:     "Multiline",
+			path:     filepath.Join(tmpdir, "multiline"),
+			contents: "foo\nbar\nbaz\nqux",
+			edits: []workspacesdk.FileEdit{
+				{
+					Search:  "bar\nbaz",
+					Replace: "frob",
+				},
+			},
+			expected: "foo\nfrob\nqux",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			if tt.contents != "" {
+				err := afero.WriteFile(fs, tt.path, []byte(tt.contents), 0o644)
+				require.NoError(t, err)
+			}
+
+			err := conn.EditFile(ctx, tt.path, workspacesdk.FileEditRequest{Edits: tt.edits})
+			if tt.errCode != 0 {
+				require.Error(t, err)
+				cerr := coderdtest.SDKError(t, err)
+				require.Contains(t, cerr.Error(), tt.error)
+				require.Equal(t, tt.errCode, cerr.StatusCode())
+			} else {
+				require.NoError(t, err)
+				b, err := afero.ReadFile(fs, tt.path)
+				require.NoError(t, err)
+				require.Equal(t, tt.expected, string(b))
 			}
 		})
 	}
