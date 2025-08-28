@@ -11,8 +11,10 @@ import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import {
+	DEFAULT_USER_FILTER_WIDTH,
 	type UserFilterMenu,
 	UserMenu,
 } from "../../components/Filter/UserFilter";
@@ -29,6 +31,8 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 	error,
 	userMenu,
 }) => {
+	const { showOrganizations } = useDashboard();
+	const width = showOrganizations ? DEFAULT_USER_FILTER_WIDTH : undefined;
 	const organizationMenu = useFilterMenu({
 		onChange: (option) =>
 			filter.update({ ...filter.values, organization: option?.value }),
@@ -62,7 +66,7 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 			error={error}
 			options={
 				<>
-					{userMenu && <UserMenu menu={userMenu} />}
+					{userMenu && <UserMenu width={width} menu={userMenu} />}
 					<SelectFilter
 						placeholder="All organizations"
 						label="Select an organization"
