@@ -21,6 +21,10 @@ password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
 use_proxy=0
 multi_org=0
 
+# Ensure that these do not interfere with the below.
+unset CODER_SESSION_TOKEN
+unset CODER_URL
+
 args="$(getopt -o "" -l access-url:,use-proxy,agpl,debug,password:,multi-organization -- "$@")"
 eval set -- "$args"
 while true; do
