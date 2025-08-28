@@ -205,7 +205,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	const isEmpty = templates && templates.length === 0;
 
 	return (
-		<Margins>
+		<Margins className="pb-12">
 			<PageHeader
 				actions={
 					canCreateTemplates && (
