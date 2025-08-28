@@ -1,0 +1,3 @@
+# Redirect old offline deployments URL to new airgap URL
+/install/offline /install/airgap 301
+/install/offline.md /install/airgap.md 301
