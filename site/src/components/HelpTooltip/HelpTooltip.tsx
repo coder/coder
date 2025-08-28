@@ -6,7 +6,6 @@ import {
 } from "@emotion/react";
 import Link from "@mui/material/Link";
 import { TooltipContentProps, TooltipProps } from "@radix-ui/react-tooltip";
-import { usePopover } from "components/deprecated/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,
@@ -43,7 +42,7 @@ export const HelpTooltipContent: FC<TooltipContentProps> = ({
 			align="start"
 			{...props}
 			className={cn(
-				"w-[320px] p-5 bg-surface-secondary border-surface-quaternary",
+				"w-[320px] p-5 bg-surface-secondary border-surface-quaternary text-sm",
 				className,
 			)}
 		/>
@@ -153,19 +152,12 @@ export const HelpTooltipAction: FC<HelpTooltipActionProps> = ({
 	onClick,
 	ariaLabel,
 }) => {
-	// TODO dismiss tooltip
-	const popover = usePopover();
-
 	return (
 		<button
 			type="button"
 			aria-label={ariaLabel ?? ""}
 			css={styles.action}
-			onClick={(event) => {
-				event.stopPropagation();
-				onClick();
-				popover.setOpen(false);
-			}}
+			onClick={onClick}
 		>
 			<Icon css={styles.actionIcon} />
 			{children}
