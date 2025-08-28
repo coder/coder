@@ -5,18 +5,22 @@ import { XIcon } from "lucide-react";
 import type * as React from "react";
 import { cn } from "utils/cn";
 
-interface SheetProps
-	extends React.ComponentProps<typeof SheetPrimitive.Root> {}
+interface SheetProps extends React.ComponentProps<typeof SheetPrimitive.Root> {}
 
 export const Sheet = ({ ...props }: SheetProps) => {
 	return <SheetPrimitive.Root data-slot="sheet" {...props} />;
 };
 
-const SheetPortal = ({ ...props }: React.ComponentProps<typeof SheetPrimitive.Portal>) => {
+const SheetPortal = ({
+	...props
+}: React.ComponentProps<typeof SheetPrimitive.Portal>) => {
 	return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />;
 };
 
-const SheetOverlay = ({ className, ...props }: React.ComponentProps<typeof SheetPrimitive.Overlay>) => {
+const SheetOverlay = ({
+	className,
+	...props
+}: React.ComponentProps<typeof SheetPrimitive.Overlay>) => {
 	return (
 		<SheetPrimitive.Overlay
 			data-slot="sheet-overlay"
@@ -80,7 +84,6 @@ export const SheetHeader = ({ className, ...props }: SheetHeaderProps) => {
 		/>
 	);
 };
-
 
 interface SheetTitleProps
 	extends React.ComponentProps<typeof SheetPrimitive.Title> {}

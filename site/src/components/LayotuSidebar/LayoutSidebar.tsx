@@ -315,9 +315,6 @@ export const SidebarTrigger = ({
 	);
 };
 
-
-
-
 interface SidebarHeaderProps extends ComponentProps<"div"> {}
 
 export const SidebarHeader = ({ className, ...props }: SidebarHeaderProps) => {
@@ -330,8 +327,6 @@ export const SidebarHeader = ({ className, ...props }: SidebarHeaderProps) => {
 		/>
 	);
 };
-
-
 
 interface SidebarContentProps extends ComponentProps<"div"> {}
 
@@ -389,7 +384,6 @@ export const SidebarGroupLabel = ({
 		/>
 	);
 };
-
 
 interface SidebarGroupContentProps extends ComponentProps<"div"> {}
 
@@ -493,8 +487,6 @@ export const SidebarMenuButton = ({
 	);
 };
 
-
-
 interface SidebarMenuSkeletonProps extends ComponentProps<"div"> {
 	showIcon?: boolean;
 }
@@ -534,6 +526,3 @@ export const SidebarMenuSkeleton = ({
 		</div>
 	);
 };
-
-
-
