@@ -213,6 +213,22 @@ func (api *API) tasksFromWorkspaces(ctx context.Context, apiWorkspaces []codersd
 
 	tasks := make([]codersdk.Task, 0, len(apiWorkspaces))
 	for _, ws := range apiWorkspaces {
+		// TODO(DanielleMaywood):
+		// This just picks up the first agent it discovers.
+		// This approach _might_ break when a task has multiple agents,
+		// depending on which agent was found first.
+		var taskAgentID uuid.NullUUID
+		var taskAgentLifecycle *codersdk.WorkspaceAgentLifecycle
+		var taskAgentHealth *codersdk.WorkspaceAgentHealth
+		for _, resource := range ws.LatestBuild.Resources {
+			for _, agent := range resource.Agents {
+				taskAgentID = uuid.NullUUID{Valid: true, UUID: agent.ID}
+				taskAgentLifecycle = &agent.LifecycleState
+				taskAgentHealth = &agent.Health
+				break
+			}
+		}
+
 		var currentState *codersdk.TaskStateEntry
 		if ws.LatestAppStatus != nil {
 			currentState = &codersdk.TaskStateEntry{
@@ -222,18 +238,26 @@ func (api *API) tasksFromWorkspaces(ctx context.Context, apiWorkspaces []codersd
 				URI:       ws.LatestAppStatus.URI,
 			}
 		}
+
 		tasks = append(tasks, codersdk.Task{
-			ID:             ws.ID,
-			OrganizationID: ws.OrganizationID,
-			OwnerID:        ws.OwnerID,
-			Name:           ws.Name,
-			TemplateID:     ws.TemplateID,
-			WorkspaceID:    uuid.NullUUID{Valid: true, UUID: ws.ID},
-			CreatedAt:      ws.CreatedAt,
-			UpdatedAt:      ws.UpdatedAt,
-			InitialPrompt:  promptsByBuildID[ws.LatestBuild.ID],
-			Status:         ws.LatestBuild.Status,
-			CurrentState:   currentState,
+			ID:                      ws.ID,
+			OrganizationID:          ws.OrganizationID,
+			OwnerID:                 ws.OwnerID,
+			OwnerName:               ws.OwnerName,
+			Name:                    ws.Name,
+			TemplateID:              ws.TemplateID,
+			TemplateName:            ws.TemplateName,
+			TemplateDisplayName:     ws.TemplateDisplayName,
+			TemplateIcon:            ws.TemplateIcon,
+			WorkspaceID:             uuid.NullUUID{Valid: true, UUID: ws.ID},
+			WorkspaceAgentID:        taskAgentID,
+			WorkspaceAgentLifecycle: taskAgentLifecycle,
+			WorkspaceAgentHealth:    taskAgentHealth,
+			CreatedAt:               ws.CreatedAt,
+			UpdatedAt:               ws.UpdatedAt,
+			InitialPrompt:           promptsByBuildID[ws.LatestBuild.ID],
+			Status:                  ws.LatestBuild.Status,
+			CurrentState:            currentState,
 		})
 	}
 
