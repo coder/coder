@@ -458,14 +458,16 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 
 const AssignDefaultOrgHelpTooltip: FC = () => {
 	return (
-		<HelpTooltip>
-			<HelpTooltipTrigger />
-			<HelpTooltipContent>
-				<HelpTooltipText>
-					Disabling will remove all users from the default organization if a
-					mapping for the default organization is not defined.
-				</HelpTooltipText>
-			</HelpTooltipContent>
-		</HelpTooltip>
+		<TooltipProvider>
+			<HelpTooltip>
+				<HelpTooltipTrigger />
+				<HelpTooltipContent>
+					<HelpTooltipText>
+						Disabling will remove all users from the default organization if a
+						mapping for the default organization is not defined.
+					</HelpTooltipText>
+				</HelpTooltipContent>
+			</HelpTooltip>
+		</TooltipProvider>
 	);
 };
