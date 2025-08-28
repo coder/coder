@@ -16,9 +16,9 @@ type GoogleInstanceIdentityToken struct {
 	JSONWebToken string `json:"json_web_token" validate:"required"`
 }
 
-// googleSessionTokenExchanger exchanges a Google instance JWT document for a Coder session token.
-// @typescript-ignore googleSessionTokenExchanger
-type googleSessionTokenExchanger struct {
+// GoogleSessionTokenExchanger exchanges a Google instance JWT document for a Coder session token.
+// @typescript-ignore GoogleSessionTokenExchanger
+type GoogleSessionTokenExchanger struct {
 	serviceAccount string
 	gcpClient      *metadata.Client
 	client         *codersdk.Client
@@ -26,8 +26,8 @@ type googleSessionTokenExchanger struct {
 
 func WithGoogleInstanceIdentity(serviceAccount string, gcpClient *metadata.Client) SessionTokenSetup {
 	return func(client *codersdk.Client) RefreshableSessionTokenProvider {
-		return &instanceIdentitySessionTokenProvider{
-			tokenExchanger: &googleSessionTokenExchanger{
+		return &InstanceIdentitySessionTokenProvider{
+			TokenExchanger: &GoogleSessionTokenExchanger{
 				client:         client,
 				gcpClient:      gcpClient,
 				serviceAccount: serviceAccount,
@@ -40,7 +40,7 @@ func WithGoogleInstanceIdentity(serviceAccount string, gcpClient *metadata.Clien
 // workspace agent.
 //
 // The requesting instance must be registered as a resource in the latest history for a workspace.
-func (g *googleSessionTokenExchanger) exchange(ctx context.Context) (AuthenticateResponse, error) {
+func (g *GoogleSessionTokenExchanger) exchange(ctx context.Context) (AuthenticateResponse, error) {
 	if g.serviceAccount == "" {
 		// This is the default name specified by Google.
 		g.serviceAccount = "default"

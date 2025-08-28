@@ -39,7 +39,7 @@ func gitssh() *serpent.Command {
 				return err
 			}
 
-			client, err := agentAuth.CreateClient(ctx)
+			client, err := agentAuth.CreateClient()
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}

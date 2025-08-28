@@ -13,23 +13,23 @@ type AzureInstanceIdentityToken struct {
 	Encoding  string `json:"encoding" validate:"required"`
 }
 
-// azureSessionTokenExchanger exchanges Azure attested metadata for a Coder session token.
-// @typescript-ignore azureSessionTokenExchanger
-type azureSessionTokenExchanger struct {
+// AzureSessionTokenExchanger exchanges Azure attested metadata for a Coder session token.
+// @typescript-ignore AzureSessionTokenExchanger
+type AzureSessionTokenExchanger struct {
 	client *codersdk.Client
 }
 
 func WithAzureInstanceIdentity() SessionTokenSetup {
 	return func(client *codersdk.Client) RefreshableSessionTokenProvider {
-		return &instanceIdentitySessionTokenProvider{
-			tokenExchanger: &azureSessionTokenExchanger{client: client},
+		return &InstanceIdentitySessionTokenProvider{
+			TokenExchanger: &AzureSessionTokenExchanger{client: client},
 		}
 	}
 }
 
 // AuthWorkspaceAzureInstanceIdentity uses the Azure Instance Metadata Service to
 // fetch a signed payload, and exchange it for a session token for a workspace agent.
-func (a *azureSessionTokenExchanger) exchange(ctx context.Context) (AuthenticateResponse, error) {
+func (a *AzureSessionTokenExchanger) exchange(ctx context.Context) (AuthenticateResponse, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/metadata/attested/document?api-version=2020-09-01", nil)
 	if err != nil {
 		return AuthenticateResponse{}, nil

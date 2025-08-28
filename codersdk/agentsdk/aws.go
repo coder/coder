@@ -16,16 +16,16 @@ type AWSInstanceIdentityToken struct {
 	Document  string `json:"document" validate:"required"`
 }
 
-// awsSessionTokenExchanger exchanges AWS instance metadata for a Coder session token.
-// @typescript-ignore awsSessionTokenExchanger
-type awsSessionTokenExchanger struct {
+// AWSSessionTokenExchanger exchanges AWS instance metadata for a Coder session token.
+// @typescript-ignore AWSSessionTokenExchanger
+type AWSSessionTokenExchanger struct {
 	client *codersdk.Client
 }
 
 func WithAWSInstanceIdentity() SessionTokenSetup {
 	return func(client *codersdk.Client) RefreshableSessionTokenProvider {
-		return &instanceIdentitySessionTokenProvider{
-			tokenExchanger: &awsSessionTokenExchanger{client: client},
+		return &InstanceIdentitySessionTokenProvider{
+			TokenExchanger: &AWSSessionTokenExchanger{client: client},
 		}
 	}
 }
@@ -34,7 +34,7 @@ func WithAWSInstanceIdentity() SessionTokenSetup {
 // agent.
 //
 // The requesting instance must be registered as a resource in the latest history for a workspace.
-func (a *awsSessionTokenExchanger) exchange(ctx context.Context) (AuthenticateResponse, error) {
+func (a *AWSSessionTokenExchanger) exchange(ctx context.Context) (AuthenticateResponse, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, "http://169.254.169.254/latest/api/token", nil)
 	if err != nil {
 		return AuthenticateResponse{}, nil
