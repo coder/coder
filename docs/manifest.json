@@ -154,8 +154,8 @@
 					]
 				},
 				{
-					"title": "Offline Deployments",
-					"description": "Run Coder in offline / air-gapped environments",
+					"title": "Air-gapped Deployments",
+					"description": "Run Coder in air-gapped / disconnected / offline environments",
 					"path": "./install/offline.md",
 					"icon_path": "./images/icons/lan.svg"
 				},

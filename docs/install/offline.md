@@ -1,8 +1,6 @@
 # Air-gapped Deployments
 
 All Coder features are supported in air-gapped / behind firewalls / disconnected / offline
-environments. However, some changes to your configuration are necessary.
-
 This is a general comparison. Keep reading for a full tutorial running Coder
 air-gapped with Kubernetes or Docker.
 
