@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
@@ -196,13 +195,6 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 // prompts and mapping status/state. This method enforces that only AI task
 // workspaces are given.
 func (api *API) tasksFromWorkspaces(ctx context.Context, apiWorkspaces []codersdk.Workspace) ([]codersdk.Task, error) {
-	// Enforce that only AI task workspaces are given.
-	for _, ws := range apiWorkspaces {
-		if ws.LatestBuild.HasAITask == nil || !*ws.LatestBuild.HasAITask {
-			return nil, xerrors.Errorf("workspace %s is not an AI task workspace", ws.ID)
-		}
-	}
-
 	// Fetch prompts for each workspace build and map by build ID.
 	buildIDs := make([]uuid.UUID, 0, len(apiWorkspaces))
 	for _, ws := range apiWorkspaces {
@@ -280,7 +272,7 @@ func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 	// Ensure that we only include AI task workspaces in the results.
 	filter.HasAITask = sql.NullBool{Valid: true, Bool: true}
 
-	if filter.OwnerUsername == "me" || filter.OwnerUsername == "" {
+	if filter.OwnerUsername == "me" {
 		filter.OwnerID = apiKey.UserID
 		filter.OwnerUsername = ""
 	}

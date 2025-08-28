@@ -6609,16 +6609,19 @@ WHERE
 			organization_id = $1
 		ELSE true
 	END
+  -- Filter by system type
+	AND CASE WHEN $2::bool THEN TRUE ELSE is_system = false END
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $2
+	LOWER(username) ASC OFFSET $3
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($3 :: int, 0)
+	NULLIF($4 :: int, 0)
 `
 
 type PaginatedOrganizationMembersParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	IncludeSystem  bool      `db:"include_system" json:"include_system"`
 	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
 }
@@ -6634,7 +6637,12 @@ type PaginatedOrganizationMembersRow struct {
 }
 
 func (q *sqlQuerier) PaginatedOrganizationMembers(ctx context.Context, arg PaginatedOrganizationMembersParams) ([]PaginatedOrganizationMembersRow, error) {
-	rows, err := q.db.QueryContext(ctx, paginatedOrganizationMembers, arg.OrganizationID, arg.OffsetOpt, arg.LimitOpt)
+	rows, err := q.db.QueryContext(ctx, paginatedOrganizationMembers,
+		arg.OrganizationID,
+		arg.IncludeSystem,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -18983,20 +18991,15 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 }
 
 const getLatestWorkspaceBuildsByWorkspaceIDs = `-- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many
-SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline, wb.template_version_preset_id, wb.has_ai_task, wb.ai_task_sidebar_app_id, wb.has_external_agent, wb.initiator_by_avatar_url, wb.initiator_by_username, wb.initiator_by_name
-FROM (
-    SELECT
-        workspace_id, MAX(build_number) as max_build_number
-    FROM
-		workspace_build_with_user AS workspace_builds
-    WHERE
-        workspace_id = ANY($1 :: uuid [ ])
-    GROUP BY
-        workspace_id
-) m
-JOIN
-	 workspace_build_with_user AS wb
-ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number
+SELECT
+	DISTINCT ON (workspace_id)
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_ai_task, ai_task_sidebar_app_id, has_external_agent, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+FROM
+	workspace_build_with_user AS workspace_builds
+WHERE
+	workspace_id = ANY($1 :: uuid [ ])
+ORDER BY
+	workspace_id, build_number DESC -- latest first
 `
 
 func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error) {
@@ -20125,6 +20128,28 @@ func (q *sqlQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploy
 		&i.FailedWorkspaces,
 		&i.StoppedWorkspaces,
 	)
+	return i, err
+}
+
+const getWorkspaceACLByID = `-- name: GetWorkspaceACLByID :one
+SELECT
+	group_acl as groups,
+	user_acl as users
+FROM
+	workspaces
+WHERE
+	id = $1
+`
+
+type GetWorkspaceACLByIDRow struct {
+	Groups WorkspaceACL `db:"groups" json:"groups"`
+	Users  WorkspaceACL `db:"users" json:"users"`
+}
+
+func (q *sqlQuerier) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (GetWorkspaceACLByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceACLByID, id)
+	var i GetWorkspaceACLByIDRow
+	err := row.Scan(&i.Groups, &i.Users)
 	return i, err
 }
 
