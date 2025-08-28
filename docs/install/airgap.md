@@ -214,7 +214,7 @@ coder:
 
 ## Air-gapped docs
 
-Coder also provides offline documentation in case you want to host it on your
+Coder also provides air-gapped documentation in case you want to host it on your
 own server. The docs are exported as static files that you can host on any web
 server, as demonstrated in the example below:
 
