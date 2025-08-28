@@ -2,6 +2,7 @@ import {
 	MockAIPromptPresets,
 	MockNewTaskData,
 	MockPresets,
+	MockTask,
 	MockTasks,
 	MockTemplate,
 	MockTemplateVersionExternalAuthGithub,
@@ -19,7 +20,6 @@ import { API } from "api/api";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { data } from "./data";
 import TasksPage from "./TasksPage";
 
 const meta: Meta<typeof TasksPage> = {
@@ -248,7 +248,7 @@ export const CreateTaskSuccessfully: Story = {
 		spyOn(API.experimental, "getTasks")
 			.mockResolvedValueOnce(MockTasks)
 			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
-		spyOn(data, "createTask").mockResolvedValue(MockNewTaskData);
+		spyOn(API.experimental, "createTask").mockResolvedValue(MockTask);
 	},
 	play: async ({ canvasElement, step }) => {
 		const canvas = within(canvasElement);
@@ -272,7 +272,7 @@ export const CreateTaskError: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
 		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
-		spyOn(data, "createTask").mockRejectedValue(
+		spyOn(API.experimental, "createTask").mockRejectedValue(
 			mockApiError({
 				message: "Failed to create task",
 				detail: "You don't have permission to create tasks.",
@@ -301,7 +301,7 @@ export const WithAuthenticatedExternalAuth: Story = {
 		spyOn(API.experimental, "getTasks")
 			.mockResolvedValueOnce(MockTasks)
 			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
-		spyOn(data, "createTask").mockResolvedValue(MockNewTaskData);
+		spyOn(API.experimental, "createTask").mockResolvedValue(MockTask);
 		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
 			MockTemplateVersionExternalAuthGithubAuthenticated,
 		]);
@@ -327,7 +327,7 @@ export const MissingExternalAuth: Story = {
 		spyOn(API.experimental, "getTasks")
 			.mockResolvedValueOnce(MockTasks)
 			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
-		spyOn(data, "createTask").mockResolvedValue(MockNewTaskData);
+		spyOn(API.experimental, "createTask").mockResolvedValue(MockTask);
 		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
 			MockTemplateVersionExternalAuthGithub,
 		]);
@@ -353,7 +353,7 @@ export const ExternalAuthError: Story = {
 		spyOn(API.experimental, "getTasks")
 			.mockResolvedValueOnce(MockTasks)
 			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
-		spyOn(data, "createTask").mockResolvedValue(MockNewTaskData);
+		spyOn(API.experimental, "createTask").mockResolvedValue(MockTask);
 		spyOn(API, "getTemplateVersionExternalAuth").mockRejectedValue(
 			mockApiError({
 				message: "Failed to load external auth",

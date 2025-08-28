@@ -299,19 +299,23 @@ func TestTasksCreate(t *testing.T) {
 		expClient := codersdk.NewExperimentalClient(client)
 
 		// When: We attempt to create a Task.
-		workspace, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+		task, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
 			TemplateVersionID: template.ActiveVersionID,
 			Prompt:            taskPrompt,
 		})
 		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		require.True(t, task.WorkspaceID.Valid)
+
+		ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
 		// Then: We expect a workspace to have been created.
-		assert.NotEmpty(t, workspace.Name)
-		assert.Equal(t, template.ID, workspace.TemplateID)
+		assert.NotEmpty(t, task.Name)
+		assert.Equal(t, template.ID, task.TemplateID)
 
 		// And: We expect it to have the "AI Prompt" parameter correctly set.
-		parameters, err := client.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
+		parameters, err := client.WorkspaceBuildParameters(ctx, ws.LatestBuild.ID)
 		require.NoError(t, err)
 		require.Len(t, parameters, 1)
 		assert.Equal(t, codersdk.AITaskPromptParameterName, parameters[0].Name)
