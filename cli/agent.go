@@ -178,7 +178,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				slog.F("auth", r.agentAuth),
 				slog.F("version", version),
 			)
-			client, err := r.createAgentClient(ctx)
+			client, err := r.CreateAgentClient()
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}
