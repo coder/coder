@@ -46,6 +46,7 @@ export const ConnectionLogFilter: FC<ConnectionLogFilterProps> = ({
 	error,
 	menus,
 }) => {
+	const width = menus.organization ? DEFAULT_USER_FILTER_WIDTH : undefined;
 	return (
 		<Filter
 			learnMoreLink={docs(
@@ -58,12 +59,12 @@ export const ConnectionLogFilter: FC<ConnectionLogFilterProps> = ({
 			options={
 				<>
 					<UserMenu placeholder="All owners" menu={menus.user} />
-					<StatusMenu menu={menus.status} width={DEFAULT_USER_FILTER_WIDTH} />
-					<TypeMenu menu={menus.type} width={DEFAULT_USER_FILTER_WIDTH} />
+					<StatusMenu menu={menus.status} width={width} />
+					<TypeMenu menu={menus.type} width={width} />
 					{menus.organization && (
 						<OrganizationsMenu
 							menu={menus.organization}
-							width={DEFAULT_USER_FILTER_WIDTH}
+							width={width}
 						/>
 					)}
 				</>

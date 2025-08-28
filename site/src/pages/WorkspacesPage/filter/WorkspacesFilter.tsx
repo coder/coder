@@ -100,6 +100,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	organizationsMenu,
 }) => {
 	const { entitlements, showOrganizations } = useDashboard();
+	const width = showOrganizations ? DEFAULT_USER_FILTER_WIDTH : undefined;
 	const presets = entitlements.features.advanced_template_scheduling.enabled
 		? PRESETS_WITH_DORMANT
 		: PRESET_FILTERS;
@@ -118,11 +119,11 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			options={
 				<>
 					{userMenu && <UserMenu menu={userMenu} />}
-					<TemplateMenu width={DEFAULT_USER_FILTER_WIDTH} menu={templateMenu} />
-					<StatusMenu width={DEFAULT_USER_FILTER_WIDTH} menu={statusMenu} />
+					<TemplateMenu width={width} menu={templateMenu} />
+					<StatusMenu width={width} menu={statusMenu} />
 					{organizationsActive && (
 						<OrganizationsMenu
-							width={DEFAULT_USER_FILTER_WIDTH}
+							width={width}
 							menu={organizationsMenu}
 						/>
 					)}

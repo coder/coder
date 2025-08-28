@@ -51,6 +51,7 @@ interface AuditFilterProps {
 }
 
 export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
+	const width = menus.organization ? DEFAULT_USER_FILTER_WIDTH : undefined;
 	return (
 		<Filter
 			learnMoreLink={docs("/admin/security/audit-logs#filtering-logs")}
@@ -61,14 +62,14 @@ export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
 			options={
 				<>
 					<ResourceTypeMenu
-						width={DEFAULT_USER_FILTER_WIDTH}
+						width={width}
 						menu={menus.resourceType}
 					/>
-					<ActionMenu width={DEFAULT_USER_FILTER_WIDTH} menu={menus.action} />
+					<ActionMenu width={width} menu={menus.action} />
 					<UserMenu menu={menus.user} />
 					{menus.organization && (
 						<OrganizationsMenu
-							width={DEFAULT_USER_FILTER_WIDTH}
+							width={width}
 							menu={menus.organization}
 						/>
 					)}
