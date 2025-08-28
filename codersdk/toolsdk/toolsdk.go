@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"runtime/debug"
+	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -1359,4 +1361,65 @@ type MinimalTemplate struct {
 	Description     string    `json:"description"`
 	ActiveVersionID uuid.UUID `json:"active_version_id"`
 	ActiveUserCount int       `json:"active_user_count"`
+}
+
+// NormalizeWorkspaceInput converts workspace name input to standard format.
+// Handles the following input formats:
+//   - workspace                    → workspace
+//   - workspace.agent              → workspace.agent
+//   - owner/workspace              → owner/workspace
+//   - owner--workspace             → owner/workspace
+//   - owner/workspace.agent        → owner/workspace.agent
+//   - owner--workspace.agent       → owner/workspace.agent
+//   - agent.workspace.owner        → owner/workspace.agent (Coder Connect format)
+func NormalizeWorkspaceInput(input string) string {
+	// Handle the special Coder Connect format: agent.workspace.owner
+	// This format uses only dots and has exactly 3 parts
+	if strings.Count(input, ".") == 2 && !strings.Contains(input, "/") && !strings.Contains(input, "--") {
+		parts := strings.Split(input, ".")
+		if len(parts) == 3 {
+			// Convert agent.workspace.owner → owner/workspace.agent
+			return fmt.Sprintf("%s/%s.%s", parts[2], parts[1], parts[0])
+		}
+	}
+
+	// Convert -- separator to / separator for consistency
+	normalized := strings.ReplaceAll(input, "--", "/")
+
+	return normalized
+}
+
+// newAgentConn returns a connection to the agent specified by the workspace,
+// which must be in the format [owner/]workspace[.agent].
+func newAgentConn(ctx context.Context, client *codersdk.Client, workspace string) (workspacesdk.AgentConn, error) {
+	workspaceName := NormalizeWorkspaceInput(workspace)
+	_, workspaceAgent, err := findWorkspaceAndAgent(ctx, client, workspaceName)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to find workspace: %w", err)
+	}
+
+	// Wait for agent to be ready.
+	if err := cliui.Agent(ctx, io.Discard, workspaceAgent.ID, cliui.AgentOptions{
+		FetchInterval: 0,
+		Fetch:         client.WorkspaceAgent,
+		FetchLogs:     client.WorkspaceAgentLogsAfter,
+		Wait:          true, // Always wait for startup scripts
+	}); err != nil {
+		return nil, xerrors.Errorf("agent not ready: %w", err)
+	}
+
+	wsClient := workspacesdk.New(client)
+
+	conn, err := wsClient.DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
+		BlockEndpoints: false,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("failed to dial agent: %w", err)
+	}
+
+	if !conn.AwaitReachable(ctx) {
+		conn.Close()
+		return nil, xerrors.New("agent connection not reachable")
+	}
+	return conn, nil
 }
