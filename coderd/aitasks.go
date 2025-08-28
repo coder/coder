@@ -217,11 +217,19 @@ func (api *API) tasksFromWorkspaces(ctx context.Context, apiWorkspaces []codersd
 		// This just picks up the first agent it discovers.
 		// This approach _might_ break when a task has multiple agents,
 		// depending on which agent was found first.
+		//
+		// We explicitly do not have support for running tasks
+		// inside of a sub agent at the moment, so we can be sure
+		// that any sub agents are not the agent we're looking for.
 		var taskAgentID uuid.NullUUID
 		var taskAgentLifecycle *codersdk.WorkspaceAgentLifecycle
 		var taskAgentHealth *codersdk.WorkspaceAgentHealth
 		for _, resource := range ws.LatestBuild.Resources {
 			for _, agent := range resource.Agents {
+				if agent.ParentID.Valid {
+					continue
+				}
+
 				taskAgentID = uuid.NullUUID{Valid: true, UUID: agent.ID}
 				taskAgentLifecycle = &agent.LifecycleState
 				taskAgentHealth = &agent.Health
