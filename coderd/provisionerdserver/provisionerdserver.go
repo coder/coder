@@ -2310,13 +2310,16 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 
 				buildTime := updatedJob.CompletedAt.Time.Sub(updatedJob.StartedAt.Time).Seconds()
 				s.metrics.UpdateWorkspaceTimingsMetrics(
-					// Is a prebuilt workspace creation build
-					input.PrebuiltWorkspaceBuildStage.IsPrebuild(),
-					// Is a prebuilt workspace claim build
-					input.PrebuiltWorkspaceBuildStage.IsPrebuiltWorkspaceClaim(),
-					// Is a regular workspace creation build
-					// Only consider the first build number for regular workspaces
-					workspaceBuild.BuildNumber == 1,
+					ctx,
+					WorkspaceTimingFlags{
+						// Is a prebuilt workspace creation build
+						IsPrebuild: input.PrebuiltWorkspaceBuildStage.IsPrebuild(),
+						// Is a prebuilt workspace claim build
+						IsClaim: input.PrebuiltWorkspaceBuildStage.IsPrebuiltWorkspaceClaim(),
+						// Is a regular workspace creation build
+						// Only consider the first build number for regular workspaces
+						IsFirstBuild: workspaceBuild.BuildNumber == 1,
+					},
 					workspace.OrganizationName,
 					workspace.TemplateName,
 					presetName,

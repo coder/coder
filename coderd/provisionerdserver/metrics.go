@@ -1,6 +1,7 @@
 package provisionerdserver
 
 import (
+	"context"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,13 +29,11 @@ const (
 	workspaceTypePrebuild = "prebuild"
 )
 
-type UpdateWorkspaceTimingMetricsFn func(
-	workspaceTimingType WorkspaceTimingType,
-	organizationName string,
-	templateName string,
-	presetName string,
-	buildTime float64,
-)
+type WorkspaceTimingFlags struct {
+	IsPrebuild   bool
+	IsClaim      bool
+	IsFirstBuild bool
+}
 
 func NewMetrics(logger slog.Logger) *Metrics {
 	log := logger.Named("provisionerd_server_metrics")
@@ -68,6 +67,8 @@ func NewMetrics(logger slog.Logger) *Metrics {
 			Namespace: "coderd",
 			Name:      "prebuilt_workspace_claim_duration_seconds",
 			Help:      "Time to claim a prebuilt workspace by organization, template, and preset.",
+			// Higher resolution between 1–5m to show typical prebuild claim times.
+			// Cap at 5m since longer claims diminish prebuild value.
 			Buckets: []float64{
 				1, // 1s
 				5,
@@ -99,18 +100,32 @@ func (m *Metrics) Register(reg prometheus.Registerer) error {
 	return reg.Register(m.workspaceClaimTimings)
 }
 
+func (f WorkspaceTimingFlags) count() int {
+	count := 0
+	if f.IsPrebuild {
+		count++
+	}
+	if f.IsClaim {
+		count++
+	}
+	if f.IsFirstBuild {
+		count++
+	}
+	return count
+}
+
 // getWorkspaceTimingType returns the type of the workspace build:
 //   - isPrebuild: if the workspace build corresponds to the creation of a prebuilt workspace
 //   - isClaim: if the workspace build corresponds to the claim of a prebuilt workspace
 //   - isWorkspaceFirstBuild: if the workspace build corresponds to the creation of a regular workspace
 //     (not created from the prebuild pool)
-func getWorkspaceTimingType(isPrebuild bool, isClaim bool, isWorkspaceFirstBuild bool) WorkspaceTimingType {
+func getWorkspaceTimingType(flags WorkspaceTimingFlags) WorkspaceTimingType {
 	switch {
-	case isPrebuild:
+	case flags.IsPrebuild:
 		return PrebuildCreation
-	case isClaim:
+	case flags.IsClaim:
 		return PrebuildClaim
-	case isWorkspaceFirstBuild:
+	case flags.IsFirstBuild:
 		return WorkspaceCreation
 	default:
 		return Unsupported
@@ -119,15 +134,30 @@ func getWorkspaceTimingType(isPrebuild bool, isClaim bool, isWorkspaceFirstBuild
 
 // UpdateWorkspaceTimingsMetrics updates the workspace timing metrics based on the workspace build type
 func (m *Metrics) UpdateWorkspaceTimingsMetrics(
-	isPrebuild bool,
-	isClaim bool,
-	isWorkspaceFirstBuild bool,
+	ctx context.Context,
+	flags WorkspaceTimingFlags,
 	organizationName string,
 	templateName string,
 	presetName string,
 	buildTime float64,
 ) {
-	workspaceTimingType := getWorkspaceTimingType(isPrebuild, isClaim, isWorkspaceFirstBuild)
+	m.logger.Debug(ctx, "update workspace timings metrics",
+		"organizationName", organizationName,
+		"templateName", templateName,
+		"presetName", presetName,
+		"isPrebuild", flags.IsPrebuild,
+		"isClaim", flags.IsClaim,
+		"isWorkspaceFirstBuild", flags.IsFirstBuild)
+
+	if flags.count() > 1 {
+		m.logger.Warn(ctx, "invalid workspace timing flags",
+			"isPrebuild", flags.IsPrebuild,
+			"isClaim", flags.IsClaim,
+			"isWorkspaceFirstBuild", flags.IsFirstBuild)
+		return
+	}
+
+	workspaceTimingType := getWorkspaceTimingType(flags)
 	switch workspaceTimingType {
 	case WorkspaceCreation:
 		// Regular workspace creation (without prebuild pool)
@@ -142,5 +172,6 @@ func (m *Metrics) UpdateWorkspaceTimingsMetrics(
 		m.workspaceClaimTimings.
 			WithLabelValues(organizationName, templateName, presetName).Observe(buildTime)
 	default:
+		m.logger.Warn(ctx, "unsupported workspace timing flags")
 	}
 }
