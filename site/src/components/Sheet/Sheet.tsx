@@ -5,38 +5,18 @@ import { XIcon } from "lucide-react";
 import type * as React from "react";
 import { cn } from "utils/cn";
 
-export interface SheetProps
+interface SheetProps
 	extends React.ComponentProps<typeof SheetPrimitive.Root> {}
 
 export const Sheet = ({ ...props }: SheetProps) => {
 	return <SheetPrimitive.Root data-slot="sheet" {...props} />;
 };
 
-export interface SheetTriggerProps
-	extends React.ComponentProps<typeof SheetPrimitive.Trigger> {}
-
-export const SheetTrigger = ({ ...props }: SheetTriggerProps) => {
-	return <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props} />;
-};
-
-export interface SheetCloseProps
-	extends React.ComponentProps<typeof SheetPrimitive.Close> {}
-
-export const SheetClose = ({ ...props }: SheetCloseProps) => {
-	return <SheetPrimitive.Close data-slot="sheet-close" {...props} />;
-};
-
-export interface SheetPortalProps
-	extends React.ComponentProps<typeof SheetPrimitive.Portal> {}
-
-export const SheetPortal = ({ ...props }: SheetPortalProps) => {
+const SheetPortal = ({ ...props }: React.ComponentProps<typeof SheetPrimitive.Portal>) => {
 	return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />;
 };
 
-export interface SheetOverlayProps
-	extends React.ComponentProps<typeof SheetPrimitive.Overlay> {}
-
-export const SheetOverlay = ({ className, ...props }: SheetOverlayProps) => {
+const SheetOverlay = ({ className, ...props }: React.ComponentProps<typeof SheetPrimitive.Overlay>) => {
 	return (
 		<SheetPrimitive.Overlay
 			data-slot="sheet-overlay"
@@ -49,7 +29,7 @@ export const SheetOverlay = ({ className, ...props }: SheetOverlayProps) => {
 	);
 };
 
-export interface SheetContentProps
+interface SheetContentProps
 	extends React.ComponentProps<typeof SheetPrimitive.Content> {
 	side?: "top" | "right" | "bottom" | "left";
 }
@@ -89,7 +69,7 @@ export const SheetContent = ({
 	);
 };
 
-export interface SheetHeaderProps extends React.ComponentProps<"div"> {}
+interface SheetHeaderProps extends React.ComponentProps<"div"> {}
 
 export const SheetHeader = ({ className, ...props }: SheetHeaderProps) => {
 	return (
@@ -101,19 +81,8 @@ export const SheetHeader = ({ className, ...props }: SheetHeaderProps) => {
 	);
 };
 
-export interface SheetFooterProps extends React.ComponentProps<"div"> {}
 
-export const SheetFooter = ({ className, ...props }: SheetFooterProps) => {
-	return (
-		<div
-			data-slot="sheet-footer"
-			className={cn("mt-auto flex flex-col gap-2 p-4", className)}
-			{...props}
-		/>
-	);
-};
-
-export interface SheetTitleProps
+interface SheetTitleProps
 	extends React.ComponentProps<typeof SheetPrimitive.Title> {}
 
 export const SheetTitle = ({ className, ...props }: SheetTitleProps) => {
@@ -126,7 +95,7 @@ export const SheetTitle = ({ className, ...props }: SheetTitleProps) => {
 	);
 };
 
-export interface SheetDescriptionProps
+interface SheetDescriptionProps
 	extends React.ComponentProps<typeof SheetPrimitive.Description> {}
 
 export const SheetDescription = ({

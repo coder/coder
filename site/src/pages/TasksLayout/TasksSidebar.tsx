@@ -141,7 +141,7 @@ type TaskSidebarMenuItemProps = {
 	task: Task;
 };
 
-export const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
+const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 	const { workspace } = useParams<{ workspace: string }>();
 
 	return (

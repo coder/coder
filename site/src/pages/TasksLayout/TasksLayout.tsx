@@ -3,7 +3,7 @@ import type { FC } from "react";
 import { Outlet } from "react-router";
 import { TasksSidebar } from "./TasksSidebar";
 
-export const TasksLayout: FC = () => {
+const TasksLayout: FC = () => {
 	return (
 		<SidebarProvider>
 			<TasksSidebar />

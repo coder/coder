@@ -3,8 +3,6 @@
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Button } from "components/Button/Button";
-import { Input } from "components/Input/Input";
-import { Separator } from "components/Separator/Separator";
 import {
 	Sheet,
 	SheetContent,
@@ -73,7 +71,7 @@ const sidebarMenuButtonVariants = cva(
 	},
 );
 
-export const useSidebar = () => {
+const useSidebar = () => {
 	const context = useContext(SidebarContext);
 	if (!context) {
 		throw new Error("useSidebar must be used within a SidebarProvider.");
@@ -82,7 +80,7 @@ export const useSidebar = () => {
 	return context;
 };
 
-export interface SidebarProviderProps extends ComponentProps<"div"> {
+interface SidebarProviderProps extends ComponentProps<"div"> {
 	defaultOpen?: boolean;
 	open?: boolean;
 	onOpenChange?: (open: boolean) => void;
@@ -185,7 +183,7 @@ export const SidebarProvider = ({
 	);
 };
 
-export interface SidebarProps extends ComponentProps<"div"> {
+interface SidebarProps extends ComponentProps<"div"> {
 	side?: "left" | "right";
 	variant?: "sidebar" | "floating" | "inset";
 	collapsible?: "offcanvas" | "icon" | "none";
@@ -289,7 +287,7 @@ export const Sidebar = ({
 	);
 };
 
-export interface SidebarTriggerProps extends ComponentProps<typeof Button> {}
+interface SidebarTriggerProps extends ComponentProps<typeof Button> {}
 
 export const SidebarTrigger = ({
 	className,
@@ -317,63 +315,10 @@ export const SidebarTrigger = ({
 	);
 };
 
-export interface SidebarRailProps extends ComponentProps<"button"> {}
 
-export const SidebarRail = ({ className, ...props }: SidebarRailProps) => {
-	const { toggleSidebar } = useSidebar();
 
-	return (
-		<button
-			data-sidebar="rail"
-			data-slot="sidebar-rail"
-			aria-label="Toggle Sidebar"
-			tabIndex={-1}
-			onClick={toggleSidebar}
-			title="Toggle Sidebar"
-			className={cn(
-				"hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] sm:flex",
-				"in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",
-				"[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize",
-				"hover:group-data-[collapsible=offcanvas]:bg-surface-secondary group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full",
-				"[[data-side=left][data-collapsible=offcanvas]_&]:-right-2",
-				"[[data-side=right][data-collapsible=offcanvas]_&]:-left-2",
-				className,
-			)}
-			{...props}
-		/>
-	);
-};
 
-export interface SidebarInsetProps extends ComponentProps<"main"> {}
-
-export const SidebarInset = ({ className, ...props }: SidebarInsetProps) => {
-	return (
-		<main
-			data-slot="sidebar-inset"
-			className={cn(
-				"bg-background relative flex w-full flex-1 flex-col",
-				"md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2",
-				className,
-			)}
-			{...props}
-		/>
-	);
-};
-
-export interface SidebarInputProps extends ComponentProps<typeof Input> {}
-
-export const SidebarInput = ({ className, ...props }: SidebarInputProps) => {
-	return (
-		<Input
-			data-slot="sidebar-input"
-			data-sidebar="input"
-			className={cn("bg-background h-8 w-full shadow-none", className)}
-			{...props}
-		/>
-	);
-};
-
-export interface SidebarHeaderProps extends ComponentProps<"div"> {}
+interface SidebarHeaderProps extends ComponentProps<"div"> {}
 
 export const SidebarHeader = ({ className, ...props }: SidebarHeaderProps) => {
 	return (
@@ -386,37 +331,9 @@ export const SidebarHeader = ({ className, ...props }: SidebarHeaderProps) => {
 	);
 };
 
-export interface SidebarFooterProps extends ComponentProps<"div"> {}
 
-export const SidebarFooter = ({ className, ...props }: SidebarFooterProps) => {
-	return (
-		<div
-			data-slot="sidebar-footer"
-			data-sidebar="footer"
-			className={cn("flex flex-col gap-2 p-2", className)}
-			{...props}
-		/>
-	);
-};
 
-export interface SidebarSeparatorProps
-	extends ComponentProps<typeof Separator> {}
-
-export const SidebarSeparator = ({
-	className,
-	...props
-}: SidebarSeparatorProps) => {
-	return (
-		<Separator
-			data-slot="sidebar-separator"
-			data-sidebar="separator"
-			className={cn("bg-sidebar-border mx-2 w-auto", className)}
-			{...props}
-		/>
-	);
-};
-
-export interface SidebarContentProps extends ComponentProps<"div"> {}
+interface SidebarContentProps extends ComponentProps<"div"> {}
 
 export const SidebarContent = ({
 	className,
@@ -435,7 +352,7 @@ export const SidebarContent = ({
 	);
 };
 
-export interface SidebarGroupProps extends ComponentProps<"div"> {}
+interface SidebarGroupProps extends ComponentProps<"div"> {}
 
 export const SidebarGroup = ({ className, ...props }: SidebarGroupProps) => {
 	return (
@@ -448,7 +365,7 @@ export const SidebarGroup = ({ className, ...props }: SidebarGroupProps) => {
 	);
 };
 
-export interface SidebarGroupLabelProps extends ComponentProps<"div"> {
+interface SidebarGroupLabelProps extends ComponentProps<"div"> {
 	asChild?: boolean;
 }
 
@@ -473,34 +390,8 @@ export const SidebarGroupLabel = ({
 	);
 };
 
-export interface SidebarGroupActionProps extends ComponentProps<"button"> {
-	asChild?: boolean;
-}
 
-export const SidebarGroupAction = ({
-	className,
-	asChild = false,
-	...props
-}: SidebarGroupActionProps) => {
-	const Comp = asChild ? Slot : "button";
-
-	return (
-		<Comp
-			data-slot="sidebar-group-action"
-			data-sidebar="group-action"
-			className={cn(
-				"text-content-primary ring-sidebar-ring hover:bg-surface-tertiary hover:text-content-primary absolute top-3.5 right-3 flex aspect-square w-5 items-center justify-center rounded-md p-0 outline-none transition-transform focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
-				// Increases the hit area of the button on mobile.
-				"after:absolute after:-inset-2 md:after:hidden",
-				"group-data-[collapsible=icon]:hidden",
-				className,
-			)}
-			{...props}
-		/>
-	);
-};
-
-export interface SidebarGroupContentProps extends ComponentProps<"div"> {}
+interface SidebarGroupContentProps extends ComponentProps<"div"> {}
 
 export const SidebarGroupContent = ({
 	className,
@@ -516,7 +407,7 @@ export const SidebarGroupContent = ({
 	);
 };
 
-export interface SidebarMenuProps extends ComponentProps<"ul"> {}
+interface SidebarMenuProps extends ComponentProps<"ul"> {}
 
 export const SidebarMenu = ({ className, ...props }: SidebarMenuProps) => {
 	return (
@@ -532,7 +423,7 @@ export const SidebarMenu = ({ className, ...props }: SidebarMenuProps) => {
 	);
 };
 
-export interface SidebarMenuItemProps extends ComponentProps<"li"> {}
+interface SidebarMenuItemProps extends ComponentProps<"li"> {}
 
 export const SidebarMenuItem = ({
 	className,
@@ -548,7 +439,7 @@ export const SidebarMenuItem = ({
 	);
 };
 
-export interface SidebarMenuButtonProps
+interface SidebarMenuButtonProps
 	extends ComponentProps<"button">,
 		VariantProps<typeof sidebarMenuButtonVariants> {
 	asChild?: boolean;
@@ -602,65 +493,9 @@ export const SidebarMenuButton = ({
 	);
 };
 
-export interface SidebarMenuActionProps extends ComponentProps<"button"> {
-	asChild?: boolean;
-	showOnHover?: boolean;
-}
 
-export const SidebarMenuAction = ({
-	className,
-	asChild = false,
-	showOnHover = false,
-	...props
-}: SidebarMenuActionProps) => {
-	const Comp = asChild ? Slot : "button";
 
-	return (
-		<Comp
-			data-slot="sidebar-menu-action"
-			data-sidebar="menu-action"
-			className={cn(
-				"text-content-primary ring-sidebar-ring hover:bg-surface-tertiary hover:text-content-primary peer-hover/menu-button:text-content-primary absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-md p-0 outline-none transition-transform focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
-				// Increases the hit area of the button on mobile.
-				"after:absolute after:-inset-2 md:after:hidden",
-				"peer-data-[size=sm]/menu-button:top-1",
-				"peer-data-[size=default]/menu-button:top-1.5",
-				"peer-data-[size=lg]/menu-button:top-2.5",
-				"group-data-[collapsible=icon]:hidden",
-				showOnHover &&
-					"peer-data-[active=true]/menu-button:text-content-primary group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 md:opacity-0",
-				className,
-			)}
-			{...props}
-		/>
-	);
-};
-
-export interface SidebarMenuBadgeProps extends ComponentProps<"div"> {}
-
-export const SidebarMenuBadge = ({
-	className,
-	...props
-}: SidebarMenuBadgeProps) => {
-	return (
-		<div
-			data-slot="sidebar-menu-badge"
-			data-sidebar="menu-badge"
-			className={cn(
-				"text-content-primary pointer-events-none absolute right-1 flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-xs font-medium tabular-nums select-none",
-				"peer-hover/menu-button:text-content-primary peer-data-[active=true]/menu-button:text-content-primary",
-				"peer-data-[size=sm]/menu-button:top-1",
-				"peer-data-[size=default]/menu-button:top-1.5",
-				"peer-data-[size=lg]/menu-button:top-2.5",
-				"group-data-[collapsible=icon]:hidden",
-				className,
-			)}
-			{...props}
-		/>
-	);
-};
-
-export interface SidebarMenuSkeletonProps extends ComponentProps<"div"> {
+interface SidebarMenuSkeletonProps extends ComponentProps<"div"> {
 	showIcon?: boolean;
 }
 
@@ -700,72 +535,5 @@ export const SidebarMenuSkeleton = ({
 	);
 };
 
-export interface SidebarMenuSubProps extends ComponentProps<"ul"> {}
 
-export const SidebarMenuSub = ({
-	className,
-	...props
-}: SidebarMenuSubProps) => {
-	return (
-		<ul
-			data-slot="sidebar-menu-sub"
-			data-sidebar="menu-sub"
-			className={cn(
-				"border-border mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l px-2.5 py-0.5",
-				"group-data-[collapsible=icon]:hidden",
-				className,
-			)}
-			{...props}
-		/>
-	);
-};
 
-export interface SidebarMenuSubItemProps extends ComponentProps<"li"> {}
-
-export const SidebarMenuSubItem = ({
-	className,
-	...props
-}: SidebarMenuSubItemProps) => {
-	return (
-		<li
-			data-slot="sidebar-menu-sub-item"
-			data-sidebar="menu-sub-item"
-			className={cn("group/menu-sub-item relative", className)}
-			{...props}
-		/>
-	);
-};
-
-export interface SidebarMenuSubButtonProps extends ComponentProps<"a"> {
-	asChild?: boolean;
-	size?: "sm" | "md";
-	isActive?: boolean;
-}
-
-export const SidebarMenuSubButton = ({
-	asChild = false,
-	size = "md",
-	isActive = false,
-	className,
-	...props
-}: SidebarMenuSubButtonProps) => {
-	const Comp = asChild ? Slot : "a";
-
-	return (
-		<Comp
-			data-slot="sidebar-menu-sub-button"
-			data-sidebar="menu-sub-button"
-			data-size={size}
-			data-active={isActive}
-			className={cn(
-				"text-content-primary ring-sidebar-ring hover:bg-surface-tertiary hover:text-content-primary active:bg-surface-tertiary active:text-content-primary [&>svg]:text-content-primary flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
-				"data-[active=true]:bg-surface-tertiary data-[active=true]:text-content-primary",
-				size === "sm" && "text-xs",
-				size === "md" && "text-sm",
-				"group-data-[collapsible=icon]:hidden",
-				className,
-			)}
-			{...props}
-		/>
-	);
-};
