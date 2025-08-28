@@ -33,6 +33,8 @@ import {
 } from "storybook-addon-remix-react-router";
 import TaskPage, { data, WorkspaceDoesNotHaveAITaskError } from "./TaskPage";
 
+const MockTaskWorkspace = MockTasks[0].workspace;
+
 const meta: Meta<typeof TaskPage> = {
 	title: "pages/TaskPage",
 	component: TaskPage,
@@ -47,7 +49,14 @@ const meta: Meta<typeof TaskPage> = {
 			{ key: getAuthorizationKey({ checks: permissionChecks }), data: {} },
 		],
 		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					user: MockTaskWorkspace.owner_name,
+					workspace: MockTaskWorkspace.name,
+				},
+			},
 			routing: reactRouterNestedAncestors({
+				path: "/tasks/:user/:workspace",
 				element: (
 					<AuthProvider>
 						<TasksLayout />
@@ -124,7 +133,7 @@ export const WaitingOnStatus: Story = {
 		spyOn(data, "fetchTask").mockResolvedValue({
 			prompt: "Create competitors page",
 			workspace: {
-				...MockWorkspace,
+				...MockTaskWorkspace,
 				latest_app_status: null,
 				latest_build: {
 					...MockWorkspace.latest_build,
@@ -142,7 +151,7 @@ export const WaitingStartupScripts: Story = {
 		spyOn(data, "fetchTask").mockResolvedValue({
 			prompt: "Create competitors page",
 			workspace: {
-				...MockWorkspace,
+				...MockTaskWorkspace,
 				latest_build: {
 					...MockWorkspace.latest_build,
 					has_ai_task: true,
@@ -178,12 +187,12 @@ export const WaitingStartupScripts: Story = {
 	},
 };
 
-export const SidebarAppHealthDisabled: Story = {
+export const ChatAppHealthDisabled: Story = {
 	beforeEach: () => {
 		spyOn(data, "fetchTask").mockResolvedValue({
 			prompt: "Create competitors page",
 			workspace: {
-				...MockWorkspace,
+				...MockTaskWorkspace,
 				latest_build: {
 					...MockWorkspace.latest_build,
 					has_ai_task: true,
@@ -199,12 +208,12 @@ export const SidebarAppHealthDisabled: Story = {
 	},
 };
 
-export const SidebarAppLoading: Story = {
+export const ChatAppLoading: Story = {
 	beforeEach: () => {
 		spyOn(data, "fetchTask").mockResolvedValue({
 			prompt: "Create competitors page",
 			workspace: {
-				...MockWorkspace,
+				...MockTaskWorkspace,
 				latest_build: {
 					...MockWorkspace.latest_build,
 					has_ai_task: true,
@@ -220,12 +229,12 @@ export const SidebarAppLoading: Story = {
 	},
 };
 
-export const SidebarAppHealthy: Story = {
+export const ChatAppHealthy: Story = {
 	beforeEach: () => {
 		spyOn(data, "fetchTask").mockResolvedValue({
 			prompt: "Create competitors page",
 			workspace: {
-				...MockWorkspace,
+				...MockTaskWorkspace,
 				latest_build: {
 					...MockWorkspace.latest_build,
 					has_ai_task: true,
@@ -246,7 +255,7 @@ const mainAppHealthStory = (health: WorkspaceApp["health"]) => ({
 		spyOn(data, "fetchTask").mockResolvedValue({
 			prompt: "Create competitors page",
 			workspace: {
-				...MockWorkspace,
+				...MockTaskWorkspace,
 				latest_build: {
 					...MockWorkspace.latest_build,
 					resources: mockResources({
@@ -330,7 +339,7 @@ const mockResources = (
 
 const activeWorkspace = (apps: WorkspaceApp[]): Workspace => {
 	return {
-		...MockWorkspace,
+		...MockTaskWorkspace,
 		latest_build: {
 			...MockWorkspace.latest_build,
 			resources: mockResources({ apps }),
