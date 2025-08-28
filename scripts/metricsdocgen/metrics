@@ -715,6 +715,37 @@ coderd_workspace_latest_build_status{status="failed",template_name="docker",temp
 coderd_workspace_builds_total{action="START",owner_email="admin@coder.com",status="failed",template_name="docker",template_version="gallant_wright0",workspace_name="test1"} 1
 coderd_workspace_builds_total{action="START",owner_email="admin@coder.com",status="success",template_name="docker",template_version="gallant_wright0",workspace_name="test1"} 1
 coderd_workspace_builds_total{action="STOP",owner_email="admin@coder.com",status="success",template_name="docker",template_version="gallant_wright0",workspace_name="test1"} 1
+# HELP coderd_workspace_creation_total Total regular (non-prebuilt) workspace creations by organization, template, and preset.
+# TYPE coderd_workspace_creation_total counter
+coderd_workspace_creation_total{organization_name="{organization}",preset_name="",template_name="docker"} 1
+# HELP coderd_workspace_creation_duration_seconds Time to create a workspace by organization, template, preset, and type (regular or prebuild).
+# TYPE coderd_workspace_creation_duration_seconds histogram
+coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="1"} 0
+coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="10"} 1
+coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="30"} 1
+coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="60"} 1
+coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="300"} 1
+coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="600"} 1
+coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="1800"} 1
+coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="3600"} 1
+coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="+Inf"} 1
+coderd_workspace_creation_duration_seconds_sum{organization_name="{organization}",preset_name="Falkenstein",template_name="template-example",type="prebuild"} 4.406214
+coderd_workspace_creation_duration_seconds_count{organization_name="{organization}",preset_name="Falkenstein",template_name="template-example",type="prebuild"} 1
+# HELP coderd_prebuilt_workspace_claim_duration_seconds Time to claim a prebuilt workspace by organization, template, and preset.
+# TYPE coderd_prebuilt_workspace_claim_duration_seconds histogram
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="1"} 0
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="5"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="10"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="20"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="30"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="60"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="120"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="180"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="240"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="300"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="+Inf"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_sum{organization_name="{organization}",preset_name="Falkenstein",template_name="docker"} 4.860075
+coderd_prebuilt_workspace_claim_duration_seconds_count{organization_name="{organization}",preset_name="Falkenstein",template_name="docker"} 1
 # HELP go_gc_duration_seconds A summary of the pause duration of garbage collection cycles.
 # TYPE go_gc_duration_seconds summary
 go_gc_duration_seconds{quantile="0"} 2.4056e-05
