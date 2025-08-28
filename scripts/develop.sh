@@ -21,7 +21,8 @@ password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
 use_proxy=0
 multi_org=0
 
-# Ensure that these do not interfere with the below.
+# Ensure that extant environment variables do not override
+# the config dir we use to override auth for dev.coder.com.
 unset CODER_SESSION_TOKEN
 unset CODER_URL
 
