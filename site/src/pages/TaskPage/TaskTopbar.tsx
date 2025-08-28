@@ -1,5 +1,4 @@
 import { Button } from "components/Button/Button";
-import { SidebarTrigger } from "components/LayotuSidebar/LayoutSidebar";
 import {
 	Tooltip,
 	TooltipContent,
@@ -22,9 +21,7 @@ type TaskTopbarProps = { task: Task };
 
 export const TaskTopbar: FC<TaskTopbarProps> = ({ task }) => {
 	return (
-		<header className="flex flex-shrink-0 items-center px-3 py-4 border-solid border-border border-0 border-b">
-			<SidebarTrigger />
-
+		<header className="flex flex-shrink-0 items-center px-3 py-2 border-solid border-border border-0 border-b">
 			<h1 className="m-0 pl-2 text-base font-medium truncate">
 				{task.workspace.name}
 			</h1>
