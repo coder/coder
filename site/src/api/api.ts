@@ -2698,6 +2698,9 @@ class ExperimentalApiMethods {
 	getTasks = async (filter: TasksFilter): Promise<Task[]> => {
 		const queryExpressions = ["has-ai-task:true"];
 
+		// Add a filter to exclude prebuild workspaces
+		queryExpressions.push("is_prebuild:false");
+
 		if (filter.username) {
 			queryExpressions.push(`owner:${filter.username}`);
 		}
