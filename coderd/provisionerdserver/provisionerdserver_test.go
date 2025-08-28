@@ -4144,6 +4144,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		},
 		notifEnq,
 		&op,
+		provisionerdserver.NewMetrics(logger),
 	)
 	require.NoError(t, err)
 	return srv, db, ps, daemon
