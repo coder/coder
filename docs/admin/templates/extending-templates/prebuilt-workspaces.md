@@ -300,6 +300,7 @@ Coder provides several metrics to monitor your prebuilt workspaces:
 - `coderd_prebuilt_workspaces_desired` (gauge): Target number of prebuilt workspaces that should be available.
 - `coderd_prebuilt_workspaces_running` (gauge): Current number of prebuilt workspaces in a `running` state.
 - `coderd_prebuilt_workspaces_eligible` (gauge): Current number of prebuilt workspaces eligible to be claimed.
+- `coderd_prebuilt_workspace_claim_duration_seconds` (histogram _native support_): Time to claim a prebuilt workspace from the prebuild pool.
 
 #### Logs
 
