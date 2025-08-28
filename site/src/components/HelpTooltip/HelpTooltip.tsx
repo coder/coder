@@ -3,18 +3,16 @@ import {
 	css,
 	type Interpolation,
 	type Theme,
-	useTheme,
 } from "@emotion/react";
 import Link from "@mui/material/Link";
-import {
-	Popover,
-	PopoverContent,
-	type PopoverContentProps,
-	type PopoverProps,
-	PopoverTrigger,
-	usePopover,
-} from "components/deprecated/Popover/Popover";
+import { TooltipContentProps, TooltipProps } from "@radix-ui/react-tooltip";
+import { usePopover } from "components/deprecated/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { CircleHelpIcon, ExternalLinkIcon } from "lucide-react";
 import {
 	type FC,
@@ -23,6 +21,7 @@ import {
 	type PropsWithChildren,
 	type ReactNode,
 } from "react";
+import { cn } from "utils/cn";
 
 type Icon = typeof CircleHelpIcon;
 
@@ -30,24 +29,23 @@ type Size = "small" | "medium";
 
 export const HelpTooltipIcon = CircleHelpIcon;
 
-export const HelpTooltip: FC<PopoverProps> = (props) => {
-	return <Popover mode="hover" {...props} />;
+export const HelpTooltip: FC<TooltipProps> = (props) => {
+	return <Tooltip delayDuration={0} {...props} />;
 };
 
-export const HelpTooltipContent: FC<PopoverContentProps> = (props) => {
-	const theme = useTheme();
-
+export const HelpTooltipContent: FC<TooltipContentProps> = ({
+	className,
+	...props
+}) => {
 	return (
-		<PopoverContent
+		<TooltipContent
+			side="bottom"
+			align="start"
 			{...props}
-			css={{
-				"& .MuiPaper-root": {
-					fontSize: 14,
-					width: 304,
-					padding: 20,
-					color: theme.palette.text.secondary,
-				},
-			}}
+			className={cn(
+				"w-[320px] p-5 bg-surface-secondary border-surface-quaternary",
+				className,
+			)}
 		/>
 	);
 };
@@ -76,7 +74,7 @@ export const HelpTooltipTrigger = forwardRef<
 	});
 
 	return (
-		<PopoverTrigger>
+		<TooltipTrigger>
 			<button
 				{...buttonProps}
 				aria-label="More info"
@@ -102,7 +100,7 @@ export const HelpTooltipTrigger = forwardRef<
 			>
 				{children}
 			</button>
-		</PopoverTrigger>
+		</TooltipTrigger>
 	);
 });
 
@@ -155,6 +153,7 @@ export const HelpTooltipAction: FC<HelpTooltipActionProps> = ({
 	onClick,
 	ariaLabel,
 }) => {
+	// TODO dismiss tooltip
 	const popover = usePopover();
 
 	return (
