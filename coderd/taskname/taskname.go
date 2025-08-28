@@ -153,7 +153,7 @@ func Generate(ctx context.Context, prompt string, opts ...Option) (string, error
 	// We append a suffix to the end of the task name to reduce
 	// the chance of collisions. We truncate the task name to
 	// to a maximum of 27 bytes, so that when we append the
-	// 5 byte suffix (`-` and 4 byte hex sulg), it should
+	// 5 byte suffix (`-` and 4 byte hex slug), it should
 	// remain within the 32 byte workspace name limit.
 	taskName = taskName[:min(len(taskName), 27)]
 	taskName = fmt.Sprintf("%s-%s", taskName, generateSuffix())
