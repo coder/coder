@@ -99,7 +99,12 @@ func (m *Metrics) Register(reg prometheus.Registerer) error {
 	return reg.Register(m.workspaceClaimTimings)
 }
 
-func getTimingType(isPrebuild bool, isClaim bool, isWorkspaceFirstBuild bool) WorkspaceTimingType {
+// getWorkspaceTimingType returns the type of the workspace build:
+//   - isPrebuild: if the workspace build corresponds to the creation of a prebuilt workspace
+//   - isClaim: if the workspace build corresponds to the claim of a prebuilt workspace
+//   - isWorkspaceFirstBuild: if the workspace build corresponds to the creation of a regular workspace
+//     (not created from the prebuild pool)
+func getWorkspaceTimingType(isPrebuild bool, isClaim bool, isWorkspaceFirstBuild bool) WorkspaceTimingType {
 	switch {
 	case isPrebuild:
 		return PrebuildCreation
@@ -112,6 +117,7 @@ func getTimingType(isPrebuild bool, isClaim bool, isWorkspaceFirstBuild bool) Wo
 	}
 }
 
+// UpdateWorkspaceTimingsMetrics updates the workspace timing metrics based on the workspace build type
 func (m *Metrics) UpdateWorkspaceTimingsMetrics(
 	isPrebuild bool,
 	isClaim bool,
@@ -121,7 +127,7 @@ func (m *Metrics) UpdateWorkspaceTimingsMetrics(
 	presetName string,
 	buildTime float64,
 ) {
-	workspaceTimingType := getTimingType(isPrebuild, isClaim, isWorkspaceFirstBuild)
+	workspaceTimingType := getWorkspaceTimingType(isPrebuild, isClaim, isWorkspaceFirstBuild)
 	switch workspaceTimingType {
 	case WorkspaceCreation:
 		// Regular workspace creation (without prebuild pool)
