@@ -13598,7 +13598,9 @@ func (q *sqlQuerier) DisableForeignKeysAndTriggers(ctx context.Context) error {
 
 const getTotalUsageDCManagedAgentsV1 = `-- name: GetTotalUsageDCManagedAgentsV1 :one
 SELECT
-    SUM(usage_data->>'count') AS total_count
+    -- The first cast is necessary since you can't sum strings, and the second
+    -- cast is necessary to make sqlc happy.
+    COALESCE(SUM((usage_data->>'count')::bigint), 0)::bigint AS total_count
 FROM
     usage_events_daily
 WHERE

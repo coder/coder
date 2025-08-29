@@ -31,8 +31,8 @@ BEGIN
             WHEN NEW.event_type IN ('dc_managed_agents_v1') THEN
                 jsonb_build_object(
                     'count',
-                    COALESCE((usage_events_daily.usage_data->>'count')::int, 0) +
-                    COALESCE((NEW.event_data->>'count')::int, 0)
+                    COALESCE((usage_events_daily.usage_data->>'count')::bigint, 0) +
+                    COALESCE((NEW.event_data->>'count')::bigint, 0)
                 )
         END;
 
@@ -52,7 +52,7 @@ INSERT INTO
 SELECT
     date_trunc('day', created_at AT TIME ZONE 'UTC')::date AS day,
     event_type,
-    jsonb_build_object('count', SUM((event_data->>'count')::int)) AS usage_data
+    jsonb_build_object('count', SUM((event_data->>'count')::bigint)) AS usage_data
 FROM
     usage_events
 WHERE

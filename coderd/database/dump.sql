@@ -384,8 +384,8 @@ BEGIN
             WHEN NEW.event_type IN ('dc_managed_agents_v1') THEN
                 jsonb_build_object(
                     'count',
-                    COALESCE((usage_events_daily.usage_data->>'count')::int, 0) +
-                    COALESCE((NEW.event_data->>'count')::int, 0)
+                    COALESCE((usage_events_daily.usage_data->>'count')::bigint, 0) +
+                    COALESCE((NEW.event_data->>'count')::bigint, 0)
                 )
         END;
 
