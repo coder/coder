@@ -2725,12 +2725,12 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 	s.Run("DeleteReplicasUpdatedBefore", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		t := time.Now().Add(time.Hour)
+		t := dbtime.Now().Add(time.Hour)
 		dbm.EXPECT().DeleteReplicasUpdatedBefore(gomock.Any(), t).Return(nil).AnyTimes()
 		check.Args(t).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 	s.Run("GetReplicasUpdatedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		t := time.Now().Add(-time.Hour)
+		t := dbtime.Now().Add(-time.Hour)
 		dbm.EXPECT().GetReplicasUpdatedAfter(gomock.Any(), t).Return([]database.Replica{}, nil).AnyTimes()
 		check.Args(t).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
@@ -2763,27 +2763,27 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceBuildsCreatedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		ts := time.Now()
+		ts := dbtime.Now()
 		dbm.EXPECT().GetWorkspaceBuildsCreatedAfter(gomock.Any(), ts).Return([]database.WorkspaceBuild{}, nil).AnyTimes()
 		check.Args(ts).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceAgentsCreatedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		ts := time.Now()
+		ts := dbtime.Now()
 		dbm.EXPECT().GetWorkspaceAgentsCreatedAfter(gomock.Any(), ts).Return([]database.WorkspaceAgent{}, nil).AnyTimes()
 		check.Args(ts).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceAppsCreatedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		ts := time.Now()
+		ts := dbtime.Now()
 		dbm.EXPECT().GetWorkspaceAppsCreatedAfter(gomock.Any(), ts).Return([]database.WorkspaceApp{}, nil).AnyTimes()
 		check.Args(ts).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceResourcesCreatedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		ts := time.Now()
+		ts := dbtime.Now()
 		dbm.EXPECT().GetWorkspaceResourcesCreatedAfter(gomock.Any(), ts).Return([]database.WorkspaceResource{}, nil).AnyTimes()
 		check.Args(ts).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceResourceMetadataCreatedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		ts := time.Now()
+		ts := dbtime.Now()
 		dbm.EXPECT().GetWorkspaceResourceMetadataCreatedAfter(gomock.Any(), ts).Return([]database.WorkspaceResourceMetadatum{}, nil).AnyTimes()
 		check.Args(ts).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
@@ -2792,7 +2792,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 	s.Run("GetProvisionerJobsCreatedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		ts := time.Now()
+		ts := dbtime.Now()
 		dbm.EXPECT().GetProvisionerJobsCreatedAfter(gomock.Any(), ts).Return([]database.ProvisionerJob{}, nil).AnyTimes()
 		check.Args(ts).Asserts(rbac.ResourceProvisionerJobs, policy.ActionRead)
 	}))
@@ -2901,7 +2901,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
 	}))
 	s.Run("AcquireProvisionerJob", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := database.AcquireProvisionerJobParams{StartedAt: sql.NullTime{Valid: true, Time: time.Now()}, OrganizationID: uuid.New(), Types: []database.ProvisionerType{database.ProvisionerTypeEcho}, ProvisionerTags: json.RawMessage("{}")}
+		arg := database.AcquireProvisionerJobParams{StartedAt: sql.NullTime{Valid: true, Time: dbtime.Now()}, OrganizationID: uuid.New(), Types: []database.ProvisionerType{database.ProvisionerTypeEcho}, ProvisionerTags: json.RawMessage("{}")}
 		dbm.EXPECT().AcquireProvisionerJob(gomock.Any(), arg).Return(testutil.Fake(s.T(), faker, database.ProvisionerJob{}), nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
 	}))
@@ -2919,7 +2919,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("UpdateProvisionerJobByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{})
-		arg := database.UpdateProvisionerJobByIDParams{ID: j.ID, UpdatedAt: time.Now()}
+		arg := database.UpdateProvisionerJobByIDParams{ID: j.ID, UpdatedAt: dbtime.Now()}
 		dbm.EXPECT().UpdateProvisionerJobByID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceProvisionerJobs, policy.ActionUpdate)
 	}))
