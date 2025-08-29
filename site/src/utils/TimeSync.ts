@@ -1,4 +1,10 @@
-type CreateNewDatetime = (prevReadonlyDate: Date) => Date;
+/**
+ * A readonly version of a Date object. The object lacks all set methods at the
+ * type level, and is frozen at runtime.
+ */
+export type ReadonlyDate = Omit<Date, `set${string}`>;
+
+export type CreateNewDatetime = (prevDate: ReadonlyDate) => Date;
 
 export type TimeSyncInitOptions = Readonly<{
 	/**
@@ -23,7 +29,7 @@ export type TimeSyncInitOptions = Readonly<{
 /**
  * The callback to call when a new state update is ready to be dispatched.
  */
-export type OnUpdate = (newReadonlyDate: Date) => void;
+export type OnUpdate = (newDate: ReadonlyDate) => void;
 
 export type SubscriptionHandshake = Readonly<{
 	/**
@@ -76,13 +82,13 @@ interface TimeSyncApi {
 	 * Allows any system to pull the newest time state from TimeSync, regardless
 	 * of whether the system is subscribed
 	 */
-	getTimeSnapshot: () => Date;
+	getTimeSnapshot: () => ReadonlyDate;
 }
 
 type SubscriptionTracker = Readonly<{
 	targetRefreshInterval: number;
 	// Each key is an individual onUpdate callback, while each value is the
-	// number of subscribers that have registered that callback
+	// number of subscribers that currently have that callback registered
 	updates: Map<OnUpdate, number>;
 }>;
 
@@ -103,10 +109,25 @@ type SubscriptionTracker = Readonly<{
 export class TimeSync implements TimeSyncApi {
 	readonly #resyncOnNewSubscription: boolean;
 	readonly #createNewDatetime: CreateNewDatetime;
-	#latestDateSnapshot: Date;
+
+	/**
+	 * @todo Ran out of time for this, but to make sure that the state system is
+	 * 100% airtight, we need to make sure that the Date object is truly
+	 * readonly at runtime.
+	 *
+	 * The ReadonlyDate type hides the set methods at compile time, and freezing
+	 * the Date objects at runtime helps a little. But the set methods still
+	 * exist at runtime, and there's nothing stopping them from modifying the
+	 * internal Date object state. A single one of those calls can destroy the
+	 * entire state management strategy.
+	 *
+	 * This can probably be punted for a while, but the system will not have
+	 * correctness guarantees until this is addressed.
+	 */
+	#latestDateSnapshot: ReadonlyDate;
 
 	// Should always be sorted based on refresh interval, ascending
-	#subscriptions: SubscriptionTracker[] = [];
+	#subscriptionTrackers: SubscriptionTracker[] = [];
 
 	// This class uses setInterval for both its intended purpose and as a janky
 	// version of setTimeout. There are a few times when we need timeout-like
@@ -132,7 +153,8 @@ export class TimeSync implements TimeSyncApi {
 	// type-safe way
 	#getMinUpdateInterval(): number {
 		return (
-			this.#subscriptions[0]?.targetRefreshInterval ?? Number.POSITIVE_INFINITY
+			this.#subscriptionTrackers[0]?.targetRefreshInterval ??
+			Number.POSITIVE_INFINITY
 		);
 	}
 
@@ -156,34 +178,32 @@ export class TimeSync implements TimeSyncApi {
 		this.#latestDateSnapshot = frozen;
 
 		const subscriptionsPaused =
-			this.#subscriptions.length === 0 ||
+			this.#subscriptionTrackers.length === 0 ||
 			this.#getMinUpdateInterval() === Number.POSITIVE_INFINITY;
 		if (subscriptionsPaused) {
 			return;
 		}
-		for (const subEntry of this.#subscriptions) {
+		for (const subEntry of this.#subscriptionTrackers) {
 			for (const onUpdate of subEntry.updates.keys()) {
 				onUpdate(frozen);
 			}
 		}
 	};
 
-	#reconcileAdd(): void {}
-
-	#reconcileRemoval(): void {
-		const filtered = this.#subscriptions.filter((t) => t.updates.size > 0);
-		if (filtered.length === this.#subscriptions.length) {
-			return;
-		}
-
+	#reconcileTrackersUpdate(): void {
 		const oldMin = this.#getMinUpdateInterval();
-		filtered.sort(
+		this.#subscriptionTrackers.sort(
 			(t1, t2) => t2.targetRefreshInterval - t1.targetRefreshInterval,
 		);
-		this.#subscriptions = filtered;
 
 		const newMin = this.#getMinUpdateInterval();
 		if (newMin === oldMin) {
+			return;
+		}
+
+		if (newMin === Number.POSITIVE_INFINITY) {
+			window.clearInterval(this.#latestIntervalId);
+			this.#latestIntervalId = undefined;
 			return;
 		}
 
@@ -213,7 +233,7 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	#addSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): void {
-		const prevTracker = this.#subscriptions.find(
+		const prevTracker = this.#subscriptionTrackers.find(
 			(t) => t.targetRefreshInterval === targetRefreshInterval,
 		);
 
@@ -234,7 +254,7 @@ export class TimeSync implements TimeSyncApi {
 		const newCount = 1 + (activeTracker.updates.get(onUpdate) ?? 0);
 		activeTracker.updates.set(onUpdate, newCount);
 		if (needReconciliation) {
-			this.#reconcileAdd();
+			this.#reconcileTrackersUpdate();
 		}
 		if (!alreadySubscribed && this.#resyncOnNewSubscription) {
 			this.#updateDateSnapshot();
@@ -242,7 +262,7 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	#removeSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): void {
-		const activeTracker = this.#subscriptions.find(
+		const activeTracker = this.#subscriptionTrackers.find(
 			(t) => t.targetRefreshInterval === targetRefreshInterval,
 		);
 		if (activeTracker === undefined || !activeTracker.updates.has(onUpdate)) {
@@ -260,12 +280,14 @@ export class TimeSync implements TimeSyncApi {
 		// tracker to remove to improve performance, but this setup is easier,
 		// and it also gives us a safety net in case we accidentally set up
 		// trackers without any functions elsewhere
-		const filtered = this.#subscriptions.filter((t) => t.updates.size > 0);
-		if (filtered.length === this.#subscriptions.length) {
+		const filtered = this.#subscriptionTrackers.filter(
+			(t) => t.updates.size > 0,
+		);
+		if (filtered.length === this.#subscriptionTrackers.length) {
 			return;
 		}
-		this.#subscriptions = filtered;
-		this.#reconcileRemoval();
+		this.#subscriptionTrackers = filtered;
+		this.#reconcileTrackersUpdate();
 	}
 
 	subscribe(hs: SubscriptionHandshake): () => void {
@@ -285,21 +307,7 @@ export class TimeSync implements TimeSyncApi {
 		return () => this.#removeSubscription(targetRefreshInterval, onUpdate);
 	}
 
-	/**
-	 * @todo While this isn't likely, in order to make sure that the system
-	 * stays airtight and can't break down, we need to make sure that the Date
-	 * returned forbids being mutated. Tried rolling this out for the initial
-	 * version, but figuring out the internal ergonomics at the type level while
-	 * building out everything else got to be a bit much.
-	 *
-	 * Using Object.freeze helps a tiny bit, but not nearly enough, because it
-	 * doesn't stop the built-in set methods from modifying the internal state.
-	 * We can probably get away with a Proxy object, and set it up to intercept
-	 * properties prefixed with `set`. Those can either be turned into a no-op
-	 * (which is probably more React-friendly), or into runtime errors (which
-	 * is probably more correct overall).
-	 */
-	getTimeSnapshot(): Date {
+	getTimeSnapshot(): ReadonlyDate {
 		return this.#latestDateSnapshot;
 	}
 }
