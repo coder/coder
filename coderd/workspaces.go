@@ -391,6 +391,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, r)
 	if err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
+		return
 	}
 
 	httpapi.Write(ctx, rw, http.StatusCreated, w)

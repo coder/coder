@@ -193,6 +193,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, createReq, r)
 	if err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
+		return
 	}
 
 	httpapi.Write(ctx, rw, http.StatusCreated, w)
