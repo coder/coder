@@ -14,6 +14,7 @@ import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
+import { WildcardHostnameWarning } from "pages/WorkspacePage/WildcardHostnameWarning";
 import {
 	type FC,
 	useCallback,
@@ -225,6 +226,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 						<AppStatuses workspace={workspace} agent={agent} />
 					</section>
 				)}
+
+				<WildcardHostnameWarning agent={agent} />
 
 				{shouldDisplayAppsSection && (
 					<section css={styles.apps}>

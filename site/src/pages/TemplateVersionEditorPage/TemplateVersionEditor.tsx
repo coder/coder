@@ -68,6 +68,7 @@ import { MonacoEditor } from "./MonacoEditor";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog";
 import { TemplateVersionStatusBadge } from "./TemplateVersionStatusBadge";
+import { WildcardHostnameWarning } from "./WildcardHostnameWarning";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
@@ -627,6 +628,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 											logs={buildLogs}
 										/>
 									)}
+
+									{fileTree && <WildcardHostnameWarning fileTree={fileTree} />}
 								</div>
 							)}
 
