@@ -41,9 +41,13 @@ func (r *RootCmd) showWorkspaceSharing(orgContext *OrganizationContext) *serpent
 	)
 
 	cmd := &serpent.Command{
-		Use:        "show <workspace>",
-		Short:      "Show all users and groups the given Workspace is shared with.",
-		Middleware: serpent.Chain(serpent.RequireNArgs(1)),
+		Use:     "show <workspace>",
+		Short:   "Show all users and groups the given Workspace is shared with.",
+		Aliases: []string{"list"},
+		Middleware: serpent.Chain(
+			r.InitClient(client),
+			serpent.RequireNArgs(1),
+		),
 		Handler: func(inv *serpent.Invocation) error {
 			worksace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
