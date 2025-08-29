@@ -77,6 +77,8 @@ Edit the template autostart requirement weekdays - workspaces created from this 
 
 ### --autostop-requirement-weekdays
 
+Requires Premium license (Advanced Template Scheduling entitlement).
+
 |      |                                                                                     |
 |------|-------------------------------------------------------------------------------------|
 | Type | <code>[monday\|tuesday\|wednesday\|thursday\|friday\|saturday\|sunday\|none]</code> |
@@ -84,6 +86,8 @@ Edit the template autostart requirement weekdays - workspaces created from this 
 Edit the template autostop requirement weekdays - workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the autostop requirement for the template), pass 'none'.
 
 ### --autostop-requirement-weeks
+
+Requires Premium license (Advanced Template Scheduling entitlement).
 
 |      |                  |
 |------|------------------|
