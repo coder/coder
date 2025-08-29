@@ -36,9 +36,7 @@ func (r *RootCmd) sharing() *serpent.Command {
 }
 
 func (r *RootCmd) showWorkspaceSharing(orgContext *OrganizationContext) *serpent.Command {
-	var (
-		client = new(codersdk.Client)
-	)
+	client := new(codersdk.Client)
 
 	cmd := &serpent.Command{
 		Use:     "show <workspace>",
@@ -222,7 +220,7 @@ func workspaceACLToTable(ctx context.Context, acl *codersdk.WorkspaceACL) (strin
 		Role  codersdk.WorkspaceRole `table:"role"`
 	}
 
-	var formatter = cliui.NewOutputFormatter(
+	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat(
 			[]workspaceShareRow{}, []string{"User", "Group", "Role"}),
 		cliui.JSONFormat())

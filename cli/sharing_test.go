@@ -167,7 +167,6 @@ func TestSharingShare(t *testing.T) {
 		}
 		assert.True(t, found, fmt.Sprintf("expected to find the username %s and role %s in the command: %s", toShareWithUser.Username, codersdk.WorkspaceRoleAdmin, out.String()))
 	})
-
 }
 
 func TestSharingShow(t *testing.T) {
