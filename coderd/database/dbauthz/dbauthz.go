@@ -2792,7 +2792,7 @@ func (q *querier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg data
 }
 
 // Only used by metrics cache.
-func (q *querier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
+func (q *querier) GetTemplateAverageBuildTime(ctx context.Context, arg uuid.NullUUID) (database.GetTemplateAverageBuildTimeRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.GetTemplateAverageBuildTimeRow{}, err
 	}
