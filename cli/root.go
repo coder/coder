@@ -24,7 +24,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"cloud.google.com/go/compute/metadata"
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/mod/semver"
@@ -688,9 +687,9 @@ func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *ur
 	return &client, err
 }
 
-// createAgentClient returns a new client from the command context.  It works
+// CreateAgentClient returns a new client from the command context.  It works
 // just like InitClient, but uses the agent token and URL instead.
-func (r *RootCmd) createAgentClient(ctx context.Context) (*agentsdk.Client, error) {
+func (r *RootCmd) CreateAgentClient() (*agentsdk.Client, error) {
 	agentURL := r.agentURL
 	if agentURL == nil || agentURL.String() == "" {
 		return nil, xerrors.Errorf("%s must be set", envAgentURL)
@@ -714,41 +713,11 @@ func (r *RootCmd) createAgentClient(ctx context.Context) (*agentsdk.Client, erro
 		}
 		return agentsdk.New(r.agentURL, agentsdk.UsingFixedToken(token)), nil
 	case "google-instance-identity":
-
-		// This is *only* done for testing to mock client authentication.
-		// This will never be set in a production scenario.
-		var gcpClient *metadata.Client
-		gcpClientRaw := ctx.Value("gcp-client")
-		if gcpClientRaw != nil {
-			gcpClient, _ = gcpClientRaw.(*metadata.Client)
-		}
-		return agentsdk.New(r.agentURL, agentsdk.UsingGoogleInstanceIdentity("", gcpClient)), nil
+		return agentsdk.New(r.agentURL, agentsdk.UsingGoogleInstanceIdentity("", nil)), nil
 	case "aws-instance-identity":
-		client := agentsdk.New(r.agentURL, agentsdk.UsingAWSInstanceIdentity())
-		// This is *only* done for testing to mock client authentication.
-		// This will never be set in a production scenario.
-		var awsClient *http.Client
-		awsClientRaw := ctx.Value("aws-client")
-		if awsClientRaw != nil {
-			awsClient, _ = awsClientRaw.(*http.Client)
-			if awsClient != nil {
-				client.SDK.HTTPClient = awsClient
-			}
-		}
-		return client, nil
+		return agentsdk.New(r.agentURL, agentsdk.UsingAWSInstanceIdentity()), nil
 	case "azure-instance-identity":
-		client := agentsdk.New(r.agentURL, agentsdk.UsingAzureInstanceIdentity())
-		// This is *only* done for testing to mock client authentication.
-		// This will never be set in a production scenario.
-		var azureClient *http.Client
-		azureClientRaw := ctx.Value("azure-client")
-		if azureClientRaw != nil {
-			azureClient, _ = azureClientRaw.(*http.Client)
-			if azureClient != nil {
-				client.SDK.HTTPClient = azureClient
-			}
-		}
-		return client, nil
+		return agentsdk.New(r.agentURL, agentsdk.UsingAzureInstanceIdentity()), nil
 	default:
 		return nil, xerrors.Errorf("unknown agent auth type: %s", r.agentAuth)
 	}

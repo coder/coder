@@ -340,11 +340,11 @@ type RefreshableSessionTokenProvider interface {
 	RefreshToken(ctx context.Context) error
 }
 
-// instanceIdentitySessionTokenProvider implements RefreshableSessionTokenProvider via token exchange for a cloud
+// InstanceIdentitySessionTokenProvider implements RefreshableSessionTokenProvider via token exchange for a cloud
 // compute instance identity.
-// @typescript-ignore instanceIdentitySessionTokenProvider
-type instanceIdentitySessionTokenProvider struct {
-	tokenExchanger tokenExchanger
+// @typescript-ignore InstanceIdentitySessionTokenProvider
+type InstanceIdentitySessionTokenProvider struct {
+	TokenExchanger TokenExchanger
 	logger         slog.Logger
 
 	// cache so we don't request each time
@@ -352,20 +352,20 @@ type instanceIdentitySessionTokenProvider struct {
 	sessionToken string
 }
 
-// tokenExchanger obtains a session token by exchanging a cloud instance identity credential for a Coder session token.
-// @typescript-ignore tokenExchanger
-type tokenExchanger interface {
+// TokenExchanger obtains a session token by exchanging a cloud instance identity credential for a Coder session token.
+// @typescript-ignore TokenExchanger
+type TokenExchanger interface {
 	exchange(ctx context.Context) (AuthenticateResponse, error)
 }
 
-func (i *instanceIdentitySessionTokenProvider) AsRequestOption() codersdk.RequestOption {
+func (i *InstanceIdentitySessionTokenProvider) AsRequestOption() codersdk.RequestOption {
 	t := i.GetSessionToken()
 	return func(req *http.Request) {
 		req.Header.Set(codersdk.SessionTokenHeader, t)
 	}
 }
 
-func (i *instanceIdentitySessionTokenProvider) SetDialOption(opts *websocket.DialOptions) {
+func (i *InstanceIdentitySessionTokenProvider) SetDialOption(opts *websocket.DialOptions) {
 	t := i.GetSessionToken()
 	if opts.HTTPHeader == nil {
 		opts.HTTPHeader = http.Header{}
@@ -375,7 +375,7 @@ func (i *instanceIdentitySessionTokenProvider) SetDialOption(opts *websocket.Dia
 	}
 }
 
-func (i *instanceIdentitySessionTokenProvider) GetSessionToken() string {
+func (i *InstanceIdentitySessionTokenProvider) GetSessionToken() string {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	if i.sessionToken != "" {
@@ -383,7 +383,7 @@ func (i *instanceIdentitySessionTokenProvider) GetSessionToken() string {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	resp, err := i.tokenExchanger.exchange(ctx)
+	resp, err := i.TokenExchanger.exchange(ctx)
 	if err != nil {
 		i.logger.Error(ctx, "failed to exchange session token: %v", err)
 		return ""
@@ -392,10 +392,10 @@ func (i *instanceIdentitySessionTokenProvider) GetSessionToken() string {
 	return i.sessionToken
 }
 
-func (i *instanceIdentitySessionTokenProvider) RefreshToken(ctx context.Context) error {
+func (i *InstanceIdentitySessionTokenProvider) RefreshToken(ctx context.Context) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	resp, err := i.tokenExchanger.exchange(ctx)
+	resp, err := i.TokenExchanger.exchange(ctx)
 	if err != nil {
 		return err
 	}
