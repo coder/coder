@@ -24,12 +24,13 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
-	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
+	entprebuilds "github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisioner/terraform"
@@ -454,24 +455,20 @@ func GetRunningPrebuilds(
 	ctx context.Context,
 	t *testing.T,
 	db database.Store,
-	prebuildInstances int,
+	desiredPrebuilds int,
 ) []database.GetRunningPrebuiltWorkspacesRow {
 	t.Helper()
 
 	var runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow
 	testutil.Eventually(ctx, t, func(context.Context) bool {
-		rows, err := db.GetRunningPrebuiltWorkspaces(ctx)
-		if err != nil {
-			return false
-		}
+		prebuiltWorkspaces, err := db.GetRunningPrebuiltWorkspaces(ctx)
+		assert.NoError(t, err, "failed to get running prebuilds")
 
-		for _, row := range rows {
-			runningPrebuilds = append(runningPrebuilds, row)
+		for _, prebuild := range prebuiltWorkspaces {
+			runningPrebuilds = append(runningPrebuilds, prebuild)
 
-			agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, row.ID)
-			if err != nil {
-				return false
-			}
+			agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, prebuild.ID)
+			assert.NoError(t, err, "failed to get agents")
 
 			for _, agent := range agents {
 				err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
@@ -480,40 +477,40 @@ func GetRunningPrebuilds(
 					StartedAt:      sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
 					ReadyAt:        sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
 				})
-				if err != nil {
-					return false
-				}
+				assert.NoError(t, err, "failed to update agent")
 			}
 		}
 
-		t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), prebuildInstances)
-		return len(runningPrebuilds) == prebuildInstances
-	}, testutil.IntervalSlow, "prebuilds not running")
+		t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), desiredPrebuilds)
+		return len(runningPrebuilds) == desiredPrebuilds
+	}, testutil.IntervalSlow, "found %d running prebuilds, expected %d", len(runningPrebuilds), desiredPrebuilds)
 
 	return runningPrebuilds
 }
 
-func RunReconciliationLoop(
+func MustRunReconciliationLoopForPreset(
 	ctx context.Context,
 	t *testing.T,
 	db database.Store,
-	reconciler *prebuilds.StoreReconciler,
-	presets []codersdk.Preset,
-) {
+	reconciler *entprebuilds.StoreReconciler,
+	preset codersdk.Preset,
+) []*prebuilds.ReconciliationActions {
 	t.Helper()
 
 	state, err := reconciler.SnapshotState(ctx, db)
 	require.NoError(t, err)
-	ps, err := state.FilterByPreset(presets[0].ID)
+	ps, err := state.FilterByPreset(preset.ID)
 	require.NoError(t, err)
 	require.NotNil(t, ps)
 	actions, err := reconciler.CalculateActions(ctx, *ps)
 	require.NoError(t, err)
 	require.NotNil(t, actions)
 	require.NoError(t, reconciler.ReconcilePreset(ctx, *ps))
+
+	return actions
 }
 
-func ClaimPrebuild(
+func MustClaimPrebuild(
 	ctx context.Context,
 	t *testing.T,
 	client *codersdk.Client,
@@ -541,7 +538,7 @@ func ClaimPrebuild(
 	build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)
 	require.Equal(t, build.Job.Status, codersdk.ProvisionerJobSucceeded)
 	workspace := coderdtest.MustWorkspace(t, client, userWorkspace.ID)
-	assert.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
+	require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
 
 	return workspace
 }

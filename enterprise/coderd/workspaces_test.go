@@ -2941,7 +2941,7 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 	require.Nil(t, prebuildCreationMetric)
 
 	// Given: reconciliation loop runs and starts prebuilt workspace
-	coderdenttest.RunReconciliationLoop(ctx, t, db, reconciler, presetsPrebuild)
+	coderdenttest.MustRunReconciliationLoopForPreset(ctx, t, db, reconciler, presetsPrebuild[0])
 	runningPrebuilds := coderdenttest.GetRunningPrebuilds(ctx, t, db, 1)
 	require.Len(t, runningPrebuilds, 1)
 
@@ -2970,7 +2970,7 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 	require.Nil(t, prebuildClaimMetric)
 
 	// Given: the prebuilt workspace is claimed by a user
-	workspace := coderdenttest.ClaimPrebuild(ctx, t, client, userClient, user.Username, versionPrebuild, presetsPrebuild[0].ID)
+	workspace := coderdenttest.MustClaimPrebuild(ctx, t, client, userClient, user.Username, versionPrebuild, presetsPrebuild[0].ID)
 	require.Equal(t, prebuild.ID, workspace.ID)
 
 	// Then: the histogram value for prebuilt workspace claim should be updated
