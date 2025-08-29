@@ -2242,14 +2242,6 @@ func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	return q.db.GetLogoURL(ctx)
 }
 
-func (q *querier) GetManagedAgentCount(ctx context.Context, arg database.GetManagedAgentCountParams) (int64, error) {
-	// Must be able to read all workspaces to check usage.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace); err != nil {
-		return 0, xerrors.Errorf("authorize read all workspaces: %w", err)
-	}
-	return q.db.GetManagedAgentCount(ctx, arg)
-}
-
 func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationMessage); err != nil {
 		return nil, err
@@ -3046,6 +3038,13 @@ func (q *querier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTe
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
 	return q.db.GetAuthorizedTemplates(ctx, arg, prep)
+}
+
+func (q *querier) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg database.GetTotalUsageDCManagedAgentsV1Params) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUsageEvent); err != nil {
+		return 0, err
+	}
+	return q.db.GetTotalUsageDCManagedAgentsV1(ctx, arg)
 }
 
 func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License, error) {
