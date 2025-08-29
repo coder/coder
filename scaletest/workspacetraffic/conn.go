@@ -144,7 +144,7 @@ func (c *rptyConn) Close() (err error) {
 }
 
 //nolint:revive // Ignore requestPTY control flag.
-func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID, cmd string, requestPTY bool) (rwc *countReadWriteCloser, err error) {
+func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID, cmd string, requestPTY bool, blockEndpoints bool) (rwc *countReadWriteCloser, err error) {
 	var closers []func() error
 	defer func() {
 		if err != nil {
@@ -156,7 +156,9 @@ func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID,
 		}
 	}()
 
-	agentConn, err := workspacesdk.New(client).DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{})
+	agentConn, err := workspacesdk.New(client).DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
+		BlockEndpoints: blockEndpoints,
+	})
 	if err != nil {
 		return nil, xerrors.Errorf("dial workspace agent: %w", err)
 	}
