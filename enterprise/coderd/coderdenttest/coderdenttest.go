@@ -470,6 +470,9 @@ func GetRunningPrebuilds(
 			agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, prebuild.ID)
 			assert.NoError(t, err, "failed to get agents")
 
+			// Manually mark all agents as ready since tests don't have real agent processes
+			// that would normally report their lifecycle state. Prebuilt workspaces are only
+			// eligible for claiming when their agents reach the "ready" state.
 			for _, agent := range agents {
 				err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 					ID:             agent.ID,
