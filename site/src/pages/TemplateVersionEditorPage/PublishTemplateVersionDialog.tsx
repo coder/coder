@@ -20,7 +20,6 @@ import {
 	HelpTooltipTrigger,
 } from "../../components/HelpTooltip/HelpTooltip";
 import { docs } from "../../utils/docs";
-import { TooltipProvider } from "components/Tooltip/Tooltip";
 
 export const Language = {
 	versionNameLabel: "Version name",
@@ -121,33 +120,31 @@ export const PublishTemplateVersionDialog: FC<
 									}
 								/>
 
-								<TooltipProvider>
-									<HelpTooltip>
-										<HelpTooltipTrigger />
+								<HelpTooltip>
+									<HelpTooltipTrigger />
 
-										{/**
-										 * Without disablePortal, the tooltip will render under the dialog;
-										 * this prop may not need to be set when we switch away from MuiDialog
-										 */}
-										<HelpTooltipContent disablePortal>
-											<HelpTooltipTitle>
-												{Language.activeVersionHelpTitle}
-											</HelpTooltipTitle>
-											<HelpTooltipText>
-												{Language.activeVersionHelpText}
-											</HelpTooltipText>
-											<HelpTooltipLinksGroup>
-												<HelpTooltipLink
-													href={docs(
-														"/admin/templates/managing-templates#template-update-policies",
-													)}
-												>
-													{Language.activeVersionHelpBody}
-												</HelpTooltipLink>
-											</HelpTooltipLinksGroup>
-										</HelpTooltipContent>
-									</HelpTooltip>
-								</TooltipProvider>
+									{/**
+									 * Without disablePortal, the tooltip will render under the dialog;
+									 * this prop may not need to be set when we switch away from MuiDialog
+									 */}
+									<HelpTooltipContent disablePortal>
+										<HelpTooltipTitle>
+											{Language.activeVersionHelpTitle}
+										</HelpTooltipTitle>
+										<HelpTooltipText>
+											{Language.activeVersionHelpText}
+										</HelpTooltipText>
+										<HelpTooltipLinksGroup>
+											<HelpTooltipLink
+												href={docs(
+													"/admin/templates/managing-templates#template-update-policies",
+												)}
+											>
+												{Language.activeVersionHelpBody}
+											</HelpTooltipLink>
+										</HelpTooltipLinksGroup>
+									</HelpTooltipContent>
+								</HelpTooltip>
 							</Stack>
 						</FormFields>
 					</Stack>

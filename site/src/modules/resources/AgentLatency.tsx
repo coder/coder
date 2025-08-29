@@ -7,7 +7,7 @@ import {
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
-import { TooltipProvider, TooltipTrigger } from "components/Tooltip/Tooltip";
+import { TooltipTrigger } from "components/Tooltip/Tooltip";
 import type { FC } from "react";
 import { getLatencyColor } from "utils/latency";
 
@@ -43,45 +43,43 @@ export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 	}
 
 	return (
-		<TooltipProvider>
-			<HelpTooltip>
-				<TooltipTrigger asChild>
-					<span
-						role="presentation"
-						aria-label="latency"
-						css={{ cursor: "pointer", color: latency.color }}
-					>
-						{Math.round(latency.latency_ms)}ms
-					</span>
-				</TooltipTrigger>
-				<HelpTooltipContent>
-					<HelpTooltipTitle>Latency</HelpTooltipTitle>
-					<HelpTooltipText>
-						This is the latency overhead on non peer to peer connections. The
-						first row is the preferred relay.
-					</HelpTooltipText>
-					<Stack direction="column" spacing={1} css={{ marginTop: 16 }}>
-						{Object.entries(agent.latency)
-							.sort(([, a], [, b]) => a.latency_ms - b.latency_ms)
-							.map(([regionName, region]) => (
-								<Stack
-									direction="row"
-									key={regionName}
-									spacing={0.5}
-									justifyContent="space-between"
-									css={
-										region.preferred && {
-											color: theme.palette.text.primary,
-										}
+		<HelpTooltip>
+			<TooltipTrigger asChild>
+				<span
+					role="presentation"
+					aria-label="latency"
+					css={{ cursor: "pointer", color: latency.color }}
+				>
+					{Math.round(latency.latency_ms)}ms
+				</span>
+			</TooltipTrigger>
+			<HelpTooltipContent>
+				<HelpTooltipTitle>Latency</HelpTooltipTitle>
+				<HelpTooltipText>
+					This is the latency overhead on non peer to peer connections. The
+					first row is the preferred relay.
+				</HelpTooltipText>
+				<Stack direction="column" spacing={1} css={{ marginTop: 16 }}>
+					{Object.entries(agent.latency)
+						.sort(([, a], [, b]) => a.latency_ms - b.latency_ms)
+						.map(([regionName, region]) => (
+							<Stack
+								direction="row"
+								key={regionName}
+								spacing={0.5}
+								justifyContent="space-between"
+								css={
+									region.preferred && {
+										color: theme.palette.text.primary,
 									}
-								>
-									<strong>{regionName}</strong>
-									{Math.round(region.latency_ms)}ms
-								</Stack>
-							))}
-					</Stack>
-				</HelpTooltipContent>
-			</HelpTooltip>
-		</TooltipProvider>
+								}
+							>
+								<strong>{regionName}</strong>
+								{Math.round(region.latency_ms)}ms
+							</Stack>
+						))}
+				</Stack>
+			</HelpTooltipContent>
+		</HelpTooltip>
 	);
 };

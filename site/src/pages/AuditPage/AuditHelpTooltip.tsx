@@ -7,7 +7,6 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import { TooltipProvider } from "components/Tooltip/Tooltip";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
@@ -19,20 +18,18 @@ const Language = {
 
 export const AuditHelpTooltip: FC = () => {
 	return (
-		<TooltipProvider>
-			<HelpTooltip>
-				<HelpTooltipTrigger />
+		<HelpTooltip>
+			<HelpTooltipTrigger />
 
-				<HelpTooltipContent>
-					<HelpTooltipTitle>{Language.title}</HelpTooltipTitle>
-					<HelpTooltipText>{Language.body}</HelpTooltipText>
-					<HelpTooltipLinksGroup>
-						<HelpTooltipLink href={docs("/admin/security/audit-logs")}>
-							{Language.docs}
-						</HelpTooltipLink>
-					</HelpTooltipLinksGroup>
-				</HelpTooltipContent>
-			</HelpTooltip>
-		</TooltipProvider>
+			<HelpTooltipContent>
+				<HelpTooltipTitle>{Language.title}</HelpTooltipTitle>
+				<HelpTooltipText>{Language.body}</HelpTooltipText>
+				<HelpTooltipLinksGroup>
+					<HelpTooltipLink href={docs("/admin/security/audit-logs")}>
+						{Language.docs}
+					</HelpTooltipLink>
+				</HelpTooltipLinksGroup>
+			</HelpTooltipContent>
+		</HelpTooltip>
 	);
 };

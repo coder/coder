@@ -266,22 +266,20 @@ const TimeoutStatus: FC<AgentStatusProps> = ({ agent }) => {
 
 export const AgentStatus: FC<AgentStatusProps> = ({ agent }) => {
 	return (
-		<TooltipProvider>
-			<ChooseOne>
-				<Cond condition={agent.status === "connected"}>
-					<ConnectedStatus agent={agent} />
-				</Cond>
-				<Cond condition={agent.status === "disconnected"}>
-					<DisconnectedStatus />
-				</Cond>
-				<Cond condition={agent.status === "timeout"}>
-					<TimeoutStatus agent={agent} />
-				</Cond>
-				<Cond>
-					<ConnectingStatus />
-				</Cond>
-			</ChooseOne>
-		</TooltipProvider>
+		<ChooseOne>
+			<Cond condition={agent.status === "connected"}>
+				<ConnectedStatus agent={agent} />
+			</Cond>
+			<Cond condition={agent.status === "disconnected"}>
+				<DisconnectedStatus />
+			</Cond>
+			<Cond condition={agent.status === "timeout"}>
+				<TimeoutStatus agent={agent} />
+			</Cond>
+			<Cond>
+				<ConnectingStatus />
+			</Cond>
+		</ChooseOne>
 	);
 };
 

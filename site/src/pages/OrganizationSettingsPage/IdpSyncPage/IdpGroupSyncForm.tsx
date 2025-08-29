@@ -413,17 +413,15 @@ const GroupRow: FC<GroupRowProps> = ({
 
 const AutoCreateMissingGroupsHelpTooltip: FC = () => {
 	return (
-		<TooltipProvider>
-			<HelpTooltip>
-				<HelpTooltipTrigger />
-				<HelpTooltipContent>
-					<HelpTooltipText>
-						Enabling auto create missing groups will automatically create groups
-						returned by the OIDC provider if they do not exist in Coder.
-					</HelpTooltipText>
-				</HelpTooltipContent>
-			</HelpTooltip>
-		</TooltipProvider>
+		<HelpTooltip>
+			<HelpTooltipTrigger />
+			<HelpTooltipContent>
+				<HelpTooltipText>
+					Enabling auto create missing groups will automatically create groups
+					returned by the OIDC provider if they do not exist in Coder.
+				</HelpTooltipText>
+			</HelpTooltipContent>
+		</HelpTooltip>
 	);
 };
 
@@ -432,24 +430,22 @@ const LegacyGroupSyncHeader: FC = () => {
 		<h4 className="text-xl font-medium">
 			<div className="flex items-end gap-2">
 				<span>Legacy group sync settings</span>
-				<TooltipProvider>
-					<HelpTooltip>
-						<HelpTooltipTrigger />
-						<HelpTooltipContent>
-							<HelpTooltipTitle>Legacy group sync settings</HelpTooltipTitle>
-							<HelpTooltipText>
-								These settings were configured using environment variables, and
-								only apply to the default organization. It is now recommended to
-								configure IdP sync via the CLI or the UI, which enables sync to
-								be configured for any organization, and for those settings to be
-								persisted without manually setting environment variables.{" "}
-								<Link href={docs("/admin/users/idp-sync")}>
-									Learn more&hellip;
-								</Link>
-							</HelpTooltipText>
-						</HelpTooltipContent>
-					</HelpTooltip>
-				</TooltipProvider>
+				<HelpTooltip>
+					<HelpTooltipTrigger />
+					<HelpTooltipContent>
+						<HelpTooltipTitle>Legacy group sync settings</HelpTooltipTitle>
+						<HelpTooltipText>
+							These settings were configured using environment variables, and
+							only apply to the default organization. It is now recommended to
+							configure IdP sync via the CLI or the UI, which enables sync to be
+							configured for any organization, and for those settings to be
+							persisted without manually setting environment variables.{" "}
+							<Link href={docs("/admin/users/idp-sync")}>
+								Learn more&hellip;
+							</Link>
+						</HelpTooltipText>
+					</HelpTooltipContent>
+				</HelpTooltip>
 			</div>
 		</h4>
 	);

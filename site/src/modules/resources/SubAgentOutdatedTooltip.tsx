@@ -12,7 +12,6 @@ import {
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
-import { TooltipProvider } from "components/Tooltip/Tooltip";
 import { RotateCcwIcon } from "lucide-react";
 import type { FC } from "react";
 
@@ -39,32 +38,30 @@ export const SubAgentOutdatedTooltip: FC<SubAgentOutdatedTooltipProps> = ({
 	const text = `${opener} This can happen if you modify your devcontainer.json file after the Dev Container has been created. To fix this, you can rebuild the Dev Container.`;
 
 	return (
-		<TooltipProvider>
-			<HelpTooltip>
-				<HelpTooltipTrigger>
-					<span role="status" className="cursor-pointer">
-						Outdated
-					</span>
-				</HelpTooltipTrigger>
-				<HelpTooltipContent>
-					<Stack spacing={1}>
-						<div>
-							<HelpTooltipTitle>{title}</HelpTooltipTitle>
-							<HelpTooltipText>{text}</HelpTooltipText>
-						</div>
+		<HelpTooltip>
+			<HelpTooltipTrigger>
+				<span role="status" className="cursor-pointer">
+					Outdated
+				</span>
+			</HelpTooltipTrigger>
+			<HelpTooltipContent>
+				<Stack spacing={1}>
+					<div>
+						<HelpTooltipTitle>{title}</HelpTooltipTitle>
+						<HelpTooltipText>{text}</HelpTooltipText>
+					</div>
 
-						<HelpTooltipLinksGroup>
-							<HelpTooltipAction
-								icon={RotateCcwIcon}
-								onClick={onUpdate}
-								ariaLabel="Rebuild Dev Container"
-							>
-								Rebuild Dev Container
-							</HelpTooltipAction>
-						</HelpTooltipLinksGroup>
-					</Stack>
-				</HelpTooltipContent>
-			</HelpTooltip>
-		</TooltipProvider>
+					<HelpTooltipLinksGroup>
+						<HelpTooltipAction
+							icon={RotateCcwIcon}
+							onClick={onUpdate}
+							ariaLabel="Rebuild Dev Container"
+						>
+							Rebuild Dev Container
+						</HelpTooltipAction>
+					</HelpTooltipLinksGroup>
+				</Stack>
+			</HelpTooltipContent>
+		</HelpTooltip>
 	);
 };

@@ -7,7 +7,6 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import { TooltipProvider } from "components/Tooltip/Tooltip";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
@@ -22,22 +21,20 @@ const Language = {
 
 export const WorkspaceHelpTooltip: FC = () => {
 	return (
-		<TooltipProvider>
-			<HelpTooltip>
-				<HelpTooltipTrigger />
-				<HelpTooltipContent>
-					<HelpTooltipTitle>{Language.workspaceTooltipTitle}</HelpTooltipTitle>
-					<HelpTooltipText>{Language.workspaceTooltipText}</HelpTooltipText>
-					<HelpTooltipLinksGroup>
-						<HelpTooltipLink href={docs("/user-guides")}>
-							{Language.workspaceTooltipLink1}
-						</HelpTooltipLink>
-						<HelpTooltipLink href={docs("/user-guides/workspace-access")}>
-							{Language.workspaceTooltipLink2}
-						</HelpTooltipLink>
-					</HelpTooltipLinksGroup>
-				</HelpTooltipContent>
-			</HelpTooltip>
-		</TooltipProvider>
+		<HelpTooltip>
+			<HelpTooltipTrigger />
+			<HelpTooltipContent>
+				<HelpTooltipTitle>{Language.workspaceTooltipTitle}</HelpTooltipTitle>
+				<HelpTooltipText>{Language.workspaceTooltipText}</HelpTooltipText>
+				<HelpTooltipLinksGroup>
+					<HelpTooltipLink href={docs("/user-guides")}>
+						{Language.workspaceTooltipLink1}
+					</HelpTooltipLink>
+					<HelpTooltipLink href={docs("/user-guides/workspace-access")}>
+						{Language.workspaceTooltipLink2}
+					</HelpTooltipLink>
+				</HelpTooltipLinksGroup>
+			</HelpTooltipContent>
+		</HelpTooltip>
 	);
 };

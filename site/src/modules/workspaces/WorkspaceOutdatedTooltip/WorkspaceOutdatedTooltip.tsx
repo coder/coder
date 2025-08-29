@@ -22,7 +22,6 @@ import {
 	useWorkspaceUpdate,
 	WorkspaceUpdateDialogs,
 } from "../WorkspaceUpdateDialogs";
-import { TooltipProvider } from "components/Tooltip/Tooltip";
 
 interface TooltipProps {
 	workspace: Workspace;
@@ -32,15 +31,13 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = (props) => {
 	const [isOpen, setIsOpen] = useState(false);
 
 	return (
-		<TooltipProvider>
-			<HelpTooltip open={isOpen} onOpenChange={setIsOpen}>
-				<HelpTooltipTrigger size="small" hoverEffect={false}>
-					<InfoIcon css={styles.icon} />
-					<span className="sr-only">Outdated info</span>
-				</HelpTooltipTrigger>
-				<WorkspaceOutdatedTooltipContent isOpen={isOpen} {...props} />
-			</HelpTooltip>
-		</TooltipProvider>
+		<HelpTooltip open={isOpen} onOpenChange={setIsOpen}>
+			<HelpTooltipTrigger size="small" hoverEffect={false}>
+				<InfoIcon css={styles.icon} />
+				<span className="sr-only">Outdated info</span>
+			</HelpTooltipTrigger>
+			<WorkspaceOutdatedTooltipContent isOpen={isOpen} {...props} />
+		</HelpTooltip>
 	);
 };
 

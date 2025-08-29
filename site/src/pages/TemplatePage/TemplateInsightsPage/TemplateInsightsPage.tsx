@@ -61,7 +61,6 @@ import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";
 import { numberOfWeeksOptions, WeekPicker } from "./WeekPicker";
-import { TooltipProvider } from "components/Tooltip/Tooltip";
 
 const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
 
@@ -208,28 +207,26 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 					gap: 24,
 				}}
 			>
-				<TooltipProvider>
-					<ActiveUsersPanel
-						css={{ gridColumn: "span 2" }}
-						interval={interval}
-						userLimit={
-							entitlements?.features.user_limit.enabled
-								? entitlements?.features.user_limit.limit
-								: undefined
-						}
-						data={templateInsights?.interval_reports}
-					/>
-					<UsersLatencyPanel data={userLatency} />
-					<TemplateUsagePanel
-						css={{ gridColumn: "span 2" }}
-						data={templateInsights?.report?.apps_usage}
-					/>
-					<UsersActivityPanel data={userActivity} />
-					<TemplateParametersUsagePanel
-						css={{ gridColumn: "span 3" }}
-						data={templateInsights?.report?.parameters_usage}
-					/>
-				</TooltipProvider>
+				<ActiveUsersPanel
+					css={{ gridColumn: "span 2" }}
+					interval={interval}
+					userLimit={
+						entitlements?.features.user_limit.enabled
+							? entitlements?.features.user_limit.limit
+							: undefined
+					}
+					data={templateInsights?.interval_reports}
+				/>
+				<UsersLatencyPanel data={userLatency} />
+				<TemplateUsagePanel
+					css={{ gridColumn: "span 2" }}
+					data={templateInsights?.report?.apps_usage}
+				/>
+				<UsersActivityPanel data={userActivity} />
+				<TemplateParametersUsagePanel
+					css={{ gridColumn: "span 3" }}
+					data={templateInsights?.report?.parameters_usage}
+				/>
 			</div>
 		</>
 	);

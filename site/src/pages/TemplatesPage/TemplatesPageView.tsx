@@ -52,7 +52,6 @@ import {
 } from "utils/templates";
 import { EmptyTemplates } from "./EmptyTemplates";
 import { TemplatesFilter } from "./TemplatesFilter";
-import { TooltipProvider } from "components/Tooltip/Tooltip";
 
 const Language = {
 	developerCount: (activeCount: number): string => {
@@ -72,20 +71,18 @@ const Language = {
 
 const TemplateHelpTooltip: FC = () => {
 	return (
-		<TooltipProvider>
-			<HelpTooltip>
-				<HelpTooltipTrigger />
-				<HelpTooltipContent>
-					<HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
-					<HelpTooltipText>{Language.templateTooltipText}</HelpTooltipText>
-					<HelpTooltipLinksGroup>
-						<HelpTooltipLink href={docs("/admin/templates")}>
-							{Language.templateTooltipLink}
-						</HelpTooltipLink>
-					</HelpTooltipLinksGroup>
-				</HelpTooltipContent>
-			</HelpTooltip>
-		</TooltipProvider>
+		<HelpTooltip>
+			<HelpTooltipTrigger />
+			<HelpTooltipContent>
+				<HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
+				<HelpTooltipText>{Language.templateTooltipText}</HelpTooltipText>
+				<HelpTooltipLinksGroup>
+					<HelpTooltipLink href={docs("/admin/templates")}>
+						{Language.templateTooltipLink}
+					</HelpTooltipLink>
+				</HelpTooltipLinksGroup>
+			</HelpTooltipContent>
+		</HelpTooltip>
 	);
 };
 
