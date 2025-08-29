@@ -47,12 +47,12 @@ func (r *RootCmd) showWorkspaceSharing() *serpent.Command {
 			serpent.RequireNArgs(1),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			worksace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("unable to fetch Workspace %s: %w", inv.Args[0], err)
 			}
 
-			acl, err := client.WorkspaceACL(inv.Context(), worksace.ID)
+			acl, err := client.WorkspaceACL(inv.Context(), workspace.ID)
 			if err != nil {
 				return xerrors.Errorf("unable to fetch ACL for Workspace: %w", err)
 			}
