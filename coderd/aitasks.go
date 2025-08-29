@@ -190,10 +190,12 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	})
 
 	defer commitAudit()
-	_, err = createWorkspace(ctx, aReq, apiKey.UserID, api, owner, createReq, r)
+	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, createReq, r)
 	if err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
 	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, w)
 }
 
 // tasksFromWorkspaces converts a slice of API workspaces into tasks, fetching

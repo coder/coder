@@ -65,6 +65,4 @@ func (e *responseError) Response() (int, codersdk.Response) {
 	return e.status, e.response
 }
 
-var (
-	ErrResourceNotFound = NewResponseError(http.StatusNotFound, httpapi.ResourceNotFoundResponse)
-)
+var ErrResourceNotFound = NewResponseError(http.StatusNotFound, httpapi.ResourceNotFoundResponse)

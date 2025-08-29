@@ -388,10 +388,12 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		AvatarURL: member.AvatarURL,
 	}
 
-	_, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, r)
+	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, r)
 	if err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
 	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, w)
 }
 
 // Create a new workspace for the currently authenticated user.
@@ -481,10 +483,13 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 
 	defer commitAudit()
 
-	_, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, r)
+	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, r)
 	if err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
+		return
 	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, w)
 }
 
 type workspaceOwner struct {
