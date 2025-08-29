@@ -24,6 +24,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"cloud.google.com/go/compute/metadata"
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/mod/semver"
@@ -62,6 +63,7 @@ const (
 	varAgentToken              = "agent-token"
 	varAgentTokenFile          = "agent-token-file"
 	varAgentURL                = "agent-url"
+	varAgentAuth               = "auth"
 	varHeader                  = "header"
 	varHeaderCommand           = "header-command"
 	varNoOpen                  = "no-open"
@@ -82,6 +84,7 @@ const (
 	//nolint:gosec
 	envAgentTokenFile = "CODER_AGENT_TOKEN_FILE"
 	envAgentURL       = "CODER_AGENT_URL"
+	envAgentAuth      = "CODER_AGENT_AUTH"
 	envURL            = "CODER_URL"
 )
 
@@ -406,6 +409,15 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Group:       globalGroup,
 		},
 		{
+			Flag:        varAgentAuth,
+			Env:         envAgentAuth,
+			Default:     "token",
+			Description: "Specify the authentication type to use for the agent.",
+			Value:       serpent.StringOf(&r.agentAuth),
+			Hidden:      true,
+			Group:       globalGroup,
+		},
+		{
 			Flag:        varNoVersionCheck,
 			Env:         envNoVersionCheck,
 			Description: "Suppress warning when client and server versions do not match.",
@@ -502,20 +514,24 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 
 // RootCmd contains parameters and helpers useful to all commands.
 type RootCmd struct {
-	clientURL      *url.URL
-	token          string
-	globalConfig   string
-	header         []string
-	headerCommand  string
+	clientURL     *url.URL
+	token         string
+	globalConfig  string
+	header        []string
+	headerCommand string
+
+	// Agent Client config
 	agentToken     string
 	agentTokenFile string
 	agentURL       *url.URL
-	forceTTY       bool
-	noOpen         bool
-	verbose        bool
-	versionFlag    bool
-	disableDirect  bool
-	debugHTTP      bool
+	agentAuth      string
+
+	forceTTY      bool
+	noOpen        bool
+	verbose       bool
+	versionFlag   bool
+	disableDirect bool
+	debugHTTP     bool
 
 	disableNetworkTelemetry bool
 	noVersionCheck          bool
@@ -674,36 +690,68 @@ func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *ur
 
 // createAgentClient returns a new client from the command context.  It works
 // just like InitClient, but uses the agent token and URL instead.
-func (r *RootCmd) createAgentClient() (*agentsdk.Client, error) {
+func (r *RootCmd) createAgentClient(ctx context.Context) (*agentsdk.Client, error) {
 	agentURL := r.agentURL
 	if agentURL == nil || agentURL.String() == "" {
 		return nil, xerrors.Errorf("%s must be set", envAgentURL)
 	}
-	token := r.agentToken
-	if token == "" {
-		if r.agentTokenFile == "" {
-			return nil, xerrors.Errorf("Either %s or %s must be set", envAgentToken, envAgentTokenFile)
-		}
-		tokenBytes, err := os.ReadFile(r.agentTokenFile)
-		if err != nil {
-			return nil, xerrors.Errorf("read token file %q: %w", r.agentTokenFile, err)
-		}
-		token = strings.TrimSpace(string(tokenBytes))
-	}
-	client := agentsdk.New(agentURL)
-	client.SetSessionToken(token)
-	return client, nil
-}
 
-// tryCreateAgentClient returns a new client from the command context.  It works
-// just like tryCreateAgentClient, but does not error.
-func (r *RootCmd) tryCreateAgentClient() (*agentsdk.Client, error) {
-	// TODO: Why does this not actually return any errors despite the function
-	// signature?  Could we just use createAgentClient instead, or is it expected
-	// that we return a client in some cases even without a valid URL or token?
-	client := agentsdk.New(r.agentURL)
-	client.SetSessionToken(r.agentToken)
-	return client, nil
+	switch r.agentAuth {
+	case "token":
+		token := r.agentToken
+		if token == "" {
+			if r.agentTokenFile == "" {
+				return nil, xerrors.Errorf("Either %s or %s must be set", envAgentToken, envAgentTokenFile)
+			}
+			tokenBytes, err := os.ReadFile(r.agentTokenFile)
+			if err != nil {
+				return nil, xerrors.Errorf("read token file %q: %w", r.agentTokenFile, err)
+			}
+			token = strings.TrimSpace(string(tokenBytes))
+		}
+		if token == "" {
+			return nil, xerrors.Errorf("CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE must be set for token auth")
+		}
+		return agentsdk.New(r.agentURL, agentsdk.UsingFixedToken(token)), nil
+	case "google-instance-identity":
+
+		// This is *only* done for testing to mock client authentication.
+		// This will never be set in a production scenario.
+		var gcpClient *metadata.Client
+		gcpClientRaw := ctx.Value("gcp-client")
+		if gcpClientRaw != nil {
+			gcpClient, _ = gcpClientRaw.(*metadata.Client)
+		}
+		return agentsdk.New(r.agentURL, agentsdk.UsingGoogleInstanceIdentity("", gcpClient)), nil
+	case "aws-instance-identity":
+		client := agentsdk.New(r.agentURL, agentsdk.UsingAWSInstanceIdentity())
+		// This is *only* done for testing to mock client authentication.
+		// This will never be set in a production scenario.
+		var awsClient *http.Client
+		awsClientRaw := ctx.Value("aws-client")
+		if awsClientRaw != nil {
+			awsClient, _ = awsClientRaw.(*http.Client)
+			if awsClient != nil {
+				client.SDK.HTTPClient = awsClient
+			}
+		}
+		return client, nil
+	case "azure-instance-identity":
+		client := agentsdk.New(r.agentURL, agentsdk.UsingAzureInstanceIdentity())
+		// This is *only* done for testing to mock client authentication.
+		// This will never be set in a production scenario.
+		var azureClient *http.Client
+		azureClientRaw := ctx.Value("azure-client")
+		if azureClientRaw != nil {
+			azureClient, _ = azureClientRaw.(*http.Client)
+			if azureClient != nil {
+				client.SDK.HTTPClient = azureClient
+			}
+		}
+		return client, nil
+	default:
+		return nil, xerrors.Errorf("unknown agent auth type: %s", r.agentAuth)
+	}
 }
 
 type OrganizationContext struct {

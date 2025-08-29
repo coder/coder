@@ -134,8 +134,7 @@ func Test_Runner(t *testing.T) {
 			for i, authToken := range []string{authToken1, authToken2, authToken3} {
 				i := i + 1
 
-				agentClient := agentsdk.New(client.URL)
-				agentClient.SetSessionToken(authToken)
+				agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(authToken))
 				agentCloser := agent.New(agent.Options{
 					Client: agentClient,
 					Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).

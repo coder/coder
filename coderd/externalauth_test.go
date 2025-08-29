@@ -432,8 +432,7 @@ func TestExternalAuthCallback(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(authToken))
 		_, err := agentClient.ExternalAuth(context.Background(), agentsdk.ExternalAuthRequest{
 			Match: "github.com",
 		})
@@ -464,8 +463,7 @@ func TestExternalAuthCallback(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(authToken))
 		token, err := agentClient.ExternalAuth(context.Background(), agentsdk.ExternalAuthRequest{
 			Match: "github.com/asd/asd",
 		})
@@ -565,8 +563,7 @@ func TestExternalAuthCallback(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(authToken))
 
 		resp := coderdtest.RequestExternalAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
@@ -627,8 +624,7 @@ func TestExternalAuthCallback(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(authToken))
 
 		token, err := agentClient.ExternalAuth(context.Background(), agentsdk.ExternalAuthRequest{
 			Match: "github.com/asd/asd",
@@ -674,8 +670,7 @@ func TestExternalAuthCallback(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(authToken))
 
 		token, err := agentClient.ExternalAuth(context.Background(), agentsdk.ExternalAuthRequest{
 			Match: "github.com/asd/asd",
@@ -740,8 +735,7 @@ func TestExternalAuthCallback(t *testing.T) {
 				workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 				coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-				agentClient := agentsdk.New(client.URL)
-				agentClient.SetSessionToken(authToken)
+				agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(authToken))
 
 				token, err := agentClient.ExternalAuth(t.Context(), agentsdk.ExternalAuthRequest{
 					Match: "github.com/asd/asd",
