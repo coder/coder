@@ -13,7 +13,6 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/serpent"
 )
@@ -36,12 +35,11 @@ type speedtestTableItem struct {
 
 func (r *RootCmd) speedtest() *serpent.Command {
 	var (
-		direct           bool
-		duration         time.Duration
-		direction        string
-		pcapFile         string
-		appearanceConfig codersdk.AppearanceConfig
-		formatter        = cliui.NewOutputFormatter(
+		direct    bool
+		duration  time.Duration
+		direction string
+		pcapFile  string
+		formatter = cliui.NewOutputFormatter(
 			cliui.ChangeFormatterData(cliui.TableFormat([]speedtestTableItem{}, []string{"Interval", "Throughput"}), func(data any) (any, error) {
 				res, ok := data.(SpeedtestResult)
 				if !ok {
@@ -65,19 +63,21 @@ func (r *RootCmd) speedtest() *serpent.Command {
 			cliui.JSONFormat(),
 		)
 	)
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "speedtest <workspace>",
 		Short:       "Run upload and download tests from your machine to a workspace",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
-			initAppearance(client, &appearanceConfig),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+			appearanceConfig := initAppearance(ctx, client)
 
 			if direct && r.disableDirect {
 				return xerrors.Errorf("--direct (-d) is incompatible with --%s", varDisableDirect)

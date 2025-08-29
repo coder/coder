@@ -38,16 +38,19 @@ func (r *RootCmd) prebuilds() *serpent.Command {
 }
 
 func (r *RootCmd) pausePrebuilds() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "pause",
 		Short: "Pause prebuilds",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			err := client.PutPrebuildsSettings(inv.Context(), codersdk.PrebuildsSettings{
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
+			err = client.PutPrebuildsSettings(inv.Context(), codersdk.PrebuildsSettings{
 				ReconciliationPaused: true,
 			})
 			if err != nil {
@@ -62,16 +65,19 @@ func (r *RootCmd) pausePrebuilds() *serpent.Command {
 }
 
 func (r *RootCmd) resumePrebuilds() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "resume",
 		Short: "Resume prebuilds",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			err := client.PutPrebuildsSettings(inv.Context(), codersdk.PrebuildsSettings{
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
+			err = client.PutPrebuildsSettings(inv.Context(), codersdk.PrebuildsSettings{
 				ReconciliationPaused: false,
 			})
 			if err != nil {

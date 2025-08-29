@@ -16,7 +16,6 @@ import (
 func (r *RootCmd) taskCreate() *serpent.Command {
 	var (
 		orgContext = NewOrganizationContext()
-		client     = new(codersdk.Client)
 
 		templateName        string
 		templateVersionName string
@@ -30,7 +29,6 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 		Short: "Create an experimental task",
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 1),
-			r.InitClient(client),
 		),
 		Options: serpent.OptionSet{
 			{
@@ -67,6 +65,11 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			var (
 				ctx       = inv.Context()
 				expClient = codersdk.NewExperimentalClient(client)

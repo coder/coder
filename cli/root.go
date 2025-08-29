@@ -494,110 +494,106 @@ type RootCmd struct {
 	noFeatureWarning        bool
 }
 
-// InitClient authenticates the client with files from disk
-// and injects header middlewares for telemetry, authentication,
+// InitClient creates and configures a new client with authentication, telemetry,
 // and version checks.
-func (r *RootCmd) InitClient(client *codersdk.Client) serpent.MiddlewareFunc {
-	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
-		return func(inv *serpent.Invocation) error {
-			conf := r.createConfig()
-			var err error
-			// Read the client URL stored on disk.
-			if r.clientURL == nil || r.clientURL.String() == "" {
-				rawURL, err := conf.URL().Read()
-				// If the configuration files are absent, the user is logged out
-				if os.IsNotExist(err) {
-					binPath, err := os.Executable()
-					if err != nil {
-						binPath = "coder"
-					}
-					return xerrors.Errorf(notLoggedInMessage, binPath)
-				}
-				if err != nil {
-					return err
-				}
-
-				r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
-				if err != nil {
-					return err
-				}
-			}
-			// Read the token stored on disk.
-			if r.token == "" {
-				r.token, err = conf.Session().Read()
-				// Even if there isn't a token, we don't care.
-				// Some API routes can be unauthenticated.
-				if err != nil && !os.IsNotExist(err) {
-					return err
-				}
-			}
-
-			err = r.configureClient(inv.Context(), client, r.clientURL, inv)
+func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) {
+	conf := r.createConfig()
+	var err error
+	// Read the client URL stored on disk.
+	if r.clientURL == nil || r.clientURL.String() == "" {
+		rawURL, err := conf.URL().Read()
+		// If the configuration files are absent, the user is logged out
+		if os.IsNotExist(err) {
+			binPath, err := os.Executable()
 			if err != nil {
-				return err
+				binPath = "coder"
 			}
-			client.SetSessionToken(r.token)
+			return nil, xerrors.Errorf(notLoggedInMessage, binPath)
+		}
+		if err != nil {
+			return nil, err
+		}
 
-			if r.debugHTTP {
-				client.PlainLogger = os.Stderr
-				client.SetLogBodies(true)
-			}
-			client.DisableDirectConnections = r.disableDirect
-			return next(inv)
+		r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
+		if err != nil {
+			return nil, err
 		}
 	}
+	// Read the token stored on disk.
+	if r.token == "" {
+		r.token, err = conf.Session().Read()
+		// Even if there isn't a token, we don't care.
+		// Some API routes can be unauthenticated.
+		if err != nil && !os.IsNotExist(err) {
+			return nil, err
+		}
+	}
+
+	client := &codersdk.Client{}
+	err = r.configureClient(inv.Context(), client, r.clientURL, inv)
+	if err != nil {
+		return nil, err
+	}
+	client.SetSessionToken(r.token)
+
+	if r.debugHTTP {
+		client.PlainLogger = os.Stderr
+		client.SetLogBodies(true)
+	}
+	client.DisableDirectConnections = r.disableDirect
+	return client, nil
 }
 
 // TryInitClient is similar to InitClient but doesn't error when credentials are missing.
 // This allows commands to run without requiring authentication, but still use auth if available.
-func (r *RootCmd) TryInitClient(client *codersdk.Client) serpent.MiddlewareFunc {
-	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
-		return func(inv *serpent.Invocation) error {
-			conf := r.createConfig()
-			var err error
-			// Read the client URL stored on disk.
-			if r.clientURL == nil || r.clientURL.String() == "" {
-				rawURL, err := conf.URL().Read()
-				// If the configuration files are absent, just continue without URL
-				if err != nil {
-					// Continue with a nil or empty URL
-					if !os.IsNotExist(err) {
-						return err
-					}
-				} else {
-					r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
-					if err != nil {
-						return err
-					}
-				}
+func (r *RootCmd) TryInitClient(inv *serpent.Invocation) (*codersdk.Client, error) {
+	conf := r.createConfig()
+	var err error
+	// Read the client URL stored on disk.
+	if r.clientURL == nil || r.clientURL.String() == "" {
+		rawURL, err := conf.URL().Read()
+		// If the configuration files are absent, just continue without URL
+		if err != nil {
+			// Continue with a nil or empty URL
+			if !os.IsNotExist(err) {
+				return nil, err
 			}
-			// Read the token stored on disk.
-			if r.token == "" {
-				r.token, err = conf.Session().Read()
-				// Even if there isn't a token, we don't care.
-				// Some API routes can be unauthenticated.
-				if err != nil && !os.IsNotExist(err) {
-					return err
-				}
+		} else {
+			r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
+			if err != nil {
+				return nil, err
 			}
-
-			// Only configure the client if we have a URL
-			if r.clientURL != nil && r.clientURL.String() != "" {
-				err = r.configureClient(inv.Context(), client, r.clientURL, inv)
-				if err != nil {
-					return err
-				}
-				client.SetSessionToken(r.token)
-
-				if r.debugHTTP {
-					client.PlainLogger = os.Stderr
-					client.SetLogBodies(true)
-				}
-				client.DisableDirectConnections = r.disableDirect
-			}
-			return next(inv)
 		}
 	}
+	// Read the token stored on disk.
+	if r.token == "" {
+		r.token, err = conf.Session().Read()
+		// Even if there isn't a token, we don't care.
+		// Some API routes can be unauthenticated.
+		if err != nil && !os.IsNotExist(err) {
+			return nil, err
+		}
+	}
+
+	// Only configure the client if we have a URL
+	if r.clientURL != nil && r.clientURL.String() != "" {
+		client := &codersdk.Client{}
+		err = r.configureClient(inv.Context(), client, r.clientURL, inv)
+		if err != nil {
+			return nil, err
+		}
+		client.SetSessionToken(r.token)
+
+		if r.debugHTTP {
+			client.PlainLogger = os.Stderr
+			client.SetLogBodies(true)
+		}
+		client.DisableDirectConnections = r.disableDirect
+		return client, nil
+	}
+
+	// Return a minimal client if no URL is available
+	return &codersdk.Client{}, nil
 }
 
 // HeaderTransport creates a new transport that executes `--header-command`
@@ -817,17 +813,13 @@ func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier str
 	return client.WorkspaceByOwnerAndName(ctx, owner, name, codersdk.WorkspaceOptions{})
 }
 
-func initAppearance(client *codersdk.Client, outConfig *codersdk.AppearanceConfig) serpent.MiddlewareFunc {
-	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
-		return func(inv *serpent.Invocation) error {
-			cfg, _ := client.Appearance(inv.Context())
-			if cfg.DocsURL == "" {
-				cfg.DocsURL = codersdk.DefaultDocsURL()
-			}
-			*outConfig = cfg
-			return next(inv)
-		}
+func initAppearance(ctx context.Context, client *codersdk.Client) codersdk.AppearanceConfig {
+	// best effort
+	cfg, _ := client.Appearance(ctx)
+	if cfg.DocsURL == "" {
+		cfg.DocsURL = codersdk.DefaultDocsURL()
 	}
+	return cfg
 }
 
 // createConfig consumes the global configuration flag to produce a config root.

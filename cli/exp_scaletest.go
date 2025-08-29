@@ -395,18 +395,17 @@ func (r *userCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) erro
 
 func (r *RootCmd) scaletestCleanup() *serpent.Command {
 	var template string
-
 	cleanupStrategy := &scaletestStrategyFlags{cleanup: true}
-	client := new(codersdk.Client)
-
 	cmd := &serpent.Command{
 		Use:   "cleanup",
 		Short: "Cleanup scaletest workspaces, then cleanup scaletest users.",
 		Long:  "The strategy flags will apply to each stage of the cleanup process.",
-		Middleware: serpent.Chain(
-			r.InitClient(client),
-		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			ctx := inv.Context()
 
 			me, err := requireAdmin(ctx, client)
@@ -551,14 +550,16 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 		output          = &scaletestOutputFlags{}
 	)
 
-	client := new(codersdk.Client)
-
 	cmd := &serpent.Command{
-		Use:        "create-workspaces",
-		Short:      "Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.",
-		Long:       `It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.`,
-		Middleware: r.InitClient(client),
+		Use:   "create-workspaces",
+		Short: "Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.",
+		Long:  `It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.`,
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			ctx := inv.Context()
 
 			me, err := requireAdmin(ctx, client)
@@ -861,7 +862,6 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 		targetWorkspaces  string
 		workspaceProxyURL string
 
-		client          = &codersdk.Client{}
 		tracingFlags    = &scaletestTracingFlags{}
 		strategy        = &scaletestStrategyFlags{}
 		cleanupStrategy = &scaletestStrategyFlags{cleanup: true}
@@ -872,10 +872,12 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "workspace-traffic",
 		Short: "Generate traffic to scaletest workspaces through coderd",
-		Middleware: serpent.Chain(
-			r.InitClient(client),
-		),
 		Handler: func(inv *serpent.Invocation) (err error) {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			ctx := inv.Context()
 
 			notifyCtx, stop := signal.NotifyContext(ctx, StopSignals...) // Checked later.
@@ -1150,13 +1152,11 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 
 func (r *RootCmd) scaletestDashboard() *serpent.Command {
 	var (
-		interval    time.Duration
-		jitter      time.Duration
-		headless    bool
-		randSeed    int64
-		targetUsers string
-
-		client          = &codersdk.Client{}
+		interval        time.Duration
+		jitter          time.Duration
+		headless        bool
+		randSeed        int64
+		targetUsers     string
 		tracingFlags    = &scaletestTracingFlags{}
 		strategy        = &scaletestStrategyFlags{}
 		cleanupStrategy = &scaletestStrategyFlags{cleanup: true}
@@ -1167,10 +1167,12 @@ func (r *RootCmd) scaletestDashboard() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "dashboard",
 		Short: "Generate traffic to the HTTP API to simulate use of the dashboard.",
-		Middleware: serpent.Chain(
-			r.InitClient(client),
-		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			if !(interval > 0) {
 				return xerrors.Errorf("--interval must be greater than zero")
 			}
