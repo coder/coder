@@ -16,6 +16,7 @@ import {
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { EditSquare } from "components/Icons/EditSquare";
+import { TooltipProvider } from "components/Tooltip/Tooltip";
 import { UserIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 
@@ -82,15 +83,17 @@ export const EditRolesButton: FC<EditRolesButtonProps> = (props) => {
 
 	if (!canSetRoles) {
 		return (
-			<HelpTooltip>
-				<HelpTooltipTrigger size="small" />
-				<HelpTooltipContent>
-					<HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
-					<HelpTooltipText>
-						Roles for this user are controlled by the OIDC identity provider.
-					</HelpTooltipText>
-				</HelpTooltipContent>
-			</HelpTooltip>
+			<TooltipProvider>
+				<HelpTooltip>
+					<HelpTooltipTrigger size="small" />
+					<HelpTooltipContent>
+						<HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
+						<HelpTooltipText>
+							Roles for this user are controlled by the OIDC identity provider.
+						</HelpTooltipText>
+					</HelpTooltipContent>
+				</HelpTooltip>
+			</TooltipProvider>
 		);
 	}
 
