@@ -24,7 +24,7 @@ const (
 Requirements:
 - Only lowercase letters, numbers, and hyphens
 - Start with "task-"
-- Maximum 28 characters total
+- Maximum 27 characters total
 - Descriptive of the main task
 
 Examples:
@@ -145,17 +145,23 @@ func Generate(ctx context.Context, prompt string, opts ...Option) (string, error
 		return "", ErrNoNameGenerated
 	}
 
-	generatedName := acc.Messages()[0].Content
-
-	if err := codersdk.NameValid(generatedName); err != nil {
-		return "", xerrors.Errorf("generated name %v not valid: %w", generatedName, err)
-	}
-
-	if generatedName == "task-unnamed" {
+	taskName := acc.Messages()[0].Content
+	if taskName == "task-unnamed" {
 		return "", ErrNoNameGenerated
 	}
 
-	return fmt.Sprintf("%s-%s", generatedName, generateSuffix()), nil
+	// We append a suffix to the end of the task name to reduce
+	// the chance of collisions. We truncate the task name to
+	// to a maximum of 27 bytes, so that when we append the
+	// 5 byte suffix (`-` and 4 byte hex slug), it should
+	// remain within the 32 byte workspace name limit.
+	taskName = taskName[:min(len(taskName), 27)]
+	taskName = fmt.Sprintf("%s-%s", taskName, generateSuffix())
+	if err := codersdk.NameValid(taskName); err != nil {
+		return "", xerrors.Errorf("generated name %v not valid: %w", taskName, err)
+	}
+
+	return taskName, nil
 }
 
 func anthropicDataStream(ctx context.Context, client anthropic.Client, model anthropic.Model, input []aisdk.Message) (aisdk.DataStream, error) {

@@ -1,9 +1,12 @@
 package httperror
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -24,6 +27,20 @@ func NewResponseError(status int, resp codersdk.Response) error {
 		status:   status,
 		response: resp,
 	}
+}
+
+func WriteResponseError(ctx context.Context, rw http.ResponseWriter, err error) {
+	if responseErr, ok := IsResponder(err); ok {
+		code, resp := responseErr.Response()
+
+		httpapi.Write(ctx, rw, code, resp)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		Message: "Internal server error",
+		Detail:  err.Error(),
+	})
 }
 
 type responseError struct {
@@ -47,3 +64,5 @@ func (e *responseError) Status() int {
 func (e *responseError) Response() (int, codersdk.Response) {
 	return e.status, e.response
 }
+
+var ErrResourceNotFound = NewResponseError(http.StatusNotFound, httpapi.ResourceNotFoundResponse)

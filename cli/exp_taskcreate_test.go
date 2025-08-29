@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -236,16 +234,13 @@ func TestTaskCreate(t *testing.T) {
 			var (
 				ctx    = testutil.Context(t, testutil.WaitShort)
 				srv    = httptest.NewServer(tt.handler(t, ctx))
-				client = new(codersdk.Client)
+				client = codersdk.New(testutil.MustURL(t, srv.URL))
 				args   = []string{"exp", "task", "create"}
 				sb     strings.Builder
 				err    error
 			)
 
 			t.Cleanup(srv.Close)
-
-			client.URL, err = url.Parse(srv.URL)
-			require.NoError(t, err)
 
 			inv, root := clitest.New(t, append(args, tt.args...)...)
 			inv.Environ = serpent.ParseEnviron(tt.env, "")

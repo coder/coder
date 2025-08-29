@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -2241,13 +2242,14 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, sched.Next(prebuild.LatestBuild.CreatedAt))
+
 		// Wait for provisioner to be available for this specific workspace
-		coderdtest.MustWaitForProvisionersAvailable(t, db, prebuild)
+		coderdtest.MustWaitForProvisionersAvailable(t, db, prebuild, sched.Next(prebuild.LatestBuild.CreatedAt))
 
 		tickTime := sched.Next(prebuild.LatestBuild.CreatedAt).Add(time.Minute)
-		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
 		require.NoError(t, err)
-		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 
 		// Tick at the next scheduled time after the prebuild’s LatestBuild.CreatedAt,
 		// since the next allowed autostart is calculated starting from that point.
@@ -2871,6 +2873,133 @@ func TestPrebuildActivityBump(t *testing.T) {
 	workspace = coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)
 	require.WithinDuration(t, clock.Now().Add(activityBump).UTC(), workspace.LatestBuild.Deadline.Time.UTC(), testutil.WaitMedium)
 	require.Zero(t, workspace.LatestBuild.MaxDeadline)
+}
+
+func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
+	t.Parallel()
+
+	// Setup
+	log := testutil.Logger(t)
+	reg := prometheus.NewRegistry()
+	provisionerdserverMetrics := provisionerdserver.NewMetrics(log)
+	err := provisionerdserverMetrics.Register(reg)
+	require.NoError(t, err)
+	client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			IncludeProvisionerDaemon:  true,
+			ProvisionerdServerMetrics: provisionerdserverMetrics,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspacePrebuilds: 1,
+			},
+		},
+	})
+
+	// Given: a template and a template version with a preset without prebuild instances
+	presetNoPrebuildID := uuid.New()
+	versionNoPrebuild := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, versionNoPrebuild.ID)
+	templateNoPrebuild := coderdtest.CreateTemplate(t, client, owner.OrganizationID, versionNoPrebuild.ID)
+	presetNoPrebuild := dbgen.Preset(t, db, database.InsertPresetParams{
+		ID:                presetNoPrebuildID,
+		TemplateVersionID: versionNoPrebuild.ID,
+	})
+
+	// Given: a template and a template version with a preset with a prebuild instance
+	presetPrebuildID := uuid.New()
+	versionPrebuild := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, versionPrebuild.ID)
+	templatePrebuild := coderdtest.CreateTemplate(t, client, owner.OrganizationID, versionPrebuild.ID)
+	presetPrebuild := dbgen.Preset(t, db, database.InsertPresetParams{
+		ID:                presetPrebuildID,
+		TemplateVersionID: versionPrebuild.ID,
+		DesiredInstances:  sql.NullInt32{Int32: 1, Valid: true},
+	})
+	// Given: a prebuild workspace
+	wb := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:    database.PrebuildsSystemUserID,
+		TemplateID: templatePrebuild.ID,
+	}).Seed(database.WorkspaceBuild{
+		TemplateVersionID: versionPrebuild.ID,
+		TemplateVersionPresetID: uuid.NullUUID{
+			UUID:  presetPrebuildID,
+			Valid: true,
+		},
+	}).WithAgent(func(agent []*proto.Agent) []*proto.Agent {
+		return agent
+	}).Do()
+
+	// Mark the prebuilt workspace's agent as ready so the prebuild can be claimed
+	// nolint:gocritic
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
+	agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, uuid.MustParse(wb.AgentToken))
+	require.NoError(t, err)
+	err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+		ID:             agent.WorkspaceAgent.ID,
+		LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+	})
+	require.NoError(t, err)
+
+	organizationName, err := client.Organization(ctx, owner.OrganizationID)
+	require.NoError(t, err)
+	user, err := client.User(ctx, "testUser")
+	require.NoError(t, err)
+
+	// Given: no histogram value for prebuilt workspaces claim
+	prebuiltWorkspaceHistogramMetric := promhelp.MetricValue(t, reg, "coderd_prebuilt_workspace_claim_duration_seconds", prometheus.Labels{
+		"organization_name": organizationName.Name,
+		"template_name":     templatePrebuild.Name,
+		"preset_name":       presetPrebuild.Name,
+	})
+	require.Nil(t, prebuiltWorkspaceHistogramMetric)
+
+	// Given: the prebuilt workspace is claimed by a user
+	claimedWorkspace, err := client.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
+		TemplateVersionID:       versionPrebuild.ID,
+		TemplateVersionPresetID: presetPrebuildID,
+		Name:                    coderdtest.RandomUsername(t),
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, claimedWorkspace.LatestBuild.ID)
+	require.Equal(t, wb.Workspace.ID, claimedWorkspace.ID)
+
+	// Then: the histogram value for prebuilt workspace claim should be updated
+	prebuiltWorkspaceHistogram := promhelp.HistogramValue(t, reg, "coderd_prebuilt_workspace_claim_duration_seconds", prometheus.Labels{
+		"organization_name": organizationName.Name,
+		"template_name":     templatePrebuild.Name,
+		"preset_name":       presetPrebuild.Name,
+	})
+	require.NotNil(t, prebuiltWorkspaceHistogram)
+	require.Equal(t, uint64(1), prebuiltWorkspaceHistogram.GetSampleCount())
+
+	// Given: no histogram value for regular workspaces creation
+	regularWorkspaceHistogramMetric := promhelp.MetricValue(t, reg, "coderd_workspace_creation_duration_seconds", prometheus.Labels{
+		"organization_name": organizationName.Name,
+		"template_name":     templateNoPrebuild.Name,
+		"preset_name":       presetNoPrebuild.Name,
+		"type":              "regular",
+	})
+	require.Nil(t, regularWorkspaceHistogramMetric)
+
+	// Given: a user creates a regular workspace (without prebuild pool)
+	regularWorkspace, err := client.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
+		TemplateVersionID:       versionNoPrebuild.ID,
+		TemplateVersionPresetID: presetNoPrebuildID,
+		Name:                    coderdtest.RandomUsername(t),
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, regularWorkspace.LatestBuild.ID)
+
+	// Then: the histogram value for regular workspace creation should be updated
+	regularWorkspaceHistogram := promhelp.HistogramValue(t, reg, "coderd_workspace_creation_duration_seconds", prometheus.Labels{
+		"organization_name": organizationName.Name,
+		"template_name":     templateNoPrebuild.Name,
+		"preset_name":       presetNoPrebuild.Name,
+		"type":              "regular",
+	})
+	require.NotNil(t, regularWorkspaceHistogram)
+	require.Equal(t, uint64(1), regularWorkspaceHistogram.GetSampleCount())
 }
 
 // TestWorkspaceTemplateParamsChange tests a workspace with a parameter that

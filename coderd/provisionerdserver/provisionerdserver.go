@@ -129,6 +129,8 @@ type server struct {
 
 	heartbeatInterval time.Duration
 	heartbeatFn       func(ctx context.Context) error
+
+	metrics *Metrics
 }
 
 // We use the null byte (0x00) in generating a canonical map key for tags, so
@@ -178,6 +180,7 @@ func NewServer(
 	options Options,
 	enqueuer notifications.Enqueuer,
 	prebuildsOrchestrator *atomic.Pointer[prebuilds.ReconciliationOrchestrator],
+	metrics *Metrics,
 ) (proto.DRPCProvisionerDaemonServer, error) {
 	// Fail-fast if pointers are nil
 	if lifecycleCtx == nil {
@@ -248,6 +251,7 @@ func NewServer(
 		heartbeatFn:                 options.HeartbeatFn,
 		PrebuildsOrchestrator:       prebuildsOrchestrator,
 		UsageInserter:               usageInserter,
+		metrics:                     metrics,
 	}
 
 	if s.heartbeatFn == nil {
@@ -2278,6 +2282,50 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		if resourceReplacements := jobType.WorkspaceBuild.ResourceReplacements; orchestrator != nil && len(resourceReplacements) > 0 {
 			// Fire and forget. Bind to the lifecycle of the server so shutdowns are handled gracefully.
 			go (*orchestrator).TrackResourceReplacement(s.lifecycleCtx, workspace.ID, workspaceBuild.ID, resourceReplacements)
+		}
+	}
+
+	// Update workspace (regular and prebuild) timing metrics
+	if s.metrics != nil {
+		// Only consider 'start' workspace builds
+		if workspaceBuild.Transition == database.WorkspaceTransitionStart {
+			// Get the updated job to report the metrics with correct data
+			updatedJob, err := s.Database.GetProvisionerJobByID(ctx, jobID)
+			if err != nil {
+				s.Logger.Error(ctx, "get updated job from database", slog.Error(err))
+			} else
+			// Only consider 'succeeded' provisioner jobs
+			if updatedJob.JobStatus == database.ProvisionerJobStatusSucceeded {
+				presetName := ""
+				if workspaceBuild.TemplateVersionPresetID.Valid {
+					preset, err := s.Database.GetPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
+					if err != nil {
+						if !errors.Is(err, sql.ErrNoRows) {
+							s.Logger.Error(ctx, "get preset by ID for workspace timing metrics", slog.Error(err))
+						}
+					} else {
+						presetName = preset.Name
+					}
+				}
+
+				buildTime := updatedJob.CompletedAt.Time.Sub(updatedJob.StartedAt.Time).Seconds()
+				s.metrics.UpdateWorkspaceTimingsMetrics(
+					ctx,
+					WorkspaceTimingFlags{
+						// Is a prebuilt workspace creation build
+						IsPrebuild: input.PrebuiltWorkspaceBuildStage.IsPrebuild(),
+						// Is a prebuilt workspace claim build
+						IsClaim: input.PrebuiltWorkspaceBuildStage.IsPrebuiltWorkspaceClaim(),
+						// Is a regular workspace creation build
+						// Only consider the first build number for regular workspaces
+						IsFirstBuild: workspaceBuild.BuildNumber == 1,
+					},
+					workspace.OrganizationName,
+					workspace.TemplateName,
+					presetName,
+					buildTime,
+				)
+			}
 		}
 	}
 

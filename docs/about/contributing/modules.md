@@ -369,7 +369,7 @@ Use the version bump script to update versions:
 
 ## Get help
 
-- **Examples**: Review existing modules like [`code-server`](https://registry.coder.com/modules/coder/code-server), [`git-clone`](https://registry.coder.com/modules/coder/git-clone), and [`jetbrains-gateway`](https://registry.coder.com/modules/coder/jetbrains-gateway)
+- **Examples**: Review existing modules like [`code-server`](https://registry.coder.com/modules/coder/code-server), [`git-clone`](https://registry.coder.com/modules/coder/git-clone), and [`jetbrains`](https://registry.coder.com/modules/coder/jetbrains)
 - **Issues**: Open an issue at [github.com/coder/registry](https://github.com/coder/registry/issues)
 - **Community**: Join the [Coder Discord](https://discord.gg/coder) for questions
 - **Documentation**: Check the [Coder docs](https://coder.com/docs) for help on Coder.
