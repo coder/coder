@@ -116,12 +116,12 @@ If a direct connection is not available (e.g. client or server is behind NAT),
 Coder will use a relayed connection. By default,
 [Coder uses Google's public STUN server](../../reference/cli/server.md#--derp-server-stun-addresses),
 but this can be disabled or changed for
-[offline deployments](../../install/airgap.md).
+[Air-gapped deployments](../../install/airgap.md).
 
 ### Relayed connections
 
 By default, your Coder server also runs a built-in DERP relay which can be used
-for both public and [offline deployments](../../install/airgap.md).
+for both public and [Air-gapped deployments](../../install/airgap.md).
 
 However, our Wireguard integration through Tailscale has graciously allowed us
 to use
@@ -135,7 +135,7 @@ coder server --derp-config-url https://controlplane.tailscale.com/derpmap/defaul
 #### Custom Relays
 
 If you want lower latency than what Tailscale offers or want additional DERP
-relays for offline deployments, you may run custom DERP servers. Refer to
+relays for air-gapped deployments, you may run custom DERP servers. Refer to
 [Tailscale's documentation](https://tailscale.com/kb/1118/custom-derp-servers/#why-run-your-own-derp-server)
 to learn how to set them up.
 
