@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -264,6 +265,125 @@ func TestTasks(t *testing.T) {
 		assert.Equal(t, wantPrompt, task.InitialPrompt, "task prompt should match the AI Prompt parameter")
 		assert.Equal(t, workspace.ID, task.WorkspaceID.UUID, "workspace id should match")
 		assert.NotEmpty(t, task.Status, "task status should not be empty")
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			template := createAITemplate(t, client, user)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			exp := codersdk.NewExperimentalClient(client)
+			task, err := exp.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Prompt:            "delete me",
+			})
+			require.NoError(t, err)
+			ws, err := client.Workspace(ctx, task.ID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+			err = exp.DeleteTask(ctx, "me", task.ID)
+			require.NoError(t, err, "delete task request should be accepted")
+
+			// Poll until the workspace is deleted.
+			for {
+				dws, derr := client.DeletedWorkspace(ctx, task.ID)
+				if derr == nil && dws.LatestBuild.Status == codersdk.WorkspaceStatusDeleted {
+					break
+				}
+				if ctx.Err() != nil {
+					require.NoError(t, derr, "expected to fetch deleted workspace before deadline")
+					require.Equal(t, codersdk.WorkspaceStatusDeleted, dws.LatestBuild.Status, "workspace should be deleted before deadline")
+					break
+				}
+				time.Sleep(testutil.IntervalMedium)
+			}
+		})
+
+		t.Run("NotFound", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			_ = coderdtest.CreateFirstUser(t, client)
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			exp := codersdk.NewExperimentalClient(client)
+			err := exp.DeleteTask(ctx, "me", uuid.New())
+
+			var sdkErr *codersdk.Error
+			require.Error(t, err, "expected an error for non-existent task")
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, 404, sdkErr.StatusCode())
+		})
+
+		t.Run("NotTaskWorkspace", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			// Create a template without AI tasks support and a workspace from it.
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			ws := coderdtest.CreateWorkspace(t, client, template.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+			exp := codersdk.NewExperimentalClient(client)
+			err := exp.DeleteTask(ctx, "me", ws.ID)
+
+			var sdkErr *codersdk.Error
+			require.Error(t, err, "expected an error for non-task workspace delete via tasks endpoint")
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, 404, sdkErr.StatusCode())
+		})
+
+		t.Run("UnauthorizedUserCannotDeleteOthersTask", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+
+			// Owner's AI-capable template and workspace (task).
+			template := createAITemplate(t, client, owner)
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			exp := codersdk.NewExperimentalClient(client)
+			task, err := exp.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Prompt:            "delete me not",
+			})
+			require.NoError(t, err)
+			ws, err := client.Workspace(ctx, task.ID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+			// Another regular org member without elevated permissions.
+			otherClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+			expOther := codersdk.NewExperimentalClient(otherClient)
+
+			// Attempt to delete the owner's task as a non-owner without permissions.
+			err = expOther.DeleteTask(ctx, "me", task.ID)
+
+			var authErr *codersdk.Error
+			require.Error(t, err, "expected an authorization error when deleting another user's task")
+			require.ErrorAs(t, err, &authErr)
+			// Accept either 403 or 404 depending on authz behavior.
+			if authErr.StatusCode() != 403 && authErr.StatusCode() != 404 {
+				t.Fatalf("unexpected status code: %d (expected 403 or 404)", authErr.StatusCode())
+			}
+		})
 	})
 }
 
