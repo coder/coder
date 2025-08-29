@@ -111,7 +111,7 @@ export class TimeSync implements TimeSyncApi {
 	// This class uses setInterval for both its intended purpose and as a janky
 	// version of setTimeout. There are a few times when we need timeout-like
 	// logic, but if we use setInterval for everything, we have fewer overall
-	// data dependencies and don't have to juggle different IDs
+	// data dependencies to mock out and don't have to juggle different IDs
 	#latestIntervalId: number | undefined = undefined;
 
 	constructor(options: Partial<TimeSyncInitOptions>) {
@@ -124,7 +124,7 @@ export class TimeSync implements TimeSyncApi {
 		this.#createNewDatetime = createNewDatetime;
 		this.#resyncOnNewSubscription = resyncOnNewSubscription;
 
-		const dateCopy = new Date(initialDatetime);
+		const dateCopy = Object.freeze(new Date(initialDatetime));
 		this.#latestDateSnapshot = dateCopy;
 	}
 
@@ -217,53 +217,62 @@ export class TimeSync implements TimeSyncApi {
 			(t) => t.targetRefreshInterval === targetRefreshInterval,
 		);
 
-		// Using try/finally as a janky version of Go's defer keyword. Need to
-		// make sure reconciliation triggers when needed, regardless of which
-		// code path we take
 		let needReconciliation = false;
-		try {
-			let activeTracker: SubscriptionTracker;
-			if (prevTracker !== undefined) {
-				activeTracker = prevTracker;
-			} else {
-				needReconciliation = true;
-				activeTracker = { targetRefreshInterval, updates: new Map() };
-			}
+		let activeTracker: SubscriptionTracker;
+		if (prevTracker !== undefined) {
+			activeTracker = prevTracker;
+		} else {
+			needReconciliation = true;
+			activeTracker = { targetRefreshInterval, updates: new Map() };
+		}
 
-			const alreadySubscribed = activeTracker.updates.has(onUpdate);
-			if (alreadySubscribed) {
-				return;
-			}
+		const alreadySubscribed = activeTracker.updates.has(onUpdate);
+		if (alreadySubscribed) {
+			return;
+		}
 
-			const newCount = activeTracker.updates.get(onUpdate) ?? 0;
-			activeTracker.updates.set(onUpdate, newCount);
-			if (!alreadySubscribed && this.#resyncOnNewSubscription) {
-				this.#updateDateSnapshot();
-			}
-		} finally {
-			if (needReconciliation) {
-				this.#reconcileAdd();
-			}
+		const newCount = 1 + (activeTracker.updates.get(onUpdate) ?? 0);
+		activeTracker.updates.set(onUpdate, newCount);
+		if (needReconciliation) {
+			this.#reconcileAdd();
+		}
+		if (!alreadySubscribed && this.#resyncOnNewSubscription) {
+			this.#updateDateSnapshot();
 		}
 	}
 
-	#removeSubscription(onUpdate: OnUpdate): void {
-		let needReconciliation = false;
-		for (const tracker of this.#subscriptions) {
-			const cbIndex = tracker.updates.indexOf(onUpdate);
-			if (cbIndex === -1) {
-				continue;
-			}
-			tracker.updates.splice(cbIndex, 1);
-			needReconciliation ||= tracker.updates.length === 0;
+	#removeSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): void {
+		const activeTracker = this.#subscriptions.find(
+			(t) => t.targetRefreshInterval === targetRefreshInterval,
+		);
+		if (activeTracker === undefined || !activeTracker.updates.has(onUpdate)) {
+			return;
 		}
-		if (needReconciliation) {
-			this.#reconcileRemoval();
+
+		const newCount = (activeTracker.updates.get(onUpdate) ?? 0) - 1;
+		if (newCount > 0) {
+			activeTracker.updates.set(onUpdate, newCount);
+			return;
 		}
+
+		activeTracker.updates.delete(onUpdate);
+		// Could probably make it so that we get really specific with which
+		// tracker to remove to improve performance, but this setup is easier,
+		// and it also gives us a safety net in case we accidentally set up
+		// trackers without any functions elsewhere
+		const filtered = this.#subscriptions.filter((t) => t.updates.size > 0);
+		if (filtered.length === this.#subscriptions.length) {
+			return;
+		}
+		this.#subscriptions = filtered;
+		this.#reconcileRemoval();
 	}
 
 	subscribe(hs: SubscriptionHandshake): () => void {
+		// Destructuring properties so that they can't be fiddled with after
+		// this function call ends
 		const { targetRefreshInterval, onUpdate } = hs;
+
 		const isInputInvalid =
 			!Number.isInteger(targetRefreshInterval) || targetRefreshInterval <= 0;
 		if (isInputInvalid) {
@@ -273,20 +282,22 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		this.#addSubscription(targetRefreshInterval, onUpdate);
-		return () => this.#removeSubscription(onUpdate);
+		return () => this.#removeSubscription(targetRefreshInterval, onUpdate);
 	}
 
 	/**
 	 * @todo While this isn't likely, in order to make sure that the system
 	 * stays airtight and can't break down, we need to make sure that the Date
-	 * returned forbids being mutated. Tried rolling it out for the initial
-	 * version, but figuring out the internal ergonomics while building out
-	 * everything else got to be a bit much.
+	 * returned forbids being mutated. Tried rolling this out for the initial
+	 * version, but figuring out the internal ergonomics at the type level while
+	 * building out everything else got to be a bit much.
 	 *
-	 * Using Object.freeze isn't good enough, because it doesn't stop the
-	 * built-in set methods from modifying the internal state. We can probably
-	 * get away with a Proxy object, and set it up to turn properties prefixed
-	 * with `set` into a no-op
+	 * Using Object.freeze helps a tiny bit, but not nearly enough, because it
+	 * doesn't stop the built-in set methods from modifying the internal state.
+	 * We can probably get away with a Proxy object, and set it up to intercept
+	 * properties prefixed with `set`. Those can either be turned into a no-op
+	 * (which is probably more React-friendly), or into runtime errors (which
+	 * is probably more correct overall).
 	 */
 	getTimeSnapshot(): Date {
 		return this.#latestDateSnapshot;
