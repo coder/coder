@@ -61,6 +61,7 @@ type AgentConn interface {
 	PrometheusMetrics(ctx context.Context) ([]byte, error)
 	ReconnectingPTY(ctx context.Context, id uuid.UUID, height uint16, width uint16, command string, initOpts ...AgentReconnectingPTYInitOption) (net.Conn, error)
 	RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error)
+	LS(ctx context.Context, path string, req LSRequest) (LSResponse, error)
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
 	EditFiles(ctx context.Context, edits FileEditRequest) error
@@ -476,6 +477,60 @@ func (c *agentConn) RecreateDevcontainer(ctx context.Context, devcontainerID str
 	var m codersdk.Response
 	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
 		return codersdk.Response{}, xerrors.Errorf("decode response body: %w", err)
+	}
+	return m, nil
+}
+
+type LSRequest struct {
+	// e.g. [], ["repos", "coder"],
+	Path []string `json:"path"`
+	// Whether the supplied path is relative to the user's home directory,
+	// or the root directory.
+	Relativity LSRelativity `json:"relativity"`
+}
+
+type LSRelativity string
+
+const (
+	LSRelativityRoot LSRelativity = "root"
+	LSRelativityHome LSRelativity = "home"
+)
+
+type LSResponse struct {
+	AbsolutePath []string `json:"absolute_path"`
+	// Returned so clients can display the full path to the user, and
+	// copy it to configure file sync
+	// e.g. Windows: "C:\\Users\\coder"
+	//      Linux: "/home/coder"
+	AbsolutePathString string   `json:"absolute_path_string"`
+	Contents           []LSFile `json:"contents"`
+}
+
+type LSFile struct {
+	Name string `json:"name"`
+	// e.g. "C:\\Users\\coder\\hello.txt"
+	//      "/home/coder/hello.txt"
+	AbsolutePathString string `json:"absolute_path_string"`
+	IsDir              bool   `json:"is_dir"`
+}
+
+// LS lists a directory.
+func (c *agentConn) LS(ctx context.Context, path string, req LSRequest) (LSResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	res, err := c.apiRequest(ctx, http.MethodPost, fmt.Sprintf("/api/v0/list-directory?path=%s", path), req)
+	if err != nil {
+		return LSResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return LSResponse{}, codersdk.ReadBodyAsError(res)
+	}
+
+	var m LSResponse
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		return LSResponse{}, xerrors.Errorf("decode response body: %w", err)
 	}
 	return m, nil
 }

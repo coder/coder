@@ -454,6 +454,52 @@ func TestTools(t *testing.T) {
 		require.Equal(t, "owner format works", result.Output)
 	})
 
+	t.Run("WorkspaceLS", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		fs := afero.NewMemMapFs()
+		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
+			opts.Filesystem = fs
+		})
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		tmpdir := os.TempDir()
+
+		dirPath := filepath.Join(tmpdir, "dir1/dir2")
+		err = fs.MkdirAll(dirPath, 0o755)
+		require.NoError(t, err)
+
+		filePath := filepath.Join(tmpdir, "dir1", "foo")
+		err = afero.WriteFile(fs, filePath, []byte("foo bar"), 0o644)
+		require.NoError(t, err)
+
+		_, err = testTool(t, toolsdk.WorkspaceLS, tb, toolsdk.WorkspaceLSArgs{
+			Workspace: workspace.Name,
+			Path:      "relative",
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "path must be absolute")
+
+		res, err := testTool(t, toolsdk.WorkspaceLS, tb, toolsdk.WorkspaceLSArgs{
+			Workspace: workspace.Name,
+			Path:      filepath.Dir(dirPath),
+		})
+		require.NoError(t, err)
+		require.Equal(t, []toolsdk.WorkspaceLSFile{
+			{
+				Path:  dirPath,
+				IsDir: true,
+			},
+			{
+				Path:  filePath,
+				IsDir: false,
+			},
+		}, res.Contents)
+	})
+
 	t.Run("WorkspaceReadFile", func(t *testing.T) {
 		t.Parallel()
 
