@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -447,6 +446,7 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 // It creates a delete workspace build and returns 202 Accepted if the build was created.
 func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
 
 	idStr := chi.URLParam(r, "id")
 	taskID, err := uuid.Parse(idStr)
@@ -490,39 +490,15 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Construct a request to the workspace build creation handler to initiate deletion.
+	// Construct a request to the workspace build creation handler to
+	// initiate deletion.
 	buildReq := codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransitionDelete,
-	}
-	body, err := json.Marshal(buildReq)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error marshaling delete request.",
-			Detail:  err.Error(),
-		})
-		return
+		Reason:     "Deleted via tasks API",
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/builds", workspace.ID.String()), bytes.NewReader(body))
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error creating request.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	// Inject the "workspace" URL param so ExtractWorkspaceParam can
-	// resolve the workspace.
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("workspace", workspace.ID.String())
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	// Call the existing workspace build handler via middleware.
 	rc := &responseWriterCapture{}
-	handler := httpmw.ExtractWorkspaceParam(api.Database)(http.HandlerFunc(api.postWorkspaceBuilds))
-	handler.ServeHTTP(rc, req)
+	api.postWorkspaceBuildsInternal(rc, r, apiKey, workspace, buildReq)
 
 	status := rc.status
 	if status == 0 {

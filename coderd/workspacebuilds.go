@@ -329,12 +329,20 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-
 	workspace := httpmw.WorkspaceParam(r)
 	var createBuild codersdk.CreateWorkspaceBuildRequest
 	if !httpapi.Read(ctx, rw, r, &createBuild) {
 		return
 	}
+
+	api.postWorkspaceBuildsInternal(rw, r, apiKey, workspace, createBuild)
+}
+
+// postWorkspaceBuildsInternal handles the internal logic for creating
+// workspace builds, can be called by other handlers and must not
+// reference httpmw.
+func (api *API) postWorkspaceBuildsInternal(rw http.ResponseWriter, r *http.Request, apiKey database.APIKey, workspace database.Workspace, createBuild codersdk.CreateWorkspaceBuildRequest) {
+	ctx := r.Context()
 
 	transition := database.WorkspaceTransition(createBuild.Transition)
 	builder := wsbuilder.New(workspace, transition, *api.BuildUsageChecker.Load()).
