@@ -432,10 +432,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	if err != nil {
 		return nil, nil, nil, BuildError{http.StatusInternalServerError, "compute template version ID", err}
 	}
-	buildNum, err := b.getBuildNumber()
-	if err != nil {
-		return nil, nil, nil, BuildError{http.StatusInternalServerError, "compute build number", err}
-	}
+
 	state, err := b.getState()
 	if err != nil {
 		return nil, nil, nil, BuildError{http.StatusInternalServerError, "compute build state", err}
@@ -463,7 +460,6 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			UpdatedAt:         now,
 			WorkspaceID:       b.workspace.ID,
 			TemplateVersionID: templateVersionID,
-			BuildNumber:       buildNum,
 			ProvisionerState:  state,
 			InitiatorID:       b.initiator,
 			Transition:        b.trans,
@@ -714,18 +710,6 @@ func (b *Builder) firstBuild() (bool, error) {
 		return false, err
 	}
 	return false, nil
-}
-
-func (b *Builder) getBuildNumber() (int32, error) {
-	bld, err := b.getLastBuild()
-	if xerrors.Is(err, sql.ErrNoRows) {
-		// first build!
-		return 1, nil
-	}
-	if err != nil {
-		return 0, xerrors.Errorf("get last build to compute build number: %w", err)
-	}
-	return bld.BuildNumber + 1, nil
 }
 
 func (b *Builder) getState() ([]byte, error) {

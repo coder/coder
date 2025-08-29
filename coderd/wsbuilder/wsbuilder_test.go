@@ -86,7 +86,6 @@ func TestBuilder_NoOptions(t *testing.T) {
 		expectBuild(func(bld database.InsertWorkspaceBuildParams) {
 			asrt.Equal(inactiveVersionID, bld.TemplateVersionID)
 			asrt.Equal(workspaceID, bld.WorkspaceID)
-			asrt.Equal(int32(2), bld.BuildNumber)
 			asrt.Equal("last build state", string(bld.ProvisionerState))
 			asrt.Equal(userID, bld.InitiatorID)
 			asrt.Equal(database.WorkspaceTransitionStart, bld.Transition)
@@ -268,8 +267,6 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 		expectFindMatchingPresetID(uuid.Nil, sql.ErrNoRows),
 		expectBuild(func(bld database.InsertWorkspaceBuildParams) {
 			asrt.Equal(activeVersionID, bld.TemplateVersionID)
-			// no previous build...
-			asrt.Equal(int32(1), bld.BuildNumber)
 			asrt.Len(bld.ProvisionerState, 0)
 		}),
 		expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
@@ -851,7 +848,6 @@ func TestWorkspaceBuildWithPreset(t *testing.T) {
 		expectBuild(func(bld database.InsertWorkspaceBuildParams) {
 			asrt.Equal(activeVersionID, bld.TemplateVersionID)
 			asrt.Equal(workspaceID, bld.WorkspaceID)
-			asrt.Equal(int32(1), bld.BuildNumber)
 			asrt.Equal(userID, bld.InitiatorID)
 			asrt.Equal(database.WorkspaceTransitionStart, bld.Transition)
 			asrt.Equal(database.BuildReasonInitiator, bld.Reason)
@@ -921,7 +917,6 @@ func TestWorkspaceBuildDeleteOrphan(t *testing.T) {
 			expectBuild(func(bld database.InsertWorkspaceBuildParams) {
 				asrt.Equal(inactiveVersionID, bld.TemplateVersionID)
 				asrt.Equal(workspaceID, bld.WorkspaceID)
-				asrt.Equal(int32(2), bld.BuildNumber)
 				asrt.Empty(string(bld.ProvisionerState))
 				asrt.Equal(userID, bld.InitiatorID)
 				asrt.Equal(database.WorkspaceTransitionDelete, bld.Transition)
@@ -984,7 +979,6 @@ func TestWorkspaceBuildDeleteOrphan(t *testing.T) {
 			expectBuild(func(bld database.InsertWorkspaceBuildParams) {
 				asrt.Equal(inactiveVersionID, bld.TemplateVersionID)
 				asrt.Equal(workspaceID, bld.WorkspaceID)
-				asrt.Equal(int32(2), bld.BuildNumber)
 				asrt.Empty(string(bld.ProvisionerState))
 				asrt.Equal(userID, bld.InitiatorID)
 				asrt.Equal(database.WorkspaceTransitionDelete, bld.Transition)
