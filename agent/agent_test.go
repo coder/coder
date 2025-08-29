@@ -2952,9 +2952,12 @@ func TestAgent_Reconnect(t *testing.T) {
 	defer closer.Close()
 
 	call1 := testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
+	require.Equal(t, client.GetNumRefreshTokenCalls(), 1)
 	close(call1.Resps) // hang up
 	// expect reconnect
 	testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
+	// Check that the agent refreshes the token when it reconnects.
+	require.Equal(t, client.GetNumRefreshTokenCalls(), 2)
 	closer.Close()
 }
 
