@@ -13,8 +13,10 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -350,4 +352,35 @@ func TestAPIKey_SetDefault(t *testing.T) {
 	apiKey1, err := db.GetAPIKeyByID(ctx, split[0])
 	require.NoError(t, err)
 	require.EqualValues(t, dc.Sessions.DefaultTokenDuration.Value().Seconds(), apiKey1.LifetimeSeconds)
+}
+
+func TestAPIKey_PrebuildsNotAllowed(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	dc := coderdtest.DeploymentValues(t)
+	dc.Sessions.DefaultTokenDuration = serpent.Duration(time.Hour * 12)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:         db,
+		Pubsub:           pubsub,
+		DeploymentValues: dc,
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Given: an existing api token for the prebuilds user
+	_, prebuildsToken := dbgen.APIKey(t, db, database.APIKey{
+		UserID: database.PrebuildsSystemUserID,
+	})
+	client.SetSessionToken(prebuildsToken)
+
+	// When: the prebuilds user tries to create an API key
+	_, err := client.CreateAPIKey(ctx, database.PrebuildsSystemUserID.String())
+	// Then: denied.
+	require.ErrorContains(t, err, httpapi.ResourceForbiddenResponse.Message)
+
+	// When: the prebuilds user tries to create a token
+	_, err = client.CreateToken(ctx, database.PrebuildsSystemUserID.String(), codersdk.CreateTokenRequest{})
+	// Then: also denied.
+	require.ErrorContains(t, err, httpapi.ResourceForbiddenResponse.Message)
 }

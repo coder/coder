@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"cdr.dev/slog"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -53,6 +54,14 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 
 	var createToken codersdk.CreateTokenRequest
 	if !httpapi.Read(ctx, rw, r, &createToken) {
+		return
+	}
+
+	// TODO(Cian): System users technically just have the 'member' role
+	// and we don't want to disallow all members from creating API keys.
+	if user.IsSystem {
+		api.Logger.Warn(ctx, "disallowed creating api key for system user", slog.F("user_id", user.ID))
+		httpapi.Forbidden(rw)
 		return
 	}
 
@@ -123,6 +132,14 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
+
+	// TODO(Cian): System users technically just have the 'member' role
+	// and we don't want to disallow all members from creating API keys.
+	if user.IsSystem {
+		api.Logger.Warn(ctx, "disallowed creating api key for system user", slog.F("user_id", user.ID))
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	cookie, _, err := api.createAPIKey(ctx, apikey.CreateParams{
 		UserID:          user.ID,
