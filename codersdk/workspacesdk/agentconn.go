@@ -63,6 +63,7 @@ type AgentConn interface {
 	RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error)
 	ReadFile(ctx context.Context, path string, offset, limit int64) ([]byte, string, error)
 	WriteFile(ctx context.Context, path string, fileBytes []byte) error
+	EditFile(ctx context.Context, path string, edits FileEditRequest) error
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
 	SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error)
@@ -524,6 +525,36 @@ func (c *agentConn) WriteFile(ctx context.Context, path string, fileBytes []byte
 	defer span.End()
 
 	res, err := c.apiRequest(ctx, http.MethodPost, fmt.Sprintf("/api/v0/write-file?path=%s", path), fileBytes)
+	if err != nil {
+		return xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+
+	var m codersdk.Response
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		return xerrors.Errorf("decode response body: %w", err)
+	}
+	return nil
+}
+
+type FileEdit struct {
+	Search  string `json:"search"`
+	Replace string `json:"replace"`
+}
+
+type FileEditRequest struct {
+	Edits []FileEdit `json:"edits"`
+}
+
+// EditFile performs search and replace edits on a file.
+func (c *agentConn) EditFile(ctx context.Context, path string, edits FileEditRequest) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	res, err := c.apiRequest(ctx, http.MethodPost, fmt.Sprintf("/api/v0/edit-file?path=%s", path), edits)
 	if err != nil {
 		return xerrors.Errorf("do request: %w", err)
 	}
