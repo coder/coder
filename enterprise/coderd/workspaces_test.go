@@ -2878,105 +2878,114 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 	t.Parallel()
 
 	// Setup
-	log := testutil.Logger(t)
+	clock := quartz.NewMock(t)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	db, pb := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	logger := testutil.Logger(t)
 	reg := prometheus.NewRegistry()
-	provisionerdserverMetrics := provisionerdserver.NewMetrics(log)
+	provisionerdserverMetrics := provisionerdserver.NewMetrics(logger)
 	err := provisionerdserverMetrics.Register(reg)
 	require.NoError(t, err)
-	client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+	client, _, api, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
+			Database:                  db,
+			Pubsub:                    pb,
 			IncludeProvisionerDaemon:  true,
+			Clock:                     clock,
 			ProvisionerdServerMetrics: provisionerdserverMetrics,
 		},
-		LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureWorkspacePrebuilds: 1,
-			},
-		},
 	})
 
-	// Given: a template and a template version with a preset without prebuild instances
-	presetNoPrebuildID := uuid.New()
-	versionNoPrebuild := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
-	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, versionNoPrebuild.ID)
-	templateNoPrebuild := coderdtest.CreateTemplate(t, client, owner.OrganizationID, versionNoPrebuild.ID)
-	presetNoPrebuild := dbgen.Preset(t, db, database.InsertPresetParams{
-		ID:                presetNoPrebuildID,
-		TemplateVersionID: versionNoPrebuild.ID,
-	})
-
-	// Given: a template and a template version with a preset with a prebuild instance
-	presetPrebuildID := uuid.New()
-	versionPrebuild := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
-	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, versionPrebuild.ID)
-	templatePrebuild := coderdtest.CreateTemplate(t, client, owner.OrganizationID, versionPrebuild.ID)
-	presetPrebuild := dbgen.Preset(t, db, database.InsertPresetParams{
-		ID:                presetPrebuildID,
-		TemplateVersionID: versionPrebuild.ID,
-		DesiredInstances:  sql.NullInt32{Int32: 1, Valid: true},
-	})
-	// Given: a prebuild workspace
-	wb := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OwnerID:    database.PrebuildsSystemUserID,
-		TemplateID: templatePrebuild.ID,
-	}).Seed(database.WorkspaceBuild{
-		TemplateVersionID: versionPrebuild.ID,
-		TemplateVersionPresetID: uuid.NullUUID{
-			UUID:  presetPrebuildID,
-			Valid: true,
-		},
-	}).WithAgent(func(agent []*proto.Agent) []*proto.Agent {
-		return agent
-	}).Do()
-
-	// Mark the prebuilt workspace's agent as ready so the prebuild can be claimed
-	// nolint:gocritic
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
-	agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, uuid.MustParse(wb.AgentToken))
-	require.NoError(t, err)
-	err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
-		ID:             agent.WorkspaceAgent.ID,
-		LifecycleState: database.WorkspaceAgentLifecycleStateReady,
-	})
-	require.NoError(t, err)
+	// Setup Prebuild reconciler
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	reconciler := prebuilds.NewStoreReconciler(
+		db, pb, cache,
+		codersdk.PrebuildsConfig{},
+		logger,
+		clock,
+		prometheus.NewRegistry(),
+		notifications.NewNoopEnqueuer(),
+		api.AGPL.BuildUsageChecker,
+	)
+	var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+	api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 	organizationName, err := client.Organization(ctx, owner.OrganizationID)
 	require.NoError(t, err)
-	user, err := client.User(ctx, "testUser")
+	userClient, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+
+	// Setup template and template version with a preset with 1 prebuild instance
+	versionPrebuild := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithAgentAndPresetsWithPrebuilds(1))
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, versionPrebuild.ID)
+	templatePrebuild := coderdtest.CreateTemplate(t, client, owner.OrganizationID, versionPrebuild.ID)
+	presetsPrebuild, err := client.TemplateVersionPresets(ctx, versionPrebuild.ID)
 	require.NoError(t, err)
+	require.Len(t, presetsPrebuild, 1)
+
+	// Setup template and template version with a preset without prebuild instances
+	versionNoPrebuild := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithAgentAndPresetsWithPrebuilds(0))
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, versionNoPrebuild.ID)
+	templateNoPrebuild := coderdtest.CreateTemplate(t, client, owner.OrganizationID, versionNoPrebuild.ID)
+	presetsNoPrebuild, err := client.TemplateVersionPresets(ctx, versionNoPrebuild.ID)
+	require.NoError(t, err)
+	require.Len(t, presetsNoPrebuild, 1)
+
+	// Given: no histogram value for prebuilt workspaces creation
+	prebuildCreationMetric := promhelp.MetricValue(t, reg, "coderd_workspace_creation_duration_seconds", prometheus.Labels{
+		"organization_name": organizationName.Name,
+		"template_name":     templatePrebuild.Name,
+		"preset_name":       presetsPrebuild[0].Name,
+		"type":              "prebuild",
+	})
+	require.Nil(t, prebuildCreationMetric)
+
+	// Given: reconciliation loop runs and starts prebuilt workspace
+	coderdenttest.MustRunReconciliationLoopForPreset(ctx, t, db, reconciler, presetsPrebuild[0])
+	runningPrebuilds := coderdenttest.GetRunningPrebuilds(ctx, t, db, 1)
+	require.Len(t, runningPrebuilds, 1)
+
+	// Then: the histogram value for prebuilt workspace creation should be updated
+	prebuildCreationHistogram := promhelp.HistogramValue(t, reg, "coderd_workspace_creation_duration_seconds", prometheus.Labels{
+		"organization_name": organizationName.Name,
+		"template_name":     templatePrebuild.Name,
+		"preset_name":       presetsPrebuild[0].Name,
+		"type":              "prebuild",
+	})
+	require.NotNil(t, prebuildCreationHistogram)
+	require.Equal(t, uint64(1), prebuildCreationHistogram.GetSampleCount())
+
+	// Given: a running prebuilt workspace, ready to be claimed
+	prebuild := coderdtest.MustWorkspace(t, client, runningPrebuilds[0].ID)
+	require.Equal(t, codersdk.WorkspaceTransitionStart, prebuild.LatestBuild.Transition)
+	require.Nil(t, prebuild.DormantAt)
+	require.Nil(t, prebuild.DeletingAt)
 
 	// Given: no histogram value for prebuilt workspaces claim
-	prebuiltWorkspaceHistogramMetric := promhelp.MetricValue(t, reg, "coderd_prebuilt_workspace_claim_duration_seconds", prometheus.Labels{
+	prebuildClaimMetric := promhelp.MetricValue(t, reg, "coderd_prebuilt_workspace_claim_duration_seconds", prometheus.Labels{
 		"organization_name": organizationName.Name,
 		"template_name":     templatePrebuild.Name,
-		"preset_name":       presetPrebuild.Name,
+		"preset_name":       presetsPrebuild[0].Name,
 	})
-	require.Nil(t, prebuiltWorkspaceHistogramMetric)
+	require.Nil(t, prebuildClaimMetric)
 
 	// Given: the prebuilt workspace is claimed by a user
-	claimedWorkspace, err := client.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
-		TemplateVersionID:       versionPrebuild.ID,
-		TemplateVersionPresetID: presetPrebuildID,
-		Name:                    coderdtest.RandomUsername(t),
-	})
-	require.NoError(t, err)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, claimedWorkspace.LatestBuild.ID)
-	require.Equal(t, wb.Workspace.ID, claimedWorkspace.ID)
+	workspace := coderdenttest.MustClaimPrebuild(ctx, t, client, userClient, user.Username, versionPrebuild, presetsPrebuild[0].ID)
+	require.Equal(t, prebuild.ID, workspace.ID)
 
 	// Then: the histogram value for prebuilt workspace claim should be updated
-	prebuiltWorkspaceHistogram := promhelp.HistogramValue(t, reg, "coderd_prebuilt_workspace_claim_duration_seconds", prometheus.Labels{
+	prebuildClaimHistogram := promhelp.HistogramValue(t, reg, "coderd_prebuilt_workspace_claim_duration_seconds", prometheus.Labels{
 		"organization_name": organizationName.Name,
 		"template_name":     templatePrebuild.Name,
-		"preset_name":       presetPrebuild.Name,
+		"preset_name":       presetsPrebuild[0].Name,
 	})
-	require.NotNil(t, prebuiltWorkspaceHistogram)
-	require.Equal(t, uint64(1), prebuiltWorkspaceHistogram.GetSampleCount())
+	require.NotNil(t, prebuildClaimHistogram)
+	require.Equal(t, uint64(1), prebuildClaimHistogram.GetSampleCount())
 
 	// Given: no histogram value for regular workspaces creation
 	regularWorkspaceHistogramMetric := promhelp.MetricValue(t, reg, "coderd_workspace_creation_duration_seconds", prometheus.Labels{
 		"organization_name": organizationName.Name,
 		"template_name":     templateNoPrebuild.Name,
-		"preset_name":       presetNoPrebuild.Name,
+		"preset_name":       presetsNoPrebuild[0].Name,
 		"type":              "regular",
 	})
 	require.Nil(t, regularWorkspaceHistogramMetric)
@@ -2984,7 +2993,7 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 	// Given: a user creates a regular workspace (without prebuild pool)
 	regularWorkspace, err := client.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
 		TemplateVersionID:       versionNoPrebuild.ID,
-		TemplateVersionPresetID: presetNoPrebuildID,
+		TemplateVersionPresetID: presetsNoPrebuild[0].ID,
 		Name:                    coderdtest.RandomUsername(t),
 	})
 	require.NoError(t, err)
@@ -2994,7 +3003,7 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 	regularWorkspaceHistogram := promhelp.HistogramValue(t, reg, "coderd_workspace_creation_duration_seconds", prometheus.Labels{
 		"organization_name": organizationName.Name,
 		"template_name":     templateNoPrebuild.Name,
-		"preset_name":       presetNoPrebuild.Name,
+		"preset_name":       presetsNoPrebuild[0].Name,
 		"type":              "regular",
 	})
 	require.NotNil(t, regularWorkspaceHistogram)
