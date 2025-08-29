@@ -14,7 +14,11 @@ export type TimeSyncInitOptions = Readonly<{
 
 	/**
 	 * The function to use when creating a new datetime snapshot when a TimeSync
-	 * needs to update on an interval.
+	 * needs to update on an interval. Useful for making tests more
+	 * deterministic.
+	 *
+	 * Defaults to a function that returns a brand new Date based on the current
+	 * system time.
 	 */
 	createNewDatetime: CreateNewDatetime;
 
@@ -66,6 +70,25 @@ const defaultOptions: TimeSyncInitOptions = {
 	createNewDatetime: () => new Date(),
 };
 
+export type SubscriptionResult = Readonly<{
+	/**
+	 * Allows an external system to remove a specific subscription. When called,
+	 * this only removes a single subscription instance. If other subscribers
+	 * have registered the exact same callback, they will not be affected.
+	 */
+	unsubscribe: () => void;
+
+	/**
+	 * Indicates whether a new Date snapshot was created in response to the new
+	 * subscription, and whether there are other subscribers that need to be
+	 * notified.
+	 *
+	 * Intended to be used with TimeSync's `notifyAfterUpdate` config property.
+	 * If `notifyAfterUpdate` is true, this value will always be false.
+	 */
+	hasPendingSubscribers: boolean;
+}>;
+
 interface TimeSyncApi {
 	/**
 	 * Subscribes an external system to TimeSync.
@@ -76,13 +99,9 @@ interface TimeSyncApi {
 	 * a new state update needs to be dispatched, the onUpdate callback will be
 	 * called once, total.
 	 *
-	 * Returns a callback for explicitly unsubscribing. Unsubscribing only
-	 * removes a single subscription instance. If other subscribers have
-	 * registered the exact same callback, they will not be affected.
-	 *
 	 * @throws {RangeError} If the provided interval is less than or equal to 0.
 	 */
-	subscribe: (entry: SubscriptionHandshake) => () => void;
+	subscribe: (entry: SubscriptionHandshake) => SubscriptionResult;
 
 	/**
 	 * Allows any system to pull the newest time state from TimeSync, regardless
@@ -92,8 +111,10 @@ interface TimeSyncApi {
 
 	/**
 	 * Allows any external system to manually flush the latest time snapshot to
-	 * all subscribers. Does not need to be used if TimeSync has already been
-	 * configured with `resyncOnNewSubscription` set to true.
+	 * all subscribers.
+	 *
+	 * Does not need to be used if TimeSync has already been configured with
+	 * `notifyAfterUpdate` set to true.
 	 */
 	notifySubscribers: () => void;
 }
@@ -174,7 +195,8 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	/**
-	 * Return value indicates whether the update meaningfully changed anything.
+	 * Attempts to update the current Date snapshot.
+	 * @returns {boolean} Indicates whether the state actually changed.
 	 */
 	#updateSnapshot(): boolean {
 		const newSource = this.#createNewDatetime(this.#latestDateSnapshot);
@@ -193,20 +215,31 @@ export class TimeSync implements TimeSyncApi {
 		return true;
 	}
 
-	#flushSync(): void {
-		const updated = this.#updateSnapshot();
-		if (updated && this.#notifyAfterUpdate) {
+	/**
+	 * Updates TimeSync to a new snapshot immediately and synchronously.
+	 *
+	 * @returns {boolean} Indicates whether there are still subscribers that
+	 * need to be notified after the update.
+	 */
+	#flushSync(): boolean {
+		const hasPendingUpdate = this.#updateSnapshot();
+		if (hasPendingUpdate && this.#notifyAfterUpdate) {
 			this.notifySubscribers();
 		}
+		return hasPendingUpdate && !this.#notifyAfterUpdate;
 	}
 
-	// Defined as an arrow function so that we can just pass it directly to
-	// setInterval without needing to make a new wrapper function each time. We
-	// don't have many situations where we can lose the `this` context, but this
-	// is one of them
+	/**
+	 * The callback to wire up directly to setInterval for periodic updates.
+	 *
+	 * Defined as an arrow function so that we can just pass it directly to
+	 * setInterval without needing to make a new wrapper function each time. We
+	 * don't have many situations where we can lose the `this` context, but this
+	 * is one of them
+	 */
 	#onTick = (): void => {
-		const updated = this.#updateSnapshot();
-		if (updated) {
+		const hasPendingUpdate = this.#updateSnapshot();
+		if (hasPendingUpdate) {
 			this.notifySubscribers();
 		}
 	};
@@ -232,10 +265,11 @@ export class TimeSync implements TimeSyncApi {
 		const delta = newMin - elapsed;
 
 		// If we're behind on updates, we need to sync immediately before
-		// setting up the new interval
+		// setting up the new interval. With how TimeSync is designed, this case
+		// should only be triggered in response to adding a new tracker
 		if (delta <= 0) {
 			window.clearInterval(this.#latestIntervalId);
-			this.#flushSync();
+			const x = this.#flushSync();
 			this.#latestIntervalId = window.setInterval(this.#onTick, newMin);
 			return;
 		}
@@ -247,7 +281,14 @@ export class TimeSync implements TimeSyncApi {
 		}, delta);
 	}
 
-	#addSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): void {
+	/**
+	 * Adds a new subscription.
+	 *
+	 * @returns {boolean} Indicates whether adding the subscription created a
+	 * new snapshot, and whether there are still other subscribers that need to
+	 * be notified manually.
+	 */
+	#addSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): boolean {
 		const prevTracker = this.#subscriptionTrackers.find(
 			(t) => t.targetRefreshInterval === targetRefreshInterval,
 		);
@@ -259,11 +300,12 @@ export class TimeSync implements TimeSyncApi {
 		} else {
 			needReconciliation = true;
 			activeTracker = { targetRefreshInterval, updates: new Map() };
+			this.#subscriptionTrackers.push(activeTracker);
 		}
 
 		const alreadySubscribed = activeTracker.updates.has(onUpdate);
 		if (alreadySubscribed) {
-			return;
+			return false;
 		}
 
 		const newCount = 1 + (activeTracker.updates.get(onUpdate) ?? 0);
@@ -302,7 +344,7 @@ export class TimeSync implements TimeSyncApi {
 		this.#reconcileTrackersUpdate();
 	}
 
-	subscribe(hs: SubscriptionHandshake): () => void {
+	subscribe(hs: SubscriptionHandshake): SubscriptionResult {
 		// Destructuring properties so that they can't be fiddled with after
 		// this function call ends
 		const { targetRefreshInterval, onUpdate } = hs;
@@ -315,8 +357,17 @@ export class TimeSync implements TimeSyncApi {
 			);
 		}
 
-		this.#addSubscription(targetRefreshInterval, onUpdate);
-		return () => this.#removeSubscription(targetRefreshInterval, onUpdate);
+		const hasPendingSubscribers = this.#addSubscription(
+			targetRefreshInterval,
+			onUpdate,
+		);
+
+		return {
+			hasPendingSubscribers,
+			unsubscribe: () => {
+				this.#removeSubscription(targetRefreshInterval, onUpdate);
+			},
+		};
 	}
 
 	getStateSnapshot(): ReadonlyDate {
