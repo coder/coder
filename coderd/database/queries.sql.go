@@ -13605,7 +13605,7 @@ FROM
     usage_events_daily
 WHERE
     event_type = 'dc_managed_agents_v1'
-    -- Parenthesis are necessary to avoid sqlc from generating an extra
+    -- Parentheses are necessary to avoid sqlc from generating an extra
     -- argument.
     AND day BETWEEN date_trunc('day', ($1::timestamptz) AT TIME ZONE 'UTC')::date AND date_trunc('day', ($2::timestamptz) AT TIME ZONE 'UTC')::date
 `
@@ -13689,7 +13689,7 @@ WITH usage_events AS (
                     -- than an hour ago. This is so we can retry publishing
                     -- events where the replica exited or couldn't update the
                     -- row.
-                    -- The parenthesis around @now::timestamptz are necessary to
+                    -- The parentheses around @now::timestamptz are necessary to
                     -- avoid sqlc from generating an extra argument.
                     OR potential_event.publish_started_at < ($1::timestamptz) - INTERVAL '1 hour'
                 )
@@ -13697,7 +13697,7 @@ WITH usage_events AS (
                 -- always permanently reject these events anyways. This is to
                 -- avoid duplicate events being billed to customers, as
                 -- Metronome will only deduplicate events within 34 days.
-                -- Also, the same parenthesis thing here as above.
+                -- Also, the same parentheses thing here as above.
                 AND potential_event.created_at > ($1::timestamptz) - INTERVAL '30 days'
             ORDER BY potential_event.created_at ASC
             FOR UPDATE SKIP LOCKED
