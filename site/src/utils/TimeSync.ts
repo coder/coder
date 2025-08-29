@@ -283,12 +283,8 @@ export class TimeSync implements TimeSyncApi {
 
 	/**
 	 * Adds a new subscription.
-	 *
-	 * @returns {boolean} Indicates whether adding the subscription created a
-	 * new snapshot, and whether there are still other subscribers that need to
-	 * be notified manually.
 	 */
-	#addSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): boolean {
+	#addSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): void {
 		const prevTracker = this.#subscriptionTrackers.find(
 			(t) => t.targetRefreshInterval === targetRefreshInterval,
 		);
@@ -305,7 +301,7 @@ export class TimeSync implements TimeSyncApi {
 
 		const alreadySubscribed = activeTracker.updates.has(onUpdate);
 		if (alreadySubscribed) {
-			return false;
+			return;
 		}
 
 		const newCount = 1 + (activeTracker.updates.get(onUpdate) ?? 0);
@@ -357,13 +353,10 @@ export class TimeSync implements TimeSyncApi {
 			);
 		}
 
-		const hasPendingSubscribers = this.#addSubscription(
-			targetRefreshInterval,
-			onUpdate,
-		);
+		this.#addSubscription(targetRefreshInterval, onUpdate);
 
 		return {
-			hasPendingSubscribers,
+			hasPendingSubscribers: false,
 			unsubscribe: () => {
 				this.#removeSubscription(targetRefreshInterval, onUpdate);
 			},
