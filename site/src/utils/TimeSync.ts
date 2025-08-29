@@ -1,5 +1,4 @@
-export type SetInterval = (fn: () => void, intervalMs: number) => number;
-export type ClearInterval = (id: number | undefined) => void;
+type CreateNewDatetime = (prevReadonlyDate: Date) => Date;
 
 export type TimeSyncInitOptions = Readonly<{
 	/**
@@ -11,46 +10,39 @@ export type TimeSyncInitOptions = Readonly<{
 	 * The function to use when creating a new datetime snapshot when a TimeSync
 	 * needs to update on an interval.
 	 */
-	createNewDatetime: (prevDatetime: Date) => Date;
-
-	/**
-	 * The function to use when creating new intervals.
-	 */
-	setInterval: SetInterval;
-
-	/**
-	 * The function to use when clearing intervals.
-	 *
-	 * (e.g., Clearing a previous interval because the TimeSync needs to make a
-	 * new interval to increase/decrease its update speed.)
-	 */
-	clearInterval: ClearInterval;
+	createNewDatetime: CreateNewDatetime;
 
 	/**
 	 * Configures whether adding a new subscription will immediately create
 	 * a new time snapshot and use it to update all other subscriptions.
+	 * Defaults to true.
 	 */
 	resyncOnNewSubscription: boolean;
 }>;
 
 /**
- * The callback to call when a new state update has been created. If the
- * callback is already registered with TimeSync for the specified refresh
- * interval, that becomes a no-op.
- *
- * If the callback is already registered, but for a different refresh
- * interval, that causes the update interval to get updated internally. It
- * does not register the same callback multiple times.
+ * The callback to call when a new state update is ready to be dispatched.
  */
-export type OnUpdate = (newDatetime: Date) => void;
+export type OnUpdate = (newReadonlyDate: Date) => void;
 
-export type SubscriptionEntry = Readonly<{
+export type SubscriptionHandshake = Readonly<{
 	/**
-	 * The maximum update interval that a subscriber needs. TimeSync will always
-	 * use the *lowest* interval amongst all subscribers to update everything.
+	 * The maximum update interval that a subscriber needs. A value of
+	 * Number.POSITIVE_INFINITY indicates that the subscriber does not strictly
+	 * need any updates (though they may still happen based on other
+	 * subscribers).
 	 *
-	 * If all subscribers have a value of Number.POSITIVE_INFINITY, no updates
-	 * will ever be dispatched.
+	 * TimeSync always dispatches updates based on the lowest update interval
+	 * among all subscribers.
+	 *
+	 * For example, let's say that we have these three subscribers:
+	 * 1. A - Needs to be updated every 500ms
+	 * 2. B – Needs to be updated every 1500ms
+	 * 3. C – Uses update interval of Infinity
+	 *
+	 * A, B, and C will all be updated at a rate of 500ms. If A unsubscribes,
+	 * then B and C will shift to being updated every 1500ms. If B unsubscribes,
+	 * updates will pause completely.
 	 */
 	targetRefreshInterval: number;
 	onUpdate: OnUpdate;
@@ -60,33 +52,39 @@ const defaultOptions: TimeSyncInitOptions = {
 	initialDatetime: new Date(),
 	resyncOnNewSubscription: true,
 	createNewDatetime: () => new Date(),
-	setInterval: window.setInterval,
-	clearInterval: window.clearInterval,
 };
 
 interface TimeSyncApi {
 	/**
-	 * Subscribes an external system to TimeSync. Call the returned callback to
-	 * unsubscribe the system.
+	 * Subscribes an external system to TimeSync.
+	 *
+	 * The same callback (by reference) is allowed to be registered multiple
+	 * times, either for the same update interval, or different update
+	 * intervals. However, while each subscriber is tracked individually, when
+	 * a new state update needs to be dispatched, the onUpdate callback will be
+	 * called once, total.
+	 *
+	 * Returns a callback for explicitly unsubscribing. Unsubscribing only
+	 * removes a single subscription instance. If other subscribers have
+	 * registered the exact same callback, they will not be affected.
 	 *
 	 * @throws {RangeError} If the provided interval is less than or equal to 0.
 	 */
-	subscribe: (entry: SubscriptionEntry) => () => void;
+	subscribe: (entry: SubscriptionHandshake) => () => void;
 
 	/**
 	 * Allows any system to pull the newest time state from TimeSync, regardless
 	 * of whether the system is subscribed
-	 *
-	 * The state returned out is a direct reference to the latest time state,
-	 * but the value is frozen at runtime to prevent accidental mutations.
 	 */
 	getTimeSnapshot: () => Date;
 }
 
-type SubscriptionTracker = {
-	readonly targetRefreshInterval: number;
-	updates: OnUpdate[];
-};
+type SubscriptionTracker = Readonly<{
+	targetRefreshInterval: number;
+	// Each key is an individual onUpdate callback, while each value is the
+	// number of subscribers that have registered that callback
+	updates: Map<OnUpdate, number>;
+}>;
 
 /**
  * TimeSync provides a centralized authority for working with time values in a
@@ -104,31 +102,29 @@ type SubscriptionTracker = {
  */
 export class TimeSync implements TimeSyncApi {
 	readonly #resyncOnNewSubscription: boolean;
-	readonly #createNewDatetime: (previousDate: Date) => Date;
-	readonly #setInterval: SetInterval;
-	readonly #clearInterval: ClearInterval;
-
-	// Subscriptions should always be sorted with the smallest update intervals
-	// being listed first
-	#subscriptions: SubscriptionTracker[] = [];
-	#latestIntervalId: number | undefined = undefined;
+	readonly #createNewDatetime: CreateNewDatetime;
 	#latestDateSnapshot: Date;
+
+	// Should always be sorted based on refresh interval, ascending
+	#subscriptions: SubscriptionTracker[] = [];
+
+	// This class uses setInterval for both its intended purpose and as a janky
+	// version of setTimeout. There are a few times when we need timeout-like
+	// logic, but if we use setInterval for everything, we have fewer overall
+	// data dependencies and don't have to juggle different IDs
+	#latestIntervalId: number | undefined = undefined;
 
 	constructor(options: Partial<TimeSyncInitOptions>) {
 		const {
 			initialDatetime = defaultOptions.initialDatetime,
 			resyncOnNewSubscription = defaultOptions.resyncOnNewSubscription,
 			createNewDatetime = defaultOptions.createNewDatetime,
-			setInterval = defaultOptions.setInterval,
-			clearInterval = defaultOptions.clearInterval,
 		} = options;
 
-		this.#setInterval = setInterval;
-		this.#clearInterval = clearInterval;
 		this.#createNewDatetime = createNewDatetime;
 		this.#resyncOnNewSubscription = resyncOnNewSubscription;
 
-		const dateCopy = Object.freeze(new Date(initialDatetime));
+		const dateCopy = new Date(initialDatetime);
 		this.#latestDateSnapshot = dateCopy;
 	}
 
@@ -145,9 +141,9 @@ export class TimeSync implements TimeSyncApi {
 	// don't have many situations where we can lose the `this` context, but this
 	// is one of them
 	#updateDateSnapshot = (): void => {
-		const newRawDate = this.#createNewDatetime(this.#latestDateSnapshot);
+		const newSource = this.#createNewDatetime(this.#latestDateSnapshot);
 		const noStateChange =
-			newRawDate.getMilliseconds() ===
+			newSource.getMilliseconds() ===
 			this.#latestDateSnapshot.getMilliseconds();
 		if (noStateChange) {
 			return;
@@ -156,8 +152,8 @@ export class TimeSync implements TimeSyncApi {
 		// Binding the updated state to a separate variable instead of `this`
 		// just to make sure the this context can't be messed with as each
 		// callback runs
-		const newFrozenDate = Object.freeze(newRawDate);
-		this.#latestDateSnapshot = newFrozenDate;
+		const frozen = Object.freeze(newSource);
+		this.#latestDateSnapshot = frozen;
 
 		const subscriptionsPaused =
 			this.#subscriptions.length === 0 ||
@@ -166,8 +162,8 @@ export class TimeSync implements TimeSyncApi {
 			return;
 		}
 		for (const subEntry of this.#subscriptions) {
-			for (const onUpdate of subEntry.updates) {
-				onUpdate(newFrozenDate);
+			for (const onUpdate of subEntry.updates.keys()) {
+				onUpdate(frozen);
 			}
 		}
 	};
@@ -175,16 +171,16 @@ export class TimeSync implements TimeSyncApi {
 	#reconcileAdd(): void {}
 
 	#reconcileRemoval(): void {
-		const filtered = this.#subscriptions.filter((t) => t.updates.length > 0);
+		const filtered = this.#subscriptions.filter((t) => t.updates.size > 0);
 		if (filtered.length === this.#subscriptions.length) {
 			return;
 		}
 
 		const oldMin = this.#getMinUpdateInterval();
-		this.#subscriptions = filtered;
-		this.#subscriptions.sort(
+		filtered.sort(
 			(t1, t2) => t2.targetRefreshInterval - t1.targetRefreshInterval,
 		);
+		this.#subscriptions = filtered;
 
 		const newMin = this.#getMinUpdateInterval();
 		if (newMin === oldMin) {
@@ -197,26 +193,23 @@ export class TimeSync implements TimeSyncApi {
 		// If we're behind on updates, we need to sync immediately before
 		// setting up the new interval
 		if (delta <= 0) {
-			this.#clearInterval(this.#latestIntervalId);
+			window.clearInterval(this.#latestIntervalId);
 			this.#updateDateSnapshot();
-			this.#latestIntervalId = this.#setInterval(
+			this.#latestIntervalId = window.setInterval(
 				this.#updateDateSnapshot,
 				newMin,
 			);
 			return;
 		}
 
-		// Otherwise, we'll use setInterval as a janky version of setTimeout so
-		// that we we have fewer overall data dependencies
-		this.#clearInterval(this.#latestIntervalId);
-		const pseudoTimeout = () => {
-			this.#clearInterval(this.#latestIntervalId);
-			this.#latestIntervalId = this.#setInterval(
+		window.clearInterval(this.#latestIntervalId);
+		this.#latestIntervalId = window.setInterval(() => {
+			window.clearInterval(this.#latestIntervalId);
+			this.#latestIntervalId = window.setInterval(
 				this.#updateDateSnapshot,
 				newMin,
 			);
-		};
-		this.#latestIntervalId = this.#setInterval(pseudoTimeout, delta);
+		}, delta);
 	}
 
 	#addSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): void {
@@ -225,41 +218,28 @@ export class TimeSync implements TimeSyncApi {
 		);
 
 		let needReconciliation = false;
+		let alreadySubscribed = false;
 		try {
 			let activeTracker: SubscriptionTracker;
 			if (prevTracker !== undefined) {
 				activeTracker = prevTracker;
 			} else {
 				needReconciliation = true;
-				activeTracker = { targetRefreshInterval, updates: [] };
+				activeTracker = { targetRefreshInterval, updates: new Map() };
 			}
 
-			const alreadySubscribed =
-				activeTracker.updates.includes(onUpdate) ?? false;
+			alreadySubscribed = activeTracker.updates.has(onUpdate);
 			if (alreadySubscribed) {
 				return;
 			}
 
-			// Handle de-duplicating callback from other trackers
-			for (const tracker of this.#subscriptions) {
-				if (tracker === activeTracker) {
-					tracker.updates.push(onUpdate);
-					continue;
-				}
-
-				const prevIndex = tracker.updates.indexOf(onUpdate);
-				if (prevIndex === -1) {
-					continue;
-				}
-
-				tracker.updates.splice(prevIndex, 1);
-				needReconciliation ||= tracker.updates.length === 0;
-			}
+			const newCount = activeTracker.updates.get(onUpdate) ?? 0;
+			activeTracker.updates.set(onUpdate, newCount);
 		} finally {
 			if (needReconciliation) {
 				this.#reconcileAdd();
 			}
-			if (prevTracker === undefined && this.#resyncOnNewSubscription) {
+			if (!alreadySubscribed && this.#resyncOnNewSubscription) {
 				this.#updateDateSnapshot();
 			}
 		}
@@ -272,7 +252,6 @@ export class TimeSync implements TimeSyncApi {
 			if (cbIndex === -1) {
 				continue;
 			}
-
 			tracker.updates.splice(cbIndex, 1);
 			needReconciliation ||= tracker.updates.length === 0;
 		}
@@ -281,13 +260,13 @@ export class TimeSync implements TimeSyncApi {
 		}
 	}
 
-	subscribe(entry: SubscriptionEntry): () => void {
-		const { targetRefreshInterval, onUpdate } = entry;
+	subscribe(hs: SubscriptionHandshake): () => void {
+		const { targetRefreshInterval, onUpdate } = hs;
 		const isInputInvalid =
 			!Number.isInteger(targetRefreshInterval) || targetRefreshInterval <= 0;
 		if (isInputInvalid) {
 			throw new RangeError(
-				`Provided refresh interval ${targetRefreshInterval} must be a positive integer`,
+				`TimeSync refresh interval must be a positive integer (received ${targetRefreshInterval}ms)`,
 			);
 		}
 
@@ -295,6 +274,18 @@ export class TimeSync implements TimeSyncApi {
 		return () => this.#removeSubscription(onUpdate);
 	}
 
+	/**
+	 * @todo While this isn't likely, in order to make sure that the system
+	 * stays airtight and can't break down, we need to make sure that the Date
+	 * returned forbids being mutated. Tried rolling it out for the initial
+	 * version, but figuring out the internal ergonomics while building out
+	 * everything else got to be a bit much.
+	 *
+	 * Using Object.freeze isn't good enough, because it doesn't stop the
+	 * built-in set methods from modifying the internal state. We can probably
+	 * get away with a Proxy object, and set it up to turn properties prefixed
+	 * with `set` into a no-op
+	 */
 	getTimeSnapshot(): Date {
 		return this.#latestDateSnapshot;
 	}
