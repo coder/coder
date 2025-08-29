@@ -169,6 +169,21 @@ func (mr *MockAgentConnMockRecorder) GetPeerDiagnostics() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPeerDiagnostics", reflect.TypeOf((*MockAgentConn)(nil).GetPeerDiagnostics))
 }
 
+// LS mocks base method.
+func (m *MockAgentConn) LS(ctx context.Context, path string, req workspacesdk.LSRequest) (workspacesdk.LSResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LS", ctx, path, req)
+	ret0, _ := ret[0].(workspacesdk.LSResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LS indicates an expected call of LS.
+func (mr *MockAgentConnMockRecorder) LS(ctx, path, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LS", reflect.TypeOf((*MockAgentConn)(nil).LS), ctx, path, req)
+}
+
 // ListContainers mocks base method.
 func (m *MockAgentConn) ListContainers(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
 	m.ctrl.T.Helper()
