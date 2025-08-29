@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -154,8 +155,9 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		//   This can be optimized. It exists as it is now for code simplicity.
 		//   The most common case is to create a workspace for 'Me'. Which does
 		//   not enter this code branch.
-		template, ok := requestTemplate(ctx, rw, createReq, api.Database)
-		if !ok {
+		template, err := requestTemplate(ctx, createReq, api.Database)
+		if err != nil {
+			httperror.WriteResponseError(ctx, rw, err)
 			return
 		}
 
@@ -188,7 +190,10 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	})
 
 	defer commitAudit()
-	createWorkspace(ctx, aReq, apiKey.UserID, api, owner, createReq, rw, r)
+	_, err = createWorkspace(ctx, aReq, apiKey.UserID, api, owner, createReq, r)
+	if err != nil {
+		httperror.WriteResponseError(ctx, rw, err)
+	}
 }
 
 // tasksFromWorkspaces converts a slice of API workspaces into tasks, fetching

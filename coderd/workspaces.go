@@ -388,7 +388,10 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		AvatarURL: member.AvatarURL,
 	}
 
-	createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, rw, r)
+	_, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, r)
+	if err != nil {
+		httperror.WriteResponseError(ctx, rw, err)
+	}
 }
 
 // Create a new workspace for the currently authenticated user.
@@ -442,8 +445,9 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 		//   This can be optimized. It exists as it is now for code simplicity.
 		//   The most common case is to create a workspace for 'Me'. Which does
 		//   not enter this code branch.
-		template, ok := requestTemplate(ctx, rw, req, api.Database)
-		if !ok {
+		template, err := requestTemplate(ctx, req, api.Database)
+		if err != nil {
+			httperror.WriteResponseError(ctx, rw, err)
 			return
 		}
 
@@ -476,7 +480,11 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 	})
 
 	defer commitAudit()
-	createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, rw, r)
+
+	_, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, r)
+	if err != nil {
+		httperror.WriteResponseError(ctx, rw, err)
+	}
 }
 
 type workspaceOwner struct {
@@ -492,12 +500,11 @@ func createWorkspace(
 	api *API,
 	owner workspaceOwner,
 	req codersdk.CreateWorkspaceRequest,
-	rw http.ResponseWriter,
 	r *http.Request,
-) {
-	template, ok := requestTemplate(ctx, rw, req, api.Database)
-	if !ok {
-		return
+) (codersdk.Workspace, error) {
+	template, err := requestTemplate(ctx, req, api.Database)
+	if err != nil {
+		return codersdk.Workspace{}, err
 	}
 
 	// This is a premature auth check to avoid doing unnecessary work if the user
@@ -506,14 +513,12 @@ func createWorkspace(
 		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(owner.ID.String())) {
 		// If this check fails, return a proper unauthorized error to the user to indicate
 		// what is going on.
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
 			Message: "Unauthorized to create workspace.",
 			Detail: "You are unable to create a workspace in this organization. " +
 				"It is possible to have access to the template, but not be able to create a workspace. " +
 				"Please contact an administrator about your permissions if you feel this is an error.",
-			Validations: nil,
 		})
-		return
 	}
 
 	// Update audit log's organization
@@ -523,49 +528,42 @@ func createWorkspace(
 	// would be wasted.
 	if !api.Authorize(r, policy.ActionCreate,
 		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(owner.ID.String())) {
-		httpapi.ResourceNotFound(rw)
-		return
+		return codersdk.Workspace{}, httperror.ErrResourceNotFound
 	}
 	// The user also needs permission to use the template. At this point they have
 	// read perms, but not necessarily "use". This is also checked in `db.InsertWorkspace`.
 	// Doing this up front can save some work below if the user doesn't have permission.
 	if !api.Authorize(r, policy.ActionUse, template) {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
 			Message: fmt.Sprintf("Unauthorized access to use the template %q.", template.Name),
 			Detail: "Although you are able to view the template, you are unable to create a workspace using it. " +
 				"Please contact an administrator about your permissions if you feel this is an error.",
-			Validations: nil,
 		})
-		return
 	}
 
 	templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
 	if templateAccessControl.IsDeprecated() {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Template %q has been deprecated, and cannot be used to create a new workspace.", template.Name),
 			// Pass the deprecated message to the user.
-			Detail:      templateAccessControl.Deprecated,
-			Validations: nil,
+			Detail: templateAccessControl.Deprecated,
 		})
-		return
 	}
 
 	dbAutostartSchedule, err := validWorkspaceSchedule(req.AutostartSchedule)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid Autostart Schedule.",
 			Validations: []codersdk.ValidationError{{Field: "schedule", Detail: err.Error()}},
 		})
-		return
 	}
 
 	templateSchedule, err := (*api.TemplateScheduleStore.Load()).Get(ctx, api.Database, template.ID)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching template schedule.",
 			Detail:  err.Error(),
 		})
-		return
 	}
 
 	nextStartAt := sql.NullTime{}
@@ -578,11 +576,10 @@ func createWorkspace(
 
 	dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis, templateSchedule.DefaultTTL)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid Workspace Time to Shutdown.",
 			Validations: []codersdk.ValidationError{{Field: "ttl_ms", Detail: err.Error()}},
 		})
-		return
 	}
 
 	// back-compatibility: default to "never" if not included.
@@ -590,11 +587,10 @@ func createWorkspace(
 	if req.AutomaticUpdates != "" {
 		dbAU, err = validWorkspaceAutomaticUpdates(req.AutomaticUpdates)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			return codersdk.Workspace{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 				Message:     "Invalid Workspace Automatic Updates setting.",
 				Validations: []codersdk.ValidationError{{Field: "automatic_updates", Detail: err.Error()}},
 			})
-			return
 		}
 	}
 
@@ -607,20 +603,18 @@ func createWorkspace(
 	})
 	if err == nil {
 		// If the workspace already exists, don't allow creation.
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusConflict, codersdk.Response{
 			Message: fmt.Sprintf("Workspace %q already exists.", req.Name),
 			Validations: []codersdk.ValidationError{{
 				Field:  "name",
 				Detail: "This value is already in use and should be unique.",
 			}},
 		})
-		return
 	} else if !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 			Message: fmt.Sprintf("Internal error fetching workspace by name %q.", req.Name),
 			Detail:  err.Error(),
 		})
-		return
 	}
 
 	var (
@@ -759,8 +753,7 @@ func createWorkspace(
 		return err
 	}, nil)
 	if err != nil {
-		httperror.WriteWorkspaceBuildError(ctx, rw, err)
-		return
+		return codersdk.Workspace{}, err
 	}
 
 	err = provisionerjobs.PostJob(api.Pubsub, *provisionerJob)
@@ -809,11 +802,10 @@ func createWorkspace(
 		provisionerDaemons,
 	)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error converting workspace build.",
 			Detail:  err.Error(),
 		})
-		return
 	}
 
 	w, err := convertWorkspace(
@@ -825,40 +817,38 @@ func createWorkspace(
 		codersdk.WorkspaceAppStatus{},
 	)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error converting workspace.",
 			Detail:  err.Error(),
 		})
-		return
 	}
-	httpapi.Write(ctx, rw, http.StatusCreated, w)
+
+	return w, nil
 }
 
-func requestTemplate(ctx context.Context, rw http.ResponseWriter, req codersdk.CreateWorkspaceRequest, db database.Store) (database.Template, bool) {
+func requestTemplate(ctx context.Context, req codersdk.CreateWorkspaceRequest, db database.Store) (database.Template, error) {
 	// If we were given a `TemplateVersionID`, we need to determine the `TemplateID` from it.
 	templateID := req.TemplateID
 
 	if templateID == uuid.Nil {
 		templateVersion, err := db.GetTemplateVersionByID(ctx, req.TemplateVersionID)
 		if httpapi.Is404Error(err) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			return database.Template{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Template version %q doesn't exist.", req.TemplateVersionID),
 				Validations: []codersdk.ValidationError{{
 					Field:  "template_version_id",
 					Detail: "template not found",
 				}},
 			})
-			return database.Template{}, false
 		}
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			return database.Template{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching template version.",
 				Detail:  err.Error(),
 			})
-			return database.Template{}, false
 		}
 		if templateVersion.Archived {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			return database.Template{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 				Message: "Archived template versions cannot be used to make a workspace.",
 				Validations: []codersdk.ValidationError{
 					{
@@ -867,7 +857,6 @@ func requestTemplate(ctx context.Context, rw http.ResponseWriter, req codersdk.C
 					},
 				},
 			})
-			return database.Template{}, false
 		}
 
 		templateID = templateVersion.TemplateID.UUID
@@ -875,29 +864,26 @@ func requestTemplate(ctx context.Context, rw http.ResponseWriter, req codersdk.C
 
 	template, err := db.GetTemplateByID(ctx, templateID)
 	if httpapi.Is404Error(err) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		return database.Template{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Template %q doesn't exist.", templateID),
 			Validations: []codersdk.ValidationError{{
 				Field:  "template_id",
 				Detail: "template not found",
 			}},
 		})
-		return database.Template{}, false
 	}
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		return database.Template{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching template.",
 			Detail:  err.Error(),
 		})
-		return database.Template{}, false
 	}
 	if template.Deleted {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+		return database.Template{}, httperror.NewResponseError(http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Template %q has been deleted!", template.Name),
 		})
-		return database.Template{}, false
 	}
-	return template, true
+	return template, nil
 }
 
 func claimPrebuild(
