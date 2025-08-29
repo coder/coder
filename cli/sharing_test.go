@@ -169,13 +169,13 @@ func TestSharingShare(t *testing.T) {
 	})
 }
 
-func TestSharingShow(t *testing.T) {
+func TestSharingStatus(t *testing.T) {
 	t.Parallel()
 
 	dv := coderdtest.DeploymentValues(t)
 	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 
-	t.Run("ShowSharedUsers", func(t *testing.T) {
+	t.Run("ListSharedUsers", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -199,7 +199,7 @@ func TestSharingShow(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		inv, root := clitest.New(t, "sharing", "show", workspace.Name, "--org", orgOwner.OrganizationID.String())
+		inv, root := clitest.New(t, "sharing", "status", workspace.Name, "--org", orgOwner.OrganizationID.String())
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
 		out := bytes.NewBuffer(nil)

@@ -26,7 +26,7 @@ func (r *RootCmd) sharing() *serpent.Command {
 		},
 		Children: []*serpent.Command{
 			r.shareWorkspace(orgContext),
-			r.showWorkspaceSharing(),
+			r.statusWorkspaceSharing(),
 		},
 		Hidden: true,
 	}
@@ -35,12 +35,12 @@ func (r *RootCmd) sharing() *serpent.Command {
 	return cmd
 }
 
-func (r *RootCmd) showWorkspaceSharing() *serpent.Command {
+func (r *RootCmd) statusWorkspaceSharing() *serpent.Command {
 	client := new(codersdk.Client)
 
 	cmd := &serpent.Command{
-		Use:     "show <workspace>",
-		Short:   "Show all users and groups the given Workspace is shared with.",
+		Use:     "status <workspace>",
+		Short:   "List all users and groups the given Workspace is shared with.",
 		Aliases: []string{"list"},
 		Middleware: serpent.Chain(
 			r.InitClient(client),
