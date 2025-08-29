@@ -12,7 +12,7 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { TooltipProvider, TooltipTrigger } from "components/Tooltip/Tooltip";
+import { TooltipTrigger } from "components/Tooltip/Tooltip";
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 
@@ -307,29 +307,27 @@ const SubAgentStatus: FC<SubAgentStatusProps> = ({ agent }) => {
 
 const DevcontainerStartError: FC<AgentStatusProps> = ({ agent }) => {
 	return (
-		<TooltipProvider>
-			<HelpTooltip>
-				<TooltipTrigger asChild role="status" aria-label="Start error">
-					<TriangleAlertIcon css={styles.errorWarning} />
-				</TooltipTrigger>
-				<HelpTooltipContent>
-					<HelpTooltipTitle>
-						Error starting the devcontainer agent
-					</HelpTooltipTitle>
-					<HelpTooltipText>
-						Something went wrong during the devcontainer agent startup.{" "}
-						<Link
-							target="_blank"
-							rel="noreferrer"
-							href={agent.troubleshooting_url}
-						>
-							Troubleshoot
-						</Link>
-						.
-					</HelpTooltipText>
-				</HelpTooltipContent>
-			</HelpTooltip>
-		</TooltipProvider>
+		<HelpTooltip>
+			<TooltipTrigger asChild role="status" aria-label="Start error">
+				<TriangleAlertIcon css={styles.errorWarning} />
+			</TooltipTrigger>
+			<HelpTooltipContent>
+				<HelpTooltipTitle>
+					Error starting the devcontainer agent
+				</HelpTooltipTitle>
+				<HelpTooltipText>
+					Something went wrong during the devcontainer agent startup.{" "}
+					<Link
+						target="_blank"
+						rel="noreferrer"
+						href={agent.troubleshooting_url}
+					>
+						Troubleshoot
+					</Link>
+					.
+				</HelpTooltipText>
+			</HelpTooltipContent>
+		</HelpTooltip>
 	);
 };
 
