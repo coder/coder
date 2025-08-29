@@ -16,7 +16,7 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { InfoIcon, RotateCcwIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
-import { useState, type FC } from "react";
+import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import {
 	useWorkspaceUpdate,

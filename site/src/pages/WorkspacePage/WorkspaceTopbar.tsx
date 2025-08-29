@@ -18,6 +18,7 @@ import {
 	HelpTooltip,
 	HelpTooltipContent,
 } from "components/HelpTooltip/HelpTooltip";
+import { TooltipTrigger } from "components/Tooltip/Tooltip";
 import { ChevronLeftIcon, CircleDollarSign, TrashIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
@@ -30,7 +31,6 @@ import type { WorkspacePermissions } from "../../modules/workspaces/permissions"
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
-import { TooltipTrigger } from "components/Tooltip/Tooltip";
 
 interface WorkspaceProps {
 	isUpdating: boolean;
