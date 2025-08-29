@@ -309,27 +309,29 @@ const SubAgentStatus: FC<SubAgentStatusProps> = ({ agent }) => {
 
 const DevcontainerStartError: FC<AgentStatusProps> = ({ agent }) => {
 	return (
-		<HelpTooltip>
-			<TooltipTrigger asChild role="status" aria-label="Start error">
-				<TriangleAlertIcon css={styles.errorWarning} />
-			</TooltipTrigger>
-			<HelpTooltipContent>
-				<HelpTooltipTitle>
-					Error starting the devcontainer agent
-				</HelpTooltipTitle>
-				<HelpTooltipText>
-					Something went wrong during the devcontainer agent startup.{" "}
-					<Link
-						target="_blank"
-						rel="noreferrer"
-						href={agent.troubleshooting_url}
-					>
-						Troubleshoot
-					</Link>
-					.
-				</HelpTooltipText>
-			</HelpTooltipContent>
-		</HelpTooltip>
+		<TooltipProvider>
+			<HelpTooltip>
+				<TooltipTrigger asChild role="status" aria-label="Start error">
+					<TriangleAlertIcon css={styles.errorWarning} />
+				</TooltipTrigger>
+				<HelpTooltipContent>
+					<HelpTooltipTitle>
+						Error starting the devcontainer agent
+					</HelpTooltipTitle>
+					<HelpTooltipText>
+						Something went wrong during the devcontainer agent startup.{" "}
+						<Link
+							target="_blank"
+							rel="noreferrer"
+							href={agent.troubleshooting_url}
+						>
+							Troubleshoot
+						</Link>
+						.
+					</HelpTooltipText>
+				</HelpTooltipContent>
+			</HelpTooltip>
+		</TooltipProvider>
 	);
 };
 
