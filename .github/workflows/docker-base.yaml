@@ -43,7 +43,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           persist-credentials: false
 
@@ -62,7 +62,7 @@ jobs:
 
       # This uses OIDC authentication, so no auth variables are required.
       - name: Build base Docker image via depot.dev
-        uses: depot/build-push-action@2583627a84956d07561420dcc1d0eb1f2af3fac0 # v1.15.0
+        uses: depot/build-push-action@9785b135c3c76c33db102e45be96a25ab55cd507 # v1.16.2
         with:
           project: wl5hnrrkns
           context: base-build-context

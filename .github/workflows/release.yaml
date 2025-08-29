@@ -65,7 +65,7 @@ jobs:
     steps:
       # Harden Runner doesn't work on macOS.
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -169,7 +169,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -253,7 +253,7 @@ jobs:
 
       # Necessary for signing Windows binaries.
       - name: Setup Java
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
         with:
           distribution: "zulu"
           java-version: "11.0"
@@ -324,7 +324,7 @@ jobs:
           token_format: "access_token"
 
       - name: Setup GCloud SDK
-        uses: google-github-actions/setup-gcloud@cb1e50a9932213ecece00a606661ae9ca44f3397 # v2.2.0
+        uses: google-github-actions/setup-gcloud@26f734c2779b00b7dda794207734c511110a4368 # v3.0.0
 
       - name: Download dylibs
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
@@ -397,7 +397,7 @@ jobs:
       # This uses OIDC authentication, so no auth variables are required.
       - name: Build base Docker image via depot.dev
         if: steps.image-base-tag.outputs.tag != ''
-        uses: depot/build-push-action@2583627a84956d07561420dcc1d0eb1f2af3fac0 # v1.15.0
+        uses: depot/build-push-action@9785b135c3c76c33db102e45be96a25ab55cd507 # v1.16.2
         with:
           project: wl5hnrrkns
           context: base-build-context
@@ -454,7 +454,7 @@ jobs:
         id: attest_base
         if: ${{ !inputs.dry_run && steps.image-base-tag.outputs.tag != '' }}
         continue-on-error: true
-        uses: actions/attest@ce27ba3b4a9a139d9a20a4a07d69fabb52f1e5bc # v2.4.0
+        uses: actions/attest@daf44fb950173508f38bd2406030372c1d1162b1 # v3.0.0
         with:
           subject-name: ${{ steps.image-base-tag.outputs.tag }}
           predicate-type: "https://slsa.dev/provenance/v1"
@@ -570,7 +570,7 @@ jobs:
         id: attest_main
         if: ${{ !inputs.dry_run }}
         continue-on-error: true
-        uses: actions/attest@ce27ba3b4a9a139d9a20a4a07d69fabb52f1e5bc # v2.4.0
+        uses: actions/attest@daf44fb950173508f38bd2406030372c1d1162b1 # v3.0.0
         with:
           subject-name: ${{ steps.build_docker.outputs.multiarch_image }}
           predicate-type: "https://slsa.dev/provenance/v1"
@@ -614,7 +614,7 @@ jobs:
         id: attest_latest
         if: ${{ !inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true' }}
         continue-on-error: true
-        uses: actions/attest@ce27ba3b4a9a139d9a20a4a07d69fabb52f1e5bc # v2.4.0
+        uses: actions/attest@daf44fb950173508f38bd2406030372c1d1162b1 # v3.0.0
         with:
           subject-name: ${{ steps.latest_tag.outputs.tag }}
           predicate-type: "https://slsa.dev/provenance/v1"
@@ -740,7 +740,7 @@ jobs:
           service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
 
       - name: Setup GCloud SDK
-        uses: google-github-actions/setup-gcloud@cb1e50a9932213ecece00a606661ae9ca44f3397 # 2.2.0
+        uses: google-github-actions/setup-gcloud@26f734c2779b00b7dda794207734c511110a4368 # 3.0.0
 
       - name: Publish Helm Chart
         if: ${{ !inputs.dry_run }}
@@ -888,7 +888,7 @@ jobs:
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
 
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -976,7 +976,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 1
           persist-credentials: false
