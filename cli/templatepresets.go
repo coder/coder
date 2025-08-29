@@ -50,7 +50,6 @@ func (r *RootCmd) templatePresetsList() *serpent.Command {
 		cliui.TableFormat([]TemplatePresetRow{}, defaultColumns),
 		cliui.JSONFormat(),
 	)
-	client := new(codersdk.Client)
 	orgContext := NewOrganizationContext()
 
 	var templateVersion string
@@ -59,7 +58,6 @@ func (r *RootCmd) templatePresetsList() *serpent.Command {
 		Use: "list <template>",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Short: "List all presets of the specified template. Defaults to the active template version.",
 		Options: serpent.OptionSet{
@@ -71,6 +69,10 @@ func (r *RootCmd) templatePresetsList() *serpent.Command {
 			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)

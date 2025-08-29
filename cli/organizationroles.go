@@ -54,14 +54,15 @@ func (r *RootCmd) showOrganizationRoles(orgContext *OrganizationContext) *serpen
 		cliui.JSONFormat(),
 	)
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "show [role_names ...]",
 		Short: "Show role(s)",
-		Middleware: serpent.Chain(
-			r.InitClient(client),
-		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			ctx := inv.Context()
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {
@@ -117,7 +118,6 @@ func (r *RootCmd) createOrganizationRole(orgContext *OrganizationContext) *serpe
 		jsonInput bool
 	)
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "create <role_name>",
 		Short: "Create a new organization custom role",
@@ -144,10 +144,13 @@ func (r *RootCmd) createOrganizationRole(orgContext *OrganizationContext) *serpe
 		},
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
@@ -240,7 +243,6 @@ func (r *RootCmd) updateOrganizationRole(orgContext *OrganizationContext) *serpe
 		jsonInput bool
 	)
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "update <role_name>",
 		Short: "Update an organization custom role",
@@ -267,9 +269,13 @@ func (r *RootCmd) updateOrganizationRole(orgContext *OrganizationContext) *serpe
 		},
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			ctx := inv.Context()
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {

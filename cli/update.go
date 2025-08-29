@@ -15,7 +15,6 @@ func (r *RootCmd) update() *serpent.Command {
 		parameterFlags workspaceParameterFlags
 		bflags         buildFlags
 	)
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "update <workspace>",
@@ -23,9 +22,13 @@ func (r *RootCmd) update() *serpent.Command {
 		Long:        "Use --always-prompt to change the parameter values of the workspace.",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err

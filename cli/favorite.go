@@ -5,12 +5,10 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) favorite() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Aliases:     []string{"fav", "favou" + "rite"},
 		Annotations: workspaceCommand,
@@ -18,9 +16,13 @@ func (r *RootCmd) favorite() *serpent.Command {
 		Short:       "Add a workspace to your favorites",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			ws, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
@@ -37,7 +39,6 @@ func (r *RootCmd) favorite() *serpent.Command {
 }
 
 func (r *RootCmd) unfavorite() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Aliases:     []string{"unfav", "unfavou" + "rite"},
 		Annotations: workspaceCommand,
@@ -45,9 +46,13 @@ func (r *RootCmd) unfavorite() *serpent.Command {
 		Short:       "Remove a workspace from your favorites",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			ws, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)

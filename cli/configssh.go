@@ -236,7 +236,6 @@ func (r *RootCmd) configSSH() *serpent.Command {
 		dryRun          bool
 		coderCliPath    string
 	)
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "config-ssh",
@@ -253,9 +252,13 @@ func (r *RootCmd) configSSH() *serpent.Command {
 		),
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			ctx := inv.Context()
 
 			if sshConfigOpts.waitEnum != "auto" && sshConfigOpts.skipProxyCommand {
@@ -280,7 +283,6 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				out = inv.Stderr
 			}
 
-			var err error
 			coderBinary := coderCliPath
 			if coderBinary == "" {
 				coderBinary, err = currentBinPath(out)

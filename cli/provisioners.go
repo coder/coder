@@ -35,7 +35,6 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 		OrganizationName           string `json:"organization_name" table:"organization"`
 	}
 	var (
-		client     = new(codersdk.Client)
 		orgContext = NewOrganizationContext()
 		formatter  = cliui.NewOutputFormatter(
 			cliui.TableFormat([]provisionerDaemonRow{}, []string{"created at", "last seen at", "key name", "name", "version", "status", "tags"}),
@@ -53,11 +52,13 @@ func (r *RootCmd) provisionerList() *serpent.Command {
 		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
-
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return xerrors.Errorf("current organization: %w", err)

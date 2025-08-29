@@ -9,22 +9,21 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) netcheck() *serpent.Command {
-	client := new(codersdk.Client)
-
 	cmd := &serpent.Command{
 		Use:   "netcheck",
 		Short: "Print network debug information for DERP and STUN",
-		Middleware: serpent.Chain(
-			r.InitClient(client),
-		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			ctx, cancel := context.WithTimeout(inv.Context(), 30*time.Second)
 			defer cancel()
 

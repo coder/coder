@@ -96,7 +96,6 @@ func (r *RootCmd) list() *serpent.Command {
 			cliui.JSONFormat(),
 		)
 	)
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "list",
@@ -104,9 +103,13 @@ func (r *RootCmd) list() *serpent.Command {
 		Aliases:     []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			res, err := QueryConvertWorkspaces(inv.Context(), client, filter.Filter(), WorkspaceListRowFromWorkspace)
 			if err != nil {
 				return err
