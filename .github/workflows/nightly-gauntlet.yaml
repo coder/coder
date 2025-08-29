@@ -170,6 +170,7 @@ jobs:
     steps:
       - name: Send Slack notification
         run: |
+          ESCAPED_PROMPT=$(printf "%s" "<@U08TJ4YNCA3> $BLINK_CI_FAILURE_PROMPT" | jq -Rsa .)
           curl -X POST -H 'Content-type: application/json' \
           --data '{
             "blocks": [
@@ -209,7 +210,7 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "<@U08TJ4YNCA3> investigate this CI failure. Check logs, search for existing issues, use git blame to find who last modified failing tests, create issue in coder/internal (not public repo), use title format \"flake: TestName\" for flaky tests, and assign to the person from git blame."
+                  "text": '"$ESCAPED_PROMPT"'
                 }
               }
             ]
@@ -217,3 +218,4 @@ jobs:
         env:
           SLACK_WEBHOOK: ${{ secrets.CI_FAILURE_SLACK_WEBHOOK }}
           RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BLINK_CI_FAILURE_PROMPT: ${{ vars.BLINK_CI_FAILURE_PROMPT }}
