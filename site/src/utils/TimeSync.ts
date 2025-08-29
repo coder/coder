@@ -19,11 +19,17 @@ export type TimeSyncInitOptions = Readonly<{
 	createNewDatetime: CreateNewDatetime;
 
 	/**
-	 * Configures whether adding a new subscription will immediately create
-	 * a new time snapshot and use it to update all other subscriptions.
-	 * Defaults to true.
+	 * Configures whether subscribers will be notified immediately after a new
+	 * Date snapshot has been created. Defaults to true.
+	 *
+	 * The main use case for disabling this is for interfacing with systems with
+	 * very strict rules for side effects. To minimize stale data issues, adding
+	 * a new subscription might immediately update the Date state. If it is NOT
+	 * safe to notify all other subscribers right after this, set this property
+	 * to false, and then use the `notifySubscribers` method to manage
+	 * subscriptions manually.
 	 */
-	resyncOnNewSubscription: boolean;
+	notifyAfterUpdate: boolean;
 }>;
 
 /**
@@ -56,7 +62,7 @@ export type SubscriptionHandshake = Readonly<{
 
 const defaultOptions: TimeSyncInitOptions = {
 	initialDatetime: new Date(),
-	resyncOnNewSubscription: true,
+	notifyAfterUpdate: true,
 	createNewDatetime: () => new Date(),
 };
 
@@ -80,9 +86,16 @@ interface TimeSyncApi {
 
 	/**
 	 * Allows any system to pull the newest time state from TimeSync, regardless
-	 * of whether the system is subscribed
+	 * of whether the system is subscribed.
 	 */
-	getTimeSnapshot: () => ReadonlyDate;
+	getStateSnapshot: () => ReadonlyDate;
+
+	/**
+	 * Allows any external system to manually flush the latest time snapshot to
+	 * all subscribers. Does not need to be used if TimeSync has already been
+	 * configured with `resyncOnNewSubscription` set to true.
+	 */
+	notifySubscribers: () => void;
 }
 
 type SubscriptionTracker = Readonly<{
@@ -107,7 +120,7 @@ type SubscriptionTracker = Readonly<{
  * See comments for exported methods and types for more information.
  */
 export class TimeSync implements TimeSyncApi {
-	readonly #resyncOnNewSubscription: boolean;
+	readonly #notifyAfterUpdate: boolean;
 	readonly #createNewDatetime: CreateNewDatetime;
 
 	/**
@@ -138,19 +151,21 @@ export class TimeSync implements TimeSyncApi {
 	constructor(options: Partial<TimeSyncInitOptions>) {
 		const {
 			initialDatetime = defaultOptions.initialDatetime,
-			resyncOnNewSubscription = defaultOptions.resyncOnNewSubscription,
+			notifyAfterUpdate = defaultOptions.notifyAfterUpdate,
 			createNewDatetime = defaultOptions.createNewDatetime,
 		} = options;
 
 		this.#createNewDatetime = createNewDatetime;
-		this.#resyncOnNewSubscription = resyncOnNewSubscription;
+		this.#notifyAfterUpdate = notifyAfterUpdate;
 
 		const dateCopy = Object.freeze(new Date(initialDatetime));
 		this.#latestDateSnapshot = dateCopy;
 	}
 
-	// Convenience method for getting the minimum refresh interval in a
-	// type-safe way
+	/**
+	 * Convenience method for getting the minimum refresh interval in a
+	 * type-safe way
+	 */
 	#getMinUpdateInterval(): number {
 		return (
 			this.#subscriptionTrackers[0]?.targetRefreshInterval ??
@@ -158,17 +173,16 @@ export class TimeSync implements TimeSyncApi {
 		);
 	}
 
-	// Defined as an arrow function so that we can just pass it directly to
-	// setInterval without needing to make a new wrapper function each time. We
-	// don't have many situations where we can lose the `this` context, but this
-	// is one of them
-	#updateDateSnapshot = (): void => {
+	/**
+	 * Return value indicates whether the update meaningfully changed anything.
+	 */
+	#updateSnapshot(): boolean {
 		const newSource = this.#createNewDatetime(this.#latestDateSnapshot);
 		const noStateChange =
 			newSource.getMilliseconds() ===
 			this.#latestDateSnapshot.getMilliseconds();
 		if (noStateChange) {
-			return;
+			return false;
 		}
 
 		// Binding the updated state to a separate variable instead of `this`
@@ -176,17 +190,24 @@ export class TimeSync implements TimeSyncApi {
 		// callback runs
 		const frozen = Object.freeze(newSource);
 		this.#latestDateSnapshot = frozen;
+		return true;
+	}
 
-		const subscriptionsPaused =
-			this.#subscriptionTrackers.length === 0 ||
-			this.#getMinUpdateInterval() === Number.POSITIVE_INFINITY;
-		if (subscriptionsPaused) {
-			return;
+	#flushSync(): void {
+		const updated = this.#updateSnapshot();
+		if (updated && this.#notifyAfterUpdate) {
+			this.notifySubscribers();
 		}
-		for (const subEntry of this.#subscriptionTrackers) {
-			for (const onUpdate of subEntry.updates.keys()) {
-				onUpdate(frozen);
-			}
+	}
+
+	// Defined as an arrow function so that we can just pass it directly to
+	// setInterval without needing to make a new wrapper function each time. We
+	// don't have many situations where we can lose the `this` context, but this
+	// is one of them
+	#onTick = (): void => {
+		const updated = this.#updateSnapshot();
+		if (updated) {
+			this.notifySubscribers();
 		}
 	};
 
@@ -214,21 +235,15 @@ export class TimeSync implements TimeSyncApi {
 		// setting up the new interval
 		if (delta <= 0) {
 			window.clearInterval(this.#latestIntervalId);
-			this.#updateDateSnapshot();
-			this.#latestIntervalId = window.setInterval(
-				this.#updateDateSnapshot,
-				newMin,
-			);
+			this.#flushSync();
+			this.#latestIntervalId = window.setInterval(this.#onTick, newMin);
 			return;
 		}
 
 		window.clearInterval(this.#latestIntervalId);
 		this.#latestIntervalId = window.setInterval(() => {
 			window.clearInterval(this.#latestIntervalId);
-			this.#latestIntervalId = window.setInterval(
-				this.#updateDateSnapshot,
-				newMin,
-			);
+			this.#latestIntervalId = window.setInterval(this.#onTick, newMin);
 		}, delta);
 	}
 
@@ -255,9 +270,6 @@ export class TimeSync implements TimeSyncApi {
 		activeTracker.updates.set(onUpdate, newCount);
 		if (needReconciliation) {
 			this.#reconcileTrackersUpdate();
-		}
-		if (!alreadySubscribed && this.#resyncOnNewSubscription) {
-			this.#updateDateSnapshot();
 		}
 	}
 
@@ -307,7 +319,27 @@ export class TimeSync implements TimeSyncApi {
 		return () => this.#removeSubscription(targetRefreshInterval, onUpdate);
 	}
 
-	getTimeSnapshot(): ReadonlyDate {
+	getStateSnapshot(): ReadonlyDate {
 		return this.#latestDateSnapshot;
+	}
+
+	notifySubscribers(): void {
+		const subscriptionsPaused =
+			this.#subscriptionTrackers.length === 0 ||
+			this.#getMinUpdateInterval() === Number.POSITIVE_INFINITY;
+		if (subscriptionsPaused) {
+			return;
+		}
+
+		// Copying the latest state into a separate variable, just to make
+		// absolutely sure that if the `this` context magically changes between
+		// callback calls, it doesn't cause subscribers to receive different
+		// values.
+		const bound = this.#latestDateSnapshot;
+		for (const subEntry of this.#subscriptionTrackers) {
+			for (const onUpdate of subEntry.updates.keys()) {
+				onUpdate(bound);
+			}
+		}
 	}
 }
