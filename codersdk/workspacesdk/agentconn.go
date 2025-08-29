@@ -60,6 +60,7 @@ type AgentConn interface {
 	PrometheusMetrics(ctx context.Context) ([]byte, error)
 	ReconnectingPTY(ctx context.Context, id uuid.UUID, height uint16, width uint16, command string, initOpts ...AgentReconnectingPTYInitOption) (net.Conn, error)
 	RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error)
+	ReadFile(ctx context.Context, path string, offset, limit int64) ([]byte, string, error)
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
 	SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error)
@@ -474,6 +475,45 @@ func (c *agentConn) RecreateDevcontainer(ctx context.Context, devcontainerID str
 		return codersdk.Response{}, xerrors.Errorf("decode response body: %w", err)
 	}
 	return m, nil
+}
+
+const maxFileLimit = 1 << 20 // 1MiB
+
+// ReadFile reads from a file from the workspace, returning the file's
+// (potentially partial) bytes and the mime type.
+func (c *agentConn) ReadFile(ctx context.Context, path string, offset, limit int64) ([]byte, string, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	// Ideally we could stream this all the way back, but it looks like the MCP
+	// interfaces only allow returning full responses which means the whole thing
+	// has to be read into memory.  So, add a maximum to compensate.
+	if limit == 0 {
+		limit = maxFileLimit
+	} else if limit > maxFileLimit {
+		return nil, "", xerrors.Errorf("limit must be %d or less, got %d", maxFileLimit, limit)
+	}
+
+	res, err := c.apiRequest(ctx, http.MethodGet, fmt.Sprintf("/api/v0/read-file?path=%s&offset=%d&limit=%d", path, offset, limit), nil)
+	if err != nil {
+		return nil, "", xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, "", codersdk.ReadBodyAsError(res)
+	}
+
+	bs, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, "", xerrors.Errorf("read response body: %w", err)
+	}
+
+	mimeType := res.Header.Get("Content-Type")
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+
+	return bs, mimeType, nil
 }
 
 // apiRequest makes a request to the workspace agent's HTTP API server.
