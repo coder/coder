@@ -335,15 +335,38 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.postWorkspaceBuildsInternal(rw, r, apiKey, workspace, createBuild)
+	apiBuild, err := api.postWorkspaceBuildsInternal(
+		ctx,
+		apiKey,
+		workspace,
+		createBuild,
+		func(action policy.Action, object rbac.Objecter) bool {
+			return api.Authorize(r, action, object)
+		},
+		audit.WorkspaceBuildBaggageFromRequest(r),
+	)
+	if err != nil {
+		httperror.WriteWorkspaceBuildError(ctx, rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, apiBuild)
 }
 
 // postWorkspaceBuildsInternal handles the internal logic for creating
 // workspace builds, can be called by other handlers and must not
 // reference httpmw.
-func (api *API) postWorkspaceBuildsInternal(rw http.ResponseWriter, r *http.Request, apiKey database.APIKey, workspace database.Workspace, createBuild codersdk.CreateWorkspaceBuildRequest) {
-	ctx := r.Context()
-
+func (api *API) postWorkspaceBuildsInternal(
+	ctx context.Context,
+	apiKey database.APIKey,
+	workspace database.Workspace,
+	createBuild codersdk.CreateWorkspaceBuildRequest,
+	authorize func(action policy.Action, object rbac.Objecter) bool,
+	workspaceBuildBaggage audit.WorkspaceBuildBaggage,
+) (
+	codersdk.WorkspaceBuild,
+	error,
+) {
 	transition := database.WorkspaceTransition(createBuild.Transition)
 	builder := wsbuilder.New(workspace, transition, *api.BuildUsageChecker.Load()).
 		Initiator(apiKey.UserID).
@@ -370,11 +393,10 @@ func (api *API) postWorkspaceBuildsInternal(rw http.ResponseWriter, r *http.Requ
 		previousWorkspaceBuild, err = tx.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			api.Logger.Error(ctx, "failed fetching previous workspace build", slog.F("workspace_id", workspace.ID), slog.Error(err))
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching previous workspace build",
 				Detail:  err.Error(),
 			})
-			return nil
 		}
 
 		if createBuild.TemplateVersionID != uuid.Nil {
@@ -383,16 +405,14 @@ func (api *API) postWorkspaceBuildsInternal(rw http.ResponseWriter, r *http.Requ
 
 		if createBuild.Orphan {
 			if createBuild.Transition != codersdk.WorkspaceTransitionDelete {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 					Message: "Orphan is only permitted when deleting a workspace.",
 				})
-				return nil
 			}
 			if len(createBuild.ProvisionerState) > 0 {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 					Message: "ProvisionerState cannot be set alongside Orphan since state intent is unclear.",
 				})
-				return nil
 			}
 			builder = builder.Orphan()
 		}
@@ -405,24 +425,23 @@ func (api *API) postWorkspaceBuildsInternal(rw http.ResponseWriter, r *http.Requ
 			tx,
 			api.FileCache,
 			func(action policy.Action, object rbac.Objecter) bool {
-				if auth := api.Authorize(r, action, object); auth {
+				if auth := authorize(action, object); auth {
 					return true
 				}
 				// Special handling for prebuilt workspace deletion
 				if action == policy.ActionDelete {
 					if workspaceObj, ok := object.(database.PrebuiltWorkspaceResource); ok && workspaceObj.IsPrebuild() {
-						return api.Authorize(r, action, workspaceObj.AsPrebuild())
+						return authorize(action, workspaceObj.AsPrebuild())
 					}
 				}
 				return false
 			},
-			audit.WorkspaceBuildBaggageFromRequest(r),
+			workspaceBuildBaggage,
 		)
 		return err
 	}, nil)
 	if err != nil {
-		httperror.WriteWorkspaceBuildError(ctx, rw, err)
-		return
+		return codersdk.WorkspaceBuild{}, err
 	}
 
 	var queuePos database.GetProvisionerJobsByIDsWithQueuePositionRow
@@ -486,11 +505,13 @@ func (api *API) postWorkspaceBuildsInternal(rw http.ResponseWriter, r *http.Requ
 		provisionerDaemons,
 	)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspace build.",
-			Detail:  err.Error(),
-		})
-		return
+		return codersdk.WorkspaceBuild{}, httperror.NewResponseError(
+			http.StatusInternalServerError,
+			codersdk.Response{
+				Message: "Internal error converting workspace build.",
+				Detail:  err.Error(),
+			},
+		)
 	}
 
 	// If this workspace build has a different template version ID to the previous build
@@ -517,7 +538,7 @@ func (api *API) postWorkspaceBuildsInternal(rw http.ResponseWriter, r *http.Requ
 		WorkspaceID: workspace.ID,
 	})
 
-	httpapi.Write(ctx, rw, http.StatusCreated, apiBuild)
+	return apiBuild, nil
 }
 
 func (api *API) notifyWorkspaceUpdated(

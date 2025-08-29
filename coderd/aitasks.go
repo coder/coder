@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -19,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -443,7 +443,8 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 }
 
 // taskDelete is an experimental endpoint to delete a task by ID (workspace ID).
-// It creates a delete workspace build and returns 202 Accepted if the build was created.
+// It creates a delete workspace build and returns 202 Accepted if the build was
+// created.
 func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -497,43 +498,21 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 		Reason:     "Deleted via tasks API",
 	}
 
-	rc := &responseWriterCapture{}
-	api.postWorkspaceBuildsInternal(rc, r, apiKey, workspace, buildReq)
-
-	status := rc.status
-	if status == 0 {
-		status = http.StatusOK
-	}
-
-	if status != http.StatusCreated {
-		// Propagate the error response from the workspace build handler.
-		for k, vs := range rc.Header() {
-			for _, v := range vs {
-				rw.Header().Add(k, v)
-			}
-		}
-		rw.WriteHeader(status)
-		_, _ = rw.Write(rc.body.Bytes())
+	_, err = api.postWorkspaceBuildsInternal(
+		ctx,
+		apiKey,
+		workspace,
+		buildReq,
+		func(action policy.Action, object rbac.Objecter) bool {
+			return api.Authorize(r, action, object)
+		},
+		audit.WorkspaceBuildBaggageFromRequest(r),
+	)
+	if err != nil {
+		httperror.WriteWorkspaceBuildError(ctx, rw, err)
 		return
 	}
 
 	// Delete build created successfully.
 	rw.WriteHeader(http.StatusAccepted)
 }
-
-type responseWriterCapture struct {
-	header http.Header
-	status int
-	body   bytes.Buffer
-}
-
-func (w *responseWriterCapture) Header() http.Header {
-	if w.header == nil {
-		w.header = make(http.Header)
-	}
-	return w.header
-}
-
-func (w *responseWriterCapture) Write(b []byte) (int, error) { return w.body.Write(b) }
-
-func (w *responseWriterCapture) WriteHeader(statusCode int) { w.status = statusCode }
