@@ -243,13 +243,12 @@ STATE CHANGED  STATUS   STATE  MESSAGE
 				ctx    = testutil.Context(t, testutil.WaitShort)
 				now    = time.Now().UTC() // TODO: replace with quartz
 				srv    = httptest.NewServer(http.HandlerFunc(tc.hf(ctx, now)))
-				client = new(codersdk.Client)
+				client = codersdk.New(testutil.MustURL(t, srv.URL))
 				sb     = strings.Builder{}
 				args   = []string{"exp", "task", "status", "--watch-interval", testutil.IntervalFast.String()}
 			)
 
 			t.Cleanup(srv.Close)
-			client.URL = testutil.MustURL(t, srv.URL)
 			args = append(args, tc.args...)
 			inv, root := clitest.New(t, args...)
 			inv.Stdout = &sb

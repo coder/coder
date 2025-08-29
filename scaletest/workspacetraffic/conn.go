@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"net"
-	"net/http"
 	"sync"
 	"time"
 
@@ -269,18 +268,13 @@ func (w *wrappedSSHConn) Write(p []byte) (n int, err error) {
 }
 
 func appClientConn(ctx context.Context, client *codersdk.Client, url string) (*countReadWriteCloser, error) {
-	headers := http.Header{}
-	tokenHeader := codersdk.SessionTokenHeader
-	if client.SessionTokenHeader != "" {
-		tokenHeader = client.SessionTokenHeader
+	wsOptions := &websocket.DialOptions{
+		HTTPClient: client.HTTPClient,
 	}
-	headers.Set(tokenHeader, client.SessionToken())
+	client.SessionTokenProvider.SetDialOption(wsOptions)
 
 	//nolint:bodyclose // The websocket conn manages the body.
-	conn, _, err := websocket.Dial(ctx, url, &websocket.DialOptions{
-		HTTPClient: client.HTTPClient,
-		HTTPHeader: headers,
-	})
+	conn, _, err := websocket.Dial(ctx, url, wsOptions)
 	if err != nil {
 		return nil, xerrors.Errorf("websocket dial: %w", err)
 	}
