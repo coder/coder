@@ -39,7 +39,7 @@ WITH usage_events AS (
                     -- than an hour ago. This is so we can retry publishing
                     -- events where the replica exited or couldn't update the
                     -- row.
-                    -- The parenthesis around @now::timestamptz are necessary to
+                    -- The parentheses around @now::timestamptz are necessary to
                     -- avoid sqlc from generating an extra argument.
                     OR potential_event.publish_started_at < (@now::timestamptz) - INTERVAL '1 hour'
                 )
@@ -47,7 +47,7 @@ WITH usage_events AS (
                 -- always permanently reject these events anyways. This is to
                 -- avoid duplicate events being billed to customers, as
                 -- Metronome will only deduplicate events within 34 days.
-                -- Also, the same parenthesis thing here as above.
+                -- Also, the same parentheses thing here as above.
                 AND potential_event.created_at > (@now::timestamptz) - INTERVAL '30 days'
             ORDER BY potential_event.created_at ASC
             FOR UPDATE SKIP LOCKED
@@ -84,3 +84,24 @@ WHERE
     -- zero, so this is the best we can do.
     AND cardinality(@ids::text[]) = cardinality(@failure_messages::text[])
     AND cardinality(@ids::text[]) = cardinality(@set_published_ats::boolean[]);
+
+-- name: GetTotalUsageDCManagedAgentsV1 :one
+-- Gets the total number of managed agents created between two dates. Uses the
+-- aggregate table to avoid large scans or a complex index on the usage_events
+-- table.
+--
+-- This has the trade off that we can't count accurately between two exact
+-- timestamps. The provided timestamps will be converted to UTC and truncated to
+-- the events that happened on and between the two dates. Both dates are
+-- inclusive.
+SELECT
+    -- The first cast is necessary since you can't sum strings, and the second
+    -- cast is necessary to make sqlc happy.
+    COALESCE(SUM((usage_data->>'count')::bigint), 0)::bigint AS total_count
+FROM
+    usage_events_daily
+WHERE
+    event_type = 'dc_managed_agents_v1'
+    -- Parentheses are necessary to avoid sqlc from generating an extra
+    -- argument.
+    AND day BETWEEN date_trunc('day', (@start_date::timestamptz) AT TIME ZONE 'UTC')::date AND date_trunc('day', (@end_date::timestamptz) AT TIME ZONE 'UTC')::date;

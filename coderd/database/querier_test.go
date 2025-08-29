@@ -6652,3 +6652,131 @@ func TestGetLatestWorkspaceBuildsByWorkspaceIDs(t *testing.T) {
 		require.Equal(t, expB.BuildNumber, b.BuildNumber, "unexpected build number")
 	}
 }
+
+func TestUsageEventsTrigger(t *testing.T) {
+	t.Parallel()
+
+	// This is not exposed in the querier interface intentionally.
+	getDailyRows := func(ctx context.Context, sqlDB *sql.DB) []database.UsageEventsDaily {
+		t.Helper()
+		rows, err := sqlDB.QueryContext(ctx, "SELECT day, event_type, usage_data FROM usage_events_daily ORDER BY day ASC")
+		require.NoError(t, err, "perform query")
+		defer rows.Close()
+
+		var out []database.UsageEventsDaily
+		for rows.Next() {
+			var row database.UsageEventsDaily
+			err := rows.Scan(&row.Day, &row.EventType, &row.UsageData)
+			require.NoError(t, err, "scan row")
+			out = append(out, row)
+		}
+		return out
+	}
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+		// Assert there are no daily rows.
+		rows := getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 0)
+
+		// Insert a usage event.
+		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "1",
+			EventType: "dc_managed_agents_v1",
+			EventData: []byte(`{"count": 41}`),
+			CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		})
+		require.NoError(t, err)
+
+		// Assert there is one daily row that contains the correct data.
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 1)
+		require.Equal(t, "dc_managed_agents_v1", rows[0].EventType)
+		require.JSONEq(t, `{"count": 41}`, string(rows[0].UsageData))
+		// The read row might be `+0000` rather than `UTC` specifically, so just
+		// ensure it's within 1 second of the expected time.
+		require.WithinDuration(t, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), rows[0].Day, time.Second)
+
+		// Insert a new usage event on the same UTC day, should increment the count.
+		locSydney, err := time.LoadLocation("Australia/Sydney")
+		require.NoError(t, err)
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "2",
+			EventType: "dc_managed_agents_v1",
+			EventData: []byte(`{"count": 1}`),
+			// Insert it at a random point during the same day. Sydney is +1000 or
+			// +1100, so 8am in Sydney is the previous day in UTC.
+			CreatedAt: time.Date(2025, 1, 2, 8, 38, 57, 0, locSydney),
+		})
+		require.NoError(t, err)
+
+		// There should still be only one daily row with the incremented count.
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 1)
+		require.Equal(t, "dc_managed_agents_v1", rows[0].EventType)
+		require.JSONEq(t, `{"count": 42}`, string(rows[0].UsageData))
+		require.WithinDuration(t, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), rows[0].Day, time.Second)
+
+		// TODO: when we have a new event type, we should test that adding an
+		// event with a different event type on the same day creates a new daily
+		// row.
+
+		// Insert a new usage event on a different day, should create a new daily
+		// row.
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "3",
+			EventType: "dc_managed_agents_v1",
+			EventData: []byte(`{"count": 1}`),
+			CreatedAt: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC),
+		})
+		require.NoError(t, err)
+
+		// There should now be two daily rows.
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 2)
+		// Output is sorted by day ascending, so the first row should be the
+		// previous day's row.
+		require.Equal(t, "dc_managed_agents_v1", rows[0].EventType)
+		require.JSONEq(t, `{"count": 42}`, string(rows[0].UsageData))
+		require.WithinDuration(t, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), rows[0].Day, time.Second)
+		require.Equal(t, "dc_managed_agents_v1", rows[1].EventType)
+		require.JSONEq(t, `{"count": 1}`, string(rows[1].UsageData))
+		require.WithinDuration(t, time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC), rows[1].Day, time.Second)
+	})
+
+	t.Run("UnknownEventType", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+		// Relax the usage_events.event_type check constraint to see what
+		// happens when we insert a usage event that the trigger doesn't know
+		// about.
+		_, err := sqlDB.ExecContext(ctx, "ALTER TABLE usage_events DROP CONSTRAINT usage_event_type_check")
+		require.NoError(t, err)
+
+		// Insert a usage event with an unknown event type.
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "broken",
+			EventType: "dean's cool event",
+			EventData: []byte(`{"my": "cool json"}`),
+			CreatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		})
+		require.ErrorContains(t, err, "Unhandled usage event type in aggregate_usage_event")
+
+		// The event should've been blocked.
+		var count int
+		err = sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM usage_events WHERE id = 'broken'").Scan(&count)
+		require.NoError(t, err)
+		require.Equal(t, 0, count)
+
+		// We should not have any daily rows.
+		rows := getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 0)
+	})
+}
