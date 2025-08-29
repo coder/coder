@@ -230,7 +230,7 @@ HAVING COUNT(*) = @hard_limit::bigint;
 SELECT
 	t.name as template_name,
 	tvp.name as preset_name,
-		o.name as organization_name,
+	o.name as organization_name,
 	COUNT(*) as created_count,
 	COUNT(*) FILTER (WHERE pj.job_status = 'failed'::provisioner_job_status) as failed_count,
 	COUNT(*) FILTER (

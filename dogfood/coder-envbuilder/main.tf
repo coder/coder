@@ -135,15 +135,13 @@ module "code-server" {
   auto_install_extensions = true
 }
 
-module "jetbrains_gateway" {
-  source         = "dev.registry.coder.com/coder/jetbrains-gateway/coder"
-  version        = "1.1.1"
-  agent_id       = coder_agent.dev.id
-  agent_name     = "dev"
-  folder         = local.repo_dir
-  jetbrains_ides = ["GO", "WS"]
-  default        = "GO"
-  latest         = true
+module "jetbrains" {
+  count      = data.coder_workspace.me.start_count
+  source     = "dev.registry.coder.com/coder/jetbrains/coder"
+  version    = "~> 1.0"
+  agent_id   = coder_agent.dev.id
+  agent_name = "dev"
+  folder     = local.repo_dir
 }
 
 module "filebrowser" {

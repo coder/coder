@@ -864,6 +864,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 		tickInterval      time.Duration
 		bytesPerTick      int64
 		ssh               bool
+		disableDirect     bool
 		useHostLogin      bool
 		app               string
 		template          string
@@ -1023,15 +1024,16 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 
 				// Setup our workspace agent connection.
 				config := workspacetraffic.Config{
-					AgentID:      agent.ID,
-					BytesPerTick: bytesPerTick,
-					Duration:     strategy.timeout,
-					TickInterval: tickInterval,
-					ReadMetrics:  metrics.ReadMetrics(ws.OwnerName, ws.Name, agent.Name),
-					WriteMetrics: metrics.WriteMetrics(ws.OwnerName, ws.Name, agent.Name),
-					SSH:          ssh,
-					Echo:         ssh,
-					App:          appConfig,
+					AgentID:       agent.ID,
+					BytesPerTick:  bytesPerTick,
+					Duration:      strategy.timeout,
+					TickInterval:  tickInterval,
+					ReadMetrics:   metrics.ReadMetrics(ws.OwnerName, ws.Name, agent.Name),
+					WriteMetrics:  metrics.WriteMetrics(ws.OwnerName, ws.Name, agent.Name),
+					SSH:           ssh,
+					DisableDirect: disableDirect,
+					Echo:          ssh,
+					App:           appConfig,
 				}
 
 				if webClient != nil {
@@ -1116,6 +1118,13 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 			Default:     "",
 			Description: "Send traffic over SSH, cannot be used with --app.",
 			Value:       serpent.BoolOf(&ssh),
+		},
+		{
+			Flag:        "disable-direct",
+			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_DISABLE_DIRECT_CONNECTIONS",
+			Default:     "false",
+			Description: "Disable direct connections for SSH traffic to workspaces. Does nothing if `--ssh` is not also set.",
+			Value:       serpent.BoolOf(&disableDirect),
 		},
 		{
 			Flag:        "app",

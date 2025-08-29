@@ -154,9 +154,9 @@
 					]
 				},
 				{
-					"title": "Offline Deployments",
-					"description": "Run Coder in offline / air-gapped environments",
-					"path": "./install/offline.md",
+					"title": "Air-gapped Deployments",
+					"description": "Run Coder in air-gapped / disconnected / offline environments",
+					"path": "./install/airgap.md",
 					"icon_path": "./images/icons/lan.svg"
 				},
 				{
@@ -542,7 +542,7 @@
 									"title": "External Workspaces",
 									"description": "Learn how to manage external workspaces",
 									"path": "./admin/templates/managing-templates/external-workspaces.md",
-									"state": ["early access"]
+									"state": ["premium", "early access"]
 								}
 							]
 						},

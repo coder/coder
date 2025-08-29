@@ -163,11 +163,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		return nil, err
 	}
 
-	client := wsproxysdk.New(opts.DashboardURL)
-	err := client.SetSessionToken(opts.ProxySessionToken)
-	if err != nil {
-		return nil, xerrors.Errorf("set client token: %w", err)
-	}
+	client := wsproxysdk.New(opts.DashboardURL, opts.ProxySessionToken)
 
 	// Use the configured client if provided.
 	if opts.HTTPClient != nil {

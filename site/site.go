@@ -1018,16 +1018,6 @@ func newBinMetadataCache(binFS http.FileSystem, binSha1Hashes map[string]string)
 }
 
 func (b *binMetadataCache) getMetadata(name string) (binMetadata, error) {
-	// Reject any invalid or non-basename paths before touching the filesystem.
-	if name == "" ||
-		name == "." ||
-		strings.Contains(name, "/") ||
-		strings.Contains(name, "\\") ||
-		!fs.ValidPath(name) ||
-		path.Base(name) != name {
-		return binMetadata{}, os.ErrNotExist
-	}
-
 	b.mut.RLock()
 	metadata, ok := b.metadata[name]
 	b.mut.RUnlock()
@@ -1039,6 +1029,16 @@ func (b *binMetadataCache) getMetadata(name string) (binMetadata, error) {
 	v, err, _ := b.sf.Do(name, func() (any, error) {
 		b.sem <- struct{}{}
 		defer func() { <-b.sem }()
+
+		// Reject any invalid or non-basename paths before touching the filesystem.
+		if name == "" ||
+			name == "." ||
+			strings.Contains(name, "/") ||
+			strings.Contains(name, "\\") ||
+			!fs.ValidPath(name) ||
+			path.Base(name) != name {
+			return binMetadata{}, os.ErrNotExist
+		}
 
 		f, err := b.binFS.Open(name)
 		if err != nil {
