@@ -88,10 +88,11 @@ type Client struct {
 	fakeAgentAPI       *FakeAgentAPI
 	LastWorkspaceAgent func()
 
-	mu             sync.Mutex // Protects following.
-	logs           []agentsdk.Log
-	derpMapUpdates chan *tailcfg.DERPMap
-	derpMapOnce    sync.Once
+	mu                sync.Mutex // Protects following.
+	logs              []agentsdk.Log
+	derpMapUpdates    chan *tailcfg.DERPMap
+	derpMapOnce       sync.Once
+	refreshTokenCalls int
 }
 
 func (*Client) AsRequestOption() codersdk.RequestOption {
@@ -104,8 +105,17 @@ func (*Client) GetSessionToken() string {
 	return "agenttest-token"
 }
 
-func (*Client) RefreshToken(context.Context) error {
+func (c *Client) RefreshToken(context.Context) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.refreshTokenCalls++
 	return nil
+}
+
+func (c *Client) GetNumRefreshTokenCalls() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.refreshTokenCalls
 }
 
 func (*Client) RewriteDERPMap(*tailcfg.DERPMap) {}
