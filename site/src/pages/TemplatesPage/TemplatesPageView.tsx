@@ -9,7 +9,6 @@ import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { DeprecatedBadge } from "components/Badges/Badges";
 import { Button } from "components/Button/Button";
-import type { useFilter } from "components/Filter/Filter";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -52,6 +51,7 @@ import {
 } from "utils/templates";
 import { EmptyTemplates } from "./EmptyTemplates";
 import { TemplatesFilter } from "./TemplatesFilter";
+import type { TemplateFilterState } from "./TemplatesPage";
 
 const Language = {
 	developerCount: (activeCount: number): string => {
@@ -184,7 +184,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 
 interface TemplatesPageViewProps {
 	error?: unknown;
-	filter: ReturnType<typeof useFilter>;
+	filterState: TemplateFilterState;
 	showOrganizations: boolean;
 	canCreateTemplates: boolean;
 	examples: TemplateExample[] | undefined;
@@ -194,7 +194,7 @@ interface TemplatesPageViewProps {
 
 export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	error,
-	filter,
+	filterState,
 	showOrganizations,
 	canCreateTemplates,
 	examples,
@@ -229,7 +229,11 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 				</PageHeaderSubtitle>
 			</PageHeader>
 
-			<TemplatesFilter filter={filter} error={error} />
+			<TemplatesFilter
+				filter={filterState.filter}
+				error={error}
+				userMenu={filterState.menus.user}
+			/>
 			{/* Validation errors are shown on the filter, other errors are an alert box. */}
 			{hasError(error) && !isApiValidationError(error) && (
 				<ErrorAlert error={error} />
@@ -256,7 +260,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 						<EmptyTemplates
 							canCreateTemplates={canCreateTemplates}
 							examples={examples ?? []}
-							isUsingFilter={filter.used}
+							isUsingFilter={filterState.filter.used}
 						/>
 					) : (
 						templates?.map((template) => (

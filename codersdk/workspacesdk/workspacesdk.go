@@ -215,12 +215,12 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		options.BlockEndpoints = true
 	}
 
-	headers := make(http.Header)
-	tokenHeader := codersdk.SessionTokenHeader
-	if c.client.SessionTokenHeader != "" {
-		tokenHeader = c.client.SessionTokenHeader
+	wsOptions := &websocket.DialOptions{
+		HTTPClient: c.client.HTTPClient,
+		// Need to disable compression to avoid a data-race.
+		CompressionMode: websocket.CompressionDisabled,
 	}
-	headers.Set(tokenHeader, c.client.SessionToken())
+	c.client.SessionTokenProvider.SetDialOption(wsOptions)
 
 	// New context, separate from dialCtx. We don't want to cancel the
 	// connection if dialCtx is canceled.
@@ -236,12 +236,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 
-	dialer := NewWebsocketDialer(options.Logger, coordinateURL, &websocket.DialOptions{
-		HTTPClient: c.client.HTTPClient,
-		HTTPHeader: headers,
-		// Need to disable compression to avoid a data-race.
-		CompressionMode: websocket.CompressionDisabled,
-	})
+	dialer := NewWebsocketDialer(options.Logger, coordinateURL, wsOptions)
 	clk := quartz.NewReal()
 	controller := tailnet.NewController(options.Logger, dialer)
 	controller.ResumeTokenCtrl = tailnet.NewBasicResumeTokenController(options.Logger, clk)

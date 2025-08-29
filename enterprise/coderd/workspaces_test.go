@@ -2242,13 +2242,14 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, sched.Next(prebuild.LatestBuild.CreatedAt))
+
 		// Wait for provisioner to be available for this specific workspace
-		coderdtest.MustWaitForProvisionersAvailable(t, db, prebuild)
+		coderdtest.MustWaitForProvisionersAvailable(t, db, prebuild, sched.Next(prebuild.LatestBuild.CreatedAt))
 
 		tickTime := sched.Next(prebuild.LatestBuild.CreatedAt).Add(time.Minute)
-		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
 		require.NoError(t, err)
-		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 
 		// Tick at the next scheduled time after the prebuild’s LatestBuild.CreatedAt,
 		// since the next allowed autostart is calculated starting from that point.
