@@ -2686,8 +2686,8 @@ class ExperimentalApiMethods {
 	createTask = async (
 		user: string,
 		req: TypesGen.CreateTaskRequest,
-	): Promise<TypesGen.Workspace> => {
-		const response = await this.axios.post<TypesGen.Workspace>(
+	): Promise<TypesGen.Task> => {
+		const response = await this.axios.post<TypesGen.Task>(
 			`/api/experimental/tasks/${user}`,
 			req,
 		);
