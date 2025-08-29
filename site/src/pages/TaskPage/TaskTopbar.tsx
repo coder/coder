@@ -7,7 +7,6 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useClipboard } from "hooks";
 import {
-	ArrowLeftIcon,
 	CheckIcon,
 	CopyIcon,
 	LaptopMinimalIcon,
@@ -22,21 +21,7 @@ type TaskTopbarProps = { task: Task };
 
 export const TaskTopbar: FC<TaskTopbarProps> = ({ task }) => {
 	return (
-		<header className="flex flex-shrink-0 items-center px-3 py-4 border-solid border-border border-0 border-b">
-			<TooltipProvider>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button size="icon" variant="subtle" asChild>
-							<RouterLink to="/tasks">
-								<ArrowLeftIcon />
-								<span className="sr-only">Back to tasks</span>
-							</RouterLink>
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent>Back to tasks</TooltipContent>
-				</Tooltip>
-			</TooltipProvider>
-
+		<header className="flex flex-shrink-0 items-center px-3 py-2 border-solid border-border border-0 border-b">
 			<h1 className="m-0 pl-2 text-base font-medium truncate">
 				{task.workspace.name}
 			</h1>
