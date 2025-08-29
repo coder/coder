@@ -4,7 +4,6 @@ import Skeleton from "@mui/material/Skeleton";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { templateVersion } from "api/queries/templates";
 import type { Workspace } from "api/typesGenerated";
-import { usePopover } from "components/deprecated/Popover/Popover";
 import { displayError } from "components/GlobalSnackbar/utils";
 import {
 	HelpTooltip,
@@ -17,36 +16,46 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { InfoIcon, RotateCcwIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
-import type { FC } from "react";
+import { useState, type FC } from "react";
 import { useQuery } from "react-query";
 import {
 	useWorkspaceUpdate,
 	WorkspaceUpdateDialogs,
 } from "../WorkspaceUpdateDialogs";
+import { TooltipProvider } from "components/Tooltip/Tooltip";
 
 interface TooltipProps {
 	workspace: Workspace;
 }
 
 export const WorkspaceOutdatedTooltip: FC<TooltipProps> = (props) => {
+	const [isOpen, setIsOpen] = useState(false);
+
 	return (
-		<HelpTooltip>
-			<HelpTooltipTrigger size="small" hoverEffect={false}>
-				<InfoIcon css={styles.icon} />
-				<span className="sr-only">Outdated info</span>
-			</HelpTooltipTrigger>
-			<WorkspaceOutdatedTooltipContent {...props} />
-		</HelpTooltip>
+		<TooltipProvider>
+			<HelpTooltip open={isOpen} onOpenChange={setIsOpen}>
+				<HelpTooltipTrigger size="small" hoverEffect={false}>
+					<InfoIcon css={styles.icon} />
+					<span className="sr-only">Outdated info</span>
+				</HelpTooltipTrigger>
+				<WorkspaceOutdatedTooltipContent isOpen={isOpen} {...props} />
+			</HelpTooltip>
+		</TooltipProvider>
 	);
 };
 
-const WorkspaceOutdatedTooltipContent: FC<TooltipProps> = ({ workspace }) => {
+type TooltipContentProps = TooltipProps & { isOpen: boolean };
+
+const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
+	workspace,
+	isOpen,
+}) => {
 	const getLink = useLinks();
 	const theme = useTheme();
-	const popover = usePopover();
 	const { data: activeVersion } = useQuery({
 		...templateVersion(workspace.template_active_version_id),
-		enabled: popover.open,
+		// TODO is making the parent HelpTooltip a controlled component the only way to track whether the tooltip is open?
+		enabled: isOpen,
 	});
 	const updateWorkspace = useWorkspaceUpdate({
 		workspace,
