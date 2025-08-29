@@ -1,5 +1,7 @@
-"use client";
-
+/**
+ * Copied from shadc/ui on 27/08/2024
+ * @see {@link https://ui.shadcn.com/docs/components/sidebar}
+ */
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Button } from "components/Button/Button";

@@ -1,4 +1,4 @@
-import { SidebarProvider } from "components/LayotuSidebar/LayoutSidebar";
+import { SidebarProvider } from "components/LayoutSidebar/LayoutSidebar";
 import type { FC } from "react";
 import { Outlet } from "react-router";
 import { TasksSidebar } from "./TasksSidebar";

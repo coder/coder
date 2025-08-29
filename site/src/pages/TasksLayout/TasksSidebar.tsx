@@ -14,7 +14,7 @@ import {
 	SidebarMenuItem,
 	SidebarMenuSkeleton,
 	SidebarTrigger,
-} from "components/LayotuSidebar/LayoutSidebar";
+} from "components/LayoutSidebar/LayoutSidebar";
 import {
 	Tooltip,
 	TooltipContent,

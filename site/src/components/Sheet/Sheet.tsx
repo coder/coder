@@ -1,5 +1,7 @@
-"use client";
-
+/**
+ * Copied from shadc/ui on 27/08/2024
+ * @see {@link https://ui.shadcn.com/docs/components/sheet}
+ */
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { XIcon } from "lucide-react";
 import type * as React from "react";
