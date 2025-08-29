@@ -1,6 +1,6 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import MUITooltip from "@mui/material/Tooltip";
+import Tooltip from "@mui/material/Tooltip";
 import { workspaceQuota } from "api/queries/workspaceQuota";
 import type * as TypesGen from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
@@ -108,11 +108,11 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 
 	return (
 		<Topbar css={{ gridArea: "topbar" }}>
-			<MUITooltip title="Back to workspaces">
+			<Tooltip title="Back to workspaces">
 				<TopbarIconButton component={RouterLink} to="/workspaces">
 					<ChevronLeftIcon className="size-icon-sm" />
 				</TopbarIconButton>
-			</MUITooltip>
+			</Tooltip>
 
 			<div css={styles.topbarLeft}>
 				<TopbarData>
