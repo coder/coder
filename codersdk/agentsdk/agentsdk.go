@@ -45,10 +45,13 @@ var ExternalLogSourceID = uuid.MustParse("3b579bf4-1ed8-4b99-87a8-e9a1e3410410")
 // @typescript-ignore SessionTokenSetup
 type SessionTokenSetup func(client *codersdk.Client) RefreshableSessionTokenProvider
 
-func New(serverURL *url.URL, setup SessionTokenSetup) *Client {
-	c := codersdk.New(serverURL)
-	provider := setup(c)
-	c.SessionTokenProvider = provider
+func New(serverURL *url.URL, setup SessionTokenSetup, opts ...codersdk.ClientOption) *Client {
+	var provider RefreshableSessionTokenProvider
+	opts = append(opts, func(c *codersdk.Client) {
+		provider = setup(c)
+		c.SessionTokenProvider = provider
+	})
+	c := codersdk.New(serverURL, opts...)
 	return &Client{
 		SDK:                             c,
 		RefreshableSessionTokenProvider: provider,
