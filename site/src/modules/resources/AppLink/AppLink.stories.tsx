@@ -179,3 +179,14 @@ export const BlockingStartupScriptRunning: Story = {
 		},
 	},
 };
+
+export const WithTooltip: Story = {
+	args: {
+		workspace: MockWorkspace,
+		app: {
+			...MockWorkspaceApp,
+			tooltip: "This is a tooltip with Markdown: **bold**, _italic_, and [link](https://coder.com/docs)",
+		},
+		agent: MockWorkspaceAgent,
+	}
+}

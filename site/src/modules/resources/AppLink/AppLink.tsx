@@ -1,5 +1,6 @@
 import type * as TypesGen from "api/typesGenerated";
 import { DropdownMenuItem } from "components/DropdownMenu/DropdownMenu";
+import { Markdown } from "components/Markdown/Markdown";
 import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -111,12 +112,22 @@ export const AppLink: FC<AppLinkProps> = ({
 		</AgentButton>
 	);
 
-	if (primaryTooltip) {
+	const tooltipContent = primaryTooltip || app.tooltip;
+
+	if (tooltipContent) {
 		return (
 			<TooltipProvider>
 				<Tooltip>
 					<TooltipTrigger asChild>{button}</TooltipTrigger>
-					<TooltipContent>{primaryTooltip}</TooltipContent>
+					<TooltipContent>
+						{primaryTooltip ? (
+							primaryTooltip
+						) : app.tooltip ? (
+							<Markdown className="prose-sm max-w-none [&>*]:my-1 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+								{app.tooltip}
+							</Markdown>
+						) : undefined}
+					</TooltipContent>
 				</Tooltip>
 			</TooltipProvider>
 		);

@@ -912,6 +912,7 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
 	hidden: false,
 	open_in: "slim-window",
 	statuses: [],
+	tooltip: "Test **Tooltip**",
 };
 
 export const MockWorkspaceAgentLogSource: TypesGen.WorkspaceAgentLogSource = {

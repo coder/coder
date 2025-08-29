@@ -4096,6 +4096,8 @@ type WorkspaceApp struct {
 	Hidden       bool               `db:"hidden" json:"hidden"`
 	OpenIn       WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
 	DisplayGroup sql.NullString     `db:"display_group" json:"display_group"`
+	// Markdown-supported text that is displayed when hovering over app icons in the workspace dashboard (max 512 characters).
+	Tooltip string `db:"tooltip" json:"tooltip"`
 }
 
 // Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.

@@ -205,6 +205,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 					Valid:  app.GetGroup() != "",
 					String: app.GetGroup(),
 				},
+				Tooltip: app.GetTooltip(),
 			})
 			if err != nil {
 				return xerrors.Errorf("insert workspace app: %w", err)

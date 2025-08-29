@@ -2232,12 +2232,15 @@ CREATE TABLE workspace_apps (
     display_order integer DEFAULT 0 NOT NULL,
     hidden boolean DEFAULT false NOT NULL,
     open_in workspace_app_open_in DEFAULT 'slim-window'::workspace_app_open_in NOT NULL,
-    display_group text
+    display_group text,
+    tooltip character varying(512) DEFAULT ''::character varying NOT NULL
 );
 
 COMMENT ON COLUMN workspace_apps.display_order IS 'Specifies the order in which to display agent app in user interfaces.';
 
 COMMENT ON COLUMN workspace_apps.hidden IS 'Determines if the app is not shown in user interfaces.';
+
+COMMENT ON COLUMN workspace_apps.tooltip IS 'Markdown-supported text that is displayed when hovering over app icons in the workspace dashboard (max 512 characters).';
 
 CREATE TABLE workspace_build_parameters (
     workspace_build_id uuid NOT NULL,
