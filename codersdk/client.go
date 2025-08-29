@@ -177,6 +177,7 @@ func (c *Client) SessionToken() string {
 }
 
 // SetSessionToken sets a fixed token for the client.
+// Deprecated: Create a new client instead of changing the token after creation.
 func (c *Client) SetSessionToken(token string) {
 	c.SetSessionTokenProvider(FixedSessionTokenProvider{SessionToken: token})
 }
