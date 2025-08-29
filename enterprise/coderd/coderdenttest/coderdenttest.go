@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/tls"
+	"database/sql"
 	"io"
 	"net/http"
 	"os/exec"
@@ -23,10 +24,12 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisioner/terraform"
@@ -445,4 +448,100 @@ func newExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 	})
 
 	return closer
+}
+
+func GetRunningPrebuilds(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	prebuildInstances int,
+) []database.GetRunningPrebuiltWorkspacesRow {
+	t.Helper()
+
+	var runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		rows, err := db.GetRunningPrebuiltWorkspaces(ctx)
+		if err != nil {
+			return false
+		}
+
+		for _, row := range rows {
+			runningPrebuilds = append(runningPrebuilds, row)
+
+			agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, row.ID)
+			if err != nil {
+				return false
+			}
+
+			for _, agent := range agents {
+				err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+					ID:             agent.ID,
+					LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+					StartedAt:      sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
+					ReadyAt:        sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
+				})
+				if err != nil {
+					return false
+				}
+			}
+		}
+
+		t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), prebuildInstances)
+		return len(runningPrebuilds) == prebuildInstances
+	}, testutil.IntervalSlow, "prebuilds not running")
+
+	return runningPrebuilds
+}
+
+func RunReconciliationLoop(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	reconciler *prebuilds.StoreReconciler,
+	presets []codersdk.Preset,
+) {
+	t.Helper()
+
+	state, err := reconciler.SnapshotState(ctx, db)
+	require.NoError(t, err)
+	ps, err := state.FilterByPreset(presets[0].ID)
+	require.NoError(t, err)
+	require.NotNil(t, ps)
+	actions, err := reconciler.CalculateActions(ctx, *ps)
+	require.NoError(t, err)
+	require.NotNil(t, actions)
+	require.NoError(t, reconciler.ReconcilePreset(ctx, *ps))
+}
+
+func ClaimPrebuild(
+	ctx context.Context,
+	t *testing.T,
+	client *codersdk.Client,
+	userClient *codersdk.Client,
+	username string,
+	version codersdk.TemplateVersion,
+	presetID uuid.UUID,
+	autostartSchedule ...string,
+) codersdk.Workspace {
+	t.Helper()
+
+	var startSchedule string
+	if len(autostartSchedule) > 0 {
+		startSchedule = autostartSchedule[0]
+	}
+
+	workspaceName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
+	userWorkspace, err := userClient.CreateUserWorkspace(ctx, username, codersdk.CreateWorkspaceRequest{
+		TemplateVersionID:       version.ID,
+		Name:                    workspaceName,
+		TemplateVersionPresetID: presetID,
+		AutostartSchedule:       ptr.Ref(startSchedule),
+	})
+	require.NoError(t, err)
+	build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)
+	require.Equal(t, build.Job.Status, codersdk.ProvisionerJobSucceeded)
+	workspace := coderdtest.MustWorkspace(t, client, userWorkspace.ID)
+	assert.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
+
+	return workspace
 }
