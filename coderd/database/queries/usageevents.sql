@@ -84,3 +84,22 @@ WHERE
     -- zero, so this is the best we can do.
     AND cardinality(@ids::text[]) = cardinality(@failure_messages::text[])
     AND cardinality(@ids::text[]) = cardinality(@set_published_ats::boolean[]);
+
+-- name: GetTotalUsageDCManagedAgentsV1 :one
+-- Gets the total number of managed agents created between two dates. Uses the
+-- aggregate table to avoid large scans or a complex index on the usage_events
+-- table.
+--
+-- This has the trade off that we can't count accurately between two exact
+-- timestamps. The provided timestamps will be converted to UTC and truncated to
+-- the events that happened on and between the two dates. Both dates are
+-- inclusive.
+SELECT
+    SUM(usage_data->>'count') AS total_count
+FROM
+    usage_events_daily
+WHERE
+    event_type = 'dc_managed_agents_v1'
+    -- Parenthesis are necessary to avoid sqlc from generating an extra
+    -- argument.
+    AND day BETWEEN date_trunc('day', (@start_date::timestamptz) AT TIME ZONE 'UTC')::date AND date_trunc('day', (@end_date::timestamptz) AT TIME ZONE 'UTC')::date;

@@ -712,12 +712,17 @@ func TestEntitlements(t *testing.T) {
 			GetActiveUserCount(gomock.Any(), false).
 			Return(int64(1), nil)
 		mDB.EXPECT().
-			GetManagedAgentCount(gomock.Any(), gomock.Cond(func(params database.GetManagedAgentCountParams) bool {
-				// gomock doesn't seem to compare times very nicely.
-				if !assert.WithinDuration(t, licenseOpts.NotBefore, params.StartTime, time.Second) {
+			GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Cond(func(params database.GetTotalUsageDCManagedAgentsV1Params) bool {
+				// gomock doesn't seem to compare times very nicely, so check
+				// them manually.
+				//
+				// The query truncates these times to the date in UTC timezone,
+				// but we still check that we're passing in the correct
+				// timestamp in the first place.
+				if !assert.WithinDuration(t, licenseOpts.NotBefore, params.StartDate, time.Second) {
 					return false
 				}
-				if !assert.WithinDuration(t, licenseOpts.ExpiresAt, params.EndTime, time.Second) {
+				if !assert.WithinDuration(t, licenseOpts.ExpiresAt, params.EndDate, time.Second) {
 					return false
 				}
 				return true

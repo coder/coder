@@ -723,12 +723,6 @@ func (s *MethodTestSuite) TestLicense() {
 		dbm.EXPECT().GetAnnouncementBanners(gomock.Any()).Return("value", nil).AnyTimes()
 		check.Args().Asserts().Returns("value")
 	}))
-	s.Run("GetManagedAgentCount", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		start := dbtime.Now()
-		end := start.Add(time.Hour)
-		dbm.EXPECT().GetManagedAgentCount(gomock.Any(), database.GetManagedAgentCountParams{StartTime: start, EndTime: end}).Return(int64(0), nil).AnyTimes()
-		check.Args(database.GetManagedAgentCountParams{StartTime: start, EndTime: end}).Asserts(rbac.ResourceWorkspace, policy.ActionRead).Returns(int64(0))
-	}))
 }
 
 func (s *MethodTestSuite) TestOrganization() {
@@ -4402,5 +4396,13 @@ func (s *MethodTestSuite) TestUsageEvents() {
 		}
 		db.EXPECT().UpdateUsageEventsPostPublish(gomock.Any(), params).Return(nil)
 		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionUpdate)
+	}))
+
+	s.Run("GetTotalUsageDCManagedAgentsV1", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).Return(int64(1), nil)
+		check.Args(database.GetTotalUsageDCManagedAgentsV1Params{
+			StartDate: time.Time{},
+			EndDate:   time.Time{},
+		}).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
 	}))
 }
