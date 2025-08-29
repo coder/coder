@@ -180,6 +180,121 @@ func TestEntitlements(t *testing.T) {
 		)
 	})
 
+	t.Run("Expiration warning suppressed if new license covers gap", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+
+		// Insert the expiring license
+		graceDate := dbtime.Now().AddDate(0, 0, 1)
+		_, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureUserLimit: 100,
+					codersdk.FeatureAuditLog:  1,
+				},
+
+				FeatureSet: codersdk.FeatureSetPremium,
+				GraceAt:    graceDate,
+				ExpiresAt:  dbtime.Now().AddDate(0, 0, 5),
+			}),
+			Exp: time.Now().AddDate(0, 0, 5),
+		})
+		require.NoError(t, err)
+
+		// Warning should be generated.
+		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, all)
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+		require.False(t, entitlements.Trial)
+		require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[codersdk.FeatureAuditLog].Entitlement)
+		require.Len(t, entitlements.Warnings, 1)
+		require.Contains(t, entitlements.Warnings, "Your license expires in 1 day.")
+
+		// Insert the new, not-yet-valid license that starts BEFORE the expiring
+		// license expires.
+		_, err = db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureUserLimit: 100,
+					codersdk.FeatureAuditLog:  1,
+				},
+
+				FeatureSet: codersdk.FeatureSetPremium,
+				NotBefore:  graceDate.Add(-time.Hour), // contiguous, and also in the future
+				GraceAt:    dbtime.Now().AddDate(1, 0, 0),
+				ExpiresAt:  dbtime.Now().AddDate(1, 0, 5),
+			}),
+			Exp: dbtime.Now().AddDate(1, 0, 5),
+		})
+		require.NoError(t, err)
+
+		// Warning should be suppressed.
+		entitlements, err = license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, all)
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+		require.False(t, entitlements.Trial)
+		require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[codersdk.FeatureAuditLog].Entitlement)
+		require.Len(t, entitlements.Warnings, 0) // suppressed
+	})
+
+	t.Run("Expiration warning not suppressed if new license has gap", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+
+		// Insert the expiring license
+		graceDate := dbtime.Now().AddDate(0, 0, 1)
+		_, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureUserLimit: 100,
+					codersdk.FeatureAuditLog:  1,
+				},
+
+				FeatureSet: codersdk.FeatureSetPremium,
+				GraceAt:    graceDate,
+				ExpiresAt:  dbtime.Now().AddDate(0, 0, 5),
+			}),
+			Exp: time.Now().AddDate(0, 0, 5),
+		})
+		require.NoError(t, err)
+
+		// Should generate a warning.
+		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, all)
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+		require.False(t, entitlements.Trial)
+		require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[codersdk.FeatureAuditLog].Entitlement)
+		require.Len(t, entitlements.Warnings, 1)
+		require.Contains(t, entitlements.Warnings, "Your license expires in 1 day.")
+
+		// Insert the new, not-yet-valid license that starts AFTER the expiring
+		// license expires (e.g. there's a gap)
+		_, err = db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureUserLimit: 100,
+					codersdk.FeatureAuditLog:  1,
+				},
+
+				FeatureSet: codersdk.FeatureSetPremium,
+				NotBefore:  graceDate.Add(time.Minute), // gap of 1 second!
+				GraceAt:    dbtime.Now().AddDate(1, 0, 0),
+				ExpiresAt:  dbtime.Now().AddDate(1, 0, 5),
+			}),
+			Exp: dbtime.Now().AddDate(1, 0, 5),
+		})
+		require.NoError(t, err)
+
+		// Warning should still be generated.
+		entitlements, err = license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, all)
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+		require.False(t, entitlements.Trial)
+		require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[codersdk.FeatureAuditLog].Entitlement)
+		require.Len(t, entitlements.Warnings, 1)
+		require.Contains(t, entitlements.Warnings, "Your license expires in 1 day.")
+	})
+
 	t.Run("Expiration warning for trials", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
