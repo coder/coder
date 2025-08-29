@@ -325,7 +325,7 @@ type sqlcQuerier interface {
 	// GetTemplateAppInsightsByTemplate is used for Prometheus metrics. Keep
 	// in sync with GetTemplateAppInsights and UpsertTemplateUsageStats.
 	GetTemplateAppInsightsByTemplate(ctx context.Context, arg GetTemplateAppInsightsByTemplateParams) ([]GetTemplateAppInsightsByTemplateRow, error)
-	GetTemplateAverageBuildTime(ctx context.Context, arg GetTemplateAverageBuildTimeParams) (GetTemplateAverageBuildTimeRow, error)
+	GetTemplateAverageBuildTime(ctx context.Context, templateID uuid.NullUUID) (GetTemplateAverageBuildTimeRow, error)
 	GetTemplateByID(ctx context.Context, id uuid.UUID) (Template, error)
 	GetTemplateByOrganizationAndName(ctx context.Context, arg GetTemplateByOrganizationAndNameParams) (Template, error)
 	GetTemplateDAUs(ctx context.Context, arg GetTemplateDAUsParams) ([]GetTemplateDAUsRow, error)

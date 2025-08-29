@@ -3160,7 +3160,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(p)
 	}))
 	s.Run("GetTemplateAverageBuildTime", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetTemplateAverageBuildTimeParams{}
+		arg := uuid.NullUUID{}
 		dbm.EXPECT().GetTemplateAverageBuildTime(gomock.Any(), arg).Return(database.GetTemplateAverageBuildTimeRow{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
