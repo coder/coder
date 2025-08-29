@@ -26,7 +26,7 @@ func (r *RootCmd) sharing() *serpent.Command {
 		},
 		Children: []*serpent.Command{
 			r.shareWorkspace(orgContext),
-			r.showWorkspaceSharing(orgContext),
+			r.showWorkspaceSharing(),
 		},
 		Hidden: true,
 	}
@@ -35,7 +35,7 @@ func (r *RootCmd) sharing() *serpent.Command {
 	return cmd
 }
 
-func (r *RootCmd) showWorkspaceSharing(orgContext *OrganizationContext) *serpent.Command {
+func (r *RootCmd) showWorkspaceSharing() *serpent.Command {
 	client := new(codersdk.Client)
 
 	cmd := &serpent.Command{
@@ -58,6 +58,9 @@ func (r *RootCmd) showWorkspaceSharing(orgContext *OrganizationContext) *serpent
 			}
 
 			out, err := workspaceACLToTable(inv.Context(), &acl)
+			if err != nil {
+				return err
+			}
 
 			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
@@ -192,6 +195,9 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 			}
 
 			out, err := workspaceACLToTable(inv.Context(), &acl)
+			if err != nil {
+				return err
+			}
 
 			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
