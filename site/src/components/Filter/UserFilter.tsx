@@ -9,6 +9,8 @@ import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { type UseFilterMenuOptions, useFilterMenu } from "./menu";
 
+export const DEFAULT_USER_FILTER_WIDTH = 175;
+
 export const useUserFilterMenu = ({
 	value,
 	onChange,

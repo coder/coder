@@ -104,7 +104,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				templateVersionPresetID = preset.ID
 			}
 
-			workspace, err := expClient.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+			task, err := expClient.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
 				TemplateVersionID:       templateVersionID,
 				TemplateVersionPresetID: templateVersionPresetID,
 				Prompt:                  taskInput,
@@ -116,8 +116,8 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 			_, _ = fmt.Fprintf(
 				inv.Stdout,
 				"The task %s has been created at %s!\n",
-				cliui.Keyword(workspace.Name),
-				cliui.Timestamp(workspace.CreatedAt),
+				cliui.Keyword(task.Name),
+				cliui.Timestamp(task.CreatedAt),
 			)
 
 			return nil

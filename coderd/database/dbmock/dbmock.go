@@ -2041,21 +2041,6 @@ func (mr *MockStoreMockRecorder) GetLogoURL(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogoURL", reflect.TypeOf((*MockStore)(nil).GetLogoURL), ctx)
 }
 
-// GetManagedAgentCount mocks base method.
-func (m *MockStore) GetManagedAgentCount(ctx context.Context, arg database.GetManagedAgentCountParams) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetManagedAgentCount", ctx, arg)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetManagedAgentCount indicates an expected call of GetManagedAgentCount.
-func (mr *MockStoreMockRecorder) GetManagedAgentCount(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetManagedAgentCount", reflect.TypeOf((*MockStore)(nil).GetManagedAgentCount), ctx, arg)
-}
-
 // GetNotificationMessagesByStatus mocks base method.
 func (m *MockStore) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
 	m.ctrl.T.Helper()
@@ -2851,6 +2836,21 @@ func (mr *MockStoreMockRecorder) GetQuotaConsumedForUser(ctx, arg any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQuotaConsumedForUser", reflect.TypeOf((*MockStore)(nil).GetQuotaConsumedForUser), ctx, arg)
 }
 
+// GetRegularWorkspaceCreateMetrics mocks base method.
+func (m *MockStore) GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]database.GetRegularWorkspaceCreateMetricsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRegularWorkspaceCreateMetrics", ctx)
+	ret0, _ := ret[0].([]database.GetRegularWorkspaceCreateMetricsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetRegularWorkspaceCreateMetrics indicates an expected call of GetRegularWorkspaceCreateMetrics.
+func (mr *MockStoreMockRecorder) GetRegularWorkspaceCreateMetrics(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRegularWorkspaceCreateMetrics", reflect.TypeOf((*MockStore)(nil).GetRegularWorkspaceCreateMetrics), ctx)
+}
+
 // GetReplicaByID mocks base method.
 func (m *MockStore) GetReplicaByID(ctx context.Context, id uuid.UUID) (database.Replica, error) {
 	m.ctrl.T.Helper()
@@ -3419,6 +3419,21 @@ func (m *MockStore) GetTemplatesWithFilter(ctx context.Context, arg database.Get
 func (mr *MockStoreMockRecorder) GetTemplatesWithFilter(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplatesWithFilter", reflect.TypeOf((*MockStore)(nil).GetTemplatesWithFilter), ctx, arg)
+}
+
+// GetTotalUsageDCManagedAgentsV1 mocks base method.
+func (m *MockStore) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg database.GetTotalUsageDCManagedAgentsV1Params) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTotalUsageDCManagedAgentsV1", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTotalUsageDCManagedAgentsV1 indicates an expected call of GetTotalUsageDCManagedAgentsV1.
+func (mr *MockStoreMockRecorder) GetTotalUsageDCManagedAgentsV1(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTotalUsageDCManagedAgentsV1", reflect.TypeOf((*MockStore)(nil).GetTotalUsageDCManagedAgentsV1), ctx, arg)
 }
 
 // GetUnexpiredLicenses mocks base method.
