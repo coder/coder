@@ -217,8 +217,10 @@ export class TimeSync implements TimeSyncApi {
 			(t) => t.targetRefreshInterval === targetRefreshInterval,
 		);
 
+		// Using try/finally as a janky version of Go's defer keyword. Need to
+		// make sure reconciliation triggers when needed, regardless of which
+		// code path we take
 		let needReconciliation = false;
-		let alreadySubscribed = false;
 		try {
 			let activeTracker: SubscriptionTracker;
 			if (prevTracker !== undefined) {
@@ -228,19 +230,19 @@ export class TimeSync implements TimeSyncApi {
 				activeTracker = { targetRefreshInterval, updates: new Map() };
 			}
 
-			alreadySubscribed = activeTracker.updates.has(onUpdate);
+			const alreadySubscribed = activeTracker.updates.has(onUpdate);
 			if (alreadySubscribed) {
 				return;
 			}
 
 			const newCount = activeTracker.updates.get(onUpdate) ?? 0;
 			activeTracker.updates.set(onUpdate, newCount);
+			if (!alreadySubscribed && this.#resyncOnNewSubscription) {
+				this.#updateDateSnapshot();
+			}
 		} finally {
 			if (needReconciliation) {
 				this.#reconcileAdd();
-			}
-			if (!alreadySubscribed && this.#resyncOnNewSubscription) {
-				this.#updateDateSnapshot();
 			}
 		}
 	}
