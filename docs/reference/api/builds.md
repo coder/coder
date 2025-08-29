@@ -122,6 +122,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
               ],
               "subdomain": true,
               "subdomain_name": "string",
+              "tooltip": "string",
               "url": "string"
             }
           ],
@@ -361,6 +362,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
               ],
               "subdomain": true,
               "subdomain_name": "string",
+              "tooltip": "string",
               "url": "string"
             }
           ],
@@ -718,6 +720,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
             ],
             "subdomain": true,
             "subdomain_name": "string",
+            "tooltip": "string",
             "url": "string"
           }
         ],
@@ -861,6 +864,7 @@ Status Code **200**
 | `»»»» workspace_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» subdomain`                 | boolean                                                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
 | `»»» subdomain_name`            | string                                                                                                 | false    |              | Subdomain name is the application domain exposed on the `coder server`.                                                                                                                                                                        |
+| `»»» tooltip`                   | string                                                                                                 | false    |              | Tooltip is an optional markdown supported field that is displayed when hovering over app buttons in the workspace dashboard.                                                                                                                   |
 | `»»» url`                       | string                                                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
 | `»» architecture`               | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» connection_timeout_seconds` | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -1089,6 +1093,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
               ],
               "subdomain": true,
               "subdomain_name": "string",
+              "tooltip": "string",
               "url": "string"
             }
           ],
@@ -1401,6 +1406,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
                 ],
                 "subdomain": true,
                 "subdomain_name": "string",
+                "tooltip": "string",
                 "url": "string"
               }
             ],
@@ -1606,6 +1612,7 @@ Status Code **200**
 | `»»»»» workspace_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» subdomain`                 | boolean                                                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
 | `»»»» subdomain_name`            | string                                                                                                 | false    |              | Subdomain name is the application domain exposed on the `coder server`.                                                                                                                                                                        |
+| `»»»» tooltip`                   | string                                                                                                 | false    |              | Tooltip is an optional markdown supported field that is displayed when hovering over app buttons in the workspace dashboard.                                                                                                                   |
 | `»»»» url`                       | string                                                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
 | `»»» architecture`               | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» connection_timeout_seconds` | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -1896,6 +1903,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
               ],
               "subdomain": true,
               "subdomain_name": "string",
+              "tooltip": "string",
               "url": "string"
             }
           ],

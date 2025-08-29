@@ -582,6 +582,7 @@ func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus
 			Group:    dbApp.DisplayGroup.String,
 			Hidden:   dbApp.Hidden,
 			OpenIn:   codersdk.WorkspaceAppOpenIn(dbApp.OpenIn),
+			Tooltip:  dbApp.Tooltip,
 			Statuses: WorkspaceAppStatuses(statuses),
 		})
 	}
