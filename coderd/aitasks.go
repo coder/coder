@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -154,8 +155,9 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		//   This can be optimized. It exists as it is now for code simplicity.
 		//   The most common case is to create a workspace for 'Me'. Which does
 		//   not enter this code branch.
-		template, ok := requestTemplate(ctx, rw, createReq, api.Database)
-		if !ok {
+		template, err := requestTemplate(ctx, createReq, api.Database)
+		if err != nil {
+			httperror.WriteResponseError(ctx, rw, err)
 			return
 		}
 
@@ -186,9 +188,72 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 			WorkspaceOwner: owner.Username,
 		},
 	})
-
 	defer commitAudit()
-	createWorkspace(ctx, aReq, apiKey.UserID, api, owner, createReq, rw, r)
+	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, createReq, r)
+	if err != nil {
+		httperror.WriteResponseError(ctx, rw, err)
+		return
+	}
+
+	task := taskFromWorkspace(w, req.Prompt)
+	httpapi.Write(ctx, rw, http.StatusCreated, task)
+}
+
+func taskFromWorkspace(ws codersdk.Workspace, initialPrompt string) codersdk.Task {
+	// TODO(DanielleMaywood):
+	// This just picks up the first agent it discovers.
+	// This approach _might_ break when a task has multiple agents,
+	// depending on which agent was found first.
+	//
+	// We explicitly do not have support for running tasks
+	// inside of a sub agent at the moment, so we can be sure
+	// that any sub agents are not the agent we're looking for.
+	var taskAgentID uuid.NullUUID
+	var taskAgentLifecycle *codersdk.WorkspaceAgentLifecycle
+	var taskAgentHealth *codersdk.WorkspaceAgentHealth
+	for _, resource := range ws.LatestBuild.Resources {
+		for _, agent := range resource.Agents {
+			if agent.ParentID.Valid {
+				continue
+			}
+
+			taskAgentID = uuid.NullUUID{Valid: true, UUID: agent.ID}
+			taskAgentLifecycle = &agent.LifecycleState
+			taskAgentHealth = &agent.Health
+			break
+		}
+	}
+
+	var currentState *codersdk.TaskStateEntry
+	if ws.LatestAppStatus != nil {
+		currentState = &codersdk.TaskStateEntry{
+			Timestamp: ws.LatestAppStatus.CreatedAt,
+			State:     codersdk.TaskState(ws.LatestAppStatus.State),
+			Message:   ws.LatestAppStatus.Message,
+			URI:       ws.LatestAppStatus.URI,
+		}
+	}
+
+	return codersdk.Task{
+		ID:                      ws.ID,
+		OrganizationID:          ws.OrganizationID,
+		OwnerID:                 ws.OwnerID,
+		OwnerName:               ws.OwnerName,
+		Name:                    ws.Name,
+		TemplateID:              ws.TemplateID,
+		TemplateName:            ws.TemplateName,
+		TemplateDisplayName:     ws.TemplateDisplayName,
+		TemplateIcon:            ws.TemplateIcon,
+		WorkspaceID:             uuid.NullUUID{Valid: true, UUID: ws.ID},
+		WorkspaceAgentID:        taskAgentID,
+		WorkspaceAgentLifecycle: taskAgentLifecycle,
+		WorkspaceAgentHealth:    taskAgentHealth,
+		CreatedAt:               ws.CreatedAt,
+		UpdatedAt:               ws.UpdatedAt,
+		InitialPrompt:           initialPrompt,
+		Status:                  ws.LatestBuild.Status,
+		CurrentState:            currentState,
+	}
 }
 
 // tasksFromWorkspaces converts a slice of API workspaces into tasks, fetching
@@ -213,60 +278,7 @@ func (api *API) tasksFromWorkspaces(ctx context.Context, apiWorkspaces []codersd
 
 	tasks := make([]codersdk.Task, 0, len(apiWorkspaces))
 	for _, ws := range apiWorkspaces {
-		// TODO(DanielleMaywood):
-		// This just picks up the first agent it discovers.
-		// This approach _might_ break when a task has multiple agents,
-		// depending on which agent was found first.
-		//
-		// We explicitly do not have support for running tasks
-		// inside of a sub agent at the moment, so we can be sure
-		// that any sub agents are not the agent we're looking for.
-		var taskAgentID uuid.NullUUID
-		var taskAgentLifecycle *codersdk.WorkspaceAgentLifecycle
-		var taskAgentHealth *codersdk.WorkspaceAgentHealth
-		for _, resource := range ws.LatestBuild.Resources {
-			for _, agent := range resource.Agents {
-				if agent.ParentID.Valid {
-					continue
-				}
-
-				taskAgentID = uuid.NullUUID{Valid: true, UUID: agent.ID}
-				taskAgentLifecycle = &agent.LifecycleState
-				taskAgentHealth = &agent.Health
-				break
-			}
-		}
-
-		var currentState *codersdk.TaskStateEntry
-		if ws.LatestAppStatus != nil {
-			currentState = &codersdk.TaskStateEntry{
-				Timestamp: ws.LatestAppStatus.CreatedAt,
-				State:     codersdk.TaskState(ws.LatestAppStatus.State),
-				Message:   ws.LatestAppStatus.Message,
-				URI:       ws.LatestAppStatus.URI,
-			}
-		}
-
-		tasks = append(tasks, codersdk.Task{
-			ID:                      ws.ID,
-			OrganizationID:          ws.OrganizationID,
-			OwnerID:                 ws.OwnerID,
-			OwnerName:               ws.OwnerName,
-			Name:                    ws.Name,
-			TemplateID:              ws.TemplateID,
-			TemplateName:            ws.TemplateName,
-			TemplateDisplayName:     ws.TemplateDisplayName,
-			TemplateIcon:            ws.TemplateIcon,
-			WorkspaceID:             uuid.NullUUID{Valid: true, UUID: ws.ID},
-			WorkspaceAgentID:        taskAgentID,
-			WorkspaceAgentLifecycle: taskAgentLifecycle,
-			WorkspaceAgentHealth:    taskAgentHealth,
-			CreatedAt:               ws.CreatedAt,
-			UpdatedAt:               ws.UpdatedAt,
-			InitialPrompt:           promptsByBuildID[ws.LatestBuild.ID],
-			Status:                  ws.LatestBuild.Status,
-			CurrentState:            currentState,
-		})
+		tasks = append(tasks, taskFromWorkspace(ws, promptsByBuildID[ws.LatestBuild.ID]))
 	}
 
 	return tasks, nil
@@ -463,4 +475,79 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, tasks[0])
+}
+
+// taskDelete is an experimental endpoint to delete a task by ID (workspace ID).
+// It creates a delete workspace build and returns 202 Accepted if the build was
+// created.
+func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	idStr := chi.URLParam(r, "id")
+	taskID, err := uuid.Parse(idStr)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Invalid UUID %q for task ID.", idStr),
+		})
+		return
+	}
+
+	// For now, taskID = workspaceID, once we have a task data model in
+	// the DB, we can change this lookup.
+	workspaceID := taskID
+	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace resources.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(data.builds) == 0 || len(data.templates) == 0 {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if data.builds[0].HasAITask == nil || !*data.builds[0].HasAITask {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Construct a request to the workspace build creation handler to
+	// initiate deletion.
+	buildReq := codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionDelete,
+		Reason:     "Deleted via tasks API",
+	}
+
+	_, err = api.postWorkspaceBuildsInternal(
+		ctx,
+		apiKey,
+		workspace,
+		buildReq,
+		func(action policy.Action, object rbac.Objecter) bool {
+			return api.Authorize(r, action, object)
+		},
+		audit.WorkspaceBuildBaggageFromRequest(r),
+	)
+	if err != nil {
+		httperror.WriteWorkspaceBuildError(ctx, rw, err)
+		return
+	}
+
+	// Delete build created successfully.
+	rw.WriteHeader(http.StatusAccepted)
 }

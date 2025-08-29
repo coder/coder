@@ -100,25 +100,14 @@ func (m *Metrics) Register(reg prometheus.Registerer) error {
 	return reg.Register(m.workspaceClaimTimings)
 }
 
-func (f WorkspaceTimingFlags) count() int {
-	count := 0
-	if f.IsPrebuild {
-		count++
-	}
-	if f.IsClaim {
-		count++
-	}
-	if f.IsFirstBuild {
-		count++
-	}
-	return count
-}
-
-// getWorkspaceTimingType returns the type of the workspace build:
-//   - isPrebuild: if the workspace build corresponds to the creation of a prebuilt workspace
-//   - isClaim: if the workspace build corresponds to the claim of a prebuilt workspace
-//   - isWorkspaceFirstBuild: if the workspace build corresponds to the creation of a regular workspace
-//     (not created from the prebuild pool)
+// getWorkspaceTimingType classifies a workspace build:
+//   - PrebuildCreation: creation of a prebuilt workspace
+//   - PrebuildClaim: claim of an existing prebuilt workspace
+//   - WorkspaceCreation: first build of a regular (non-prebuilt) workspace
+//
+// Note: order matters. Creating a prebuilt workspace is also a first build
+// (IsPrebuild && IsFirstBuild). We check IsPrebuild before IsFirstBuild so
+// prebuilds take precedence. This is the only case where two flags can be true.
 func getWorkspaceTimingType(flags WorkspaceTimingFlags) WorkspaceTimingType {
 	switch {
 	case flags.IsPrebuild:
@@ -148,14 +137,6 @@ func (m *Metrics) UpdateWorkspaceTimingsMetrics(
 		"isPrebuild", flags.IsPrebuild,
 		"isClaim", flags.IsClaim,
 		"isWorkspaceFirstBuild", flags.IsFirstBuild)
-
-	if flags.count() > 1 {
-		m.logger.Warn(ctx, "invalid workspace timing flags",
-			"isPrebuild", flags.IsPrebuild,
-			"isClaim", flags.IsClaim,
-			"isWorkspaceFirstBuild", flags.IsFirstBuild)
-		return
-	}
 
 	workspaceTimingType := getWorkspaceTimingType(flags)
 	switch workspaceTimingType {

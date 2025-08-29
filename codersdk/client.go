@@ -108,8 +108,9 @@ var loggableMimeTypes = map[string]struct{}{
 // New creates a Coder client for the provided URL.
 func New(serverURL *url.URL) *Client {
 	return &Client{
-		URL:        serverURL,
-		HTTPClient: &http.Client{},
+		URL:                  serverURL,
+		HTTPClient:           &http.Client{},
+		SessionTokenProvider: FixedSessionTokenProvider{},
 	}
 }
 
@@ -118,17 +119,13 @@ func New(serverURL *url.URL) *Client {
 type Client struct {
 	// mu protects the fields sessionToken, logger, and logBodies. These
 	// need to be safe for concurrent access.
-	mu           sync.RWMutex
-	sessionToken string
-	logger       slog.Logger
-	logBodies    bool
+	mu                   sync.RWMutex
+	SessionTokenProvider SessionTokenProvider
+	logger               slog.Logger
+	logBodies            bool
 
 	HTTPClient *http.Client
 	URL        *url.URL
-
-	// SessionTokenHeader is an optional custom header to use for setting tokens. By
-	// default 'Coder-Session-Token' is used.
-	SessionTokenHeader string
 
 	// PlainLogger may be set to log HTTP traffic in a human-readable form.
 	// It uses the LogBodies option.
@@ -176,14 +173,20 @@ func (c *Client) SetLogBodies(logBodies bool) {
 func (c *Client) SessionToken() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.sessionToken
+	return c.SessionTokenProvider.GetSessionToken()
 }
 
-// SetSessionToken returns the currently set token for the client.
+// SetSessionToken sets a fixed token for the client.
+// Deprecated: Create a new client instead of changing the token after creation.
 func (c *Client) SetSessionToken(token string) {
+	c.SetSessionTokenProvider(FixedSessionTokenProvider{SessionToken: token})
+}
+
+// SetSessionTokenProvider sets the session token provider for the client.
+func (c *Client) SetSessionTokenProvider(provider SessionTokenProvider) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.sessionToken = token
+	c.SessionTokenProvider = provider
 }
 
 func prefixLines(prefix, s []byte) []byte {
@@ -199,6 +202,14 @@ func prefixLines(prefix, s []byte) []byte {
 // Request performs a HTTP request with the body provided. The caller is
 // responsible for closing the response body.
 func (c *Client) Request(ctx context.Context, method, path string, body interface{}, opts ...RequestOption) (*http.Response, error) {
+	opts = append([]RequestOption{c.SessionTokenProvider.AsRequestOption()}, opts...)
+	return c.RequestWithoutSessionToken(ctx, method, path, body, opts...)
+}
+
+// RequestWithoutSessionToken performs a HTTP request. It is similar to Request, but does not set
+// the session token in the request header, nor does it make a call to the SessionTokenProvider.
+// This allows session token providers to call this method without causing reentrancy issues.
+func (c *Client) RequestWithoutSessionToken(ctx context.Context, method, path string, body interface{}, opts ...RequestOption) (*http.Response, error) {
 	if ctx == nil {
 		return nil, xerrors.Errorf("context should not be nil")
 	}
@@ -247,12 +258,6 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	if err != nil {
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
-
-	tokenHeader := c.SessionTokenHeader
-	if tokenHeader == "" {
-		tokenHeader = SessionTokenHeader
-	}
-	req.Header.Set(tokenHeader, c.SessionToken())
 
 	if r != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -345,20 +350,10 @@ func (c *Client) Dial(ctx context.Context, path string, opts *websocket.DialOpti
 		return nil, err
 	}
 
-	tokenHeader := c.SessionTokenHeader
-	if tokenHeader == "" {
-		tokenHeader = SessionTokenHeader
-	}
-
 	if opts == nil {
 		opts = &websocket.DialOptions{}
 	}
-	if opts.HTTPHeader == nil {
-		opts.HTTPHeader = http.Header{}
-	}
-	if opts.HTTPHeader.Get(tokenHeader) == "" {
-		opts.HTTPHeader.Set(tokenHeader, c.SessionToken())
-	}
+	c.SessionTokenProvider.SetDialOption(opts)
 
 	conn, resp, err := websocket.Dial(ctx, u.String(), opts)
 	if resp != nil && resp.Body != nil {
