@@ -1,5 +1,4 @@
 import type { WorkspaceAgent } from "api/typesGenerated";
-import { PopoverTrigger } from "components/deprecated/Popover/Popover";
 import {
 	HelpTooltip,
 	HelpTooltipAction,
