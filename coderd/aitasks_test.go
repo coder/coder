@@ -277,22 +277,24 @@ func TestTasks(t *testing.T) {
 			user := coderdtest.CreateFirstUser(t, client)
 			template := createAITemplate(t, client, user)
 
-			ws := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
-				req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
-					{Name: codersdk.AITaskPromptParameterName, Value: "delete-me"},
-				}
-			})
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-
 			ctx := testutil.Context(t, testutil.WaitLong)
 
 			exp := codersdk.NewExperimentalClient(client)
-			err := exp.DeleteTask(ctx, "me", ws.ID)
+			task, err := exp.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Prompt:            "delete me",
+			})
+			require.NoError(t, err)
+			ws, err := client.Workspace(ctx, task.ID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+			err = exp.DeleteTask(ctx, "me", task.ID)
 			require.NoError(t, err, "delete task request should be accepted")
 
 			// Poll until the workspace is deleted.
 			for {
-				dws, derr := client.DeletedWorkspace(ctx, ws.ID)
+				dws, derr := client.DeletedWorkspace(ctx, task.ID)
 				if derr == nil && dws.LatestBuild.Status == codersdk.WorkspaceStatusDeleted {
 					break
 				}
@@ -354,21 +356,25 @@ func TestTasks(t *testing.T) {
 
 			// Owner's AI-capable template and workspace (task).
 			template := createAITemplate(t, client, owner)
-			ws := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
-				req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
-					{Name: codersdk.AITaskPromptParameterName, Value: "secure"},
-				}
-			})
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
 			ctx := testutil.Context(t, testutil.WaitShort)
+
+			exp := codersdk.NewExperimentalClient(client)
+			task, err := exp.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Prompt:            "delete me not",
+			})
+			require.NoError(t, err)
+			ws, err := client.Workspace(ctx, task.ID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
 			// Another regular org member without elevated permissions.
 			otherClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 			expOther := codersdk.NewExperimentalClient(otherClient)
 
 			// Attempt to delete the owner's task as a non-owner without permissions.
-			err := expOther.DeleteTask(ctx, "me", ws.ID)
+			err = expOther.DeleteTask(ctx, "me", task.ID)
 
 			var authErr *codersdk.Error
 			require.Error(t, err, "expected an authorization error when deleting another user's task")
