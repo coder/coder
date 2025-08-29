@@ -1,5 +1,4 @@
 import type { WorkspaceAgent } from "api/typesGenerated";
-import { PopoverTrigger } from "components/deprecated/Popover/Popover";
 import {
 	HelpTooltip,
 	HelpTooltipAction,
@@ -9,8 +8,9 @@ import {
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
+import { TooltipTrigger } from "components/Tooltip/Tooltip";
 import { RotateCcwIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { agentVersionStatus } from "../../utils/workspace";
 
 type AgentOutdatedTooltipProps = {
@@ -26,6 +26,8 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 	status,
 	onUpdate,
 }) => {
+	const [isOpen, setIsOpen] = useState(false);
+
 	const title =
 		status === agentVersionStatus.Outdated
 			? "Agent Outdated"
@@ -37,12 +39,12 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 	const text = `${opener} This can happen after you update Coder with running workspaces. To fix this, you can stop and start the workspace.`;
 
 	return (
-		<HelpTooltip>
-			<PopoverTrigger>
+		<HelpTooltip open={isOpen} onOpenChange={setIsOpen}>
+			<TooltipTrigger asChild>
 				<span role="status" className="cursor-pointer">
 					{status === agentVersionStatus.Outdated ? "Outdated" : "Deprecated"}
 				</span>
-			</PopoverTrigger>
+			</TooltipTrigger>
 			<HelpTooltipContent>
 				<Stack spacing={1}>
 					<div>
@@ -67,7 +69,11 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 					<HelpTooltipLinksGroup>
 						<HelpTooltipAction
 							icon={RotateCcwIcon}
-							onClick={onUpdate}
+							onClick={() => {
+								onUpdate();
+								// TODO can we move this tooltip-closing logic to the definition of HelpTooltipAction?
+								setIsOpen(false);
+							}}
 							ariaLabel="Update workspace"
 						>
 							Update workspace

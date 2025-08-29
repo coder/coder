@@ -157,6 +157,12 @@ export const WithError = {
 	},
 };
 
+export const PublishDialog = {
+	args: {
+		isAskingPublishParameters: true,
+	},
+};
+
 export const Published = {
 	args: {
 		publishedVersion: MockTemplateVersion,
