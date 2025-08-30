@@ -147,6 +147,10 @@ interface TimeSyncApi {
 	updateAllSubscriptions: () => void;
 }
 
+function orderIntervals(interval1: number, interval2: number): number {
+	return interval2 - interval1;
+}
+
 /**
  * TimeSync provides a centralized authority for working with time values in a
  * more structured way, where all dependents for the time values must stay in
@@ -310,7 +314,7 @@ export class TimeSync implements TimeSyncApi {
 
 		intervals.push(targetRefreshInterval);
 		if (intervals.length > 1) {
-			intervals.sort((i1, i2) => i2 - i1);
+			intervals.sort(orderIntervals);
 		}
 
 		let hasPendingSubscribers = false;
@@ -342,7 +346,7 @@ export class TimeSync implements TimeSyncApi {
 
 		intervals.splice(firstMatchIndex, 1);
 		if (intervals.length > 1) {
-			intervals.sort((i1, i2) => i2 - i1);
+			intervals.sort(orderIntervals);
 		}
 		if (intervals.length === 0) {
 			this.#subscriptions.delete(onUpdate);
