@@ -40,7 +40,7 @@ describe(TimeSync.name, () => {
 			for (const i of sampleInvalidIntervals) {
 				expect(() => {
 					void sync.subscribe({
-						targetRefreshInterval: i,
+						targetRefreshIntervalMs: i,
 						onUpdate: dummyFunction,
 					});
 				}).toThrow(
@@ -124,6 +124,9 @@ describe(TimeSync.name, () => {
 		});
 	});
 
+	// This behavior is needed to make TimeSync play well with React's
+	// lifecycles, but it didn't feel reasonable to make this behavior the
+	// default for a system that should ideally be decoupled from React
 	describe("Subscriptions: turning `autoNotifyAfterStateUpdate` off", () => {
 		it("Does not auto-notify subscribers when date state is updated", () => {
 			expect.hasAssertions();

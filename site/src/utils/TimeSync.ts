@@ -61,7 +61,7 @@ export type SubscriptionHandshake = Readonly<{
 	 * then B and C will shift to being updated every 1500ms. If B unsubscribes,
 	 * updates will pause completely.
 	 */
-	targetRefreshInterval: number;
+	targetRefreshIntervalMs: number;
 	onUpdate: OnUpdate;
 }>;
 
@@ -117,15 +117,8 @@ interface TimeSyncApi {
 	 * Does not need to be used if TimeSync has already been configured with
 	 * `notifyAfterUpdate` set to true.
 	 */
-	notifySubscribers: () => void;
+	updateAllSubscriptions: () => void;
 }
-
-type SubscriptionTracker = Readonly<{
-	targetRefreshInterval: number;
-	// Each key is an individual onUpdate callback, while each value is the
-	// number of subscribers that currently have that callback registered
-	updates: Map<OnUpdate, number>;
-}>;
 
 /**
  * TimeSync provides a centralized authority for working with time values in a
@@ -161,8 +154,15 @@ export class TimeSync implements TimeSyncApi {
 	 */
 	#latestDateSnapshot: ReadonlyDate;
 
-	// Should always be sorted based on refresh interval, ascending
-	#subscriptionTrackers: SubscriptionTracker[] = [];
+	// Each map value is the list of all refresh intervals actively associated
+	// with an onUpdate callback (allowing for duplicate intervals if multiple
+	// subscriptions were set up with the exact same onUpdate-interval pair).
+	// Each map value should also stay sorted in ascending order.
+	#subscriptions = new Map<OnUpdate, number[]>();
+
+	// A cached version of the fastest interval among all subscriptions. Should
+	// always be derived from #subscriptions
+	#fastestRefreshInterval = Number.POSITIVE_INFINITY;
 
 	// This class uses setInterval for both its intended purpose and as a janky
 	// version of setTimeout. There are a few times when we need timeout-like
@@ -194,14 +194,24 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	/**
-	 * Convenience method for getting the minimum refresh interval in a
-	 * type-safe way
+	 * Updates the cached version of the fastest refresh interval.
+	 * @returns {boolean} Indicates whether the new fastest interval was changed
 	 */
-	#getMinUpdateInterval(): number {
-		return (
-			this.#subscriptionTrackers[0]?.targetRefreshInterval ??
-			Number.POSITIVE_INFINITY
-		);
+	#updateFastestInterval(): boolean {
+		const prevFastest = this.#fastestRefreshInterval;
+		let newFastest = Number.POSITIVE_INFINITY;
+
+		// This setup requires that every interval array stay sorted. It
+		// immediately falls apart if this isn't guaranteed.
+		for (const intervals of this.#subscriptions.values()) {
+			const subFastest = intervals[0] ?? Number.POSITIVE_INFINITY;
+			if (subFastest < newFastest) {
+				newFastest = subFastest;
+			}
+		}
+
+		this.#fastestRefreshInterval = newFastest;
+		return prevFastest !== newFastest;
 	}
 
 	/**
@@ -234,7 +244,7 @@ export class TimeSync implements TimeSyncApi {
 	#flushSync(): boolean {
 		const hasPendingUpdate = this.#updateSnapshot();
 		if (hasPendingUpdate && this.#autoNotifyAfterStateUpdate) {
-			this.notifySubscribers();
+			this.updateAllSubscriptions();
 		}
 		return hasPendingUpdate && !this.#autoNotifyAfterStateUpdate;
 	}
@@ -250,129 +260,107 @@ export class TimeSync implements TimeSyncApi {
 	#onTick = (): void => {
 		const hasPendingUpdate = this.#updateSnapshot();
 		if (hasPendingUpdate) {
-			this.notifySubscribers();
+			this.updateAllSubscriptions();
 		}
 	};
 
-	#reconcileTrackersUpdate(): void {
-		const oldMin = this.#getMinUpdateInterval();
-		this.#subscriptionTrackers.sort(
-			(t1, t2) => t2.targetRefreshInterval - t1.targetRefreshInterval,
-		);
-
-		const newMin = this.#getMinUpdateInterval();
-		if (newMin === oldMin) {
-			return;
-		}
-
-		if (newMin === Number.POSITIVE_INFINITY) {
+	#onFastestIntervalChange(): void {
+		const fastest = this.#fastestRefreshInterval;
+		if (fastest === Number.POSITIVE_INFINITY) {
 			window.clearInterval(this.#latestIntervalId);
 			this.#latestIntervalId = undefined;
 			return;
 		}
 
 		const elapsed = Date.now() - this.#latestDateSnapshot.getMilliseconds();
-		const delta = newMin - elapsed;
+		const delta = fastest - elapsed;
 
 		// If we're behind on updates, we need to sync immediately before
 		// setting up the new interval. With how TimeSync is designed, this case
 		// should only be triggered in response to adding a new tracker
 		if (delta <= 0) {
 			window.clearInterval(this.#latestIntervalId);
-			const x = this.#flushSync();
-			this.#latestIntervalId = window.setInterval(this.#onTick, newMin);
+			this.#flushSync();
+			this.#latestIntervalId = window.setInterval(this.#onTick, fastest);
 			return;
 		}
 
 		window.clearInterval(this.#latestIntervalId);
 		this.#latestIntervalId = window.setInterval(() => {
 			window.clearInterval(this.#latestIntervalId);
-			this.#latestIntervalId = window.setInterval(this.#onTick, newMin);
+			this.#latestIntervalId = window.setInterval(this.#onTick, fastest);
 		}, delta);
 	}
 
-	/**
-	 * Adds a new subscription.
-	 */
-	#addSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): void {
-		const prevTracker = this.#subscriptionTrackers.find(
-			(t) => t.targetRefreshInterval === targetRefreshInterval,
-		);
-
-		let needReconciliation = false;
-		let activeTracker: SubscriptionTracker;
-		if (prevTracker !== undefined) {
-			activeTracker = prevTracker;
-		} else {
-			needReconciliation = true;
-			activeTracker = { targetRefreshInterval, updates: new Map() };
-			this.#subscriptionTrackers.push(activeTracker);
+	#addSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): boolean {
+		const initialIntervals = this.#subscriptions.size;
+		let intervals = this.#subscriptions.get(onUpdate);
+		if (intervals === undefined) {
+			intervals = [];
+			this.#subscriptions.set(onUpdate, intervals);
 		}
 
-		const alreadySubscribed = activeTracker.updates.has(onUpdate);
-		if (alreadySubscribed) {
-			return;
+		intervals.push(targetRefreshInterval);
+		if (intervals.length > 1) {
+			intervals.sort((i1, i2) => i2 - i1);
 		}
 
-		const newCount = 1 + (activeTracker.updates.get(onUpdate) ?? 0);
-		activeTracker.updates.set(onUpdate, newCount);
-		if (needReconciliation) {
-			this.#reconcileTrackersUpdate();
+		// Even if the fastest interval hasn't changed, we should still update
+		// the snapshot
+		const changed = this.#updateFastestInterval();
+		if (changed || initialIntervals === 0) {
+			this.#onFastestIntervalChange();
 		}
+		return false;
 	}
 
 	#removeSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): void {
-		const activeTracker = this.#subscriptionTrackers.find(
-			(t) => t.targetRefreshInterval === targetRefreshInterval,
-		);
-		if (activeTracker === undefined || !activeTracker.updates.has(onUpdate)) {
+		const intervals = this.#subscriptions.get(onUpdate);
+		if (intervals === undefined) {
+			return;
+		}
+		const firstMatchIndex = intervals.indexOf(targetRefreshInterval);
+		if (firstMatchIndex === -1) {
 			return;
 		}
 
-		const newCount = (activeTracker.updates.get(onUpdate) ?? 0) - 1;
-		if (newCount > 0) {
-			activeTracker.updates.set(onUpdate, newCount);
-			return;
+		intervals.splice(firstMatchIndex, 1);
+		if (intervals.length > 1) {
+			intervals.sort((i1, i2) => i2 - i1);
+		}
+		if (intervals.length === 0) {
+			this.#subscriptions.delete(onUpdate);
 		}
 
-		activeTracker.updates.delete(onUpdate);
-		// Could probably make it so that we get really specific with which
-		// tracker to remove to improve performance, but this setup is easier,
-		// and it also gives us a safety net in case we accidentally set up
-		// trackers without any functions elsewhere
-		const filtered = this.#subscriptionTrackers.filter(
-			(t) => t.updates.size > 0,
-		);
-		if (filtered.length === this.#subscriptionTrackers.length) {
-			return;
+		const changed = this.#updateFastestInterval();
+		if (changed) {
+			this.#onFastestIntervalChange();
 		}
-		this.#subscriptionTrackers = filtered;
-		this.#reconcileTrackersUpdate();
 	}
 
 	subscribe(hs: SubscriptionHandshake): SubscriptionResult {
 		// Destructuring properties so that they can't be fiddled with after
 		// this function call ends
-		const { targetRefreshInterval, onUpdate } = hs;
+		const { targetRefreshIntervalMs, onUpdate } = hs;
 
-		const isInputInvalid =
-			!Number.isInteger(targetRefreshInterval) || targetRefreshInterval <= 0;
-		if (isInputInvalid) {
+		const isInputValid =
+			Number.isInteger(targetRefreshIntervalMs) && targetRefreshIntervalMs > 0;
+		if (!isInputValid) {
 			throw new RangeError(
-				`TimeSync refresh interval must be a positive integer (received ${targetRefreshInterval}ms)`,
+				`TimeSync refresh interval must be a positive integer (received ${targetRefreshIntervalMs}ms)`,
 			);
 		}
 
-		const capped = Math.max(
+		const floored = Math.max(
 			this.#minimumRefreshIntervalMs,
-			targetRefreshInterval,
+			targetRefreshIntervalMs,
 		);
-		this.#addSubscription(capped, onUpdate);
+		const hasPendingSubscribers = this.#addSubscription(floored, onUpdate);
 
 		return {
-			hasPendingSubscribers: false,
+			hasPendingSubscribers,
 			unsubscribe: () => {
-				this.#removeSubscription(capped, onUpdate);
+				this.#removeSubscription(floored, onUpdate);
 			},
 		};
 	}
@@ -381,10 +369,10 @@ export class TimeSync implements TimeSyncApi {
 		return this.#latestDateSnapshot;
 	}
 
-	notifySubscribers(): void {
+	updateAllSubscriptions(): void {
 		const subscriptionsPaused =
-			this.#subscriptionTrackers.length === 0 ||
-			this.#getMinUpdateInterval() === Number.POSITIVE_INFINITY;
+			this.#subscriptions.size === 0 ||
+			this.#fastestRefreshInterval === Number.POSITIVE_INFINITY;
 		if (subscriptionsPaused) {
 			return;
 		}
@@ -394,10 +382,8 @@ export class TimeSync implements TimeSyncApi {
 		// callback calls, it doesn't cause subscribers to receive different
 		// values.
 		const bound = this.#latestDateSnapshot;
-		for (const subEntry of this.#subscriptionTrackers) {
-			for (const onUpdate of subEntry.updates.keys()) {
-				onUpdate(bound);
-			}
+		for (const onUpdate of this.#subscriptions.keys()) {
+			onUpdate(bound);
 		}
 	}
 }
