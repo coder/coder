@@ -14,10 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/agentmetrics"
-
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/testutil"
@@ -592,7 +592,10 @@ func TestLabelsAggregation(t *testing.T) {
 
 			// given
 			registry := prometheus.NewRegistry()
-			metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), registry, time.Hour, tc.aggregateOn) // time.Hour, so metrics won't expire
+
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			logger = logger.Leveled(slog.LevelDebug)
+			metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(logger, registry, time.Hour, tc.aggregateOn) // time.Hour, so metrics won't expire
 			require.NoError(t, err)
 
 			ctx, cancelFunc := context.WithCancel(context.Background())
