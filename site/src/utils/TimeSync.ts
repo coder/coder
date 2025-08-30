@@ -229,7 +229,7 @@ export class TimeSync implements TimeSyncApi {
 	 * @returns {boolean} Indicates whether the state actually changed.
 	 */
 	#updateDateSnapshot(): boolean {
-		const newSnap = newReadonlyDate(this.#latestDateSnapshot as Date);
+		const newSnap = newReadonlyDate();
 		const noStateChange =
 			newSnap.getMilliseconds() === this.#latestDateSnapshot.getMilliseconds();
 		if (noStateChange) {
