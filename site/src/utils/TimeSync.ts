@@ -281,9 +281,9 @@ export class TimeSync implements TimeSyncApi {
 		// from removing one
 		if (delta <= 0) {
 			window.clearInterval(this.#latestIntervalId);
-			const hasPendingUpdates = this.#flushDateUpdate();
+			const hasPendingSubscribers = this.#flushDateUpdate();
 			this.#latestIntervalId = window.setInterval(this.#onTick, fastest);
-			return hasPendingUpdates;
+			return hasPendingSubscribers;
 		}
 
 		window.clearInterval(this.#latestIntervalId);
@@ -308,10 +308,10 @@ export class TimeSync implements TimeSyncApi {
 			intervals.sort((i1, i2) => i2 - i1);
 		}
 
-		let hasPendingUpdates = false;
+		let hasPendingSubscribers = false;
 		const changed = this.#updateFastestInterval();
 		if (changed) {
-			hasPendingUpdates ||= this.#onFastestIntervalChange();
+			hasPendingSubscribers ||= this.#onFastestIntervalChange();
 		}
 
 		// Even if the fastest interval hasn't changed, we should still update
@@ -319,10 +319,10 @@ export class TimeSync implements TimeSyncApi {
 		// know how much time will have passed between the class getting
 		// instantiated and the first subscription
 		if (initialSubs === 0) {
-			hasPendingUpdates ||= this.#flushDateUpdate();
+			hasPendingSubscribers ||= this.#flushDateUpdate();
 		}
 
-		return hasPendingUpdates;
+		return hasPendingSubscribers;
 	}
 
 	#removeSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): void {
