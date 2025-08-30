@@ -241,7 +241,7 @@ export class TimeSync implements TimeSyncApi {
 	 * @returns {boolean} Indicates whether there are still subscribers that
 	 * need to be notified after the update.
 	 */
-	#flushDateUpdate(): boolean {
+	#flushUpdate(): boolean {
 		const hasPendingUpdate = this.#updateDateSnapshot();
 		if (hasPendingUpdate && this.#autoNotifyAfterStateUpdate) {
 			this.updateAllSubscriptions();
@@ -281,7 +281,7 @@ export class TimeSync implements TimeSyncApi {
 		// from removing one
 		if (delta <= 0) {
 			window.clearInterval(this.#latestIntervalId);
-			const hasPendingSubscribers = this.#flushDateUpdate();
+			const hasPendingSubscribers = this.#flushUpdate();
 			this.#latestIntervalId = window.setInterval(this.#onTick, fastest);
 			return hasPendingSubscribers;
 		}
@@ -319,7 +319,7 @@ export class TimeSync implements TimeSyncApi {
 		// know how much time will have passed between the class getting
 		// instantiated and the first subscription
 		if (initialSubs === 0) {
-			hasPendingSubscribers ||= this.#flushDateUpdate();
+			hasPendingSubscribers ||= this.#flushUpdate();
 		}
 
 		return hasPendingSubscribers;
