@@ -9,7 +9,8 @@ const sampleInvalidIntervals: readonly number[] = [
 	470.53,
 ];
 
-// Just doing a bunch of psuedo-coded tests for now
+// Just doing a bunch of pseodocode tests for now to validate my assumptions
+// about how the system should work
 describe(TimeSync.name, () => {
 	describe("Subscriptions: default behavior", () => {
 		it("Does not ever update any internal state while there are zero subscribers", () => {
@@ -24,7 +25,10 @@ describe(TimeSync.name, () => {
 			expect.hasAssertions();
 		});
 
-		// This is actually really important behavior for the React bindings
+		// This is really important behavior for the React bindings. Those use
+		// useSyncExternalStore under the hood, which require that you always
+		// return out the same value by reference every time React tries to pull
+		// a value from an external state source
 		it("Exposes the exact same date snapshot (by reference) to subscribers on each update", () => {
 			expect.hasAssertions();
 		});
@@ -95,7 +99,7 @@ describe(TimeSync.name, () => {
 			expect.hasAssertions();
 		});
 
-		it("Does not ever dispatch periodic updates (beyond initial subscription) if all subscribers specify an update interval of positive infinity", () => {
+		it("Does not ever do periodic notifications if all subscribers specify an update interval of positive infinity", () => {
 			expect.hasAssertions();
 		});
 
@@ -105,11 +109,11 @@ describe(TimeSync.name, () => {
 	});
 
 	describe("Subscriptions: custom `minimumRefreshIntervalMs` value", () => {
-		it("Rounds up all subscription intervals based on custom base interval", () => {
+		it("Rounds up all incoming subscription intervals to custom min interval", () => {
 			expect.hasAssertions();
 		});
 
-		it("Throws if custom interval is not a positive integer", () => {
+		it("Throws if custom min interval is not a positive integer", () => {
 			for (const i of sampleInvalidIntervals) {
 				expect(() => {
 					void new TimeSync({ minimumRefreshIntervalMs: i });
@@ -135,7 +139,11 @@ describe(TimeSync.name, () => {
 			expect.hasAssertions();
 		});
 
-		it("Lets any external system access the latest date snapshot without subscribing, and snapshot stays up to date", () => {
+		it("Lets any external system access the latest date snapshot without subscribing", () => {
+			expect.hasAssertions();
+		});
+
+		it("Keeps pulled date snapshot over time as other subscribers update it", () => {
 			expect.hasAssertions();
 		});
 	});
