@@ -1,8 +1,35 @@
 /**
- * A readonly version of a Date object. The object lacks all set methods at the
- * type level, and is frozen at runtime.
+ * A readonly version of a Date object. The object is guaranteed to lack all
+ * methods that can modify internal state both at compile time and runtime.
  */
 export type ReadonlyDate = Omit<Date, `set${string}`>;
+
+const noOp = (..._: readonly unknown[]): void => {};
+
+/**
+ * All of TimeSync is basically centered around managing a single Date value,
+ * keeping it updated, and notifying subscribers of changes over time. If even a
+ * single mutation slips through, that has a risk of breaking everything. So for
+ * correctness guarantees, we have to prevent runtime mutations and can't just
+ * hope that lying about the types does enough.
+ *
+ * Using Object.freeze would typically be enough, but Date objects have a lot of
+ * set methods that can bypass this restriction and modify internal state. A
+ * proxy wrapper is literally our only option.
+ */
+const readonlyEnforcer: ProxyHandler<Date> = {
+	get: (date, key) => {
+		if (typeof key === "string" && key.startsWith("set")) {
+			return noOp;
+		}
+		return date[key as keyof Date];
+	},
+};
+
+function newReadonlyDate(sourceDate?: Date): ReadonlyDate {
+	const newDate = sourceDate ? new Date(sourceDate) : new Date();
+	return new Proxy(newDate, readonlyEnforcer);
+}
 
 export type TimeSyncInitOptions = Readonly<{
 	/**
@@ -137,21 +164,6 @@ interface TimeSyncApi {
 export class TimeSync implements TimeSyncApi {
 	readonly #autoNotifyAfterStateUpdate: boolean;
 	readonly #minimumRefreshIntervalMs: number;
-
-	/**
-	 * @todo Ran out of time for this, but to make sure that the state system is
-	 * 100% airtight, we need to make sure that the Date object is truly
-	 * readonly at runtime.
-	 *
-	 * The ReadonlyDate type hides the set methods at compile time, and freezing
-	 * the Date objects at runtime helps a little. But the set methods still
-	 * exist at runtime, and there's nothing stopping them from modifying the
-	 * internal Date object state. A single one of those calls can destroy the
-	 * entire state management strategy.
-	 *
-	 * This can probably be punted for a while, but the system will not have
-	 * correctness guarantees until this is addressed.
-	 */
 	#latestDateSnapshot: ReadonlyDate;
 
 	// Each map value is the list of all refresh intervals actively associated
@@ -160,8 +172,8 @@ export class TimeSync implements TimeSyncApi {
 	// Each map value should also stay sorted in ascending order.
 	#subscriptions = new Map<OnUpdate, number[]>();
 
-	// A cached version of the fastest interval among all subscriptions. Should
-	// always be derived from #subscriptions
+	// A cached version of the fastest interval currently registered with
+	// TimeSync. Should always be derived from #subscriptions
 	#fastestRefreshInterval = Number.POSITIVE_INFINITY;
 
 	// This class uses setInterval for both its intended purpose and as a janky
@@ -188,9 +200,7 @@ export class TimeSync implements TimeSyncApi {
 
 		this.#autoNotifyAfterStateUpdate = autoNotifyAfterStateUpdate;
 		this.#minimumRefreshIntervalMs = minimumRefreshIntervalMs;
-
-		const dateCopy = Object.freeze(new Date(initialDatetime));
-		this.#latestDateSnapshot = dateCopy;
+		this.#latestDateSnapshot = newReadonlyDate(initialDatetime);
 	}
 
 	/**
@@ -219,19 +229,14 @@ export class TimeSync implements TimeSyncApi {
 	 * @returns {boolean} Indicates whether the state actually changed.
 	 */
 	#updateDateSnapshot(): boolean {
-		const newSource = new Date(this.#latestDateSnapshot as Date);
+		const newSnap = newReadonlyDate(this.#latestDateSnapshot as Date);
 		const noStateChange =
-			newSource.getMilliseconds() ===
-			this.#latestDateSnapshot.getMilliseconds();
+			newSnap.getMilliseconds() === this.#latestDateSnapshot.getMilliseconds();
 		if (noStateChange) {
 			return false;
 		}
 
-		// Binding the updated state to a separate variable instead of `this`
-		// just to make sure the this context can't be messed with as each
-		// callback runs
-		const frozen = Object.freeze(newSource);
-		this.#latestDateSnapshot = frozen;
+		this.#latestDateSnapshot = newSnap;
 		return true;
 	}
 
