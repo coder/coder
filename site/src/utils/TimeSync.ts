@@ -127,7 +127,7 @@ interface TimeSyncApi {
 	 * a new state update needs to be dispatched, the onUpdate callback will be
 	 * called once, total.
 	 *
-	 * @throws {RangeError} If the provided interval is less than or equal to 0.
+	 * @throws {RangeError} If the provided interval is not a positive integer.
 	 */
 	subscribe: (entry: SubscriptionHandshake) => SubscriptionResult;
 
