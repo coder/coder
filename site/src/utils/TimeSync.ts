@@ -269,7 +269,7 @@ export class TimeSync implements TimeSyncApi {
 		if (fastest === Number.POSITIVE_INFINITY) {
 			window.clearInterval(this.#latestIntervalId);
 			this.#latestIntervalId = undefined;
-			return;
+			return false;
 		}
 
 		const elapsed = Date.now() - this.#latestDateSnapshot.getMilliseconds();
@@ -281,9 +281,9 @@ export class TimeSync implements TimeSyncApi {
 		// from removing one
 		if (delta <= 0) {
 			window.clearInterval(this.#latestIntervalId);
-			this.#flushDateUpdate();
+			const hasPendingUpdates = this.#flushDateUpdate();
 			this.#latestIntervalId = window.setInterval(this.#onTick, fastest);
-			return;
+			return hasPendingUpdates;
 		}
 
 		window.clearInterval(this.#latestIntervalId);
@@ -291,6 +291,8 @@ export class TimeSync implements TimeSyncApi {
 			window.clearInterval(this.#latestIntervalId);
 			this.#latestIntervalId = window.setInterval(this.#onTick, fastest);
 		}, delta);
+
+		return false;
 	}
 
 	#addSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): boolean {
