@@ -218,7 +218,7 @@ export class TimeSync implements TimeSyncApi {
 	 * Attempts to update the current Date snapshot.
 	 * @returns {boolean} Indicates whether the state actually changed.
 	 */
-	#updateSnapshot(): boolean {
+	#updateDateSnapshot(): boolean {
 		const newSource = new Date(this.#latestDateSnapshot as Date);
 		const noStateChange =
 			newSource.getMilliseconds() ===
@@ -241,8 +241,8 @@ export class TimeSync implements TimeSyncApi {
 	 * @returns {boolean} Indicates whether there are still subscribers that
 	 * need to be notified after the update.
 	 */
-	#flushSync(): boolean {
-		const hasPendingUpdate = this.#updateSnapshot();
+	#flushDateUpdate(): boolean {
+		const hasPendingUpdate = this.#updateDateSnapshot();
 		if (hasPendingUpdate && this.#autoNotifyAfterStateUpdate) {
 			this.updateAllSubscriptions();
 		}
@@ -258,13 +258,13 @@ export class TimeSync implements TimeSyncApi {
 	 * is one of them
 	 */
 	#onTick = (): void => {
-		const hasPendingUpdate = this.#updateSnapshot();
+		const hasPendingUpdate = this.#updateDateSnapshot();
 		if (hasPendingUpdate) {
 			this.updateAllSubscriptions();
 		}
 	};
 
-	#onFastestIntervalChange(): void {
+	#onFastestIntervalChange(): boolean {
 		const fastest = this.#fastestRefreshInterval;
 		if (fastest === Number.POSITIVE_INFINITY) {
 			window.clearInterval(this.#latestIntervalId);
@@ -277,10 +277,11 @@ export class TimeSync implements TimeSyncApi {
 
 		// If we're behind on updates, we need to sync immediately before
 		// setting up the new interval. With how TimeSync is designed, this case
-		// should only be triggered in response to adding a new tracker
+		// should only be triggered in response to adding a subscription, never
+		// from removing one
 		if (delta <= 0) {
 			window.clearInterval(this.#latestIntervalId);
-			this.#flushSync();
+			this.#flushDateUpdate();
 			this.#latestIntervalId = window.setInterval(this.#onTick, fastest);
 			return;
 		}
@@ -293,7 +294,7 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	#addSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): boolean {
-		const initialIntervals = this.#subscriptions.size;
+		const initialSubs = this.#subscriptions.size;
 		let intervals = this.#subscriptions.get(onUpdate);
 		if (intervals === undefined) {
 			intervals = [];
@@ -305,13 +306,21 @@ export class TimeSync implements TimeSyncApi {
 			intervals.sort((i1, i2) => i2 - i1);
 		}
 
-		// Even if the fastest interval hasn't changed, we should still update
-		// the snapshot
+		let hasPendingUpdates = false;
 		const changed = this.#updateFastestInterval();
-		if (changed || initialIntervals === 0) {
-			this.#onFastestIntervalChange();
+		if (changed) {
+			hasPendingUpdates ||= this.#onFastestIntervalChange();
 		}
-		return false;
+
+		// Even if the fastest interval hasn't changed, we should still update
+		// the snapshot after the very first subscription gets added. We don't
+		// know how much time will have passed between the class getting
+		// instantiated and the first subscription
+		if (initialSubs === 0) {
+			hasPendingUpdates ||= this.#flushDateUpdate();
+		}
+
+		return hasPendingUpdates;
 	}
 
 	#removeSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): void {
