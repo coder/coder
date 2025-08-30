@@ -4,8 +4,6 @@
  */
 export type ReadonlyDate = Omit<Date, `set${string}`>;
 
-export type CreateNewDatetime = (prevDate: ReadonlyDate) => Date;
-
 export type TimeSyncInitOptions = Readonly<{
 	/**
 	 * The Date value to use when initializing a TimeSync instance.
@@ -13,14 +11,17 @@ export type TimeSyncInitOptions = Readonly<{
 	initialDatetime: Date;
 
 	/**
-	 * The function to use when creating a new datetime snapshot when a TimeSync
-	 * needs to update on an interval. Useful for making tests more
-	 * deterministic.
+	 * The minimum refresh interval (in milliseconds) to use when dispatching
+	 * interval-based state updates.
 	 *
-	 * Defaults to a function that returns a brand new Date based on the current
-	 * system time.
+	 * If a value smaller than this is specified when trying to set up a new
+	 * subscription, this minimum will be used instead.
+	 *
+	 * It is highly recommended that you only modify this value if you have a
+	 * good reason. Updating this value to be too low and make the event loop
+	 * get really hot and really tank performance elsewhere in the app.
 	 */
-	createNewDatetime: CreateNewDatetime;
+	minimumRefreshIntervalMs: number;
 
 	/**
 	 * Configures whether subscribers will be notified immediately after a new
@@ -33,7 +34,7 @@ export type TimeSyncInitOptions = Readonly<{
 	 * to false, and then use the `notifySubscribers` method to manage
 	 * subscriptions manually.
 	 */
-	notifyAfterUpdate: boolean;
+	autoNotifyAfterStateUpdate: boolean;
 }>;
 
 /**
@@ -66,8 +67,8 @@ export type SubscriptionHandshake = Readonly<{
 
 const defaultOptions: TimeSyncInitOptions = {
 	initialDatetime: new Date(),
-	notifyAfterUpdate: true,
-	createNewDatetime: () => new Date(),
+	autoNotifyAfterStateUpdate: true,
+	minimumRefreshIntervalMs: 100,
 };
 
 export type SubscriptionResult = Readonly<{
@@ -141,8 +142,8 @@ type SubscriptionTracker = Readonly<{
  * See comments for exported methods and types for more information.
  */
 export class TimeSync implements TimeSyncApi {
-	readonly #notifyAfterUpdate: boolean;
-	readonly #createNewDatetime: CreateNewDatetime;
+	readonly #autoNotifyAfterStateUpdate: boolean;
+	readonly #minimumRefreshIntervalMs: number;
 
 	/**
 	 * @todo Ran out of time for this, but to make sure that the state system is
@@ -169,15 +170,24 @@ export class TimeSync implements TimeSyncApi {
 	// data dependencies to mock out and don't have to juggle different IDs
 	#latestIntervalId: number | undefined = undefined;
 
-	constructor(options: Partial<TimeSyncInitOptions>) {
+	constructor(options?: Partial<TimeSyncInitOptions>) {
 		const {
 			initialDatetime = defaultOptions.initialDatetime,
-			notifyAfterUpdate = defaultOptions.notifyAfterUpdate,
-			createNewDatetime = defaultOptions.createNewDatetime,
-		} = options;
+			autoNotifyAfterStateUpdate = defaultOptions.autoNotifyAfterStateUpdate,
+			minimumRefreshIntervalMs = defaultOptions.minimumRefreshIntervalMs,
+		} = options ?? {};
 
-		this.#createNewDatetime = createNewDatetime;
-		this.#notifyAfterUpdate = notifyAfterUpdate;
+		const minIsInvalid =
+			!Number.isInteger(minimumRefreshIntervalMs) ||
+			minimumRefreshIntervalMs <= 0;
+		if (minIsInvalid) {
+			throw new Error(
+				`Minimum refresh interval must be a positive integer (received ${minimumRefreshIntervalMs}ms)`,
+			);
+		}
+
+		this.#autoNotifyAfterStateUpdate = autoNotifyAfterStateUpdate;
+		this.#minimumRefreshIntervalMs = minimumRefreshIntervalMs;
 
 		const dateCopy = Object.freeze(new Date(initialDatetime));
 		this.#latestDateSnapshot = dateCopy;
@@ -199,7 +209,7 @@ export class TimeSync implements TimeSyncApi {
 	 * @returns {boolean} Indicates whether the state actually changed.
 	 */
 	#updateSnapshot(): boolean {
-		const newSource = this.#createNewDatetime(this.#latestDateSnapshot);
+		const newSource = new Date(this.#latestDateSnapshot as Date);
 		const noStateChange =
 			newSource.getMilliseconds() ===
 			this.#latestDateSnapshot.getMilliseconds();
@@ -223,10 +233,10 @@ export class TimeSync implements TimeSyncApi {
 	 */
 	#flushSync(): boolean {
 		const hasPendingUpdate = this.#updateSnapshot();
-		if (hasPendingUpdate && this.#notifyAfterUpdate) {
+		if (hasPendingUpdate && this.#autoNotifyAfterStateUpdate) {
 			this.notifySubscribers();
 		}
-		return hasPendingUpdate && !this.#notifyAfterUpdate;
+		return hasPendingUpdate && !this.#autoNotifyAfterStateUpdate;
 	}
 
 	/**
@@ -353,12 +363,16 @@ export class TimeSync implements TimeSyncApi {
 			);
 		}
 
-		this.#addSubscription(targetRefreshInterval, onUpdate);
+		const capped = Math.max(
+			this.#minimumRefreshIntervalMs,
+			targetRefreshInterval,
+		);
+		this.#addSubscription(capped, onUpdate);
 
 		return {
 			hasPendingSubscribers: false,
 			unsubscribe: () => {
-				this.#removeSubscription(targetRefreshInterval, onUpdate);
+				this.#removeSubscription(capped, onUpdate);
 			},
 		};
 	}
