@@ -1,6 +1,7 @@
 package prometheusmetrics_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"sort"
@@ -15,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
@@ -595,6 +597,11 @@ func TestLabelsAggregation(t *testing.T) {
 
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 			logger = logger.Leveled(slog.LevelDebug)
+
+			// updateWatch is how we know the update was processed before we collect
+			var updateWatch bytes.Buffer
+			logger = logger.AppendSinks(sloghuman.Sink(&updateWatch))
+
 			metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(logger, registry, time.Hour, tc.aggregateOn) // time.Hour, so metrics won't expire
 			require.NoError(t, err)
 
@@ -608,6 +615,15 @@ func TestLabelsAggregation(t *testing.T) {
 			for _, sc := range tc.given {
 				metricsAggregator.Update(ctx, sc.labels, sc.metrics)
 			}
+
+			// This code makes sure all updates are processed before we start a collection.
+			// We do this by grepping the logs for "update metrics" messages, which are logged
+			// every time an update is processed.
+			//
+			// This is not ideal as the code relies on implementation details (the log message),
+			require.Eventually(t, func() bool {
+				return strings.Count(updateWatch.String(), "update metrics") == len(tc.given)
+			}, testutil.WaitMedium, testutil.IntervalFast)
 
 			// then
 			require.Eventually(t, func() bool {
