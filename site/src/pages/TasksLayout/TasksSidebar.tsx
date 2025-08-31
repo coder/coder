@@ -3,19 +3,6 @@ import { cva } from "class-variance-authority";
 import { Button } from "components/Button/Button";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import {
-	Sidebar,
-	SidebarContent,
-	SidebarGroup,
-	SidebarGroupContent,
-	SidebarGroupLabel,
-	SidebarHeader,
-	SidebarMenu,
-	SidebarMenuButton,
-	SidebarMenuItem,
-	SidebarMenuSkeleton,
-	SidebarTrigger,
-} from "components/LayoutSidebar/LayoutSidebar";
-import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
@@ -23,9 +10,9 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
-import { SquarePenIcon } from "lucide-react";
+import { EditIcon, PanelLeftCloseIcon, PanelLeftOpenIcon } from "lucide-react";
 import type { Task } from "modules/tasks/tasks";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useParams } from "react-router";
 import { cn } from "utils/cn";
@@ -38,66 +25,69 @@ export const TasksSidebar: FC = () => {
 		defaultValue: user.username,
 	});
 
+	const [isCollapsed, setIsCollapsed] = useState(false);
+
 	return (
-		<Sidebar collapsible="icon">
-			<TasksSidebarHeader />
-
-			<SidebarContent>
-				<SidebarGroup>
-					<SidebarGroupContent>
-						<SidebarMenu>
-							<SidebarMenuItem>
-								<SidebarMenuButton asChild>
-									<RouterLink to="/tasks">
-										<SquarePenIcon />
-										<span>New task</span>
-									</RouterLink>
-								</SidebarMenuButton>
-							</SidebarMenuItem>
-						</SidebarMenu>
-					</SidebarGroupContent>
-				</SidebarGroup>
-
-				{permissions.viewAllUsers && (
-					<SidebarGroup className="transition-[margin,opacity] group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0">
-						<SidebarGroupContent>
-							<UsersCombobox
-								value={usernameParam.value}
-								onValueChange={(username) => {
-									if (username === usernameParam.value) {
-										usernameParam.setValue("");
-										return;
-									}
-									usernameParam.setValue(username);
-								}}
-							/>
-						</SidebarGroupContent>
-					</SidebarGroup>
+		<div
+			className={cn(
+				"flex flex-col flex-1 min-h-0 gap-6 bg-surface-secondary max-w-80 border-solid border-0 border-r transition-all pt-3",
+				isCollapsed && "max-w-16 items-center",
+			)}
+		>
+			<div className="px-3 flex flex-col gap-3">
+				{isCollapsed ? (
+					<Button
+						variant="subtle"
+						size="icon"
+						onClick={() => setIsCollapsed(false)}
+					>
+						<PanelLeftOpenIcon />
+					</Button>
+				) : (
+					<div className="flex items-center place-content-between">
+						<CoderIcon className="h-6" />
+						<Button
+							size="icon"
+							variant="outline"
+							onClick={() => setIsCollapsed(true)}
+						>
+							<PanelLeftCloseIcon />
+						</Button>
+					</div>
 				)}
 
-				<TasksSidebarGroup username={usernameParam.value} />
-			</SidebarContent>
-		</Sidebar>
-	);
-};
-
-const TasksSidebarHeader: FC = () => {
-	return (
-		<SidebarHeader>
-			<div className="flex items-center ">
 				<Button
-					size="icon"
-					variant="subtle"
-					className={cn([
-						"size-8 p-0 transition-[margin,opacity] ml-1",
-						"group-data-[collapsible=icon]:-ml-10 group-data-[collapsible=icon]:opacity-0",
-					])}
+					variant={isCollapsed ? "subtle" : "outline"}
+					size={isCollapsed ? "icon" : "sm"}
 				>
-					<CoderIcon className="fill-content-primary !size-6 !p-0" />
+					<span className={isCollapsed ? "hidden" : ""}>New Task</span>{" "}
+					<EditIcon />
 				</Button>
-				<SidebarTrigger className="ml-auto" />
 			</div>
-		</SidebarHeader>
+
+			<div
+				className={cn(
+					"flex flex-col flex-1 min-h-0 gap-4",
+					isCollapsed && "hidden",
+				)}
+			>
+				{permissions.viewAllUsers && (
+					<div className="flex w-full px-3">
+						<UsersCombobox
+							value={usernameParam.value}
+							onValueChange={(username) => {
+								if (username === usernameParam.value) {
+									usernameParam.setValue("");
+									return;
+								}
+								usernameParam.setValue(username);
+							}}
+						/>
+					</div>
+				)}
+				<TasksSidebarGroup username={usernameParam.value} />
+			</div>
+		</div>
 	);
 };
 
@@ -114,26 +104,26 @@ const TasksSidebarGroup: FC<TasksSidebarGroupProps> = ({ username }) => {
 	});
 
 	return (
-		<SidebarGroup
-			className={cn([
-				"transition-[opacity] group-data-[collapsible=icon]:opacity-0",
-			])}
-		>
-			<SidebarGroupLabel>Tasks</SidebarGroupLabel>
-			<SidebarGroupContent>
-				<SidebarMenu>
-					{tasksQuery.data
-						? tasksQuery.data.map((t) => (
-								<TaskSidebarMenuItem key={t.workspace.id} task={t} />
-							))
-						: Array.from({ length: 5 }).map((_, index) => (
-								<SidebarMenuItem key={index}>
-									<SidebarMenuSkeleton />
-								</SidebarMenuItem>
-							))}
-				</SidebarMenu>
-			</SidebarGroupContent>
-		</SidebarGroup>
+		<div className="flex flex-col flex-1 gap-2 min-h-0 transition-[opacity] group-data-[collapsible=icon]:opacity-0">
+			<div className="text-content-secondary text-xs px-3">Tasks</div>
+			<div className="flex flex-col flex-1 gap-1 min-h-0 overflow-y-auto">
+				{tasksQuery.data ? (
+					tasksQuery.data.map((t) => (
+						<TaskSidebarMenuItem key={t.workspace.id} task={t} />
+					))
+				) : (
+					<div className="flex flex-col gap-1 px-3">
+						{Array.from({ length: 5 }).map((_, index) => (
+							<div
+								key={index}
+								aria-hidden={true}
+								className="h-8 w-full rounded-lg bg-surface-tertiary animate-pulse"
+							/>
+						))}
+					</div>
+				)}
+			</div>
+		</div>
 	);
 };
 
@@ -145,8 +135,18 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 	const { workspace } = useParams<{ workspace: string }>();
 
 	return (
-		<SidebarMenuItem>
-			<SidebarMenuButton isActive={task.workspace.name === workspace} asChild>
+		<div className="px-3">
+			<Button
+				size="sm"
+				variant="subtle"
+				className={cn(
+					"w-full justify-start",
+					task.workspace.name !== workspace
+						? "text-content-secondary"
+						: "text-content-primary bg-surface-tertiary",
+				)}
+				asChild
+			>
 				<RouterLink
 					to={{
 						pathname: `/tasks/${task.workspace.owner_name}/${task.workspace.name}`,
@@ -156,8 +156,8 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 					<TaskSidebarMenuItemStatus task={task} />
 					<span>{task.workspace.name}</span>
 				</RouterLink>
-			</SidebarMenuButton>
-		</SidebarMenuItem>
+			</Button>
+		</div>
 	);
 };
 
