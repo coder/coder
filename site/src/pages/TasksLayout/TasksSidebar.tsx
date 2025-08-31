@@ -10,7 +10,12 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
-import { EditIcon, PanelLeftCloseIcon, PanelLeftOpenIcon } from "lucide-react";
+import {
+	ArrowLeftIcon,
+	EditIcon,
+	PanelLeftCloseIcon,
+	PanelLeftOpenIcon,
+} from "lucide-react";
 import type { Task } from "modules/tasks/tasks";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
@@ -34,7 +39,7 @@ export const TasksSidebar: FC = () => {
 				isCollapsed && "max-w-16 items-center",
 			)}
 		>
-			<div className="px-3 flex flex-col gap-3">
+			<div className="px-3 flex flex-col gap-6">
 				{isCollapsed ? (
 					<Button
 						variant="subtle"
@@ -45,7 +50,11 @@ export const TasksSidebar: FC = () => {
 					</Button>
 				) : (
 					<div className="flex items-center place-content-between">
-						<CoderIcon className="h-6" />
+						<Button variant="outline" size="sm" asChild={true}>
+							<RouterLink to="/tasks">
+								<ArrowLeftIcon /> Tasks
+							</RouterLink>
+						</Button>
 						<Button
 							size="icon"
 							variant="outline"
@@ -57,11 +66,14 @@ export const TasksSidebar: FC = () => {
 				)}
 
 				<Button
-					variant={isCollapsed ? "subtle" : "outline"}
+					variant={isCollapsed ? "subtle" : "default"}
 					size={isCollapsed ? "icon" : "sm"}
+					asChild={true}
 				>
-					<span className={isCollapsed ? "hidden" : ""}>New Task</span>{" "}
-					<EditIcon />
+					<RouterLink to="/tasks">
+						<span className={isCollapsed ? "hidden" : ""}>New Task</span>{" "}
+						<EditIcon />
+					</RouterLink>
 				</Button>
 			</div>
 
