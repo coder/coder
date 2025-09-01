@@ -61,7 +61,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 			),
 	);
 	const comparisonDate = useTimeSyncState({
-		targetIntervalMs: REFRESH_ONE_MINUTE,
+		targetIntervalMs: REFRESH_ONE_HOUR,
 		transform: (fallbackDate) => referenceDate ?? (fallbackDate as Date),
 	});
 
