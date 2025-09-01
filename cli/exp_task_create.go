@@ -91,7 +91,8 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				return xerrors.Errorf("a task cannot be started with an empty input")
 			}
 
-			if templateName == "" {
+			switch {
+			case templateName == "":
 				templates, err := client.Templates(ctx, codersdk.TemplateFilter{SearchQuery: "has-ai-task:true", OrganizationID: organization.ID})
 				if err != nil {
 					return xerrors.Errorf("list templates: %w", err)
@@ -118,14 +119,16 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				} else {
 					templateVersionID = templates[0].ActiveVersionID
 				}
-			} else if templateVersionName != "" {
+
+			case templateVersionName != "":
 				templateVersion, err := client.TemplateVersionByOrganizationAndName(ctx, organization.ID, templateName, templateVersionName)
 				if err != nil {
 					return xerrors.Errorf("get template version: %w", err)
 				}
 
 				templateVersionID = templateVersion.ID
-			} else {
+
+			default:
 				template, err := client.TemplateByName(ctx, organization.ID, templateName)
 				if err != nil {
 					return xerrors.Errorf("get template: %w", err)
