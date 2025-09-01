@@ -1,9 +1,3 @@
-/**
- * A readonly version of a Date object. The object is guaranteed to lack all
- * methods that can modify internal state both at compile time and runtime.
- */
-export type ReadonlyDate = Omit<Date, `set${string}`>;
-
 export const noOp = (..._: readonly unknown[]): void => {};
 
 /**
@@ -26,7 +20,10 @@ const readonlyEnforcer: ProxyHandler<Date> = {
 	},
 };
 
-function newReadonlyDate(sourceDate?: Date): ReadonlyDate {
+// Returns a Date that cannot be modified at runtime. All set methods are turned
+// into no-ops. This function does not use a custom type to make it easier to
+// interface with existing time libraries.
+function newReadonlyDate(sourceDate?: Date): Date {
 	const newDate = sourceDate ? new Date(sourceDate) : new Date();
 	return new Proxy(newDate, readonlyEnforcer);
 }
@@ -54,7 +51,7 @@ export type TimeSyncInitOptions = Readonly<{
 /**
  * The callback to call when a new state update is ready to be dispatched.
  */
-export type OnUpdate = (newDate: ReadonlyDate) => void;
+export type OnUpdate = (newDate: Date) => void;
 
 export type SubscriptionHandshake = Readonly<{
 	/**
@@ -122,7 +119,7 @@ interface TimeSyncApi {
 	 * Allows any system to pull the newest time state from TimeSync, regardless
 	 * of whether the system is subscribed.
 	 */
-	getStateSnapshot: () => ReadonlyDate;
+	getStateSnapshot: () => Date;
 
 	/**
 	 * Cleans up the TimeSync instance and renders it inert for all other
@@ -152,7 +149,7 @@ function orderIntervals(interval1: number, interval2: number): number {
 export class TimeSync implements TimeSyncApi {
 	readonly #minimumRefreshIntervalMs: number;
 	#disposed = false;
-	#latestDateSnapshot: ReadonlyDate;
+	#latestDateSnapshot: Date;
 
 	// Each map value is the list of all refresh intervals actively associated
 	// with an onUpdate callback (allowing for duplicate intervals if multiple
@@ -394,7 +391,7 @@ export class TimeSync implements TimeSyncApi {
 		};
 	}
 
-	getStateSnapshot(): ReadonlyDate {
+	getStateSnapshot(): Date {
 		return this.#latestDateSnapshot;
 	}
 

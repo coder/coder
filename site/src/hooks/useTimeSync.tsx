@@ -13,7 +13,6 @@ import {
 import {
 	noOp,
 	type OnUpdate,
-	type ReadonlyDate,
 	TimeSync,
 	defaultOptions as timeSyncDefaultOptions,
 } from "utils/TimeSync";
@@ -42,7 +41,7 @@ type ReactTimeSyncInitOptions = Readonly<{
 }>;
 
 type TransformCallback<T> = (
-	state: ReadonlyDate,
+	state: Date,
 ) => T extends Promise<unknown> ? never : T extends void ? never : T;
 
 type SubscriptionHandshake = Readonly<{
@@ -180,15 +179,15 @@ class ReactTimeSync {
 	// make a bunch of arrow functions in the render, but keeping the memory
 	// reference for the state getter 100% stable means that React can apply
 	// more render optimizations
-	getDateSnapshot = (): ReadonlyDate => {
+	getDateSnapshot = (): Date => {
 		return this.#timeSync.getStateSnapshot();
 	};
 }
 
-const timeSyncContext = createContext<ReactTimeSync | null>(null);
+const reactTimeSyncContext = createContext<ReactTimeSync | null>(null);
 
 function useReactTimeSync(): ReactTimeSync {
-	const reactTs = useContext(timeSyncContext);
+	const reactTs = useContext(reactTimeSyncContext);
 	if (reactTs === null) {
 		throw new Error(
 			`Must call TimeSync hook from inside ${TimeSyncProvider.name}`,
@@ -220,9 +219,9 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 	}, [readonlyReactTs]);
 
 	return (
-		<timeSyncContext.Provider value={readonlyReactTs}>
+		<reactTimeSyncContext.Provider value={readonlyReactTs}>
 			{children}
-		</timeSyncContext.Provider>
+		</reactTimeSyncContext.Provider>
 	);
 };
 
@@ -277,12 +276,10 @@ type UseTimeSyncOptions<T> = Readonly<{
 	transform?: TransformCallback<T>;
 }>;
 
-export function useTimeSyncState<T = ReadonlyDate>(
-	options: UseTimeSyncOptions<T>,
-): T {
+export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	const { targetIntervalMs, transform } = options;
 	const activeTransform = (transform ?? identity) as TransformCallback<
-		T & ReadonlyDate
+		T & Date
 	>;
 
 	const hookId = useId();

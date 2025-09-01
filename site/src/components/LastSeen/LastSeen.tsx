@@ -1,6 +1,10 @@
 import { useTheme } from "@emotion/react";
 import type dayjs from "dayjs";
-import { REFRESH_IDLE, useTimeSyncState } from "hooks/useTimeSync";
+import {
+	REFRESH_IDLE,
+	REFRESH_ONE_MINUTE,
+	useTimeSyncState,
+} from "hooks/useTimeSync";
 import type { FC, HTMLAttributes } from "react";
 import { cn } from "utils/cn";
 import { isAfter, relativeTime, subtractTime } from "utils/time";
@@ -14,9 +18,8 @@ interface LastSeenProps
 export const LastSeen: FC<LastSeenProps> = ({ at, className, ...attrs }) => {
 	const theme = useTheme();
 	const [message, color] = useTimeSyncState({
-		targetIntervalMs: REFRESH_IDLE,
-		transform: (d) => {
-			const now = d as Date;
+		targetIntervalMs: REFRESH_ONE_MINUTE,
+		transform: (now) => {
 			const oneHourAgo = subtractTime(now, 1, "hour");
 			const threeDaysAgo = subtractTime(now, 3, "day");
 			const oneMonthAgo = subtractTime(now, 1, "month");

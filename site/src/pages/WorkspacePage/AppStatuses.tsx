@@ -13,7 +13,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { REFRESH_ONE_MINUTE, useTimeSyncState } from "hooks/useTimeSync";
+import { REFRESH_ONE_HOUR, useTimeSyncState } from "hooks/useTimeSync";
 import capitalize from "lodash/capitalize";
 import {
 	ChevronDownIcon,
@@ -62,7 +62,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 	);
 	const comparisonDate = useTimeSyncState({
 		targetIntervalMs: REFRESH_ONE_HOUR,
-		transform: (fallbackDate) => referenceDate ?? (fallbackDate as Date),
+		transform: (fallbackDate) => referenceDate ?? fallbackDate,
 	});
 
 	if (allStatuses.length === 0) {
