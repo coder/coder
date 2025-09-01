@@ -6476,6 +6476,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | Value                              |
 |------------------------------------|
 | `*`                                |
+| `aibridge_session`                 |
 | `api_key`                          |
 | `assign_org_role`                  |
 | `assign_role`                      |

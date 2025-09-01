@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS aibridge_sessions (
 	initiator_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     provider TEXT NOT NULL,
     model TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
 CREATE INDEX idx_aibridge_sessions_provider ON aibridge_sessions(provider);
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS aibridge_token_usages (
     input_tokens BIGINT NOT NULL,
     output_tokens BIGINT NOT NULL,
     metadata JSONB DEFAULT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
 CREATE INDEX idx_aibridge_token_usages_session_id ON aibridge_token_usages(session_id);
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS aibridge_user_prompts (
     provider_id TEXT NOT NULL,
     prompt TEXT NOT NULL,
     metadata JSONB DEFAULT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
 CREATE INDEX idx_aibridge_user_prompts_session_id ON aibridge_user_prompts(session_id);
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS aibridge_tool_usages (
     input TEXT NOT NULL,
     injected BOOLEAN NOT NULL DEFAULT FALSE,
     metadata JSONB DEFAULT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
 CREATE INDEX idx_aibridge_tool_usages_session_id ON aibridge_tool_usages(session_id);

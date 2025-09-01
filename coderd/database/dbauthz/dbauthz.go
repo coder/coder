@@ -175,6 +175,35 @@ func (q *querier) authorizePrebuiltWorkspace(ctx context.Context, action policy.
 	return xerrors.Errorf("authorize context: %w", workspaceErr)
 }
 
+// authorizeAIBridgeRecord validates that the context's actor matches the initiator of the AIBridgeSession.
+func (q *querier) authorizeAIBridgeRecord(ctx context.Context, sessID uuid.UUID, action policy.Action) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	act, ok := ActorFromContext(ctx)
+	if !ok {
+		return ErrNoActor
+	}
+
+	sess, err := q.db.GetAIBridgeSessionByID(ctx, sessID)
+	if err != nil {
+		return xerrors.Errorf("fetch aibridge session %q: %w", sessID, err)
+	}
+
+	// TODO: how to inject the actor?
+	// if sess.InitiatorID.String() != act.ID {
+	// 	return NotAuthorizedError{Err: xerrors.New("initiator does not match session owner")}
+	// }
+
+	err = q.auth.Authorize(ctx, act, action, sess.RBACObject())
+	if err != nil {
+		return logNotAuthorizedError(ctx, q.log, err)
+	}
+
+	return nil
+}
+
 type authContextKey struct{}
 
 // ActorFromContext returns the authorization subject from the context.
@@ -542,6 +571,27 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	// See aibridged package.
+	subjectAibridged = rbac.Subject{
+		Type:         rbac.SubjectAibridged,
+		FriendlyName: "AIBridge Daemon",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "aibridged"},
+				DisplayName: "AIBridge Daemon",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					// Required to validate user associated to session.
+					rbac.ResourceUser.Type:            {policy.ActionRead},
+					rbac.ResourceAibridgeSession.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -622,6 +672,12 @@ func AsFileReader(ctx context.Context) context.Context {
 // required for creating, reading, and updating usage events.
 func AsUsagePublisher(ctx context.Context) context.Context {
 	return As(ctx, subjectUsagePublisher)
+}
+
+// AsAibridged returns a context with an actor that has permissions
+// required for creating, reading, and updating aibridge-related resources.
+func AsAibridged(ctx context.Context) context.Context {
+	return As(ctx, subjectAibridged)
 }
 
 var AsRemoveActor = rbac.Subject{
@@ -1857,6 +1913,10 @@ func (q *querier) FindMatchingPresetID(ctx context.Context, arg database.FindMat
 		return uuid.Nil, err
 	}
 	return q.db.FindMatchingPresetID(ctx, arg)
+}
+
+func (q *querier) GetAIBridgeSessionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeSession, error) {
+	return fetch(q.log, q.auth, q.db.GetAIBridgeSessionByID)(ctx, id)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -3726,23 +3786,49 @@ func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now ti
 	return q.db.GetWorkspacesEligibleForTransition(ctx, now)
 }
 
-func (q *querier) InsertAIBridgeSession(ctx context.Context, arg database.InsertAIBridgeSessionParams) error {
-	// TODO: authz.
-	return q.db.InsertAIBridgeSession(ctx, arg)
+func (q *querier) InsertAIBridgeSession(ctx context.Context, arg database.InsertAIBridgeSessionParams) (database.AIBridgeSession, error) {
+	// All aibridge_sessions records belong to their initiator.
+	u, err := q.db.GetUserByID(ctx, arg.InitiatorID)
+	if err != nil {
+		return database.AIBridgeSession{}, xerrors.Errorf("validate initiator: %w", err)
+	}
+
+	if u.Deleted {
+		q.log.Error(ctx, "deleted user attempted to create aibridge session", slog.F("user_id", u.ID))
+		return database.AIBridgeSession{}, xerrors.New("failed to validate initiator")
+	}
+	if u.IsSystem {
+		q.log.Critical(ctx, "system user attempted to create aibridge session, abuse suspected!", slog.F("user_id", u.ID))
+		return database.AIBridgeSession{}, xerrors.New("failed to validate initiator")
+	}
+
+	return insert(q.log, q.auth, rbac.ResourceAibridgeSession.WithOwner(arg.InitiatorID.String()), q.db.InsertAIBridgeSession)(ctx, arg)
 }
 
 func (q *querier) InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) error {
-	// TODO: authz.
+	// All aibridge_token_usages records belong to the initiator of their associated session.
+	if err := q.authorizeAIBridgeRecord(ctx, arg.SessionID, policy.ActionCreate); err != nil {
+		return err
+	}
+
 	return q.db.InsertAIBridgeTokenUsage(ctx, arg)
 }
 
 func (q *querier) InsertAIBridgeToolUsage(ctx context.Context, arg database.InsertAIBridgeToolUsageParams) error {
-	// TODO: authz.
+	// All aibridge_tool_usages records belong to the initiator of their associated session.
+	if err := q.authorizeAIBridgeRecord(ctx, arg.SessionID, policy.ActionCreate); err != nil {
+		return err
+	}
+
 	return q.db.InsertAIBridgeToolUsage(ctx, arg)
 }
 
 func (q *querier) InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) error {
-	// TODO: authz.
+	// All aibridge_user_prompts records belong to the initiator of their associated session.
+	if err := q.authorizeAIBridgeRecord(ctx, arg.SessionID, policy.ActionCreate); err != nil {
+		return err
+	}
+
 	return q.db.InsertAIBridgeUserPrompt(ctx, arg)
 }
 

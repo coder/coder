@@ -44,7 +44,7 @@ func (s *Server) RecordSession(ctx context.Context, in *proto.RecordSessionReque
 		return nil, xerrors.Errorf("invalid initiator ID %q: %w", in.GetInitiatorId(), err)
 	}
 
-	err = s.store.InsertAIBridgeSession(ctx, database.InsertAIBridgeSessionParams{
+	_, err = s.store.InsertAIBridgeSession(ctx, database.InsertAIBridgeSessionParams{
 		ID:          sessID,
 		InitiatorID: initID,
 		Provider:    in.Provider,

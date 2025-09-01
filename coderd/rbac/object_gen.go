@@ -15,6 +15,15 @@ var (
 		Type: "*",
 	}
 
+	// ResourceAibridgeSession
+	// Valid Actions
+	//  - "ActionCreate" :: create aibridge sessions & related records
+	//  - "ActionRead" :: read aibridge sessions & related records
+	//  - "ActionUpdate" :: update aibridge sessions & related records
+	ResourceAibridgeSession = Object{
+		Type: "aibridge_session",
+	}
+
 	// ResourceApiKey
 	// Valid Actions
 	//  - "ActionCreate" :: create an api key
@@ -391,6 +400,7 @@ var (
 func AllResources() []Objecter {
 	return []Objecter{
 		ResourceWildcard,
+		ResourceAibridgeSession,
 		ResourceApiKey,
 		ResourceAssignOrgRole,
 		ResourceAssignRole,

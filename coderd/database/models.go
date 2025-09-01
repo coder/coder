@@ -2952,6 +2952,14 @@ func AllWorkspaceTransitionValues() []WorkspaceTransition {
 	}
 }
 
+type AIBridgeSession struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	InitiatorID uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	Provider    string    `db:"provider" json:"provider"`
+	Model       string    `db:"model" json:"model"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+}
+
 type APIKey struct {
 	ID string `db:"id" json:"id"`
 	// hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.
@@ -2968,14 +2976,6 @@ type APIKey struct {
 	TokenName       string      `db:"token_name" json:"token_name"`
 }
 
-type AibridgeSession struct {
-	ID          uuid.UUID    `db:"id" json:"id"`
-	InitiatorID uuid.UUID    `db:"initiator_id" json:"initiator_id"`
-	Provider    string       `db:"provider" json:"provider"`
-	Model       string       `db:"model" json:"model"`
-	CreatedAt   sql.NullTime `db:"created_at" json:"created_at"`
-}
-
 type AibridgeTokenUsage struct {
 	ID           uuid.UUID             `db:"id" json:"id"`
 	SessionID    uuid.UUID             `db:"session_id" json:"session_id"`
@@ -2983,7 +2983,7 @@ type AibridgeTokenUsage struct {
 	InputTokens  int64                 `db:"input_tokens" json:"input_tokens"`
 	OutputTokens int64                 `db:"output_tokens" json:"output_tokens"`
 	Metadata     pqtype.NullRawMessage `db:"metadata" json:"metadata"`
-	CreatedAt    sql.NullTime          `db:"created_at" json:"created_at"`
+	CreatedAt    time.Time             `db:"created_at" json:"created_at"`
 }
 
 type AibridgeToolUsage struct {
@@ -2994,7 +2994,7 @@ type AibridgeToolUsage struct {
 	Input      string                `db:"input" json:"input"`
 	Injected   bool                  `db:"injected" json:"injected"`
 	Metadata   pqtype.NullRawMessage `db:"metadata" json:"metadata"`
-	CreatedAt  sql.NullTime          `db:"created_at" json:"created_at"`
+	CreatedAt  time.Time             `db:"created_at" json:"created_at"`
 }
 
 type AibridgeUserPrompt struct {
@@ -3003,7 +3003,7 @@ type AibridgeUserPrompt struct {
 	ProviderID string                `db:"provider_id" json:"provider_id"`
 	Prompt     string                `db:"prompt" json:"prompt"`
 	Metadata   pqtype.NullRawMessage `db:"metadata" json:"metadata"`
-	CreatedAt  sql.NullTime          `db:"created_at" json:"created_at"`
+	CreatedAt  time.Time             `db:"created_at" json:"created_at"`
 }
 
 type AuditLog struct {

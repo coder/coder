@@ -572,6 +572,13 @@ func (m queryMetricsStore) FindMatchingPresetID(ctx context.Context, arg databas
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIBridgeSessionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeSession, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIBridgeSessionByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAIBridgeSessionByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	start := time.Now()
 	apiKey, err := m.s.GetAPIKeyByID(ctx, id)
@@ -2147,11 +2154,11 @@ func (m queryMetricsStore) GetWorkspacesEligibleForTransition(ctx context.Contex
 	return workspaces, err
 }
 
-func (m queryMetricsStore) InsertAIBridgeSession(ctx context.Context, arg database.InsertAIBridgeSessionParams) error {
+func (m queryMetricsStore) InsertAIBridgeSession(ctx context.Context, arg database.InsertAIBridgeSessionParams) (database.AIBridgeSession, error) {
 	start := time.Now()
-	r0 := m.s.InsertAIBridgeSession(ctx, arg)
+	r0, r1 := m.s.InsertAIBridgeSession(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertAIBridgeSession").Observe(time.Since(start).Seconds())
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) error {

@@ -111,9 +111,28 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
-const insertAIBridgeSession = `-- name: InsertAIBridgeSession :exec
+const getAIBridgeSessionByID = `-- name: GetAIBridgeSessionByID :one
+SELECT id, initiator_id, provider, model, created_at FROM aibridge_sessions WHERE id = $1::uuid
+LIMIT 1
+`
+
+func (q *sqlQuerier) GetAIBridgeSessionByID(ctx context.Context, id uuid.UUID) (AIBridgeSession, error) {
+	row := q.db.QueryRowContext(ctx, getAIBridgeSessionByID, id)
+	var i AIBridgeSession
+	err := row.Scan(
+		&i.ID,
+		&i.InitiatorID,
+		&i.Provider,
+		&i.Model,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertAIBridgeSession = `-- name: InsertAIBridgeSession :one
 INSERT INTO aibridge_sessions (id, initiator_id, provider, model)
 VALUES ($1::uuid, $2::uuid, $3, $4)
+RETURNING id, initiator_id, provider, model, created_at
 `
 
 type InsertAIBridgeSessionParams struct {
@@ -123,14 +142,22 @@ type InsertAIBridgeSessionParams struct {
 	Model       string    `db:"model" json:"model"`
 }
 
-func (q *sqlQuerier) InsertAIBridgeSession(ctx context.Context, arg InsertAIBridgeSessionParams) error {
-	_, err := q.db.ExecContext(ctx, insertAIBridgeSession,
+func (q *sqlQuerier) InsertAIBridgeSession(ctx context.Context, arg InsertAIBridgeSessionParams) (AIBridgeSession, error) {
+	row := q.db.QueryRowContext(ctx, insertAIBridgeSession,
 		arg.ID,
 		arg.InitiatorID,
 		arg.Provider,
 		arg.Model,
 	)
-	return err
+	var i AIBridgeSession
+	err := row.Scan(
+		&i.ID,
+		&i.InitiatorID,
+		&i.Provider,
+		&i.Model,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const insertAIBridgeTokenUsage = `-- name: InsertAIBridgeTokenUsage :exec

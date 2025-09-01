@@ -1066,6 +1066,21 @@ func (mr *MockStoreMockRecorder) FindMatchingPresetID(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMatchingPresetID", reflect.TypeOf((*MockStore)(nil).FindMatchingPresetID), ctx, arg)
 }
 
+// GetAIBridgeSessionByID mocks base method.
+func (m *MockStore) GetAIBridgeSessionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeSession, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIBridgeSessionByID", ctx, id)
+	ret0, _ := ret[0].(database.AIBridgeSession)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIBridgeSessionByID indicates an expected call of GetAIBridgeSessionByID.
+func (mr *MockStoreMockRecorder) GetAIBridgeSessionByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIBridgeSessionByID", reflect.TypeOf((*MockStore)(nil).GetAIBridgeSessionByID), ctx, id)
+}
+
 // GetAPIKeyByID mocks base method.
 func (m *MockStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	m.ctrl.T.Helper()
@@ -4591,11 +4606,12 @@ func (mr *MockStoreMockRecorder) InTx(arg0, arg1 any) *gomock.Call {
 }
 
 // InsertAIBridgeSession mocks base method.
-func (m *MockStore) InsertAIBridgeSession(ctx context.Context, arg database.InsertAIBridgeSessionParams) error {
+func (m *MockStore) InsertAIBridgeSession(ctx context.Context, arg database.InsertAIBridgeSessionParams) (database.AIBridgeSession, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertAIBridgeSession", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(database.AIBridgeSession)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // InsertAIBridgeSession indicates an expected call of InsertAIBridgeSession.

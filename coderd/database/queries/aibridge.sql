@@ -1,6 +1,7 @@
--- name: InsertAIBridgeSession :exec
+-- name: InsertAIBridgeSession :one
 INSERT INTO aibridge_sessions (id, initiator_id, provider, model)
-VALUES (@id::uuid, @initiator_id::uuid, @provider, @model);
+VALUES (@id::uuid, @initiator_id::uuid, @provider, @model)
+RETURNING *;
 
 -- name: InsertAIBridgeTokenUsage :exec
 INSERT INTO aibridge_token_usages (
@@ -22,3 +23,7 @@ INSERT INTO aibridge_tool_usages (
 ) VALUES (
   @id, @session_id, @provider_id, @tool, @input, @injected, COALESCE(@metadata::jsonb, '{}'::jsonb)
 );
+
+-- name: GetAIBridgeSessionByID :one
+SELECT * FROM aibridge_sessions WHERE id = @id::uuid
+LIMIT 1;
