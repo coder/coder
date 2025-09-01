@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -19,7 +20,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 		templateName        string
 		templateVersionName string
 		presetName          string
-		taskInput           string
+		stdin               bool
 	)
 
 	cmd := &serpent.Command{
@@ -31,25 +32,29 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 		),
 		Options: serpent.OptionSet{
 			{
-				Flag:  "input",
-				Env:   "CODER_TASK_INPUT",
-				Value: serpent.StringOf(&taskInput),
-			},
-			{
+				Name:  "template",
 				Flag:  "template",
 				Env:   "CODER_TASK_TEMPLATE_NAME",
 				Value: serpent.StringOf(&templateName),
 			},
 			{
+				Name:  "template-version",
 				Flag:  "template-version",
 				Env:   "CODER_TASK_TEMPLATE_VERSION",
 				Value: serpent.StringOf(&templateVersionName),
 			},
 			{
+				Name:    "preset",
 				Flag:    "preset",
 				Env:     "CODER_TASK_PRESET_NAME",
 				Value:   serpent.StringOf(&presetName),
 				Default: PresetNone,
+			},
+			{
+				Name:        "stdin",
+				Flag:        "stdin",
+				Description: "Reads from stdin for the task input.",
+				Value:       serpent.BoolOf(&stdin),
 			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
@@ -57,6 +62,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				ctx       = inv.Context()
 				expClient = codersdk.NewExperimentalClient(client)
 
+				taskInput               string
 				templateVersionID       uuid.UUID
 				templateVersionPresetID uuid.UUID
 			)
@@ -66,7 +72,18 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				return xerrors.Errorf("get current organization: %w", err)
 			}
 
-			if len(inv.Args) > 0 {
+			if stdin {
+				bytes, err := io.ReadAll(inv.Stdin)
+				if err != nil {
+					return xerrors.Errorf("reading stdin: %w", err)
+				}
+
+				taskInput = string(bytes)
+			} else {
+				if len(inv.Args) != 1 {
+					return xerrors.Errorf("expected an input for task")
+				}
+
 				taskInput = inv.Args[0]
 			}
 
