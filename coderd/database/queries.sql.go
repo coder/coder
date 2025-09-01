@@ -4443,44 +4443,6 @@ func (q *sqlQuerier) GetLicenses(ctx context.Context) ([]License, error) {
 	return items, nil
 }
 
-const getManagedAgentCount = `-- name: GetManagedAgentCount :one
-SELECT
-	COUNT(DISTINCT wb.id) AS count
-FROM
-	workspace_builds AS wb
-JOIN
-	provisioner_jobs AS pj
-ON
-	wb.job_id = pj.id
-WHERE
-	wb.transition = 'start'::workspace_transition
-	AND wb.has_ai_task = true
-	-- Only count jobs that are pending, running or succeeded. Other statuses
-	-- like cancel(ed|ing), failed or unknown are not considered as managed
-	-- agent usage. These workspace builds are typically unusable anyway.
-	AND pj.job_status IN (
-		'pending'::provisioner_job_status,
-		'running'::provisioner_job_status,
-		'succeeded'::provisioner_job_status
-	)
-	-- Jobs are counted at the time they are created, not when they are
-	-- completed, as pending jobs haven't completed yet.
-	AND wb.created_at BETWEEN $1::timestamptz AND $2::timestamptz
-`
-
-type GetManagedAgentCountParams struct {
-	StartTime time.Time `db:"start_time" json:"start_time"`
-	EndTime   time.Time `db:"end_time" json:"end_time"`
-}
-
-// This isn't strictly a license query, but it's related to license enforcement.
-func (q *sqlQuerier) GetManagedAgentCount(ctx context.Context, arg GetManagedAgentCountParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getManagedAgentCount, arg.StartTime, arg.EndTime)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const getUnexpiredLicenses = `-- name: GetUnexpiredLicenses :many
 SELECT id, uploaded_at, jwt, exp, uuid
 FROM licenses
@@ -6718,16 +6680,19 @@ WHERE
 			organization_id = $1
 		ELSE true
 	END
+  -- Filter by system type
+	AND CASE WHEN $2::bool THEN TRUE ELSE is_system = false END
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $2
+	LOWER(username) ASC OFFSET $3
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($3 :: int, 0)
+	NULLIF($4 :: int, 0)
 `
 
 type PaginatedOrganizationMembersParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	IncludeSystem  bool      `db:"include_system" json:"include_system"`
 	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
 }
@@ -6743,7 +6708,12 @@ type PaginatedOrganizationMembersRow struct {
 }
 
 func (q *sqlQuerier) PaginatedOrganizationMembers(ctx context.Context, arg PaginatedOrganizationMembersParams) ([]PaginatedOrganizationMembersRow, error) {
-	rows, err := q.db.QueryContext(ctx, paginatedOrganizationMembers, arg.OrganizationID, arg.OffsetOpt, arg.LimitOpt)
+	rows, err := q.db.QueryContext(ctx, paginatedOrganizationMembers,
+		arg.OrganizationID,
+		arg.IncludeSystem,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -7410,7 +7380,7 @@ const getPrebuildMetrics = `-- name: GetPrebuildMetrics :many
 SELECT
 	t.name as template_name,
 	tvp.name as preset_name,
-		o.name as organization_name,
+	o.name as organization_name,
 	COUNT(*) as created_count,
 	COUNT(*) FILTER (WHERE pj.job_status = 'failed'::provisioner_job_status) as failed_count,
 	COUNT(*) FILTER (
@@ -13735,6 +13705,40 @@ func (q *sqlQuerier) DisableForeignKeysAndTriggers(ctx context.Context) error {
 	return err
 }
 
+const getTotalUsageDCManagedAgentsV1 = `-- name: GetTotalUsageDCManagedAgentsV1 :one
+SELECT
+    -- The first cast is necessary since you can't sum strings, and the second
+    -- cast is necessary to make sqlc happy.
+    COALESCE(SUM((usage_data->>'count')::bigint), 0)::bigint AS total_count
+FROM
+    usage_events_daily
+WHERE
+    event_type = 'dc_managed_agents_v1'
+    -- Parentheses are necessary to avoid sqlc from generating an extra
+    -- argument.
+    AND day BETWEEN date_trunc('day', ($1::timestamptz) AT TIME ZONE 'UTC')::date AND date_trunc('day', ($2::timestamptz) AT TIME ZONE 'UTC')::date
+`
+
+type GetTotalUsageDCManagedAgentsV1Params struct {
+	StartDate time.Time `db:"start_date" json:"start_date"`
+	EndDate   time.Time `db:"end_date" json:"end_date"`
+}
+
+// Gets the total number of managed agents created between two dates. Uses the
+// aggregate table to avoid large scans or a complex index on the usage_events
+// table.
+//
+// This has the trade off that we can't count accurately between two exact
+// timestamps. The provided timestamps will be converted to UTC and truncated to
+// the events that happened on and between the two dates. Both dates are
+// inclusive.
+func (q *sqlQuerier) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg GetTotalUsageDCManagedAgentsV1Params) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTotalUsageDCManagedAgentsV1, arg.StartDate, arg.EndDate)
+	var total_count int64
+	err := row.Scan(&total_count)
+	return total_count, err
+}
+
 const insertUsageEvent = `-- name: InsertUsageEvent :exec
 INSERT INTO
     usage_events (
@@ -13794,7 +13798,7 @@ WITH usage_events AS (
                     -- than an hour ago. This is so we can retry publishing
                     -- events where the replica exited or couldn't update the
                     -- row.
-                    -- The parenthesis around @now::timestamptz are necessary to
+                    -- The parentheses around @now::timestamptz are necessary to
                     -- avoid sqlc from generating an extra argument.
                     OR potential_event.publish_started_at < ($1::timestamptz) - INTERVAL '1 hour'
                 )
@@ -13802,7 +13806,7 @@ WITH usage_events AS (
                 -- always permanently reject these events anyways. This is to
                 -- avoid duplicate events being billed to customers, as
                 -- Metronome will only deduplicate events within 34 days.
-                -- Also, the same parenthesis thing here as above.
+                -- Also, the same parentheses thing here as above.
                 AND potential_event.created_at > ($1::timestamptz) - INTERVAL '30 days'
             ORDER BY potential_event.created_at ASC
             FOR UPDATE SKIP LOCKED
@@ -19092,20 +19096,15 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 }
 
 const getLatestWorkspaceBuildsByWorkspaceIDs = `-- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many
-SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline, wb.template_version_preset_id, wb.has_ai_task, wb.ai_task_sidebar_app_id, wb.has_external_agent, wb.initiator_by_avatar_url, wb.initiator_by_username, wb.initiator_by_name
-FROM (
-    SELECT
-        workspace_id, MAX(build_number) as max_build_number
-    FROM
-		workspace_build_with_user AS workspace_builds
-    WHERE
-        workspace_id = ANY($1 :: uuid [ ])
-    GROUP BY
-        workspace_id
-) m
-JOIN
-	 workspace_build_with_user AS wb
-ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number
+SELECT
+	DISTINCT ON (workspace_id)
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, has_ai_task, ai_task_sidebar_app_id, has_external_agent, initiator_by_avatar_url, initiator_by_username, initiator_by_name
+FROM
+	workspace_build_with_user AS workspace_builds
+WHERE
+	workspace_id = ANY($1 :: uuid [ ])
+ORDER BY
+	workspace_id, build_number DESC -- latest first
 `
 
 func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error) {
@@ -20235,6 +20234,75 @@ func (q *sqlQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploy
 		&i.StoppedWorkspaces,
 	)
 	return i, err
+}
+
+const getRegularWorkspaceCreateMetrics = `-- name: GetRegularWorkspaceCreateMetrics :many
+WITH first_success_build AS (
+	-- Earliest successful 'start' build per workspace
+	SELECT DISTINCT ON (wb.workspace_id)
+		wb.workspace_id,
+		wb.template_version_preset_id,
+		wb.initiator_id
+	FROM workspace_builds wb
+	JOIN provisioner_jobs pj ON pj.id = wb.job_id
+	WHERE
+		wb.transition = 'start'::workspace_transition
+  		AND pj.job_status = 'succeeded'::provisioner_job_status
+	ORDER BY wb.workspace_id, wb.build_number, wb.id
+)
+SELECT
+	t.name AS template_name,
+	COALESCE(tvp.name, '') AS preset_name,
+	o.name AS organization_name,
+	COUNT(*) AS created_count
+FROM first_success_build fsb
+	JOIN workspaces w ON w.id = fsb.workspace_id
+	JOIN templates t ON t.id = w.template_id
+	LEFT JOIN template_version_presets tvp ON tvp.id = fsb.template_version_preset_id
+	JOIN organizations o ON o.id = w.organization_id
+WHERE
+	NOT t.deleted
+	-- Exclude workspaces whose first successful start was the prebuilds system user
+	AND fsb.initiator_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+GROUP BY t.name, COALESCE(tvp.name, ''), o.name
+ORDER BY t.name, preset_name, o.name
+`
+
+type GetRegularWorkspaceCreateMetricsRow struct {
+	TemplateName     string `db:"template_name" json:"template_name"`
+	PresetName       string `db:"preset_name" json:"preset_name"`
+	OrganizationName string `db:"organization_name" json:"organization_name"`
+	CreatedCount     int64  `db:"created_count" json:"created_count"`
+}
+
+// Count regular workspaces: only those whose first successful 'start' build
+// was not initiated by the prebuild system user.
+func (q *sqlQuerier) GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]GetRegularWorkspaceCreateMetricsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getRegularWorkspaceCreateMetrics)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetRegularWorkspaceCreateMetricsRow
+	for rows.Next() {
+		var i GetRegularWorkspaceCreateMetricsRow
+		if err := rows.Scan(
+			&i.TemplateName,
+			&i.PresetName,
+			&i.OrganizationName,
+			&i.CreatedCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkspaceACLByID = `-- name: GetWorkspaceACLByID :one

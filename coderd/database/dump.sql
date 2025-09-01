@@ -361,6 +361,38 @@ CREATE TYPE workspace_transition AS ENUM (
     'delete'
 );
 
+CREATE FUNCTION aggregate_usage_event() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- Check for supported event types and throw error for unknown types
+    IF NEW.event_type NOT IN ('dc_managed_agents_v1') THEN
+        RAISE EXCEPTION 'Unhandled usage event type in aggregate_usage_event: %', NEW.event_type;
+    END IF;
+
+    INSERT INTO usage_events_daily (day, event_type, usage_data)
+    VALUES (
+        -- Extract the date from the created_at timestamp, always using UTC for
+        -- consistency
+        date_trunc('day', NEW.created_at AT TIME ZONE 'UTC')::date,
+        NEW.event_type,
+        NEW.event_data
+    )
+    ON CONFLICT (day, event_type) DO UPDATE SET
+        usage_data = CASE
+            -- Handle simple counter events by summing the count
+            WHEN NEW.event_type IN ('dc_managed_agents_v1') THEN
+                jsonb_build_object(
+                    'count',
+                    COALESCE((usage_events_daily.usage_data->>'count')::bigint, 0) +
+                    COALESCE((NEW.event_data->>'count')::bigint, 0)
+                )
+        END;
+
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION check_workspace_agent_name_unique() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1898,6 +1930,16 @@ COMMENT ON COLUMN usage_events.published_at IS 'Set to a timestamp when the even
 
 COMMENT ON COLUMN usage_events.failure_message IS 'Set to an error message when the event is temporarily or permanently unsuccessfully published to the usage collector service.';
 
+CREATE TABLE usage_events_daily (
+    day date NOT NULL,
+    event_type text NOT NULL,
+    usage_data jsonb NOT NULL
+);
+
+COMMENT ON TABLE usage_events_daily IS 'usage_events_daily is a daily rollup of usage events. It stores the total usage for each event type by day.';
+
+COMMENT ON COLUMN usage_events_daily.day IS 'The date of the summed usage events, always in UTC.';
+
 CREATE TABLE user_configs (
     user_id uuid NOT NULL,
     key character varying(256) NOT NULL,
@@ -2761,6 +2803,9 @@ ALTER TABLE ONLY template_versions
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY usage_events_daily
+    ADD CONSTRAINT usage_events_daily_pkey PRIMARY KEY (day, event_type);
+
 ALTER TABLE ONLY usage_events
     ADD CONSTRAINT usage_events_pkey PRIMARY KEY (id);
 
@@ -3101,6 +3146,8 @@ CREATE TRIGGER tailnet_notify_coordinator_heartbeat AFTER INSERT OR UPDATE ON ta
 CREATE TRIGGER tailnet_notify_peer_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_peers FOR EACH ROW EXECUTE FUNCTION tailnet_notify_peer_change();
 
 CREATE TRIGGER tailnet_notify_tunnel_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_tunnels FOR EACH ROW EXECUTE FUNCTION tailnet_notify_tunnel_change();
+
+CREATE TRIGGER trigger_aggregate_usage_event AFTER INSERT ON usage_events FOR EACH ROW EXECUTE FUNCTION aggregate_usage_event();
 
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 

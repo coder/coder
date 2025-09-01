@@ -245,6 +245,8 @@ type Options struct {
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
 
+	ProvisionerdServerMetrics *provisionerdserver.Metrics
+
 	// WorkspaceAppAuditSessionTimeout allows changing the timeout for audit
 	// sessions. Raising or lowering this value will directly affect the write
 	// load of the audit log table. This is used for testing. Default 1 hour.
@@ -1017,6 +1019,7 @@ func New(options *Options) *API {
 			r.Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
 				r.Get("/{id}", api.taskGet)
+				r.Delete("/{id}", api.taskDelete)
 				r.Post("/", api.tasksCreate)
 			})
 		})
@@ -1944,6 +1947,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		},
 		api.NotificationsEnqueuer,
 		&api.PrebuildsReconciler,
+		api.ProvisionerdServerMetrics,
 	)
 	if err != nil {
 		return nil, err

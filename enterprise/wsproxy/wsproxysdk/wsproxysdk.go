@@ -33,28 +33,25 @@ type Client struct {
 
 // New creates a external proxy client for the provided primary coder server
 // URL.
-func New(serverURL *url.URL) *Client {
+func New(serverURL *url.URL, sessionToken string) *Client {
 	sdkClient := codersdk.New(serverURL)
-	sdkClient.SessionTokenHeader = httpmw.WorkspaceProxyAuthTokenHeader
-
+	sdkClient.SessionTokenProvider = codersdk.FixedSessionTokenProvider{
+		SessionToken:       sessionToken,
+		SessionTokenHeader: httpmw.WorkspaceProxyAuthTokenHeader,
+	}
 	sdkClientIgnoreRedirects := codersdk.New(serverURL)
 	sdkClientIgnoreRedirects.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
-	sdkClientIgnoreRedirects.SessionTokenHeader = httpmw.WorkspaceProxyAuthTokenHeader
+	sdkClientIgnoreRedirects.SessionTokenProvider = codersdk.FixedSessionTokenProvider{
+		SessionToken:       sessionToken,
+		SessionTokenHeader: httpmw.WorkspaceProxyAuthTokenHeader,
+	}
 
 	return &Client{
 		SDKClient:                sdkClient,
 		sdkClientIgnoreRedirects: sdkClientIgnoreRedirects,
 	}
-}
-
-// SetSessionToken sets the session token for the client. An error is returned
-// if the session token is not in the correct format for external proxies.
-func (c *Client) SetSessionToken(token string) error {
-	c.SDKClient.SetSessionToken(token)
-	c.sdkClientIgnoreRedirects.SetSessionToken(token)
-	return nil
 }
 
 // SessionToken returns the currently set token for the client.
@@ -506,17 +503,12 @@ func (c *Client) TailnetDialer() (*workspacesdk.WebsocketDialer, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
-	coordinateHeaders := make(http.Header)
-	tokenHeader := codersdk.SessionTokenHeader
-	if c.SDKClient.SessionTokenHeader != "" {
-		tokenHeader = c.SDKClient.SessionTokenHeader
-	}
-	coordinateHeaders.Set(tokenHeader, c.SessionToken())
-
-	return workspacesdk.NewWebsocketDialer(logger, coordinateURL, &websocket.DialOptions{
+	wsOptions := &websocket.DialOptions{
 		HTTPClient: c.SDKClient.HTTPClient,
-		HTTPHeader: coordinateHeaders,
-	}), nil
+	}
+	c.SDKClient.SessionTokenProvider.SetDialOption(wsOptions)
+
+	return workspacesdk.NewWebsocketDialer(logger, coordinateURL, wsOptions), nil
 }
 
 type CryptoKeysResponse struct {

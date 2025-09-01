@@ -3816,6 +3816,14 @@ type UsageEvent struct {
 	FailureMessage sql.NullString `db:"failure_message" json:"failure_message"`
 }
 
+// usage_events_daily is a daily rollup of usage events. It stores the total usage for each event type by day.
+type UsageEventsDaily struct {
+	// The date of the summed usage events, always in UTC.
+	Day       time.Time       `db:"day" json:"day"`
+	EventType string          `db:"event_type" json:"event_type"`
+	UsageData json.RawMessage `db:"usage_data" json:"usage_data"`
+}
+
 type User struct {
 	ID             uuid.UUID      `db:"id" json:"id"`
 	Email          string         `db:"email" json:"email"`

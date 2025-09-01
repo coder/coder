@@ -53,23 +53,23 @@ type CreateTaskRequest struct {
 	Prompt                  string    `json:"prompt"`
 }
 
-func (c *ExperimentalClient) CreateTask(ctx context.Context, user string, request CreateTaskRequest) (Workspace, error) {
+func (c *ExperimentalClient) CreateTask(ctx context.Context, user string, request CreateTaskRequest) (Task, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/tasks/%s", user), request)
 	if err != nil {
-		return Workspace{}, err
+		return Task{}, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusCreated {
-		return Workspace{}, ReadBodyAsError(res)
+		return Task{}, ReadBodyAsError(res)
 	}
 
-	var workspace Workspace
-	if err := json.NewDecoder(res.Body).Decode(&workspace); err != nil {
-		return Workspace{}, err
+	var task Task
+	if err := json.NewDecoder(res.Body).Decode(&task); err != nil {
+		return Task{}, err
 	}
 
-	return workspace, nil
+	return task, nil
 }
 
 // TaskState represents the high-level lifecycle of a task.
@@ -88,17 +88,24 @@ const (
 //
 // Experimental: This type is experimental and may change in the future.
 type Task struct {
-	ID             uuid.UUID       `json:"id" format:"uuid" table:"id"`
-	OrganizationID uuid.UUID       `json:"organization_id" format:"uuid" table:"organization id"`
-	OwnerID        uuid.UUID       `json:"owner_id" format:"uuid" table:"owner id"`
-	Name           string          `json:"name" table:"name,default_sort"`
-	TemplateID     uuid.UUID       `json:"template_id" format:"uuid" table:"template id"`
-	WorkspaceID    uuid.NullUUID   `json:"workspace_id" format:"uuid" table:"workspace id"`
-	InitialPrompt  string          `json:"initial_prompt" table:"initial prompt"`
-	Status         WorkspaceStatus `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted" table:"status"`
-	CurrentState   *TaskStateEntry `json:"current_state" table:"cs,recursive_inline"`
-	CreatedAt      time.Time       `json:"created_at" format:"date-time" table:"created at"`
-	UpdatedAt      time.Time       `json:"updated_at" format:"date-time" table:"updated at"`
+	ID                      uuid.UUID                `json:"id" format:"uuid" table:"id"`
+	OrganizationID          uuid.UUID                `json:"organization_id" format:"uuid" table:"organization id"`
+	OwnerID                 uuid.UUID                `json:"owner_id" format:"uuid" table:"owner id"`
+	OwnerName               string                   `json:"owner_name" table:"owner name"`
+	Name                    string                   `json:"name" table:"name,default_sort"`
+	TemplateID              uuid.UUID                `json:"template_id" format:"uuid" table:"template id"`
+	TemplateName            string                   `json:"template_name" table:"template name"`
+	TemplateDisplayName     string                   `json:"template_display_name" table:"template display name"`
+	TemplateIcon            string                   `json:"template_icon" table:"template icon"`
+	WorkspaceID             uuid.NullUUID            `json:"workspace_id" format:"uuid" table:"workspace id"`
+	WorkspaceAgentID        uuid.NullUUID            `json:"workspace_agent_id" format:"uuid" table:"workspace agent id"`
+	WorkspaceAgentLifecycle *WorkspaceAgentLifecycle `json:"workspace_agent_lifecycle" table:"workspace agent lifecycle"`
+	WorkspaceAgentHealth    *WorkspaceAgentHealth    `json:"workspace_agent_health" table:"workspace agent health"`
+	InitialPrompt           string                   `json:"initial_prompt" table:"initial prompt"`
+	Status                  WorkspaceStatus          `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted" table:"status"`
+	CurrentState            *TaskStateEntry          `json:"current_state" table:"cs,recursive_inline"`
+	CreatedAt               time.Time                `json:"created_at" format:"date-time" table:"created at"`
+	UpdatedAt               time.Time                `json:"updated_at" format:"date-time" table:"updated at"`
 }
 
 // TaskStateEntry represents a single entry in the task's state history.
@@ -182,4 +189,19 @@ func (c *ExperimentalClient) TaskByID(ctx context.Context, id uuid.UUID) (Task, 
 	}
 
 	return task, nil
+}
+
+// DeleteTask deletes a task by its ID.
+//
+// Experimental: This method is experimental and may change in the future.
+func (c *ExperimentalClient) DeleteTask(ctx context.Context, user string, id uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/tasks/%s/%s", user, id.String()), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusAccepted {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }

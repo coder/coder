@@ -60,8 +60,7 @@ func Test_IssueSignedAppTokenHTML(t *testing.T) {
 
 		u, err := url.Parse(srv.URL)
 		require.NoError(t, err)
-		client := wsproxysdk.New(u)
-		client.SetSessionToken(expectedProxyToken)
+		client := wsproxysdk.New(u, expectedProxyToken)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -111,8 +110,7 @@ func Test_IssueSignedAppTokenHTML(t *testing.T) {
 
 		u, err := url.Parse(srv.URL)
 		require.NoError(t, err)
-		client := wsproxysdk.New(u)
-		_ = client.SetSessionToken(expectedProxyToken)
+		client := wsproxysdk.New(u, expectedProxyToken)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 

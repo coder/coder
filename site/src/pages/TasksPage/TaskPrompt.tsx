@@ -1,7 +1,9 @@
+import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { templateVersionPresets } from "api/queries/templates";
 import type {
 	Preset,
+	Task,
 	Template,
 	TemplateVersionExternalAuth,
 } from "api/typesGenerated";
@@ -28,13 +30,12 @@ import {
 import { useAuthenticated } from "hooks/useAuthenticated";
 import { useExternalAuth } from "hooks/useExternalAuth";
 import { RedoIcon, RotateCcwIcon, SendIcon } from "lucide-react";
-import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
+import { AI_PROMPT_PARAMETER_NAME } from "modules/tasks/tasks";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
 import { docs } from "utils/docs";
-import { data } from "./data";
 
 const textareaPlaceholder = "Prompt your AI agent to start a task...";
 
@@ -64,7 +65,7 @@ export const TaskPrompt: FC<TaskPromptProps> = ({
 		<CreateTaskForm
 			templates={templates}
 			onSuccess={(task) => {
-				navigate(`/tasks/${task.workspace.owner_name}/${task.workspace.name}`);
+				navigate(`/tasks/${task.owner_name}/${task.name}`);
 			}}
 		/>
 	);
@@ -188,12 +189,11 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 
 	const createTaskMutation = useMutation({
 		mutationFn: async ({ prompt }: CreateTaskMutationFnProps) =>
-			data.createTask(
+			API.experimental.createTask(user.id, {
 				prompt,
-				user.id,
-				selectedTemplate.active_version_id,
-				selectedPresetId,
-			),
+				template_version_id: selectedTemplate.active_version_id,
+				template_version_preset_id: selectedPresetId,
+			}),
 		onSuccess: async (task) => {
 			await queryClient.invalidateQueries({
 				queryKey: ["tasks"],

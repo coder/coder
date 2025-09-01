@@ -2840,9 +2840,16 @@ export interface Task {
 	readonly id: string;
 	readonly organization_id: string;
 	readonly owner_id: string;
+	readonly owner_name: string;
 	readonly name: string;
 	readonly template_id: string;
+	readonly template_name: string;
+	readonly template_display_name: string;
+	readonly template_icon: string;
 	readonly workspace_id: string | null;
+	readonly workspace_agent_id: string | null;
+	readonly workspace_agent_lifecycle: WorkspaceAgentLifecycle | null;
+	readonly workspace_agent_health: WorkspaceAgentHealth | null;
 	readonly initial_prompt: string;
 	readonly status: WorkspaceStatus;
 	readonly current_state: TaskStateEntry | null;

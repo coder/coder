@@ -4903,6 +4903,32 @@ export const MockTasks = [
 	},
 ];
 
+export const MockTask: TypesGen.Task = {
+	id: "test-task",
+	name: "task-wild-test-123",
+	organization_id: MockOrganization.id,
+	owner_id: MockUserOwner.id,
+	owner_name: MockUserOwner.username,
+	template_id: MockTemplate.id,
+	template_name: MockTemplate.name,
+	template_display_name: MockTemplate.display_name,
+	template_icon: MockTemplate.icon,
+	workspace_id: MockWorkspace.id,
+	workspace_agent_id: MockWorkspaceAgent.id,
+	workspace_agent_lifecycle: MockWorkspaceAgent.lifecycle_state,
+	workspace_agent_health: MockWorkspaceAgent.health,
+	initial_prompt: "Perform some task",
+	status: "running",
+	current_state: {
+		timestamp: "2022-05-17T17:39:01.382927298Z",
+		state: "idle",
+		message: "Should I continue?",
+		uri: "https://dev.coder.com",
+	},
+	created_at: "2022-05-17T17:39:01.382927298Z",
+	updated_at: "2022-05-17T17:39:01.382927298Z",
+};
+
 export const MockNewTaskData = {
 	prompt: "Create a new task",
 	workspace: {

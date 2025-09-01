@@ -3,7 +3,6 @@ package prebuilds_test
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -46,10 +45,6 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 	// Scenario: No reconciliation actions are taken if there are no presets
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("dbmem times out on nesting transactions, postgres ignores the inner ones")
-	}
-
 	clock := quartz.NewMock(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, ps := dbtestutil.NewDB(t)
@@ -91,10 +86,6 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 	// Scenario: No reconciliation actions are taken if there are no prebuilds
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("dbmem times out on nesting transactions, postgres ignores the inner ones")
-	}
 
 	clock := quartz.NewMock(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -149,21 +140,7 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 func TestPrebuildReconciliation(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
-
-	type testCase struct {
-		name                      string
-		prebuildLatestTransitions []database.WorkspaceTransition
-		prebuildJobStatuses       []database.ProvisionerJobStatus
-		templateVersionActive     []bool
-		templateDeleted           []bool
-		shouldCreateNewPrebuild   *bool
-		shouldDeleteOldPrebuild   *bool
-	}
-
-	testCases := []testCase{
+	testScenarios := []testScenario{
 		{
 			name:                      "never create prebuilds for inactive template versions",
 			prebuildLatestTransitions: allTransitions,
@@ -181,8 +158,8 @@ func TestPrebuildReconciliation(t *testing.T) {
 				database.ProvisionerJobStatusSucceeded,
 			},
 			templateVersionActive:   []bool{true},
-			shouldCreateNewPrebuild: ptr.To(false),
 			templateDeleted:         []bool{false},
+			shouldCreateNewPrebuild: ptr.To(false),
 		},
 		{
 			name: "don't create a new prebuild if one is queued to build or already building",
@@ -313,119 +290,173 @@ func TestPrebuildReconciliation(t *testing.T) {
 			templateDeleted:           []bool{true},
 		},
 	}
-	for _, tc := range testCases {
-		for _, templateVersionActive := range tc.templateVersionActive {
-			for _, prebuildLatestTransition := range tc.prebuildLatestTransitions {
-				for _, prebuildJobStatus := range tc.prebuildJobStatuses {
-					for _, templateDeleted := range tc.templateDeleted {
-						for _, useBrokenPubsub := range []bool{true, false} {
-							t.Run(fmt.Sprintf("%s - %s - %s - pubsub_broken=%v", tc.name, prebuildLatestTransition, prebuildJobStatus, useBrokenPubsub), func(t *testing.T) {
-								t.Parallel()
-								t.Cleanup(func() {
-									if t.Failed() {
-										t.Logf("failed to run test: %s", tc.name)
-										t.Logf("templateVersionActive: %t", templateVersionActive)
-										t.Logf("prebuildLatestTransition: %s", prebuildLatestTransition)
-										t.Logf("prebuildJobStatus: %s", prebuildJobStatus)
-									}
-								})
-								clock := quartz.NewMock(t)
-								ctx := testutil.Context(t, testutil.WaitShort)
-								cfg := codersdk.PrebuildsConfig{}
-								logger := slogtest.Make(
-									t, &slogtest.Options{IgnoreErrors: true},
-								).Leveled(slog.LevelDebug)
-								db, pubSub := dbtestutil.NewDB(t)
+	for _, tc := range testScenarios {
+		testCases := tc.testCases()
+		for _, tc := range testCases {
+			tc.run(t)
+		}
+	}
+}
 
-								ownerID := uuid.New()
-								dbgen.User(t, db, database.User{
-									ID: ownerID,
-								})
-								org, template := setupTestDBTemplate(t, db, ownerID, templateDeleted)
-								templateVersionID := setupTestDBTemplateVersion(
-									ctx,
-									t,
-									clock,
-									db,
-									pubSub,
-									org.ID,
-									ownerID,
-									template.ID,
-								)
-								preset := setupTestDBPreset(
-									t,
-									db,
-									templateVersionID,
-									1,
-									uuid.New().String(),
-								)
-								prebuild, _ := setupTestDBPrebuild(
-									t,
-									clock,
-									db,
-									pubSub,
-									prebuildLatestTransition,
-									prebuildJobStatus,
-									org.ID,
-									preset,
-									template.ID,
-									templateVersionID,
-								)
+// testScenario is a collection of test cases that illustrate the same business rule.
+// A testScenario describes a set of test properties for which the same test expecations
+// hold. A testScenario may be decomposed into multiple testCase structs, which can then be run.
+type testScenario struct {
+	name                      string
+	prebuildLatestTransitions []database.WorkspaceTransition
+	prebuildJobStatuses       []database.ProvisionerJobStatus
+	templateVersionActive     []bool
+	templateDeleted           []bool
+	shouldCreateNewPrebuild   *bool
+	shouldDeleteOldPrebuild   *bool
+	expectOrgMembership       *bool
+	expectGroupMembership     *bool
+}
 
-								setupTestDBPrebuildAntagonists(t, db, pubSub, org)
-
-								if !templateVersionActive {
-									// Create a new template version and mark it as active
-									// This marks the template version that we care about as inactive
-									setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
-								}
-
-								if useBrokenPubsub {
-									pubSub = &brokenPublisher{Pubsub: pubSub}
-								}
-								cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-								controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
-
-								// Run the reconciliation multiple times to ensure idempotency
-								// 8 was arbitrary, but large enough to reasonably trust the result
-								for i := 1; i <= 8; i++ {
-									require.NoErrorf(t, controller.ReconcileAll(ctx), "failed on iteration %d", i)
-
-									if tc.shouldCreateNewPrebuild != nil {
-										newPrebuildCount := 0
-										workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
-										require.NoError(t, err)
-										for _, workspace := range workspaces {
-											if workspace.ID != prebuild.ID {
-												newPrebuildCount++
-											}
-										}
-										// This test configures a preset that desires one prebuild.
-										// In cases where new prebuilds should be created, there should be exactly one.
-										require.Equal(t, *tc.shouldCreateNewPrebuild, newPrebuildCount == 1)
-									}
-
-									if tc.shouldDeleteOldPrebuild != nil {
-										builds, err := db.GetWorkspaceBuildsByWorkspaceID(ctx, database.GetWorkspaceBuildsByWorkspaceIDParams{
-											WorkspaceID: prebuild.ID,
-										})
-										require.NoError(t, err)
-										if *tc.shouldDeleteOldPrebuild {
-											require.Equal(t, 2, len(builds))
-											require.Equal(t, database.WorkspaceTransitionDelete, builds[0].Transition)
-										} else {
-											require.Equal(t, 1, len(builds))
-											require.Equal(t, prebuildLatestTransition, builds[0].Transition)
-										}
-									}
-								}
-							})
+func (ts testScenario) testCases() []testCase {
+	testCases := []testCase{}
+	for _, templateVersionActive := range ts.templateVersionActive {
+		for _, prebuildLatestTransition := range ts.prebuildLatestTransitions {
+			for _, prebuildJobStatus := range ts.prebuildJobStatuses {
+				for _, templateDeleted := range ts.templateDeleted {
+					for _, useBrokenPubsub := range []bool{true, false} {
+						testCase := testCase{
+							name:                     ts.name,
+							templateVersionActive:    templateVersionActive,
+							prebuildLatestTransition: prebuildLatestTransition,
+							prebuildJobStatus:        prebuildJobStatus,
+							templateDeleted:          templateDeleted,
+							useBrokenPubsub:          useBrokenPubsub,
+							shouldCreateNewPrebuild:  ts.shouldCreateNewPrebuild,
+							shouldDeleteOldPrebuild:  ts.shouldDeleteOldPrebuild,
+							expectOrgMembership:      ts.expectOrgMembership,
+							expectGroupMembership:    ts.expectGroupMembership,
 						}
+						testCases = append(testCases, testCase)
 					}
 				}
 			}
 		}
 	}
+
+	return testCases
+}
+
+type testCase struct {
+	name                     string
+	prebuildLatestTransition database.WorkspaceTransition
+	prebuildJobStatus        database.ProvisionerJobStatus
+	templateVersionActive    bool
+	templateDeleted          bool
+	useBrokenPubsub          bool
+	shouldCreateNewPrebuild  *bool
+	shouldDeleteOldPrebuild  *bool
+	expectOrgMembership      *bool
+	expectGroupMembership    *bool
+}
+
+func (tc testCase) run(t *testing.T) {
+	t.Run(tc.name, func(t *testing.T) {
+		t.Parallel()
+		t.Cleanup(func() {
+			if t.Failed() {
+				t.Logf("failed to run test: %s", tc.name)
+				t.Logf("templateVersionActive: %t", tc.templateVersionActive)
+				t.Logf("prebuildLatestTransition: %s", tc.prebuildLatestTransition)
+				t.Logf("prebuildJobStatus: %s", tc.prebuildJobStatus)
+			}
+		})
+		clock := quartz.NewMock(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		cfg := codersdk.PrebuildsConfig{}
+		logger := slogtest.Make(
+			t, &slogtest.Options{IgnoreErrors: true},
+		).Leveled(slog.LevelDebug)
+		db, pubSub := dbtestutil.NewDB(t)
+
+		ownerID := uuid.New()
+		dbgen.User(t, db, database.User{
+			ID: ownerID,
+		})
+		org, template := setupTestDBTemplate(t, db, ownerID, tc.templateDeleted)
+		templateVersionID := setupTestDBTemplateVersion(
+			ctx,
+			t,
+			clock,
+			db,
+			pubSub,
+			org.ID,
+			ownerID,
+			template.ID,
+		)
+		preset := setupTestDBPreset(
+			t,
+			db,
+			templateVersionID,
+			1,
+			uuid.New().String(),
+		)
+		prebuild, _ := setupTestDBPrebuild(
+			t,
+			clock,
+			db,
+			pubSub,
+			tc.prebuildLatestTransition,
+			tc.prebuildJobStatus,
+			org.ID,
+			preset,
+			template.ID,
+			templateVersionID,
+		)
+
+		setupTestDBPrebuildAntagonists(t, db, pubSub, org)
+
+		if !tc.templateVersionActive {
+			// Create a new template version and mark it as active
+			// This marks the template version that we care about as inactive
+			setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
+		}
+
+		if tc.useBrokenPubsub {
+			pubSub = &brokenPublisher{Pubsub: pubSub}
+		}
+		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+		controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer(), newNoopUsageCheckerPtr())
+
+		// Run the reconciliation multiple times to ensure idempotency
+		// 8 was arbitrary, but large enough to reasonably trust the result
+		for i := 1; i <= 8; i++ {
+			require.NoErrorf(t, controller.ReconcileAll(ctx), "failed on iteration %d", i)
+
+			if tc.shouldCreateNewPrebuild != nil {
+				newPrebuildCount := 0
+				workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+				require.NoError(t, err)
+				for _, workspace := range workspaces {
+					if workspace.ID != prebuild.ID {
+						newPrebuildCount++
+					}
+				}
+				// This test configures a preset that desires one prebuild.
+				// In cases where new prebuilds should be created, there should be exactly one.
+				require.Equal(t, *tc.shouldCreateNewPrebuild, newPrebuildCount == 1)
+			}
+
+			if tc.shouldDeleteOldPrebuild != nil {
+				builds, err := db.GetWorkspaceBuildsByWorkspaceID(ctx, database.GetWorkspaceBuildsByWorkspaceIDParams{
+					WorkspaceID: prebuild.ID,
+				})
+				require.NoError(t, err)
+				if *tc.shouldDeleteOldPrebuild {
+					require.Equal(t, 2, len(builds))
+					require.Equal(t, database.WorkspaceTransitionDelete, builds[0].Transition)
+				} else {
+					require.Equal(t, 1, len(builds))
+					require.Equal(t, tc.prebuildLatestTransition, builds[0].Transition)
+				}
+			}
+		}
+	})
 }
 
 // brokenPublisher is used to validate that Publish() calls which always fail do not affect the reconciler's behavior,
@@ -445,10 +476,6 @@ func (*brokenPublisher) Publish(event string, _ []byte) error {
 
 func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
 
 	prebuildLatestTransition := database.WorkspaceTransitionStart
 	prebuildJobStatus := database.ProvisionerJobStatusRunning
@@ -532,10 +559,6 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 
 func TestPrebuildScheduling(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
 
 	templateDeleted := false
 
@@ -679,10 +702,6 @@ func TestPrebuildScheduling(t *testing.T) {
 func TestInvalidPreset(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
-
 	templateDeleted := false
 
 	clock := quartz.NewMock(t)
@@ -743,10 +762,6 @@ func TestInvalidPreset(t *testing.T) {
 
 func TestDeletionOfPrebuiltWorkspaceWithInvalidPreset(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
 
 	templateDeleted := false
 
@@ -813,10 +828,6 @@ func TestDeletionOfPrebuiltWorkspaceWithInvalidPreset(t *testing.T) {
 
 func TestSkippingHardLimitedPresets(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
 
 	// Test cases verify the behavior of prebuild creation depending on configured failure limits.
 	testCases := []struct {
@@ -954,10 +965,6 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 
 func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
 
 	// Test cases verify the behavior of prebuild creation depending on configured failure limits.
 	testCases := []struct {
@@ -1171,10 +1178,6 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 func TestRunLoop(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
-
 	prebuildLatestTransition := database.WorkspaceTransitionStart
 	prebuildJobStatus := database.ProvisionerJobStatusRunning
 	templateDeleted := false
@@ -1305,9 +1308,6 @@ func TestRunLoop(t *testing.T) {
 func TestFailedBuildBackoff(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 	// Setup.
@@ -1426,10 +1426,6 @@ func TestFailedBuildBackoff(t *testing.T) {
 func TestReconciliationLock(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
-
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	db, ps := dbtestutil.NewDB(t)
@@ -1469,10 +1465,6 @@ func TestReconciliationLock(t *testing.T) {
 
 func TestTrackResourceReplacement(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
@@ -1558,10 +1550,6 @@ func TestTrackResourceReplacement(t *testing.T) {
 
 func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
 
 	testCases := []struct {
 		name       string
@@ -2267,10 +2255,6 @@ func mustParseTime(t *testing.T, layout, value string) time.Time {
 
 func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	clock := quartz.NewMock(t)
