@@ -96,10 +96,19 @@ func TestTaskCreate(t *testing.T) {
 	tests := []struct {
 		args         []string
 		env          []string
+		stdin        string
 		expectError  string
 		expectOutput string
 		handler      func(t *testing.T, ctx context.Context) http.HandlerFunc
 	}{
+		{
+			args:         []string{"--stdin"},
+			stdin:        "reads prompt from stdin",
+			expectOutput: fmt.Sprintf("The task %s has been created at %s!", cliui.Keyword("task-wild-goldfish-27"), cliui.Timestamp(taskCreatedAt)),
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return templateAndVersionFoundHandler(t, ctx, organizationID, "my-template", "my-template-version", "", "reads prompt from stdin")
+			},
+		},
 		{
 			args:         []string{"my custom prompt"},
 			expectOutput: fmt.Sprintf("The task %s has been created at %s!", cliui.Keyword("task-wild-goldfish-27"), cliui.Timestamp(taskCreatedAt)),
@@ -125,13 +134,6 @@ func TestTaskCreate(t *testing.T) {
 		{
 			args:         []string{"my custom prompt", "--org", organizationID.String()},
 			env:          []string{"CODER_TASK_TEMPLATE_NAME=my-template", "CODER_TASK_TEMPLATE_VERSION=my-template-version"},
-			expectOutput: fmt.Sprintf("The task %s has been created at %s!", cliui.Keyword("task-wild-goldfish-27"), cliui.Timestamp(taskCreatedAt)),
-			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return templateAndVersionFoundHandler(t, ctx, organizationID, "my-template", "my-template-version", "", "my custom prompt")
-			},
-		},
-		{
-			env:          []string{"CODER_TASK_TEMPLATE_NAME=my-template", "CODER_TASK_TEMPLATE_VERSION=my-template-version", "CODER_TASK_INPUT=my custom prompt", "CODER_ORGANIZATION=" + organizationID.String()},
 			expectOutput: fmt.Sprintf("The task %s has been created at %s!", cliui.Keyword("task-wild-goldfish-27"), cliui.Timestamp(taskCreatedAt)),
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
 				return templateAndVersionFoundHandler(t, ctx, organizationID, "my-template", "my-template-version", "", "my custom prompt")
@@ -284,6 +286,7 @@ func TestTaskCreate(t *testing.T) {
 
 			inv, root := clitest.New(t, append(args, tt.args...)...)
 			inv.Environ = serpent.ParseEnviron(tt.env, "")
+			inv.Stdin = strings.NewReader(tt.stdin)
 			inv.Stdout = &sb
 			inv.Stderr = &sb
 			clitest.SetupConfig(t, client, root)
