@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 
 	"github.com/coder/aibridge"
+	"github.com/coder/aibridge/mcp"
 )
 
 const (
@@ -48,6 +49,17 @@ func NewCachedBridgePool(cfg codersdk.AIBridgeConfig, instances int64, mcpCfg MC
 		NumCounters: instances * 10,        // Docs suggest setting this 10x number of keys.
 		MaxCost:     instances * cacheCost, // Up to n instances.
 		BufferItems: 64,                    // Sticking with recommendation from docs.
+		OnEvict: func(item *ristretto.Item[*aibridge.RequestBridge]) {
+			if item == nil || item.Value == nil {
+				return
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			defer cancel()
+			if err := item.Value.Shutdown(ctx); err != nil {
+				logger.Debug(ctx, "bridge shutdown failed", slog.Error(err))
+			}
+		},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create cache: %w", err)
@@ -68,10 +80,10 @@ func NewCachedBridgePool(cfg codersdk.AIBridgeConfig, instances int64, mcpCfg MC
 	}, nil
 }
 
-// Acquire retrieves or creates a Bridge instance per given key.
+// Acquire retrieves or creates a [*aibridge.RequestBridge] instance per given key.
 //
-// Each returned Bridge is safe for concurrent use.
-// Each Bridge is stateful because it has MCP clients which maintain sessions to the configured MCP server.
+// Each returned [*aibridge.RequestBridge] is safe for concurrent use.
+// Each [*aibridge.RequestBridge] is stateful because it has MCP clients which maintain sessions to the configured MCP server.
 func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, recorder aibridge.Recorder) (*aibridge.RequestBridge, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, xerrors.Errorf("acquire: %w", err)
@@ -103,12 +115,12 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, recorder ai
 	// Creating an *aibridge.RequestBridge may take some time, so gate all subsequent callers behind the initial request and return the resulting value.
 	// TODO: track startup time since it adds latency to first request (histogram count will also help us see how often this occurs).
 	instance, err, _ := p.singleflight.Do(req.InitiatorID.String(), func() (*aibridge.RequestBridge, error) {
-		tools, err := p.setupMCPServerProxies(ctx, req.SessionKey, req.InitiatorID)
+		proxiers, err := p.setupMCPServerProxiers(ctx, req.SessionKey, req.InitiatorID)
 		if err != nil {
 			p.logger.Warn(ctx, "failed to load tools", slog.Error(err))
 		}
 
-		bridge, err = aibridge.NewRequestBridge(ctx, p.providers, p.logger, recorder, aibridge.NewInjectedToolManager(tools))
+		bridge, err = aibridge.NewRequestBridge(ctx, p.providers, p.logger, recorder, mcp.NewServerProxyManager(proxiers))
 		if err != nil {
 			return nil, xerrors.Errorf("create new request bridge: %w", err)
 		}
@@ -123,9 +135,9 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, recorder ai
 	return instance, err
 }
 
-func (p *CachedBridgePool) setupMCPServerProxies(ctx context.Context, key string, userID uuid.UUID) ([]*aibridge.MCPServerProxy, error) {
+func (p *CachedBridgePool) setupMCPServerProxiers(ctx context.Context, key string, userID uuid.UUID) ([]mcp.ServerProxier, error) {
 	var (
-		proxies []*aibridge.MCPServerProxy
+		proxies []mcp.ServerProxier
 		eg      errgroup.Group
 	)
 
@@ -145,18 +157,18 @@ func (p *CachedBridgePool) setupMCPServerProxies(ctx context.Context, key string
 				return xerrors.Errorf("%q external auth token invalid: %w", c.Name, err)
 			}
 
-			linkBridge, err := aibridge.NewMCPServerProxy(c.Name, c.URL, map[string]string{
+			mcpProxy, err := mcp.NewStreamableHTTPServerProxy(c.Name, c.URL, map[string]string{
 				"Authorization": fmt.Sprintf("Bearer %s", c.AccessToken),
 			}, p.logger.Named(fmt.Sprintf("mcp-bridge-%s", c.Name)))
 			if err != nil {
 				return xerrors.Errorf("%s MCP bridge setup: %w", c.Name, err)
 			}
-			proxies = append(proxies, linkBridge)
+			proxies = append(proxies, mcpProxy)
 
 			ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 			defer cancel()
 
-			err = linkBridge.Init(ctx)
+			err = mcpProxy.Init(ctx)
 			if err == nil {
 				return nil
 			}
