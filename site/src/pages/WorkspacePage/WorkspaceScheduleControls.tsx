@@ -12,7 +12,7 @@ import type { Template, Workspace } from "api/typesGenerated";
 import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import dayjs, { type Dayjs } from "dayjs";
-import { useTime } from "hooks/useTime";
+import { REFRESH_ONE_SECOND, useTimeSyncState } from "hooks/useTimeSync";
 import { ClockIcon, MinusIcon, PlusIcon } from "lucide-react";
 import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
 import { type FC, forwardRef, type ReactNode, useRef, useState } from "react";
@@ -160,7 +160,10 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 		}, 500);
 	};
 
-	const activityStatus = useTime(() => getWorkspaceActivityStatus(workspace));
+	const activityStatus = useTimeSyncState({
+		targetIntervalMs: REFRESH_ONE_SECOND,
+		transform: (d) => getWorkspaceActivityStatus(workspace, d as Date),
+	});
 	const { message, tooltip, danger } = autostopDisplay(
 		workspace,
 		activityStatus,

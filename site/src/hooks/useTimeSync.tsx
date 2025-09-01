@@ -21,7 +21,7 @@ import { useEffectEvent } from "./hookPolyfills";
 
 type SubscriptionCallback = (notifyReact: () => void) => () => void;
 
-const REFRESH_ONE_SECOND = 1_000;
+export const REFRESH_ONE_SECOND = 1_000;
 const REFRESH_ONE_MINUTE = 60 * 1_000;
 const REFRESH_ONE_HOUR = 60 * 60 * 1_000;
 const REFRESH_ONE_DAY = 24 * 60 * 60 * 1_000;

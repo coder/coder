@@ -1,5 +1,6 @@
 import type { Workspace } from "api/typesGenerated";
 import dayjs from "dayjs";
+import { ReadonlyDate } from "utils/TimeSync";
 
 export type WorkspaceActivityStatus =
 	| "ready"
@@ -10,10 +11,11 @@ export type WorkspaceActivityStatus =
 
 export function getWorkspaceActivityStatus(
 	workspace: Workspace,
+	currentTime: Date,
 ): WorkspaceActivityStatus {
 	const builtAt = dayjs(workspace.latest_build.created_at);
 	const usedAt = dayjs(workspace.last_used_at);
-	const now = dayjs();
+	const now = dayjs(currentTime);
 
 	if (workspace.latest_build.status !== "running") {
 		return "notRunning";
