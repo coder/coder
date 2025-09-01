@@ -87,6 +87,10 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				taskInput = inv.Args[0]
 			}
 
+			if taskInput == "" {
+				return xerrors.Errorf("a task cannot be started with an empty input")
+			}
+
 			if templateName == "" {
 				templates, err := client.Templates(ctx, codersdk.TemplateFilter{SearchQuery: "has-ai-task:true", OrganizationID: organization.ID})
 				if err != nil {
