@@ -29,6 +29,9 @@ const REFRESH_ONE_DAY = 24 * 60 * 60 * 1_000;
 // Combines two pieces of state while trying to maintain as much structural
 // sharing as possible
 function mergeSnapshots(oldValue: unknown, newValue: unknown): unknown {
+	if (oldValue === newValue) {
+		return oldValue;
+	}
 	return newValue;
 }
 
@@ -38,24 +41,6 @@ type ReactTimeSyncInitOptions = Readonly<{
 	disableUpdates: boolean;
 }>;
 
-/**
- * Allows you to transform any Date values received from the TimeSync
- * class, while providing render optimizations. Select functions are
- * ALWAYS run during a render to guarantee no wrong data from stale
- * closures.
- *
- * However, when a new time update is dispatched from TimeSync, the hook
- * will use the latest select callback received to transform the value.
- * If the select result has not changed compared to last time, the hook will
- * skip re-rendering.
- *
- * This function does not have memoization at the render level because it
- * does not use dependency arrays. If the transform callback is expensive,
- * be sure to memoize it with useCallback beforehand.
- *
- * Select functions must not be async. The hook will error out at the
- * type level if you provide one by mistake.
- */
 type TransformCallback<T> = (
 	state: ReadonlyDate,
 ) => T extends Promise<unknown> ? never : T;
@@ -147,15 +132,16 @@ class ReactTimeSync {
 		const newEntry: SubscriptionEntry = {
 			unsubscribe,
 			/**
-			 * @todo There is one unfortunate behavior with the current
-			 * subscription logic. Because of how React lifecycles work,
+			 * @todo 2025-08-30 - There is one unfortunate behavior with the
+			 * current subscription logic. Because of how React lifecycles work,
 			 * each new component instance needs to call the transform callback
 			 * twice on setup. You need to call it once from the render, and
-			 * again from the subscribe method. We need to update things so that
-			 * the transform result is passed from the render to the class.
+			 * again from the subscribe method.
 			 *
-			 * The obvious fixes caused some weird chicken-and-the-egg problems
-			 * for the dependency arrays, so this fix might be a bit involved.
+			 * Trying to fix this got really nasty (even with a bunch of cursed
+			 * React techniques), and caused a bunch of chicken-and-the-egg
+			 * problems. Luckily, most transformations should be super cheap,
+			 * which should buy us some time to get this fixed.
 			 */
 			lastTransformedValue: transform(latestSyncState),
 		};
@@ -268,6 +254,26 @@ type UseTimeSyncOptions<T> = Readonly<{
 	 * tearing.
 	 */
 	targetIntervalMs: number;
+
+	/**
+	 * Allows you to transform any Date values received from the TimeSync
+	 * class. If provided, the hook will return the result of calling the
+	 * callback instead of the main Date state.
+	 *
+	 * `transform` works almost exactly like the `select` callback in React
+	 * Query's `useQuery` hook. That is:
+	 * 1. Inline functions are always re-run during re-renders to avoid stale
+	 *    data issues.
+	 * 2. `transform` does not use dependency arrays directly, but if it is
+	 *    memoized via `useCallback`, it will only re-run during a re-render if
+	 *    `useCallback` got invalidated.
+	 * 3. When TimeSync dispatches a new date update, it will run the latest
+	 *    `transform` callback. If the result has not changed same (comparing by
+	 *    value), the subscribed component will not re-render by itself.
+	 *
+	 * `transform` callbacks must not be async. The hook will error out at the
+	 * type level if you provide one by mistake.
+	 */
 	transform?: TransformCallback<T>;
 }>;
 
