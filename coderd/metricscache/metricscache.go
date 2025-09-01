@@ -101,16 +101,12 @@ func (c *Cache) refreshTemplateBuildTimes(ctx context.Context) error {
 	for _, template := range templates {
 		ids = append(ids, template.ID)
 
-		templateAvgBuildTime, err := c.database.GetTemplateAverageBuildTime(ctx, database.GetTemplateAverageBuildTimeParams{
-			TemplateID: uuid.NullUUID{
+		templateAvgBuildTime, err := c.database.GetTemplateAverageBuildTime(ctx,
+			uuid.NullUUID{
 				UUID:  template.ID,
 				Valid: true,
 			},
-			StartTime: sql.NullTime{
-				Time:  dbtime.Time(c.clock.Now().AddDate(0, 0, -30)),
-				Valid: true,
-			},
-		})
+		)
 		if err != nil {
 			return err
 		}

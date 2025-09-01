@@ -11903,11 +11903,11 @@ JOIN provisioner_jobs pj ON
 WHERE
 	template_versions.template_id = $1 AND
 		(pj.completed_at IS NOT NULL) AND (pj.started_at IS NOT NULL) AND
-		(pj.started_at > $2) AND
 		(pj.canceled_at IS NULL) AND
 		((pj.error IS NULL) OR (pj.error = ''))
 ORDER BY
 	workspace_builds.created_at DESC
+LIMIT 100
 )
 SELECT
 	-- Postgres offers no clear way to DRY this short of a function or other
@@ -11921,11 +11921,6 @@ SELECT
 FROM build_times
 `
 
-type GetTemplateAverageBuildTimeParams struct {
-	TemplateID uuid.NullUUID `db:"template_id" json:"template_id"`
-	StartTime  sql.NullTime  `db:"start_time" json:"start_time"`
-}
-
 type GetTemplateAverageBuildTimeRow struct {
 	Start50  float64 `db:"start_50" json:"start_50"`
 	Stop50   float64 `db:"stop_50" json:"stop_50"`
@@ -11935,8 +11930,8 @@ type GetTemplateAverageBuildTimeRow struct {
 	Delete95 float64 `db:"delete_95" json:"delete_95"`
 }
 
-func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTemplateAverageBuildTimeParams) (GetTemplateAverageBuildTimeRow, error) {
-	row := q.db.QueryRowContext(ctx, getTemplateAverageBuildTime, arg.TemplateID, arg.StartTime)
+func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, templateID uuid.NullUUID) (GetTemplateAverageBuildTimeRow, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateAverageBuildTime, templateID)
 	var i GetTemplateAverageBuildTimeRow
 	err := row.Scan(
 		&i.Start50,
