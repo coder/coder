@@ -1,6 +1,5 @@
 import type { Workspace } from "api/typesGenerated";
 import dayjs from "dayjs";
-import { ReadonlyDate } from "utils/TimeSync";
 
 export type WorkspaceActivityStatus =
 	| "ready"
