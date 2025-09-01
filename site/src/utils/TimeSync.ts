@@ -4,7 +4,7 @@
  */
 export type ReadonlyDate = Omit<Date, `set${string}`>;
 
-const noOp = (..._: readonly unknown[]): void => {};
+export const noOp = (..._: readonly unknown[]): void => {};
 
 /**
  * All of TimeSync is basically centered around managing a single Date value,
@@ -49,19 +49,6 @@ export type TimeSyncInitOptions = Readonly<{
 	 * get really hot and really tank performance elsewhere in the app.
 	 */
 	minimumRefreshIntervalMs: number;
-
-	/**
-	 * Configures whether subscribers will be notified immediately after a new
-	 * Date snapshot has been created. Defaults to true.
-	 *
-	 * The main use case for disabling this is for interfacing with systems with
-	 * very strict rules for side effects. To minimize stale data issues, adding
-	 * a new subscription might immediately update the Date state. If it is NOT
-	 * safe to notify all other subscribers right after this, set this property
-	 * to false, and then use the `notifySubscribers` method to manage
-	 * subscriptions manually.
-	 */
-	autoNotifyAfterStateUpdate: boolean;
 }>;
 
 /**
@@ -92,9 +79,8 @@ export type SubscriptionHandshake = Readonly<{
 	onUpdate: OnUpdate;
 }>;
 
-const defaultOptions: TimeSyncInitOptions = {
+export const defaultOptions: TimeSyncInitOptions = {
 	initialDatetime: new Date(),
-	autoNotifyAfterStateUpdate: true,
 	minimumRefreshIntervalMs: 100,
 };
 
@@ -128,8 +114,9 @@ interface TimeSyncApi {
 	 * called once, total.
 	 *
 	 * @throws {RangeError} If the provided interval is not a positive integer.
+	 * @returns {() => void} An unsubscribe callback.
 	 */
-	subscribe: (entry: SubscriptionHandshake) => SubscriptionResult;
+	subscribe: (entry: SubscriptionHandshake) => () => void;
 
 	/**
 	 * Allows any system to pull the newest time state from TimeSync, regardless
@@ -138,13 +125,10 @@ interface TimeSyncApi {
 	getStateSnapshot: () => ReadonlyDate;
 
 	/**
-	 * Allows any external system to manually flush the latest time snapshot to
-	 * all subscribers.
-	 *
-	 * Does not need to be used if TimeSync has already been configured with
-	 * `notifyAfterUpdate` set to true.
+	 * Cleans up the TimeSync instance and renders it inert for all other
+	 * operations.
 	 */
-	updateAllSubscriptions: () => void;
+	dispose: () => void;
 }
 
 function orderIntervals(interval1: number, interval2: number): number {
@@ -166,8 +150,8 @@ function orderIntervals(interval1: number, interval2: number): number {
  * See comments for exported methods and types for more information.
  */
 export class TimeSync implements TimeSyncApi {
-	readonly #autoNotifyAfterStateUpdate: boolean;
 	readonly #minimumRefreshIntervalMs: number;
+	#disposed = false;
 	#latestDateSnapshot: ReadonlyDate;
 
 	// Each map value is the list of all refresh intervals actively associated
@@ -189,7 +173,6 @@ export class TimeSync implements TimeSyncApi {
 	constructor(options?: Partial<TimeSyncInitOptions>) {
 		const {
 			initialDatetime = defaultOptions.initialDatetime,
-			autoNotifyAfterStateUpdate = defaultOptions.autoNotifyAfterStateUpdate,
 			minimumRefreshIntervalMs = defaultOptions.minimumRefreshIntervalMs,
 		} = options ?? {};
 
@@ -202,9 +185,30 @@ export class TimeSync implements TimeSyncApi {
 			);
 		}
 
-		this.#autoNotifyAfterStateUpdate = autoNotifyAfterStateUpdate;
 		this.#minimumRefreshIntervalMs = minimumRefreshIntervalMs;
 		this.#latestDateSnapshot = newReadonlyDate(initialDatetime);
+	}
+
+	#notifyAllSubscriptions(): void {
+		if (this.#disposed) {
+			return;
+		}
+
+		const subscriptionsPaused =
+			this.#subscriptions.size === 0 ||
+			this.#fastestRefreshInterval === Number.POSITIVE_INFINITY;
+		if (subscriptionsPaused) {
+			return;
+		}
+
+		// Copying the latest state into a separate variable, just to make
+		// absolutely sure that if the `this` context magically changes between
+		// callback calls, it doesn't cause subscribers to receive different
+		// values.
+		const bound = this.#latestDateSnapshot;
+		for (const onUpdate of this.#subscriptions.keys()) {
+			onUpdate(bound);
+		}
 	}
 
 	/**
@@ -250,12 +254,11 @@ export class TimeSync implements TimeSyncApi {
 	 * @returns {boolean} Indicates whether there are still subscribers that
 	 * need to be notified after the update.
 	 */
-	#flushUpdate(): boolean {
-		const hasPendingUpdate = this.#updateDateSnapshot();
-		if (hasPendingUpdate && this.#autoNotifyAfterStateUpdate) {
-			this.updateAllSubscriptions();
+	#flushUpdate(): void {
+		const updated = this.#updateDateSnapshot();
+		if (updated) {
+			this.#notifyAllSubscriptions();
 		}
-		return hasPendingUpdate && !this.#autoNotifyAfterStateUpdate;
 	}
 
 	/**
@@ -269,7 +272,7 @@ export class TimeSync implements TimeSyncApi {
 	#onTick = (): void => {
 		const hasPendingUpdate = this.#updateDateSnapshot();
 		if (hasPendingUpdate) {
-			this.updateAllSubscriptions();
+			this.#notifyAllSubscriptions();
 		}
 	};
 
@@ -358,7 +361,7 @@ export class TimeSync implements TimeSyncApi {
 		}
 	}
 
-	subscribe(hs: SubscriptionHandshake): SubscriptionResult {
+	subscribe(hs: SubscriptionHandshake): () => void {
 		// Destructuring properties so that they can't be fiddled with after
 		// this function call ends
 		const { targetRefreshIntervalMs, onUpdate } = hs;
@@ -375,13 +378,19 @@ export class TimeSync implements TimeSyncApi {
 			this.#minimumRefreshIntervalMs,
 			targetRefreshIntervalMs,
 		);
-		const hasPendingSubscribers = this.#addSubscription(floored, onUpdate);
+		this.#addSubscription(floored, onUpdate);
 
-		return {
-			hasPendingSubscribers,
-			unsubscribe: () => {
-				this.#removeSubscription(floored, onUpdate);
-			},
+		// Because of how subscriptions are represented internally, there's
+		// a risk that calling #removeSubscription multiple times could remove
+		// subscriptions for completely different systems. So we have to make
+		// sure that calls 2+ turn into no-ops
+		let unsubscribed = false;
+		return () => {
+			if (unsubscribed) {
+				return;
+			}
+			this.#removeSubscription(floored, onUpdate);
+			unsubscribed = true;
 		};
 	}
 
@@ -389,21 +398,7 @@ export class TimeSync implements TimeSyncApi {
 		return this.#latestDateSnapshot;
 	}
 
-	updateAllSubscriptions(): void {
-		const subscriptionsPaused =
-			this.#subscriptions.size === 0 ||
-			this.#fastestRefreshInterval === Number.POSITIVE_INFINITY;
-		if (subscriptionsPaused) {
-			return;
-		}
-
-		// Copying the latest state into a separate variable, just to make
-		// absolutely sure that if the `this` context magically changes between
-		// callback calls, it doesn't cause subscribers to receive different
-		// values.
-		const bound = this.#latestDateSnapshot;
-		for (const onUpdate of this.#subscriptions.keys()) {
-			onUpdate(bound);
-		}
+	dispose(): void {
+		this.#disposed = true;
 	}
 }
