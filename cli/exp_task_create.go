@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -24,7 +23,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 	)
 
 	cmd := &serpent.Command{
-		Use:   "create [template]",
+		Use:   "create [input]",
 		Short: "Create an experimental task",
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 1),
@@ -32,16 +31,17 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 		),
 		Options: serpent.OptionSet{
 			{
-				Flag:     "input",
-				Env:      "CODER_TASK_INPUT",
-				Value:    serpent.StringOf(&taskInput),
-				Required: true,
+				Flag:  "input",
+				Env:   "CODER_TASK_INPUT",
+				Value: serpent.StringOf(&taskInput),
 			},
 			{
+				Flag:  "template",
 				Env:   "CODER_TASK_TEMPLATE_NAME",
 				Value: serpent.StringOf(&templateName),
 			},
 			{
+				Flag:  "template-version",
 				Env:   "CODER_TASK_TEMPLATE_VERSION",
 				Value: serpent.StringOf(&templateVersionName),
 			},
@@ -67,11 +67,35 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 			}
 
 			if len(inv.Args) > 0 {
-				templateName, templateVersionName, _ = strings.Cut(inv.Args[0], "@")
+				taskInput = inv.Args[0]
 			}
 
 			if templateName == "" {
-				return xerrors.Errorf("template name not provided")
+				templates, err := client.Templates(ctx, codersdk.TemplateFilter{SearchQuery: "has-ai-task:true", OrganizationID: organization.ID})
+				if err != nil {
+					return xerrors.Errorf("list templates: %w", err)
+				}
+
+				if len(templates) == 0 {
+					return xerrors.Errorf("no task templates configured")
+				}
+
+				// When a deployment has only 1 AI task template, we will
+				// allow omitting the template. Otherwise we will require
+				// the user to be explicit with their choice of template.
+				if len(templates) > 1 {
+					return xerrors.Errorf("template name not provided")
+				}
+
+				templateName = templates[0].Name
+				templateVersionID = templates[0].ActiveVersionID
+			} else {
+				template, err := client.TemplateByName(ctx, organization.ID, templateName)
+				if err != nil {
+					return xerrors.Errorf("get template: %w", err)
+				}
+
+				templateVersionID = template.ActiveVersionID
 			}
 
 			if templateVersionName != "" {
@@ -81,13 +105,6 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				}
 
 				templateVersionID = templateVersion.ID
-			} else {
-				template, err := client.TemplateByName(ctx, organization.ID, templateName)
-				if err != nil {
-					return xerrors.Errorf("get template: %w", err)
-				}
-
-				templateVersionID = template.ActiveVersionID
 			}
 
 			if presetName != PresetNone {
