@@ -114,7 +114,7 @@ interface TimeSyncApi {
 	 * called once, total.
 	 *
 	 * @throws {RangeError} If the provided interval is not a positive integer.
-	 * @returns {() => void} An unsubscribe callback.
+	 * @returns An unsubscribe callback.
 	 */
 	subscribe: (entry: SubscriptionHandshake) => () => void;
 

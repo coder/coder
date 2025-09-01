@@ -3,6 +3,7 @@ import type { AuthMethods, BuildInfoResponse } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { CustomLogo } from "components/CustomLogo/CustomLogo";
 import { Loader } from "components/Loader/Loader";
+import { REFRESH_IDLE, useTimeSyncState } from "hooks/useTimeSync";
 import { type FC, useState } from "react";
 import { useLocation } from "react-router";
 import { SignInForm } from "./SignInForm";
@@ -35,6 +36,11 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 	const tosAcceptanceRequired =
 		authMethods?.terms_of_service_url && !tosAccepted;
 
+	const year = useTimeSyncState({
+		targetIntervalMs: REFRESH_IDLE,
+		transform: (d) => d.getFullYear(),
+	});
+
 	return (
 		<div css={styles.root}>
 			<div css={styles.container}>
@@ -63,9 +69,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 					/>
 				)}
 				<footer css={styles.footer}>
-					<div>
-						Copyright &copy; {new Date().getFullYear()} Coder Technologies, Inc.
-					</div>
+					<div>Copyright &copy; {year} Coder Technologies, Inc.</div>
 					<div>{buildInfo?.version}</div>
 					{tosAccepted && (
 						<TermsOfServiceLink
