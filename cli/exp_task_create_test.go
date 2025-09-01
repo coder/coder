@@ -267,6 +267,29 @@ func TestTaskCreate(t *testing.T) {
 				}
 			},
 		},
+		{
+			args:        []string{"no template name provided"},
+			expectError: "template name not provided, available templates: wibble, wobble",
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case "/api/v2/users/me/organizations":
+						httpapi.Write(ctx, w, http.StatusOK, []codersdk.Organization{
+							{MinimalOrganization: codersdk.MinimalOrganization{
+								ID: organizationID,
+							}},
+						})
+					case "/api/v2/templates":
+						httpapi.Write(ctx, w, http.StatusOK, []codersdk.Template{
+							{Name: "wibble"},
+							{Name: "wobble"},
+						})
+					default:
+						t.Errorf("unexpected path: %s", r.URL.Path)
+					}
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {

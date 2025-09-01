@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -106,7 +107,12 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				// allow omitting the template. Otherwise we will require
 				// the user to be explicit with their choice of template.
 				if len(templates) > 1 {
-					return xerrors.Errorf("template name not provided")
+					templateNames := make([]string, 0, len(templates))
+					for _, template := range templates {
+						templateNames = append(templateNames, template.Name)
+					}
+
+					return xerrors.Errorf("template name not provided, available templates: %s", strings.Join(templateNames, ", "))
 				}
 
 				if templateVersionName != "" {
