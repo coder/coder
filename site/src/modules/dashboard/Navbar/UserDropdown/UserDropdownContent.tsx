@@ -13,6 +13,7 @@ import { CopyButton } from "components/CopyButton/CopyButton";
 import { usePopover } from "components/deprecated/Popover/Popover";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Stack } from "components/Stack/Stack";
+import { REFRESH_IDLE, useTimeSyncState } from "hooks/useTimeSync";
 import {
 	BookOpenTextIcon,
 	BugIcon,
@@ -28,7 +29,6 @@ import { Link } from "react-router";
 export const Language = {
 	accountLabel: "Account",
 	signOutLabel: "Sign Out",
-	copyrightText: `\u00a9 ${new Date().getFullYear()} Coder Technologies, Inc.`,
 };
 
 interface UserDropdownContentProps {
@@ -69,6 +69,11 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 				);
 		}
 	};
+
+	const year = useTimeSyncState({
+		targetIntervalMs: REFRESH_IDLE,
+		transform: (d) => d.getFullYear(),
+	});
 
 	return (
 		<div>
@@ -158,7 +163,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 					</div>
 				)}
 
-				<div css={styles.footerText}>{Language.copyrightText}</div>
+				<div css={styles.footerText}>&copy;{year} Coder Technologies, Inc.</div>
 			</Stack>
 		</div>
 	);

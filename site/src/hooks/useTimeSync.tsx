@@ -19,12 +19,11 @@ import {
 } from "utils/TimeSync";
 import { useEffectEvent } from "./hookPolyfills";
 
-type SubscriptionCallback = (notifyReact: () => void) => () => void;
+export const REFRESH_IDLE = Number.POSITIVE_INFINITY;
+export const REFRESH_ONE_SECOND: number = 1_000;
+export const REFRESH_ONE_MINUTE: number = 60_000;
 
-export const REFRESH_ONE_SECOND = 1_000;
-const REFRESH_ONE_MINUTE = 60 * 1_000;
-const REFRESH_ONE_HOUR = 60 * 60 * 1_000;
-const REFRESH_ONE_DAY = 24 * 60 * 60 * 1_000;
+type SubscriptionCallback = (notifyReact: () => void) => () => void;
 
 // Combines two pieces of state while trying to maintain as much structural
 // sharing as possible

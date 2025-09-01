@@ -1,14 +1,18 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import { REFRESH_IDLE, useTimeSyncState } from "hooks/useTimeSync";
 import type { FC, PropsWithChildren } from "react";
 
 export const SignInLayout: FC<PropsWithChildren> = ({ children }) => {
+	const year = useTimeSyncState({
+		targetIntervalMs: REFRESH_IDLE,
+		transform: (d) => d.getFullYear(),
+	});
+
 	return (
 		<div css={styles.container}>
 			<div css={styles.content}>
 				<div css={styles.signIn}>{children}</div>
-				<div css={styles.copyright}>
-					{"\u00a9"} {new Date().getFullYear()} Coder Technologies, Inc.
-				</div>
+				<div css={styles.copyright}>&copy;{year} Coder Technologies, Inc.</div>
 			</div>
 		</div>
 	);
