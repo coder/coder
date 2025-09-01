@@ -87,8 +87,23 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 					return xerrors.Errorf("template name not provided")
 				}
 
-				templateName = templates[0].Name
-				templateVersionID = templates[0].ActiveVersionID
+				if templateVersionName != "" {
+					templateVersion, err := client.TemplateVersionByOrganizationAndName(ctx, organization.ID, templates[0].Name, templateVersionName)
+					if err != nil {
+						return xerrors.Errorf("get template version: %w", err)
+					}
+
+					templateVersionID = templateVersion.ID
+				} else {
+					templateVersionID = templates[0].ActiveVersionID
+				}
+			} else if templateVersionName != "" {
+				templateVersion, err := client.TemplateVersionByOrganizationAndName(ctx, organization.ID, templateName, templateVersionName)
+				if err != nil {
+					return xerrors.Errorf("get template version: %w", err)
+				}
+
+				templateVersionID = templateVersion.ID
 			} else {
 				template, err := client.TemplateByName(ctx, organization.ID, templateName)
 				if err != nil {
@@ -96,15 +111,6 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				}
 
 				templateVersionID = template.ActiveVersionID
-			}
-
-			if templateVersionName != "" {
-				templateVersion, err := client.TemplateVersionByOrganizationAndName(ctx, organization.ID, templateName, templateVersionName)
-				if err != nil {
-					return xerrors.Errorf("get template version: %w", err)
-				}
-
-				templateVersionID = templateVersion.ID
 			}
 
 			if presetName != PresetNone {
