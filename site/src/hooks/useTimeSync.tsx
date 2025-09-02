@@ -23,6 +23,9 @@ export const REFRESH_ONE_HOUR = 60 * 60 * 1_000;
  * implementation, we're going to assume that no one is going to be monkey-
  * patching custom symbol keys or non-enumerable keys onto built-in types (even
  * though this sort of already happens in the standard library)
+ *
+ * @todo 2025-09-02 - This function doesn't have any cycle detection. That
+ * should be added at some point
  */
 function structuralMerge<T = unknown>(oldValue: T, newValue: T): T {
 	if (oldValue === newValue) {
@@ -65,7 +68,7 @@ function structuralMerge<T = unknown>(oldValue: T, newValue: T): T {
 			return newValue;
 		}
 	}
-	if (newType === null || typeof oldValue !== "object") {
+	if (newValue === null || typeof oldValue !== "object") {
 		return newValue;
 	}
 
@@ -81,8 +84,8 @@ function structuralMerge<T = unknown>(oldValue: T, newValue: T): T {
 		return remapped as T;
 	}
 
-	const oldRecast = oldValue as Record<string | symbol, unknown>;
-	const newRecast = newValue as Record<string | symbol, unknown>;
+	const oldRecast = oldValue as Readonly<Record<string | symbol, unknown>>;
+	const newRecast = newValue as Readonly<Record<string | symbol, unknown>>;
 
 	// Object.keys won't cut it because it won't give us non-enumerable
 	// properties or symbol keys
@@ -336,9 +339,7 @@ type UseTimeSyncOptions<T> = Readonly<{
 
 export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	const { targetIntervalMs, transform } = options;
-	const activeTransform = (transform ?? identity) as TransformCallback<
-		T & Date
-	>;
+	const activeTransform = (transform ?? identity) as TransformCallback<T>;
 
 	const hookId = useId();
 	const reactTs = useReactTimeSync();

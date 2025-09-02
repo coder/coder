@@ -1,10 +1,6 @@
 import { useTheme } from "@emotion/react";
 import type dayjs from "dayjs";
-import {
-	REFRESH_IDLE,
-	REFRESH_ONE_MINUTE,
-	useTimeSyncState,
-} from "hooks/useTimeSync";
+import { REFRESH_ONE_MINUTE, useTimeSyncState } from "hooks/useTimeSync";
 import type { FC, HTMLAttributes } from "react";
 import { cn } from "utils/cn";
 import { isAfter, relativeTime, subtractTime } from "utils/time";
@@ -15,7 +11,12 @@ interface LastSeenProps
 	"data-chromatic"?: string; // prevents a type error in the stories
 }
 
-export const LastSeen: FC<LastSeenProps> = ({ at, className, ...attrs }) => {
+export const LastSeen: FC<LastSeenProps> = ({
+	at,
+	className,
+	style = {},
+	...attrs
+}) => {
 	const theme = useTheme();
 	const [message, color] = useTimeSyncState({
 		targetIntervalMs: REFRESH_ONE_MINUTE,
@@ -48,10 +49,9 @@ export const LastSeen: FC<LastSeenProps> = ({ at, className, ...attrs }) => {
 
 	return (
 		<span
-			data-chromatic="ignore"
-			style={{ color }}
 			{...attrs}
 			className={cn(["whitespace-nowrap", className])}
+			style={{ ...style, color }}
 		>
 			{message}
 		</span>
