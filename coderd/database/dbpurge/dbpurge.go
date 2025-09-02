@@ -67,6 +67,9 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 			if err := tx.DeleteOldNotificationMessages(ctx); err != nil {
 				return xerrors.Errorf("failed to delete old notification messages: %w", err)
 			}
+			if err := tx.ExpirePrebuildsAPIKeys(ctx, dbtime.Time(start)); err != nil {
+				return xerrors.Errorf("failed to expire prebuilds user api keys: %w", err)
+			}
 
 			deleteOldAuditLogConnectionEventsBefore := start.Add(-maxAuditLogConnectionEventAge)
 			if err := tx.DeleteOldAuditLogConnectionEvents(ctx, database.DeleteOldAuditLogConnectionEventsParams{
