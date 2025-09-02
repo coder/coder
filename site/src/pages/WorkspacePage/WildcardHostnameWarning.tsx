@@ -29,10 +29,9 @@ export const WildcardHostnameWarning: FC<WildcardHostnameWarningProps> = ({
 			<AlertTitle>Some workspace applications will not work</AlertTitle>
 			<AlertDetail>
 				<div>
-					This workspace has applications that require subdomain access, but
-					subdomain applications are not configured. You can't access
-					development servers, web IDEs, and preview URLs. Contact your
-					administrator to configure wildcard access URL.
+					One or more apps in this workspace have subdomain = true, which
+					requires a Coder deployment with a Wildcard Access URL configured.
+					Please contact your administrator.
 				</div>
 				<div className="mt-2">
 					<Link href={docs("/admin/setup#wildcard-access-url")} target="_blank">
