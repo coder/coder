@@ -6,10 +6,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
+	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/externalauth"
 )
 
@@ -19,26 +20,21 @@ type MCPServerConfig struct {
 	RefreshFn              func(ctx context.Context) (bool, error)
 }
 
-type store interface {
-	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error)
-}
-
 type MCPConfigurator interface {
-	GetMCPConfigs(ctx context.Context, sessionKey string, userID uuid.UUID) ([]*MCPServerConfig, error)
+	GetMCPConfigs(ctx context.Context, sessionKey string, clientFn func() (DRPCClient, error), userID uuid.UUID) ([]*MCPServerConfig, error)
 }
 
-type StoreMCPConfigurator struct {
+type DRPCMCPConfigurator struct {
 	accessURL           string
-	store               store
 	logger              slog.Logger
 	externalAuthConfigs []*externalauth.Config
 }
 
-func NewStoreMCPConfigurator(accessURL string, store store, externalAuthConfigs []*externalauth.Config, logger slog.Logger) *StoreMCPConfigurator {
-	return &StoreMCPConfigurator{accessURL: accessURL, store: store, logger: logger, externalAuthConfigs: externalAuthConfigs}
+func NewDRPCMCPConfigurator(accessURL string, logger slog.Logger, externalAuthConfigs []*externalauth.Config) *DRPCMCPConfigurator {
+	return &DRPCMCPConfigurator{accessURL: accessURL, logger: logger, externalAuthConfigs: externalAuthConfigs}
 }
 
-func (m *StoreMCPConfigurator) GetMCPConfigs(ctx context.Context, sessionKey string, userID uuid.UUID) ([]*MCPServerConfig, error) {
+func (m *DRPCMCPConfigurator) GetMCPConfigs(ctx context.Context, sessionKey string, clientFn func() (DRPCClient, error), userID uuid.UUID) ([]*MCPServerConfig, error) {
 	var out []*MCPServerConfig
 	var merr multierror.Error
 
@@ -49,7 +45,7 @@ func (m *StoreMCPConfigurator) GetMCPConfigs(ctx context.Context, sessionKey str
 		out = append(out, coder)
 	}
 
-	others, err := m.getExternalAuthMCPServerConfigs(ctx, m.logger, m.externalAuthConfigs, userID)
+	others, err := m.getExternalAuthMCPServerConfigs(ctx, m.logger, clientFn, userID)
 	if err != nil {
 		merr.Errors = append(merr.Errors, xerrors.Errorf("get external auth MCP server config: %w", err))
 	} else {
@@ -59,7 +55,7 @@ func (m *StoreMCPConfigurator) GetMCPConfigs(ctx context.Context, sessionKey str
 	return out, merr.ErrorOrNil()
 }
 
-func (m *StoreMCPConfigurator) getCoderMCPServerConfig(sessionKey string) (*MCPServerConfig, error) {
+func (m *DRPCMCPConfigurator) getCoderMCPServerConfig(sessionKey string) (*MCPServerConfig, error) {
 	mcpURL, err := url.JoinPath(m.accessURL, "/api/experimental/mcp/http")
 	if err != nil {
 		return nil, xerrors.Errorf("build MCP URL: %w", err)
@@ -76,40 +72,49 @@ func (m *StoreMCPConfigurator) getCoderMCPServerConfig(sessionKey string) (*MCPS
 	}, nil
 }
 
-func (m *StoreMCPConfigurator) getExternalAuthMCPServerConfigs(ctx context.Context, logger slog.Logger, externalAuthConfigs []*externalauth.Config, userID uuid.UUID) ([]*MCPServerConfig, error) {
-	externalAuthLinks, err := m.store.GetExternalAuthLinksByUserID(ctx, userID)
+func (m *DRPCMCPConfigurator) getExternalAuthMCPServerConfigs(ctx context.Context, logger slog.Logger, clientFn func() (DRPCClient, error), userID uuid.UUID) ([]*MCPServerConfig, error) {
+	client, err := clientFn()
+	if err != nil {
+		return nil, xerrors.Errorf("acquire client: %w", err)
+	}
+
+	externalAuthLinks, err := client.GetExternalAuthLinks(ctx, &proto.GetExternalAuthLinksRequest{UserId: userID.String()})
 	if err != nil {
 		return nil, xerrors.Errorf("load external auth links: %w", err)
 	}
 
-	if len(externalAuthLinks) == 0 {
+	if len(externalAuthLinks.Links) == 0 {
 		return nil, nil
 	}
 
-	cfgs := make([]*MCPServerConfig, 0, len(externalAuthLinks))
+	cfgs := make([]*MCPServerConfig, 0, len(externalAuthLinks.Links))
 
-	for _, link := range externalAuthLinks {
+	for _, link := range externalAuthLinks.Links {
 		var externalAuthConfig *externalauth.Config
-		for _, eac := range externalAuthConfigs {
-			if eac.ID == link.ProviderID {
+		for _, eac := range m.externalAuthConfigs {
+			if eac.ID == link.GetProviderId() {
 				externalAuthConfig = eac
 				break
 			}
 		}
 
 		if externalAuthConfig == nil {
-			logger.Warn(ctx, "failed to find external auth config matching known external auth link", slog.F("id", link.ProviderID))
+			logger.Warn(ctx, "failed to find external auth config matching known external auth link", slog.F("id", link.GetProviderId()))
 			continue
 		}
 
 		cfgs = append(cfgs, &MCPServerConfig{
-			Name:        link.ProviderID,
+			Name:        link.GetProviderId(),
 			URL:         externalAuthConfig.MCPURL,
-			AccessToken: link.OAuthAccessToken,
+			AccessToken: link.GetOauthAccessToken(),
 			ValidateFn: func(ctx context.Context) (bool, error) {
-				valid, _, err := externalAuthConfig.ValidateToken(ctx, link.OAuthToken())
+				valid, _, err := externalAuthConfig.ValidateToken(ctx, &oauth2.Token{
+					AccessToken:  link.GetOauthAccessToken(),
+					RefreshToken: link.GetOauthRefreshToken(),
+					Expiry:       link.GetExpiresAt().AsTime(),
+				})
 				if err != nil {
-					return false, xerrors.Errorf("validate token for %q MCP init: %w", link.ProviderID, err)
+					return false, xerrors.Errorf("validate token for %q MCP init: %w", link.GetProviderId(), err)
 				}
 				return valid, nil
 			},

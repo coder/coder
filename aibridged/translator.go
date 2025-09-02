@@ -14,14 +14,14 @@ import (
 	"github.com/coder/aibridge"
 )
 
-var _ aibridge.Recorder = &translator{}
+var _ aibridge.Recorder = &recorderTranslation{}
 
-// translator satisfies the aibridge.Recorder interface and translates calls into dRPC calls to aibridgedserver.
-type translator struct {
+// recorderTranslation satisfies the aibridge.Recorder interface and translates calls into dRPC calls to aibridgedserver.
+type recorderTranslation struct {
 	client proto.DRPCRecorderClient
 }
 
-func (t *translator) RecordSession(ctx context.Context, req *aibridge.SessionRequest) error {
+func (t *recorderTranslation) RecordSession(ctx context.Context, req *aibridge.SessionRequest) error {
 	_, err := t.client.RecordSession(ctx, &proto.RecordSessionRequest{
 		SessionId:   req.SessionID,
 		InitiatorId: req.InitiatorID,
@@ -31,7 +31,7 @@ func (t *translator) RecordSession(ctx context.Context, req *aibridge.SessionReq
 	return err
 }
 
-func (t *translator) RecordPromptUsage(ctx context.Context, req *aibridge.PromptUsageRequest) error {
+func (t *recorderTranslation) RecordPromptUsage(ctx context.Context, req *aibridge.PromptUsageRequest) error {
 	_, err := t.client.RecordPromptUsage(ctx, &proto.RecordPromptUsageRequest{
 		SessionId: req.SessionID,
 		MsgId:     req.MsgID,
@@ -41,7 +41,7 @@ func (t *translator) RecordPromptUsage(ctx context.Context, req *aibridge.Prompt
 	return err
 }
 
-func (t *translator) RecordTokenUsage(ctx context.Context, req *aibridge.TokenUsageRequest) error {
+func (t *recorderTranslation) RecordTokenUsage(ctx context.Context, req *aibridge.TokenUsageRequest) error {
 	_, err := t.client.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
 		SessionId:    req.SessionID,
 		MsgId:        req.MsgID,
@@ -52,7 +52,7 @@ func (t *translator) RecordTokenUsage(ctx context.Context, req *aibridge.TokenUs
 	return err
 }
 
-func (t *translator) RecordToolUsage(ctx context.Context, req *aibridge.ToolUsageRequest) error {
+func (t *recorderTranslation) RecordToolUsage(ctx context.Context, req *aibridge.ToolUsageRequest) error {
 	serialized, err := json.Marshal(req.Args)
 	if err != nil {
 		return xerrors.Errorf("serialize tool %q args: %w", req.Name, err)

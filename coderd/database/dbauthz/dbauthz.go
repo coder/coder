@@ -175,12 +175,9 @@ func (q *querier) authorizePrebuiltWorkspace(ctx context.Context, action policy.
 	return xerrors.Errorf("authorize context: %w", workspaceErr)
 }
 
-// authorizeAIBridgeRecord validates that the context's actor matches the initiator of the AIBridgeSession.
-func (q *querier) authorizeAIBridgeRecord(ctx context.Context, sessID uuid.UUID, action policy.Action) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
+// authorizeAIBridgeSessionUpdate validates that the context's actor matches the initiator of the AIBridgeSession.
+// This is used by all of the sub-resources which fall under the ResourceAibridgeSession umbrella.
+func (q *querier) authorizeAIBridgeSessionUpdate(ctx context.Context, sessID uuid.UUID) error {
 	act, ok := ActorFromContext(ctx)
 	if !ok {
 		return ErrNoActor
@@ -191,12 +188,7 @@ func (q *querier) authorizeAIBridgeRecord(ctx context.Context, sessID uuid.UUID,
 		return xerrors.Errorf("fetch aibridge session %q: %w", sessID, err)
 	}
 
-	// TODO: how to inject the actor?
-	// if sess.InitiatorID.String() != act.ID {
-	// 	return NotAuthorizedError{Err: xerrors.New("initiator does not match session owner")}
-	// }
-
-	err = q.auth.Authorize(ctx, act, action, sess.RBACObject())
+	err = q.auth.Authorize(ctx, act, policy.ActionUpdate, sess.RBACObject())
 	if err != nil {
 		return logNotAuthorizedError(ctx, q.log, err)
 	}
@@ -582,8 +574,9 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "aibridged"},
 				DisplayName: "AIBridge Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					// Required to validate user associated to session.
-					rbac.ResourceUser.Type:            {policy.ActionRead},
+					rbac.ResourceUser.Type: {
+						policy.ActionReadPersonal, // Required to read users' external auth links. // TODO: this is too broad; reduce scope to just external_auth_links by creating separate resource.
+					},
 					rbac.ResourceAibridgeSession.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 				}),
 				Org:  map[string][]rbac.Permission{},
@@ -674,9 +667,9 @@ func AsUsagePublisher(ctx context.Context) context.Context {
 	return As(ctx, subjectUsagePublisher)
 }
 
-// AsAibridged returns a context with an actor that has permissions
+// AsAIBridged returns a context with an actor that has permissions
 // required for creating, reading, and updating aibridge-related resources.
-func AsAibridged(ctx context.Context) context.Context {
+func AsAIBridged(ctx context.Context) context.Context {
 	return As(ctx, subjectAibridged)
 }
 
@@ -3807,28 +3800,25 @@ func (q *querier) InsertAIBridgeSession(ctx context.Context, arg database.Insert
 
 func (q *querier) InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) error {
 	// All aibridge_token_usages records belong to the initiator of their associated session.
-	if err := q.authorizeAIBridgeRecord(ctx, arg.SessionID, policy.ActionCreate); err != nil {
+	if err := q.authorizeAIBridgeSessionUpdate(ctx, arg.SessionID); err != nil {
 		return err
 	}
-
 	return q.db.InsertAIBridgeTokenUsage(ctx, arg)
 }
 
 func (q *querier) InsertAIBridgeToolUsage(ctx context.Context, arg database.InsertAIBridgeToolUsageParams) error {
 	// All aibridge_tool_usages records belong to the initiator of their associated session.
-	if err := q.authorizeAIBridgeRecord(ctx, arg.SessionID, policy.ActionCreate); err != nil {
+	if err := q.authorizeAIBridgeSessionUpdate(ctx, arg.SessionID); err != nil {
 		return err
 	}
-
 	return q.db.InsertAIBridgeToolUsage(ctx, arg)
 }
 
 func (q *querier) InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) error {
 	// All aibridge_user_prompts records belong to the initiator of their associated session.
-	if err := q.authorizeAIBridgeRecord(ctx, arg.SessionID, policy.ActionCreate); err != nil {
+	if err := q.authorizeAIBridgeSessionUpdate(ctx, arg.SessionID); err != nil {
 		return err
 	}
-
 	return q.db.InsertAIBridgeUserPrompt(ctx, arg)
 }
 

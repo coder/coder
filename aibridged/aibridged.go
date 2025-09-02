@@ -12,22 +12,37 @@ import (
 	"github.com/hashicorp/yamux"
 	"github.com/valyala/fasthttp/fasthttputil"
 	"golang.org/x/xerrors"
+	"storj.io/drpc"
 
 	"cdr.dev/slog"
-	"github.com/coder/aibridge"
 	"github.com/coder/retry"
 
 	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-type Dialer func(ctx context.Context) (proto.DRPCRecorderClient, error)
+// DRPCServer is the union of various service interfaces the server must support.
+type DRPCServer interface {
+	proto.DRPCRecorderServer
+	proto.DRPCMCPConfiguratorServer
+}
+
+// DRPCClient is the union of various service interfaces the client must support.
+type DRPCClient interface {
+	proto.DRPCRecorderClient
+	proto.DRPCMCPConfiguratorClient
+}
+
+var _ DRPCServer = &Server{}
+var _ DRPCClient = &Client{}
+
+type Dialer func(ctx context.Context) (DRPCClient, error)
 
 // Server is the implementation which fulfills the proto.DRPCRecorderServer interface.
 // It is responsible for communication with the
 type Server struct {
 	clientDialer Dialer
-	clientCh     chan proto.DRPCRecorderClient
+	clientCh     chan DRPCClient
 
 	requestBridgePool pooler
 
@@ -52,8 +67,6 @@ type Server struct {
 	shuttingDownCh chan struct{}
 }
 
-var _ proto.DRPCRecorderServer = &Server{}
-
 func New(rpcDialer Dialer, requestBridgePool pooler, logger slog.Logger) (*Server, error) {
 	if rpcDialer == nil {
 		return nil, xerrors.Errorf("nil rpcDialer given")
@@ -64,7 +77,7 @@ func New(rpcDialer Dialer, requestBridgePool pooler, logger slog.Logger) (*Serve
 		logger:            logger,
 		clientDialer:      rpcDialer,
 		requestBridgePool: requestBridgePool,
-		clientCh:          make(chan proto.DRPCRecorderClient),
+		clientCh:          make(chan DRPCClient),
 		closeContext:      ctx,
 		closeCancel:       cancel,
 		initConnectionCh:  make(chan struct{}),
@@ -133,7 +146,7 @@ connectLoop:
 	}
 }
 
-func (s *Server) Client() (proto.DRPCRecorderClient, error) {
+func (s *Server) Client() (DRPCClient, error) {
 	select {
 	case <-s.closeContext.Done():
 		return nil, xerrors.New("context closed")
@@ -151,16 +164,7 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 		return nil, xerrors.New("nil requestBridgePool")
 	}
 
-	recorder := aibridge.NewRecorder(s.logger.Named("recorder"), func() (aibridge.Recorder, error) {
-		client, err := s.Client()
-		if err != nil {
-			return nil, xerrors.Errorf("acquire client: %w", err)
-		}
-
-		return &translator{client: client}, nil
-	})
-
-	reqBridge, err := s.requestBridgePool.Acquire(ctx, req, recorder)
+	reqBridge, err := s.requestBridgePool.Acquire(ctx, req, s.Client)
 	if err != nil {
 		return nil, xerrors.Errorf("acquire request bridge: %w", err)
 	}
@@ -169,7 +173,7 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 }
 
 func (s *Server) RecordSession(ctx context.Context, in *proto.RecordSessionRequest) (*proto.RecordSessionResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCRecorderClient) (*proto.RecordSessionResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client DRPCClient) (*proto.RecordSessionResponse, error) {
 		return client.RecordSession(ctx, in)
 	})
 	if err != nil {
@@ -179,7 +183,7 @@ func (s *Server) RecordSession(ctx context.Context, in *proto.RecordSessionReque
 }
 
 func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsageRequest) (*proto.RecordTokenUsageResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCRecorderClient) (*proto.RecordTokenUsageResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client DRPCClient) (*proto.RecordTokenUsageResponse, error) {
 		return client.RecordTokenUsage(ctx, in)
 	})
 	if err != nil {
@@ -189,7 +193,7 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 }
 
 func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUsageRequest) (*proto.RecordPromptUsageResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCRecorderClient) (*proto.RecordPromptUsageResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client DRPCClient) (*proto.RecordPromptUsageResponse, error) {
 		return client.RecordPromptUsage(ctx, in)
 	})
 	if err != nil {
@@ -199,8 +203,18 @@ func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUs
 }
 
 func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageRequest) (*proto.RecordToolUsageResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCRecorderClient) (*proto.RecordToolUsageResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client DRPCClient) (*proto.RecordToolUsageResponse, error) {
 		return client.RecordToolUsage(ctx, in)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (s *Server) GetExternalAuthLinks(ctx context.Context, in *proto.GetExternalAuthLinksRequest) (*proto.GetExternalAuthLinksResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client DRPCClient) (*proto.GetExternalAuthLinksResponse, error) {
+		return client.GetExternalAuthLinks(ctx, in)
 	})
 	if err != nil {
 		return nil, err
@@ -221,8 +235,8 @@ func retryable(err error) bool {
 // expires.
 // NOTE: mostly copypasta from provisionerd; might be work abstracting.
 func clientDoWithRetries[T any](ctx context.Context,
-	getClient func() (proto.DRPCRecorderClient, error),
-	f func(context.Context, proto.DRPCRecorderClient) (T, error),
+	getClient func() (DRPCClient, error),
+	f func(context.Context, DRPCClient) (T, error),
 ) (ret T, _ error) {
 	for retrier := retry.New(25*time.Millisecond, 5*time.Second); retrier.Wait(ctx); {
 		var empty T
@@ -303,4 +317,15 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.logger.Info(ctx, "gracefully shutdown")
 	})
 	return err
+}
+
+type Client struct {
+	Conn drpc.Conn
+
+	proto.DRPCRecorderClient
+	proto.DRPCMCPConfiguratorClient
+}
+
+func (c *Client) DRPCConn() drpc.Conn {
+	return c.Conn
 }

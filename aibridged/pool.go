@@ -27,7 +27,7 @@ const (
 // pooler describes a pool of *aibridge.RequestBridge instances from which instances can be retrieved.
 // One *aibridge.RequestBridge instance is created per given key.
 type pooler interface {
-	Acquire(ctx context.Context, req Request, recorder aibridge.Recorder) (*aibridge.RequestBridge, error)
+	Acquire(ctx context.Context, req Request, clientFn func() (DRPCClient, error)) (*aibridge.RequestBridge, error)
 	Shutdown(ctx context.Context) error
 }
 
@@ -43,7 +43,7 @@ type CachedBridgePool struct {
 	shuttingDownCh chan struct{}
 }
 
-func NewCachedBridgePool(cfg codersdk.AIBridgeConfig, instances int64, mcpCfg MCPConfigurator, logger slog.Logger) (*CachedBridgePool, error) {
+func NewCachedBridgePool(cfg codersdk.AIBridgeConfig, instances int64, logger slog.Logger, mcpCfg MCPConfigurator) (*CachedBridgePool, error) {
 	cache, err := ristretto.NewCache(&ristretto.Config[string, *aibridge.RequestBridge]{
 		// TODO: the cost seems to actually take into account the size of the object in bytes...? Stop at breakpoint and see.
 		NumCounters: instances * 10,        // Docs suggest setting this 10x number of keys.
@@ -84,7 +84,7 @@ func NewCachedBridgePool(cfg codersdk.AIBridgeConfig, instances int64, mcpCfg MC
 //
 // Each returned [*aibridge.RequestBridge] is safe for concurrent use.
 // Each [*aibridge.RequestBridge] is stateful because it has MCP clients which maintain sessions to the configured MCP server.
-func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, recorder aibridge.Recorder) (*aibridge.RequestBridge, error) {
+func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn func() (DRPCClient, error)) (*aibridge.RequestBridge, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, xerrors.Errorf("acquire: %w", err)
 	}
@@ -94,6 +94,15 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, recorder ai
 		return nil, xerrors.New("pool shutting down")
 	default:
 	}
+
+	recorder := aibridge.NewRecorder(p.logger.Named("recorder"), func() (aibridge.Recorder, error) {
+		client, err := clientFn()
+		if err != nil {
+			return nil, xerrors.Errorf("acquire client: %w", err)
+		}
+
+		return &recorderTranslation{client: client}, nil
+	})
 
 	// Fast path.
 	bridge, ok := p.cache.Get(req.InitiatorID.String())
@@ -115,7 +124,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, recorder ai
 	// Creating an *aibridge.RequestBridge may take some time, so gate all subsequent callers behind the initial request and return the resulting value.
 	// TODO: track startup time since it adds latency to first request (histogram count will also help us see how often this occurs).
 	instance, err, _ := p.singleflight.Do(req.InitiatorID.String(), func() (*aibridge.RequestBridge, error) {
-		proxiers, err := p.setupMCPServerProxiers(ctx, req.SessionKey, req.InitiatorID)
+		proxiers, err := p.setupMCPServerProxiers(ctx, req.SessionKey, clientFn, req.InitiatorID)
 		if err != nil {
 			p.logger.Warn(ctx, "failed to load tools", slog.Error(err))
 		}
@@ -135,13 +144,13 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, recorder ai
 	return instance, err
 }
 
-func (p *CachedBridgePool) setupMCPServerProxiers(ctx context.Context, key string, userID uuid.UUID) ([]mcp.ServerProxier, error) {
+func (p *CachedBridgePool) setupMCPServerProxiers(ctx context.Context, key string, clientFn func() (DRPCClient, error), userID uuid.UUID) ([]mcp.ServerProxier, error) {
 	var (
 		proxies []mcp.ServerProxier
 		eg      errgroup.Group
 	)
 
-	cfgs, err := p.mcpCfg.GetMCPConfigs(ctx, key, userID)
+	cfgs, err := p.mcpCfg.GetMCPConfigs(ctx, key, clientFn, userID)
 	if err != nil {
 		return nil, xerrors.Errorf("get mcp configs: %w", err)
 	}

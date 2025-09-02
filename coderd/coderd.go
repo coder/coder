@@ -1990,7 +1990,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	return proto.NewDRPCProvisionerDaemonClient(clientSession), nil
 }
 
-func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context) (client aibridgedproto.DRPCRecorderClient, err error) {
+func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context) (client aibridged.DRPCClient, err error) {
 	// TODO(dannyk): implement options.
 	// TODO(dannyk): implement tracing.
 
@@ -2007,13 +2007,17 @@ func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context) (client ai
 	mux := drpcmux.New()
 	api.Logger.Debug(dialCtx, "starting in-memory AI bridge daemon")
 	logger := api.Logger.Named("inmem-aibridged")
-	srv, err := aibridgedserver.NewServer(api.ctx, api.Database, api.Logger)
+	srv, err := aibridgedserver.NewServer(api.ctx, api.Database, logger)
 	if err != nil {
 		return nil, err
 	}
 	err = aibridgedproto.DRPCRegisterRecorder(mux, srv)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("register recorder service: %w", err)
+	}
+	err = aibridgedproto.DRPCRegisterMCPConfigurator(mux, srv)
+	if err != nil {
+		return nil, xerrors.Errorf("register MCP configurator service: %w", err)
 	}
 	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
@@ -2044,7 +2048,11 @@ func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context) (client ai
 		_ = serverSession.Close()
 	}()
 
-	return aibridgedproto.NewDRPCRecorderClient(clientSession), nil
+	return &aibridged.Client{
+		Conn:                      clientSession,
+		DRPCRecorderClient:        aibridgedproto.NewDRPCRecorderClient(clientSession),
+		DRPCMCPConfiguratorClient: aibridgedproto.NewDRPCMCPConfiguratorClient(clientSession),
+	}, nil
 }
 
 func (api *API) DERPMap() *tailcfg.DERPMap {

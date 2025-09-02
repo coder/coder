@@ -4,10 +4,11 @@ option go_package = "github.com/coder/coder/v2/aibridged/proto";
 package proto;
 
 import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
 
 message RecordSessionRequest {
-  string session_id = 1;
-  string initiator_id = 2;
+  string session_id = 1; // UUID.
+  string initiator_id = 2; // UUID.
   string provider = 3;
   string model = 4;
 }
@@ -15,8 +16,8 @@ message RecordSessionRequest {
 message RecordSessionResponse {}
 
 message RecordTokenUsageRequest {
-  string session_id = 1;
-  string msg_id = 2;
+  string session_id = 1; // UUID.
+  string msg_id = 2; // ID provided by provider.
   int64 input_tokens = 3;
   int64 output_tokens = 4;
   map<string, google.protobuf.Any> metadata = 5;
@@ -24,16 +25,16 @@ message RecordTokenUsageRequest {
 message RecordTokenUsageResponse {}
 
 message RecordPromptUsageRequest {
-  string session_id = 1;
-  string msg_id = 2;
+  string session_id = 1; // UUID.
+  string msg_id = 2; // ID provided by provider.
   string prompt = 3;
   map<string, google.protobuf.Any> metadata = 4;
 }
 message RecordPromptUsageResponse {}
 
 message RecordToolUsageRequest {
-  string session_id = 1;
-  string msg_id = 2;
+  string session_id = 1; // UUID.
+  string msg_id = 2; // ID provided by provider.
   string tool = 3;
   string input = 4;
   bool injected = 5;
@@ -41,6 +42,7 @@ message RecordToolUsageRequest {
 }
 message RecordToolUsageResponse {}
 
+// Recorder is responsible for persisting AI usage records along with their concomitant session.
 service Recorder {
   rpc RecordSession(RecordSessionRequest) returns (RecordSessionResponse);
   rpc RecordTokenUsage(RecordTokenUsageRequest) returns (RecordTokenUsageResponse);
@@ -48,11 +50,22 @@ service Recorder {
   rpc RecordToolUsage(RecordToolUsageRequest) returns (RecordToolUsageResponse);
 }
 
-// Just leaving some ideas here.
-// The point is that this will be a *separate* service from Recorder, not to be accepted by RequestBridge but by some other component.
-//
-// service Stats {
-//   rpc AggregateTokenUsageByUser(TokenAggregationRequest) returns (TokenAggregationResponse);
-//   rpc AggregateToolUsageByUser(ToolAggregationRequest) returns (ToolAggregationResponse);
-//   rpc CategorizePromptsByUser(PromptCategorizationRequest) returns (PromptCategorizationResponse);
-// }
+message GetExternalAuthLinksRequest {
+  string user_id = 1; // UUID.
+}
+
+message GetExternalAuthLinksResponse {
+  repeated ExternalAuthLink links = 1;
+}
+
+message ExternalAuthLink {
+  string provider_id = 1;
+  string oauth_access_token = 2;
+  string oauth_refresh_token = 3;
+  google.protobuf.Timestamp expires_at = 4;
+}
+
+// TODO: MCPConfigurator.
+service MCPConfigurator {
+  rpc GetExternalAuthLinks(GetExternalAuthLinksRequest) returns (GetExternalAuthLinksResponse);
+}

@@ -63,7 +63,6 @@ import (
 	"github.com/coder/wgtunnel/tunnelsdk"
 
 	"github.com/coder/coder/v2/aibridged"
-	aibridgedproto "github.com/coder/coder/v2/aibridged/proto"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
@@ -1351,15 +1350,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 }
 
 func newAIBridgeServer(ctx context.Context, coderAPI *coderd.API) (*aibridged.Server, error) {
-	mcpCfg := aibridged.NewStoreMCPConfigurator(
-		coderAPI.DeploymentValues.AccessURL.String(), coderAPI.Database,
-		coderAPI.Options.ExternalAuthConfigs, coderAPI.Logger.Named("aibridged.mcp"),
+	mcpCfg := aibridged.NewDRPCMCPConfigurator(
+		coderAPI.DeploymentValues.AccessURL.String(), coderAPI.Logger.Named("aibridged.mcp"),
+		coderAPI.Options.ExternalAuthConfigs,
 	)
-	pool, err := aibridged.NewCachedBridgePool(coderAPI.DeploymentValues.AI.BridgeConfig, 100, mcpCfg, coderAPI.Logger.Named("aibridge-pool")) // TODO: configurable size.
+	pool, err := aibridged.NewCachedBridgePool(coderAPI.DeploymentValues.AI.BridgeConfig, 100, coderAPI.Logger.Named("aibridge-pool"), mcpCfg) // TODO: configurable size.
 	if err != nil {
 		return nil, xerrors.Errorf("create aibridge pool: %w", err)
 	}
-	daemon, err := aibridged.New(func(dialCtx context.Context) (aibridgedproto.DRPCRecorderClient, error) {
+	daemon, err := aibridged.New(func(dialCtx context.Context) (aibridged.DRPCClient, error) {
 		return coderAPI.CreateInMemoryAIBridgeDaemon(dialCtx)
 	}, pool, coderAPI.Logger.Named("aibridged"))
 	if err != nil {
