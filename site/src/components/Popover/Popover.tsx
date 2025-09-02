@@ -23,6 +23,7 @@ export const PopoverContent = forwardRef<
 			ref={ref}
 			align={align}
 			sideOffset={sideOffset}
+			collisionPadding={16} // 1rem
 			className={cn(
 				`z-50 w-72 rounded-md border border-solid bg-surface-primary
 				text-content-primary shadow-md outline-none
