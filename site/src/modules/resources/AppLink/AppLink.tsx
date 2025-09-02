@@ -149,7 +149,7 @@ export const AppLink: FC<AppLinkProps> = ({
 							<Markdown className="prose-sm max-w-none [&>*]:my-1 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
 								{app.tooltip}
 							</Markdown>
-						) : undefined}
+						) : null}
 					</TooltipContent>
 				</Tooltip>
 			</TooltipProvider>
