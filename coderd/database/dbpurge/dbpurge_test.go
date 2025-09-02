@@ -41,6 +41,9 @@ func TestMain(m *testing.M) {
 //
 //nolint:paralleltest // It uses LockIDDBPurge.
 func TestPurge(t *testing.T) {
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("requires postgres")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
