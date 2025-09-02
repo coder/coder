@@ -184,6 +184,8 @@ type Options struct {
 	OIDCConvertKeyCache                cryptokeys.SigningKeycache
 	Clock                              quartz.Clock
 	TelemetryReporter                  telemetry.Reporter
+
+	ProvisionerdServerMetrics *provisionerdserver.Metrics
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -604,6 +606,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			Clock:                              options.Clock,
 			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
 			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
+			ProvisionerdServerMetrics:          options.ProvisionerdServerMetrics,
 		}
 }
 
