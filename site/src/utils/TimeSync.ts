@@ -278,12 +278,11 @@ export class TimeSync implements TimeSyncApi {
 		}
 	};
 
-	#onFastestIntervalChange(): boolean {
+	#onFastestIntervalChange(): void {
 		const fastest = this.#fastestRefreshInterval;
 		if (fastest === Number.POSITIVE_INFINITY) {
 			window.clearInterval(this.#latestIntervalId);
 			this.#latestIntervalId = undefined;
-			return false;
 		}
 
 		const elapsed = Date.now() - this.#latestDateSnapshot.getMilliseconds();
@@ -295,9 +294,9 @@ export class TimeSync implements TimeSyncApi {
 		// from removing one
 		if (delta <= 0) {
 			window.clearInterval(this.#latestIntervalId);
-			const hasPendingSubscribers = this.#flushUpdate();
+			this.#flushUpdate();
 			this.#latestIntervalId = window.setInterval(this.#flushUpdate, fastest);
-			return hasPendingSubscribers;
+			return;
 		}
 
 		window.clearInterval(this.#latestIntervalId);
@@ -305,8 +304,6 @@ export class TimeSync implements TimeSyncApi {
 			window.clearInterval(this.#latestIntervalId);
 			this.#latestIntervalId = window.setInterval(this.#flushUpdate, fastest);
 		}, delta);
-
-		return false;
 	}
 
 	#removeSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): void {
@@ -338,7 +335,7 @@ export class TimeSync implements TimeSyncApi {
 		targetRefreshInterval: number,
 		onUpdate: OnUpdate,
 		unsubscribe: () => void,
-	): boolean {
+	): void {
 		const initialSubs = this.#subscriptions.size;
 		let entries = this.#subscriptions.get(onUpdate);
 		if (entries === undefined) {
@@ -351,10 +348,9 @@ export class TimeSync implements TimeSyncApi {
 			entries.sort(orderEntries);
 		}
 
-		let hasPendingSubscribers = false;
 		const changed = this.#updateFastestInterval();
 		if (changed) {
-			hasPendingSubscribers ||= this.#onFastestIntervalChange();
+			this.#onFastestIntervalChange();
 		}
 
 		// Even if the fastest interval hasn't changed, we should still update
@@ -362,10 +358,8 @@ export class TimeSync implements TimeSyncApi {
 		// know how much time will have passed between the class getting
 		// instantiated and the first subscription
 		if (initialSubs === 0) {
-			hasPendingSubscribers ||= this.#flushUpdate();
+			this.#flushUpdate();
 		}
-
-		return hasPendingSubscribers;
 	}
 
 	subscribe(sh: SubscriptionHandshake): () => void {
