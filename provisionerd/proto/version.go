@@ -55,7 +55,7 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Added new field `tooltip` in `App`
 const (
 	CurrentMajor = 1
-	CurrentMinor = 9
+	CurrentMinor = 10
 )
 
 // CurrentVersion is the current provisionerd API version.
