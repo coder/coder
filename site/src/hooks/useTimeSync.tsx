@@ -45,8 +45,7 @@ function structuralMerge<T = unknown>(oldValue: T, newValue: T): T {
 		return newValue;
 	}
 
-	const newType = typeof newValue;
-	switch (newType) {
+	switch (typeof newValue) {
 		// If the new value is a primitive, we don't actually need to check the
 		// old value at all. We can just return the new value directly, and have
 		// JS language semantics take care of the rest
@@ -67,39 +66,54 @@ function structuralMerge<T = unknown>(oldValue: T, newValue: T): T {
 		case "function": {
 			return newValue;
 		}
-	}
-	if (newValue === null || typeof oldValue !== "object") {
-		return newValue;
+
+		case "object": {
+			if (newValue === null || typeof oldValue !== "object") {
+				return newValue;
+			}
+		}
 	}
 
 	if (Array.isArray(newValue)) {
-		if (!Array.isArray(oldValue) || oldValue.length !== newValue.length) {
+		if (!Array.isArray(oldValue)) {
 			return newValue;
 		}
-		const allMatch = oldValue.every((el, i) => el === newValue[i]);
+
+		const allMatch =
+			oldValue.length === newValue.length &&
+			oldValue.every((el, i) => el === newValue[i]);
 		if (allMatch) {
 			return oldValue;
 		}
-		const remapped = oldValue.map((el, i) => structuralMerge(el, newValue[i]));
+		const remapped = newValue.map((el, i) => structuralMerge(oldValue[i], el));
 		return remapped as T;
 	}
 
 	const oldRecast = oldValue as Readonly<Record<string | symbol, unknown>>;
 	const newRecast = newValue as Readonly<Record<string | symbol, unknown>>;
 
-	// Object.keys won't cut it because it won't give us non-enumerable
-	// properties or symbol keys
-	const oldKeyLength =
-		Object.getOwnPropertyNames(oldRecast).length +
-		Object.getOwnPropertySymbols(oldRecast).length;
+	const newStringKeys = Object.getOwnPropertyNames(newRecast);
+
+	// If the new object has non-enumerable keys, there's not really much we can
+	// do at a generic level to clone the object. So we have to return it out
+	// unchanged
+	const hasNonEnumerableKeys =
+		newStringKeys.length !== Object.keys(newRecast).length;
+	if (hasNonEnumerableKeys) {
+		return newValue;
+	}
+
 	const newKeys = [
-		...Object.getOwnPropertyNames(newRecast),
+		...newStringKeys,
 		...Object.getOwnPropertySymbols(newRecast),
 	];
 
+	const keyCountsMatch =
+		newKeys.length ===
+		Object.getOwnPropertyNames(oldRecast).length +
+			Object.getOwnPropertySymbols(oldRecast).length;
 	const allMatch =
-		oldKeyLength === newKeys.length &&
-		newKeys.every((k) => oldRecast[k] === newRecast[k]);
+		keyCountsMatch && newKeys.every((k) => oldRecast[k] === newRecast[k]);
 	if (allMatch) {
 		return oldValue;
 	}
@@ -121,7 +135,7 @@ type TransformCallback<T> = (
 	state: Date,
 ) => T extends Promise<unknown> ? never : T extends void ? never : T;
 
-type SubscriptionHandshake = Readonly<{
+type TransformationHandshake = Readonly<{
 	componentId: string;
 	targetRefreshIntervalMs: number;
 	onStateUpdate: () => void;
@@ -134,6 +148,9 @@ type TransformationEntry = {
 };
 
 class ReactTimeSync {
+	// Each string is a globally-unique ID that identifies a specific React
+	// component instance (i.e., two React Fiber entries made from the same
+	// function component should have different IDs)
 	readonly #entries: Map<string, TransformationEntry>;
 	readonly #timeSync: TimeSync;
 	#mounted: boolean;
@@ -152,13 +169,13 @@ class ReactTimeSync {
 		});
 	}
 
-	subscribeToTransformations(sh: SubscriptionHandshake): () => void {
+	subscribeToTransformations(th: TransformationHandshake): () => void {
 		if (!this.#mounted) {
 			return noOp;
 		}
 
 		const { componentId, targetRefreshIntervalMs, onStateUpdate, transform } =
-			sh;
+			th;
 
 		const prevEntry = this.#entries.get(componentId);
 		if (prevEntry !== undefined) {
@@ -221,13 +238,14 @@ class ReactTimeSync {
 		}
 
 		// It's expected that whichever hook is calling this method will have
-		// already created the new value via structural sharing, so this method
-		// isn't doing too much defensive programming. Otherwise, we get a bunch
-		// of overhead from duplicate computations
-		entry.cachedTransformation = newValue;
+		// already created the new value via structural sharing. Calling this
+		// again should just return out the old state. But if something goes
+		// wrong, having an extra merge step removes some potential risks
+		const merged = structuralMerge(entry.cachedTransformation, newValue);
+		entry.cachedTransformation = merged;
 	}
 
-	getTransformSnapshot<T>(componentId: string): T {
+	getTransformationSnapshot<T>(componentId: string): T {
 		const prev = this.#entries.get(componentId);
 		if (prev !== undefined) {
 			return prev.cachedTransformation as T;
@@ -316,7 +334,7 @@ type UseTimeSyncOptions<T> = Readonly<{
 	/**
 	 * Allows you to transform any Date values received from the TimeSync
 	 * class. If provided, the hook will return the result of calling the
-	 * callback instead of the main Date state.
+	 * `transform` callback instead of the main Date state.
 	 *
 	 * `transform` works almost exactly like the `select` callback in React
 	 * Query's `useQuery` hook. That is:
@@ -348,7 +366,7 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// never be called from inside render logic. It will *always* give you
 	// stale data after the very first render.
 	const externalTransform = useEffectEvent(activeTransform);
-	const subscribe: ReactSubscriptionCallback = useCallback(
+	const subscribe = useCallback<ReactSubscriptionCallback>(
 		(notifyReact) => {
 			return reactTs.subscribeToTransformations({
 				componentId: hookId,
@@ -359,11 +377,27 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 		},
 		[reactTs, hookId, externalTransform, targetIntervalMs],
 	);
-	const getTransform = useCallback(
-		() => reactTs.getTransformSnapshot<T>(hookId),
+	const getSnap = useCallback(
+		() => reactTs.getTransformationSnapshot<T>(hookId),
 		[reactTs, hookId],
 	);
-	const cachedTransformation = useSyncExternalStore(subscribe, getTransform);
+
+	/**
+	 * This is how useSyncExternalStore's on-mount logic works (which the React
+	 * Docs doesn't cover at all):
+	 * 1. It calls the snapshot getter function twice to validate that the
+	 *    state has a stable reference.
+	 * 2. The hook stores the second return value as state and returns it out
+	 *    immediately
+	 * 3. Once the render has finished, React will set up the subscription. This
+	 *    happens at useEffect speed (so slowest priority).
+	 *
+	 * Because of this, cachedTransformation will always be a Date object on
+	 * mount (no matter what transformation was provided). This is expected,
+	 * and the useMemo calls later in the hook make sure that it doesn't get
+	 * returned out if a transformation is specified.
+	 */
+	const cachedTransformation = useSyncExternalStore(subscribe, getSnap);
 
 	// There's some trade-offs with this memo (notably, if the consumer passes
 	// in an inline transform callback, the memo result will be invalidated on
@@ -375,8 +409,8 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 		// React rules, but we need to make sure that if activeTransform changes
 		// on re-renders, and it's been a while since the cached transformation
 		// changed, we don't have drastically outdated date state. We could also
-		// subscribe to the date itself, but that basically makes it impossible
-		// to prevent unnecessary re-renders on subscription updates
+		// subscribe to the date itself, but that makes it impossible to prevent
+		// unnecessary re-renders on subscription updates
 		const latestDate = reactTs.getDateSnapshot();
 		return activeTransform(latestDate);
 	}, [reactTs, activeTransform]);
