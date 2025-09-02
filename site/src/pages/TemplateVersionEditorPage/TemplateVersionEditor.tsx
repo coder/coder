@@ -178,7 +178,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 			templateVersion.job.status === "succeeded"
 		) {
 			setDirty(false);
-			displaySuccess(`Template version "${previousVersion.current.name}" built successfully.`);
+			displaySuccess(
+				`Template version "${previousVersion.current.name}" built successfully.`,
+			);
 		}
 		previousVersion.current = templateVersion;
 	}, [templateVersion]);
