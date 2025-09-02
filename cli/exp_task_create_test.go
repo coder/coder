@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,8 +17,10 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
+	"github.com/coder/websocket"
 )
 
 func TestTaskCreate(t *testing.T) {
@@ -44,11 +47,11 @@ func TestTaskCreate(t *testing.T) {
 						ID: orgID,
 					}},
 				})
-			case fmt.Sprintf("/api/v2/organizations/%s/templates/my-template/versions/my-template-version", orgID):
+			case fmt.Sprintf("/api/v2/organizations/%s/templates/%s/versions/%s", orgID, templateName, templateVersionName):
 				httpapi.Write(ctx, w, http.StatusOK, codersdk.TemplateVersion{
 					ID: templateVersionID,
 				})
-			case fmt.Sprintf("/api/v2/organizations/%s/templates/my-template", orgID):
+			case fmt.Sprintf("/api/v2/organizations/%s/templates/%s", orgID, templateName):
 				httpapi.Write(ctx, w, http.StatusOK, codersdk.Template{
 					ID:              templateID,
 					ActiveVersionID: templateVersionID,
@@ -83,7 +86,7 @@ func TestTaskCreate(t *testing.T) {
 					assert.Equal(t, templateVersionPresetID, req.TemplateVersionPresetID, "template version preset id mismatch")
 				}
 
-				httpapi.Write(ctx, w, http.StatusCreated, codersdk.Workspace{
+				httpapi.Write(ctx, w, http.StatusCreated, codersdk.Task{
 					Name:      "task-wild-goldfish-27",
 					CreatedAt: taskCreatedAt,
 				})
@@ -290,6 +293,142 @@ func TestTaskCreate(t *testing.T) {
 				}
 			},
 		},
+		{
+			args: []string{"my custom prompt", "--wait", "--template", "my-template"},
+			expectOutput: strings.Join([]string{
+				fmt.Sprintf("The task %s has been created at %s!", cliui.Keyword("task-wild-goldfish-27"), cliui.Timestamp(taskCreatedAt)),
+				"Starting up agent",
+				"Running some scripts",
+				"Running another script",
+				"Running yet another script",
+			}, "\n"),
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				var (
+					fetchTaskCalls atomic.Int64
+					websocketDone  chan struct{}
+				)
+
+				return func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case "/api/v2/users/me/organizations":
+						httpapi.Write(ctx, w, http.StatusOK, []codersdk.Organization{
+							{MinimalOrganization: codersdk.MinimalOrganization{
+								ID: organizationID,
+							}},
+						})
+					case fmt.Sprintf("/api/v2/organizations/%s/templates/my-template", organizationID):
+						httpapi.Write(ctx, w, http.StatusOK, codersdk.Template{
+							ID:              templateID,
+							ActiveVersionID: templateVersionID,
+						})
+					case "/api/experimental/tasks/me":
+						httpapi.Write(ctx, w, http.StatusCreated, codersdk.Task{
+							ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+							Name:      "task-wild-goldfish-27",
+							CreatedAt: taskCreatedAt,
+							Status:    codersdk.WorkspaceStatusStarting,
+						})
+					case "/api/experimental/tasks/me/11111111-1111-1111-1111-111111111111":
+						defer fetchTaskCalls.Add(1)
+						switch fetchTaskCalls.Load() {
+						// The task is starting, but does not yet have an agent.
+						case 0:
+							httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
+								ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+								Name:      "task-wild-goldfish-27",
+								CreatedAt: taskCreatedAt,
+								Status:    codersdk.WorkspaceStatusStarting,
+							})
+
+						// The task is starting, and now has an agent.
+						case 1:
+							httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
+								ID:               uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+								Name:             "task-wild-goldfish-27",
+								CreatedAt:        taskCreatedAt,
+								Status:           codersdk.WorkspaceStatusStarting,
+								WorkspaceAgentID: uuid.NullUUID{Valid: true, UUID: uuid.MustParse("22222222-2222-2222-2222-222222222222")},
+							})
+
+						// The task has started, and is working on the task.
+						case 2, 3, 4:
+							httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
+								ID:               uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+								Name:             "task-wild-goldfish-27",
+								CreatedAt:        taskCreatedAt,
+								Status:           codersdk.WorkspaceStatusRunning,
+								WorkspaceAgentID: uuid.NullUUID{Valid: true, UUID: uuid.MustParse("22222222-2222-2222-2222-222222222222")},
+								CurrentState: &codersdk.TaskStateEntry{
+									State: codersdk.TaskStateWorking,
+								},
+							})
+
+						// The task has now finished
+						case 5:
+							// Wait until the websocket has finished
+							select {
+							case <-ctx.Done():
+								t.Errorf("websocket never closed")
+								return
+							case <-websocketDone:
+							}
+
+							httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
+								ID:               uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+								Name:             "task-wild-goldfish-27",
+								CreatedAt:        taskCreatedAt,
+								Status:           codersdk.WorkspaceStatusRunning,
+								WorkspaceAgentID: uuid.NullUUID{Valid: true, UUID: uuid.MustParse("22222222-2222-2222-2222-222222222222")},
+								CurrentState: &codersdk.TaskStateEntry{
+									State: codersdk.TaskStateCompleted,
+								},
+							})
+
+						default:
+							t.Errorf("too many calls to path: %s", r.URL.Path)
+							return
+						}
+
+					case "/api/v2/workspaceagents/22222222-2222-2222-2222-222222222222/logs":
+						websocketDone = make(chan struct{})
+						defer close(websocketDone)
+
+						conn, err := websocket.Accept(w, r, nil)
+						if err != nil {
+							t.Errorf("accept websocket: %v", err)
+							return
+						}
+
+						go httpapi.Heartbeat(ctx, conn)
+
+						encoder := wsjson.NewEncoder[[]codersdk.WorkspaceAgentLog](conn, websocket.MessageText)
+						defer encoder.Close(websocket.StatusNormalClosure)
+
+						messages := [][]codersdk.WorkspaceAgentLog{
+							{
+								{Output: "Starting up agent"},
+								{Output: "Running some scripts"},
+							},
+							{
+								{Output: "Running another script"},
+								{Output: "Running yet another script"},
+							},
+						}
+
+						for _, message := range messages {
+							err = encoder.Encode(message)
+							if err != nil {
+								t.Errorf("websocket encode: %v", err)
+								return
+							}
+						}
+
+					default:
+						t.Errorf("unexpected path: %s", r.URL.Path)
+					}
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -300,7 +439,7 @@ func TestTaskCreate(t *testing.T) {
 				ctx    = testutil.Context(t, testutil.WaitShort)
 				srv    = httptest.NewServer(tt.handler(t, ctx))
 				client = codersdk.New(testutil.MustURL(t, srv.URL))
-				args   = []string{"exp", "task", "create"}
+				args   = []string{"exp", "task", "create", "--wait-interval", testutil.IntervalFast.String()}
 				sb     strings.Builder
 				err    error
 			)

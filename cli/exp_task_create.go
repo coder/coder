@@ -1,11 +1,14 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -22,6 +25,9 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 		templateVersionName string
 		presetName          string
 		stdin               bool
+		wait                bool
+		waitInterval        time.Duration
+		waitTimeout         time.Duration
 	)
 
 	cmd := &serpent.Command{
@@ -56,6 +62,26 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				Flag:        "stdin",
 				Description: "Reads from stdin for the task input.",
 				Value:       serpent.BoolOf(&stdin),
+			},
+			{
+				Name:        "wait",
+				Flag:        "wait",
+				Description: "Wait for task completion and stream real-time logs while running.",
+				Value:       serpent.BoolOf(&wait),
+			},
+			{
+				Name:        "wait-timeout",
+				Flag:        "wait-timeout",
+				Description: "How long to wait for task completion.",
+				Value:       serpent.DurationOf(&waitTimeout),
+			},
+			{
+				Name:        "wait-interval",
+				Flag:        "wait-interval",
+				Description: "Interval to poll the task for status updates. Only used in tests.",
+				Hidden:      true,
+				Value:       serpent.DurationOf(&waitInterval),
+				Default:     "1s",
 			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
@@ -173,7 +199,98 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				cliui.Timestamp(task.CreatedAt),
 			)
 
-			return nil
+			if !wait {
+				return nil
+			}
+
+			var (
+				eg      errgroup.Group
+				agentID = make(chan uuid.UUID)
+				done    = make(chan struct{})
+			)
+
+			eg.Go(func() error {
+				defer close(done)
+
+				var (
+					agentIDSent bool
+					waitCtx     = ctx
+				)
+
+				if waitTimeout != 0 {
+					ctx, cancel := context.WithTimeout(waitCtx, waitTimeout)
+					defer cancel()
+					waitCtx = ctx
+				}
+
+				// TODO(DanielleMaywood):
+				// Implement streaming updates instead of polling.
+				t := time.NewTicker(waitInterval)
+				defer t.Stop()
+				for {
+					select {
+					case <-waitCtx.Done():
+						return nil
+					case <-t.C:
+					}
+
+					task, err := expClient.TaskByID(ctx, task.ID)
+					if err != nil {
+						return xerrors.Errorf("get task: %w", err)
+					}
+
+					if !agentIDSent && task.WorkspaceAgentID.Valid {
+						agentID <- task.WorkspaceAgentID.UUID
+						agentIDSent = true
+					}
+
+					if task.Status == codersdk.WorkspaceStatusStarting {
+						continue
+					}
+
+					if task.CurrentState == nil {
+						continue
+					}
+
+					if task.CurrentState.State == codersdk.TaskStateIdle ||
+						task.CurrentState.State == codersdk.TaskStateCompleted {
+						return nil
+					}
+				}
+			})
+
+			eg.Go(func() error {
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-done:
+					return nil
+
+				case agentID := <-agentID:
+					agentLogs, closer, err := client.WorkspaceAgentLogsAfter(ctx, agentID, 0, true)
+					if err != nil {
+						return xerrors.Errorf("follow agent logs: %w", err)
+					}
+					defer closer.Close()
+
+					for {
+						select {
+						case <-ctx.Done():
+							return nil
+
+						case <-done:
+							return nil
+
+						case agentLogChunk := <-agentLogs:
+							for _, agentLog := range agentLogChunk {
+								fmt.Fprintln(inv.Stdout, agentLog.Output)
+							}
+						}
+					}
+				}
+			})
+
+			return eg.Wait()
 		},
 	}
 	orgContext.AttachOptions(cmd)
