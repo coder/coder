@@ -44,6 +44,10 @@ export type TimeSyncInitOptions = Readonly<{
 	 * It is highly recommended that you only modify this value if you have a
 	 * good reason. Updating this value to be too low and make the event loop
 	 * get really hot and really tank performance elsewhere in the app.
+	 *
+	 * If a value of `Number.POSITIVE_INFINITY` is passed in, that renders the
+	 * TimeSync completely inert, and no subscriptions will ever be notified.
+	 * This behavior can be helpful when setting up snapshot tests.
 	 */
 	minimumRefreshIntervalMs: number;
 }>;
@@ -148,24 +152,24 @@ function orderIntervals(interval1: number, interval2: number): number {
  */
 export class TimeSync implements TimeSyncApi {
 	readonly #minimumRefreshIntervalMs: number;
-	#disposed = false;
+	#disposed: boolean;
 	#latestDateSnapshot: Date;
 
 	// Each map value is the list of all refresh intervals actively associated
 	// with an onUpdate callback (allowing for duplicate intervals if multiple
 	// subscriptions were set up with the exact same onUpdate-interval pair).
 	// Each map value should also stay sorted in ascending order.
-	#subscriptions = new Map<OnUpdate, number[]>();
+	#subscriptions: Map<OnUpdate, number[]>;
 
 	// A cached version of the fastest interval currently registered with
 	// TimeSync. Should always be derived from #subscriptions
-	#fastestRefreshInterval = Number.POSITIVE_INFINITY;
+	#fastestRefreshInterval: number;
 
 	// This class uses setInterval for both its intended purpose and as a janky
 	// version of setTimeout. There are a few times when we need timeout-like
 	// logic, but if we use setInterval for everything, we have fewer overall
 	// data dependencies to mock out and don't have to juggle different IDs
-	#latestIntervalId: number | undefined = undefined;
+	#latestIntervalId: number | undefined;
 
 	constructor(options?: Partial<TimeSyncInitOptions>) {
 		const {
@@ -173,17 +177,22 @@ export class TimeSync implements TimeSyncApi {
 			minimumRefreshIntervalMs = defaultOptions.minimumRefreshIntervalMs,
 		} = options ?? {};
 
-		const minIsInvalid =
-			!Number.isInteger(minimumRefreshIntervalMs) ||
-			minimumRefreshIntervalMs <= 0;
-		if (minIsInvalid) {
+		const isMinValid =
+			minimumRefreshIntervalMs === Number.POSITIVE_INFINITY ||
+			(Number.isInteger(minimumRefreshIntervalMs) &&
+				minimumRefreshIntervalMs > 0);
+		if (!isMinValid) {
 			throw new Error(
-				`Minimum refresh interval must be a positive integer (received ${minimumRefreshIntervalMs}ms)`,
+				`Minimum refresh interval must be positive infinity or a positive integer (received ${minimumRefreshIntervalMs}ms)`,
 			);
 		}
 
+		this.#disposed = false;
+		this.#subscriptions = new Map();
 		this.#minimumRefreshIntervalMs = minimumRefreshIntervalMs;
 		this.#latestDateSnapshot = newReadonlyDate(initialDatetime);
+		this.#fastestRefreshInterval = Number.POSITIVE_INFINITY;
+		this.#latestIntervalId = undefined;
 	}
 
 	#notifyAllSubscriptions(): void {
@@ -192,6 +201,7 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		const subscriptionsPaused =
+			this.#minimumRefreshIntervalMs === Number.POSITIVE_INFINITY ||
 			this.#subscriptions.size === 0 ||
 			this.#fastestRefreshInterval === Number.POSITIVE_INFINITY;
 		if (subscriptionsPaused) {
