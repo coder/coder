@@ -349,7 +349,11 @@ func RichMultiSelect(inv *serpent.Invocation, richOptions RichMultiSelectOptions
 	}
 
 	// Check selected option, convert descriptions (line) to values
-	var results []string
+	//
+	// The function must return an initialized empty array, since it is later marshaled
+	// into JSON. Otherwise, `var results []string` would be marshaled to "null".
+	// See: https://github.com/golang/go/issues/27589
+	results := []string{}
 	for _, sel := range selected {
 		custom := true
 		for i, option := range richOptions.Options {

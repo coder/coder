@@ -296,28 +296,26 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 					{showSubAgentApps && (
 						<section className={appsClasses}>
-							<>
-								{showVSCode && (
-									<VSCodeDevContainerButton
-										userName={workspace.owner_name}
-										workspaceName={workspace.name}
-										devContainerName={devcontainer.container.name}
-										devContainerFolder={subAgent?.directory ?? ""}
-										localWorkspaceFolder={devcontainer.workspace_folder}
-										localConfigFile={devcontainer.config_path || ""}
-										displayApps={displayApps} // TODO(mafredri): We could use subAgent display apps here but we currently set none.
-										agentName={parentAgent.name}
-									/>
-								)}
-								{appSections.map((section, i) => (
-									<AgentApps
-										key={section.group ?? i}
-										section={section}
-										agent={subAgent}
-										workspace={workspace}
-									/>
-								))}
-							</>
+							{showVSCode && (
+								<VSCodeDevContainerButton
+									userName={workspace.owner_name}
+									workspaceName={workspace.name}
+									devContainerName={devcontainer.container.name}
+									devContainerFolder={subAgent?.directory ?? ""}
+									localWorkspaceFolder={devcontainer.workspace_folder}
+									localConfigFile={devcontainer.config_path || ""}
+									displayApps={displayApps} // TODO(mafredri): We could use subAgent display apps here but we currently set none.
+									agentName={parentAgent.name}
+								/>
+							)}
+							{appSections.map((section, i) => (
+								<AgentApps
+									key={section.group ?? i}
+									section={section}
+									agent={subAgent}
+									workspace={workspace}
+								/>
+							))}
 
 							{displayApps.includes("web_terminal") && (
 								<TerminalLink

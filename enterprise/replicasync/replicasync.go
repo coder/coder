@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 )
 
 var PubsubEvent = "replica"
@@ -104,7 +105,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 		return nil, xerrors.Errorf("subscribe: %w", err)
 	}
 	manager.closeWait.Add(1)
-	go manager.loop(ctx)
+	pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceReplicaSync), manager.loop)
 	return manager, nil
 }
 

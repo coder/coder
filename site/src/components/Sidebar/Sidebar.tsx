@@ -1,17 +1,15 @@
-import { cx } from "@emotion/css";
-import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import { Stack } from "components/Stack/Stack";
-import { type ClassName, useClassName } from "hooks/useClassName";
 import type { ElementType, FC, ReactNode } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router";
 import { cn } from "utils/cn";
 
 interface SidebarProps {
 	children?: ReactNode;
+	className?: string;
 }
 
-export const Sidebar: FC<SidebarProps> = ({ children }) => {
-	return <nav className="w-60 flex-shrink-0">{children}</nav>;
+export const Sidebar: FC<SidebarProps> = ({ className, children }) => {
+	return <nav className={cn("w-60 flex-shrink-0", className)}>{children}</nav>;
 };
 
 interface SidebarHeaderProps {
@@ -21,6 +19,11 @@ interface SidebarHeaderProps {
 	linkTo?: string;
 }
 
+const titleStyles = {
+	normal:
+		"text-semibold overflow-hidden whitespace-nowrap text-content-primary",
+};
+
 export const SidebarHeader: FC<SidebarHeaderProps> = ({
 	avatar,
 	title,
@@ -28,7 +31,7 @@ export const SidebarHeader: FC<SidebarHeaderProps> = ({
 	linkTo,
 }) => {
 	return (
-		<Stack direction="row" spacing={1} css={styles.info}>
+		<Stack direction="row" spacing={1} className="mb-4">
 			{avatar}
 			<div
 				css={{
@@ -38,13 +41,15 @@ export const SidebarHeader: FC<SidebarHeaderProps> = ({
 				}}
 			>
 				{linkTo ? (
-					<Link css={styles.title} to={linkTo}>
+					<Link className={cn(titleStyles.normal, "no-underline")} to={linkTo}>
 						{title}
 					</Link>
 				) : (
-					<span css={styles.title}>{title}</span>
+					<span className={titleStyles.normal}>{title}</span>
 				)}
-				<span css={styles.subtitle}>{subtitle}</span>
+				<span className="text-content-secondary text-sm overflow-hidden overflow-ellipsis">
+					{subtitle}
+				</span>
 			</div>
 		</Stack>
 	);
@@ -88,76 +93,23 @@ export const SidebarNavItem: FC<SidebarNavItemProps> = ({
 	href,
 	icon: Icon,
 }) => {
-	const link = useClassName(classNames.link, []);
-	const activeLink = useClassName(classNames.activeLink, []);
-
 	return (
 		<NavLink
 			end
 			to={href}
-			className={({ isActive }) => cx([link, isActive && activeLink])}
+			className={({ isActive }) =>
+				cn(
+					"block relative text-sm text-inherit mb-px p-3 pl-4 rounded-sm",
+					"transition-colors no-underline hover:bg-surface-secondary",
+					isActive &&
+						"bg-surface-secondary border-0 border-solid border-l-[3px] border-highlight-sky",
+				)
+			}
 		>
 			<Stack alignItems="center" spacing={1.5} direction="row">
-				<Icon css={{ width: 16, height: 16 }} />
+				<Icon className="size-4" />
 				{children}
 			</Stack>
 		</NavLink>
 	);
 };
-
-const styles = {
-	info: (theme) => ({
-		...(theme.typography.body2 as CSSObject),
-		marginBottom: 16,
-	}),
-
-	title: (theme) => ({
-		fontWeight: 600,
-		overflow: "hidden",
-		textOverflow: "ellipsis",
-		whiteSpace: "nowrap",
-		color: theme.palette.text.primary,
-		textDecoration: "none",
-	}),
-	subtitle: (theme) => ({
-		color: theme.palette.text.secondary,
-		fontSize: 12,
-		overflow: "hidden",
-		textOverflow: "ellipsis",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
-
-const classNames = {
-	link: (css, theme) => css`
-    color: inherit;
-    display: block;
-    font-size: 14px;
-    text-decoration: none;
-    padding: 12px 12px 12px 16px;
-    border-radius: 4px;
-    transition: background-color 0.15s ease-in-out;
-    margin-bottom: 1px;
-    position: relative;
-
-    &:hover {
-      background-color: ${theme.palette.action.hover};
-    }
-  `,
-
-	activeLink: (css, theme) => css`
-    background-color: ${theme.palette.action.hover};
-
-    &:before {
-      content: "";
-      display: block;
-      width: 3px;
-      height: 100%;
-      position: absolute;
-      left: 0;
-      top: 0;
-      background-color: ${theme.palette.primary.main};
-      border-top-left-radius: 8px;
-      border-bottom-left-radius: 8px;
-    }
-  `,
-} satisfies Record<string, ClassName>;

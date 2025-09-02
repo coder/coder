@@ -177,19 +177,25 @@ func TestRefreshToken(t *testing.T) {
 		link.OAuthExpiry = expired
 
 		// Make the failure a server internal error. Not related to the token
+		// This should be retried since this error is temporary.
 		refreshErr = &oauth2.RetrieveError{
 			Response: &http.Response{
 				StatusCode: http.StatusInternalServerError,
 			},
 			ErrorCode: "internal_error",
 		}
-		_, err := config.RefreshToken(ctx, mDB, link)
-		require.Error(t, err)
-		require.True(t, externalauth.IsInvalidTokenError(err))
-		require.Equal(t, refreshCount, 1)
+		totalRefreshes := 0
+		for i := 0; i < 3; i++ {
+			// Each loop will hit the temporary error and retry.
+			_, err := config.RefreshToken(ctx, mDB, link)
+			require.Error(t, err)
+			totalRefreshes++
+			require.True(t, externalauth.IsInvalidTokenError(err))
+			require.Equal(t, refreshCount, totalRefreshes)
+		}
 
-		// Try again with a bad refresh token error
-		// Expect DB call to remove the refresh token
+		// Try again with a bad refresh token error. This will invalidate the
+		// refresh token, and not retry again. Expect DB call to remove the refresh token
 		mDB.EXPECT().UpdateExternalAuthLinkRefreshToken(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 		refreshErr = &oauth2.RetrieveError{ // github error
 			Response: &http.Response{
@@ -197,17 +203,18 @@ func TestRefreshToken(t *testing.T) {
 			},
 			ErrorCode: "bad_refresh_token",
 		}
-		_, err = config.RefreshToken(ctx, mDB, link)
+		_, err := config.RefreshToken(ctx, mDB, link)
 		require.Error(t, err)
+		totalRefreshes++
 		require.True(t, externalauth.IsInvalidTokenError(err))
-		require.Equal(t, refreshCount, 2)
+		require.Equal(t, refreshCount, totalRefreshes)
 
 		// When the refresh token is empty, no api calls should be made
 		link.OAuthRefreshToken = "" // mock'd db, so manually set the token to ''
 		_, err = config.RefreshToken(ctx, mDB, link)
 		require.Error(t, err)
 		require.True(t, externalauth.IsInvalidTokenError(err))
-		require.Equal(t, refreshCount, 2)
+		require.Equal(t, refreshCount, totalRefreshes)
 	})
 
 	// ValidateFailure tests if the token is no longer valid with a 401 response.
@@ -330,7 +337,6 @@ func TestRefreshToken(t *testing.T) {
 		require.Equal(t, 1, validateCalls, "token is validated")
 		require.Equal(t, 1, refreshCalls, "token is refreshed")
 		require.NotEqualf(t, link.OAuthAccessToken, updated.OAuthAccessToken, "token is updated")
-		//nolint:gocritic // testing
 		dbLink, err := db.GetExternalAuthLink(dbauthz.AsSystemRestricted(context.Background()), database.GetExternalAuthLinkParams{
 			ProviderID: link.ProviderID,
 			UserID:     link.UserID,

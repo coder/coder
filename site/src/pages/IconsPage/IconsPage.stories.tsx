@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import IconsPage from "./IconsPage";
 
 const meta: Meta<typeof IconsPage> = {

@@ -1,15 +1,15 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { spyOn, userEvent, within } from "@storybook/test";
-import { API } from "api/api";
-import { getGroupQueryKey, groupPermissionsKey } from "api/queries/groups";
-import { organizationMembersKey } from "api/queries/organizations";
-import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import {
 	MockDefaultOrganization,
 	MockGroup,
 	MockOrganizationMember,
 	MockOrganizationMember2,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { API } from "api/api";
+import { getGroupQueryKey, groupPermissionsKey } from "api/queries/groups";
+import { organizationMembersKey } from "api/queries/organizations";
+import { spyOn, userEvent, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import GroupPage from "./GroupPage";
 
 const meta: Meta<typeof GroupPage> = {

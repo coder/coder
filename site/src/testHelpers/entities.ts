@@ -614,7 +614,7 @@ const MockUserAuthProvisioner: TypesGen.ProvisionerDaemon = {
 	tags: { scope: "user" },
 };
 
-const MockPskProvisioner: TypesGen.ProvisionerDaemon = {
+const _MockPskProvisioner: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-psk-provisioner",
 	key_id: MockProvisionerPskKey.id,
@@ -622,7 +622,7 @@ const MockPskProvisioner: TypesGen.ProvisionerDaemon = {
 	name: "Test psk provisioner",
 };
 
-const MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
+const _MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-key-provisioner",
 	key_id: MockProvisionerKey.id,
@@ -632,7 +632,7 @@ const MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
 	tags: MockProvisionerKey.tags,
 };
 
-const MockProvisioner2: TypesGen.ProvisionerDaemon = {
+const _MockProvisioner2: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-provisioner-2",
 	name: "Test Provisioner 2",
@@ -732,6 +732,7 @@ You can add instructions here
 [Some link info](https://coder.com)`,
 	created_by: MockUserOwner,
 	archived: false,
+	has_external_agent: false,
 };
 
 export const MockTemplateVersion2: TypesGen.TemplateVersion = {
@@ -751,6 +752,7 @@ You can add instructions here
 [Some link info](https://coder.com)`,
 	created_by: MockUserOwner,
 	archived: false,
+	has_external_agent: false,
 };
 
 export const MockTemplateVersionWithMarkdownMessage: TypesGen.TemplateVersion =
@@ -831,7 +833,7 @@ export const MockTemplate: TypesGen.Template = {
 	cors_behavior: "simple",
 };
 
-const MockTemplateVersionFiles: TemplateVersionFiles = {
+const _MockTemplateVersionFiles: TemplateVersionFiles = {
 	"README.md": "# Example\n\nThis is an example template.",
 	"main.tf": `// Provides info about the workspace.
 data "coder_workspace" "me" {}
@@ -990,6 +992,15 @@ export const MockWorkspaceSubAgent: TypesGen.WorkspaceAgent = {
 		"vscode_insiders",
 		"web_terminal",
 	],
+};
+
+const MockWorkspaceUnhealthyAgent: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
+	id: "test-workspace-unhealthy-agent",
+	name: "a-workspace-unhealthy-agent",
+	status: "timeout",
+	lifecycle_state: "start_error",
+	health: { healthy: false },
 };
 
 export const MockWorkspaceAppStatus: TypesGen.WorkspaceAppStatus = {
@@ -1201,7 +1212,7 @@ export const MockWorkspaceResourceMultipleAgents: TypesGen.WorkspaceResource = {
 	],
 };
 
-const MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
+const _MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
 	...MockWorkspaceResource,
 	id: "test-workspace-resource-hidden",
 	name: "workspace-resource-hidden",
@@ -1244,7 +1255,7 @@ export const MockWorkspaceContainerResource: TypesGen.WorkspaceResource = {
 	daily_cost: 0,
 };
 
-const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest =
+const _MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest =
 	{
 		schedule: "",
 	};
@@ -1443,6 +1454,20 @@ export const MockStoppingWorkspace: TypesGen.Workspace = {
 		status: "stopping",
 	},
 };
+export const MockUnhealthyWorkspace: TypesGen.Workspace = {
+	...MockWorkspace,
+	id: "test-unhealthy-workspace",
+	health: {
+		healthy: false,
+		failing_agents: [MockWorkspaceUnhealthyAgent.id],
+	},
+	latest_build: {
+		...MockWorkspace.latest_build,
+		resources: [
+			{ ...MockWorkspaceResource, agents: [MockWorkspaceUnhealthyAgent] },
+		],
+	},
+};
 export const MockStartingWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
 	id: "test-starting-workspace",
@@ -1554,7 +1579,7 @@ export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspac
 		},
 	};
 
-const MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
+const _MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 	...MockOutdatedRunningWorkspaceAlwaysUpdate,
 	latest_build: {
 		...MockWorkspaceBuild,
@@ -1583,7 +1608,7 @@ export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
 	count: 26,
 };
 
-const MockWorkspacesResponseWithDeletions = {
+const _MockWorkspacesResponseWithDeletions = {
 	workspaces: [...MockWorkspacesResponse.workspaces, MockWorkspaceWithDeletion],
 	count: MockWorkspacesResponse.count + 1,
 };
@@ -1738,7 +1763,7 @@ export const MockWorkspaceRichParametersRequest: TypesGen.CreateWorkspaceRequest
 		],
 	};
 
-const MockUserAgent = {
+const _MockUserAgent = {
 	browser: "Chrome 99.0.4844",
 	device: "Other",
 	ip_address: "11.22.33.44",
@@ -2420,7 +2445,7 @@ export const MockEntitlements: TypesGen.Entitlements = {
 	refreshed_at: "2022-05-20T16:45:57.122Z",
 };
 
-const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
+const _MockEntitlementsWithWarnings: TypesGen.Entitlements = {
 	errors: [],
 	warnings: ["You are over your active user limit.", "And another thing."],
 	has_license: true,
@@ -2490,7 +2515,7 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
 	}),
 };
 
-const MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
+const _MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
 	errors: [],
 	warnings: [],
 	has_license: true,
@@ -2667,7 +2692,7 @@ export const MockAuditLogGitSSH: TypesGen.AuditLog = {
 	},
 };
 
-const MockAuditOauthConvert: TypesGen.AuditLog = {
+const _MockAuditOauthConvert: TypesGen.AuditLog = {
 	...MockAuditLog,
 	resource_type: "convert_login",
 	resource_target: "oidc",
@@ -3111,19 +3136,196 @@ export const MockPreviewParameter: TypesGen.PreviewParameter = {
 	display_name: "Parameter 1",
 	description: "This is a parameter",
 	type: "string",
-	mutable: true,
 	form_type: "input",
-	validations: [],
-	value: { valid: true, value: "" },
-	diagnostics: [],
-	options: [],
+	mutable: true,
 	ephemeral: false,
 	required: true,
+	value: { valid: true, value: "" },
+	default_value: { valid: true, value: "" },
+	options: [],
+	validations: [],
+	diagnostics: [],
 	icon: "",
 	styling: {},
-	default_value: { valid: true, value: "" },
 	order: 0,
 };
+
+export const MockDropdownParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: "instance_type",
+	display_name: "Instance Type",
+	description: "The type of instance to create",
+	form_type: "dropdown",
+	default_value: { value: "t3.micro", valid: true },
+	options: [
+		{
+			name: "t3.micro",
+			description: "Micro instance",
+			value: { value: "t3.micro", valid: true },
+			icon: "",
+		},
+		{
+			name: "t3.small",
+			description: "Small instance",
+			value: { value: "t3.small", valid: true },
+			icon: "",
+		},
+		{
+			name: "t3.medium",
+			description: "Medium instance",
+			value: { value: "t3.medium", valid: true },
+			icon: "",
+		},
+	],
+	styling: {
+		placeholder: "",
+		disabled: false,
+		label: "",
+	},
+	order: 1,
+};
+
+const MockTagSelectParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: "tags",
+	display_name: "Tags",
+	description: "Resource tags",
+	type: "list(string)",
+	form_type: "tag-select",
+	required: false,
+	value: { value: "[]", valid: true },
+	default_value: { value: "[]", valid: true },
+	styling: {
+		placeholder: "",
+		disabled: false,
+		label: "",
+	},
+	order: 4,
+};
+
+const MockSwitchParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: "enable_monitoring",
+	display_name: "Enable Monitoring",
+	description: "Enable system monitoring",
+	type: "bool",
+	form_type: "switch",
+	required: false,
+	value: { value: "true", valid: true },
+	default_value: { value: "true", valid: true },
+	styling: {
+		placeholder: "",
+		disabled: false,
+		label: "",
+	},
+	order: 3,
+};
+
+export const MockSliderParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: "cpu_count",
+	display_name: "CPU Count",
+	description: "Number of CPU cores",
+	type: "number",
+	form_type: "slider",
+	value: { value: "2", valid: true },
+	default_value: { value: "2", valid: true },
+	styling: {
+		placeholder: "",
+		disabled: false,
+		label: "",
+	},
+	order: 2,
+};
+
+const MockMultiSelectParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: "ides",
+	display_name: "IDEs",
+	description: "Enabled IDEs",
+	type: "list(string)",
+	form_type: "multi-select",
+	required: false,
+	value: { value: "[]", valid: true },
+	default_value: { value: "[]", valid: true },
+	options: [
+		{
+			name: "vscode",
+			description: "Visual Studio Code",
+			value: { value: "vscode", valid: true },
+			icon: "",
+		},
+		{
+			name: "cursor",
+			description: "Cursor",
+			value: { value: "cursor", valid: true },
+			icon: "",
+		},
+		{
+			name: "goland",
+			description: "Goland",
+			value: { value: "goland", valid: true },
+			icon: "",
+		},
+		{
+			name: "windsurf",
+			description: "Windsurf",
+			value: { value: "windsurf", valid: true },
+			icon: "",
+		},
+	],
+	order: 5,
+};
+
+export const MockValidationParameter: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: "invalid_number",
+	display_name: "Invalid Parameter",
+	description: "Number parameter with validation error",
+	type: "number",
+	form_type: "input",
+	value: { value: "50", valid: true },
+	default_value: { value: "50", valid: true },
+	validations: [
+		{
+			validation_error: "Number must be between 0 and 100",
+			validation_regex: null,
+			validation_min: 0,
+			validation_max: 100,
+			validation_monotonic: null,
+		},
+	],
+	order: 1,
+};
+
+export const MockDynamicParametersResponse: TypesGen.DynamicParametersResponse =
+	{
+		id: 1,
+		parameters: [
+			MockDropdownParameter,
+			MockSliderParameter,
+			MockSwitchParameter,
+			MockTagSelectParameter,
+			MockMultiSelectParameter,
+		],
+		diagnostics: [],
+	};
+
+export const MockDynamicParametersResponseWithError: TypesGen.DynamicParametersResponse =
+	{
+		id: 2,
+		parameters: [MockDropdownParameter],
+		diagnostics: [
+			{
+				severity: "error",
+				summary: "Validation failed",
+				detail: "The selected instance type is not available in this region",
+				extra: {
+					code: "",
+				},
+			},
+		],
+	};
 
 export const MockTemplateVersionExternalAuthGithub: TypesGen.TemplateVersionExternalAuth =
 	{
@@ -4700,6 +4902,32 @@ export const MockTasks = [
 		prompt: "Fix accessibility issues",
 	},
 ];
+
+export const MockTask: TypesGen.Task = {
+	id: "test-task",
+	name: "task-wild-test-123",
+	organization_id: MockOrganization.id,
+	owner_id: MockUserOwner.id,
+	owner_name: MockUserOwner.username,
+	template_id: MockTemplate.id,
+	template_name: MockTemplate.name,
+	template_display_name: MockTemplate.display_name,
+	template_icon: MockTemplate.icon,
+	workspace_id: MockWorkspace.id,
+	workspace_agent_id: MockWorkspaceAgent.id,
+	workspace_agent_lifecycle: MockWorkspaceAgent.lifecycle_state,
+	workspace_agent_health: MockWorkspaceAgent.health,
+	initial_prompt: "Perform some task",
+	status: "running",
+	current_state: {
+		timestamp: "2022-05-17T17:39:01.382927298Z",
+		state: "idle",
+		message: "Should I continue?",
+		uri: "https://dev.coder.com",
+	},
+	created_at: "2022-05-17T17:39:01.382927298Z",
+	updated_at: "2022-05-17T17:39:01.382927298Z",
+};
 
 export const MockNewTaskData = {
 	prompt: "Create a new task",

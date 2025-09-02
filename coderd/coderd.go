@@ -14,13 +14,16 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"runtime/pprof"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/coder/coder/v2/coderd/oauth2provider"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 
 	"github.com/andybalholm/brotli"
@@ -198,6 +201,7 @@ type Options struct {
 	TemplateScheduleStore          *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore    *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	AccessControlStore             *atomic.Pointer[dbauthz.AccessControlStore]
+	UsageInserter                  *atomic.Pointer[usage.Inserter]
 	// CoordinatorResumeTokenProvider is used to provide and validate resume
 	// tokens issued by and passed to the coordinator DRPC API.
 	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
@@ -236,6 +240,8 @@ type Options struct {
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
+
+	ProvisionerdServerMetrics *provisionerdserver.Metrics
 
 	// WorkspaceAppAuditSessionTimeout allows changing the timeout for audit
 	// sessions. Raising or lowering this value will directly affect the write
@@ -323,6 +329,9 @@ func New(options *Options) *API {
 		})
 	}
 
+	if options.PrometheusRegistry == nil {
+		options.PrometheusRegistry = prometheus.NewRegistry()
+	}
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 		if buildinfo.IsDev() {
@@ -379,9 +388,6 @@ func New(options *Options) *API {
 	if options.FilesRateLimit == 0 {
 		options.FilesRateLimit = 12
 	}
-	if options.PrometheusRegistry == nil {
-		options.PrometheusRegistry = prometheus.NewRegistry()
-	}
 	if options.Clock == nil {
 		options.Clock = quartz.NewReal()
 	}
@@ -425,6 +431,13 @@ func New(options *Options) *API {
 	if options.UserQuietHoursScheduleStore.Load() == nil {
 		v := schedule.NewAGPLUserQuietHoursScheduleStore()
 		options.UserQuietHoursScheduleStore.Store(&v)
+	}
+	if options.UsageInserter == nil {
+		options.UsageInserter = &atomic.Pointer[usage.Inserter]{}
+	}
+	if options.UsageInserter.Load() == nil {
+		inserter := usage.NewAGPLInserter()
+		options.UsageInserter.Store(&inserter)
 	}
 	if options.OneTimePasscodeValidityPeriod == 0 {
 		options.OneTimePasscodeValidityPeriod = 20 * time.Minute
@@ -588,6 +601,7 @@ func New(options *Options) *API {
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
 		BuildUsageChecker:           &buildUsageChecker,
+		UsageInserter:               options.UsageInserter,
 		FileCache:                   files.New(options.PrometheusRegistry, options.Authorizer),
 		Experiments:                 experiments,
 		WebpushDispatcher:           options.WebPushDispatcher,
@@ -852,6 +866,7 @@ func New(options *Options) *API {
 
 	r.Use(
 		httpmw.Recover(api.Logger),
+		httpmw.WithProfilingLabels,
 		tracing.StatusWriterMiddleware,
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
@@ -991,6 +1006,18 @@ func New(options *Options) *API {
 		r.Use(apiKeyMiddleware)
 		r.Route("/aitasks", func(r chi.Router) {
 			r.Get("/prompts", api.aiTasksPrompts)
+		})
+		r.Route("/tasks", func(r chi.Router) {
+			r.Use(apiRateLimiter)
+
+			r.Get("/", api.tasksList)
+
+			r.Route("/{user}", func(r chi.Router) {
+				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+				r.Get("/{id}", api.taskGet)
+				r.Delete("/{id}", api.taskDelete)
+				r.Post("/", api.tasksCreate)
+			})
 		})
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(
@@ -1339,7 +1366,13 @@ func New(options *Options) *API {
 			).Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(workspaceAgentInfo)
-				r.Get("/rpc", api.workspaceAgentRPC)
+				r.Group(func(r chi.Router) {
+					r.Use(
+						// Override the request_type for agent rpc traffic.
+						httpmw.WithStaticProfilingLabels(pprof.Labels(pproflabel.RequestTypeTag, "agent-rpc")),
+					)
+					r.Get("/rpc", api.workspaceAgentRPC)
+				})
 				r.Patch("/logs", api.patchWorkspaceAgentLogs)
 				r.Patch("/app-status", api.patchWorkspaceAgentAppStatus)
 				// Deprecated: Required to support legacy agents
@@ -1415,8 +1448,10 @@ func New(options *Options) *API {
 				r.Get("/timings", api.workspaceTimings)
 				r.Route("/acl", func(r chi.Router) {
 					r.Use(
-						httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentWorkspaceSharing))
+						httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentWorkspaceSharing),
+					)
 
+					r.Get("/", api.workspaceACL)
 					r.Patch("/", api.patchWorkspaceACL)
 				})
 			})
@@ -1547,6 +1582,9 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", api.tailnetRPCConn)
 		})
+		r.Route("/init-script", func(r chi.Router) {
+			r.Get("/{os}/{arch}", api.initScript)
+		})
 	})
 
 	if options.SwaggerEndpoint {
@@ -1668,6 +1706,9 @@ type API struct {
 	// BuildUsageChecker is a pointer as it's passed around to multiple
 	// components.
 	BuildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker]
+	// UsageInserter is a pointer to an atomic pointer because it is passed to
+	// multiple components.
+	UsageInserter *atomic.Pointer[usage.Inserter]
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 
@@ -1883,6 +1924,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		&api.Auditor,
 		api.TemplateScheduleStore,
 		api.UserQuietHoursScheduleStore,
+		api.UsageInserter,
 		api.DeploymentValues,
 		provisionerdserver.Options{
 			OIDCConfig:          api.OIDCConfig,
@@ -1891,6 +1933,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		},
 		api.NotificationsEnqueuer,
 		&api.PrebuildsReconciler,
+		api.ProvisionerdServerMetrics,
 	)
 	if err != nil {
 		return nil, err

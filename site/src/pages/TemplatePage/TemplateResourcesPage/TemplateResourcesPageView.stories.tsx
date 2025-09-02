@@ -1,9 +1,9 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import {
 	MockTemplate,
 	MockWorkspaceResource,
 	MockWorkspaceVolumeResource,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { TemplateResourcesPageView } from "./TemplateResourcesPageView";
 
 const meta: Meta<typeof TemplateResourcesPageView> = {

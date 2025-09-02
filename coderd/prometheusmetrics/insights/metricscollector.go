@@ -14,6 +14,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -158,7 +159,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 		})
 	}
 
-	go func() {
+	pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceMetricCollector), func(ctx context.Context) {
 		defer close(done)
 		defer ticker.Stop()
 		for {
@@ -170,7 +171,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 				doTick()
 			}
 		}
-	}()
+	})
 	return func() {
 		closeFunc()
 		<-done

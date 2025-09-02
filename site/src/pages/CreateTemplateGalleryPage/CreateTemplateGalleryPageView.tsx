@@ -11,7 +11,7 @@ import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import type { StarterTemplatesByTag } from "utils/starterTemplates";
 import { StarterTemplates } from "./StarterTemplates";
 
@@ -24,7 +24,7 @@ export const CreateTemplateGalleryPageView: FC<
 	CreateTemplateGalleryPageViewProps
 > = ({ starterTemplatesByTag, error }) => {
 	return (
-		<Margins>
+		<Margins className="pb-12">
 			<PageHeader
 				actions={
 					<Button asChild size="sm" variant="outline">

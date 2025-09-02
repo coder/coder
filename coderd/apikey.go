@@ -12,6 +12,8 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -53,6 +55,14 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 
 	var createToken codersdk.CreateTokenRequest
 	if !httpapi.Read(ctx, rw, r, &createToken) {
+		return
+	}
+
+	// TODO(Cian): System users technically just have the 'member' role
+	// and we don't want to disallow all members from creating API keys.
+	if user.IsSystem {
+		api.Logger.Warn(ctx, "disallowed creating api key for system user", slog.F("user_id", user.ID))
+		httpapi.Forbidden(rw)
 		return
 	}
 
@@ -124,6 +134,14 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
+	// TODO(Cian): System users technically just have the 'member' role
+	// and we don't want to disallow all members from creating API keys.
+	if user.IsSystem {
+		api.Logger.Warn(ctx, "disallowed creating api key for system user", slog.F("user_id", user.ID))
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	cookie, _, err := api.createAPIKey(ctx, apikey.CreateParams{
 		UserID:          user.ID,
 		DefaultLifetime: api.DeploymentValues.Sessions.DefaultTokenDuration.Value(),
@@ -151,7 +169,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
-// @Param keyid path string true "Key ID" format(uuid)
+// @Param keyid path string true "Key ID" format(string)
 // @Success 200 {object} codersdk.APIKey
 // @Router /users/{user}/keys/{keyid} [get]
 func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
@@ -292,7 +310,7 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
-// @Param keyid path string true "Key ID" format(uuid)
+// @Param keyid path string true "Key ID" format(string)
 // @Success 204
 // @Router /users/{user}/keys/{keyid} [delete]
 func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {

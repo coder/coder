@@ -1,7 +1,7 @@
+import { MockWorkspaceResource } from "testHelpers/entities";
 import { renderHook } from "@testing-library/react";
 import type { WorkspaceResource } from "api/typesGenerated";
-import { RouterProvider, createMemoryRouter } from "react-router-dom";
-import { MockWorkspaceResource } from "testHelpers/entities";
+import { createMemoryRouter, RouterProvider } from "react-router";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 
 describe("useResourcesNav", () => {

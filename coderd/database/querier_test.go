@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -397,6 +398,7 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
 			OrganizationID: org.ID,
 			IDs:            []uuid.UUID{matchingDaemon0.ID, matchingDaemon1.ID},
+			Offline:        sql.NullBool{Bool: true, Valid: true},
 		})
 		require.NoError(t, err)
 		require.Len(t, daemons, 2)
@@ -430,6 +432,7 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
 			OrganizationID: org.ID,
 			Tags:           database.StringMap{"foo": "bar"},
+			Offline:        sql.NullBool{Bool: true, Valid: true},
 		})
 		require.NoError(t, err)
 		require.Len(t, daemons, 1)
@@ -463,6 +466,7 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
 			OrganizationID:  org.ID,
 			StaleIntervalMS: 45 * time.Minute.Milliseconds(),
+			Offline:         sql.NullBool{Bool: true, Valid: true},
 		})
 		require.NoError(t, err)
 		require.Len(t, daemons, 2)
@@ -474,6 +478,230 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 		require.Equal(t, daemon2.ID, daemons[1].ProvisionerDaemon.ID)
 		require.Equal(t, database.ProvisionerDaemonStatusOffline, daemons[0].Status)
 		require.Equal(t, database.ProvisionerDaemonStatusIdle, daemons[1].Status)
+	})
+
+	t.Run("ExcludeOffline", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "offline-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-time.Hour),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-time.Hour),
+			},
+		})
+		fooDaemon := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "foo-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-(30 * time.Minute)),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-(30 * time.Minute)),
+			},
+		})
+
+		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+			OrganizationID:  org.ID,
+			StaleIntervalMS: 45 * time.Minute.Milliseconds(),
+		})
+		require.NoError(t, err)
+		require.Len(t, daemons, 1)
+
+		require.Equal(t, fooDaemon.ID, daemons[0].ProvisionerDaemon.ID)
+		require.Equal(t, database.ProvisionerDaemonStatusIdle, daemons[0].Status)
+	})
+
+	t.Run("IncludeOffline", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "offline-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-time.Hour),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-time.Hour),
+			},
+		})
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "foo-daemon",
+			OrganizationID: org.ID,
+			Tags: database.StringMap{
+				"foo": "bar",
+			},
+		})
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "bar-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-(30 * time.Minute)),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-(30 * time.Minute)),
+			},
+		})
+
+		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+			OrganizationID:  org.ID,
+			StaleIntervalMS: 45 * time.Minute.Milliseconds(),
+			Offline:         sql.NullBool{Bool: true, Valid: true},
+		})
+		require.NoError(t, err)
+		require.Len(t, daemons, 3)
+
+		statusCounts := make(map[database.ProvisionerDaemonStatus]int)
+		for _, daemon := range daemons {
+			statusCounts[daemon.Status]++
+		}
+
+		require.Equal(t, 2, statusCounts[database.ProvisionerDaemonStatusIdle])
+		require.Equal(t, 1, statusCounts[database.ProvisionerDaemonStatusOffline])
+	})
+
+	t.Run("MatchesStatuses", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "offline-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-time.Hour),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-time.Hour),
+			},
+		})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "foo-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-(30 * time.Minute)),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-(30 * time.Minute)),
+			},
+		})
+
+		type testCase struct {
+			name        string
+			statuses    []database.ProvisionerDaemonStatus
+			expectedNum int
+		}
+
+		tests := []testCase{
+			{
+				name: "Get idle and offline",
+				statuses: []database.ProvisionerDaemonStatus{
+					database.ProvisionerDaemonStatusOffline,
+					database.ProvisionerDaemonStatusIdle,
+				},
+				expectedNum: 2,
+			},
+			{
+				name: "Get offline",
+				statuses: []database.ProvisionerDaemonStatus{
+					database.ProvisionerDaemonStatusOffline,
+				},
+				expectedNum: 1,
+			},
+			// Offline daemons should not be included without Offline param
+			{
+				name:        "Get idle - empty statuses",
+				statuses:    []database.ProvisionerDaemonStatus{},
+				expectedNum: 1,
+			},
+			{
+				name:        "Get idle - nil statuses",
+				statuses:    nil,
+				expectedNum: 1,
+			},
+		}
+
+		for _, tc := range tests {
+			//nolint:tparallel,paralleltest
+			t.Run(tc.name, func(t *testing.T) {
+				daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+					OrganizationID:  org.ID,
+					StaleIntervalMS: 45 * time.Minute.Milliseconds(),
+					Statuses:        tc.statuses,
+				})
+				require.NoError(t, err)
+				require.Len(t, daemons, tc.expectedNum)
+			})
+		}
+	})
+
+	t.Run("FilterByMaxAge", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "foo-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-(45 * time.Minute)),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-(45 * time.Minute)),
+			},
+		})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "bar-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-(25 * time.Minute)),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-(25 * time.Minute)),
+			},
+		})
+
+		type testCase struct {
+			name        string
+			maxAge      sql.NullInt64
+			expectedNum int
+		}
+
+		tests := []testCase{
+			{
+				name:        "Max age 1 hour",
+				maxAge:      sql.NullInt64{Int64: time.Hour.Milliseconds(), Valid: true},
+				expectedNum: 2,
+			},
+			{
+				name:        "Max age 30 minutes",
+				maxAge:      sql.NullInt64{Int64: (30 * time.Minute).Milliseconds(), Valid: true},
+				expectedNum: 1,
+			},
+			{
+				name:        "Max age 15 minutes",
+				maxAge:      sql.NullInt64{Int64: (15 * time.Minute).Milliseconds(), Valid: true},
+				expectedNum: 0,
+			},
+			{
+				name:        "No max age",
+				maxAge:      sql.NullInt64{Valid: false},
+				expectedNum: 2,
+			},
+		}
+		for _, tc := range tests {
+			//nolint:tparallel,paralleltest
+			t.Run(tc.name, func(t *testing.T) {
+				daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+					OrganizationID:  org.ID,
+					StaleIntervalMS: 60 * time.Minute.Milliseconds(),
+					MaxAgeMs:        tc.maxAge,
+				})
+				require.NoError(t, err)
+				require.Len(t, daemons, tc.expectedNum)
+			})
+		}
 	})
 }
 
@@ -1552,8 +1780,11 @@ func TestUpdateSystemUser(t *testing.T) {
 
 	// When: attempting to update a system user's name.
 	_, err = db.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
-		ID:   systemUser.ID,
-		Name: "not prebuilds",
+		ID:        systemUser.ID,
+		Email:     systemUser.Email,
+		Username:  systemUser.Username,
+		AvatarURL: systemUser.AvatarURL,
+		Name:      "not prebuilds",
 	})
 	// Then: the attempt is rejected by a postgres trigger.
 	// require.ErrorContains(t, err, "Cannot modify or delete system users")
@@ -6004,6 +6235,253 @@ func TestGetRunningPrebuiltWorkspaces(t *testing.T) {
 	require.Equal(t, runningPrebuild.ID, runningPrebuilds[0].ID, "expected the running prebuilt workspace to be returned")
 }
 
+func TestUserSecretsCRUDOperations(t *testing.T) {
+	t.Parallel()
+
+	// Use raw database without dbauthz wrapper for this test
+	db, _ := dbtestutil.NewDB(t)
+
+	t.Run("FullCRUDWorkflow", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Create a new user for this test
+		testUser := dbgen.User(t, db, database.User{})
+
+		// 1. CREATE
+		secretID := uuid.New()
+		createParams := database.CreateUserSecretParams{
+			ID:          secretID,
+			UserID:      testUser.ID,
+			Name:        "workflow-secret",
+			Description: "Secret for full CRUD workflow",
+			Value:       "workflow-value",
+			EnvName:     "WORKFLOW_ENV",
+			FilePath:    "/workflow/path",
+		}
+
+		createdSecret, err := db.CreateUserSecret(ctx, createParams)
+		require.NoError(t, err)
+		assert.Equal(t, secretID, createdSecret.ID)
+
+		// 2. READ by ID
+		readSecret, err := db.GetUserSecret(ctx, createdSecret.ID)
+		require.NoError(t, err)
+		assert.Equal(t, createdSecret.ID, readSecret.ID)
+		assert.Equal(t, "workflow-secret", readSecret.Name)
+
+		// 3. READ by UserID and Name
+		readByNameParams := database.GetUserSecretByUserIDAndNameParams{
+			UserID: testUser.ID,
+			Name:   "workflow-secret",
+		}
+		readByNameSecret, err := db.GetUserSecretByUserIDAndName(ctx, readByNameParams)
+		require.NoError(t, err)
+		assert.Equal(t, createdSecret.ID, readByNameSecret.ID)
+
+		// 4. LIST
+		secrets, err := db.ListUserSecrets(ctx, testUser.ID)
+		require.NoError(t, err)
+		require.Len(t, secrets, 1)
+		assert.Equal(t, createdSecret.ID, secrets[0].ID)
+
+		// 5. UPDATE
+		updateParams := database.UpdateUserSecretParams{
+			ID:          createdSecret.ID,
+			Description: "Updated workflow description",
+			Value:       "updated-workflow-value",
+			EnvName:     "UPDATED_WORKFLOW_ENV",
+			FilePath:    "/updated/workflow/path",
+		}
+
+		updatedSecret, err := db.UpdateUserSecret(ctx, updateParams)
+		require.NoError(t, err)
+		assert.Equal(t, "Updated workflow description", updatedSecret.Description)
+		assert.Equal(t, "updated-workflow-value", updatedSecret.Value)
+
+		// 6. DELETE
+		err = db.DeleteUserSecret(ctx, createdSecret.ID)
+		require.NoError(t, err)
+
+		// Verify deletion
+		_, err = db.GetUserSecret(ctx, createdSecret.ID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no rows in result set")
+
+		// Verify list is empty
+		secrets, err = db.ListUserSecrets(ctx, testUser.ID)
+		require.NoError(t, err)
+		assert.Len(t, secrets, 0)
+	})
+
+	t.Run("UniqueConstraints", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Create a new user for this test
+		testUser := dbgen.User(t, db, database.User{})
+
+		// Create first secret
+		secret1 := dbgen.UserSecret(t, db, database.UserSecret{
+			UserID:      testUser.ID,
+			Name:        "unique-test",
+			Description: "First secret",
+			Value:       "value1",
+			EnvName:     "UNIQUE_ENV",
+			FilePath:    "/unique/path",
+		})
+
+		// Try to create another secret with the same name (should fail)
+		_, err := db.CreateUserSecret(ctx, database.CreateUserSecretParams{
+			UserID:      testUser.ID,
+			Name:        "unique-test", // Same name
+			Description: "Second secret",
+			Value:       "value2",
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "duplicate key value")
+
+		// Try to create another secret with the same env_name (should fail)
+		_, err = db.CreateUserSecret(ctx, database.CreateUserSecretParams{
+			UserID:      testUser.ID,
+			Name:        "unique-test-2",
+			Description: "Second secret",
+			Value:       "value2",
+			EnvName:     "UNIQUE_ENV", // Same env_name
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "duplicate key value")
+
+		// Try to create another secret with the same file_path (should fail)
+		_, err = db.CreateUserSecret(ctx, database.CreateUserSecretParams{
+			UserID:      testUser.ID,
+			Name:        "unique-test-3",
+			Description: "Second secret",
+			Value:       "value2",
+			FilePath:    "/unique/path", // Same file_path
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "duplicate key value")
+
+		// Create secret with empty env_name and file_path (should succeed)
+		secret2 := dbgen.UserSecret(t, db, database.UserSecret{
+			UserID:      testUser.ID,
+			Name:        "unique-test-4",
+			Description: "Second secret",
+			Value:       "value2",
+			EnvName:     "", // Empty env_name
+			FilePath:    "", // Empty file_path
+		})
+
+		// Verify both secrets exist
+		_, err = db.GetUserSecret(ctx, secret1.ID)
+		require.NoError(t, err)
+		_, err = db.GetUserSecret(ctx, secret2.ID)
+		require.NoError(t, err)
+	})
+}
+
+func TestUserSecretsAuthorization(t *testing.T) {
+	t.Parallel()
+
+	// Use raw database and wrap with dbauthz for authorization testing
+	db, _ := dbtestutil.NewDB(t)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+	authDB := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+
+	// Create test users
+	user1 := dbgen.User(t, db, database.User{})
+	user2 := dbgen.User(t, db, database.User{})
+	owner := dbgen.User(t, db, database.User{})
+	orgAdmin := dbgen.User(t, db, database.User{})
+
+	// Create organization for org-scoped roles
+	org := dbgen.Organization(t, db, database.Organization{})
+
+	// Create secrets for users
+	user1Secret := dbgen.UserSecret(t, db, database.UserSecret{
+		UserID:      user1.ID,
+		Name:        "user1-secret",
+		Description: "User 1's secret",
+		Value:       "user1-value",
+	})
+
+	user2Secret := dbgen.UserSecret(t, db, database.UserSecret{
+		UserID:      user2.ID,
+		Name:        "user2-secret",
+		Description: "User 2's secret",
+		Value:       "user2-value",
+	})
+
+	testCases := []struct {
+		name           string
+		subject        rbac.Subject
+		secretID       uuid.UUID
+		expectedAccess bool
+	}{
+		{
+			name: "UserCanAccessOwnSecrets",
+			subject: rbac.Subject{
+				ID:    user1.ID.String(),
+				Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
+				Scope: rbac.ScopeAll,
+			},
+			secretID:       user1Secret.ID,
+			expectedAccess: true,
+		},
+		{
+			name: "UserCannotAccessOtherUserSecrets",
+			subject: rbac.Subject{
+				ID:    user1.ID.String(),
+				Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
+				Scope: rbac.ScopeAll,
+			},
+			secretID:       user2Secret.ID,
+			expectedAccess: false,
+		},
+		{
+			name: "OwnerCannotAccessUserSecrets",
+			subject: rbac.Subject{
+				ID:    owner.ID.String(),
+				Roles: rbac.RoleIdentifiers{rbac.RoleOwner()},
+				Scope: rbac.ScopeAll,
+			},
+			secretID:       user1Secret.ID,
+			expectedAccess: false,
+		},
+		{
+			name: "OrgAdminCannotAccessUserSecrets",
+			subject: rbac.Subject{
+				ID:    orgAdmin.ID.String(),
+				Roles: rbac.RoleIdentifiers{rbac.ScopedRoleOrgAdmin(org.ID)},
+				Scope: rbac.ScopeAll,
+			},
+			secretID:       user1Secret.ID,
+			expectedAccess: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc // capture range variable
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+
+			authCtx := dbauthz.As(ctx, tc.subject)
+
+			// Test GetUserSecret
+			_, err := authDB.GetUserSecret(authCtx, tc.secretID)
+
+			if tc.expectedAccess {
+				require.NoError(t, err, "expected access to be granted")
+			} else {
+				require.Error(t, err, "expected access to be denied")
+				assert.True(t, dbauthz.IsNotAuthorizedError(err), "expected authorization error")
+			}
+		})
+	}
+}
+
 func TestWorkspaceBuildDeadlineConstraint(t *testing.T) {
 	t.Parallel()
 
@@ -6101,4 +6579,204 @@ func TestWorkspaceBuildDeadlineConstraint(t *testing.T) {
 			require.True(t, database.IsCheckViolation(err, database.CheckWorkspaceBuildsDeadlineBelowMaxDeadline))
 		}
 	}
+}
+
+// TestGetLatestWorkspaceBuildsByWorkspaceIDs populates the database with
+// workspaces and builds. It then tests that
+// GetLatestWorkspaceBuildsByWorkspaceIDs returns the latest build for some
+// subset of the workspaces.
+func TestGetLatestWorkspaceBuildsByWorkspaceIDs(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	admin := dbgen.User(t, db, database.User{})
+
+	tv := dbfake.TemplateVersion(t, db).
+		Seed(database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      admin.ID,
+		}).
+		Do()
+
+	users := make([]database.User, 5)
+	wrks := make([][]database.WorkspaceTable, len(users))
+	exp := make(map[uuid.UUID]database.WorkspaceBuild)
+	for i := range users {
+		users[i] = dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         users[i].ID,
+			OrganizationID: org.ID,
+		})
+
+		// Each user gets 2 workspaces.
+		wrks[i] = make([]database.WorkspaceTable, 2)
+		for wi := range wrks[i] {
+			wrks[i][wi] = dbgen.Workspace(t, db, database.WorkspaceTable{
+				TemplateID: tv.Template.ID,
+				OwnerID:    users[i].ID,
+			})
+
+			// Choose a deterministic number of builds per workspace
+			// No more than 5 builds though, that would be excessive.
+			for j := int32(1); int(j) <= (i+wi)%5; j++ {
+				wb := dbfake.WorkspaceBuild(t, db, wrks[i][wi]).
+					Seed(database.WorkspaceBuild{
+						WorkspaceID: wrks[i][wi].ID,
+						BuildNumber: j + 1,
+					}).
+					Do()
+
+				exp[wrks[i][wi].ID] = wb.Build // Save the final workspace build
+			}
+		}
+	}
+
+	// Only take half the users. And only take 1 workspace per user for the test.
+	// The others are just noice. This just queries a subset of workspaces and builds
+	// to make sure the noise doesn't interfere with the results.
+	assertWrks := wrks[:len(users)/2]
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ids := slice.Convert[[]database.WorkspaceTable, uuid.UUID](assertWrks, func(pair []database.WorkspaceTable) uuid.UUID {
+		return pair[0].ID
+	})
+
+	require.Greater(t, len(ids), 0, "expected some workspace ids for test")
+	builds, err := db.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, ids)
+	require.NoError(t, err)
+	for _, b := range builds {
+		expB, ok := exp[b.WorkspaceID]
+		require.Truef(t, ok, "unexpected workspace build for workspace id %s", b.WorkspaceID)
+		require.Equalf(t, expB.ID, b.ID, "unexpected workspace build id for workspace id %s", b.WorkspaceID)
+		require.Equal(t, expB.BuildNumber, b.BuildNumber, "unexpected build number")
+	}
+}
+
+func TestUsageEventsTrigger(t *testing.T) {
+	t.Parallel()
+
+	// This is not exposed in the querier interface intentionally.
+	getDailyRows := func(ctx context.Context, sqlDB *sql.DB) []database.UsageEventsDaily {
+		t.Helper()
+		rows, err := sqlDB.QueryContext(ctx, "SELECT day, event_type, usage_data FROM usage_events_daily ORDER BY day ASC")
+		require.NoError(t, err, "perform query")
+		defer rows.Close()
+
+		var out []database.UsageEventsDaily
+		for rows.Next() {
+			var row database.UsageEventsDaily
+			err := rows.Scan(&row.Day, &row.EventType, &row.UsageData)
+			require.NoError(t, err, "scan row")
+			out = append(out, row)
+		}
+		return out
+	}
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+		// Assert there are no daily rows.
+		rows := getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 0)
+
+		// Insert a usage event.
+		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "1",
+			EventType: "dc_managed_agents_v1",
+			EventData: []byte(`{"count": 41}`),
+			CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		})
+		require.NoError(t, err)
+
+		// Assert there is one daily row that contains the correct data.
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 1)
+		require.Equal(t, "dc_managed_agents_v1", rows[0].EventType)
+		require.JSONEq(t, `{"count": 41}`, string(rows[0].UsageData))
+		// The read row might be `+0000` rather than `UTC` specifically, so just
+		// ensure it's within 1 second of the expected time.
+		require.WithinDuration(t, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), rows[0].Day, time.Second)
+
+		// Insert a new usage event on the same UTC day, should increment the count.
+		locSydney, err := time.LoadLocation("Australia/Sydney")
+		require.NoError(t, err)
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "2",
+			EventType: "dc_managed_agents_v1",
+			EventData: []byte(`{"count": 1}`),
+			// Insert it at a random point during the same day. Sydney is +1000 or
+			// +1100, so 8am in Sydney is the previous day in UTC.
+			CreatedAt: time.Date(2025, 1, 2, 8, 38, 57, 0, locSydney),
+		})
+		require.NoError(t, err)
+
+		// There should still be only one daily row with the incremented count.
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 1)
+		require.Equal(t, "dc_managed_agents_v1", rows[0].EventType)
+		require.JSONEq(t, `{"count": 42}`, string(rows[0].UsageData))
+		require.WithinDuration(t, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), rows[0].Day, time.Second)
+
+		// TODO: when we have a new event type, we should test that adding an
+		// event with a different event type on the same day creates a new daily
+		// row.
+
+		// Insert a new usage event on a different day, should create a new daily
+		// row.
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "3",
+			EventType: "dc_managed_agents_v1",
+			EventData: []byte(`{"count": 1}`),
+			CreatedAt: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC),
+		})
+		require.NoError(t, err)
+
+		// There should now be two daily rows.
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 2)
+		// Output is sorted by day ascending, so the first row should be the
+		// previous day's row.
+		require.Equal(t, "dc_managed_agents_v1", rows[0].EventType)
+		require.JSONEq(t, `{"count": 42}`, string(rows[0].UsageData))
+		require.WithinDuration(t, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), rows[0].Day, time.Second)
+		require.Equal(t, "dc_managed_agents_v1", rows[1].EventType)
+		require.JSONEq(t, `{"count": 1}`, string(rows[1].UsageData))
+		require.WithinDuration(t, time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC), rows[1].Day, time.Second)
+	})
+
+	t.Run("UnknownEventType", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+		// Relax the usage_events.event_type check constraint to see what
+		// happens when we insert a usage event that the trigger doesn't know
+		// about.
+		_, err := sqlDB.ExecContext(ctx, "ALTER TABLE usage_events DROP CONSTRAINT usage_event_type_check")
+		require.NoError(t, err)
+
+		// Insert a usage event with an unknown event type.
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "broken",
+			EventType: "dean's cool event",
+			EventData: []byte(`{"my": "cool json"}`),
+			CreatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		})
+		require.ErrorContains(t, err, "Unhandled usage event type in aggregate_usage_event")
+
+		// The event should've been blocked.
+		var count int
+		err = sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM usage_events WHERE id = 'broken'").Scan(&count)
+		require.NoError(t, err)
+		require.Equal(t, 0, count)
+
+		// We should not have any daily rows.
+		rows := getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 0)
+	})
 }

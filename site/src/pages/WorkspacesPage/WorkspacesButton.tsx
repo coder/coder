@@ -2,24 +2,23 @@ import Link from "@mui/material/Link";
 import type { Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
-import { Loader } from "components/Loader/Loader";
-import { MenuSearch } from "components/Menu/MenuSearch";
-import { OverflowY } from "components/OverflowY/OverflowY";
-import { SearchEmpty, searchStyles } from "components/Search/Search";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
-import { ExternalLinkIcon } from "lucide-react";
-import { ChevronDownIcon } from "lucide-react";
+import { Loader } from "components/Loader/Loader";
+import { MenuSearch } from "components/Menu/MenuSearch";
+import { OverflowY } from "components/OverflowY/OverflowY";
+import { SearchEmpty, searchStyles } from "components/Search/Search";
+import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, type ReactNode, useState } from "react";
 import type { UseQueryResult } from "react-query";
 import {
 	Link as RouterLink,
 	type LinkProps as RouterLinkProps,
-} from "react-router-dom";
+} from "react-router";
 
 type TemplatesQuery = UseQueryResult<Template[]>;
 
@@ -39,7 +38,7 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 	const [searchTerm, setSearchTerm] = useState("");
 	const processed = sortTemplatesByUsersDesc(templates ?? [], searchTerm);
 
-	let emptyState: ReactNode = undefined;
+	let emptyState: ReactNode;
 	if (templates?.length === 0) {
 		emptyState = (
 			<SearchEmpty>

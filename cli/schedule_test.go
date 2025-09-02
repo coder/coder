@@ -353,7 +353,7 @@ func TestScheduleOverride(t *testing.T) {
 			ownerClient, _, _, ws := setupTestSchedule(t, sched)
 			now := time.Now()
 			// To avoid the likelihood of time-related flakes, only matching up to the hour.
-			expectedDeadline := time.Now().In(loc).Add(10 * time.Hour).Format("2006-01-02T15:")
+			expectedDeadline := now.In(loc).Add(10 * time.Hour).Format("2006-01-02T15:")
 
 			// When: we override the stop schedule
 			inv, root := clitest.New(t,

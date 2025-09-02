@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { MockWorkspace } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { DebugButton } from "./DebugButton";
 
 const meta: Meta<typeof DebugButton> = {

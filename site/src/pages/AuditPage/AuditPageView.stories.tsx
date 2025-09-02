@@ -1,14 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import {
-	MockMenu,
-	getDefaultFilterProps,
-} from "components/Filter/storyHelpers";
-import {
-	mockInitialRenderResult,
-	mockSuccessResult,
-} from "components/PaginationWidget/PaginationContainer.mocks";
-import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
-import type { ComponentProps } from "react";
 import { chromaticWithTablet } from "testHelpers/chromatic";
 import {
 	MockAuditLog,
@@ -16,6 +5,17 @@ import {
 	MockAuditLog3,
 	MockUserOwner,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import {
+	getDefaultFilterProps,
+	MockMenu,
+} from "components/Filter/storyHelpers";
+import {
+	mockInitialRenderResult,
+	mockSuccessResult,
+} from "components/PaginationWidget/PaginationContainer.mocks";
+import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
+import type { ComponentProps } from "react";
 import { AuditPageView } from "./AuditPageView";
 
 type FilterProps = ComponentProps<typeof AuditPageView>["filterProps"];

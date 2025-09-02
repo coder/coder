@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/quartz"
 )
 
@@ -38,7 +39,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 
 	// Start the ticker with the initial delay.
 	ticker := clk.NewTicker(delay)
-	doTick := func(start time.Time) {
+	doTick := func(ctx context.Context, start time.Time) {
 		defer ticker.Reset(delay)
 		// Start a transaction to grab advisory lock, we don't want to run
 		// multiple purges at the same time (multiple replicas).
@@ -67,6 +68,9 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 			if err := tx.DeleteOldNotificationMessages(ctx); err != nil {
 				return xerrors.Errorf("failed to delete old notification messages: %w", err)
 			}
+			if err := tx.ExpirePrebuildsAPIKeys(ctx, dbtime.Time(start)); err != nil {
+				return xerrors.Errorf("failed to expire prebuilds user api keys: %w", err)
+			}
 
 			deleteOldAuditLogConnectionEventsBefore := start.Add(-maxAuditLogConnectionEventAge)
 			if err := tx.DeleteOldAuditLogConnectionEvents(ctx, database.DeleteOldAuditLogConnectionEventsParams{
@@ -85,21 +89,21 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 		}
 	}
 
-	go func() {
+	pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceDBPurge), func(ctx context.Context) {
 		defer close(closed)
 		defer ticker.Stop()
 		// Force an initial tick.
-		doTick(dbtime.Time(clk.Now()).UTC())
+		doTick(ctx, dbtime.Time(clk.Now()).UTC())
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case tick := <-ticker.C:
 				ticker.Stop()
-				doTick(dbtime.Time(tick).UTC())
+				doTick(ctx, dbtime.Time(tick).UTC())
 			}
 		}
-	}()
+	})
 	return &instance{
 		cancel: cancelFunc,
 		closed: closed,

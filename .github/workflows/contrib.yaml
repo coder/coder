@@ -3,6 +3,7 @@ name: contrib
 on:
   issue_comment:
     types: [created, edited]
+  # zizmor: ignore[dangerous-triggers] We explicitly want to run on pull_request_target.
   pull_request_target:
     types:
       - opened

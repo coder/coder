@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { MockTemplate } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { SelectedTemplate } from "./SelectedTemplate";
 
 const meta: Meta<typeof SelectedTemplate> = {

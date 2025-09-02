@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { Button } from "components/Button/Button";
 import { mockApiError } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Button } from "components/Button/Button";
 import { ErrorAlert } from "./ErrorAlert";
 
 const mockError = mockApiError({

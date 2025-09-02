@@ -23,15 +23,22 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { TriangleAlertIcon } from "lucide-react";
-import { ChevronLeftIcon } from "lucide-react";
-import { ExternalLinkIcon, PlayIcon, PlusIcon, XIcon } from "lucide-react";
+import {
+	ChevronLeftIcon,
+	ExternalLinkIcon,
+	PlayIcon,
+	PlusIcon,
+	TriangleAlertIcon,
+	XIcon,
+} from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
-import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
-import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
+import {
+	AlertVariant,
+	ProvisionerAlert,
+} from "modules/provisioners/ProvisionerAlert";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
-import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
 import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
+import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
 import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import type { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
@@ -39,12 +46,12 @@ import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import {
 	Link as RouterLink,
 	unstable_usePrompt as usePrompt,
-} from "react-router-dom";
+} from "react-router";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import {
-	type FileTree,
 	createFile,
 	existsFile,
+	type FileTree,
 	getFileText,
 	isFolder,
 	moveFile,

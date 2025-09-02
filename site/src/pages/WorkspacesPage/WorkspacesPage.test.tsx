@@ -1,8 +1,3 @@
-import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
-import type { Workspace } from "api/typesGenerated";
-import { http, HttpResponse } from "msw";
 import {
 	MockDormantOutdatedWorkspace,
 	MockDormantWorkspace,
@@ -17,6 +12,11 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { API } from "api/api";
+import type { Workspace, WorkspacesResponse } from "api/typesGenerated";
+import { HttpResponse, http } from "msw";
 import * as CreateDayString from "utils/createDayString";
 import WorkspacesPage from "./WorkspacesPage";
 
@@ -28,18 +28,17 @@ describe("WorkspacesPage", () => {
 	});
 
 	it("renders an empty workspaces page", async () => {
-		// Given
 		server.use(
 			http.get("/api/v2/workspaces", async () => {
-				return HttpResponse.json({ workspaces: [], count: 0 });
+				return HttpResponse.json<WorkspacesResponse>({
+					workspaces: [],
+					count: 0,
+				});
 			}),
 		);
 
-		// When
 		renderWithAuth(<WorkspacesPage />);
-
-		// Then
-		await screen.findByText("Create a workspace");
+		await screen.findByRole("heading", { name: /Create a workspace/ });
 	});
 
 	it("renders a filled workspaces page", async () => {
@@ -305,6 +304,67 @@ describe("WorkspacesPage", () => {
 			workspaces[1].id,
 			MockStoppedWorkspace.latest_build.template_version_id,
 		);
+	});
+
+	it("correctly handles pagination by including pagination parameters in query key", async () => {
+		const totalWorkspaces = 50;
+		const workspacesPage1 = Array.from({ length: 25 }, (_, i) => ({
+			...MockWorkspace,
+			id: `page1-workspace-${i}`,
+			name: `page1-workspace-${i}`,
+		}));
+		const workspacesPage2 = Array.from({ length: 25 }, (_, i) => ({
+			...MockWorkspace,
+			id: `page2-workspace-${i}`,
+			name: `page2-workspace-${i}`,
+		}));
+
+		const getWorkspacesSpy = jest.spyOn(API, "getWorkspaces");
+
+		getWorkspacesSpy.mockImplementation(({ offset }) => {
+			switch (offset) {
+				case 0:
+					return Promise.resolve({
+						workspaces: workspacesPage1,
+						count: totalWorkspaces,
+					});
+				case 25:
+					return Promise.resolve({
+						workspaces: workspacesPage2,
+						count: totalWorkspaces,
+					});
+				default:
+					return Promise.reject(new Error("Unexpected offset"));
+			}
+		});
+
+		const user = userEvent.setup();
+		renderWithAuth(<WorkspacesPage />);
+
+		await waitFor(() => {
+			expect(screen.getByText("page1-workspace-0")).toBeInTheDocument();
+		});
+
+		expect(getWorkspacesSpy).toHaveBeenLastCalledWith({
+			q: "owner:me",
+			offset: 0,
+			limit: 25,
+		});
+
+		const nextPageButton = screen.getByRole("button", { name: /next page/i });
+		await user.click(nextPageButton);
+
+		await waitFor(() => {
+			expect(screen.getByText("page2-workspace-0")).toBeInTheDocument();
+		});
+
+		expect(getWorkspacesSpy).toHaveBeenLastCalledWith({
+			q: "owner:me",
+			offset: 25,
+			limit: 25,
+		});
+
+		expect(screen.queryByText("page1-workspace-0")).not.toBeInTheDocument();
 	});
 });
 
