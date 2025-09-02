@@ -253,7 +253,6 @@ func TestTasks(t *testing.T) {
 				{Name: codersdk.AITaskPromptParameterName, Value: wantPrompt},
 			}
 		})
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		// Fetch the task by ID via experimental API and verify fields.
 		exp := codersdk.NewExperimentalClient(client)
