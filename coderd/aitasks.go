@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/taskname"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -458,13 +459,9 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		hasAITask := false
-		for _, parameter := range parameters {
-			if parameter.Name == codersdk.AITaskPromptParameterName {
-				hasAITask = true
-				break
-			}
-		}
+		_, hasAITask := slice.Find(parameters, func(t database.WorkspaceBuildParameter) bool {
+			return t.Name == codersdk.AITaskPromptParameterName
+		})
 
 		if !hasAITask {
 			httpapi.ResourceNotFound(rw)
