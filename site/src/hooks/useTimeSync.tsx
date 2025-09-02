@@ -259,6 +259,10 @@ class ReactTimeSync {
 		return this.#timeSync.getStateSnapshot();
 	}
 
+	getTimeSync(): TimeSync {
+		return this.#timeSync;
+	}
+
 	onUnmount(): void {
 		if (!this.#mounted) {
 			return;
@@ -305,6 +309,18 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 		</reactTimeSyncContext.Provider>
 	);
 };
+
+/**
+ * Provides access to the TimeSync instance currently being dependency-injected
+ * throughout the application.
+ *
+ * This hook is a core part of the design for TimeSync, but because no
+ * components need it yet, it's defined with an _ to make Knip happy.
+ */
+function _useTimeSync(): TimeSync {
+	const reactTs = useReactTimeSync();
+	return reactTs.getTimeSync();
+}
 
 // Even though this is a really simple function, keeping it defined outside the
 // hook helps a lot with making sure useSyncExternalStore doesn't re-sync too
