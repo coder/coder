@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -303,14 +304,32 @@ func TestSessionExpiry(t *testing.T) {
 
 func TestAPIKey_OK(t *testing.T) {
 	t.Parallel()
+
+	// Given: a deployment with auditing enabled
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-	_ = coderdtest.CreateFirstUser(t, client)
+	auditor := audit.NewMock()
+	client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+	owner := coderdtest.CreateFirstUser(t, client)
+	auditor.ResetLogs()
 
+	// When: an API key is created
 	res, err := client.CreateAPIKey(ctx, codersdk.Me)
 	require.NoError(t, err)
 	require.Greater(t, len(res.Key), 2)
+
+	// Then: an audit log is generated
+	als := auditor.AuditLogs()
+	require.Len(t, als, 1)
+	al := als[0]
+	assert.Equal(t, owner.UserID, al.UserID)
+	assert.Equal(t, database.AuditActionCreate, al.Action)
+	assert.Equal(t, database.ResourceTypeApiKey, al.ResourceType)
+
+	// Then: the diff MUST NOT contain the generated key.
+	raw, err := json.Marshal(al)
+	require.NoError(t, err)
+	require.NotContains(t, res.Key, string(raw))
 }
 
 func TestAPIKey_Deleted(t *testing.T) {
