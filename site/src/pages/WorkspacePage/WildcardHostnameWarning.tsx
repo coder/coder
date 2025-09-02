@@ -3,7 +3,6 @@ import type { WorkspaceAgent } from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { Link } from "components/Link/Link";
 import { useProxy } from "contexts/ProxyContext";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
@@ -15,7 +14,6 @@ export const WildcardHostnameWarning: FC<WildcardHostnameWarningProps> = ({
 	agent,
 }) => {
 	const { proxy } = useProxy();
-	const { entitlements } = useDashboard();
 
 	if (proxy.proxy?.wildcard_hostname) {
 		return null;
@@ -26,16 +24,16 @@ export const WildcardHostnameWarning: FC<WildcardHostnameWarningProps> = ({
 		return null;
 	}
 
-	const isLicensed = entitlements.has_license;
-	const message = isLicensed
-		? "This workspace has applications that require subdomain access, but your current region doesn't support subdomain applications. You can't access development servers, web IDEs, and preview URLs. Contact your administrator to configure wildcard access URL."
-		: "This workspace has applications that require subdomain access, but subdomain applications are not configured. You can't access development servers, web IDEs, and preview URLs. Contact your administrator to configure wildcard access URL.";
-
 	return (
 		<Alert severity="warning">
 			<AlertTitle>Some workspace applications will not work</AlertTitle>
 			<AlertDetail>
-				<div>{message}</div>
+				<div>
+					This workspace has applications that require subdomain access, but
+					subdomain applications are not configured. You can't access
+					development servers, web IDEs, and preview URLs. Contact your
+					administrator to configure wildcard access URL.
+				</div>
 				<div className="mt-2">
 					<Link href={docs("/admin/setup#wildcard-access-url")} target="_blank">
 						Learn more about wildcard access URL
