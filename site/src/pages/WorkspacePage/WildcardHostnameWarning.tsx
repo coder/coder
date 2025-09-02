@@ -2,6 +2,7 @@ import AlertTitle from "@mui/material/AlertTitle";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { Link } from "components/Link/Link";
+import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { useProxy } from "contexts/ProxyContext";
 import type { FC } from "react";
 import { docs } from "utils/docs";
@@ -29,9 +30,10 @@ export const WildcardHostnameWarning: FC<WildcardHostnameWarningProps> = ({
 			<AlertTitle>Some workspace applications will not work</AlertTitle>
 			<AlertDetail>
 				<div>
-					One or more apps in this workspace have subdomain = true, which
-					requires a Coder deployment with a Wildcard Access URL configured.
-					Please contact your administrator.
+					One or more apps in this workspace have{" "}
+					<MemoizedInlineMarkdown>`subdomain = true`</MemoizedInlineMarkdown>,
+					which requires a Coder deployment with a Wildcard Access URL
+					configured. Please contact your administrator.
 				</div>
 				<div className="mt-2">
 					<Link href={docs("/admin/setup#wildcard-access-url")} target="_blank">
