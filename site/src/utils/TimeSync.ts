@@ -242,6 +242,34 @@ export class TimeSync implements TimeSyncApi {
 		return prevFastest !== newFastest;
 	}
 
+	#onFastestIntervalChange(): void {
+		const fastest = this.#fastestRefreshInterval;
+		if (fastest === Number.POSITIVE_INFINITY) {
+			window.clearInterval(this.#latestIntervalId);
+			this.#latestIntervalId = undefined;
+		}
+
+		const elapsed = Date.now() - this.#latestDateSnapshot.getMilliseconds();
+		const delta = fastest - elapsed;
+
+		// If we're behind on updates, we need to sync immediately before
+		// setting up the new interval. With how TimeSync is designed, this case
+		// should only be triggered in response to adding a subscription, never
+		// from removing one
+		if (delta <= 0) {
+			window.clearInterval(this.#latestIntervalId);
+			this.#flushUpdate();
+			this.#latestIntervalId = window.setInterval(this.#flushUpdate, fastest);
+			return;
+		}
+
+		window.clearInterval(this.#latestIntervalId);
+		this.#latestIntervalId = window.setInterval(() => {
+			window.clearInterval(this.#latestIntervalId);
+			this.#latestIntervalId = window.setInterval(this.#flushUpdate, fastest);
+		}, delta);
+	}
+
 	/**
 	 * Attempts to update the current Date snapshot, no questions asked.
 	 * @returns {boolean} Indicates whether the state actually changed.
@@ -277,34 +305,6 @@ export class TimeSync implements TimeSyncApi {
 			this.#notifyAllSubscriptions();
 		}
 	};
-
-	#onFastestIntervalChange(): void {
-		const fastest = this.#fastestRefreshInterval;
-		if (fastest === Number.POSITIVE_INFINITY) {
-			window.clearInterval(this.#latestIntervalId);
-			this.#latestIntervalId = undefined;
-		}
-
-		const elapsed = Date.now() - this.#latestDateSnapshot.getMilliseconds();
-		const delta = fastest - elapsed;
-
-		// If we're behind on updates, we need to sync immediately before
-		// setting up the new interval. With how TimeSync is designed, this case
-		// should only be triggered in response to adding a subscription, never
-		// from removing one
-		if (delta <= 0) {
-			window.clearInterval(this.#latestIntervalId);
-			this.#flushUpdate();
-			this.#latestIntervalId = window.setInterval(this.#flushUpdate, fastest);
-			return;
-		}
-
-		window.clearInterval(this.#latestIntervalId);
-		this.#latestIntervalId = window.setInterval(() => {
-			window.clearInterval(this.#latestIntervalId);
-			this.#latestIntervalId = window.setInterval(this.#flushUpdate, fastest);
-		}, delta);
-	}
 
 	#removeSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): void {
 		const entries = this.#subscriptions.get(onUpdate);
@@ -435,6 +435,7 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		this.#disposed = true;
+		window.clearInterval(this.#latestIntervalId);
 		for (const entries of this.#subscriptions.values()) {
 			for (const e of entries) {
 				e.unsubscribe();
