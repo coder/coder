@@ -440,8 +440,36 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if data.builds[0].HasAITask == nil || !*data.builds[0].HasAITask {
-		httpapi.ResourceNotFound(rw)
-		return
+		// TODO(DanielleMaywood):
+		// This is a temporary workaround. When a task has just been created, but
+		// not yet provisioned, the workspace build will not have `HasAITask` set.
+		//
+		// When we reach this code flow, it is _either_ because the workspace is
+		// not a task, or it is a task that has not yet been provisioned. This
+		// endpoint should rarely be called with a non-task workspace so we
+		// should be fine with this extra database call to check if it has the
+		// special "AI Task" parameter.
+		parameters, err := api.Database.GetWorkspaceBuildParameters(ctx, data.builds[0].ID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching workspace build parameters.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		hasAITask := false
+		for _, parameter := range parameters {
+			if parameter.Name == codersdk.AITaskPromptParameterName {
+				hasAITask = true
+				break
+			}
+		}
+
+		if !hasAITask {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 	}
 
 	appStatus := codersdk.WorkspaceAppStatus{}
