@@ -18,6 +18,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -1296,6 +1297,10 @@ func (s *MethodTestSuite) TestUser() {
 		key := testutil.Fake(s.T(), faker, database.APIKey{})
 		dbm.EXPECT().DeleteAPIKeysByUserID(gomock.Any(), key.UserID).Return(nil).AnyTimes()
 		check.Args(key.UserID).Asserts(rbac.ResourceApiKey.WithOwner(key.UserID.String()), policy.ActionDelete).Returns()
+	}))
+	s.Run("ExpirePrebuildsAPIKeys", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Times(1).Return(nil)
+		check.Args(dbtime.Now()).Asserts(rbac.ResourceApiKey, policy.ActionDelete).Returns()
 	}))
 	s.Run("GetQuotaAllowanceForUser", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
@@ -4286,4 +4291,20 @@ func (s *MethodTestSuite) TestUsageEvents() {
 			EndDate:   time.Time{},
 		}).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
 	}))
+}
+
+// Ensures that the prebuilds actor may never insert an api key.
+func TestInsertAPIKey_AsPrebuildsUser(t *testing.T) {
+	t.Parallel()
+	prebuildsSubj := rbac.Subject{
+		ID: database.PrebuildsSystemUserID.String(),
+	}
+	ctx := dbauthz.As(testutil.Context(t, testutil.WaitShort), prebuildsSubj)
+	mDB := dbmock.NewMockStore(gomock.NewController(t))
+	log := slogtest.Make(t, nil)
+	mDB.EXPECT().Wrappers().Times(1).Return([]string{})
+	dbz := dbauthz.New(mDB, nil, log, nil)
+	faker := gofakeit.New(0)
+	_, err := dbz.InsertAPIKey(ctx, testutil.Fake(t, faker, database.InsertAPIKeyParams{}))
+	require.True(t, dbauthz.IsNotAuthorizedError(err))
 }

@@ -3999,6 +3999,70 @@ func TestNotifications(t *testing.T) {
 	})
 }
 
+func TestServer_ExpirePrebuildsSessionToken(t *testing.T) {
+	t.Parallel()
+
+	// Given: a prebuilt workspace where an API key was previously created for the prebuilds user.
+	var (
+		ctx             = testutil.Context(t, testutil.WaitShort)
+		srv, db, ps, pd = setup(t, false, nil)
+		user            = dbgen.User(t, db, database.User{})
+		template        = dbgen.Template(t, db, database.Template{
+			OrganizationID: pd.OrganizationID,
+			CreatedBy:      user.ID,
+		})
+		version = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+			OrganizationID: pd.OrganizationID,
+			CreatedBy:      user.ID,
+		})
+		workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID: pd.OrganizationID,
+			TemplateID:     template.ID,
+			OwnerID:        database.PrebuildsSystemUserID,
+		})
+		workspaceBuildID = uuid.New()
+		buildJob         = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+			OrganizationID: pd.OrganizationID,
+			FileID:         dbgen.File(t, db, database.File{CreatedBy: user.ID}).ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+				WorkspaceBuildID: workspaceBuildID,
+			})),
+			InitiatorID: database.PrebuildsSystemUserID,
+			Tags:        pd.Tags,
+		})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			ID:                workspaceBuildID,
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: version.ID,
+			JobID:             buildJob.ID,
+			Transition:        database.WorkspaceTransitionStart,
+			InitiatorID:       database.PrebuildsSystemUserID,
+		})
+		existingKey, _ = dbgen.APIKey(t, db, database.APIKey{
+			UserID:    database.PrebuildsSystemUserID,
+			TokenName: provisionerdserver.WorkspaceSessionTokenName(database.PrebuildsSystemUserID, workspace.ID),
+		})
+	)
+
+	// When: the prebuild claim job is acquired
+	fs := newFakeStream(ctx)
+	err := srv.AcquireJobWithCancel(fs)
+	require.NoError(t, err)
+	job, err := fs.waitForJob()
+	require.NoError(t, err)
+	require.NotNil(t, job)
+	workspaceBuildJob := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild
+	require.NotNil(t, workspaceBuildJob.Metadata)
+
+	// Assert test invariant: we acquired the expected build job
+	require.Equal(t, workspaceBuildID.String(), workspaceBuildJob.WorkspaceBuildId)
+	// Then: The session token should be deleted
+	_, err = db.GetAPIKeyByID(ctx, existingKey.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "api key for prebuilds user should be deleted")
+}
+
 type overrides struct {
 	ctx                         context.Context
 	deploymentValues            *codersdk.DeploymentValues
