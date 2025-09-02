@@ -23,9 +23,28 @@ export const REFRESH_ONE_SECOND: number = 1_000;
 export const REFRESH_ONE_MINUTE = 60 * 1_000;
 export const REFRESH_ONE_HOUR = 60 * 60 * 1_000;
 
+/**
+ * @todo 2025-08-29 - This isn't 100% correct, but for the initial
+ * implementation, we're going to assume that no one is going to be monkey-
+ * patching custom symbol keys or non-enumerable keys onto built-in types (even
+ * though this sort of already happens in the standard library)
+ */
 function structuralMerge<T = unknown>(oldValue: T, newValue: T): T {
 	if (oldValue === newValue) {
 		return oldValue;
+	}
+
+	// Making this the first major comparison, because realistically, a lot of
+	// values are likely to be dates, since that's what you get when a custom
+	// transformation isn't specified
+	if (newValue instanceof Date) {
+		if (!(oldValue instanceof Date)) {
+			return newValue;
+		}
+		if (newValue.getMilliseconds() === oldValue.getMilliseconds()) {
+			return oldValue;
+		}
+		return newValue;
 	}
 
 	const newType = typeof newValue;
@@ -55,22 +74,6 @@ function structuralMerge<T = unknown>(oldValue: T, newValue: T): T {
 		return newValue;
 	}
 
-	/**
-	 * @todo 2025-08-29 - This isn't 100% correct, but for the initial
-	 * implementation, we're going to assume that no one is going to be monkey-
-	 * patching custom symbol keys or non-enumerable keys onto built-in types
-	 * (even though this sort of already happens in the standard library)
-	 */
-	if (newValue instanceof Date) {
-		if (!(oldValue instanceof Date)) {
-			return newValue;
-		}
-		if (newValue.getMilliseconds() === oldValue.getMilliseconds()) {
-			return oldValue;
-		}
-		return newValue;
-	}
-
 	if (Array.isArray(newValue)) {
 		if (!Array.isArray(oldValue) || oldValue.length !== newValue.length) {
 			return newValue;
@@ -85,17 +88,29 @@ function structuralMerge<T = unknown>(oldValue: T, newValue: T): T {
 
 	const oldRecast = oldValue as Record<string | symbol, unknown>;
 	const newRecast = newValue as Record<string | symbol, unknown>;
-	const allKeys = [
+
+	// Object.keys won't cut it because it won't give us non-enumerable
+	// properties or symbol keys
+	const oldKeyLength =
+		Object.getOwnPropertyNames(oldRecast).length +
+		Object.getOwnPropertySymbols(oldRecast).length;
+	const newKeys = [
 		...Object.getOwnPropertyNames(newRecast),
 		...Object.getOwnPropertySymbols(newRecast),
 	];
 
-	const newPropKeys = Object.getOwnPropertyNames(newValue);
-	if (newPropKeys.length !== Object.getOwnPropertyNames(oldValue).length) {
-		return newValue;
+	const allMatch =
+		oldKeyLength === newKeys.length &&
+		newKeys.every((k) => oldRecast[k] === newRecast[k]);
+	if (allMatch) {
+		return oldValue;
 	}
 
-	return newValue;
+	const updated = { ...newRecast };
+	for (const key of newKeys) {
+		updated[key] = structuralMerge(oldRecast[key], newRecast[key]);
+	}
+	return updated as T;
 }
 
 type ReactTimeSyncInitOptions = Readonly<{
@@ -115,18 +130,16 @@ type SubscriptionHandshake = Readonly<{
 	transform: TransformCallback<unknown>;
 }>;
 
-type TimeSyncStateSnapshot<T = unknown> = {
+type TimeSyncStateSnapshot<T> = {
 	date: Date;
 	cachedTransformation: T;
 };
 
-type ReadonlyTimeSyncStateSnapshot<T = unknown> = Readonly<
-	TimeSyncStateSnapshot<T>
->;
+type ReadonlyTimeSyncStateSnapshot<T> = Readonly<TimeSyncStateSnapshot<T>>;
 
 type SubscriptionEntry = {
 	readonly unsubscribe: () => void;
-	latestSnapshot: ReadonlyTimeSyncStateSnapshot;
+	latestSnapshot: ReadonlyTimeSyncStateSnapshot<unknown>;
 };
 
 const defaultReactOptions: ReactTimeSyncInitOptions = {
@@ -139,8 +152,8 @@ class ReactTimeSync {
 	readonly #entries = new Map<string, SubscriptionEntry>();
 	readonly #timeSync: TimeSync;
 	readonly #disableUpdates: boolean;
-	#fallbackSnapshot: TimeSyncStateSnapshot;
-	#disposed = false;
+	#fallbackSnapshot: ReadonlyTimeSyncStateSnapshot<Date>;
+	#mounted = true;
 
 	constructor(options?: Partial<ReactTimeSyncInitOptions>) {
 		const {
@@ -163,7 +176,7 @@ class ReactTimeSync {
 	}
 
 	subscribe(sh: SubscriptionHandshake): () => void {
-		if (this.#disposed) {
+		if (!this.#mounted) {
 			return noOp;
 		}
 
@@ -188,7 +201,7 @@ class ReactTimeSync {
 				}
 
 				const oldTransform = entry.latestSnapshot.cachedTransformation;
-				const newSnap: TimeSyncStateSnapshot = {
+				const newSnap: TimeSyncStateSnapshot<unknown> = {
 					date: newDate,
 					cachedTransformation: oldTransform,
 				};
@@ -227,7 +240,7 @@ class ReactTimeSync {
 			 * fixed.
 			 */
 			latestSnapshot: {
-				date: this.#timeSync.getStateSnapshot(),
+				date: latestSyncState,
 				cachedTransformation: transform(latestSyncState),
 			},
 		};
@@ -240,7 +253,7 @@ class ReactTimeSync {
 	}
 
 	updateCachedTransformation(componentId: string, newValue: unknown): void {
-		if (this.#disposed) {
+		if (!this.#mounted) {
 			return;
 		}
 
@@ -263,12 +276,12 @@ class ReactTimeSync {
 	}
 
 	onUnmount(): void {
-		if (this.#disposed) {
+		if (!this.#mounted) {
 			return;
 		}
 		this.#timeSync.dispose();
 		this.#entries.clear();
-		this.#disposed = true;
+		this.#mounted = false;
 	}
 
 	getStateSnapshot<T>(componentId: string): ReadonlyTimeSyncStateSnapshot<T> {
@@ -384,8 +397,8 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	const hookId = useId();
 	const reactTs = useReactTimeSync();
 
-	// Because of how React lifecycles work, the effect event callback is
-	// *never* safe to call from inside render logic. It will *always* give you
+	// Because of how React lifecycles work, the effect event callback should
+	// never be called from inside render logic. It will *always* give you
 	// stale data after the very first render.
 	const externalTransform = useEffectEvent(activeTransform);
 	const subscribe: ReactSubscriptionCallback = useCallback(
