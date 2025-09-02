@@ -152,7 +152,8 @@ export class TimeSync implements TimeSyncApi {
 	// Each map value is the list of all refresh intervals actively associated
 	// with an onUpdate callback (allowing for duplicate intervals if multiple
 	// subscriptions were set up with the exact same onUpdate-interval pair).
-	// Each map value should also stay sorted in ascending order.
+	// Each map value should also stay sorted based on refresh interval, in
+	// ascending order.
 	#subscriptions: Map<OnUpdate, SubscriptionEntry[]>;
 
 	// A cached version of the fastest interval currently registered with
@@ -206,16 +207,16 @@ export class TimeSync implements TimeSyncApi {
 
 		// Copying the latest state into a separate variable, just to make
 		// absolutely sure that if the `this` context magically changes between
-		// callback calls, it doesn't cause subscribers to receive different
-		// values.
+		// callback calls (e.g., one of the subscribers calling the invalidate
+		// method), it doesn't cause subscribers to receive different values.
 		const bound = this.#latestDateSnapshot;
+
+		// While this is a super niche use case, we're actually safe if a
+		// subscriber disposes of the whole TimeSync instance. Once the Map is
+		// cleared, the map's iterator will automatically break the loop. So
+		// there's no risk of continuing to dispatch values after cleanup.
 		for (const onUpdate of this.#subscriptions.keys()) {
-			// Just to be extra sure that we avoid race conditions, we have to
-			// check the disposed state between callbacks, just in case one of
-			// the subscriptions disposed of the whole TimeSync instance
-			if (!this.#disposed) {
-				onUpdate(bound);
-			}
+			onUpdate(bound);
 		}
 	}
 
