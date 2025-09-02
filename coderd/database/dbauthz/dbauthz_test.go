@@ -1576,7 +1576,7 @@ func (s *MethodTestSuite) TestUser() {
 			OrganizationID: uuid.New(),
 		}).Asserts(u, policy.ActionRead).Returns(int64(0))
 		s.Run("ExpirePrebuildsAPIKeys", s.Subtest(func(db database.Store, check *expects) {
-			check.Args(dbtime.Now()).Asserts(rbac.ResourceApiKey, policy.ActionDelete).Returns()
+			check.Args(dbtime.Now()).Asserts(rbac.ResourceApiKey, policy.ActionDelete).ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 		}))
 	}))
 	s.Run("GetQuotaConsumedForUser", s.Subtest(func(db database.Store, check *expects) {
