@@ -10,12 +10,7 @@ import {
 	useState,
 	useSyncExternalStore,
 } from "react";
-import {
-	noOp,
-	type OnUpdate,
-	TimeSync,
-	defaultOptions as timeSyncDefaultOptions,
-} from "utils/TimeSync";
+import { defaultOptions, noOp, TimeSync } from "utils/TimeSync";
 import { useEffectEvent } from "./hookPolyfills";
 
 export const REFRESH_IDLE = Number.POSITIVE_INFINITY;
@@ -142,27 +137,18 @@ type SubscriptionEntry = {
 	latestSnapshot: ReadonlyTimeSyncStateSnapshot<unknown>;
 };
 
-const defaultReactOptions: ReactTimeSyncInitOptions = {
-	disableUpdates: false,
-	initialDatetime: timeSyncDefaultOptions.initialDatetime,
-	minimumRefreshIntervalMs: timeSyncDefaultOptions.minimumRefreshIntervalMs,
-};
-
 class ReactTimeSync {
 	readonly #entries = new Map<string, SubscriptionEntry>();
 	readonly #timeSync: TimeSync;
-	readonly #disableUpdates: boolean;
 	#fallbackSnapshot: ReadonlyTimeSyncStateSnapshot<Date>;
 	#mounted = true;
 
 	constructor(options?: Partial<ReactTimeSyncInitOptions>) {
 		const {
-			initialDatetime = defaultReactOptions.initialDatetime,
-			minimumRefreshIntervalMs = defaultReactOptions.minimumRefreshIntervalMs,
-			disableUpdates = defaultReactOptions.disableUpdates,
+			initialDatetime = defaultOptions.initialDatetime,
+			minimumRefreshIntervalMs = defaultOptions.minimumRefreshIntervalMs,
 		} = options ?? {};
 
-		this.#disableUpdates = disableUpdates;
 		this.#timeSync = new TimeSync({
 			initialDatetime,
 			minimumRefreshIntervalMs,
@@ -189,12 +175,9 @@ class ReactTimeSync {
 			this.#entries.delete(componentId);
 		}
 
-		// Even if updates are disabled, we still need to set up a subscription,
-		// so that we satisfy the API for useSyncExternalStore. So if TimeSync
-		// is disabled, we'll just pass in a no-op function instead
-		let onUpdate: OnUpdate = noOp;
-		if (!this.#disableUpdates) {
-			onUpdate = (newDate) => {
+		const unsubscribe = this.#timeSync.subscribe({
+			targetRefreshIntervalMs,
+			onUpdate: (newDate) => {
 				const entry = this.#entries.get(componentId);
 				if (entry === undefined) {
 					return;
@@ -216,12 +199,7 @@ class ReactTimeSync {
 					newSnap.cachedTransformation = merged;
 					onStateUpdate();
 				}
-			};
-		}
-
-		const unsubscribe = this.#timeSync.subscribe({
-			targetRefreshIntervalMs,
-			onUpdate,
+			},
 		});
 
 		const latestSyncState = this.#timeSync.getStateSnapshot();
