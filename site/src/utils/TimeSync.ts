@@ -85,25 +85,6 @@ export const defaultOptions: TimeSyncInitOptions = {
 	minimumRefreshIntervalMs: 100,
 };
 
-export type SubscriptionResult = Readonly<{
-	/**
-	 * Allows an external system to remove a specific subscription. When called,
-	 * this only removes a single subscription instance. If other subscribers
-	 * have registered the exact same callback, they will not be affected.
-	 */
-	unsubscribe: () => void;
-
-	/**
-	 * Indicates whether a new Date snapshot was created in response to the new
-	 * subscription, and whether there are other subscribers that need to be
-	 * notified.
-	 *
-	 * Intended to be used with TimeSync's `notifyAfterUpdate` config property.
-	 * If `notifyAfterUpdate` is true, this value will always be false.
-	 */
-	hasPendingSubscribers: boolean;
-}>;
-
 interface TimeSyncApi {
 	/**
 	 * Subscribes an external system to TimeSync.
@@ -115,9 +96,10 @@ interface TimeSyncApi {
 	 * called once, total.
 	 *
 	 * @throws {RangeError} If the provided interval is not a positive integer.
-	 * @returns An unsubscribe callback.
+	 * @returns An unsubscribe callback. Calling the callback more than once
+	 * results in a no-op.
 	 */
-	subscribe: (entry: SubscriptionHandshake) => () => void;
+	subscribe: (sh: SubscriptionHandshake) => () => void;
 
 	/**
 	 * Allows any system to pull the newest time state from TimeSync, regardless
@@ -126,14 +108,26 @@ interface TimeSyncApi {
 	getStateSnapshot: () => Date;
 
 	/**
+	 * Immediately tries to refresh the current date snapshot, regardless of
+	 * which refresh intervals have been specified. All subscribers will be
+	 * notified if the state changed.
+	 */
+	invalidateStateSnapshot: () => void;
+
+	/**
 	 * Cleans up the TimeSync instance and renders it inert for all other
 	 * operations.
 	 */
 	dispose: () => void;
 }
 
-function orderIntervals(interval1: number, interval2: number): number {
-	return interval2 - interval1;
+type SubscriptionEntry = Readonly<{
+	targetRefreshInterval: number;
+	unsubscribe: () => void;
+}>;
+
+function orderEntries(e1: SubscriptionEntry, e2: SubscriptionEntry): number {
+	return e2.targetRefreshInterval - e1.targetRefreshInterval;
 }
 
 /**
@@ -159,7 +153,7 @@ export class TimeSync implements TimeSyncApi {
 	// with an onUpdate callback (allowing for duplicate intervals if multiple
 	// subscriptions were set up with the exact same onUpdate-interval pair).
 	// Each map value should also stay sorted in ascending order.
-	#subscriptions: Map<OnUpdate, number[]>;
+	#subscriptions: Map<OnUpdate, SubscriptionEntry[]>;
 
 	// A cached version of the fastest interval currently registered with
 	// TimeSync. Should always be derived from #subscriptions
@@ -200,10 +194,12 @@ export class TimeSync implements TimeSyncApi {
 			return;
 		}
 
+		// We still need to let the logic go through if the current fastest
+		// interval is Infinity, so that we can support invalidating the date
+		// from public methods
 		const subscriptionsPaused =
 			this.#minimumRefreshIntervalMs === Number.POSITIVE_INFINITY ||
-			this.#subscriptions.size === 0 ||
-			this.#fastestRefreshInterval === Number.POSITIVE_INFINITY;
+			this.#subscriptions.size === 0;
 		if (subscriptionsPaused) {
 			return;
 		}
@@ -214,7 +210,12 @@ export class TimeSync implements TimeSyncApi {
 		// values.
 		const bound = this.#latestDateSnapshot;
 		for (const onUpdate of this.#subscriptions.keys()) {
-			onUpdate(bound);
+			// Just to be extra sure that we avoid race conditions, we have to
+			// check the disposed state between callbacks, just in case one of
+			// the subscriptions disposed of the whole TimeSync instance
+			if (!this.#disposed) {
+				onUpdate(bound);
+			}
 		}
 	}
 
@@ -228,8 +229,9 @@ export class TimeSync implements TimeSyncApi {
 
 		// This setup requires that every interval array stay sorted. It
 		// immediately falls apart if this isn't guaranteed.
-		for (const intervals of this.#subscriptions.values()) {
-			const subFastest = intervals[0] ?? Number.POSITIVE_INFINITY;
+		for (const entries of this.#subscriptions.values()) {
+			const subFastest =
+				entries[0]?.targetRefreshInterval ?? Number.POSITIVE_INFINITY;
 			if (subFastest < newFastest) {
 				newFastest = subFastest;
 			}
@@ -240,7 +242,7 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	/**
-	 * Attempts to update the current Date snapshot.
+	 * Attempts to update the current Date snapshot, no questions asked.
 	 * @returns {boolean} Indicates whether the state actually changed.
 	 */
 	#updateDateSnapshot(): boolean {
@@ -256,29 +258,21 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	/**
-	 * Updates TimeSync to a new snapshot immediately and synchronously.
-	 *
-	 * @returns {boolean} Indicates whether there are still subscribers that
-	 * need to be notified after the update.
-	 */
-	#flushUpdate(): void {
-		const updated = this.#updateDateSnapshot();
-		if (updated) {
-			this.#notifyAllSubscriptions();
-		}
-	}
-
-	/**
-	 * The callback to wire up directly to setInterval for periodic updates.
+	 * Immediately updates TimeSync to a new snapshot and notifies all
+	 * subscribers.
 	 *
 	 * Defined as an arrow function so that we can just pass it directly to
 	 * setInterval without needing to make a new wrapper function each time. We
 	 * don't have many situations where we can lose the `this` context, but this
 	 * is one of them
 	 */
-	#onTick = (): void => {
-		const hasPendingUpdate = this.#updateDateSnapshot();
-		if (hasPendingUpdate) {
+	#flushUpdate = (): void => {
+		if (this.#disposed) {
+			return;
+		}
+
+		const updated = this.#updateDateSnapshot();
+		if (updated) {
 			this.#notifyAllSubscriptions();
 		}
 	};
@@ -301,30 +295,59 @@ export class TimeSync implements TimeSyncApi {
 		if (delta <= 0) {
 			window.clearInterval(this.#latestIntervalId);
 			const hasPendingSubscribers = this.#flushUpdate();
-			this.#latestIntervalId = window.setInterval(this.#onTick, fastest);
+			this.#latestIntervalId = window.setInterval(this.#flushUpdate, fastest);
 			return hasPendingSubscribers;
 		}
 
 		window.clearInterval(this.#latestIntervalId);
 		this.#latestIntervalId = window.setInterval(() => {
 			window.clearInterval(this.#latestIntervalId);
-			this.#latestIntervalId = window.setInterval(this.#onTick, fastest);
+			this.#latestIntervalId = window.setInterval(this.#flushUpdate, fastest);
 		}, delta);
 
 		return false;
 	}
 
-	#addSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): boolean {
-		const initialSubs = this.#subscriptions.size;
-		let intervals = this.#subscriptions.get(onUpdate);
-		if (intervals === undefined) {
-			intervals = [];
-			this.#subscriptions.set(onUpdate, intervals);
+	#removeSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): void {
+		const entries = this.#subscriptions.get(onUpdate);
+		if (entries === undefined) {
+			return;
+		}
+		const firstMatchIndex = entries.findIndex(
+			(e) => e.targetRefreshInterval === targetRefreshInterval,
+		);
+		if (firstMatchIndex === -1) {
+			return;
 		}
 
-		intervals.push(targetRefreshInterval);
-		if (intervals.length > 1) {
-			intervals.sort(orderIntervals);
+		// No need to sort on removal because everything gets sorted as it
+		// enters the object
+		entries.splice(firstMatchIndex, 1);
+		if (entries.length === 0) {
+			this.#subscriptions.delete(onUpdate);
+		}
+
+		const changed = this.#updateFastestInterval();
+		if (changed) {
+			this.#onFastestIntervalChange();
+		}
+	}
+
+	#addSubscription(
+		targetRefreshInterval: number,
+		onUpdate: OnUpdate,
+		unsubscribe: () => void,
+	): boolean {
+		const initialSubs = this.#subscriptions.size;
+		let entries = this.#subscriptions.get(onUpdate);
+		if (entries === undefined) {
+			entries = [];
+			this.#subscriptions.set(onUpdate, entries);
+		}
+
+		entries.push({ targetRefreshInterval, unsubscribe });
+		if (entries.length > 1) {
+			entries.sort(orderEntries);
 		}
 
 		let hasPendingSubscribers = false;
@@ -344,40 +367,18 @@ export class TimeSync implements TimeSyncApi {
 		return hasPendingSubscribers;
 	}
 
-	#removeSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): void {
-		const intervals = this.#subscriptions.get(onUpdate);
-		if (intervals === undefined) {
-			return;
-		}
-		const firstMatchIndex = intervals.indexOf(targetRefreshInterval);
-		if (firstMatchIndex === -1) {
-			return;
-		}
-
-		intervals.splice(firstMatchIndex, 1);
-		if (intervals.length > 1) {
-			intervals.sort(orderIntervals);
-		}
-		if (intervals.length === 0) {
-			this.#subscriptions.delete(onUpdate);
-		}
-
-		const changed = this.#updateFastestInterval();
-		if (changed) {
-			this.#onFastestIntervalChange();
-		}
-	}
-
-	subscribe(hs: SubscriptionHandshake): () => void {
+	subscribe(sh: SubscriptionHandshake): () => void {
 		// Destructuring properties so that they can't be fiddled with after
 		// this function call ends
-		const { targetRefreshIntervalMs, onUpdate } = hs;
+		const { targetRefreshIntervalMs, onUpdate } = sh;
 
-		const isInputValid =
-			Number.isInteger(targetRefreshIntervalMs) && targetRefreshIntervalMs > 0;
-		if (!isInputValid) {
-			throw new RangeError(
-				`TimeSync refresh interval must be a positive integer (received ${targetRefreshIntervalMs}ms)`,
+		const isTargetValid =
+			targetRefreshIntervalMs === Number.POSITIVE_INFINITY ||
+			(Number.isInteger(targetRefreshIntervalMs) &&
+				targetRefreshIntervalMs > 0);
+		if (!isTargetValid) {
+			throw new Error(
+				`Target refresh interval must be positive infinity or a positive integer (received ${targetRefreshIntervalMs}ms)`,
 			);
 		}
 
@@ -385,20 +386,25 @@ export class TimeSync implements TimeSyncApi {
 			this.#minimumRefreshIntervalMs,
 			targetRefreshIntervalMs,
 		);
-		this.#addSubscription(floored, onUpdate);
 
 		// Because of how subscriptions are represented internally, there's
 		// a risk that calling #removeSubscription multiple times could remove
 		// subscriptions for completely different systems. So we have to make
 		// sure that calls 2+ turn into no-ops
 		let unsubscribed = false;
-		return () => {
+
+		// Also defining the unsubscribe first, so that we avoid some chicken-
+		// and-the-egg problems when adding a subscription
+		const unsubscribe = () => {
 			if (unsubscribed) {
 				return;
 			}
 			this.#removeSubscription(floored, onUpdate);
 			unsubscribed = true;
 		};
+
+		this.#addSubscription(floored, onUpdate, unsubscribe);
+		return unsubscribe;
 	}
 
 	getStateSnapshot(): Date {
@@ -406,11 +412,39 @@ export class TimeSync implements TimeSyncApi {
 		// of getting the latest snapshot first before setting up a
 		// subscription. Because we can't actually tell how much time will have
 		// elapsed between TimeSync being instantiated and the first
-		// subscription being made, the best approach is to
+		// subscription being made, the best approach is to do some hidden
+		// invalidation when the getter is called
+		const isPotentiallyStale =
+			this.#subscriptions.size === 0 ||
+			this.#fastestRefreshInterval === Number.POSITIVE_INFINITY;
+
+		if (isPotentiallyStale) {
+			const shouldInvalidate =
+				newReadonlyDate().getTime() - this.#latestDateSnapshot.getTime() >
+				this.#minimumRefreshIntervalMs;
+			if (shouldInvalidate) {
+				this.#flushUpdate();
+			}
+		}
+
 		return this.#latestDateSnapshot;
 	}
 
+	invalidateStateSnapshot(): void {
+		this.#flushUpdate();
+	}
+
 	dispose(): void {
+		if (this.#disposed) {
+			return;
+		}
+
 		this.#disposed = true;
+		for (const entries of this.#subscriptions.values()) {
+			for (const e of entries) {
+				e.unsubscribe();
+			}
+		}
+		this.#subscriptions.clear();
 	}
 }
