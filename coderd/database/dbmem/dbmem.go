@@ -14020,3 +14020,7 @@ func (q *FakeQuerier) CountAuthorizedAuditLogs(ctx context.Context, arg database
 
 	return count, nil
 }
+
+func (q *FakeQuerier) ExpirePrebuildsAPIKeys(_ context.Context, _ time.Time) error {
+	return ErrUnimplemented
+}

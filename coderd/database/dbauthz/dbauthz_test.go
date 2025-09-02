@@ -14,24 +14,26 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
-	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/codersdk"
+	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -1573,6 +1575,9 @@ func (s *MethodTestSuite) TestUser() {
 			UserID:         u.ID,
 			OrganizationID: uuid.New(),
 		}).Asserts(u, policy.ActionRead).Returns(int64(0))
+		s.Run("ExpirePrebuildsAPIKeys", s.Subtest(func(db database.Store, check *expects) {
+			check.Args(dbtime.Now()).Asserts(rbac.ResourceApiKey, policy.ActionDelete).Returns()
+		}))
 	}))
 	s.Run("GetQuotaConsumedForUser", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -5636,4 +5641,19 @@ func (s *MethodTestSuite) TestAuthorizePrebuiltWorkspace() {
 				return nil
 			}).Asserts(w, policy.ActionUpdate, w.AsPrebuild(), policy.ActionUpdate)
 	}))
+}
+
+// Ensures that the prebuilds actor may never insert an api key.
+func TestInsertAPIKey_AsPrebuildsUser(t *testing.T) {
+	t.Parallel()
+	prebuildsSubj := rbac.Subject{
+		ID: database.PrebuildsSystemUserID.String(),
+	}
+	ctx := dbauthz.As(testutil.Context(t, testutil.WaitShort), prebuildsSubj)
+	mDB := dbmock.NewMockStore(gomock.NewController(t))
+	log := slogtest.Make(t, nil)
+	mDB.EXPECT().Wrappers().Times(1).Return([]string{})
+	dbz := dbauthz.New(mDB, nil, log, nil)
+	_, err := dbz.InsertAPIKey(ctx, database.InsertAPIKeyParams{})
+	require.True(t, dbauthz.IsNotAuthorizedError(err))
 }
