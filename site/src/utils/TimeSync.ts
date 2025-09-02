@@ -392,6 +392,11 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	getStateSnapshot(): Date {
+		// Some other APIs (like React's useSyncExternalStore) take an approach
+		// of getting the latest snapshot first before setting up a
+		// subscription. Because we can't actually tell how much time will have
+		// elapsed between TimeSync being instantiated and the first
+		// subscription being made, the best approach is to
 		return this.#latestDateSnapshot;
 	}
 

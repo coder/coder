@@ -23,14 +23,77 @@ export const REFRESH_ONE_SECOND: number = 1_000;
 export const REFRESH_ONE_MINUTE = 60 * 1_000;
 export const REFRESH_ONE_HOUR = 60 * 60 * 1_000;
 
-type SubscriptionCallback = (notifyReact: () => void) => () => void;
-
-// Combines two pieces of state while trying to maintain as much structural
-// sharing as possible
-function mergeSnapshots(oldValue: unknown, newValue: unknown): unknown {
+function structuralMerge(oldValue: unknown, newValue: unknown): unknown {
 	if (oldValue === newValue) {
 		return oldValue;
 	}
+
+	const newType = typeof newValue;
+	switch (newType) {
+		// If the new value is a primitive, we don't actually need to check the
+		// old value at all. We can just return the new value directly, and have
+		// JS language semantics take care of the rest
+		case "boolean":
+		case "number":
+		case "bigint":
+		case "string":
+		case "undefined":
+		case "symbol": {
+			return newValue;
+		}
+
+		// If the new value is a function, we don't have a way of checking
+		// whether the new function and old function are fully equivalent. While
+		// we can stringify the function bodies and compare those, we have no
+		// way of knowing if they're from the same execution context or have the
+		// same closure values. Have to err on always returning the new value
+		case "function": {
+			return newValue;
+		}
+	}
+	if (newType === null || typeof oldValue !== "object") {
+		return newValue;
+	}
+
+	/**
+	 * @todo 2025-08-29 - This isn't 100% correct, but for the initial
+	 * implementation, we're going to assume that no one is going to be monkey-
+	 * patching custom symbol keys or non-enumerable keys onto built-in types
+	 * (even though this sort of already happens in the standard library)
+	 */
+	if (newValue instanceof Date) {
+		if (!(oldValue instanceof Date)) {
+			return newValue;
+		}
+		if (newValue.getMilliseconds() === oldValue.getMilliseconds()) {
+			return oldValue;
+		}
+		return newValue;
+	}
+
+	if (Array.isArray(newValue)) {
+		if (!Array.isArray(oldValue) || oldValue.length !== newValue.length) {
+			return newValue;
+		}
+		const allMatch = oldValue.every((el, i) => el === newValue[i]);
+		if (allMatch) {
+			return oldValue;
+		}
+		return oldValue.map((el, i) => structuralMerge(el, newValue[i]));
+	}
+
+	const oldRecast = oldValue as Record<string | symbol, unknown>;
+	const newRecast = newValue as Record<string | symbol, unknown>;
+	const allKeys = [
+		...Object.getOwnPropertyNames(newRecast),
+		...Object.getOwnPropertySymbols(newRecast),
+	];
+
+	const newPropKeys = Object.getOwnPropertyNames(newValue);
+	if (newPropKeys.length !== Object.getOwnPropertyNames(oldValue).length) {
+		return newValue;
+	}
+
 	return newValue;
 }
 
@@ -83,10 +146,6 @@ class ReactTimeSync {
 		});
 	}
 
-	getTimeSync(): TimeSync {
-		return this.#timeSync;
-	}
-
 	subscribe(sh: SubscriptionHandshake): () => void {
 		if (this.#disposed) {
 			return noOp;
@@ -101,6 +160,9 @@ class ReactTimeSync {
 			this.#entries.delete(componentId);
 		}
 
+		// Even if updates are disabled, we still need to set up a subscription,
+		// so that we satisfy the API for useSyncExternalStore. So if TimeSync
+		// is disabled, we'll just pass in a no-op function instead
 		let onUpdate: OnUpdate = noOp;
 		if (!this.#disableUpdates) {
 			onUpdate = (newDate) => {
@@ -110,7 +172,7 @@ class ReactTimeSync {
 				}
 
 				const newState = transform(newDate);
-				const merged = mergeSnapshots(entry.lastTransformedValue, newState);
+				const merged = structuralMerge(entry.lastTransformedValue, newState);
 
 				if (entry.lastTransformedValue !== merged) {
 					entry.lastTransformedValue = merged;
@@ -119,9 +181,6 @@ class ReactTimeSync {
 			};
 		}
 
-		// Even if updates are disabled, we still need to set up a subscription,
-		// so that we satisfy the API for useSyncExternalStore. So if TimeSync
-		// is disabled, we'll just pass in a no-op function instead
 		const unsubscribe = this.#timeSync.subscribe({
 			targetRefreshIntervalMs,
 			onUpdate,
@@ -131,16 +190,16 @@ class ReactTimeSync {
 		const newEntry: SubscriptionEntry = {
 			unsubscribe,
 			/**
-			 * @todo 2025-08-30 - There is one unfortunate behavior with the
+			 * @todo 2025-08-29 - There is one unfortunate behavior with the
 			 * current subscription logic. Because of how React lifecycles work,
 			 * each new component instance needs to call the transform callback
 			 * twice on setup. You need to call it once from the render, and
 			 * again from the subscribe method.
 			 *
-			 * Trying to fix this got really nasty (even with a bunch of cursed
-			 * React techniques), and caused a bunch of chicken-and-the-egg
-			 * problems. Luckily, most transformations should be super cheap,
-			 * which should buy us some time to get this fixed.
+			 * Trying to fix this got really nasty, and caused a bunch of
+			 * chicken-and-the-egg problems. Luckily, most transformations
+			 * should be super cheap, which should buy us some time to get this
+			 * fixed.
 			 */
 			lastTransformedValue: transform(latestSyncState),
 		};
@@ -161,7 +220,7 @@ class ReactTimeSync {
 		if (entry === undefined) {
 			return;
 		}
-		const updated = mergeSnapshots(entry.lastTransformedValue, newValue);
+		const updated = structuralMerge(entry.lastTransformedValue, newValue);
 		entry.lastTransformedValue = updated;
 	}
 
@@ -196,10 +255,6 @@ function useReactTimeSync(): ReactTimeSync {
 	return reactTs;
 }
 
-function identity<T>(value: T): T {
-	return value;
-}
-
 type TimeSyncProviderProps = PropsWithChildren<{
 	initialDatetime?: Date;
 	minimumRefreshIntervalMs?: number;
@@ -225,18 +280,14 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 	);
 };
 
-/**
- * Exposes the TimeSync instance currently being dependency-injected throughout
- * the application. This lets you set up manual subscriptions for effect logic.
- *
- * Most of the time, you should not need this, especially if you need data from
- * TimeSync to be exposed for render logic. Consider using `useTimeSyncState`
- * instead.
- */
-export function useTimeSync(): TimeSync {
-	const wrapper = useReactTimeSync();
-	return wrapper.getTimeSync();
+// Even though this is a really simple function, keeping it defined outside the
+// hook helps a lot with making sure useSyncExternalStore doesn't re-sync too
+// often
+function identity<T>(value: T): T {
+	return value;
 }
+
+type ReactSubscriptionCallback = (notifyReact: () => void) => () => void;
 
 type UseTimeSyncOptions<T> = Readonly<{
 	/**
@@ -265,10 +316,12 @@ type UseTimeSyncOptions<T> = Readonly<{
 	 *    data issues.
 	 * 2. `transform` does not use dependency arrays directly, but if it is
 	 *    memoized via `useCallback`, it will only re-run during a re-render if
-	 *    `useCallback` got invalidated.
+	 *    `useCallback` got invalidated or the date state changed.
 	 * 3. When TimeSync dispatches a new date update, it will run the latest
-	 *    `transform` callback. If the result has not changed same (comparing by
-	 *    value), the subscribed component will not re-render by itself.
+	 *    `transform` callback. If the result has not changed (comparing by
+	 *    value), the component will try to bail out of re-rendering. At that
+	 *    stage, the component will only re-render if a parent component
+	 *    re-renders
 	 *
 	 * `transform` callbacks must not be async. The hook will error out at the
 	 * type level if you provide one by mistake.
@@ -289,7 +342,7 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// *never* safe to call from inside render logic. It will *always* give you
 	// stale data after the very first render.
 	const externalTransform = useEffectEvent(activeTransform);
-	const subscribe: SubscriptionCallback = useCallback(
+	const subscribe: ReactSubscriptionCallback = useCallback(
 		(notifyReact) => {
 			return reactTs.subscribe({
 				componentId: hookId,
