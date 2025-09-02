@@ -149,11 +149,11 @@ export class TimeSync implements TimeSyncApi {
 	#disposed: boolean;
 	#latestDateSnapshot: Date;
 
-	// Each map value is the list of all refresh intervals actively associated
-	// with an onUpdate callback (allowing for duplicate intervals if multiple
-	// subscriptions were set up with the exact same onUpdate-interval pair).
-	// Each map value should also stay sorted based on refresh interval, in
-	// ascending order.
+	// Stores all refresh intervals actively associated with an onUpdate
+	// callback (along with their associated unsubscribe callbacks). "Duplicate"
+	// intervals are allowed (in case multiple systems subscribe with the same
+	// interval-onUpdate pairs). Each map value should stay sorted by refresh
+	// interval, in ascending order.
 	#subscriptions: Map<OnUpdate, SubscriptionEntry[]>;
 
 	// A cached version of the fastest interval currently registered with
