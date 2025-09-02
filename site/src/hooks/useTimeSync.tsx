@@ -125,23 +125,15 @@ type SubscriptionHandshake = Readonly<{
 	transform: TransformCallback<unknown>;
 }>;
 
-type TimeSyncStateSnapshot<T> = {
-	date: Date;
-	cachedTransformation: T;
-};
-
-type ReadonlyTimeSyncStateSnapshot<T> = Readonly<TimeSyncStateSnapshot<T>>;
-
-type SubscriptionEntry = {
+type TransformationEntry = {
 	readonly unsubscribe: () => void;
-	latestSnapshot: ReadonlyTimeSyncStateSnapshot<unknown>;
+	cachedTransformation: unknown;
 };
 
 class ReactTimeSync {
-	readonly #entries = new Map<string, SubscriptionEntry>();
+	readonly #entries: Map<string, TransformationEntry>;
 	readonly #timeSync: TimeSync;
-	#fallbackSnapshot: ReadonlyTimeSyncStateSnapshot<Date>;
-	#mounted = true;
+	#mounted: boolean;
 
 	constructor(options?: Partial<ReactTimeSyncInitOptions>) {
 		const {
@@ -149,19 +141,15 @@ class ReactTimeSync {
 			minimumRefreshIntervalMs = defaultOptions.minimumRefreshIntervalMs,
 		} = options ?? {};
 
+		this.#mounted = true;
+		this.#entries = new Map();
 		this.#timeSync = new TimeSync({
 			initialDatetime,
 			minimumRefreshIntervalMs,
 		});
-
-		const initialDate = this.#timeSync.getStateSnapshot();
-		this.#fallbackSnapshot = {
-			date: initialDate,
-			cachedTransformation: initialDate,
-		};
 	}
 
-	subscribe(sh: SubscriptionHandshake): () => void {
+	subscribeToTransformations(sh: SubscriptionHandshake): () => void {
 		if (!this.#mounted) {
 			return noOp;
 		}
@@ -183,27 +171,19 @@ class ReactTimeSync {
 					return;
 				}
 
-				const oldTransform = entry.latestSnapshot.cachedTransformation;
-				const newSnap: TimeSyncStateSnapshot<unknown> = {
-					date: newDate,
-					cachedTransformation: oldTransform,
-				};
-				// Always update the snapshot, even if we don't dispatch a new
-				// render to the subscriber, so we don't have stale data
-				entry.latestSnapshot = newSnap;
-
+				const oldState = entry.cachedTransformation;
 				const newState = transform(newDate);
-				const merged = structuralMerge(oldTransform, newState);
+				const merged = structuralMerge(oldState, newState);
 
-				if (oldTransform !== merged) {
-					newSnap.cachedTransformation = merged;
+				if (oldState !== merged) {
+					entry.cachedTransformation = merged;
 					onStateUpdate();
 				}
 			},
 		});
 
 		const latestSyncState = this.#timeSync.getStateSnapshot();
-		const newEntry: SubscriptionEntry = {
+		const newEntry: TransformationEntry = {
 			unsubscribe,
 			/**
 			 * @todo 2025-08-29 - There is one unfortunate behavior with the
@@ -217,10 +197,7 @@ class ReactTimeSync {
 			 * should be super cheap, which should buy us some time to get this
 			 * fixed.
 			 */
-			latestSnapshot: {
-				date: latestSyncState,
-				cachedTransformation: transform(latestSyncState),
-			},
+			cachedTransformation: transform(latestSyncState),
 		};
 		this.#entries.set(componentId, newEntry);
 
@@ -230,7 +207,7 @@ class ReactTimeSync {
 		};
 	}
 
-	updateCachedTransformation(componentId: string, newValue: unknown): void {
+	invalidateTransformation(componentId: string, newValue: unknown): void {
 		if (!this.#mounted) {
 			return;
 		}
@@ -239,18 +216,26 @@ class ReactTimeSync {
 		if (entry === undefined) {
 			return;
 		}
-		if (entry.latestSnapshot.cachedTransformation === newValue) {
-			return;
-		}
 
 		// It's expected that whichever hook is calling this method will have
 		// already created the new value via structural sharing, so this method
-		// isn't doing too much defensive programming, because that would create
-		// redundant, potentially expensive, calculations
-		entry.latestSnapshot = {
-			date: entry.latestSnapshot.date,
-			cachedTransformation: newValue,
-		};
+		// isn't doing too much defensive programming. Otherwise, we get a bunch
+		// of overhead from duplicate computations
+		entry.cachedTransformation = newValue;
+	}
+
+	getTransformSnapshot<T>(componentId: string): T {
+		const prev = this.#entries.get(componentId);
+		if (prev !== undefined) {
+			return prev.cachedTransformation as T;
+		}
+
+		const latestDate = this.#timeSync.getStateSnapshot();
+		return latestDate as T;
+	}
+
+	getDateSnapshot(): Date {
+		return this.#timeSync.getStateSnapshot();
 	}
 
 	onUnmount(): void {
@@ -260,23 +245,6 @@ class ReactTimeSync {
 		this.#timeSync.dispose();
 		this.#entries.clear();
 		this.#mounted = false;
-	}
-
-	getStateSnapshot<T>(componentId: string): ReadonlyTimeSyncStateSnapshot<T> {
-		const prev = this.#entries.get(componentId);
-		if (prev !== undefined) {
-			return prev.latestSnapshot as ReadonlyTimeSyncStateSnapshot<T>;
-		}
-
-		const latestDate = this.#timeSync.getStateSnapshot();
-		if (latestDate !== this.#fallbackSnapshot.date) {
-			this.#fallbackSnapshot = {
-				date: latestDate,
-				cachedTransformation: latestDate,
-			};
-		}
-
-		return this.#fallbackSnapshot as ReadonlyTimeSyncStateSnapshot<T>;
 	}
 }
 
@@ -381,41 +349,45 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	const externalTransform = useEffectEvent(activeTransform);
 	const subscribe: ReactSubscriptionCallback = useCallback(
 		(notifyReact) => {
-			return reactTs.subscribe({
+			return reactTs.subscribeToTransformations({
 				componentId: hookId,
 				targetRefreshIntervalMs: targetIntervalMs,
 				transform: externalTransform,
 				onStateUpdate: notifyReact,
 			});
 		},
-
-		// All dependencies listed for correctness, but targetInterval is the
-		// only value that can change on re-renders
 		[reactTs, hookId, externalTransform, targetIntervalMs],
 	);
-
-	const getSnap = useCallback(
-		() => reactTs.getStateSnapshot<T>(hookId),
+	const getTransform = useCallback(
+		() => reactTs.getTransformSnapshot<T>(hookId),
 		[reactTs, hookId],
 	);
-	const { date, cachedTransformation } = useSyncExternalStore(
-		subscribe,
-		getSnap,
+	const cachedTransformation = useSyncExternalStore(subscribe, getTransform);
+
+	// There's some trade-offs with this memo (notably, if the consumer passes
+	// in an inline transform callback, the memo result will be invalidated on
+	// every single render). But it's the *only* way to give the consumer the
+	// option of memoizing expensive transformations at the render level without
+	// polluting the hook's API with super-fragile dependency array logic
+	const newTransformation = useMemo(() => {
+		// Calling reactTs.getDateSnapshot like this is technically breaking the
+		// React rules, but we need to make sure that if activeTransform changes
+		// on re-renders, and it's been a while since the cached transformation
+		// changed, we don't have drastically outdated date state. We could also
+		// subscribe to the date itself, but that basically makes it impossible
+		// to prevent unnecessary re-renders on subscription updates
+		const latestDate = reactTs.getDateSnapshot();
+		return activeTransform(latestDate);
+	}, [reactTs, activeTransform]);
+
+	const merged = useMemo(
+		() => structuralMerge(cachedTransformation, newTransformation),
+		[cachedTransformation, newTransformation],
 	);
 
-	// There's some trade-offs with this setup (notably, if the consumer passes
-	// in an inline function, the memo result will be invalidated on every
-	// single render). But it's the *only* way to give the consumer the option
-	// of memoizing expensive transformations at the render level without
-	// polluting the hook's API with super-fragile dependency array nonsense
-	const newTransformed = useMemo<T>(() => {
-		const newValue = activeTransform(date);
-		return structuralMerge(cachedTransformation, newValue);
-	}, [activeTransform, date, cachedTransformation]);
-
 	useEffect(() => {
-		reactTs.updateCachedTransformation(hookId, newTransformed);
-	}, [reactTs, hookId, newTransformed]);
+		reactTs.invalidateTransformation(hookId, merged);
+	}, [reactTs, hookId, merged]);
 
-	return newTransformed;
+	return merged;
 }
