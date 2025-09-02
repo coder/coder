@@ -305,12 +305,19 @@ func TestAPIKey_OK(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-	_ = coderdtest.CreateFirstUser(t, client)
+	auditor := audit.NewMock()
+	client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+	owner := coderdtest.CreateFirstUser(t, client)
 
+	auditor.ResetLogs()
 	res, err := client.CreateAPIKey(ctx, codersdk.Me)
 	require.NoError(t, err)
 	require.Greater(t, len(res.Key), 2)
+	require.True(t, auditor.Contains(t, database.AuditLog{
+		UserID:       owner.UserID,
+		Action:       database.AuditActionCreate,
+		ResourceType: database.ResourceTypeApiKey,
+	}))
 }
 
 func TestAPIKey_Deleted(t *testing.T) {
