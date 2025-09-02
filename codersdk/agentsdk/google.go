@@ -24,7 +24,7 @@ type googleSessionTokenExchanger struct {
 	client         *codersdk.Client
 }
 
-func UsingGoogleInstanceIdentity(serviceAccount string, gcpClient *metadata.Client) SessionTokenSetup {
+func WithGoogleInstanceIdentity(serviceAccount string, gcpClient *metadata.Client) SessionTokenSetup {
 	return func(client *codersdk.Client) RefreshableSessionTokenProvider {
 		return &instanceIdentitySessionTokenProvider{
 			tokenExchanger: &googleSessionTokenExchanger{

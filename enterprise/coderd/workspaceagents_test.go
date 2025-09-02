@@ -319,7 +319,7 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-	agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(authToken))
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
 	agentClient.SDK.HTTPClient = &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{

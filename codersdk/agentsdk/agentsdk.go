@@ -414,7 +414,7 @@ func (FixedSessionTokenProvider) RefreshToken(_ context.Context) error {
 	return nil
 }
 
-func UsingFixedToken(token string) SessionTokenSetup {
+func WithFixedToken(token string) SessionTokenSetup {
 	return func(_ *codersdk.Client) RefreshableSessionTokenProvider {
 		return FixedSessionTokenProvider{FixedSessionTokenProvider: codersdk.FixedSessionTokenProvider{SessionToken: token}}
 	}

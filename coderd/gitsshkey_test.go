@@ -118,7 +118,7 @@ func TestAgentGitSSHKey(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, project.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-	agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(authToken))
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -156,7 +156,7 @@ func TestAgentGitSSHKey_APIKeyScopes(t *testing.T) {
 			workspace := coderdtest.CreateWorkspace(t, client, project.ID)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-			agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(authToken))
+			agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()

@@ -37,7 +37,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
-func (r *RootCmd) workspaceAgent() *serpent.Command {
+func workspaceAgent() *serpent.Command {
 	var (
 		logDir                         string
 		scriptDataDir                  string
@@ -57,6 +57,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		devcontainerProjectDiscovery   bool
 		devcontainerDiscoveryAutostart bool
 	)
+	agentAuth := NewAgentAuth()
 	cmd := &serpent.Command{
 		Use:   "agent",
 		Short: `Starts the Coder workspace agent.`,
@@ -174,11 +175,11 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 
 			version := buildinfo.Version()
 			logger.Info(ctx, "agent is starting now",
-				slog.F("url", r.agentURL),
-				slog.F("auth", r.agentAuth),
+				slog.F("url", agentAuth.agentURL),
+				slog.F("auth", agentAuth.agentAuth),
 				slog.F("version", version),
 			)
-			client, err := r.createAgentClient(ctx)
+			client, err := agentAuth.CreateClient(ctx)
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}
@@ -190,7 +191,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			client.SDK.HTTPClient.Timeout = 30 * time.Second
 			// Attach header transport so we process --agent-header and
 			// --agent-header-command flags
-			headerTransport, err := headerTransport(ctx, r.agentURL, agentHeader, agentHeaderCommand)
+			headerTransport, err := headerTransport(ctx, agentAuth.agentURL, agentHeader, agentHeaderCommand)
 			if err != nil {
 				return xerrors.Errorf("configure header transport: %w", err)
 			}
@@ -292,7 +293,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					Execer:             execer,
 					Devcontainers:      devcontainers,
 					DevcontainerAPIOptions: []agentcontainers.Option{
-						agentcontainers.WithSubAgentURL(r.agentURL.String()),
+						agentcontainers.WithSubAgentURL(agentAuth.agentURL.String()),
 						agentcontainers.WithProjectDiscovery(devcontainerProjectDiscovery),
 						agentcontainers.WithDiscoveryAutostart(devcontainerDiscoveryAutostart),
 					},
@@ -449,7 +450,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Value:       serpent.BoolOf(&devcontainerDiscoveryAutostart),
 		},
 	}
-
+	agentAuth.AttachOptions(cmd, false)
 	return cmd
 }
 

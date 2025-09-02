@@ -561,7 +561,7 @@ func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *coder
 
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-		agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(agentToken))
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(agentToken))
 		agentCloser := agent.New(agent.Options{
 			Client: agentClient,
 			Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).

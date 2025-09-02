@@ -30,7 +30,7 @@ func New(t testing.TB, coderURL *url.URL, agentToken string, opts ...func(*agent
 	}
 
 	if o.Client == nil {
-		agentClient := agentsdk.New(coderURL, agentsdk.UsingFixedToken(agentToken))
+		agentClient := agentsdk.New(coderURL, agentsdk.WithFixedToken(agentToken))
 		agentClient.SDK.SetLogger(log)
 		o.Client = agentClient
 	}

@@ -22,7 +22,7 @@ type awsSessionTokenExchanger struct {
 	client *codersdk.Client
 }
 
-func UsingAWSInstanceIdentity() SessionTokenSetup {
+func WithAWSInstanceIdentity() SessionTokenSetup {
 	return func(client *codersdk.Client) RefreshableSessionTokenProvider {
 		return &instanceIdentitySessionTokenProvider{
 			tokenExchanger: &awsSessionTokenExchanger{client: client},

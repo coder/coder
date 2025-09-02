@@ -141,7 +141,7 @@ func TestRewriteDERPMap(t *testing.T) {
 	}
 	parsed, err := url.Parse("https://coconuts.org:44558")
 	require.NoError(t, err)
-	client := agentsdk.New(parsed, agentsdk.UsingFixedToken("unused"))
+	client := agentsdk.New(parsed, agentsdk.WithFixedToken("unused"))
 	client.RewriteDERPMap(dm)
 	region := dm.Regions[1]
 	require.True(t, region.EmbeddedRelay)

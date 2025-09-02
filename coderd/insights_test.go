@@ -585,7 +585,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						continue
 					}
 					authToken := uuid.New()
-					agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(authToken.String()))
+					agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken.String()))
 					workspace.agentClient = agentClient
 
 					var apps []*proto.App
@@ -1493,7 +1493,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 						continue
 					}
 					authToken := uuid.New()
-					agentClient := agentsdk.New(client.URL, agentsdk.UsingFixedToken(authToken.String()))
+					agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken.String()))
 					workspace.agentClient = agentClient
 
 					var apps []*proto.App

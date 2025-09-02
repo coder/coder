@@ -19,7 +19,7 @@ type azureSessionTokenExchanger struct {
 	client *codersdk.Client
 }
 
-func UsingAzureInstanceIdentity() SessionTokenSetup {
+func WithAzureInstanceIdentity() SessionTokenSetup {
 	return func(client *codersdk.Client) RefreshableSessionTokenProvider {
 		return &instanceIdentitySessionTokenProvider{
 			tokenExchanger: &azureSessionTokenExchanger{client: client},
