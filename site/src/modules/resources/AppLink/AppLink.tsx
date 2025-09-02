@@ -146,7 +146,7 @@ export const AppLink: FC<AppLinkProps> = ({
 						{primaryTooltip ? (
 							primaryTooltip
 						) : app.tooltip ? (
-							<Markdown className="prose-sm max-w-none [&>*]:my-1 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+							<Markdown className="text-content-secondary prose-sm font-medium [overflow-wrap:anywhere]">
 								{app.tooltip}
 							</Markdown>
 						) : null}
