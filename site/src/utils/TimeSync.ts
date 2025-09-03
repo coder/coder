@@ -111,8 +111,10 @@ interface TimeSyncApi {
 	 * Immediately tries to refresh the current date snapshot, regardless of
 	 * which refresh intervals have been specified. All subscribers will be
 	 * notified if the state changed.
+	 *
+	 * Returns the state after being invalidated.
 	 */
-	invalidateStateSnapshot: () => void;
+	invalidateStateSnapshot: () => Date;
 
 	/**
 	 * Cleans up the TimeSync instance and renders it inert for all other
@@ -216,28 +218,6 @@ export class TimeSync implements TimeSyncApi {
 		}
 	}
 
-	/**
-	 * Updates the cached version of the fastest refresh interval.
-	 * @returns {boolean} Indicates whether the new fastest interval was changed
-	 */
-	#updateFastestInterval(): boolean {
-		const prevFastest = this.#fastestRefreshInterval;
-		let newFastest = Number.POSITIVE_INFINITY;
-
-		// This setup requires that every interval array stay sorted. It
-		// immediately falls apart if this isn't guaranteed.
-		for (const entries of this.#subscriptions.values()) {
-			const subFastest =
-				entries[0]?.targetRefreshInterval ?? Number.POSITIVE_INFINITY;
-			if (subFastest < newFastest) {
-				newFastest = subFastest;
-			}
-		}
-
-		this.#fastestRefreshInterval = newFastest;
-		return prevFastest !== newFastest;
-	}
-
 	#onFastestIntervalChange(): void {
 		const fastest = this.#fastestRefreshInterval;
 		if (fastest === Number.POSITIVE_INFINITY) {
@@ -264,6 +244,29 @@ export class TimeSync implements TimeSyncApi {
 			window.clearInterval(this.#latestIntervalId);
 			this.#latestIntervalId = window.setInterval(this.#flushUpdate, fastest);
 		}, delta);
+	}
+
+	/**
+	 * Updates the cached version of the fastest refresh interval
+	 */
+	#updateFastestInterval(): void {
+		const prevFastest = this.#fastestRefreshInterval;
+		let newFastest = Number.POSITIVE_INFINITY;
+
+		// This setup requires that every interval array stay sorted. It
+		// immediately falls apart if this isn't guaranteed.
+		for (const entries of this.#subscriptions.values()) {
+			const subFastest =
+				entries[0]?.targetRefreshInterval ?? Number.POSITIVE_INFINITY;
+			if (subFastest < newFastest) {
+				newFastest = subFastest;
+			}
+		}
+
+		this.#fastestRefreshInterval = newFastest;
+		if (prevFastest !== newFastest) {
+			this.#onFastestIntervalChange();
+		}
 	}
 
 	/**
@@ -323,10 +326,7 @@ export class TimeSync implements TimeSyncApi {
 			this.#subscriptions.delete(onUpdate);
 		}
 
-		const changed = this.#updateFastestInterval();
-		if (changed) {
-			this.#onFastestIntervalChange();
-		}
+		this.#updateFastestInterval();
 	}
 
 	#addSubscription(
@@ -346,10 +346,7 @@ export class TimeSync implements TimeSyncApi {
 			(e1, e2) => e2.targetRefreshInterval - e1.targetRefreshInterval,
 		);
 
-		const changed = this.#updateFastestInterval();
-		if (changed) {
-			this.#onFastestIntervalChange();
-		}
+		this.#updateFastestInterval();
 
 		// Even if the fastest interval hasn't changed, we should still update
 		// the snapshot after the very first subscription gets added. We don't
@@ -390,14 +387,17 @@ export class TimeSync implements TimeSyncApi {
 			newReadonlyDate().getTime() - this.#latestDateSnapshot.getTime() >
 			this.#minimumRefreshIntervalMs;
 		if (needUpdate) {
-			this.#updateDateSnapshot();
+			void this.#updateDateSnapshot();
 		}
 
 		return this.#latestDateSnapshot;
 	}
 
-	invalidateStateSnapshot(): void {
-		this.#flushUpdate();
+	invalidateStateSnapshot(): Date {
+		if (!this.#disposed) {
+			this.#flushUpdate();
+		}
+		return this.#latestDateSnapshot;
 	}
 
 	dispose(): void {
