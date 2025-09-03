@@ -131,8 +131,19 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 // @Success 201 {object} codersdk.GenerateAPIKeyResponse
 // @Router /users/{user}/keys [post]
 func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	user := httpmw.UserParam(r)
+	var (
+		ctx               = r.Context()
+		user              = httpmw.UserParam(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	aReq.Old = database.APIKey{}
+	defer commitAudit()
 
 	// TODO(Cian): System users technically just have the 'member' role
 	// and we don't want to disallow all members from creating API keys.
@@ -142,7 +153,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookie, _, err := api.createAPIKey(ctx, apikey.CreateParams{
+	cookie, key, err := api.createAPIKey(ctx, apikey.CreateParams{
 		UserID:          user.ID,
 		DefaultLifetime: api.DeploymentValues.Sessions.DefaultTokenDuration.Value(),
 		LoginType:       database.LoginTypePassword,
@@ -156,6 +167,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq.New = *key
 	// We intentionally do not set the cookie on the response here.
 	// Setting the cookie will couple the browser session to the API
 	// key we return here, meaning logging out of the website would
