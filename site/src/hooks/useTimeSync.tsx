@@ -287,7 +287,14 @@ class ReactTimeSync {
 		return this.#timeSync;
 	}
 
-	onComponentMount(): void {
+	onComponentMount(componentId: string): void {
+		const entry = this.#entries.get(componentId);
+		if (entry === undefined) {
+			throw new Error(
+				`Trying to call component mount logic before component ID has been added to tracking (received value ${componentId})`,
+			);
+		}
+
 		if (!this.#isProviderMounted || !this.#hasPendingUpdates) {
 			return;
 		}
@@ -483,8 +490,8 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// transform invalidation to minimize the risks of React being over-notified
 	// of state updates
 	useEffect(() => {
-		reactTs.onComponentMount();
-	}, [reactTs]);
+		reactTs.onComponentMount(hookId);
+	}, [reactTs, hookId]);
 
 	return merged;
 }
