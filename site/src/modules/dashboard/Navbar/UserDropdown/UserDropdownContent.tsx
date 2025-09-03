@@ -135,18 +135,18 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 				{buildInfo?.deployment_id && (
 					<div
 						css={css`
-              font-size: 12px;
-              display: flex;
-              align-items: center;
-            `}
+							font-size: 12px;
+							display: flex;
+							align-items: center;
+						`}
 					>
 						<Tooltip title="Deployment Identifier">
 							<div
 								css={css`
-                  white-space: nowrap;
-                  overflow: hidden;
-                  text-overflow: ellipsis;
-                `}
+									white-space: nowrap;
+									overflow: hidden;
+									text-overflow: ellipsis;
+								`}
 							>
 								{buildInfo.deployment_id}
 							</div>
@@ -200,14 +200,14 @@ const styles = {
 		color: "inherit",
 	},
 	menuItem: (theme) => css`
-    gap: 20px;
-    padding: 8px 20px;
+		gap: 20px;
+		padding: 8px 20px;
 
-    &:hover {
-      background-color: ${theme.palette.action.hover};
-      transition: background-color 0.3s ease;
-    }
-  `,
+		&:hover {
+			background-color: ${theme.palette.action.hover};
+			transition: background-color 0.3s ease;
+		}
+	`,
 	menuItemIcon: (theme) => ({
 		color: theme.palette.text.secondary,
 		width: 20,
@@ -217,18 +217,18 @@ const styles = {
 		fontSize: 14,
 	},
 	footerText: (theme) => css`
-    font-size: 12px;
-    text-decoration: none;
-    color: ${theme.palette.text.secondary};
-    display: flex;
-    align-items: center;
-    gap: 4px;
+		font-size: 12px;
+		text-decoration: none;
+		color: ${theme.palette.text.secondary};
+		display: flex;
+		align-items: center;
+		gap: 4px;
 
-    & svg {
-      width: 12px;
-      height: 12px;
-    }
-  `,
+		& svg {
+			width: 12px;
+			height: 12px;
+		}
+	`,
 	buildInfo: (theme) => ({
 		color: theme.palette.text.primary,
 	}),
