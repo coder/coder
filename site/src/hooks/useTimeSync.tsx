@@ -152,9 +152,9 @@ type TransformationEntry = {
 	cachedTransformation: unknown;
 };
 
-const staleStateThresholdMs = 100;
-
 class ReactTimeSync {
+	static readonly #staleStateThresholdMs = 100;
+
 	// Each string is a globally-unique ID that identifies a specific React
 	// component instance (i.e., two React Fiber entries made from the same
 	// function component should have different IDs)
@@ -272,7 +272,8 @@ class ReactTimeSync {
 
 		const shouldInvalidate =
 			this.#isProviderMounted &&
-			newReadonlyDate().getTime() - snap.getTime() > staleStateThresholdMs;
+			newReadonlyDate().getTime() - snap.getTime() >
+				ReactTimeSync.#staleStateThresholdMs;
 		if (shouldInvalidate) {
 			snap = this.#timeSync.invalidateStateSnapshot({
 				notifyAfterUpdate: false,
