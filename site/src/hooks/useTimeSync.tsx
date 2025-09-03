@@ -343,6 +343,9 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
  * throughout the application. This lets you set up manual subscriptions that
  * don't need to be directly tied to React's lifecycles.
  *
+ * This hook shouldn't be necessary the majority of the time. If you need to
+ * bind state updates to TimeSync, consider using `useTimeSyncState` instead.
+ *
  * This hook is a core part of the design for TimeSync, but because no
  * components need it yet, it's defined with an _ to make Knip happy.
  */
@@ -404,16 +407,13 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	const { targetIntervalMs, transform } = options;
 	const activeTransform = (transform ?? identity) as TransformCallback<T>;
 
+	const hookId = useId();
 	const reactTs = useReactTimeSync();
-	useEffect(() => {
-		reactTs.onComponentMount();
-	}, [reactTs]);
 
 	// Because of how React lifecycles work, the effect event callback should
 	// never be called from inside render logic. It will *always* give you
 	// stale data after the very first render.
 	const externalTransform = useEffectEvent(activeTransform);
-	const hookId = useId();
 	const subscribe = useCallback<ReactSubscriptionCallback>(
 		(notifyReact) => {
 			return reactTs.subscribeToTransformations({
@@ -473,6 +473,13 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	useEffect(() => {
 		reactTs.invalidateTransformation(hookId, merged);
 	}, [reactTs, hookId, merged]);
+
+	// We want to make sure that the mounting effect fires after the initial
+	// transform invalidation to minimize the risks of React being over-notified
+	// of state updates
+	useEffect(() => {
+		reactTs.onComponentMount();
+	}, [reactTs]);
 
 	return merged;
 }
