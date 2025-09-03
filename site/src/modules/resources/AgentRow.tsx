@@ -156,6 +156,10 @@ export const AgentRow: FC<AgentRowProps> = ({
 	// Check if any devcontainers have errors to gray out agent border
 	const hasDevcontainerErrors = devcontainers?.some((dc) => dc.error);
 
+	const hasSubdomainApps = agent.apps?.some((app) => app.subdomain);
+	const shouldShowWildcardWarning =
+		hasSubdomainApps && !proxy.proxy?.wildcard_hostname;
+
 	return (
 		<Stack
 			key={agent.id}
@@ -165,7 +169,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 				styles.agentRow,
 				styles[`agentRow-${agent.status}`],
 				styles[`agentRow-lifecycle-${agent.lifecycle_state}`],
-				hasDevcontainerErrors && styles.agentRowWithErrors,
+				(hasDevcontainerErrors || shouldShowWildcardWarning) &&
+					styles.agentRowWithErrors,
 			]}
 		>
 			<header css={styles.header}>
@@ -227,7 +232,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</section>
 				)}
 
-				<WildcardHostnameWarning agent={agent} />
+				{shouldShowWildcardWarning && <WildcardHostnameWarning />}
 
 				{shouldDisplayAppsSection && (
 					<section css={styles.apps}>

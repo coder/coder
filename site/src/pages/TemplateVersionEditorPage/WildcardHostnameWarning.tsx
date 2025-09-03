@@ -1,66 +1,56 @@
-import { useTheme } from "@emotion/react";
 import AlertTitle from "@mui/material/AlertTitle";
+import type { WorkspaceResource } from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { Link } from "components/Link/Link";
-import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { useProxy } from "contexts/ProxyContext";
 import type { FC } from "react";
 import { docs } from "utils/docs";
-import type { FileTree } from "utils/filetree";
 
 interface WildcardHostnameWarningProps {
-	fileTree?: FileTree;
+	resources: WorkspaceResource[];
 }
 
 export const WildcardHostnameWarning: FC<WildcardHostnameWarningProps> = ({
-	fileTree,
+	resources,
 }) => {
-	const theme = useTheme();
 	const { proxy } = useProxy();
 
 	if (proxy.proxy?.wildcard_hostname) {
 		return null;
 	}
 
-	if (fileTree) {
-		// This regex matches any coder_app resource with the subdomain = true flag.
-		const regex =
-			/resource\s+"coder_app"\s+"[^"]+"\s*\{[\s\S]*?\bsubdomain\s*=\s*true\b[\s\S]*?\}/s;
-		const hasSubdomainCoderApp = Object.keys(fileTree).some((filePath) => {
-			const content = fileTree[filePath];
-			return typeof content === "string" && regex.test(content);
-		});
+	const hasSubdomainCoderApp = resources.some((resource) => {
+		return resource.agents?.some((agent) =>
+			agent.apps?.some((app) => app.subdomain),
+		);
+	});
 
-		if (!hasSubdomainCoderApp) {
-			return null;
-		}
+	if (!hasSubdomainCoderApp) {
+		return null;
 	}
 
 	return (
 		<Alert
 			severity="warning"
-			css={{
-				borderRadius: 0,
-				border: 0,
-				borderBottom: `1px solid ${theme.palette.divider}`,
-				borderLeft: `2px solid ${theme.palette.warning.main}`,
-			}}
+			className="rounded-none border-0 border-l-2 border-l-warning border-b-divider"
 		>
 			<AlertTitle>Workspace applications will not work</AlertTitle>
 			<AlertDetail>
 				<div>
 					This template contains coder_app resources with{" "}
-					<MemoizedInlineMarkdown>`subdomain = true`</MemoizedInlineMarkdown>,
-					but subdomain applications are not configured. Users won't be able to
-					access these applications until you configure the
-					<MemoizedInlineMarkdown>
-						`--wildcard-access-url`
-					</MemoizedInlineMarkdown>{" "}
+					<code className="py-px px-1 bg-surface-tertiary rounded-sm text-content-primary">
+						subdomain = true
+					</code>
+					, but subdomain applications are not configured. Users won't be able
+					to access these applications until you configure the{" "}
+					<code className="py-px px-1 bg-surface-tertiary rounded-sm text-content-primary">
+						--wildcard-access-url
+					</code>{" "}
 					flag when starting the Coder server.
 				</div>
-				<div className="flex items-center gap-2 flex-wrap mt-2">
+				<div className="flex items-center gap-2 flex-wrap pt-2">
 					<Link href={docs("/admin/setup#wildcard-access-url")} target="_blank">
-						<span css={{ fontWeight: 600 }}>
+						<span className="font-semibold">
 							Learn more about wildcard access URL
 						</span>
 					</Link>

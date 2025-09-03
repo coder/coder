@@ -201,7 +201,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 		if (logsContentRef.current) {
 			logsContentRef.current.scrollTop = logsContentRef.current.scrollHeight;
 		}
-	}, [buildLogs]);
+	}, [buildLogs, resources]);
 
 	useLeaveSiteWarning(dirty);
 
@@ -629,7 +629,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 										/>
 									)}
 
-									{fileTree && <WildcardHostnameWarning fileTree={fileTree} />}
+									{resources && (
+										<WildcardHostnameWarning resources={resources} />
+									)}
 								</div>
 							)}
 
