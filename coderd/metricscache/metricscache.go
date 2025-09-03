@@ -3,7 +3,6 @@ package metricscache
 import (
 	"context"
 	"database/sql"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -34,8 +33,8 @@ type Cache struct {
 	templateAverageBuildTime atomic.Pointer[map[uuid.UUID]database.GetTemplateAverageBuildTimeRow]
 	deploymentStatsResponse  atomic.Pointer[codersdk.DeploymentStats]
 
-	done   chan struct{}
-	cancel func()
+	cancel  func()
+	tickers []quartz.Waiter
 
 	// usage is a experiment flag to enable new workspace usage tracking behavior and will be
 	// removed when the experiment is complete.
@@ -61,25 +60,13 @@ func New(db database.Store, log slog.Logger, clock quartz.Clock, intervals Inter
 		database:  db,
 		intervals: intervals,
 		log:       log,
-		done:      make(chan struct{}),
 		cancel:    cancel,
 		usage:     usage,
 	}
-	go func() {
-		var wg sync.WaitGroup
-		defer close(c.done)
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			c.run(ctx, "template build times", intervals.TemplateBuildTimes, c.refreshTemplateBuildTimes)
-		}()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			c.run(ctx, "deployment stats", intervals.DeploymentStats, c.refreshDeploymentStats)
-		}()
-		wg.Wait()
-	}()
+
+	go c.run(ctx, "template build times", intervals.TemplateBuildTimes, c.refreshTemplateBuildTimes)
+	go c.run(ctx, "deployment stats", intervals.DeploymentStats, c.refreshDeploymentStats)
+
 	return c
 }
 
@@ -181,16 +168,14 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 
 func (c *Cache) run(ctx context.Context, name string, interval time.Duration, refresh func(context.Context) error) {
 	logger := c.log.With(slog.F("name", name), slog.F("interval", interval))
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
 
-	for {
+	tickerFunc := func() error {
+		start := c.clock.Now()
 		for r := retry.New(time.Millisecond*100, time.Minute); r.Wait(ctx); {
-			start := time.Now()
 			err := refresh(ctx)
 			if err != nil {
 				if ctx.Err() != nil {
-					return
+					return nil
 				}
 				if xerrors.Is(err, sql.ErrNoRows) {
 					break
@@ -198,23 +183,24 @@ func (c *Cache) run(ctx context.Context, name string, interval time.Duration, re
 				logger.Error(ctx, "refresh metrics failed", slog.Error(err))
 				continue
 			}
-			logger.Debug(ctx, "metrics refreshed", slog.F("took", time.Since(start)))
+			logger.Debug(ctx, "metrics refreshed", slog.F("took", c.clock.Since(start)))
 			break
 		}
-
-		select {
-		case <-ticker.C:
-		case <-c.done:
-			return
-		case <-ctx.Done():
-			return
-		}
+		return nil
 	}
+
+	// Call once immediately before starting ticker
+	_ = tickerFunc()
+
+	tkr := c.clock.TickerFunc(ctx, interval, tickerFunc, "metricscache", name)
+	c.tickers = append(c.tickers, tkr)
 }
 
 func (c *Cache) Close() error {
 	c.cancel()
-	<-c.done
+	for _, tkr := range c.tickers {
+		_ = tkr.Wait()
+	}
 	return nil
 }
 

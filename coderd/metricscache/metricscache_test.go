@@ -205,13 +205,19 @@ func TestCache_BuildTime(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := testutil.Context(t, testutil.WaitShort)
+
 			var (
-				log       = testutil.Logger(t)
-				clock     = quartz.NewMock(t)
-				cache, db = newMetricsCache(t, log, clock, metricscache.Intervals{
-					TemplateBuildTimes: testutil.IntervalFast,
-				}, false)
+				log   = testutil.Logger(t)
+				clock = quartz.NewMock(t)
 			)
+
+			trapTickerFunc := clock.Trap().TickerFunc("metricscache")
+
+			defer trapTickerFunc.Close()
+			cache, db := newMetricsCache(t, log, clock, metricscache.Intervals{
+				TemplateBuildTimes: testutil.IntervalFast,
+			}, false)
 
 			clock.Set(someDay)
 
@@ -257,17 +263,20 @@ func TestCache_BuildTime(t *testing.T) {
 				})
 			}
 
+			// Wait for both ticker functions to be created (template build times and deployment stats)
+			trapTickerFunc.MustWait(ctx).MustRelease(ctx)
+			trapTickerFunc.MustWait(ctx).MustRelease(ctx)
+
+			_, wait := clock.AdvanceNext()
+			wait.MustWait(ctx)
+
 			if tt.want.loads {
 				wantTransition := codersdk.WorkspaceTransition(tt.args.transition)
-				require.Eventuallyf(t, func() bool {
-					stats := cache.TemplateBuildTimeStats(template.ID)
-					ts := stats[wantTransition]
-					return ts.P50 != nil && *ts.P50 == tt.want.buildTimeMs
-				}, testutil.WaitLong, testutil.IntervalMedium,
-					"P50 never reached expected value for %v", wantTransition,
-				)
-
 				gotStats := cache.TemplateBuildTimeStats(template.ID)
+				ts := gotStats[wantTransition]
+				require.NotNil(t, ts.P50, "P50 should be set for %v", wantTransition)
+				require.Equal(t, tt.want.buildTimeMs, *ts.P50, "P50 should match expected value for %v", wantTransition)
+
 				for transition, ts := range gotStats {
 					if transition == wantTransition {
 						// Checked above
@@ -276,14 +285,8 @@ func TestCache_BuildTime(t *testing.T) {
 					require.Empty(t, ts, "%v", transition)
 				}
 			} else {
-				var stats codersdk.TemplateBuildTimeStats
-				require.Never(t, func() bool {
-					stats = cache.TemplateBuildTimeStats(template.ID)
-					requireBuildTimeStatsEmpty(t, stats)
-					return t.Failed()
-				}, testutil.WaitShort/2, testutil.IntervalMedium,
-					"BuildTimeStats populated", stats,
-				)
+				stats := cache.TemplateBuildTimeStats(template.ID)
+				requireBuildTimeStatsEmpty(t, stats)
 			}
 		})
 	}
@@ -292,13 +295,20 @@ func TestCache_BuildTime(t *testing.T) {
 func TestCache_DeploymentStats(t *testing.T) {
 	t.Parallel()
 
+	ctx := testutil.Context(t, testutil.WaitShort)
+
 	var (
-		log       = testutil.Logger(t)
-		clock     = quartz.NewMock(t)
-		cache, db = newMetricsCache(t, log, clock, metricscache.Intervals{
-			DeploymentStats: testutil.IntervalFast,
-		}, false)
+		log   = testutil.Logger(t)
+		clock = quartz.NewMock(t)
 	)
+
+	tickerTrap := clock.Trap().TickerFunc("metricscache")
+	defer tickerTrap.Close()
+
+	cache, db := newMetricsCache(t, log, clock, metricscache.Intervals{
+		TemplateBuildTimes: testutil.IntervalFast,
+		DeploymentStats:    testutil.IntervalFast,
+	}, false)
 
 	err := db.InsertWorkspaceAgentStats(context.Background(), database.InsertWorkspaceAgentStatsParams{
 		ID:                 []uuid.UUID{uuid.New()},
@@ -323,11 +333,14 @@ func TestCache_DeploymentStats(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var stat codersdk.DeploymentStats
-	require.Eventually(t, func() bool {
-		var ok bool
-		stat, ok = cache.DeploymentStats()
-		return ok
-	}, testutil.WaitLong, testutil.IntervalMedium)
+	// Wait for both ticker functions to be created (template build times and deployment stats)
+	tickerTrap.MustWait(ctx).MustRelease(ctx)
+	tickerTrap.MustWait(ctx).MustRelease(ctx)
+
+	_, wait := clock.AdvanceNext()
+	wait.MustWait(ctx)
+
+	stat, ok := cache.DeploymentStats()
+	require.True(t, ok, "cache should be populated after refresh")
 	require.Equal(t, int64(1), stat.SessionCount.VSCode)
 }
