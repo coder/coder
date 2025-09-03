@@ -5,7 +5,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
-import { type FC, useState } from "react";
+import type { FC } from "react";
 import { UserDropdownContent } from "./UserDropdownContent";
 
 interface UserDropdownProps {
@@ -21,10 +21,8 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 	supportLinks,
 	onSignOut,
 }) => {
-	const [open, setOpen] = useState(false);
-
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
+		<Popover>
 			<PopoverTrigger asChild>
 				<button
 					type="button"
