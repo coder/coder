@@ -135,7 +135,7 @@ interface TimeSyncApi {
 }
 
 type SubscriptionEntry = Readonly<{
-	targetRefreshInterval: number;
+	targetInterval: number;
 	unsubscribe: () => void;
 }>;
 
@@ -286,8 +286,7 @@ export class TimeSync implements TimeSyncApi {
 		// This setup requires that every interval array stay sorted. It
 		// immediately falls apart if this isn't guaranteed.
 		for (const entries of this.#subscriptions.values()) {
-			const subFastest =
-				entries[0]?.targetRefreshInterval ?? Number.POSITIVE_INFINITY;
+			const subFastest = entries[0]?.targetInterval ?? Number.POSITIVE_INFINITY;
 			if (subFastest < newFastest) {
 				newFastest = subFastest;
 			}
@@ -319,54 +318,6 @@ export class TimeSync implements TimeSyncApi {
 		return true;
 	}
 
-	#removeSubscription(onUpdate: OnUpdate, unsubscribe: () => void): void {
-		const entries = this.#subscriptions.get(onUpdate);
-		if (entries === undefined) {
-			return;
-		}
-		const matchIndex = entries.findIndex((e) => e.unsubscribe === unsubscribe);
-		if (matchIndex === -1) {
-			return;
-		}
-
-		// No need to sort on removal because everything gets sorted as it
-		// enters the subscriptions map
-		entries.splice(matchIndex, 1);
-		if (entries.length === 0) {
-			this.#subscriptions.delete(onUpdate);
-		}
-
-		this.#updateFastestInterval();
-	}
-
-	#addSubscription(
-		targetRefreshInterval: number,
-		onUpdate: OnUpdate,
-		unsubscribe: () => void,
-	): void {
-		const initialSubs = this.#subscriptions.size;
-		let entries = this.#subscriptions.get(onUpdate);
-		if (entries === undefined) {
-			entries = [];
-			this.#subscriptions.set(onUpdate, entries);
-		}
-
-		entries.push({ targetRefreshInterval, unsubscribe });
-		entries.sort(
-			(e1, e2) => e2.targetRefreshInterval - e1.targetRefreshInterval,
-		);
-
-		this.#updateFastestInterval();
-
-		// Even if the fastest interval hasn't changed, we should still update
-		// the snapshot after the very first subscription gets added. We don't
-		// know how much time will have passed between the class getting
-		// instantiated and the first subscription
-		if (initialSubs === 0) {
-			this.#tick();
-		}
-	}
-
 	subscribe(sh: SubscriptionHandshake): () => void {
 		// Destructuring properties so that they can't be fiddled with after
 		// this function call ends
@@ -382,13 +333,42 @@ export class TimeSync implements TimeSyncApi {
 			);
 		}
 
-		const floored = Math.max(
-			this.#minimumRefreshIntervalMs,
-			targetRefreshIntervalMs,
-		);
+		const unsubscribe = () => {
+			const entries = this.#subscriptions.get(onUpdate);
+			if (entries === undefined) {
+				return;
+			}
+			const matchIndex = entries.findIndex(
+				(e) => e.unsubscribe === unsubscribe,
+			);
+			if (matchIndex === -1) {
+				return;
+			}
+			// No need to sort on removal because everything gets sorted as it
+			// enters the subscriptions map
+			entries.splice(matchIndex, 1);
+			if (entries.length === 0) {
+				this.#subscriptions.delete(onUpdate);
+			}
+			this.#updateFastestInterval();
+		};
 
-		const unsubscribe = () => this.#removeSubscription(onUpdate, unsubscribe);
-		this.#addSubscription(floored, onUpdate, unsubscribe);
+		// Add new subscription and reconcile state if need be
+		let entries = this.#subscriptions.get(onUpdate);
+		if (entries === undefined) {
+			entries = [];
+			this.#subscriptions.set(onUpdate, entries);
+		}
+		entries.push({
+			unsubscribe,
+			targetInterval: Math.max(
+				this.#minimumRefreshIntervalMs,
+				targetRefreshIntervalMs,
+			),
+		});
+		entries.sort((e1, e2) => e2.targetInterval - e1.targetInterval);
+		this.#updateFastestInterval();
+
 		return unsubscribe;
 	}
 
