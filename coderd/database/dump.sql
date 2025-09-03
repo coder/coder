@@ -393,6 +393,24 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION check_user_can_create_session() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- Check if the user exists and is not deleted or a system user.
+    IF EXISTS (
+        SELECT 1 FROM users
+        WHERE id = NEW.initiator_id
+        AND (deleted = true OR is_system = true)
+    ) THEN
+        RAISE EXCEPTION 'Cannot create session: user is deleted or is a system user';
+    END IF;
+
+    -- If user doesn't exist at all, the foreign key constraint will handle it.
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION check_workspace_agent_name_unique() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -2915,6 +2933,8 @@ CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (cr
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
 
+CREATE INDEX idx_aibridge_sessions_initiator_id ON aibridge_sessions USING btree (initiator_id);
+
 CREATE INDEX idx_aibridge_sessions_model ON aibridge_sessions USING btree (model);
 
 CREATE INDEX idx_aibridge_sessions_provider ON aibridge_sessions USING btree (provider);
@@ -3164,6 +3184,8 @@ CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links F
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 
 CREATE TRIGGER user_status_change_trigger AFTER INSERT OR UPDATE ON users FOR EACH ROW EXECUTE FUNCTION record_user_status_change();
+
+CREATE TRIGGER validate_user_before_session BEFORE INSERT OR UPDATE OF initiator_id ON aibridge_sessions FOR EACH ROW EXECUTE FUNCTION check_user_can_create_session();
 
 CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF name, resource_id ON workspace_agents FOR EACH ROW EXECUTE FUNCTION check_workspace_agent_name_unique();
 

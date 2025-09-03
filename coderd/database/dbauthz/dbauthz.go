@@ -3780,21 +3780,6 @@ func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now ti
 }
 
 func (q *querier) InsertAIBridgeSession(ctx context.Context, arg database.InsertAIBridgeSessionParams) (database.AIBridgeSession, error) {
-	// All aibridge_sessions records belong to their initiator.
-	u, err := q.db.GetUserByID(ctx, arg.InitiatorID)
-	if err != nil {
-		return database.AIBridgeSession{}, xerrors.Errorf("validate initiator: %w", err)
-	}
-
-	if u.Deleted {
-		q.log.Error(ctx, "deleted user attempted to create aibridge session", slog.F("user_id", u.ID))
-		return database.AIBridgeSession{}, xerrors.New("failed to validate initiator")
-	}
-	if u.IsSystem {
-		q.log.Critical(ctx, "system user attempted to create aibridge session, abuse suspected!", slog.F("user_id", u.ID))
-		return database.AIBridgeSession{}, xerrors.New("failed to validate initiator")
-	}
-
 	return insert(q.log, q.auth, rbac.ResourceAibridgeSession.WithOwner(arg.InitiatorID.String()), q.db.InsertAIBridgeSession)(ctx, arg)
 }
 
