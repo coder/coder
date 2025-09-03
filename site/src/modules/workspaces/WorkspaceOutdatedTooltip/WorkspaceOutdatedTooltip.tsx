@@ -23,11 +23,13 @@ import {
 	WorkspaceUpdateDialogs,
 } from "../WorkspaceUpdateDialogs";
 
-interface TooltipProps {
+interface WorkspaceOutdatedTooltipProps {
 	workspace: Workspace;
 }
 
-export const WorkspaceOutdatedTooltip: FC<TooltipProps> = (props) => {
+export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = (
+	props,
+) => {
 	const [isOpen, setIsOpen] = useState(false);
 
 	return (
@@ -41,7 +43,7 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = (props) => {
 	);
 };
 
-type TooltipContentProps = TooltipProps & { isOpen: boolean };
+type TooltipContentProps = WorkspaceOutdatedTooltipProps & { isOpen: boolean };
 
 const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 	workspace,
