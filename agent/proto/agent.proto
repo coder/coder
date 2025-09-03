@@ -44,7 +44,6 @@ message WorkspaceApp {
 	}
 	Health health = 12;
 	bool hidden = 13;
-	string tooltip = 14;
 }
 
 message WorkspaceAgentScript {

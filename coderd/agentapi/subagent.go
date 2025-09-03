@@ -205,8 +205,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 					Valid:  app.GetGroup() != "",
 					String: app.GetGroup(),
 				},
-				// NOTE: Tooltip doesn't exist for an agent workspace app. Adding this as empty for the linter.
-				Tooltip: "",
+				Tooltip: "", // tooltips are not currently supported in subagent workspaces, default to empty string
 			})
 			if err != nil {
 				return xerrors.Errorf("insert workspace app: %w", err)
