@@ -46,7 +46,7 @@ export const HelpTooltipContent: FC<TooltipContentProps> = ({
 		<TooltipContent
 			side="bottom"
 			align="start"
-			collisionPadding={16} // 1rem
+			collisionPadding={16}
 			{...props}
 			className={cn(
 				"w-[320px] p-5 bg-surface-secondary border-surface-quaternary text-sm",
