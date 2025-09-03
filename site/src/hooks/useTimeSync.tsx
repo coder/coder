@@ -312,7 +312,8 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 
 /**
  * Provides access to the TimeSync instance currently being dependency-injected
- * throughout the application.
+ * throughout the application. This lets you set up manual subscriptions that
+ * don't need to be directly tied to React's lifecycles.
  *
  * This hook is a core part of the design for TimeSync, but because no
  * components need it yet, it's defined with an _ to make Knip happy.
@@ -431,6 +432,8 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 		return activeTransform(latestDate);
 	}, [reactTs, activeTransform]);
 
+	// Making sure to merge the results so that the hook interfaces well with
+	// memoization and effects outside of this hook
 	const merged = useMemo(
 		() => structuralMerge(cachedTransformation, newTransformation),
 		[cachedTransformation, newTransformation],
