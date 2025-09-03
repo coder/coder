@@ -2,6 +2,7 @@ import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
+import TextField from "@mui/material/TextField";
 import { API } from "api/api";
 import type { Template, TemplateVersionParameter } from "api/typesGenerated";
 import { FormSection, VerticalForm } from "components/Form/Form";
@@ -13,9 +14,11 @@ import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
+import { nameValidator } from "utils/formUtils";
 import { pageTitle } from "utils/page";
 import { getInitialRichParameterValues } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
+import { ValidationError } from "yup";
 
 type ButtonValues = Record<string, string>;
 
@@ -89,6 +92,17 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 		}
 	}, [buttonValues, templateParameters]);
 
+	const [workspaceNameError, setWorkspaceNameError] = useState("");
+	const workspaceNameValidator = nameValidator("Workspace name");
+	const validateWorkspaceName = (workspaceName: string) => {
+		try {
+			workspaceName && workspaceNameValidator.validateSync(workspaceName);
+			setWorkspaceNameError("");
+		} catch (e) {
+			setWorkspaceNameError(e instanceof ValidationError ? e.message : "");
+		}
+	};
+
 	return (
 		<>
 			<Helmet>
@@ -124,6 +138,26 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 										label="Automatic"
 									/>
 								</RadioGroup>
+							</FormSection>
+
+							<FormSection
+								title="Workspace name"
+								description="Default name for the new workspace"
+							>
+								<TextField
+									data-testid="default-workspace-name"
+									defaultValue={buttonValues.name}
+									fullWidth
+									onChange={(event) => {
+										validateWorkspaceName(event.target.value);
+										setButtonValues((buttonValues) => ({
+											...buttonValues,
+											name: event.target.value,
+										}));
+									}}
+									error={workspaceNameError !== ""}
+									helperText={workspaceNameError}
+								/>
 							</FormSection>
 
 							{templateParameters.length > 0 && (
