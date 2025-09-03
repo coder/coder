@@ -89,6 +89,29 @@ import {
 } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
 
+// Helper to extract a human-readable region from job tags
+const getWorkspaceRegion = (workspace: Workspace): string | undefined => {
+	const tags = workspace.latest_build?.job?.tags;
+	if (!tags) return undefined;
+	const preferredKeys = [
+		"region",
+		"region_name",
+		"region_code",
+		"cloud_region",
+		"workspace_region",
+		"aws_region",
+		"gcp_region",
+		"azure_region",
+	];
+	for (const key of preferredKeys) {
+		const val = tags[key];
+		if (val && typeof val === "string" && val.trim() !== "") {
+			return val;
+		}
+	}
+	return undefined;
+};
+
 interface WorkspacesTableProps {
 	workspaces?: readonly Workspace[];
 	checkedWorkspaces: readonly Workspace[];
@@ -144,6 +167,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 						</div>
 					</TableHead>
 					<TableHead className="w-1/3">Template</TableHead>
+					<TableHead className="w-1/6">Region</TableHead>
 					<TableHead className="w-1/3">Status</TableHead>
 					<TableHead className="w-0">
 						<span className="sr-only">Actions</span>
@@ -256,6 +280,13 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								/>
 							</TableCell>
 
+							{/* Region column */}
+							<TableCell>
+								<span className="whitespace-nowrap">
+									{getWorkspaceRegion(workspace) ?? "—"}
+								</span>
+							</TableCell>
+
 							<WorkspaceStatusCell workspace={workspace} />
 
 							<WorkspaceActionsCell
@@ -333,6 +364,10 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 				</TableCell>
 				<TableCell className="w-2/6">
 					<AvatarDataSkeleton />
+				</TableCell>
+				{/* Region skeleton cell */}
+				<TableCell className="w-1/6">
+					<Skeleton variant="text" width="40%" />
 				</TableCell>
 				<TableCell className="w-2/6">
 					<Skeleton variant="text" width="50%" />
