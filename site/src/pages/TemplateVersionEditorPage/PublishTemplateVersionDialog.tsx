@@ -124,7 +124,7 @@ export const PublishTemplateVersionDialog: FC<
 									<HelpTooltipTrigger />
 
 									{/**
-									 * Without disablePortal, the tooltip will render under the dialog;
+									 * 2025-09-03 - Without disablePortal, the tooltip will render under the dialog;
 									 * this prop may not need to be set when we switch away from MuiDialog
 									 */}
 									<HelpTooltipContent disablePortal>
