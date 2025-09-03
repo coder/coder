@@ -215,43 +215,25 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 													onCheckChange([...checkedWorkspaces, workspace]);
 												} else {
 													onCheckChange(
-														checkedWorkspaces.filter(
-															(w) => w.id !== workspace.id,
-														),
-													);
-												}
+														checkedWorkspaces.filter((w) => w.id !== workspace.id),
+												);
 											}}
 										/>
 									)}
-									<AvatarData
-										title={
-											<Stack direction="row" spacing={0.5} alignItems="center">
-												<span className="whitespace-nowrap">
-													{workspace.name}
-												</span>
-												{workspace.favorite && (
-													<StarIcon className="size-icon-xs" />
-												)}
-												{workspace.outdated && (
-													<WorkspaceOutdatedTooltip workspace={workspace} />
-												)}
-											</Stack>
-										}
-										subtitle={
-											<div>
-												<span className="sr-only">Owner: </span>
-												{workspace.owner_name}
-											</div>
-										}
-										avatar={
-											<Avatar
-												src={workspace.owner_avatar_url}
-												fallback={workspace.owner_name}
-												size="lg"
-											/>
-										}
-									/>
-								</div>
+								<AvatarData
+									title={
+										<Stack direction="row" spacing={0.5} alignItems="center">
+											<span className="whitespace-nowrap">{workspace.name}</span>
+											{workspace.favorite && <StarIcon className="size-icon-xs" />}
+											{workspace.outdated && (
+												<WorkspaceOutdatedTooltip workspace={workspace} />
+											)}
+										</Stack>
+									}
+									subtitle={<div><span className="sr-only">Owner: </span>{workspace.owner_name}</div>}
+									avatar={<Avatar src={workspace.owner_avatar_url} fallback={workspace.owner_name} size="lg" />}
+								/>
+							</div>
 							</TableCell>
 
 							<TableCell>
@@ -270,30 +252,19 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 										)
 									}
 									avatar={
-										<Avatar
-											variant="icon"
-											src={workspace.template_icon}
-											fallback={getDisplayWorkspaceTemplateName(workspace)}
-											size="lg"
-										/>
+										<Avatar variant="icon" src={workspace.template_icon} fallback={getDisplayWorkspaceTemplateName(workspace)} size="lg" />
 									}
 								/>
 							</TableCell>
 
 							{/* Region column */}
 							<TableCell>
-								<span className="whitespace-nowrap">
-									{getWorkspaceRegion(workspace) ?? "—"}
-								</span>
+								<span className="whitespace-nowrap">{getWorkspaceRegion(workspace) ?? "—"}</span>
 							</TableCell>
 
 							<WorkspaceStatusCell workspace={workspace} />
 
-							<WorkspaceActionsCell
-								workspace={workspace}
-								onActionSuccess={onActionSuccess}
-								onActionError={onActionError}
-							/>
+							<WorkspaceActionsCell workspace={workspace} onActionSuccess={onActionSuccess} onActionError={onActionError} />
 						</WorkspacesRow>
 					);
 				})}
@@ -308,11 +279,7 @@ interface WorkspacesRowProps {
 	checked: boolean;
 }
 
-const WorkspacesRow: FC<WorkspacesRowProps> = ({
-	workspace,
-	children,
-	checked,
-}) => {
+const WorkspacesRow: FC<WorkspacesRowProps> = ({ workspace, children, checked }) => {
 	const navigate = useNavigate();
 
 	const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`;
@@ -323,8 +290,7 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
 			// Order of booleans actually matters here for Windows-Mac compatibility;
 			// meta key is Cmd on Macs, but on Windows, it's either the Windows key,
 			// or the key does nothing at all (depends on the browser)
-			const shouldOpenInNewTab =
-				event.shiftKey || event.metaKey || event.ctrlKey;
+			const shouldOpenInNewTab = event.shiftKey || event.metaKey || event.ctrlKey;
 
 			if (shouldOpenInNewTab) {
 				openLinkInNewTab();
@@ -335,14 +301,7 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
 	});
 
 	return (
-		<TableRow
-			{...clickableProps}
-			data-testid={`workspace-${workspace.id}`}
-			className={cn([
-				checked ? "bg-muted hover:bg-muted" : undefined,
-				clickableProps.className,
-			])}
-		>
+		<TableRow {...clickableProps} data-testid={`workspace-${workspace.id}`} className={cn([checked ? "bg-muted hover:bg-muted" : undefined, clickableProps.className])}>
 			{children}
 		</TableRow>
 	);
@@ -398,13 +357,9 @@ const WorkspaceStatusCell: FC<WorkspaceStatusCellProps> = ({ workspace }) => {
 		<TableCell>
 			<div className="flex flex-col">
 				<WorkspaceStatusIndicator workspace={workspace}>
-					{workspace.dormant_at && (
-						<WorkspaceDormantBadge workspace={workspace} />
-					)}
+					{workspace.dormant_at && <WorkspaceDormantBadge workspace={workspace} />}
 				</WorkspaceStatusIndicator>
-				<span className="text-xs font-medium text-content-secondary ml-6 whitespace-nowrap">
-					{lastUsedMessage(workspace.last_used_at)}
-				</span>
+				<span className="text-xs font-medium text-content-secondary ml-6 whitespace-nowrap">{lastUsedMessage(workspace.last_used_at)}</span>
 			</div>
 		</TableCell>
 	);
@@ -416,11 +371,7 @@ type WorkspaceActionsCellProps = {
 	onActionError: (error: unknown) => void;
 };
 
-const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
-	workspace,
-	onActionSuccess,
-	onActionError,
-}) => {
+const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({ workspace, onActionSuccess, onActionError }) => {
 	const { user } = useAuthenticated();
 
 	const queryClient = useQueryClient();
@@ -459,16 +410,8 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 		onError: onActionError,
 	});
 
-	const { data: latestVersion } = useQuery({
-		...templateVersion(workspace.template_active_version_id),
-		enabled: workspace.outdated,
-	});
-	const workspaceUpdate = useWorkspaceUpdate({
-		workspace,
-		latestVersion,
-		onSuccess: onActionSuccess,
-		onError: onActionError,
-	});
+	const { data: latestVersion } = useQuery({ ...templateVersion(workspace.template_active_version_id), enabled: workspace.outdated });
+	const workspaceUpdate = useWorkspaceUpdate({ workspace, latestVersion, onSuccess: onActionSuccess, onError: onActionError });
 
 	const deleteWorkspaceOptions = deleteWorkspace(workspace, queryClient);
 	const deleteWorkspaceMutation = useMutation({
@@ -483,10 +426,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 	const [isStopConfirmOpen, setIsStopConfirmOpen] = useState(false);
 	const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
 
-	const isRetrying =
-		startWorkspaceMutation.isPending ||
-		stopWorkspaceMutation.isPending ||
-		deleteWorkspaceMutation.isPending;
+	const isRetrying = startWorkspaceMutation.isPending || stopWorkspaceMutation.isPending || deleteWorkspaceMutation.isPending;
 
 	const retry = () => {
 		switch (workspace.latest_build.transition) {
@@ -510,40 +450,23 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 			}}
 		>
 			<div className="flex gap-1 justify-end">
-				{workspace.latest_build.status === "running" &&
-					(workspace.latest_app_status ? (
-						<WorkspaceAppStatusLinks workspace={workspace} />
-					) : (
-						<WorkspaceApps workspace={workspace} />
-					))}
+				{workspace.latest_build.status === "running" && (workspace.latest_app_status ? <WorkspaceAppStatusLinks workspace={workspace} /> : <WorkspaceApps workspace={workspace} />)}
 
 				{abilities.actions.includes("start") && (
-					<PrimaryAction
-						onClick={() => startWorkspaceMutation.mutate({})}
-						isLoading={startWorkspaceMutation.isPending}
-						label="Start workspace"
-					>
+					<PrimaryAction onClick={() => startWorkspaceMutation.mutate({})} isLoading={startWorkspaceMutation.isPending} label="Start workspace">
 						<PlayIcon />
 					</PrimaryAction>
 				)}
 
 				{abilities.actions.includes("stop") && (
-					<PrimaryAction
-						onClick={() => setIsStopConfirmOpen(true)}
-						isLoading={stopWorkspaceMutation.isPending}
-						label="Stop workspace"
-					>
+					<PrimaryAction onClick={() => setIsStopConfirmOpen(true)} isLoading={stopWorkspaceMutation.isPending} label="Stop workspace">
 						<SquareIcon />
 					</PrimaryAction>
 				)}
 
 				{abilities.actions.includes("updateAndStart") && (
 					<>
-						<PrimaryAction
-							onClick={workspaceUpdate.update}
-							isLoading={workspaceUpdate.isUpdating}
-							label="Update and start workspace"
-						>
+						<PrimaryAction onClick={workspaceUpdate.update} isLoading={workspaceUpdate.isUpdating} label="Update and start workspace">
 							<CloudIcon />
 						</PrimaryAction>
 						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
@@ -552,11 +475,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 
 				{abilities.actions.includes("updateAndStartRequireActiveVersion") && (
 					<>
-						<PrimaryAction
-							onClick={workspaceUpdate.update}
-							isLoading={workspaceUpdate.isUpdating}
-							label="This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version."
-						>
+						<PrimaryAction onClick={workspaceUpdate.update} isLoading={workspaceUpdate.isUpdating} label="This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version.">
 							<PlayIcon />
 						</PrimaryAction>
 						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
@@ -565,11 +484,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 
 				{abilities.actions.includes("updateAndRestart") && (
 					<>
-						<PrimaryAction
-							onClick={workspaceUpdate.update}
-							isLoading={workspaceUpdate.isUpdating}
-							label="Update and restart workspace"
-						>
+						<PrimaryAction onClick={workspaceUpdate.update} isLoading={workspaceUpdate.isUpdating} label="Update and restart workspace">
 							<CloudIcon />
 						</PrimaryAction>
 						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
@@ -578,11 +493,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 
 				{abilities.actions.includes("updateAndRestartRequireActiveVersion") && (
 					<>
-						<PrimaryAction
-							onClick={workspaceUpdate.update}
-							isLoading={workspaceUpdate.isUpdating}
-							label="This template requires automatic updates on workspace restart. Contact your administrator if you want to preserve the template version."
-						>
+						<PrimaryAction onClick={workspaceUpdate.update} isLoading={workspaceUpdate.isUpdating} label="This template requires automatic updates on workspace restart. Contact your administrator if you want to preserve the template version.">
 							<PlayIcon />
 						</PrimaryAction>
 						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
@@ -590,29 +501,18 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 				)}
 
 				{abilities.canCancel && (
-					<PrimaryAction
-						onClick={() => setIsCancelConfirmOpen(true)}
-						isLoading={cancelBuildMutation.isPending}
-						label="Cancel build"
-					>
+					<PrimaryAction onClick={() => setIsCancelConfirmOpen(true)} isLoading={cancelBuildMutation.isPending} label="Cancel build">
 						<BanIcon />
 					</PrimaryAction>
 				)}
 
 				{abilities.actions.includes("retry") && (
-					<PrimaryAction
-						onClick={retry}
-						isLoading={isRetrying}
-						label="Retry build"
-					>
+					<PrimaryAction onClick={retry} isLoading={isRetrying} label="Retry build">
 						<RefreshCcwIcon />
 					</PrimaryAction>
 				)}
 
-				<WorkspaceMoreActions
-					workspace={workspace}
-					disabled={!abilities.canAcceptJobs}
-				/>
+				<WorkspaceMoreActions workspace={workspace} disabled={!abilities.canAcceptJobs} />
 			</div>
 
 			{/* Stop workspace confirmation dialog */}
@@ -629,15 +529,10 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 				type="delete"
 			/>
 
-			<WorkspaceBuildCancelDialog
-				open={isCancelConfirmOpen}
-				onClose={() => setIsCancelConfirmOpen(false)}
-				onConfirm={() => {
-					cancelBuildMutation.mutate();
-					setIsCancelConfirmOpen(false);
-				}}
-				workspace={workspace}
-			/>
+			<WorkspaceBuildCancelDialog open={isCancelConfirmOpen} onClose={() => setIsCancelConfirmOpen(false)} onConfirm={() => {
+				cancelBuildMutation.mutate();
+				setIsCancelConfirmOpen(false);
+			}} workspace={workspace} />
 		</TableCell>
 	);
 };
@@ -648,22 +543,12 @@ type PrimaryActionProps = PropsWithChildren<{
 	onClick: () => void;
 }>;
 
-const PrimaryAction: FC<PrimaryActionProps> = ({
-	onClick,
-	isLoading,
-	label,
-	children,
-}) => {
+const PrimaryAction: FC<PrimaryActionProps> = ({ onClick, isLoading, label, children }) => {
 	return (
 		<TooltipProvider>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<Button
-						variant="outline"
-						size="icon-lg"
-						onClick={onClick}
-						disabled={isLoading}
-					>
+					<Button variant="outline" size="icon-lg" onClick={onClick} disabled={isLoading}>
 						<Spinner loading={isLoading}>{children}</Spinner>
 						<span className="sr-only">{label}</span>
 					</Button>
@@ -694,10 +579,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	 * resource first - and see what customers and ourselves, using dogfood, think
 	 * about that.
 	 */
-	const agent = workspace.latest_build.resources
-		.filter((r) => !r.hide)
-		.at(0)
-		?.agents?.at(0);
+	const agent = workspace.latest_build.resources.filter((r) => !r.hide).at(0)?.agents?.at(0);
 	if (!agent) {
 		return null;
 	}
@@ -707,9 +589,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	builtinApps.delete("ssh_helper");
 
 	const remainingSlots = WORKSPACE_APPS_SLOTS - builtinApps.size;
-	const userApps = agent.apps
-		.filter((app) => app.health === "healthy" && !app.hidden)
-		.slice(0, remainingSlots);
+	const userApps = agent.apps.filter((app) => app.health === "healthy" && !app.hidden).slice(0, remainingSlots);
 
 	const buttons: ReactNode[] = [];
 
@@ -719,13 +599,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				key="vscode"
 				isLoading={!token}
 				label="Open VSCode"
-				href={getVSCodeHref("vscode", {
-					owner: workspace.owner_name,
-					workspace: workspace.name,
-					agent: agent.name,
-					token: token ?? "",
-					folder: agent.expanded_directory,
-				})}
+				href={getVSCodeHref("vscode", { owner: workspace.owner_name, workspace: workspace.name, agent: agent.name, token: token ?? "", folder: agent.expanded_directory })}
 			>
 				<VSCodeIcon />
 			</BaseIconLink>,
@@ -738,13 +612,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				key="vscode-insiders"
 				label="Open VSCode Insiders"
 				isLoading={!token}
-				href={getVSCodeHref("vscode-insiders", {
-					owner: workspace.owner_name,
-					workspace: workspace.name,
-					agent: agent.name,
-					token: token ?? "",
-					folder: agent.expanded_directory,
-				})}
+				href={getVSCodeHref("vscode-insiders", { owner: workspace.owner_name, workspace: workspace.name, agent: agent.name, token: token ?? "", folder: agent.expanded_directory })}
 			>
 				<VSCodeInsidersIcon />
 			</BaseIconLink>,
@@ -752,32 +620,16 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	}
 
 	for (const app of userApps) {
-		buttons.push(
-			<IconAppLink
-				key={app.id}
-				app={app}
-				workspace={workspace}
-				agent={agent}
-			/>,
-		);
+		buttons.push(<IconAppLink key={app.id} app={app} workspace={workspace} agent={agent} />);
 	}
 
 	if (builtinApps.has("web_terminal")) {
-		const href = getTerminalHref({
-			username: workspace.owner_name,
-			workspace: workspace.name,
-			agent: agent.name,
-		});
+		const href = getTerminalHref({ username: workspace.owner_name, workspace: workspace.name, agent: agent.name });
 		buttons.push(
-			<BaseIconLink
-				key="terminal"
-				href={href}
-				onClick={(e) => {
-					e.preventDefault();
-					openAppInNewWindow(href);
-				}}
-				label="Open Terminal"
-			>
+			<BaseIconLink key="terminal" href={href} onClick={(e) => {
+				e.preventDefault();
+				openAppInNewWindow(href);
+			}} label="Open Terminal">
 				<SquareTerminalIcon />
 			</BaseIconLink>,
 		);
@@ -788,92 +640,40 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	return buttons;
 };
 
-type WorkspaceAppStatusLinksProps = {
-	workspace: Workspace;
-};
+type WorkspaceAppStatusLinksProps = { workspace: Workspace };
 
-const WorkspaceAppStatusLinks: FC<WorkspaceAppStatusLinksProps> = ({
-	workspace,
-}) => {
+const WorkspaceAppStatusLinks: FC<WorkspaceAppStatusLinksProps> = ({ workspace }) => {
 	const status = workspace.latest_app_status;
-	const agent = workspace.latest_build.resources
-		.flatMap((r) => r.agents)
-		.find((a) => a?.id === status?.agent_id);
+	const agent = workspace.latest_build.resources.flatMap((r) => r.agents).find((a) => a?.id === status?.agent_id);
 	const app = agent?.apps.find((a) => a.id === status?.app_id);
 
-	return (
-		<>
-			{agent && app && (
-				<IconAppLink app={app} workspace={workspace} agent={agent} />
-			)}
-
-			{status?.uri && status?.uri !== "n/a" && (
-				<BaseIconLink label={status.uri} href={status.uri} target="_blank">
-					{status.uri.startsWith("file://") ? (
-						<FileIcon />
-					) : (
-						<ExternalLinkIcon />
-					)}
-				</BaseIconLink>
-			)}
-		</>
-	);
+	return <>{agent && app && <IconAppLink app={app} workspace={workspace} agent={agent} />}{status?.uri && status?.uri !== "n/a" && (<BaseIconLink label={status.uri} href={status.uri} target="_blank">{status.uri.startsWith("file://") ? (<FileIcon />) : (<ExternalLinkIcon />)}</BaseIconLink>)}</>;
 };
 
-type IconAppLinkProps = {
-	app: WorkspaceApp;
-	workspace: Workspace;
-	agent: WorkspaceAgent;
-};
+type IconAppLinkProps = { app: WorkspaceApp; workspace: Workspace; agent: WorkspaceAgent };
 
 const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
-	const link = useAppLink(app, {
-		workspace,
-		agent,
-	});
+	const link = useAppLink(app, { workspace, agent });
 
 	return (
-		<BaseIconLink
-			key={app.id}
-			label={`Open ${link.label}`}
-			href={link.href}
-			onClick={link.onClick}
-		>
+		<BaseIconLink key={app.id} label={`Open ${link.label}`} href={link.href} onClick={link.onClick}>
 			<ExternalImage src={app.icon ?? "/icon/widgets.svg"} />
 		</BaseIconLink>
 	);
 };
 
-type BaseIconLinkProps = PropsWithChildren<{
-	label: string;
-	href: string;
-	isLoading?: boolean;
-	onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
-	target?: string;
-}>;
+type BaseIconLinkProps = PropsWithChildren<{ label: string; href: string; isLoading?: boolean; onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void; target?: string }>;
 
-const BaseIconLink: FC<BaseIconLinkProps> = ({
-	href,
-	isLoading,
-	label,
-	children,
-	target,
-	onClick,
-}) => {
+const BaseIconLink: FC<BaseIconLinkProps> = ({ href, isLoading, label, children, target, onClick }) => {
 	return (
 		<TooltipProvider>
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<Button variant="outline" size="icon-lg" asChild>
-						<a
-							target={target}
-							className={isLoading ? "animate-pulse" : ""}
-							href={href}
-							onClick={(e) => {
-								e.stopPropagation();
-								onClick?.(e);
-							}}
-						>
+						<a target={target} className={isLoading ? "animate-pulse" : ""} href={href} onClick={(e) => {
+							e.stopPropagation();
+							onClick?.(e);
+						}}>
 							{children}
 							<span className="sr-only">{label}</span>
 						</a>
