@@ -51,7 +51,6 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 	const theme = useTheme();
 	const { data: activeVersion } = useQuery({
 		...templateVersion(workspace.template_active_version_id),
-		// TODO is making the parent HelpTooltip a controlled component the only way to track whether the tooltip is open?
 		enabled: isOpen,
 	});
 	const updateWorkspace = useWorkspaceUpdate({
