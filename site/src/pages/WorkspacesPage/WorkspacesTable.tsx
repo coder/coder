@@ -781,8 +781,6 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 		);
 	}
 
-	buttons.push();
-
 	return buttons;
 };
 
