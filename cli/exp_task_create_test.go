@@ -439,7 +439,7 @@ func TestTaskCreate(t *testing.T) {
 				ctx    = testutil.Context(t, testutil.WaitShort)
 				srv    = httptest.NewServer(tt.handler(t, ctx))
 				client = codersdk.New(testutil.MustURL(t, srv.URL))
-				args   = []string{"exp", "task", "create", "--wait-interval", testutil.IntervalFast.String()}
+				args   = []string{"exp", "task", "create", "--test.wait-interval", testutil.IntervalFast.String()}
 				sb     strings.Builder
 				err    error
 			)

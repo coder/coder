@@ -77,7 +77,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 			},
 			{
 				Name:        "wait-interval",
-				Flag:        "wait-interval",
+				Flag:        "test.wait-interval",
 				Description: "Interval to poll the task for status updates. Only used in tests.",
 				Hidden:      true,
 				Value:       serpent.DurationOf(&waitInterval),
