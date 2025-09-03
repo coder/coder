@@ -75,8 +75,7 @@ func TestTools(t *testing.T) {
 	}).Do()
 
 	// Given: a client configured with the agent token.
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(r.AgentToken)
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 	// Get the agent ID from the API. Overriding it in dbfake doesn't work.
 	ws, err := client.Workspace(setupCtx, r.Workspace.ID)
 	require.NoError(t, err)
