@@ -23,7 +23,7 @@ const readonlyEnforcer: ProxyHandler<Date> = {
 // Returns a Date that cannot be modified at runtime. All set methods are turned
 // into no-ops. This function does not use a custom type to make it easier to
 // interface with existing time libraries.
-function newReadonlyDate(sourceDate?: Date): Date {
+export function newReadonlyDate(sourceDate?: Date): Date {
 	const newDate = sourceDate ? new Date(sourceDate) : new Date();
 	return new Proxy(newDate, readonlyEnforcer);
 }
@@ -85,6 +85,19 @@ export const defaultOptions: TimeSyncInitOptions = {
 	minimumRefreshIntervalMs: 100,
 };
 
+type InvalidateSnapshotOptions = Readonly<{
+	/**
+	 * By default, invalidating the Date snapshot immediately notifies all
+	 * subscribers.
+	 *
+	 * Turn this off if in situations where it's not safe to notify all
+	 * subscriptions immediately (e.g., when integrating with a library like
+	 * React). However, if you do turn this off, it's expected that you will
+	 * call invalidateStateSnapshot again with the default behavior.
+	 */
+	notifyAfterUpdate?: boolean;
+}>;
+
 interface TimeSyncApi {
 	/**
 	 * Subscribes an external system to TimeSync.
@@ -109,12 +122,10 @@ interface TimeSyncApi {
 
 	/**
 	 * Immediately tries to refresh the current date snapshot, regardless of
-	 * which refresh intervals have been specified. All subscribers will be
-	 * notified if the state changed.
-	 *
-	 * Returns the state after being invalidated.
+	 * which refresh intervals have been specified. Returns the state after
+	 * being invalidated.
 	 */
-	invalidateStateSnapshot: () => Date;
+	invalidateStateSnapshot: (options: InvalidateSnapshotOptions) => Date;
 
 	/**
 	 * Cleans up the TimeSync instance and renders it inert for all other
@@ -160,8 +171,8 @@ export class TimeSync implements TimeSyncApi {
 
 	// This class uses setInterval for both its intended purpose and as a janky
 	// version of setTimeout. There are a few times when we need timeout-like
-	// logic, but if we use setInterval for everything, we have fewer overall
-	// data dependencies to mock out and don't have to juggle different IDs
+	// logic, but if we use setInterval for everything, we have fewer IDs to
+	// juggle, and less risk of things getting out of sync
 	#latestIntervalId: number | undefined;
 
 	constructor(options?: Partial<TimeSyncInitOptions>) {
@@ -218,6 +229,25 @@ export class TimeSync implements TimeSyncApi {
 		}
 	}
 
+	/**
+	 * Immediately updates TimeSync to a new snapshot and notifies all
+	 * subscribers.
+	 *
+	 * Defined as an arrow function so that we can just pass it directly to
+	 * setInterval without needing to make a new wrapper function each time. We
+	 * don't have many situations where we can lose the `this` context, but this
+	 * is one of them
+	 */
+	#tick = (): void => {
+		if (this.#disposed) {
+			return;
+		}
+		const updated = this.#updateDateSnapshot();
+		if (updated) {
+			this.#notifyAllSubscriptions();
+		}
+	};
+
 	#onFastestIntervalChange(): void {
 		const fastest = this.#fastestRefreshInterval;
 		if (fastest === Number.POSITIVE_INFINITY) {
@@ -234,15 +264,15 @@ export class TimeSync implements TimeSyncApi {
 		// from removing one
 		if (delta <= 0) {
 			window.clearInterval(this.#latestIntervalId);
-			this.#flushUpdate();
-			this.#latestIntervalId = window.setInterval(this.#flushUpdate, fastest);
+			this.#tick();
+			this.#latestIntervalId = window.setInterval(this.#tick, fastest);
 			return;
 		}
 
 		window.clearInterval(this.#latestIntervalId);
 		this.#latestIntervalId = window.setInterval(() => {
 			window.clearInterval(this.#latestIntervalId);
-			this.#latestIntervalId = window.setInterval(this.#flushUpdate, fastest);
+			this.#latestIntervalId = window.setInterval(this.#tick, fastest);
 		}, delta);
 	}
 
@@ -289,26 +319,6 @@ export class TimeSync implements TimeSyncApi {
 		return true;
 	}
 
-	/**
-	 * Immediately updates TimeSync to a new snapshot and notifies all
-	 * subscribers.
-	 *
-	 * Defined as an arrow function so that we can just pass it directly to
-	 * setInterval without needing to make a new wrapper function each time. We
-	 * don't have many situations where we can lose the `this` context, but this
-	 * is one of them
-	 */
-	#flushUpdate = (): void => {
-		if (this.#disposed) {
-			return;
-		}
-
-		const updated = this.#updateDateSnapshot();
-		if (updated) {
-			this.#notifyAllSubscriptions();
-		}
-	};
-
 	#removeSubscription(onUpdate: OnUpdate, unsubscribe: () => void): void {
 		const entries = this.#subscriptions.get(onUpdate);
 		if (entries === undefined) {
@@ -353,7 +363,7 @@ export class TimeSync implements TimeSyncApi {
 		// know how much time will have passed between the class getting
 		// instantiated and the first subscription
 		if (initialSubs === 0) {
-			this.#flushUpdate();
+			this.#tick();
 		}
 	}
 
@@ -383,19 +393,19 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	getStateSnapshot(): Date {
-		const needUpdate =
-			newReadonlyDate().getTime() - this.#latestDateSnapshot.getTime() >
-			this.#minimumRefreshIntervalMs;
-		if (needUpdate) {
-			void this.#updateDateSnapshot();
-		}
-
 		return this.#latestDateSnapshot;
 	}
 
-	invalidateStateSnapshot(): Date {
-		if (!this.#disposed) {
-			this.#flushUpdate();
+	invalidateStateSnapshot(options?: InvalidateSnapshotOptions): Date {
+		if (this.#disposed) {
+			return this.#latestDateSnapshot;
+		}
+
+		const { notifyAfterUpdate = true } = options ?? {};
+		if (notifyAfterUpdate) {
+			this.#tick();
+		} else {
+			void this.#updateDateSnapshot();
 		}
 		return this.#latestDateSnapshot;
 	}

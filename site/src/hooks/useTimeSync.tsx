@@ -10,7 +10,12 @@ import {
 	useState,
 	useSyncExternalStore,
 } from "react";
-import { defaultOptions, noOp, TimeSync } from "utils/TimeSync";
+import {
+	defaultOptions,
+	newReadonlyDate,
+	noOp,
+	TimeSync,
+} from "utils/TimeSync";
 import { useEffectEvent } from "./hookPolyfills";
 
 export const REFRESH_IDLE = Number.POSITIVE_INFINITY;
@@ -147,13 +152,16 @@ type TransformationEntry = {
 	cachedTransformation: unknown;
 };
 
+const staleStateThresholdMs = 100;
+
 class ReactTimeSync {
 	// Each string is a globally-unique ID that identifies a specific React
 	// component instance (i.e., two React Fiber entries made from the same
 	// function component should have different IDs)
 	readonly #entries: Map<string, TransformationEntry>;
 	readonly #timeSync: TimeSync;
-	#mounted: boolean;
+	#isMounted: boolean;
+	#hasPendingUpdates: boolean;
 
 	constructor(options?: Partial<ReactTimeSyncInitOptions>) {
 		const {
@@ -161,7 +169,8 @@ class ReactTimeSync {
 			minimumRefreshIntervalMs = defaultOptions.minimumRefreshIntervalMs,
 		} = options ?? {};
 
-		this.#mounted = true;
+		this.#isMounted = true;
+		this.#hasPendingUpdates = false;
 		this.#entries = new Map();
 		this.#timeSync = new TimeSync({
 			initialDatetime,
@@ -170,7 +179,7 @@ class ReactTimeSync {
 	}
 
 	subscribeToTransformations(th: TransformationHandshake): () => void {
-		if (!this.#mounted) {
+		if (!this.#isMounted) {
 			return noOp;
 		}
 
@@ -228,7 +237,7 @@ class ReactTimeSync {
 	}
 
 	invalidateTransformation(componentId: string, newValue: unknown): void {
-		if (!this.#mounted) {
+		if (!this.#isMounted) {
 			return;
 		}
 
@@ -255,21 +264,40 @@ class ReactTimeSync {
 		return latestDate as T;
 	}
 
-	getDateSnapshot(): Date {
-		return this.#timeSync.getStateSnapshot();
+	getLatestDate(): Date {
+		let snap = this.#timeSync.getStateSnapshot();
+
+		const shouldInvalidate =
+			this.#isMounted &&
+			newReadonlyDate().getTime() - snap.getTime() > staleStateThresholdMs;
+		if (shouldInvalidate) {
+			snap = this.#timeSync.invalidateStateSnapshot({
+				notifyAfterUpdate: false,
+			});
+			this.#hasPendingUpdates = true;
+		}
+
+		return snap;
 	}
 
 	getTimeSync(): TimeSync {
 		return this.#timeSync;
 	}
 
+	flushPendingUpdates(): void {
+		if (!this.#isMounted || !this.#hasPendingUpdates) {
+			return;
+		}
+		void this.#timeSync.invalidateStateSnapshot({ notifyAfterUpdate: true });
+	}
+
 	onUnmount(): void {
-		if (!this.#mounted) {
+		if (!this.#isMounted) {
 			return;
 		}
 		this.#timeSync.dispose();
 		this.#entries.clear();
-		this.#mounted = false;
+		this.#isMounted = false;
 	}
 }
 
@@ -298,6 +326,15 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 	const [readonlyReactTs] = useState(() => {
 		return new ReactTimeSync({ initialDatetime, minimumRefreshIntervalMs });
 	});
+
+	useEffect(() => {
+		const intervalId = window.setInterval(
+			() => readonlyReactTs.flushPendingUpdates(),
+			staleStateThresholdMs,
+		);
+
+		return () => window.clearInterval(intervalId);
+	}, [readonlyReactTs]);
 
 	useEffect(() => {
 		return () => readonlyReactTs.onUnmount();
@@ -428,7 +465,7 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 		// changed, we don't have drastically outdated date state. We could also
 		// subscribe to the date itself, but that makes it impossible to prevent
 		// unnecessary re-renders on subscription updates
-		const latestDate = reactTs.getDateSnapshot();
+		const latestDate = reactTs.getLatestDate();
 		return activeTransform(latestDate);
 	}, [reactTs, activeTransform]);
 
