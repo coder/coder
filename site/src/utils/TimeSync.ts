@@ -93,7 +93,7 @@ type InvalidateSnapshotOptions = Readonly<{
 	 * Turn this off if in situations where it's not safe to notify all
 	 * subscriptions immediately (e.g., when integrating with a library like
 	 * React). However, if you do turn this off, it's expected that you will
-	 * call invalidateStateSnapshot again with the default behavior.
+	 * eventually call invalidateStateSnapshot again with the default behavior.
 	 */
 	notifyAfterUpdate?: boolean;
 }>;

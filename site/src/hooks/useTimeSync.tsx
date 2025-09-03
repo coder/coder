@@ -160,7 +160,7 @@ class ReactTimeSync {
 	// function component should have different IDs)
 	readonly #entries: Map<string, TransformationEntry>;
 	readonly #timeSync: TimeSync;
-	#isMounted: boolean;
+	#isProviderMounted: boolean;
 	#hasPendingUpdates: boolean;
 
 	constructor(options?: Partial<ReactTimeSyncInitOptions>) {
@@ -169,7 +169,7 @@ class ReactTimeSync {
 			minimumRefreshIntervalMs = defaultOptions.minimumRefreshIntervalMs,
 		} = options ?? {};
 
-		this.#isMounted = true;
+		this.#isProviderMounted = true;
 		this.#hasPendingUpdates = false;
 		this.#entries = new Map();
 		this.#timeSync = new TimeSync({
@@ -179,7 +179,7 @@ class ReactTimeSync {
 	}
 
 	subscribeToTransformations(th: TransformationHandshake): () => void {
-		if (!this.#isMounted) {
+		if (!this.#isProviderMounted) {
 			return noOp;
 		}
 
@@ -237,7 +237,7 @@ class ReactTimeSync {
 	}
 
 	invalidateTransformation(componentId: string, newValue: unknown): void {
-		if (!this.#isMounted) {
+		if (!this.#isProviderMounted) {
 			return;
 		}
 
@@ -268,7 +268,7 @@ class ReactTimeSync {
 		let snap = this.#timeSync.getStateSnapshot();
 
 		const shouldInvalidate =
-			this.#isMounted &&
+			this.#isProviderMounted &&
 			newReadonlyDate().getTime() - snap.getTime() > staleStateThresholdMs;
 		if (shouldInvalidate) {
 			snap = this.#timeSync.invalidateStateSnapshot({
@@ -284,20 +284,20 @@ class ReactTimeSync {
 		return this.#timeSync;
 	}
 
-	flushPendingUpdates(): void {
-		if (!this.#isMounted || !this.#hasPendingUpdates) {
+	onComponentMount(): void {
+		if (!this.#isProviderMounted || !this.#hasPendingUpdates) {
 			return;
 		}
 		void this.#timeSync.invalidateStateSnapshot({ notifyAfterUpdate: true });
 	}
 
-	onUnmount(): void {
-		if (!this.#isMounted) {
+	onProviderUnmount(): void {
+		if (!this.#isProviderMounted) {
 			return;
 		}
 		this.#timeSync.dispose();
 		this.#entries.clear();
-		this.#isMounted = false;
+		this.#isProviderMounted = false;
 	}
 }
 
@@ -328,16 +328,7 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 	});
 
 	useEffect(() => {
-		const intervalId = window.setInterval(
-			() => readonlyReactTs.flushPendingUpdates(),
-			staleStateThresholdMs,
-		);
-
-		return () => window.clearInterval(intervalId);
-	}, [readonlyReactTs]);
-
-	useEffect(() => {
-		return () => readonlyReactTs.onUnmount();
+		return () => readonlyReactTs.onProviderUnmount();
 	}, [readonlyReactTs]);
 
 	return (
@@ -413,13 +404,16 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	const { targetIntervalMs, transform } = options;
 	const activeTransform = (transform ?? identity) as TransformCallback<T>;
 
-	const hookId = useId();
 	const reactTs = useReactTimeSync();
+	useEffect(() => {
+		reactTs.onComponentMount();
+	}, [reactTs]);
 
 	// Because of how React lifecycles work, the effect event callback should
 	// never be called from inside render logic. It will *always* give you
 	// stale data after the very first render.
 	const externalTransform = useEffectEvent(activeTransform);
+	const hookId = useId();
 	const subscribe = useCallback<ReactSubscriptionCallback>(
 		(notifyReact) => {
 			return reactTs.subscribeToTransformations({
