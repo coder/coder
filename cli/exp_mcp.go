@@ -131,7 +131,7 @@ func mcpConfigureClaudeCode() *serpent.Command {
 
 		deprecatedCoderMCPClaudeAPIKey string
 	)
-	agentAuth := NewAgentAuth()
+	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use:   "claude-code <project-directory>",
 		Short: "Configure the Claude Code server. You will need to run this command for each project you want to use. Specify the project directory as the first argument.",
@@ -405,7 +405,7 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 		appStatusSlug string
 		aiAgentAPIURL url.URL
 	)
-	agentAuth := NewAgentAuth()
+	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use: "server",
 		Handler: func(inv *serpent.Invocation) error {

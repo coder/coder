@@ -60,10 +60,6 @@ var (
 const (
 	varURL                     = "url"
 	varToken                   = "token"
-	varAgentToken              = "agent-token"
-	varAgentTokenFile          = "agent-token-file"
-	varAgentURL                = "agent-url"
-	varAgentAuth               = "auth"
 	varHeader                  = "header"
 	varHeaderCommand           = "header-command"
 	varNoOpen                  = "no-open"
@@ -201,7 +197,7 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, error) {
 	fmtLong := `Coder %s — A tool for provisioning self-hosted development environments with Terraform.
 `
-	hiddenAgentAuth := NewAgentAuth()
+	hiddenAgentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use: "coder [global-flags] <subcommand>",
 		Long: fmt.Sprintf(fmtLong, buildinfo.Version()) + FormatExamples(
@@ -652,42 +648,36 @@ type AgentAuth struct {
 	// Agent Client config
 	agentToken     string
 	agentTokenFile string
-	agentURL       *url.URL
+	agentURL       url.URL
 	agentAuth      string
-}
-
-func NewAgentAuth() *AgentAuth {
-	return &AgentAuth{
-		agentURL: new(url.URL),
-	}
 }
 
 func (a *AgentAuth) AttachOptions(cmd *serpent.Command, hidden bool) {
 	cmd.Options = append(cmd.Options, serpent.Option{
 		Name:        "Agent Token",
 		Description: "An agent authentication token.",
-		Flag:        varAgentToken,
+		Flag:        "agent-token",
 		Env:         envAgentToken,
 		Value:       serpent.StringOf(&a.agentToken),
 		Hidden:      hidden,
 	}, serpent.Option{
 		Name:        "Agent Token File",
 		Description: "A file containing an agent authentication token.",
-		Flag:        varAgentTokenFile,
+		Flag:        "agent-token-file",
 		Env:         envAgentTokenFile,
 		Value:       serpent.StringOf(&a.agentTokenFile),
 		Hidden:      hidden,
 	}, serpent.Option{
 		Name:        "Agent URL",
 		Description: "URL for an agent to access your deployment.",
-		Flag:        varAgentURL,
+		Flag:        "agent-url",
 		Env:         envAgentURL,
-		Value:       serpent.URLOf(a.agentURL),
+		Value:       serpent.URLOf(&a.agentURL),
 		Hidden:      hidden,
 	}, serpent.Option{
 		Name:        "Agent Auth",
 		Description: "Specify the authentication type to use for the agent.",
-		Flag:        varAgentAuth,
+		Flag:        "auth",
 		Env:         envAgentAuth,
 		Default:     "token",
 		Value:       serpent.StringOf(&a.agentAuth),
@@ -699,7 +689,7 @@ func (a *AgentAuth) AttachOptions(cmd *serpent.Command, hidden bool) {
 // just like InitClient, but uses the agent token and URL instead.
 func (a *AgentAuth) CreateClient(ctx context.Context) (*agentsdk.Client, error) {
 	agentURL := a.agentURL
-	if agentURL == nil || agentURL.String() == "" {
+	if agentURL.String() == "" {
 		return nil, xerrors.Errorf("%s must be set", envAgentURL)
 	}
 
@@ -719,7 +709,7 @@ func (a *AgentAuth) CreateClient(ctx context.Context) (*agentsdk.Client, error) 
 		if token == "" {
 			return nil, xerrors.Errorf("CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE must be set for token auth")
 		}
-		return agentsdk.New(a.agentURL, agentsdk.WithFixedToken(token)), nil
+		return agentsdk.New(&a.agentURL, agentsdk.WithFixedToken(token)), nil
 	case "google-instance-identity":
 
 		// This is *only* done for testing to mock client authentication.
@@ -729,9 +719,9 @@ func (a *AgentAuth) CreateClient(ctx context.Context) (*agentsdk.Client, error) 
 		if gcpClientRaw != nil {
 			gcpClient, _ = gcpClientRaw.(*metadata.Client)
 		}
-		return agentsdk.New(a.agentURL, agentsdk.WithGoogleInstanceIdentity("", gcpClient)), nil
+		return agentsdk.New(&a.agentURL, agentsdk.WithGoogleInstanceIdentity("", gcpClient)), nil
 	case "aws-instance-identity":
-		client := agentsdk.New(a.agentURL, agentsdk.WithAWSInstanceIdentity())
+		client := agentsdk.New(&a.agentURL, agentsdk.WithAWSInstanceIdentity())
 		// This is *only* done for testing to mock client authentication.
 		// This will never be set in a production scenario.
 		var awsClient *http.Client
@@ -744,7 +734,7 @@ func (a *AgentAuth) CreateClient(ctx context.Context) (*agentsdk.Client, error) 
 		}
 		return client, nil
 	case "azure-instance-identity":
-		client := agentsdk.New(a.agentURL, agentsdk.WithAzureInstanceIdentity())
+		client := agentsdk.New(&a.agentURL, agentsdk.WithAzureInstanceIdentity())
 		// This is *only* done for testing to mock client authentication.
 		// This will never be set in a production scenario.
 		var azureClient *http.Client

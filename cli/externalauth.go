@@ -27,7 +27,7 @@ func externalAuth() *serpent.Command {
 
 func externalAuthAccessToken() *serpent.Command {
 	var extra string
-	agentAuth := NewAgentAuth()
+	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use:   "access-token <provider>",
 		Short: "Print auth for an external provider",

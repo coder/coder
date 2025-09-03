@@ -19,7 +19,7 @@ import (
 )
 
 func gitssh() *serpent.Command {
-	agentAuth := NewAgentAuth()
+	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use:    "gitssh",
 		Hidden: true,
