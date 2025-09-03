@@ -204,9 +204,18 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 			}
 
 			var (
-				eg      errgroup.Group
+				eg   errgroup.Group
+				done = make(chan struct{})
+
+				// When a task has just been created, it will not yet
+				// have an agent associated with it. We have to wait
+				// until the provisioner has picked the job up and
+				// made it sufficiently far.
+				//
+				// As we want to stream the agent logs, we need to
+				// have a way of knowing when an agent has become
+				// available.
 				agentID = make(chan uuid.UUID)
-				done    = make(chan struct{})
 			)
 
 			eg.Go(func() error {
