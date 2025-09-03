@@ -8,9 +8,9 @@ import Divider from "@mui/material/Divider";
 import MenuItem from "@mui/material/MenuItem";
 import type { SvgIconProps } from "@mui/material/SvgIcon";
 import Tooltip from "@mui/material/Tooltip";
+import { PopoverClose } from "@radix-ui/react-popover";
 import type * as TypesGen from "api/typesGenerated";
 import { CopyButton } from "components/CopyButton/CopyButton";
-import { usePopover } from "components/deprecated/Popover/Popover";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Stack } from "components/Stack/Stack";
 import {
@@ -44,12 +44,6 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 	supportLinks,
 	onSignOut,
 }) => {
-	const popover = usePopover();
-
-	const onPopoverClose = () => {
-		popover.setOpen(false);
-	};
-
 	const renderMenuIcon = (icon: string): JSX.Element => {
 		switch (icon) {
 			case "bug":
@@ -80,17 +74,21 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			<Divider css={{ marginBottom: 8 }} />
 
 			<Link to="/install" css={styles.link}>
-				<MenuItem css={styles.menuItem} onClick={onPopoverClose}>
-					<MonitorDownIcon css={styles.menuItemIcon} />
-					<span css={styles.menuItemText}>Install CLI</span>
-				</MenuItem>
+				<PopoverClose asChild>
+					<MenuItem css={styles.menuItem}>
+						<MonitorDownIcon css={styles.menuItemIcon} />
+						<span css={styles.menuItemText}>Install CLI</span>
+					</MenuItem>
+				</PopoverClose>
 			</Link>
 
 			<Link to="/settings/account" css={styles.link}>
-				<MenuItem css={styles.menuItem} onClick={onPopoverClose}>
-					<CircleUserIcon css={styles.menuItemIcon} />
-					<span css={styles.menuItemText}>{Language.accountLabel}</span>
-				</MenuItem>
+				<PopoverClose asChild>
+					<MenuItem css={styles.menuItem}>
+						<CircleUserIcon css={styles.menuItemIcon} />
+						<span css={styles.menuItemText}>{Language.accountLabel}</span>
+					</MenuItem>
+				</PopoverClose>
 			</Link>
 
 			<MenuItem css={styles.menuItem} onClick={onSignOut}>
@@ -109,10 +107,12 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 							rel="noreferrer"
 							css={styles.link}
 						>
-							<MenuItem css={styles.menuItem} onClick={onPopoverClose}>
-								{renderMenuIcon(link.icon)}
-								<span css={styles.menuItemText}>{link.name}</span>
-							</MenuItem>
+							<PopoverClose asChild>
+								<MenuItem css={styles.menuItem}>
+									{renderMenuIcon(link.icon)}
+									<span css={styles.menuItemText}>{link.name}</span>
+								</MenuItem>
+							</PopoverClose>
 						</a>
 					))}
 				</>
