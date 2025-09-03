@@ -254,6 +254,9 @@ class ReactTimeSync {
 		entry.cachedTransformation = merged;
 	}
 
+	// It's super important that we have this function be set up to always
+	// return a value, because on mount, useSyncExternalStore will call the
+	// state getter before the subscription has been set up
 	getTransformationSnapshot<T>(componentId: string): T {
 		const prev = this.#entries.get(componentId);
 		if (prev !== undefined) {
@@ -441,9 +444,11 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	 *    happens at useEffect speed (so slowest priority).
 	 *
 	 * Because of this, cachedTransformation will always be a Date object on
-	 * mount (no matter what transformation was provided). This is expected,
-	 * and the useMemo calls later in the hook make sure that it doesn't get
-	 * returned out if a transformation is specified.
+	 * mount (no matter what transformation was provided), because nothing will
+	 * have been set up to uniquely identify the component instance for the
+	 * ReactTimeSync class. This is expected, and the useMemo calls later in the
+	 * hook make sure that it doesn't get returned out if a transformation is
+	 * specified.
 	 */
 	const cachedTransformation = useSyncExternalStore(subscribe, getSnap);
 
