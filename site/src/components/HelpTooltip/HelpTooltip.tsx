@@ -5,12 +5,12 @@ import {
 	type Theme,
 } from "@emotion/react";
 import Link from "@mui/material/Link";
-import type { TooltipProps } from "@radix-ui/react-tooltip";
 import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
 	type TooltipContentProps,
+	type TooltipProps,
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
