@@ -1598,6 +1598,12 @@ export const MockPendingWorkspace: TypesGen.Workspace = {
 	},
 };
 
+export const MockNonClassicParameterFlowWorkspace: TypesGen.Workspace = {
+	...MockWorkspace,
+	id: "test-non-classic-parameter-flow-workspace",
+	template_use_classic_parameter_flow: false,
+};
+
 // just over one page of workspaces
 export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
 	workspaces: range(1, 27).map((id: number) => ({
@@ -1694,6 +1700,21 @@ const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter = {
 	required: true,
 	ephemeral: false,
 };
+
+export const MockTemplateVersionParameter6: TypesGen.TemplateVersionParameter =
+	{
+		name: "ephemeral_parameter",
+		type: "string",
+		form_type: "input",
+		description: "This is ephemeral parameter",
+		description_plaintext: "Markdown: This is ephemeral parameter",
+		default_value: "abc",
+		mutable: true,
+		icon: "/icon/folder.svg",
+		options: [],
+		required: true,
+		ephemeral: true,
+	};
 
 export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
 	name: "first_variable",

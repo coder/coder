@@ -1,4 +1,8 @@
-import { MockWorkspace } from "testHelpers/entities";
+import {
+	MockNonClassicParameterFlowWorkspace,
+	MockTemplateVersionParameter6,
+	MockWorkspace,
+} from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { RetryButton } from "./RetryButton";
@@ -38,6 +42,66 @@ export const WithOpenBuildParameters: Story = {
 			{
 				key: ["workspace", MockWorkspace.id, "parameters"],
 				data: { templateVersionRichParameters: [], buildParameters: [] },
+			},
+		],
+	},
+	play: async ({ canvasElement, step }) => {
+		const screen = within(canvasElement);
+
+		await step("open popover", async () => {
+			await userEvent.click(screen.getByTestId("build-parameters-button"));
+			await waitFor(() =>
+				expect(screen.getByText("Build Options")).toBeInTheDocument(),
+			);
+		});
+	},
+};
+
+export const WithOpenEphemeralBuildParameters: Story = {
+	args: {
+		enableBuildParameters: true,
+		workspace: MockWorkspace,
+	},
+	parameters: {
+		queries: [
+			{
+				key: ["workspace", MockWorkspace.id, "parameters"],
+				data: {
+					templateVersionRichParameters: [MockTemplateVersionParameter6],
+					buildParameters: [],
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement, step }) => {
+		const screen = within(canvasElement);
+
+		await step("open popover", async () => {
+			await userEvent.click(screen.getByTestId("build-parameters-button"));
+			await waitFor(() =>
+				expect(screen.getByText("Build Options")).toBeInTheDocument(),
+			);
+		});
+	},
+};
+
+export const WithOpenEphemeralBuildParametersNotClassic: Story = {
+	args: {
+		enableBuildParameters: true,
+		workspace: MockNonClassicParameterFlowWorkspace,
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspace",
+					MockNonClassicParameterFlowWorkspace.id,
+					"parameters",
+				],
+				data: {
+					templateVersionRichParameters: [MockTemplateVersionParameter6],
+					buildParameters: [],
+				},
 			},
 		],
 	},
