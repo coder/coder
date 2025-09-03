@@ -817,6 +817,20 @@ func (m queryMetricsStore) GetExternalAuthLinksByUserID(ctx context.Context, use
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetExternalTemplateCount(ctx context.Context) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetExternalTemplateCount(ctx)
+	m.queryLatencies.WithLabelValues("GetExternalTemplateCount").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetExternalWorkspaceCount(ctx context.Context) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetExternalWorkspaceCount(ctx)
+	m.queryLatencies.WithLabelValues("GetExternalWorkspaceCount").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.GetFailedWorkspaceBuildsByTemplateIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetFailedWorkspaceBuildsByTemplateID(ctx, arg)

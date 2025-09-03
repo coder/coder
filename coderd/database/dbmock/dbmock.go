@@ -1695,6 +1695,36 @@ func (mr *MockStoreMockRecorder) GetExternalAuthLinksByUserID(ctx, userID any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExternalAuthLinksByUserID", reflect.TypeOf((*MockStore)(nil).GetExternalAuthLinksByUserID), ctx, userID)
 }
 
+// GetExternalTemplateCount mocks base method.
+func (m *MockStore) GetExternalTemplateCount(ctx context.Context) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetExternalTemplateCount", ctx)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetExternalTemplateCount indicates an expected call of GetExternalTemplateCount.
+func (mr *MockStoreMockRecorder) GetExternalTemplateCount(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExternalTemplateCount", reflect.TypeOf((*MockStore)(nil).GetExternalTemplateCount), ctx)
+}
+
+// GetExternalWorkspaceCount mocks base method.
+func (m *MockStore) GetExternalWorkspaceCount(ctx context.Context) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetExternalWorkspaceCount", ctx)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetExternalWorkspaceCount indicates an expected call of GetExternalWorkspaceCount.
+func (mr *MockStoreMockRecorder) GetExternalWorkspaceCount(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExternalWorkspaceCount", reflect.TypeOf((*MockStore)(nil).GetExternalWorkspaceCount), ctx)
+}
+
 // GetFailedWorkspaceBuildsByTemplateID mocks base method.
 func (m *MockStore) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.GetFailedWorkspaceBuildsByTemplateIDRow, error) {
 	m.ctrl.T.Helper()
