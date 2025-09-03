@@ -290,7 +290,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 
 						case agentLogChunk := <-agentLogs:
 							for _, agentLog := range agentLogChunk {
-								fmt.Fprintln(inv.Stdout, agentLog.Output)
+								fmt.Fprintln(inv.Stderr, agentLog.Output)
 							}
 						}
 					}
