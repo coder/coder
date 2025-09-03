@@ -7,7 +7,7 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
+} from "components/Popover/Popover";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -130,7 +130,7 @@ const EnabledEditRolesButton: FC<EditRolesButtonProps> = ({
 
 	return (
 		<Popover>
-			<PopoverTrigger>
+			<PopoverTrigger asChild>
 				<Tooltip title="Edit user roles">
 					<Button
 						variant="subtle"
@@ -143,7 +143,10 @@ const EnabledEditRolesButton: FC<EditRolesButtonProps> = ({
 				</Tooltip>
 			</PopoverTrigger>
 
-			<PopoverContent className="w-96" disablePortal={false}>
+			<PopoverContent
+				className="w-96 bg-surface-secondary border-surface-quaternary"
+				disablePortal={false}
+			>
 				<fieldset
 					className="border-0 m-0 p-0 disabled:opacity-50"
 					disabled={isLoading}
