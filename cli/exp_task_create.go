@@ -203,8 +203,16 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				return nil
 			}
 
+			waitCtx := ctx
+			if waitTimeout != 0 {
+				ctx, cancel := context.WithTimeout(waitCtx, waitTimeout)
+				defer cancel()
+				waitCtx = ctx
+			}
+
+			eg, ctx := errgroup.WithContext(waitCtx)
+
 			var (
-				eg   errgroup.Group
 				done = make(chan struct{})
 
 				// When a task has just been created, it will not yet
@@ -221,16 +229,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 			eg.Go(func() error {
 				defer close(done)
 
-				var (
-					agentIDSent bool
-					waitCtx     = ctx
-				)
-
-				if waitTimeout != 0 {
-					ctx, cancel := context.WithTimeout(waitCtx, waitTimeout)
-					defer cancel()
-					waitCtx = ctx
-				}
+				var agentIDSent bool
 
 				// TODO(DanielleMaywood):
 				// Implement streaming updates instead of polling.
@@ -238,7 +237,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				defer t.Stop()
 				for {
 					select {
-					case <-waitCtx.Done():
+					case <-ctx.Done():
 						return nil
 					case <-t.C:
 					}
@@ -286,7 +285,6 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 						select {
 						case <-ctx.Done():
 							return nil
-
 						case <-done:
 							return nil
 
