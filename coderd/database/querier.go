@@ -128,6 +128,11 @@ type sqlcQuerier interface {
 	// of the test-only in-memory database. Do not use this in new code.
 	DisableForeignKeysAndTriggers(ctx context.Context) error
 	EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error
+	// Firstly, collect api_keys owned by the prebuilds user that correlate
+	// to workspaces no longer owned by the prebuilds user.
+	// Next, collect api_keys that belong to the prebuilds user but have no token name.
+	// These were most likely created via 'coder login' as the prebuilds user.
+	ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentMemoryResourceMonitor, error)
 	FetchMemoryResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]WorkspaceAgentMemoryResourceMonitor, error)
