@@ -98,7 +98,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	const pageNumberIsInvalid = page !== 1 && workspaces?.length === 0;
 
 	return (
-		<Margins>
+		<Margins className="pb-12">
 			<PageHeader
 				actions={
 					<WorkspacesButton

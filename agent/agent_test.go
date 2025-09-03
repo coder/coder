@@ -22,7 +22,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -2926,11 +2925,11 @@ func TestAgent_Speedtest(t *testing.T) {
 
 func TestAgent_Reconnect(t *testing.T) {
 	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := testutil.Logger(t)
 	// After the agent is disconnected from a coordinator, it's supposed
 	// to reconnect!
-	coordinator := tailnet.NewCoordinator(logger)
-	defer coordinator.Close()
+	fCoordinator := tailnettest.NewFakeCoordinator()
 
 	agentID := uuid.New()
 	statsCh := make(chan *proto.Stats, 50)
@@ -2942,27 +2941,24 @@ func TestAgent_Reconnect(t *testing.T) {
 			DERPMap: derpMap,
 		},
 		statsCh,
-		coordinator,
+		fCoordinator,
 	)
 	defer client.Close()
-	initialized := atomic.Int32{}
+
 	closer := agent.New(agent.Options{
-		ExchangeToken: func(ctx context.Context) (string, error) {
-			initialized.Add(1)
-			return "", nil
-		},
 		Client: client,
 		Logger: logger.Named("agent"),
 	})
 	defer closer.Close()
 
-	require.Eventually(t, func() bool {
-		return coordinator.Node(agentID) != nil
-	}, testutil.WaitShort, testutil.IntervalFast)
-	client.LastWorkspaceAgent()
-	require.Eventually(t, func() bool {
-		return initialized.Load() == 2
-	}, testutil.WaitShort, testutil.IntervalFast)
+	call1 := testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
+	require.Equal(t, client.GetNumRefreshTokenCalls(), 1)
+	close(call1.Resps) // hang up
+	// expect reconnect
+	testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
+	// Check that the agent refreshes the token when it reconnects.
+	require.Equal(t, client.GetNumRefreshTokenCalls(), 2)
+	closer.Close()
 }
 
 func TestAgent_WriteVSCodeConfigs(t *testing.T) {
@@ -2984,9 +2980,6 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 	defer client.Close()
 	filesystem := afero.NewMemMapFs()
 	closer := agent.New(agent.Options{
-		ExchangeToken: func(ctx context.Context) (string, error) {
-			return "", nil
-		},
 		Client:     client,
 		Logger:     logger.Named("agent"),
 		Filesystem: filesystem,
@@ -3015,9 +3008,6 @@ func TestAgent_DebugServer(t *testing.T) {
 	conn, _, _, _, agnt := setupAgent(t, agentsdk.Manifest{
 		DERPMap: derpMap,
 	}, 0, func(c *agenttest.Client, o *agent.Options) {
-		o.ExchangeToken = func(context.Context) (string, error) {
-			return "token", nil
-		}
 		o.LogDir = logDir
 	})
 

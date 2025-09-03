@@ -54,8 +54,7 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*agentsdk.Client, str
 	}).WithAgent().Do()
 
 	// start workspace agent
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(r.AgentToken)
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 	_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
 		o.Client = agentClient
 	})
