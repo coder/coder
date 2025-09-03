@@ -126,10 +126,6 @@ type SubscriptionEntry = Readonly<{
 	unsubscribe: () => void;
 }>;
 
-function orderEntries(e1: SubscriptionEntry, e2: SubscriptionEntry): number {
-	return e2.targetRefreshInterval - e1.targetRefreshInterval;
-}
-
 /**
  * TimeSync provides a centralized authority for working with time values in a
  * more structured way, where all dependents for the time values must stay in
@@ -275,6 +271,10 @@ export class TimeSync implements TimeSyncApi {
 	 * @returns {boolean} Indicates whether the state actually changed.
 	 */
 	#updateDateSnapshot(): boolean {
+		if (this.#disposed) {
+			return false;
+		}
+
 		const newSnap = newReadonlyDate();
 		const noStateChange =
 			newSnap.getMilliseconds() === this.#latestDateSnapshot.getMilliseconds();
@@ -306,21 +306,19 @@ export class TimeSync implements TimeSyncApi {
 		}
 	};
 
-	#removeSubscription(targetRefreshInterval: number, onUpdate: OnUpdate): void {
+	#removeSubscription(onUpdate: OnUpdate, unsubscribe: () => void): void {
 		const entries = this.#subscriptions.get(onUpdate);
 		if (entries === undefined) {
 			return;
 		}
-		const firstMatchIndex = entries.findIndex(
-			(e) => e.targetRefreshInterval === targetRefreshInterval,
-		);
-		if (firstMatchIndex === -1) {
+		const matchIndex = entries.findIndex((e) => e.unsubscribe === unsubscribe);
+		if (matchIndex === -1) {
 			return;
 		}
 
 		// No need to sort on removal because everything gets sorted as it
-		// enters the object
-		entries.splice(firstMatchIndex, 1);
+		// enters the subscriptions map
+		entries.splice(matchIndex, 1);
 		if (entries.length === 0) {
 			this.#subscriptions.delete(onUpdate);
 		}
@@ -344,9 +342,9 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		entries.push({ targetRefreshInterval, unsubscribe });
-		if (entries.length > 1) {
-			entries.sort(orderEntries);
-		}
+		entries.sort(
+			(e1, e2) => e2.targetRefreshInterval - e1.targetRefreshInterval,
+		);
 
 		const changed = this.#updateFastestInterval();
 		if (changed) {
@@ -382,44 +380,17 @@ export class TimeSync implements TimeSyncApi {
 			targetRefreshIntervalMs,
 		);
 
-		// Because of how subscriptions are represented internally, there's
-		// a risk that calling #removeSubscription multiple times could remove
-		// subscriptions for completely different systems. So we have to make
-		// sure that calls 2+ turn into no-ops
-		let unsubscribed = false;
-
-		// Also defining the unsubscribe first, so that we avoid some chicken-
-		// and-the-egg problems when adding a subscription
-		const unsubscribe = () => {
-			if (unsubscribed) {
-				return;
-			}
-			this.#removeSubscription(floored, onUpdate);
-			unsubscribed = true;
-		};
-
+		const unsubscribe = () => this.#removeSubscription(onUpdate, unsubscribe);
 		this.#addSubscription(floored, onUpdate, unsubscribe);
 		return unsubscribe;
 	}
 
 	getStateSnapshot(): Date {
-		// Some other APIs (like React's useSyncExternalStore) take an approach
-		// of getting the latest snapshot first before setting up a
-		// subscription. Because we can't actually tell how much time will have
-		// elapsed between TimeSync being instantiated and the first
-		// subscription being made, the best approach is to do some hidden
-		// invalidation when the getter is called
-		const isPotentiallyStale =
-			this.#subscriptions.size === 0 ||
-			this.#fastestRefreshInterval === Number.POSITIVE_INFINITY;
-
-		if (isPotentiallyStale) {
-			const shouldInvalidate =
-				newReadonlyDate().getTime() - this.#latestDateSnapshot.getTime() >
-				this.#minimumRefreshIntervalMs;
-			if (shouldInvalidate) {
-				this.#flushUpdate();
-			}
+		const needUpdate =
+			newReadonlyDate().getTime() - this.#latestDateSnapshot.getTime() >
+			this.#minimumRefreshIntervalMs;
+		if (needUpdate) {
+			this.#updateDateSnapshot();
 		}
 
 		return this.#latestDateSnapshot;
