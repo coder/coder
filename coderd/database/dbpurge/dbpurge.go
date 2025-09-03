@@ -62,6 +62,9 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 			if err := tx.DeleteOldNotificationMessages(ctx); err != nil {
 				return xerrors.Errorf("failed to delete old notification messages: %w", err)
 			}
+			if err := tx.ExpirePrebuildsAPIKeys(ctx, dbtime.Time(start)); err != nil {
+				return xerrors.Errorf("failed to expire prebuilds user api keys: %w", err)
+			}
 
 			logger.Debug(ctx, "purged old database entries", slog.F("duration", clk.Since(start)))
 

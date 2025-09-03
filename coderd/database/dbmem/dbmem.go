@@ -2597,6 +2597,11 @@ func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database
 	return err
 }
 
+func (*FakeQuerier) ExpirePrebuildsAPIKeys(_ context.Context, _ time.Time) error {
+	// Implemented in postgres.
+	return nil
+}
+
 func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
