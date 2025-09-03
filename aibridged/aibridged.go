@@ -212,9 +212,9 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 	return out, nil
 }
 
-func (s *Server) GetExternalAuthLinks(ctx context.Context, in *proto.GetExternalAuthLinksRequest) (*proto.GetExternalAuthLinksResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client DRPCClient) (*proto.GetExternalAuthLinksResponse, error) {
-		return client.GetExternalAuthLinks(ctx, in)
+func (s *Server) RetrieveMCPServerConfigs(ctx context.Context, in *proto.RetrieveMCPServerConfigsRequest) (*proto.RetrieveMCPServerConfigsResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client DRPCClient) (*proto.RetrieveMCPServerConfigsResponse, error) {
+		return client.RetrieveMCPServerConfigs(ctx, in)
 	})
 	if err != nil {
 		return nil, err

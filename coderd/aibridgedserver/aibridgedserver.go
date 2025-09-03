@@ -3,18 +3,21 @@ package aibridgedserver
 import (
 	"context"
 	"encoding/json"
+	"net/url"
+	"sync"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-multierror"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/externalauth"
 )
 
 var _ proto.DRPCRecorderServer = &Server{}
@@ -35,16 +38,20 @@ type Server struct {
 	// lifecycleCtx must be tied to the API server's lifecycle
 	// as when the API server shuts down, we want to cancel any
 	// long-running operations.
-	lifecycleCtx context.Context
-	store        store
-	logger       slog.Logger
+	lifecycleCtx        context.Context
+	store               store
+	logger              slog.Logger
+	accessURL           string
+	externalAuthConfigs []*externalauth.Config
 }
 
-func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger) (*Server, error) {
+func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, accessURL string, externalAuthConfigs []*externalauth.Config) (*Server, error) {
 	return &Server{
-		lifecycleCtx: lifecycleCtx,
-		store:        store,
-		logger:       logger.Named("aibridgedserver"),
+		lifecycleCtx:        lifecycleCtx,
+		store:               store,
+		logger:              logger.Named("aibridgedserver"),
+		accessURL:           accessURL,
+		externalAuthConfigs: externalAuthConfigs,
 	}, nil
 }
 
@@ -161,7 +168,7 @@ func (s *Server) marshalMetadata(in map[string]*anypb.Any) []byte {
 	return out
 }
 
-func (s *Server) GetExternalAuthLinks(ctx context.Context, in *proto.GetExternalAuthLinksRequest) (*proto.GetExternalAuthLinksResponse, error) {
+func (s *Server) RetrieveMCPServerConfigs(ctx context.Context, in *proto.RetrieveMCPServerConfigsRequest) (*proto.RetrieveMCPServerConfigsResponse, error) {
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
@@ -170,23 +177,90 @@ func (s *Server) GetExternalAuthLinks(ctx context.Context, in *proto.GetExternal
 		return nil, xerrors.Errorf("parse user_id: %w", err)
 	}
 
-	l, err := s.store.GetExternalAuthLinksByUserID(ctx, id)
+	extAuthMCPCfgs, err := s.getExternalAuthLinkedMCPServerConfigs(ctx, id)
+	// If any problems arise, we still want to return what we were able to successfully build.
+	if err != nil {
+		err = xerrors.Errorf("get external auth linked MCP server configs: %w", err)
+	}
+
+	return &proto.RetrieveMCPServerConfigsResponse{
+		CoderMCPConfig:         s.getCoderMCPServerConfig(),
+		ExternalAuthMCPConfigs: extAuthMCPCfgs,
+	}, err
+}
+
+func (s *Server) getCoderMCPServerConfig() *proto.MCPServerConfig {
+	u, _ := url.JoinPath(s.accessURL, "/api/experimental/mcp/http")
+	return &proto.MCPServerConfig{
+		Name:        "coder",
+		Url:         u,
+		AccessToken: "", // Deliberately left blank. Caller must set this instead of passing it over the wire.
+	}
+}
+
+func (s *Server) getExternalAuthLinkedMCPServerConfigs(ctx context.Context, id uuid.UUID) ([]*proto.MCPServerConfig, error) {
+	links, err := s.store.GetExternalAuthLinksByUserID(ctx, id)
 	if err != nil {
 		return nil, xerrors.Errorf("fetch external auth links for user_id: %w", err)
 	}
 
-	if len(l) == 0 {
-		return &proto.GetExternalAuthLinksResponse{}, nil
+	if len(links) == 0 {
+		return nil, nil
 	}
 
-	links := make([]*proto.ExternalAuthLink, 0, len(l))
-	for _, link := range l {
-		links = append(links, &proto.ExternalAuthLink{
-			ProviderId:        link.ProviderID,
-			OauthAccessToken:  link.OAuthAccessToken,
-			OauthRefreshToken: link.OAuthRefreshToken,
-			ExpiresAt:         timestamppb.New(link.OAuthExpiry),
-		})
+	var (
+		errs error
+
+		wg sync.WaitGroup
+
+		cfgs   []*proto.MCPServerConfig
+		cfgsMu sync.Mutex
+	)
+
+	for _, link := range links {
+		var externalAuthCfg *externalauth.Config
+		for _, eac := range s.externalAuthConfigs {
+			if eac.ID == link.ProviderID {
+				if eac.MCPURL == "" {
+					s.logger.Debug(ctx, "external auth link found, but no MCP URL was configured", slog.F("provider", link.ProviderID))
+					break
+				}
+
+				externalAuthCfg = eac
+			}
+		}
+
+		if externalAuthCfg == nil {
+			continue
+		}
+
+		// Validate all configured External Auth links concurrently.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			// TODO: timeout.
+			valid, _, err := externalAuthCfg.ValidateToken(ctx, link.OAuthToken())
+			if !valid {
+				// TODO: attempt refresh.
+				s.logger.Warn(ctx, "invalid/expired access token, cannot auto-configure MCP", slog.F("provider", link.ProviderID), slog.Error(err))
+
+				if err != nil {
+					errs = multierror.Append(err, errs)
+				}
+				return
+			}
+
+			cfgsMu.Lock()
+			cfgs = append(cfgs, &proto.MCPServerConfig{
+				Name:        link.ProviderID,
+				Url:         externalAuthCfg.MCPURL,
+				AccessToken: link.OAuthAccessToken,
+			})
+			cfgsMu.Unlock()
+		}()
 	}
-	return &proto.GetExternalAuthLinksResponse{Links: links}, nil
+
+	wg.Wait()
+	return cfgs, errs
 }

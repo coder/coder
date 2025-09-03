@@ -4,7 +4,6 @@ option go_package = "github.com/coder/coder/v2/aibridged/proto";
 package proto;
 
 import "google/protobuf/any.proto";
-import "google/protobuf/timestamp.proto";
 
 message RecordSessionRequest {
   string session_id = 1; // UUID.
@@ -44,28 +43,33 @@ message RecordToolUsageResponse {}
 
 // Recorder is responsible for persisting AI usage records along with their concomitant session.
 service Recorder {
+  // RecordSession creates a new session to which all other sub-resources (token, prompt, tool uses)
+  // will be related.
   rpc RecordSession(RecordSessionRequest) returns (RecordSessionResponse);
   rpc RecordTokenUsage(RecordTokenUsageRequest) returns (RecordTokenUsageResponse);
   rpc RecordPromptUsage(RecordPromptUsageRequest) returns (RecordPromptUsageResponse);
   rpc RecordToolUsage(RecordToolUsageRequest) returns (RecordToolUsageResponse);
 }
 
-message GetExternalAuthLinksRequest {
+message RetrieveMCPServerConfigsRequest {
   string user_id = 1; // UUID.
 }
 
-message GetExternalAuthLinksResponse {
-  repeated ExternalAuthLink links = 1;
+message RetrieveMCPServerConfigsResponse {
+  MCPServerConfig coderMCPConfig = 1;
+  repeated MCPServerConfig externalAuthMCPConfigs = 2;
 }
 
-message ExternalAuthLink {
-  string provider_id = 1;
-  string oauth_access_token = 2;
-  string oauth_refresh_token = 3;
-  google.protobuf.Timestamp expires_at = 4;
+message MCPServerConfig {
+  string name = 1;
+  string url = 2;
+  string access_token = 3;
 }
 
-// TODO: MCPConfigurator.
+// MCPConfigurator is responsible for retrieving any relevant data required for configuring MCP clients
+// against remote servers.
 service MCPConfigurator {
-  rpc GetExternalAuthLinks(GetExternalAuthLinksRequest) returns (GetExternalAuthLinksResponse);
+  // RetrieveMCPServerConfigs will retrieve MCP server configurations. This may involve validating or
+  // refreshing existing access tokens synchronously.
+  rpc RetrieveMCPServerConfigs(RetrieveMCPServerConfigsRequest) returns (RetrieveMCPServerConfigsResponse);
 }

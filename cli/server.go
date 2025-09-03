@@ -1350,11 +1350,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 }
 
 func newAIBridgeServer(ctx context.Context, coderAPI *coderd.API) (*aibridged.Server, error) {
-	mcpCfg := aibridged.NewDRPCMCPConfigurator(
-		coderAPI.DeploymentValues.AccessURL.String(), coderAPI.Logger.Named("aibridged.mcp"),
-		coderAPI.Options.ExternalAuthConfigs,
-	)
-	pool, err := aibridged.NewCachedBridgePool(coderAPI.DeploymentValues.AI.BridgeConfig, 100, coderAPI.Logger.Named("aibridge-pool"), mcpCfg) // TODO: configurable size.
+	pool, err := aibridged.NewCachedBridgePool(coderAPI.DeploymentValues.AI.BridgeConfig, 100, coderAPI.Logger.Named("aibridge-pool")) // TODO: configurable size.
 	if err != nil {
 		return nil, xerrors.Errorf("create aibridge pool: %w", err)
 	}

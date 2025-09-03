@@ -233,7 +233,7 @@ func (x *drpcRecorder_RecordToolUsageStream) SendAndClose(m *RecordToolUsageResp
 type DRPCMCPConfiguratorClient interface {
 	DRPCConn() drpc.Conn
 
-	GetExternalAuthLinks(ctx context.Context, in *GetExternalAuthLinksRequest) (*GetExternalAuthLinksResponse, error)
+	RetrieveMCPServerConfigs(ctx context.Context, in *RetrieveMCPServerConfigsRequest) (*RetrieveMCPServerConfigsResponse, error)
 }
 
 type drpcMCPConfiguratorClient struct {
@@ -246,9 +246,9 @@ func NewDRPCMCPConfiguratorClient(cc drpc.Conn) DRPCMCPConfiguratorClient {
 
 func (c *drpcMCPConfiguratorClient) DRPCConn() drpc.Conn { return c.cc }
 
-func (c *drpcMCPConfiguratorClient) GetExternalAuthLinks(ctx context.Context, in *GetExternalAuthLinksRequest) (*GetExternalAuthLinksResponse, error) {
-	out := new(GetExternalAuthLinksResponse)
-	err := c.cc.Invoke(ctx, "/proto.MCPConfigurator/GetExternalAuthLinks", drpcEncoding_File_aibridged_proto_aibridged_proto{}, in, out)
+func (c *drpcMCPConfiguratorClient) RetrieveMCPServerConfigs(ctx context.Context, in *RetrieveMCPServerConfigsRequest) (*RetrieveMCPServerConfigsResponse, error) {
+	out := new(RetrieveMCPServerConfigsResponse)
+	err := c.cc.Invoke(ctx, "/proto.MCPConfigurator/RetrieveMCPServerConfigs", drpcEncoding_File_aibridged_proto_aibridged_proto{}, in, out)
 	if err != nil {
 		return nil, err
 	}
@@ -256,12 +256,12 @@ func (c *drpcMCPConfiguratorClient) GetExternalAuthLinks(ctx context.Context, in
 }
 
 type DRPCMCPConfiguratorServer interface {
-	GetExternalAuthLinks(context.Context, *GetExternalAuthLinksRequest) (*GetExternalAuthLinksResponse, error)
+	RetrieveMCPServerConfigs(context.Context, *RetrieveMCPServerConfigsRequest) (*RetrieveMCPServerConfigsResponse, error)
 }
 
 type DRPCMCPConfiguratorUnimplementedServer struct{}
 
-func (s *DRPCMCPConfiguratorUnimplementedServer) GetExternalAuthLinks(context.Context, *GetExternalAuthLinksRequest) (*GetExternalAuthLinksResponse, error) {
+func (s *DRPCMCPConfiguratorUnimplementedServer) RetrieveMCPServerConfigs(context.Context, *RetrieveMCPServerConfigsRequest) (*RetrieveMCPServerConfigsResponse, error) {
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
@@ -272,14 +272,14 @@ func (DRPCMCPConfiguratorDescription) NumMethods() int { return 1 }
 func (DRPCMCPConfiguratorDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
 	case 0:
-		return "/proto.MCPConfigurator/GetExternalAuthLinks", drpcEncoding_File_aibridged_proto_aibridged_proto{},
+		return "/proto.MCPConfigurator/RetrieveMCPServerConfigs", drpcEncoding_File_aibridged_proto_aibridged_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCMCPConfiguratorServer).
-					GetExternalAuthLinks(
+					RetrieveMCPServerConfigs(
 						ctx,
-						in1.(*GetExternalAuthLinksRequest),
+						in1.(*RetrieveMCPServerConfigsRequest),
 					)
-			}, DRPCMCPConfiguratorServer.GetExternalAuthLinks, true
+			}, DRPCMCPConfiguratorServer.RetrieveMCPServerConfigs, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -289,16 +289,16 @@ func DRPCRegisterMCPConfigurator(mux drpc.Mux, impl DRPCMCPConfiguratorServer) e
 	return mux.Register(impl, DRPCMCPConfiguratorDescription{})
 }
 
-type DRPCMCPConfigurator_GetExternalAuthLinksStream interface {
+type DRPCMCPConfigurator_RetrieveMCPServerConfigsStream interface {
 	drpc.Stream
-	SendAndClose(*GetExternalAuthLinksResponse) error
+	SendAndClose(*RetrieveMCPServerConfigsResponse) error
 }
 
-type drpcMCPConfigurator_GetExternalAuthLinksStream struct {
+type drpcMCPConfigurator_RetrieveMCPServerConfigsStream struct {
 	drpc.Stream
 }
 
-func (x *drpcMCPConfigurator_GetExternalAuthLinksStream) SendAndClose(m *GetExternalAuthLinksResponse) error {
+func (x *drpcMCPConfigurator_RetrieveMCPServerConfigsStream) SendAndClose(m *RetrieveMCPServerConfigsResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_aibridged_proto_aibridged_proto{}); err != nil {
 		return err
 	}
