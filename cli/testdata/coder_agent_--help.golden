@@ -6,6 +6,18 @@ USAGE:
   Starts the Coder workspace agent.
 
 OPTIONS:
+      --auth string, $CODER_AGENT_AUTH (default: token)
+          Specify the authentication type to use for the agent.
+
+      --agent-token string, $CODER_AGENT_TOKEN
+          An agent authentication token.
+
+      --agent-token-file string, $CODER_AGENT_TOKEN_FILE
+          A file containing an agent authentication token.
+
+      --agent-url url, $CODER_AGENT_URL
+          URL for an agent to access your deployment.
+
       --log-human string, $CODER_AGENT_LOGGING_HUMAN (default: /dev/stderr)
           Output human-readable logs to a given file.
 
@@ -23,9 +35,6 @@ OPTIONS:
           An external command that outputs additional HTTP headers added to all
           requests. The command must output each header as `key=value` on its
           own line.
-
-      --auth string, $CODER_AGENT_AUTH (default: token)
-          Specify the authentication type to use for the agent.
 
       --block-file-transfer bool, $CODER_AGENT_BLOCK_FILE_TRANSFER (default: false)
           Block file transfer using known applications: nc,rsync,scp,sftp.

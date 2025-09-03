@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -13,8 +14,10 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -301,14 +304,32 @@ func TestSessionExpiry(t *testing.T) {
 
 func TestAPIKey_OK(t *testing.T) {
 	t.Parallel()
+
+	// Given: a deployment with auditing enabled
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-	_ = coderdtest.CreateFirstUser(t, client)
+	auditor := audit.NewMock()
+	client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+	owner := coderdtest.CreateFirstUser(t, client)
+	auditor.ResetLogs()
 
+	// When: an API key is created
 	res, err := client.CreateAPIKey(ctx, codersdk.Me)
 	require.NoError(t, err)
 	require.Greater(t, len(res.Key), 2)
+
+	// Then: an audit log is generated
+	als := auditor.AuditLogs()
+	require.Len(t, als, 1)
+	al := als[0]
+	assert.Equal(t, owner.UserID, al.UserID)
+	assert.Equal(t, database.AuditActionCreate, al.Action)
+	assert.Equal(t, database.ResourceTypeApiKey, al.ResourceType)
+
+	// Then: the diff MUST NOT contain the generated key.
+	raw, err := json.Marshal(al)
+	require.NoError(t, err)
+	require.NotContains(t, res.Key, string(raw))
 }
 
 func TestAPIKey_Deleted(t *testing.T) {
@@ -350,4 +371,35 @@ func TestAPIKey_SetDefault(t *testing.T) {
 	apiKey1, err := db.GetAPIKeyByID(ctx, split[0])
 	require.NoError(t, err)
 	require.EqualValues(t, dc.Sessions.DefaultTokenDuration.Value().Seconds(), apiKey1.LifetimeSeconds)
+}
+
+func TestAPIKey_PrebuildsNotAllowed(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	dc := coderdtest.DeploymentValues(t)
+	dc.Sessions.DefaultTokenDuration = serpent.Duration(time.Hour * 12)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:         db,
+		Pubsub:           pubsub,
+		DeploymentValues: dc,
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Given: an existing api token for the prebuilds user
+	_, prebuildsToken := dbgen.APIKey(t, db, database.APIKey{
+		UserID: database.PrebuildsSystemUserID,
+	})
+	client.SetSessionToken(prebuildsToken)
+
+	// When: the prebuilds user tries to create an API key
+	_, err := client.CreateAPIKey(ctx, database.PrebuildsSystemUserID.String())
+	// Then: denied.
+	require.ErrorContains(t, err, httpapi.ResourceForbiddenResponse.Message)
+
+	// When: the prebuilds user tries to create a token
+	_, err = client.CreateToken(ctx, database.PrebuildsSystemUserID.String(), codersdk.CreateTokenRequest{})
+	// Then: also denied.
+	require.ErrorContains(t, err, httpapi.ResourceForbiddenResponse.Message)
 }
