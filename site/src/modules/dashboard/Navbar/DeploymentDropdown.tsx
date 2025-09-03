@@ -139,17 +139,17 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 
 const styles = {
 	menuItem: (theme) => css`
-    text-decoration: none;
-    color: inherit;
-    gap: 8px;
-    padding: 8px 20px;
-    font-size: 14px;
+		text-decoration: none;
+		color: inherit;
+		gap: 8px;
+		padding: 8px 20px;
+		font-size: 14px;
 
-    &:hover {
-      background-color: ${theme.palette.action.hover};
-      transition: background-color 0.3s ease;
-    }
-  `,
+		&:hover {
+			background-color: ${theme.palette.action.hover};
+			transition: background-color 0.3s ease;
+		}
+	`,
 	menuItemIcon: (theme) => ({
 		color: theme.palette.text.secondary,
 		width: 20,
