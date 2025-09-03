@@ -257,7 +257,7 @@ func Test_Runner(t *testing.T) {
 			err := runner.Run(runnerCtx, "1", logs)
 			logsStr := logs.String()
 			t.Log("Runner logs:\n\n" + logsStr)
-			require.ErrorIs(t, err, context.Canceled)
+			assert.ErrorIs(t, err, context.Canceled)
 			close(done)
 		}()
 
