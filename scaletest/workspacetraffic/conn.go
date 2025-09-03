@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"net"
-	"net/http"
 	"sync"
 	"time"
 
@@ -144,7 +143,7 @@ func (c *rptyConn) Close() (err error) {
 }
 
 //nolint:revive // Ignore requestPTY control flag.
-func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID, cmd string, requestPTY bool) (rwc *countReadWriteCloser, err error) {
+func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID, cmd string, requestPTY bool, blockEndpoints bool) (rwc *countReadWriteCloser, err error) {
 	var closers []func() error
 	defer func() {
 		if err != nil {
@@ -156,7 +155,9 @@ func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID,
 		}
 	}()
 
-	agentConn, err := workspacesdk.New(client).DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{})
+	agentConn, err := workspacesdk.New(client).DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
+		BlockEndpoints: blockEndpoints,
+	})
 	if err != nil {
 		return nil, xerrors.Errorf("dial workspace agent: %w", err)
 	}
@@ -267,18 +268,13 @@ func (w *wrappedSSHConn) Write(p []byte) (n int, err error) {
 }
 
 func appClientConn(ctx context.Context, client *codersdk.Client, url string) (*countReadWriteCloser, error) {
-	headers := http.Header{}
-	tokenHeader := codersdk.SessionTokenHeader
-	if client.SessionTokenHeader != "" {
-		tokenHeader = client.SessionTokenHeader
+	wsOptions := &websocket.DialOptions{
+		HTTPClient: client.HTTPClient,
 	}
-	headers.Set(tokenHeader, client.SessionToken())
+	client.SessionTokenProvider.SetDialOption(wsOptions)
 
 	//nolint:bodyclose // The websocket conn manages the body.
-	conn, _, err := websocket.Dial(ctx, url, &websocket.DialOptions{
-		HTTPClient: client.HTTPClient,
-		HTTPHeader: headers,
-	})
+	conn, _, err := websocket.Dial(ctx, url, wsOptions)
 	if err != nil {
 		return nil, xerrors.Errorf("websocket dial: %w", err)
 	}

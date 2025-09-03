@@ -2,6 +2,8 @@ package prebuilds
 
 import (
 	"context"
+	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -54,6 +56,15 @@ type StateSnapshotter interface {
 }
 
 type Claimer interface {
-	Claim(ctx context.Context, userID uuid.UUID, name string, presetID uuid.UUID) (*uuid.UUID, error)
+	Claim(
+		ctx context.Context,
+		now time.Time,
+		userID uuid.UUID,
+		name string,
+		presetID uuid.UUID,
+		autostartSchedule sql.NullString,
+		nextStartAt sql.NullTime,
+		ttl sql.NullInt64,
+	) (*uuid.UUID, error)
 	Initiator() uuid.UUID
 }

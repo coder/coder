@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
 import { MockTemplateVersion } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { AlertVariant } from "./ProvisionerAlert";
 import { ProvisionerStatusAlert } from "./ProvisionerStatusAlert";
 

@@ -193,10 +193,13 @@ type TemplateUser struct {
 }
 
 type UpdateTemplateACL struct {
-	// UserPerms should be a mapping of user id to role. The user id must be the
-	// uuid of the user, not a username or email address.
+	// UserPerms is a mapping from valid user UUIDs to the template role they
+	// should be granted. To remove a user from the template, use "" as the role
+	// (available as a constant named codersdk.TemplateRoleDeleted)
 	UserPerms map[string]TemplateRole `json:"user_perms,omitempty" example:"<user_id>:admin,4df59e74-c027-470b-ab4d-cbba8963a5e9:use"`
-	// GroupPerms should be a mapping of group id to role.
+	// GroupPerms is a mapping from valid group UUIDs to the template role they
+	// should be granted. To remove a group from the template, use "" as the role
+	// (available as a constant named codersdk.TemplateRoleDeleted)
 	GroupPerms map[string]TemplateRole `json:"group_perms,omitempty" example:"<group_id>:admin,8bd26b20-f3e8-48be-a903-46bb920cf671:use"`
 }
 
@@ -208,11 +211,11 @@ type ACLAvailable struct {
 }
 
 type UpdateTemplateMeta struct {
-	Name             string `json:"name,omitempty" validate:"omitempty,template_name"`
-	DisplayName      string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
-	Description      string `json:"description,omitempty"`
-	Icon             string `json:"icon,omitempty"`
-	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
+	Name             string  `json:"name,omitempty" validate:"omitempty,template_name"`
+	DisplayName      *string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
+	Description      *string `json:"description,omitempty"`
+	Icon             *string `json:"icon,omitempty"`
+	DefaultTTLMillis int64   `json:"default_ttl_ms,omitempty"`
 	// ActivityBumpMillis allows optionally specifying the activity bump
 	// duration for all workspaces created from this template. Defaults to 1h
 	// but can be set to 0 to disable activity bumping.

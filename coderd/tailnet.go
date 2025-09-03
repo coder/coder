@@ -277,9 +277,9 @@ func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (
 	}, nil
 }
 
-func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*workspacesdk.AgentConn, func(), error) {
+func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 	var (
-		conn *workspacesdk.AgentConn
+		conn workspacesdk.AgentConn
 		ret  func()
 	)
 

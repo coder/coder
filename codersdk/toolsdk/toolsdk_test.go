@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"runtime"
 	"sort"
 	"sync"
 	"testing"
@@ -74,8 +75,7 @@ func TestTools(t *testing.T) {
 	}).Do()
 
 	// Given: a client configured with the agent token.
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(r.AgentToken)
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 	// Get the agent ID from the API. Overriding it in dbfake doesn't work.
 	ws, err := client.Workspace(setupCtx, r.Workspace.ID)
 	require.NoError(t, err)
@@ -397,6 +397,9 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("WorkspaceSSHExec", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("WorkspaceSSHExec is not supported on Windows")
+		}
 		// Setup workspace exactly like main SSH tests
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 
@@ -661,6 +664,10 @@ func TestMain(m *testing.M) {
 	var untested []string
 	for _, tool := range toolsdk.All {
 		if tested, ok := testedTools.Load(tool.Name); !ok || !tested.(bool) {
+			// Test is skipped on Windows
+			if runtime.GOOS == "windows" && tool.Name == "coder_workspace_bash" {
+				continue
+			}
 			untested = append(untested, tool.Name)
 		}
 	}

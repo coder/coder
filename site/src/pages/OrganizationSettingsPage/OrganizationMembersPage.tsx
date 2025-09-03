@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import { getErrorMessage } from "api/errors";
 import { groupsByUserIdInOrganization } from "api/queries/groups";
 import {
@@ -20,7 +19,7 @@ import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
@@ -156,20 +155,12 @@ const OrganizationMembersPage: FC = () => {
 							</ul>
 						</p>
 
-						<p css={styles.test}>
-							Are you sure you want to remove this member?
-						</p>
+						<p className="pb-5">Are you sure you want to remove this member?</p>
 					</Stack>
 				}
 			/>
 		</>
 	);
 };
-
-const styles = {
-	test: {
-		paddingBottom: 20,
-	},
-} satisfies Record<string, Interpolation<Theme>>;
 
 export default OrganizationMembersPage;

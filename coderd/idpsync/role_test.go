@@ -273,7 +273,6 @@ func TestRoleSyncTable(t *testing.T) {
 		}
 
 		// Also assert site wide roles
-		//nolint:gocritic // unit testing assertions
 		allRoles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user.ID)
 		require.NoError(t, err)
 

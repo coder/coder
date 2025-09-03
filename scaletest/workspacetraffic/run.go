@@ -111,7 +111,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 		// If echo is enabled, disable PTY to avoid double echo and
 		// reduce CPU usage.
 		requestPTY := !r.cfg.Echo
-		conn, err = connectSSH(ctx, r.client, agentID, command, requestPTY)
+		conn, err = connectSSH(ctx, r.client, agentID, command, requestPTY, r.cfg.DisableDirect)
 		if err != nil {
 			logger.Error(ctx, "connect to workspace agent via ssh", slog.Error(err))
 			return xerrors.Errorf("connect to workspace via ssh: %w", err)

@@ -45,7 +45,6 @@ func TestCancelledFetch(t *testing.T) {
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 	// Cancel the context for the first call; should fail.
-	//nolint:gocritic // Unit testing
 	ctx, cancel := context.WithCancel(dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort)))
 	cancel()
 	_, err := cache.Acquire(ctx, dbM, fileID)
@@ -71,7 +70,6 @@ func TestCancelledConcurrentFetch(t *testing.T) {
 
 	cache := files.LeakCache{Cache: files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})}
 
-	//nolint:gocritic // Unit testing
 	ctx := dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort))
 
 	// Cancel the context for the first call; should fail.
@@ -99,25 +97,18 @@ func TestConcurrentFetch(t *testing.T) {
 	})
 
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-	//nolint:gocritic // Unit testing
 	ctx := dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort))
 
 	// Expect 2 calls to Acquire before we continue the test
-	var (
-		hold sync.WaitGroup
-		wg   sync.WaitGroup
-	)
+	var wg sync.WaitGroup
 
+	wg.Add(2)
 	for range 2 {
-		hold.Add(1)
 		// TODO: wg.Go in Go 1.25
-		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			hold.Done()
-			hold.Wait()
 			_, err := cache.Acquire(ctx, dbM, fileID)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 	}
 
@@ -151,7 +142,6 @@ func TestCacheRBAC(t *testing.T) {
 		Scope: rbac.ScopeAll,
 	})
 
-	//nolint:gocritic // Unit testing
 	cacheReader := dbauthz.AsFileReader(ctx)
 
 	t.Run("NoRolesOpen", func(t *testing.T) {
@@ -207,7 +197,6 @@ func cachePromMetricName(metric string) string {
 
 func TestConcurrency(t *testing.T) {
 	t.Parallel()
-	//nolint:gocritic // Unit testing
 	ctx := dbauthz.AsFileReader(t.Context())
 
 	const fileSize = 10
@@ -268,7 +257,6 @@ func TestConcurrency(t *testing.T) {
 
 func TestRelease(t *testing.T) {
 	t.Parallel()
-	//nolint:gocritic // Unit testing
 	ctx := dbauthz.AsFileReader(t.Context())
 
 	const fileSize = 10

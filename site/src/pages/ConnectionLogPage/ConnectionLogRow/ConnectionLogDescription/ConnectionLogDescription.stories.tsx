@@ -1,8 +1,8 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import {
 	MockConnectedSSHConnectionLog,
 	MockWebConnectionLog,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ConnectionLogDescription } from "./ConnectionLogDescription";
 
 const meta: Meta<typeof ConnectionLogDescription> = {

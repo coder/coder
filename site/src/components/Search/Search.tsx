@@ -1,5 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-// biome-ignore lint/nursery/noRestrictedImports: use it to have the component prop
+// biome-ignore lint/style/noRestrictedImports: use it to have the component prop
 import Box, { type BoxProps } from "@mui/material/Box";
 import visuallyHidden from "@mui/utils/visuallyHidden";
 import { SearchIcon } from "lucide-react";

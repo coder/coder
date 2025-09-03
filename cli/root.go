@@ -59,9 +59,6 @@ var (
 const (
 	varURL                     = "url"
 	varToken                   = "token"
-	varAgentToken              = "agent-token"
-	varAgentTokenFile          = "agent-token-file"
-	varAgentURL                = "agent-url"
 	varHeader                  = "header"
 	varHeaderCommand           = "header-command"
 	varNoOpen                  = "no-open"
@@ -82,6 +79,7 @@ const (
 	//nolint:gosec
 	envAgentTokenFile = "CODER_AGENT_TOKEN_FILE"
 	envAgentURL       = "CODER_AGENT_URL"
+	envAgentAuth      = "CODER_AGENT_AUTH"
 	envURL            = "CODER_URL"
 )
 
@@ -90,7 +88,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 	return []*serpent.Command{
 		r.completion(),
 		r.dotfiles(),
-		r.externalAuth(),
+		externalAuth(),
 		r.login(),
 		r.logout(),
 		r.netcheck(),
@@ -108,7 +106,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		// Workspace Commands
 		r.autoupdate(),
 		r.configSSH(),
-		r.create(),
+		r.Create(CreateOptions{}),
 		r.deleteWorkspace(),
 		r.favorite(),
 		r.list(),
@@ -130,11 +128,11 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		// Hidden
 		r.connectCmd(),
 		r.expCmd(),
-		r.gitssh(),
+		gitssh(),
 		r.support(),
 		r.vpnDaemon(),
 		r.vscodeSSH(),
-		r.workspaceAgent(),
+		workspaceAgent(),
 	}
 }
 
@@ -198,6 +196,7 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, error) {
 	fmtLong := `Coder %s — A tool for provisioning self-hosted development environments with Terraform.
 `
+	hiddenAgentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use: "coder [global-flags] <subcommand>",
 		Long: fmt.Sprintf(fmtLong, buildinfo.Version()) + FormatExamples(
@@ -220,7 +219,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			// with a `gitaskpass` subcommand, we override the entrypoint
 			// to check if the command was invoked.
 			if gitauth.CheckCommand(i.Args, i.Environ.ToOS()) {
-				return r.gitAskpass().Handler(i)
+				return gitAskpass(hiddenAgentAuth).Handler(i)
 			}
 			return i.Command.HelpHandler(i)
 		},
@@ -349,9 +348,6 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		}
 	})
 
-	if r.agentURL == nil {
-		r.agentURL = new(url.URL)
-	}
 	if r.clientURL == nil {
 		r.clientURL = new(url.URL)
 	}
@@ -379,30 +375,6 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Env:         envSessionToken,
 			Description: fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken),
 			Value:       serpent.StringOf(&r.token),
-			Group:       globalGroup,
-		},
-		{
-			Flag:        varAgentToken,
-			Env:         envAgentToken,
-			Description: "An agent authentication token.",
-			Value:       serpent.StringOf(&r.agentToken),
-			Hidden:      true,
-			Group:       globalGroup,
-		},
-		{
-			Flag:        varAgentTokenFile,
-			Env:         envAgentTokenFile,
-			Description: "A file containing an agent authentication token.",
-			Value:       serpent.StringOf(&r.agentTokenFile),
-			Hidden:      true,
-			Group:       globalGroup,
-		},
-		{
-			Flag:        varAgentURL,
-			Env:         envAgentURL,
-			Description: "URL for an agent to access your deployment.",
-			Value:       serpent.URLOf(r.agentURL),
-			Hidden:      true,
 			Group:       globalGroup,
 		},
 		{
@@ -496,26 +468,25 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Hidden:      true,
 		},
 	}
+	hiddenAgentAuth.AttachOptions(cmd, true)
 
 	return cmd, nil
 }
 
 // RootCmd contains parameters and helpers useful to all commands.
 type RootCmd struct {
-	clientURL      *url.URL
-	token          string
-	globalConfig   string
-	header         []string
-	headerCommand  string
-	agentToken     string
-	agentTokenFile string
-	agentURL       *url.URL
-	forceTTY       bool
-	noOpen         bool
-	verbose        bool
-	versionFlag    bool
-	disableDirect  bool
-	debugHTTP      bool
+	clientURL     *url.URL
+	token         string
+	globalConfig  string
+	header        []string
+	headerCommand string
+
+	forceTTY      bool
+	noOpen        bool
+	verbose       bool
+	versionFlag   bool
+	disableDirect bool
+	debugHTTP     bool
 
 	disableNetworkTelemetry bool
 	noVersionCheck          bool
@@ -635,6 +606,9 @@ func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*cod
 }
 
 func (r *RootCmd) configureClient(ctx context.Context, client *codersdk.Client, serverURL *url.URL, inv *serpent.Invocation) error {
+	if client.SessionTokenProvider == nil {
+		client.SessionTokenProvider = codersdk.FixedSessionTokenProvider{}
+	}
 	transport := http.DefaultTransport
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
 	if !r.noVersionCheck {
@@ -669,38 +643,81 @@ func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *ur
 	return &client, err
 }
 
-// createAgentClient returns a new client from the command context.  It works
-// just like InitClient, but uses the agent token and URL instead.
-func (r *RootCmd) createAgentClient() (*agentsdk.Client, error) {
-	agentURL := r.agentURL
-	if agentURL == nil || agentURL.String() == "" {
-		return nil, xerrors.Errorf("%s must be set", envAgentURL)
-	}
-	token := r.agentToken
-	if token == "" {
-		if r.agentTokenFile == "" {
-			return nil, xerrors.Errorf("Either %s or %s must be set", envAgentToken, envAgentTokenFile)
-		}
-		tokenBytes, err := os.ReadFile(r.agentTokenFile)
-		if err != nil {
-			return nil, xerrors.Errorf("read token file %q: %w", r.agentTokenFile, err)
-		}
-		token = strings.TrimSpace(string(tokenBytes))
-	}
-	client := agentsdk.New(agentURL)
-	client.SetSessionToken(token)
-	return client, nil
+type AgentAuth struct {
+	// Agent Client config
+	agentToken     string
+	agentTokenFile string
+	agentURL       url.URL
+	agentAuth      string
 }
 
-// tryCreateAgentClient returns a new client from the command context.  It works
-// just like tryCreateAgentClient, but does not error.
-func (r *RootCmd) tryCreateAgentClient() (*agentsdk.Client, error) {
-	// TODO: Why does this not actually return any errors despite the function
-	// signature?  Could we just use createAgentClient instead, or is it expected
-	// that we return a client in some cases even without a valid URL or token?
-	client := agentsdk.New(r.agentURL)
-	client.SetSessionToken(r.agentToken)
-	return client, nil
+func (a *AgentAuth) AttachOptions(cmd *serpent.Command, hidden bool) {
+	cmd.Options = append(cmd.Options, serpent.Option{
+		Name:        "Agent Token",
+		Description: "An agent authentication token.",
+		Flag:        "agent-token",
+		Env:         envAgentToken,
+		Value:       serpent.StringOf(&a.agentToken),
+		Hidden:      hidden,
+	}, serpent.Option{
+		Name:        "Agent Token File",
+		Description: "A file containing an agent authentication token.",
+		Flag:        "agent-token-file",
+		Env:         envAgentTokenFile,
+		Value:       serpent.StringOf(&a.agentTokenFile),
+		Hidden:      hidden,
+	}, serpent.Option{
+		Name:        "Agent URL",
+		Description: "URL for an agent to access your deployment.",
+		Flag:        "agent-url",
+		Env:         envAgentURL,
+		Value:       serpent.URLOf(&a.agentURL),
+		Hidden:      hidden,
+	}, serpent.Option{
+		Name:        "Agent Auth",
+		Description: "Specify the authentication type to use for the agent.",
+		Flag:        "auth",
+		Env:         envAgentAuth,
+		Default:     "token",
+		Value:       serpent.StringOf(&a.agentAuth),
+		Hidden:      hidden,
+	})
+}
+
+// CreateClient returns a new agent client from the command context.  It works
+// just like InitClient, but uses the agent token and URL instead.
+func (a *AgentAuth) CreateClient() (*agentsdk.Client, error) {
+	agentURL := a.agentURL
+	if agentURL.String() == "" {
+		return nil, xerrors.Errorf("%s must be set", envAgentURL)
+	}
+
+	switch a.agentAuth {
+	case "token":
+		token := a.agentToken
+		if token == "" {
+			if a.agentTokenFile == "" {
+				return nil, xerrors.Errorf("Either %s or %s must be set", envAgentToken, envAgentTokenFile)
+			}
+			tokenBytes, err := os.ReadFile(a.agentTokenFile)
+			if err != nil {
+				return nil, xerrors.Errorf("read token file %q: %w", a.agentTokenFile, err)
+			}
+			token = strings.TrimSpace(string(tokenBytes))
+		}
+		if token == "" {
+			return nil, xerrors.Errorf("CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE must be set for token auth")
+		}
+		return agentsdk.New(&a.agentURL, agentsdk.WithFixedToken(token)), nil
+	case "google-instance-identity":
+		return agentsdk.New(&a.agentURL, agentsdk.WithGoogleInstanceIdentity("", nil)), nil
+	case "aws-instance-identity":
+		return agentsdk.New(&a.agentURL, agentsdk.WithAWSInstanceIdentity()), nil
+	case "azure-instance-identity":
+		return agentsdk.New(&a.agentURL, agentsdk.WithAzureInstanceIdentity()), nil
+	default:
+		return nil, xerrors.Errorf("unknown agent auth type: %s", a.agentAuth)
+	}
 }
 
 type OrganizationContext struct {

@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { MockOAuth2ProviderApps } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import OAuth2AppsSettingsPageView from "./OAuth2AppsSettingsPageView";
 
 const meta: Meta = {

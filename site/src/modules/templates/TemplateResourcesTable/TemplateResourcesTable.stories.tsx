@@ -1,4 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import {
 	MockWorkspaceAgent,
 	MockWorkspaceAgentConnecting,
@@ -6,6 +5,7 @@ import {
 	MockWorkspaceResource,
 	MockWorkspaceVolumeResource,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { TemplateResourcesTable } from "./TemplateResourcesTable";
 
 const meta: Meta<typeof TemplateResourcesTable> = {

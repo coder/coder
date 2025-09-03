@@ -27,6 +27,7 @@ import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
+import { AgentExternal } from "./AgentExternal";
 import { AgentLatency } from "./AgentLatency";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
 import { AgentLogs } from "./AgentLogs/AgentLogs";
@@ -37,9 +38,9 @@ import { DownloadAgentLogsButton } from "./DownloadAgentLogsButton";
 import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
-import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { useAgentContainers } from "./useAgentContainers";
 import { useAgentLogs } from "./useAgentLogs";
+import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 
 interface AgentRowProps {
 	agent: WorkspaceAgent;
@@ -58,13 +59,14 @@ export const AgentRow: FC<AgentRowProps> = ({
 	onUpdateAgent,
 	initialMetadata,
 }) => {
-	const { browser_only } = useFeatureVisibility();
+	const { browser_only, workspace_external_agent } = useFeatureVisibility();
 	const appSections = organizeAgentApps(agent.apps);
 	const hasAppsToDisplay =
 		!browser_only || appSections.some((it) => it.apps.length > 0);
+	const isExternalAgent = workspace.latest_build.has_external_agent;
 	const shouldDisplayAgentApps =
 		(agent.status === "connected" && hasAppsToDisplay) ||
-		agent.status === "connecting";
+		(agent.status === "connecting" && !isExternalAgent);
 	const hasVSCodeApp =
 		agent.display_apps.includes("vscode") ||
 		agent.display_apps.includes("vscode_insiders");
@@ -258,7 +260,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</section>
 				)}
 
-				{agent.status === "connecting" && (
+				{agent.status === "connecting" && !isExternalAgent && (
 					<section css={styles.apps}>
 						<Skeleton
 							width={80}
@@ -292,6 +294,12 @@ export const AgentRow: FC<AgentRowProps> = ({
 						})}
 					</section>
 				)}
+
+				{isExternalAgent &&
+					(agent.status === "timeout" || agent.status === "connecting") &&
+					workspace_external_agent && (
+						<AgentExternal agent={agent} workspace={workspace} />
+					)}
 
 				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />
 			</div>
@@ -335,7 +343,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 							Logs
 						</Button>
 						<Divider orientation="vertical" variant="middle" flexItem />
-						<DownloadAgentLogsButton workspaceId={workspace.id} agent={agent} />
+						<DownloadAgentLogsButton agent={agent} />
 					</Stack>
 				</section>
 			)}

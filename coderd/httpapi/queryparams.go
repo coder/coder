@@ -287,6 +287,29 @@ func (p *QueryParamParser) JSONStringMap(vals url.Values, def map[string]string,
 	return v
 }
 
+func (p *QueryParamParser) ProvisionerDaemonStatuses(vals url.Values, def []codersdk.ProvisionerDaemonStatus, queryParam string) []codersdk.ProvisionerDaemonStatus {
+	return ParseCustomList(p, vals, def, queryParam, func(v string) (codersdk.ProvisionerDaemonStatus, error) {
+		return codersdk.ProvisionerDaemonStatus(v), nil
+	})
+}
+
+func (p *QueryParamParser) Duration(vals url.Values, def time.Duration, queryParam string) time.Duration {
+	v, err := parseQueryParam(p, vals, func(v string) (time.Duration, error) {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return 0, err
+		}
+		return d, nil
+	}, def, queryParam)
+	if err != nil {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q must be a valid duration (e.g., '24h', '30m', '1h30m'): %s", queryParam, err.Error()),
+		})
+	}
+	return v
+}
+
 // ValidEnum represents an enum that can be parsed and validated.
 type ValidEnum interface {
 	// Add more types as needed (avoid importing large dependency trees).
