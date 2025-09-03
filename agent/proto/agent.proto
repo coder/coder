@@ -423,7 +423,6 @@ message CreateSubAgentRequest {
 		optional SharingLevel share = 11;
 		optional bool subdomain = 12;
 		optional string url = 13;
-		optional string tooltip = 14;
 	}
 
 	repeated App apps = 5;

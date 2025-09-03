@@ -206,7 +206,6 @@ func TestSubAgentAPI(t *testing.T) {
 							Threshold: 6,
 							Url:       "http://localhost:13337/healthz",
 						},
-						Tooltip: ptr.Ref("Test **Tooltip**"),
 					},
 					{
 						Slug:        "vim",
@@ -233,7 +232,6 @@ func TestSubAgentAPI(t *testing.T) {
 						Hidden:               false,
 						OpenIn:               database.WorkspaceAppOpenInSlimWindow,
 						DisplayGroup:         sql.NullString{},
-						Tooltip:              "Test **Tooltip**",
 					},
 					{
 						Slug:         "547knu0f-vim",
@@ -652,7 +650,6 @@ func TestSubAgentAPI(t *testing.T) {
 					assert.Equal(t, tt.expectApps[idx].SharingLevel, app.SharingLevel)
 					assert.Equal(t, tt.expectApps[idx].Subdomain, app.Subdomain)
 					assert.Equal(t, tt.expectApps[idx].Url, app.Url)
-					assert.Equal(t, tt.expectApps[idx].Tooltip, app.Tooltip)
 				}
 
 				// Verify expected app creation errors
