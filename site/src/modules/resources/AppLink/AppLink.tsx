@@ -135,9 +135,7 @@ export const AppLink: FC<AppLinkProps> = ({
 		</AgentButton>
 	);
 
-	const tooltipContent = primaryTooltip || app.tooltip;
-
-	if (tooltipContent) {
+	if (primaryTooltip || app.tooltip) {
 		return (
 			<TooltipProvider>
 				<Tooltip>
@@ -146,7 +144,7 @@ export const AppLink: FC<AppLinkProps> = ({
 						{primaryTooltip ? (
 							primaryTooltip
 						) : app.tooltip ? (
-							<Markdown className="text-content-secondary prose-sm font-medium [overflow-wrap:anywhere]">
+							<Markdown className="text-content-secondary prose-sm font-medium wrap-anywhere">
 								{app.tooltip}
 							</Markdown>
 						) : null}
