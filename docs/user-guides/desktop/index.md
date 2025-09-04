@@ -7,7 +7,6 @@ Coder Desktop provides seamless access to your remote workspaces through a nativ
 - A Coder deployment running `v2.20.0` or [later](https://github.com/coder/coder/releases/latest)
 - Administrator privileges on your local machine (for VPN extension installation)
 - Access to your Coder deployment URL
-- Valid Coder account credentials
 
 ## Quick Start
 
@@ -43,7 +42,7 @@ The VPN extension routes only Coder traffic—your other internet activity remai
 brew install --cask coder/coder/coder-desktop
 ```
 
-#### Manual Installation**
+#### Manual Installation
 
 1. Download the latest release from [coder-desktop-macos releases](https://github.com/coder/coder-desktop-macos/releases)
 1. Drag `Coder Desktop.app` to your Applications folder
@@ -65,13 +64,13 @@ Coder Desktop requires VPN extension permissions:
 
 <div class="tabs">
 
-#### WinGet (Recommended)**
+#### WinGet (Recommended)
 
 ```shell
 winget install Coder.CoderDesktop
 ```
 
-#### Manual Installation**
+#### Manual Installation
 
 1. Download the latest `CoderDesktop` installer (`.exe`) from [coder-desktop-windows releases](https://github.com/coder/coder-desktop-windows/releases)
 1. Choose the correct architecture (`x64` or `arm64`) for your system
@@ -94,12 +93,16 @@ winget install Coder.CoderDesktop
 
 Once connected, test access to your workspaces:
 
-**SSH Connection**
+<div class="tabs">
+
+### SSH Connection
+
 ```shell
 ssh your-workspace.coder
 ```
 
-**Ping Test**
+### Ping Test
+
 ```shell
 # macOS
 ping6 -c 3 your-workspace.coder
@@ -108,28 +111,33 @@ ping6 -c 3 your-workspace.coder
 ping -n 3 your-workspace.coder
 ```
 
-**Web Services**
+### Web Services
 
 Open `http://your-workspace.coder:PORT` in your browser (replace `PORT` with your service's port)
+
+</div>
 
 ## Troubleshooting
 
 ### Connection Issues
 
-**"Can't connect to workspace"**
+#### Can't connect to workspace
+
 - Verify Coder Connect is enabled (toggle should be ON)
 - Check that your deployment URL is correct
 - Ensure your session token hasn't expired
 - Try disconnecting and reconnecting Coder Connect
 
-**"VPN extension not working"**
+#### VPN extension not working
+
 - Restart Coder Desktop
 - Check system permissions for network extensions
 - Ensure only one copy of Coder Desktop is installed
 
 ### Known Limitations
 
-**Secure Browser Context**
+#### Secure Browser Context
+
 Some web applications require HTTPS for certain features. While Coder Connect uses encrypted WireGuard tunnels, browsers may show security warnings for HTTP connections to `.coder` hostnames.
 
 ### Getting Help
