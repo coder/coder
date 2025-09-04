@@ -1,5 +1,6 @@
 import "./theme/globalFonts";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { TimeSyncProvider } from "hooks/useTimeSync";
 import {
 	type FC,
 	type ReactNode,
@@ -63,17 +64,19 @@ export const AppProviders: FC<AppProvidersProps> = ({
 	}, []);
 
 	return (
-		<HelmetProvider>
-			<QueryClientProvider client={queryClient}>
-				<AuthProvider>
-					<ThemeProvider>
-						{children}
-						<GlobalSnackbar />
-					</ThemeProvider>
-				</AuthProvider>
-				{showDevtools && <ReactQueryDevtools initialIsOpen={showDevtools} />}
-			</QueryClientProvider>
-		</HelmetProvider>
+		<TimeSyncProvider>
+			<HelmetProvider>
+				<QueryClientProvider client={queryClient}>
+					<AuthProvider>
+						<ThemeProvider>
+							{children}
+							<GlobalSnackbar />
+						</ThemeProvider>
+					</AuthProvider>
+					{showDevtools && <ReactQueryDevtools initialIsOpen={showDevtools} />}
+				</QueryClientProvider>
+			</HelmetProvider>
+		</TimeSyncProvider>
 	);
 };
 
