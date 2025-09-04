@@ -4,7 +4,7 @@ Coder Desktop provides seamless access to your remote workspaces through a nativ
 
 ## What You'll Need
 
-- A Coder deployment running [v2.20.0](https://github.com/coder/coder/releases/tag/v2.20.0) or later
+- A Coder deployment running `v2.20.0` or [later](https://github.com/coder/coder/releases/latest)
 - Administrator privileges on your local machine (for VPN extension installation)
 - Access to your Coder deployment URL
 - Valid Coder account credentials
