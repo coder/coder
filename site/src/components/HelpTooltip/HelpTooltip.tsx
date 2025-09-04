@@ -56,14 +56,14 @@ export const HelpTooltipContent: FC<TooltipContentProps> = ({
 	);
 };
 
-type HelpTooltipTriggerProps = HTMLAttributes<HTMLButtonElement> & {
+type HelpTooltipIconTriggerProps = HTMLAttributes<HTMLButtonElement> & {
 	size?: Size;
 	hoverEffect?: boolean;
 };
 
 export const HelpTooltipIconTrigger = forwardRef<
 	HTMLButtonElement,
-	HelpTooltipTriggerProps
+	HelpTooltipIconTriggerProps
 >((props, ref) => {
 	const {
 		size = "medium",
