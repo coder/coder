@@ -28,11 +28,17 @@ export function newReadonlyDate(sourceDate?: Date): Date {
 	return new Proxy(newDate, readonlyEnforcer);
 }
 
+/**
+ * @todo Figure out if we can rename `initialDate` to `snapshotDate`, and make
+ * it so that if it's defined, that's the actual cue for freezing the instance.
+ *
+ * Having an initial date might actually make Jest tests easier. Not sure yet.
+ */
 export type TimeSyncInitOptions = Readonly<{
 	/**
 	 * The Date value to use when initializing a TimeSync instance.
 	 */
-	initialDatetime: Date;
+	initialDate: Date;
 
 	/**
 	 * The minimum refresh interval (in milliseconds) to use when dispatching
@@ -81,7 +87,7 @@ export type SubscriptionHandshake = Readonly<{
 }>;
 
 export const defaultOptions: TimeSyncInitOptions = {
-	initialDatetime: new Date(),
+	initialDate: new Date(),
 	minimumRefreshIntervalMs: 100,
 };
 
@@ -173,7 +179,7 @@ export class TimeSync implements TimeSyncApi {
 
 	constructor(options?: Partial<TimeSyncInitOptions>) {
 		const {
-			initialDatetime = defaultOptions.initialDatetime,
+			initialDate = defaultOptions.initialDate,
 			minimumRefreshIntervalMs = defaultOptions.minimumRefreshIntervalMs,
 		} = options ?? {};
 
@@ -190,7 +196,7 @@ export class TimeSync implements TimeSyncApi {
 		this.#isDisposed = false;
 		this.#subscriptions = new Map();
 		this.#minimumRefreshIntervalMs = minimumRefreshIntervalMs;
-		this.#latestDateSnapshot = newReadonlyDate(initialDatetime);
+		this.#latestDateSnapshot = newReadonlyDate(initialDate);
 		this.#fastestRefreshInterval = Number.POSITIVE_INFINITY;
 		this.#latestIntervalId = undefined;
 	}

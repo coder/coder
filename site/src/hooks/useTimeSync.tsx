@@ -132,7 +132,7 @@ function structuralMerge<T = unknown>(oldValue: T, newValue: T): T {
 }
 
 type ReactTimeSyncInitOptions = Readonly<{
-	initialDatetime: Date;
+	initialDate: Date;
 	minimumRefreshIntervalMs: number;
 	disableUpdates: boolean;
 }>;
@@ -174,17 +174,14 @@ class ReactTimeSync {
 
 	constructor(options?: Partial<ReactTimeSyncInitOptions>) {
 		const {
-			initialDatetime = defaultOptions.initialDatetime,
+			initialDate = defaultOptions.initialDate,
 			minimumRefreshIntervalMs = defaultOptions.minimumRefreshIntervalMs,
 		} = options ?? {};
 
 		this.#isProviderMounted = true;
 		this.#hasPendingUpdates = false;
 		this.#entries = new Map();
-		this.#timeSync = new TimeSync({
-			initialDatetime,
-			minimumRefreshIntervalMs,
-		});
+		this.#timeSync = new TimeSync({ initialDate, minimumRefreshIntervalMs });
 
 		// Don't need to store the unsubscribe callback separately, because this
 		// will be ejected when the onProviderUnmount method gets called
@@ -372,17 +369,17 @@ function useReactTimeSync(): ReactTimeSync {
 }
 
 type TimeSyncProviderProps = PropsWithChildren<{
-	initialDatetime?: Date;
+	initialDate?: Date;
 	minimumRefreshIntervalMs?: number;
 }>;
 
 export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 	children,
-	initialDatetime,
+	initialDate,
 	minimumRefreshIntervalMs,
 }) => {
 	const [readonlyReactTs] = useState(() => {
-		return new ReactTimeSync({ initialDatetime, minimumRefreshIntervalMs });
+		return new ReactTimeSync({ initialDate, minimumRefreshIntervalMs });
 	});
 
 	useEffect(() => {
