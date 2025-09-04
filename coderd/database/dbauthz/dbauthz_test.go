@@ -4339,7 +4339,7 @@ func (s *MethodTestSuite) TestAIBridge() {
 		params := database.InsertAIBridgeTokenUsageParams{SessionID: sess.ID}
 		db.EXPECT().GetAIBridgeSessionByID(gomock.Any(), sessID).Return(sess, nil).AnyTimes() // Validation.
 		db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), params).Return(nil).AnyTimes()
-		check.Args(params).Asserts(sess, policy.ActionCreate)
+		check.Args(params).Asserts(sess, policy.ActionUpdate)
 	}))
 
 	s.Run("InsertAIBridgeToolUsage", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -4348,7 +4348,7 @@ func (s *MethodTestSuite) TestAIBridge() {
 		params := database.InsertAIBridgeToolUsageParams{SessionID: sess.ID}
 		db.EXPECT().GetAIBridgeSessionByID(gomock.Any(), sessID).Return(sess, nil).AnyTimes() // Validation.
 		db.EXPECT().InsertAIBridgeToolUsage(gomock.Any(), params).Return(nil).AnyTimes()
-		check.Args(params).Asserts(sess, policy.ActionCreate)
+		check.Args(params).Asserts(sess, policy.ActionUpdate)
 	}))
 
 	s.Run("InsertAIBridgeUserPrompt", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -4357,6 +4357,6 @@ func (s *MethodTestSuite) TestAIBridge() {
 		params := database.InsertAIBridgeUserPromptParams{SessionID: sess.ID}
 		db.EXPECT().GetAIBridgeSessionByID(gomock.Any(), sessID).Return(sess, nil).AnyTimes() // Validation.
 		db.EXPECT().InsertAIBridgeUserPrompt(gomock.Any(), params).Return(nil).AnyTimes()
-		check.Args(params).Asserts(sess, policy.ActionCreate)
+		check.Args(params).Asserts(sess, policy.ActionUpdate)
 	}))
 }
