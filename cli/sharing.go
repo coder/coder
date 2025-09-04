@@ -96,6 +96,10 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 
 				for _, user := range users {
 					userAndRole := nameRoleRegex.FindStringSubmatch(user)
+					if userAndRole == nil {
+						return xerrors.Errorf("invalid user format %q: must match pattern 'username:role'", user)
+					}
+
 					username := userAndRole[1]
 					role := userAndRole[2]
 
@@ -130,6 +134,9 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 
 				for _, group := range groups {
 					groupAndRole := nameRoleRegex.FindStringSubmatch(group)
+					if groupAndRole == nil {
+						return xerrors.Errorf("invalid group format %q: must match pattern 'group:role'", group)
+					}
 					groupName := groupAndRole[1]
 					role := groupAndRole[2]
 
