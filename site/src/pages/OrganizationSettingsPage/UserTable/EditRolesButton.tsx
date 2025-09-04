@@ -143,10 +143,7 @@ const EnabledEditRolesButton: FC<EditRolesButtonProps> = ({
 				</Tooltip>
 			</PopoverTrigger>
 
-			<PopoverContent
-				className="w-96 bg-surface-secondary border-surface-quaternary"
-				disablePortal={false}
-			>
+			<PopoverContent className="w-96 bg-surface-secondary border-surface-quaternary">
 				<fieldset
 					className="border-0 m-0 p-0 disabled:opacity-50"
 					disabled={isLoading}

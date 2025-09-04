@@ -60,7 +60,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 				</SelectMenuButton>
 			</SelectMenuTrigger>
 			<SelectMenuContent
-				horizontal="right"
+				align="end"
 				css={{
 					"& .MuiPaper-root": {
 						// When including selectFilterSearch, we aim for the width to be as
