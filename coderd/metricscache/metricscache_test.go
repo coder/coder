@@ -49,15 +49,20 @@ func newMetricsCache(t *testing.T, log slog.Logger, clock quartz.Clock, interval
 
 func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 	t.Parallel()
-	var ()
 
 	var (
-		log       = testutil.Logger(t)
-		clock     = quartz.NewReal()
-		cache, db = newMetricsCache(t, log, clock, metricscache.Intervals{
-			TemplateBuildTimes: testutil.IntervalFast,
-		}, false)
+		ctx   = testutil.Context(t, testutil.WaitShort)
+		log   = testutil.Logger(t)
+		clock = quartz.NewMock(t)
 	)
+
+	trapTickerFunc := clock.Trap().TickerFunc("metricscache")
+	defer trapTickerFunc.Close()
+
+	cache, db := newMetricsCache(t, log, clock, metricscache.Intervals{
+		TemplateBuildTimes: time.Minute,
+		DeploymentStats:    time.Minute,
+	}, false)
 
 	org := dbgen.Organization(t, db, database.Organization{})
 	user1 := dbgen.User(t, db, database.User{})
@@ -67,12 +72,19 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 		Provisioner:    database.ProvisionerTypeEcho,
 		CreatedBy:      user1.ID,
 	})
-	require.Eventuallyf(t, func() bool {
-		count, ok := cache.TemplateWorkspaceOwners(template.ID)
-		return ok && count == 0
-	}, testutil.WaitShort, testutil.IntervalMedium,
-		"TemplateWorkspaceOwners never populated 0 owners",
-	)
+
+	// Wait for both ticker functions to be created (template build times and deployment stats)
+	trapTickerFunc.MustWait(ctx).MustRelease(ctx)
+	trapTickerFunc.MustWait(ctx).MustRelease(ctx)
+
+	_, wait := clock.AdvanceNext()
+	wait.MustWait(ctx)
+	_, wait = clock.AdvanceNext()
+	wait.MustWait(ctx)
+
+	count, ok := cache.TemplateWorkspaceOwners(template.ID)
+	require.True(t, ok, "TemplateWorkspaceOwners should be populated")
+	require.Equal(t, 0, count, "should have 0 owners initially")
 
 	dbgen.Workspace(t, db, database.WorkspaceTable{
 		OrganizationID: org.ID,
@@ -80,12 +92,13 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 		OwnerID:        user1.ID,
 	})
 
-	require.Eventuallyf(t, func() bool {
-		count, _ := cache.TemplateWorkspaceOwners(template.ID)
-		return count == 1
-	}, testutil.WaitShort, testutil.IntervalMedium,
-		"TemplateWorkspaceOwners never populated 1 owner",
-	)
+	_, wait = clock.AdvanceNext()
+	wait.MustWait(ctx)
+	_, wait = clock.AdvanceNext()
+	wait.MustWait(ctx)
+
+	count, _ = cache.TemplateWorkspaceOwners(template.ID)
+	require.Equal(t, 1, count, "should have 1 owner after adding workspace")
 
 	workspace2 := dbgen.Workspace(t, db, database.WorkspaceTable{
 		OrganizationID: org.ID,
@@ -93,12 +106,13 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 		OwnerID:        user2.ID,
 	})
 
-	require.Eventuallyf(t, func() bool {
-		count, _ := cache.TemplateWorkspaceOwners(template.ID)
-		return count == 2
-	}, testutil.WaitShort, testutil.IntervalMedium,
-		"TemplateWorkspaceOwners never populated 2 owners",
-	)
+	_, wait = clock.AdvanceNext()
+	wait.MustWait(ctx)
+	_, wait = clock.AdvanceNext()
+	wait.MustWait(ctx)
+
+	count, _ = cache.TemplateWorkspaceOwners(template.ID)
+	require.Equal(t, 2, count, "should have 2 owners after adding second workspace")
 
 	// 3rd workspace should not be counted since we have the same owner as workspace2.
 	dbgen.Workspace(t, db, database.WorkspaceTable{
@@ -112,12 +126,13 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 		Deleted: true,
 	})
 
-	require.Eventuallyf(t, func() bool {
-		count, _ := cache.TemplateWorkspaceOwners(template.ID)
-		return count == 1
-	}, testutil.WaitShort, testutil.IntervalMedium,
-		"TemplateWorkspaceOwners never populated 1 owner after delete",
-	)
+	_, wait = clock.AdvanceNext()
+	wait.MustWait(ctx)
+	_, wait = clock.AdvanceNext()
+	wait.MustWait(ctx)
+
+	count, _ = cache.TemplateWorkspaceOwners(template.ID)
+	require.Equal(t, 1, count, "should have 1 owner after deleting workspace")
 }
 
 func clockTime(t time.Time, hour, minute, sec int) time.Time {
@@ -205,21 +220,21 @@ func TestCache_BuildTime(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := testutil.Context(t, testutil.WaitShort)
-
 			var (
+				ctx   = testutil.Context(t, testutil.WaitShort)
 				log   = testutil.Logger(t)
 				clock = quartz.NewMock(t)
 			)
+
+			clock.Set(someDay)
 
 			trapTickerFunc := clock.Trap().TickerFunc("metricscache")
 
 			defer trapTickerFunc.Close()
 			cache, db := newMetricsCache(t, log, clock, metricscache.Intervals{
-				TemplateBuildTimes: testutil.IntervalFast,
+				TemplateBuildTimes: time.Minute,
+				DeploymentStats:    time.Minute,
 			}, false)
-
-			clock.Set(someDay)
 
 			org := dbgen.Organization(t, db, database.Organization{})
 			user := dbgen.User(t, db, database.User{})
@@ -269,6 +284,8 @@ func TestCache_BuildTime(t *testing.T) {
 
 			_, wait := clock.AdvanceNext()
 			wait.MustWait(ctx)
+			_, wait = clock.AdvanceNext()
+			wait.MustWait(ctx)
 
 			if tt.want.loads {
 				wantTransition := codersdk.WorkspaceTransition(tt.args.transition)
@@ -295,9 +312,8 @@ func TestCache_BuildTime(t *testing.T) {
 func TestCache_DeploymentStats(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-
 	var (
+		ctx   = testutil.Context(t, testutil.WaitShort)
 		log   = testutil.Logger(t)
 		clock = quartz.NewMock(t)
 	)
@@ -306,8 +322,8 @@ func TestCache_DeploymentStats(t *testing.T) {
 	defer tickerTrap.Close()
 
 	cache, db := newMetricsCache(t, log, clock, metricscache.Intervals{
-		TemplateBuildTimes: testutil.IntervalFast,
-		DeploymentStats:    testutil.IntervalFast,
+		TemplateBuildTimes: time.Minute,
+		DeploymentStats:    time.Minute,
 	}, false)
 
 	err := db.InsertWorkspaceAgentStats(context.Background(), database.InsertWorkspaceAgentStatsParams{
@@ -338,6 +354,8 @@ func TestCache_DeploymentStats(t *testing.T) {
 	tickerTrap.MustWait(ctx).MustRelease(ctx)
 
 	_, wait := clock.AdvanceNext()
+	wait.MustWait(ctx)
+	_, wait = clock.AdvanceNext()
 	wait.MustWait(ctx)
 
 	stat, ok := cache.DeploymentStats()

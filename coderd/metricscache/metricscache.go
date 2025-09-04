@@ -3,7 +3,6 @@ package metricscache
 import (
 	"context"
 	"database/sql"
-	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -35,9 +34,8 @@ type Cache struct {
 	templateAverageBuildTime atomic.Pointer[map[uuid.UUID]database.GetTemplateAverageBuildTimeRow]
 	deploymentStatsResponse  atomic.Pointer[codersdk.DeploymentStats]
 
-	cancel    func()
-	tickersMu sync.Mutex
-	tickers   []quartz.Waiter
+	done   chan struct{}
+	cancel func()
 
 	// usage is a experiment flag to enable new workspace usage tracking behavior and will be
 	// removed when the experiment is complete.
@@ -63,13 +61,25 @@ func New(db database.Store, log slog.Logger, clock quartz.Clock, intervals Inter
 		database:  db,
 		intervals: intervals,
 		log:       log,
+		done:      make(chan struct{}),
 		cancel:    cancel,
 		usage:     usage,
 	}
-
-	go c.run(ctx, "template build times", intervals.TemplateBuildTimes, c.refreshTemplateBuildTimes)
-	go c.run(ctx, "deployment stats", intervals.DeploymentStats, c.refreshDeploymentStats)
-
+	go func() {
+		var wg sync.WaitGroup
+		defer close(c.done)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.run(ctx, "template build times", intervals.TemplateBuildTimes, c.refreshTemplateBuildTimes)
+		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.run(ctx, "deployment stats", intervals.DeploymentStats, c.refreshDeploymentStats)
+		}()
+		wg.Wait()
+	}()
 	return c
 }
 
@@ -196,20 +206,12 @@ func (c *Cache) run(ctx context.Context, name string, interval time.Duration, re
 	_ = tickerFunc()
 
 	tkr := c.clock.TickerFunc(ctx, interval, tickerFunc, "metricscache", name)
-	c.tickersMu.Lock()
-	c.tickers = append(c.tickers, tkr)
-	c.tickersMu.Unlock()
+	_ = tkr.Wait()
 }
 
 func (c *Cache) Close() error {
 	c.cancel()
-	c.tickersMu.Lock()
-	tickers := slices.Clone(c.tickers)
-	c.tickersMu.Unlock()
-
-	for _, tkr := range tickers {
-		_ = tkr.Wait()
-	}
+	<-c.done
 	return nil
 }
 
