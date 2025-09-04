@@ -95,6 +95,7 @@ type InvalidateSnapshotOptions = Readonly<{
 	 * React). However, if you do turn this off, it's expected that you will
 	 * eventually call invalidateStateSnapshot again with the default behavior.
 	 */
+	notificationBehavior: "notifyOnChange" | "neverNotify" | "alwaysNotify";
 	notifyAfterUpdate?: boolean;
 }>;
 
