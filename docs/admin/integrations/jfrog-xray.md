@@ -149,8 +149,6 @@ module "jfrog_xray" {
 
 Once configured, vulnerability information appears in the workspace metadata:
 
-![Xray Vulnerability Display](../images/guides/xray-integration/vulnerability-display.png)
-
 The metadata shows:
 
 - **Image**: The scanned container image
