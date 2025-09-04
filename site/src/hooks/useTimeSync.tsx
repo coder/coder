@@ -15,8 +15,8 @@ import { useEffectEvent } from "./hookPolyfills";
 
 export const REFRESH_IDLE = Number.POSITIVE_INFINITY;
 export const REFRESH_ONE_SECOND: number = 1_000;
-export const REFRESH_ONE_MINUTE = 60 * 1_000;
-export const REFRESH_ONE_HOUR = 60 * 60 * 1_000;
+export const REFRESH_ONE_MINUTE = 60 * REFRESH_ONE_SECOND;
+export const REFRESH_ONE_HOUR = 60 * REFRESH_ONE_MINUTE;
 
 /**
  * @todo 2025-08-29 - This isn't 100% correct, but for the initial
