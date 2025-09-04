@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 
@@ -29,11 +30,49 @@ func (r *RootCmd) sharing() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*serpent.Command{r.shareWorkspace(orgContext)},
-		Hidden:   true,
+		Children: []*serpent.Command{
+			r.shareWorkspace(orgContext),
+			r.statusWorkspaceSharing(),
+		},
+		Hidden: true,
 	}
 
 	orgContext.AttachOptions(cmd)
+	return cmd
+}
+
+func (r *RootCmd) statusWorkspaceSharing() *serpent.Command {
+	client := new(codersdk.Client)
+
+	cmd := &serpent.Command{
+		Use:     "status <workspace>",
+		Short:   "List all users and groups the given Workspace is shared with.",
+		Aliases: []string{"list"},
+		Middleware: serpent.Chain(
+			r.InitClient(client),
+			serpent.RequireNArgs(1),
+		),
+		Handler: func(inv *serpent.Invocation) error {
+			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			if err != nil {
+				return xerrors.Errorf("unable to fetch Workspace %s: %w", inv.Args[0], err)
+			}
+
+			acl, err := client.WorkspaceACL(inv.Context(), workspace.ID)
+			if err != nil {
+				return xerrors.Errorf("unable to fetch ACL for Workspace: %w", err)
+			}
+
+			out, err := workspaceACLToTable(inv.Context(), &acl)
+			if err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprintln(inv.Stdout, out)
+			return err
+		},
+	}
+
 	return cmd
 }
 
@@ -44,11 +83,6 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 		client        = new(codersdk.Client)
 		users         []string
 		groups        []string
-		formatter     = cliui.NewOutputFormatter(
-			cliui.TableFormat(
-				[]workspaceShareRow{}, []string{"User", "Group", "Role"}),
-			cliui.JSONFormat(),
-		)
 	)
 
 	cmd := &serpent.Command{
@@ -175,37 +209,12 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 				return err
 			}
 
-			workspaceACL, err := client.WorkspaceACL(inv.Context(), workspace.ID)
+			acl, err := client.WorkspaceACL(inv.Context(), workspace.ID)
 			if err != nil {
 				return xerrors.Errorf("could not fetch current workspace ACL after sharing %w", err)
 			}
 
-			outputRows := make([]workspaceShareRow, 0)
-			for _, user := range workspaceACL.Users {
-				if user.Role == codersdk.WorkspaceRoleDeleted {
-					continue
-				}
-
-				outputRows = append(outputRows, workspaceShareRow{
-					User:  user.Username,
-					Group: defaultGroupDisplay,
-					Role:  user.Role,
-				})
-			}
-			for _, group := range workspaceACL.Groups {
-				if group.Role == codersdk.WorkspaceRoleDeleted {
-					continue
-				}
-
-				for _, user := range group.Members {
-					outputRows = append(outputRows, workspaceShareRow{
-						User:  user.Username,
-						Group: group.Name,
-						Role:  group.Role,
-					})
-				}
-			}
-			out, err := formatter.Format(inv.Context(), outputRows)
+			out, err := workspaceACLToTable(inv.Context(), &acl)
 			if err != nil {
 				return err
 			}
@@ -228,4 +237,49 @@ func stringToWorkspaceRole(role string) (codersdk.WorkspaceRole, error) {
 		return "", xerrors.Errorf("invalid role %q: expected %q or %q",
 			role, codersdk.WorkspaceRoleAdmin, codersdk.WorkspaceRoleUse)
 	}
+}
+
+func workspaceACLToTable(ctx context.Context, acl *codersdk.WorkspaceACL) (string, error) {
+	type workspaceShareRow struct {
+		User  string                 `table:"user"`
+		Group string                 `table:"group,default_sort"`
+		Role  codersdk.WorkspaceRole `table:"role"`
+	}
+
+	formatter := cliui.NewOutputFormatter(
+		cliui.TableFormat(
+			[]workspaceShareRow{}, []string{"User", "Group", "Role"}),
+		cliui.JSONFormat())
+
+	outputRows := make([]workspaceShareRow, 0)
+	for _, user := range acl.Users {
+		if user.Role == codersdk.WorkspaceRoleDeleted {
+			continue
+		}
+
+		outputRows = append(outputRows, workspaceShareRow{
+			User:  user.Username,
+			Group: defaultGroupDisplay,
+			Role:  user.Role,
+		})
+	}
+	for _, group := range acl.Groups {
+		if group.Role == codersdk.WorkspaceRoleDeleted {
+			continue
+		}
+
+		for _, user := range group.Members {
+			outputRows = append(outputRows, workspaceShareRow{
+				User:  user.Username,
+				Group: group.Name,
+				Role:  group.Role,
+			})
+		}
+	}
+	out, err := formatter.Format(ctx, outputRows)
+	if err != nil {
+		return "", err
+	}
+
+	return out, nil
 }

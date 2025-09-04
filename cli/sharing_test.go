@@ -168,3 +168,55 @@ func TestSharingShare(t *testing.T) {
 		assert.True(t, found, fmt.Sprintf("expected to find the username %s and role %s in the command: %s", toShareWithUser.Username, codersdk.WorkspaceRoleAdmin, out.String()))
 	})
 }
+
+func TestSharingStatus(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
+	t.Run("ListSharedUsers", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				DeploymentValues: dv,
+			})
+			orgOwner                             = coderdtest.CreateFirstUser(t, client)
+			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			workspace                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_, toShareWithUser = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+			ctx                = testutil.Context(t, testutil.WaitMedium)
+		)
+
+		err := client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				toShareWithUser.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		inv, root := clitest.New(t, "sharing", "status", workspace.Name, "--org", orgOwner.OrganizationID.String())
+		clitest.SetupConfig(t, workspaceOwnerClient, root)
+
+		out := bytes.NewBuffer(nil)
+		inv.Stdout = out
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		found := false
+		for _, line := range strings.Split(out.String(), "\n") {
+			if strings.Contains(line, toShareWithUser.Username) && strings.Contains(line, string(codersdk.WorkspaceRoleUse)) {
+				found = true
+			}
+
+			if found {
+				break
+			}
+		}
+		assert.True(t, found, "expected to find username %s with role %s in the output: %s", toShareWithUser.Username, codersdk.WorkspaceRoleUse, out.String())
+	})
+}

@@ -187,6 +187,67 @@ func TestSharingShareEnterprise(t *testing.T) {
 	})
 }
 
+func TestSharingStatus(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
+	t.Run("ListSharedUsers", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					DeploymentValues: dv,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureTemplateRBAC: 1,
+					},
+				},
+			})
+			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			workspace                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_, orgMember = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+			ctx          = testutil.Context(t, testutil.WaitMedium)
+		)
+
+		group, err := createGroupWithMembers(ctx, client, orgOwner.OrganizationID, "new-group", []uuid.UUID{orgMember.ID})
+		require.NoError(t, err)
+
+		err = client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		inv, root := clitest.New(t, "sharing", "status", workspace.Name, "--org", orgOwner.OrganizationID.String())
+		clitest.SetupConfig(t, workspaceOwnerClient, root)
+
+		out := bytes.NewBuffer(nil)
+		inv.Stdout = out
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		found := false
+		for _, line := range strings.Split(out.String(), "\n") {
+			if strings.Contains(line, orgMember.Username) && strings.Contains(line, string(codersdk.WorkspaceRoleUse)) && strings.Contains(line, group.Name) {
+				found = true
+			}
+
+			if found {
+				break
+			}
+		}
+		assert.True(t, found, "expected to find username %s with role %s in the output: %s", orgMember.Username, codersdk.WorkspaceRoleUse, out.String())
+	})
+}
+
 func createGroupWithMembers(ctx context.Context, client *codersdk.Client, orgID uuid.UUID, name string, memberIDs []uuid.UUID) (codersdk.Group, error) {
 	group, err := client.CreateGroup(ctx, orgID, codersdk.CreateGroupRequest{
 		Name:        name,
