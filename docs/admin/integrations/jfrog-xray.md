@@ -109,21 +109,21 @@ The `jfrog-xray` module supports several configuration options:
 
 ### Required Variables
 
-| Variable | Description | Example |
-|----------|-------------|----------|
+| Variable      | Description                       | Example                            |
+|---------------|-----------------------------------|------------------------------------|
 | `resource_id` | Resource ID to attach metadata to | `docker_container.workspace[0].id` |
-| `xray_url` | JFrog Xray instance URL | `https://example.jfrog.io/xray` |
-| `xray_token` | JFrog access token | `var.jfrog_access_token` |
-| `image` | Container image to scan | `docker-local/myapp:latest` |
+| `xray_url`    | JFrog Xray instance URL           | `https://example.jfrog.io/xray`    |
+| `xray_token`  | JFrog access token                | `var.jfrog_access_token`           |
+| `image`       | Container image to scan           | `docker-local/myapp:latest`        |
 
 ### Optional Variables
 
-| Variable | Description | Default |
-|----------|-------------|----------|
-| `repo` | Artifactory repository name | Auto-extracted from image |
-| `repo_path` | Repository path with image and tag | Auto-extracted from image |
-| `display_name` | Metadata section display name | "Security Vulnerabilities" |
-| `icon` | Metadata section icon | "/icon/security.svg" |
+| Variable       | Description                        | Default                    |
+|----------------|------------------------------------|----------------------------|
+| `repo`         | Artifactory repository name        | Auto-extracted from image  |
+| `repo_path`    | Repository path with image and tag | Auto-extracted from image  |
+| `display_name` | Metadata section display name      | "Security Vulnerabilities" |
+| `icon`         | Metadata section icon              | "/icon/security.svg"       |
 
 ### Advanced Configuration
 
