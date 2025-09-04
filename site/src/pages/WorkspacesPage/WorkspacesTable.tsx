@@ -228,7 +228,8 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 												} else {
 													onCheckChange(
 														checkedWorkspaces.filter((w) => w.id !== workspace.id),
-												);
+													);
+												}
 											}}
 										/>
 									)}
