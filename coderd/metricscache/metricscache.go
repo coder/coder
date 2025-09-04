@@ -35,9 +35,9 @@ type Cache struct {
 	templateAverageBuildTime atomic.Pointer[map[uuid.UUID]database.GetTemplateAverageBuildTimeRow]
 	deploymentStatsResponse  atomic.Pointer[codersdk.DeploymentStats]
 
-	cancel     func()
-	tickersMu  sync.Mutex
-	tickers    []quartz.Waiter
+	cancel    func()
+	tickersMu sync.Mutex
+	tickers   []quartz.Waiter
 
 	// usage is a experiment flag to enable new workspace usage tracking behavior and will be
 	// removed when the experiment is complete.
@@ -206,7 +206,7 @@ func (c *Cache) Close() error {
 	c.tickersMu.Lock()
 	tickers := slices.Clone(c.tickers)
 	c.tickersMu.Unlock()
-	
+
 	for _, tkr := range tickers {
 		_ = tkr.Wait()
 	}
