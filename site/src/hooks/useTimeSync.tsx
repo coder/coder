@@ -14,6 +14,7 @@ import {
 	defaultOptions,
 	newReadonlyDate,
 	noOp,
+	type OnUpdate,
 	TimeSync,
 } from "utils/TimeSync";
 import { useEffectEvent } from "./hookPolyfills";
@@ -184,6 +185,16 @@ class ReactTimeSync {
 			initialDatetime,
 			minimumRefreshIntervalMs,
 		});
+
+		// Don't need to store the unsubscribe callback separately, because this
+		// will be ejected when the onProviderUnmount method gets called
+		const onReactTimeSyncUpdate: OnUpdate = () => {
+			this.#hasPendingUpdates = false;
+		};
+		void this.#timeSync.subscribe({
+			targetRefreshIntervalMs: REFRESH_IDLE,
+			onUpdate: onReactTimeSyncUpdate,
+		});
 	}
 
 	#shouldInvalidateDate(): boolean {
@@ -237,8 +248,7 @@ class ReactTimeSync {
 
 		// While each component should already invalidate the Date on mount,
 		// we still need to take care of the case where a subscription got torn
-		// down and re-added because a target interval invalidated the
-		// dependency array for useTimeSyncState's subscribe function
+		// down and re-added because a target interval changed in a render
 		let latestSyncState: Date;
 		if (this.#shouldInvalidateDate()) {
 			latestSyncState = this.#timeSync.invalidateStateSnapshot({
@@ -304,8 +314,9 @@ class ReactTimeSync {
 	}
 
 	getNewSourceDateForMemo(): Date {
+		const oldSnap = this.#timeSync.getStateSnapshot();
 		if (!this.#shouldInvalidateDate()) {
-			return this.#timeSync.getStateSnapshot();
+			return oldSnap;
 		}
 
 		// Have to disable notifications, because while this method is used to
@@ -314,9 +325,11 @@ class ReactTimeSync {
 		// uses the same core system as useState's dispatch, and React does not
 		// let you call a mid-render dispatch for any component that is not
 		// actively being rendered in the fiber tree
-		return this.#timeSync.invalidateStateSnapshot({
+		const newSnap = this.#timeSync.invalidateStateSnapshot({
 			notificationBehavior: "never",
 		});
+		this.#hasPendingUpdates = oldSnap !== newSnap;
+		return newSnap;
 	}
 
 	onComponentMount(componentId: string): void {
@@ -513,12 +526,12 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// option of memoizing expensive transformations at the render level without
 	// polluting the hook's API with super-fragile dependency array logic
 	const newTransformation = useMemo(() => {
-		// Calling reactTs.getDateSnapshot like this is technically breaking the
-		// React rules, but we need to make sure that if activeTransform changes
+		// Calling reactTs.getDateSnapshot is technically breaking the React
+		// rules, but we need to make sure that if activeTransform changes
 		// on re-renders, and it's been a while since the cached transformation
-		// changed, we don't have drastically outdated date state. We could also
-		// subscribe to the date itself, but that makes it impossible to prevent
-		// unnecessary re-renders on subscription updates
+		// changed, we don't have drastically outdated date state. We can't
+		// subscribe to the date itself, because then it would be 100%
+		// impossible to re-render only on transformation updates
 		const latestDate = reactTs.getNewSourceDateForMemo();
 		return activeTransform(latestDate);
 	}, [reactTs, activeTransform]);

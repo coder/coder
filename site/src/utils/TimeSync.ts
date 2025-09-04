@@ -99,22 +99,27 @@ interface TimeSyncApi {
 	 * a new state update needs to be dispatched, the onUpdate callback will be
 	 * called once, total.
 	 *
-	 * @throws {RangeError} If the provided interval is not a positive integer.
+	 * @throws {RangeError} If the provided interval is not either a positive
+	 * integer or positive infinity.
 	 * @returns An unsubscribe callback. Calling the callback more than once
 	 * results in a no-op.
 	 */
 	subscribe: (sh: SubscriptionHandshake) => () => void;
 
 	/**
-	 * Allows any system to pull the newest time state from TimeSync, regardless
+	 * Allows any system to pull the latest time state from TimeSync, regardless
 	 * of whether the system is subscribed.
+	 *
+	 * @returns The Date produced from the most recent internal update.
 	 */
 	getStateSnapshot: () => Date;
 
 	/**
 	 * Immediately tries to refresh the current date snapshot, regardless of
-	 * which refresh intervals have been specified. Returns the state after
-	 * being invalidated.
+	 * which refresh intervals have been specified.
+	 *
+	 * @returns The date state post-invalidation (which might be the same as
+	 * before).
 	 */
 	invalidateStateSnapshot: (options: InvalidateSnapshotOptions) => Date;
 
@@ -146,7 +151,7 @@ type SubscriptionEntry = Readonly<{
  */
 export class TimeSync implements TimeSyncApi {
 	readonly #minimumRefreshIntervalMs: number;
-	#disposed: boolean;
+	#isDisposed: boolean;
 	#latestDateSnapshot: Date;
 
 	// Stores all refresh intervals actively associated with an onUpdate
@@ -182,7 +187,7 @@ export class TimeSync implements TimeSyncApi {
 			);
 		}
 
-		this.#disposed = false;
+		this.#isDisposed = false;
 		this.#subscriptions = new Map();
 		this.#minimumRefreshIntervalMs = minimumRefreshIntervalMs;
 		this.#latestDateSnapshot = newReadonlyDate(initialDatetime);
@@ -190,17 +195,18 @@ export class TimeSync implements TimeSyncApi {
 		this.#latestIntervalId = undefined;
 	}
 
-	#notifyAllSubscriptions(): void {
-		if (this.#disposed) {
-			return;
-		}
+	// Doesn't encapsulate much logic; main use is providing a descriptive name
+	// for the comparison
+	#isFrozen(): boolean {
+		return this.#minimumRefreshIntervalMs === Number.POSITIVE_INFINITY;
+	}
 
+	#notifyAllSubscriptions(): void {
 		// We still need to let the logic go through if the current fastest
-		// interval is Infinity, so that we can support invalidating the date
-		// from public methods
+		// interval is Infinity, so that we can support letting any arbitrary
+		// consumer invalidate the date immediately
 		const subscriptionsPaused =
-			this.#minimumRefreshIntervalMs === Number.POSITIVE_INFINITY ||
-			this.#subscriptions.size === 0;
+			this.#isDisposed || this.#isFrozen() || this.#subscriptions.size === 0;
 		if (subscriptionsPaused) {
 			return;
 		}
@@ -230,7 +236,7 @@ export class TimeSync implements TimeSyncApi {
 	 * is one of them
 	 */
 	#tick = (): void => {
-		if (this.#disposed) {
+		if (this.#isDisposed) {
 			return;
 		}
 		const updated = this.#updateDateSnapshot();
@@ -267,9 +273,6 @@ export class TimeSync implements TimeSyncApi {
 		}, delta);
 	}
 
-	/**
-	 * Updates the cached version of the fastest refresh interval
-	 */
 	#updateFastestInterval(): void {
 		const prevFastest = this.#fastestRefreshInterval;
 		let newFastest = Number.POSITIVE_INFINITY;
@@ -294,7 +297,7 @@ export class TimeSync implements TimeSyncApi {
 	 * @returns {boolean} Indicates whether the state actually changed.
 	 */
 	#updateDateSnapshot(): boolean {
-		if (this.#disposed) {
+		if (this.#isDisposed) {
 			return false;
 		}
 
@@ -350,13 +353,12 @@ export class TimeSync implements TimeSyncApi {
 			entries = [];
 			this.#subscriptions.set(onUpdate, entries);
 		}
-		entries.push({
-			unsubscribe,
-			targetInterval: Math.max(
-				this.#minimumRefreshIntervalMs,
-				targetRefreshIntervalMs,
-			),
-		});
+
+		const targetInterval = Math.max(
+			this.#minimumRefreshIntervalMs,
+			targetRefreshIntervalMs,
+		);
+		entries.push({ unsubscribe, targetInterval });
 		entries.sort((e1, e2) => e2.targetInterval - e1.targetInterval);
 		this.#updateFastestInterval();
 
@@ -368,7 +370,7 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	invalidateStateSnapshot(options?: InvalidateSnapshotOptions): Date {
-		if (this.#disposed) {
+		if (this.#isDisposed || this.#isFrozen()) {
 			return this.#latestDateSnapshot;
 		}
 
@@ -384,11 +386,11 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	dispose(): void {
-		if (this.#disposed) {
+		if (this.#isDisposed) {
 			return;
 		}
 
-		this.#disposed = true;
+		this.#isDisposed = true;
 		window.clearInterval(this.#latestIntervalId);
 		for (const entries of this.#subscriptions.values()) {
 			for (const e of entries) {
