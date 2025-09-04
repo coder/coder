@@ -240,9 +240,14 @@ export class TimeSync implements TimeSyncApi {
 
 	#onFastestIntervalChange(): void {
 		const fastest = this.#fastestRefreshInterval;
-		if (fastest === Number.POSITIVE_INFINITY) {
+		const skipUpdate =
+			this.#isDisposed ||
+			this.#isFrozen ||
+			fastest === Number.POSITIVE_INFINITY;
+		if (skipUpdate) {
 			window.clearInterval(this.#latestIntervalId);
 			this.#latestIntervalId = undefined;
+			return;
 		}
 
 		const elapsed = Date.now() - this.#latestDateSnapshot.getMilliseconds();
@@ -270,11 +275,16 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	#updateFastestInterval(): void {
+		if (this.#isDisposed || this.#isFrozen) {
+			this.#fastestRefreshInterval = Number.POSITIVE_INFINITY;
+			return;
+		}
+
 		const prevFastest = this.#fastestRefreshInterval;
 		let newFastest = Number.POSITIVE_INFINITY;
 
 		// This setup requires that every interval array stay sorted. It
-		// immediately falls apart if this isn't guaranteed.
+		// immediately falls apart that this isn't guaranteed.
 		for (const entries of this.#subscriptions.values()) {
 			const subFastest = entries[0]?.targetInterval ?? Number.POSITIVE_INFINITY;
 			if (subFastest < newFastest) {
@@ -293,7 +303,7 @@ export class TimeSync implements TimeSyncApi {
 	 * @returns {boolean} Indicates whether the state actually changed.
 	 */
 	#updateDateSnapshot(): boolean {
-		if (this.#isDisposed) {
+		if (this.#isDisposed || this.#isFrozen) {
 			return false;
 		}
 
@@ -309,6 +319,10 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	subscribe(sh: SubscriptionHandshake): () => void {
+		if (this.#isDisposed || this.#isFrozen) {
+			return noOp;
+		}
+
 		// Destructuring properties so that they can't be fiddled with after
 		// this function call ends
 		const { targetRefreshIntervalMs, onUpdate } = sh;
