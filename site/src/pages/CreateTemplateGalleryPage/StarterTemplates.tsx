@@ -23,16 +23,37 @@ const selectTags = (starterTemplatesByTag: StarterTemplatesByTag) => {
 };
 
 const sortVisibleTemplates = (templates: TemplateExample[]) => {
-	// The docker template should be the first template in the list,
-	// as it's the easiest way to get started with Coder.
+	// Prioritize AI/Tasks templates first to showcase Coder's AI capabilities,
+	// then Docker as the easiest way to get started with basic development.
+	const aiTasksTemplateIds = ["tasks-docker", "claude-code", "ai-tasks"];
 	const dockerTemplateId = "docker";
+	
 	return [...templates].sort((a, b) => {
-		if (a.id === dockerTemplateId) {
+		// AI/Tasks templates get highest priority
+		const aIsAiTasks = aiTasksTemplateIds.includes(a.id);
+		const bIsAiTasks = aiTasksTemplateIds.includes(b.id);
+		
+		if (aIsAiTasks && !bIsAiTasks) {
 			return -1;
 		}
-		if (b.id === dockerTemplateId) {
+		if (bIsAiTasks && !aIsAiTasks) {
 			return 1;
 		}
+		
+		// If both are AI/Tasks templates, sort by name
+		if (aIsAiTasks && bIsAiTasks) {
+			return a.name.localeCompare(b.name);
+		}
+		
+		// Docker gets second priority (after AI/Tasks)
+		if (a.id === dockerTemplateId && !bIsAiTasks) {
+			return -1;
+		}
+		if (b.id === dockerTemplateId && !aIsAiTasks) {
+			return 1;
+		}
+		
+		// All other templates sorted alphabetically
 		return a.name.localeCompare(b.name);
 	});
 };
