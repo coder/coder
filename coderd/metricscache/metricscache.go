@@ -3,6 +3,8 @@ package metricscache
 import (
 	"context"
 	"database/sql"
+	"slices"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -33,8 +35,9 @@ type Cache struct {
 	templateAverageBuildTime atomic.Pointer[map[uuid.UUID]database.GetTemplateAverageBuildTimeRow]
 	deploymentStatsResponse  atomic.Pointer[codersdk.DeploymentStats]
 
-	cancel  func()
-	tickers []quartz.Waiter
+	cancel     func()
+	tickersMu  sync.Mutex
+	tickers    []quartz.Waiter
 
 	// usage is a experiment flag to enable new workspace usage tracking behavior and will be
 	// removed when the experiment is complete.
@@ -193,12 +196,18 @@ func (c *Cache) run(ctx context.Context, name string, interval time.Duration, re
 	_ = tickerFunc()
 
 	tkr := c.clock.TickerFunc(ctx, interval, tickerFunc, "metricscache", name)
+	c.tickersMu.Lock()
 	c.tickers = append(c.tickers, tkr)
+	c.tickersMu.Unlock()
 }
 
 func (c *Cache) Close() error {
 	c.cancel()
-	for _, tkr := range c.tickers {
+	c.tickersMu.Lock()
+	tickers := slices.Clone(c.tickers)
+	c.tickersMu.Unlock()
+	
+	for _, tkr := range tickers {
 		_ = tkr.Wait()
 	}
 	return nil
