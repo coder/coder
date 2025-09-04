@@ -154,11 +154,11 @@ We welcome pull requests (PRs) from community members including (but not limited
 
 We will ask that you sign a Contributor License Agreement before we accept any contributions into our repo.
 
-Please keep PRs small and self contained. This allows code reviewers (see below) to focus and fully understand the PR. A good rule of thumb is less than 1000 lines changed. (One exception is a mechanistic refactor, like renaming, that is conceptually trivial but might have a large line count.)
+Please keep PRs small and self-contained. This allows code reviewers (see below) to focus and fully understand the PR. A good rule of thumb is less than 1000 lines changed. (One exception is a mechanistic refactor, like renaming, that is conceptually trivial but might have a large line count.)
 
 If your intended feature or refactor will be larger than this:
 
- 1. Open an issue explaining what you intend to build, how it will work, and that you are volunteering to do the development.
+ 1. Open an issue explaining what you intend to build, how it will work, and that you are volunteering to do the development. Include `@coder/community-triage` in the body.
  2. Give the maintainers a chance to respond. Changes to the visual, interaction, or software design are easier to adjust before you start laying down code.
  3. Break your work up into a series of smaller PRs.
 
@@ -167,7 +167,7 @@ Stacking tools like [Graphite](https://www.graphite.dev) are useful for keeping 
 Each PR:
 
 - Must individually build and pass all tests, including formatting and linting.
-- Must not introduce regressions or back compatibility issues, even if a later PR would resolve the issue.
+- Must not introduce regressions or backward-compatibility issues, even if a subsequent PR in your series would resolve the issue.
 - Should be a conceptually coherent change set.
 
 In practice, many of these smaller PRs will be invisible to end users, and that is ok. For example, you might introduce
