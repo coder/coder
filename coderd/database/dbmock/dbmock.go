@@ -962,6 +962,20 @@ func (mr *MockStoreMockRecorder) EnqueueNotificationMessage(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueNotificationMessage", reflect.TypeOf((*MockStore)(nil).EnqueueNotificationMessage), ctx, arg)
 }
 
+// ExpirePrebuildsAPIKeys mocks base method.
+func (m *MockStore) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExpirePrebuildsAPIKeys", ctx, now)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ExpirePrebuildsAPIKeys indicates an expected call of ExpirePrebuildsAPIKeys.
+func (mr *MockStoreMockRecorder) ExpirePrebuildsAPIKeys(ctx, now any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExpirePrebuildsAPIKeys", reflect.TypeOf((*MockStore)(nil).ExpirePrebuildsAPIKeys), ctx, now)
+}
+
 // FavoriteWorkspace mocks base method.
 func (m *MockStore) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -3047,18 +3061,18 @@ func (mr *MockStoreMockRecorder) GetTemplateAppInsightsByTemplate(ctx, arg any) 
 }
 
 // GetTemplateAverageBuildTime mocks base method.
-func (m *MockStore) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
+func (m *MockStore) GetTemplateAverageBuildTime(ctx context.Context, templateID uuid.NullUUID) (database.GetTemplateAverageBuildTimeRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTemplateAverageBuildTime", ctx, arg)
+	ret := m.ctrl.Call(m, "GetTemplateAverageBuildTime", ctx, templateID)
 	ret0, _ := ret[0].(database.GetTemplateAverageBuildTimeRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetTemplateAverageBuildTime indicates an expected call of GetTemplateAverageBuildTime.
-func (mr *MockStoreMockRecorder) GetTemplateAverageBuildTime(ctx, arg any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetTemplateAverageBuildTime(ctx, templateID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateAverageBuildTime", reflect.TypeOf((*MockStore)(nil).GetTemplateAverageBuildTime), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateAverageBuildTime", reflect.TypeOf((*MockStore)(nil).GetTemplateAverageBuildTime), ctx, templateID)
 }
 
 // GetTemplateByID mocks base method.

@@ -100,21 +100,15 @@ func TestConcurrentFetch(t *testing.T) {
 	ctx := dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort))
 
 	// Expect 2 calls to Acquire before we continue the test
-	var (
-		hold sync.WaitGroup
-		wg   sync.WaitGroup
-	)
+	var wg sync.WaitGroup
 
+	wg.Add(2)
 	for range 2 {
-		hold.Add(1)
 		// TODO: wg.Go in Go 1.25
-		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			hold.Done()
-			hold.Wait()
 			_, err := cache.Acquire(ctx, dbM, fileID)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 	}
 
