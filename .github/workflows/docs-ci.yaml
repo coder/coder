@@ -24,6 +24,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -39,10 +41,16 @@ jobs:
       - name: lint
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          pnpm exec markdownlint-cli2 ${{ steps.changed-files.outputs.all_changed_files }}
+          # shellcheck disable=SC2086
+          pnpm exec markdownlint-cli2 $ALL_CHANGED_FILES
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
 
       - name: fmt
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           # markdown-table-formatter requires a space separated list of files
-          echo ${{ steps.changed-files.outputs.all_changed_files }} | tr ',' '\n' | pnpm exec markdown-table-formatter --check
+          # shellcheck disable=SC2086
+          echo $ALL_CHANGED_FILES | tr ',' '\n' | pnpm exec markdown-table-formatter --check
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}

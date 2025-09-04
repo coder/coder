@@ -44,11 +44,16 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 	const startDate = managedAgentFeature.usage_period?.start;
 	const endDate = managedAgentFeature.usage_period?.end;
 
-	if (!usage || usage < 0) {
+	if (usage === undefined || usage < 0) {
 		return <ErrorAlert error="Invalid usage data" />;
 	}
 
-	if (!included || included < 0 || !limit || limit < 0) {
+	if (
+		included === undefined ||
+		included < 0 ||
+		limit === undefined ||
+		limit < 0
+	) {
 		return <ErrorAlert error="Invalid license usage limits" />;
 	}
 

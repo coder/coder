@@ -768,7 +768,7 @@ func ConvertWorkspace(workspace database.Workspace) Workspace {
 
 // ConvertWorkspaceBuild anonymizes a workspace build.
 func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
-	return WorkspaceBuild{
+	wb := WorkspaceBuild{
 		ID:                build.ID,
 		CreatedAt:         build.CreatedAt,
 		WorkspaceID:       build.WorkspaceID,
@@ -777,6 +777,10 @@ func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
 		// #nosec G115 - Safe conversion as build numbers are expected to be positive and within uint32 range
 		BuildNumber: uint32(build.BuildNumber),
 	}
+	if build.HasAITask.Valid {
+		wb.HasAITask = ptr.Ref(build.HasAITask.Bool)
+	}
+	return wb
 }
 
 // ConvertProvisionerJob anonymizes a provisioner job.
@@ -1105,6 +1109,9 @@ func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 	if version.SourceExampleID.Valid {
 		snapVersion.SourceExampleID = &version.SourceExampleID.String
 	}
+	if version.HasAITask.Valid {
+		snapVersion.HasAITask = ptr.Ref(version.HasAITask.Bool)
+	}
 	return snapVersion
 }
 
@@ -1357,6 +1364,7 @@ type WorkspaceBuild struct {
 	TemplateVersionID uuid.UUID `json:"template_version_id"`
 	JobID             uuid.UUID `json:"job_id"`
 	BuildNumber       uint32    `json:"build_number"`
+	HasAITask         *bool     `json:"has_ai_task"`
 }
 
 type Workspace struct {
@@ -1404,6 +1412,7 @@ type TemplateVersion struct {
 	OrganizationID  uuid.UUID  `json:"organization_id"`
 	JobID           uuid.UUID  `json:"job_id"`
 	SourceExampleID *string    `json:"source_example_id,omitempty"`
+	HasAITask       *bool      `json:"has_ai_task"`
 }
 
 type ProvisionerJob struct {

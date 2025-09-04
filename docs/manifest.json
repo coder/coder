@@ -76,6 +76,12 @@
 							"description": "Security vulnerability disclosure policy",
 							"path": "./about/contributing/SECURITY.md",
 							"icon_path": "./images/icons/lock.svg"
+						},
+						{
+							"title": "AI Contribution Guidelines",
+							"description": "Guidelines for AI-generated contributions.",
+							"path": "./about/contributing/AI_CONTRIBUTING.md",
+							"icon_path": "./images/icons/ai_intelligence.svg"
 						}
 					]
 				}
@@ -148,9 +154,9 @@
 					]
 				},
 				{
-					"title": "Offline Deployments",
-					"description": "Run Coder in offline / air-gapped environments",
-					"path": "./install/offline.md",
+					"title": "Air-gapped Deployments",
+					"description": "Run Coder in air-gapped / disconnected / offline environments",
+					"path": "./install/airgap.md",
 					"icon_path": "./images/icons/lan.svg"
 				},
 				{
@@ -531,6 +537,12 @@
 									"title": "Workspace Scheduling",
 									"description": "Learn how to control how workspaces are started and stopped",
 									"path": "./admin/templates/managing-templates/schedule.md"
+								},
+								{
+									"title": "External Workspaces",
+									"description": "Learn how to manage external workspaces",
+									"path": "./admin/templates/managing-templates/external-workspaces.md",
+									"state": ["premium", "early access"]
 								}
 							]
 						},
@@ -714,8 +726,8 @@
 							"path": "./admin/integrations/platformx.md"
 						},
 						{
-							"title": "DX",
-							"description": "Tag Coder Users with DX",
+							"title": "DX Data Cloud",
+							"description": "Tag Coder Users with DX Data Cloud",
 							"path": "./admin/integrations/dx-data-cloud.md"
 						},
 						{
@@ -1170,6 +1182,26 @@
 							"title": "external-auth access-token",
 							"description": "Print auth for an external provider",
 							"path": "reference/cli/external-auth_access-token.md"
+						},
+						{
+							"title": "external-workspaces",
+							"description": "Create or manage external workspaces",
+							"path": "reference/cli/external-workspaces.md"
+						},
+						{
+							"title": "external-workspaces agent-instructions",
+							"description": "Get the instructions for an external agent",
+							"path": "reference/cli/external-workspaces_agent-instructions.md"
+						},
+						{
+							"title": "external-workspaces create",
+							"description": "Create a new external workspace",
+							"path": "reference/cli/external-workspaces_create.md"
+						},
+						{
+							"title": "external-workspaces list",
+							"description": "List external workspaces",
+							"path": "reference/cli/external-workspaces_list.md"
 						},
 						{
 							"title": "favorite",

@@ -30,7 +30,7 @@ func GetRandomName(t testing.TB) string {
 // an underscore.
 func GetRandomNameHyphenated(t testing.TB) string {
 	t.Helper()
-	name := namesgenerator.GetRandomName(0)
+	name := GetRandomName(t)
 	return strings.ReplaceAll(name, "_", "-")
 }
 

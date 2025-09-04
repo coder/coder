@@ -585,8 +585,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						continue
 					}
 					authToken := uuid.New()
-					agentClient := agentsdk.New(client.URL)
-					agentClient.SetSessionToken(authToken.String())
+					agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken.String()))
 					workspace.agentClient = agentClient
 
 					var apps []*proto.App
@@ -754,7 +753,6 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			Database:         db,
 			AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
 		})
-		//nolint:gocritic // This is a test.
 		err = reporter.ReportAppStats(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")
 
@@ -1495,8 +1493,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 						continue
 					}
 					authToken := uuid.New()
-					agentClient := agentsdk.New(client.URL)
-					agentClient.SetSessionToken(authToken.String())
+					agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken.String()))
 					workspace.agentClient = agentClient
 
 					var apps []*proto.App
@@ -1646,7 +1643,6 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			Database:         db,
 			AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
 		})
-		//nolint:gocritic // This is a test.
 		err = reporter.ReportAppStats(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")
 

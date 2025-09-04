@@ -18,8 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
-  id-token: write
+  contents: read
 
 jobs:
   build_image:
@@ -33,6 +32,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
 
       - name: Setup Nix
         uses: nixbuild/nix-quick-install-action@63ca48f939ee3b8d835f4126562537df0fee5b91 # v32
@@ -67,10 +68,11 @@ jobs:
       - name: "Branch name to Docker tag name"
         id: docker-tag-name
         run: |
-          tag=${{ steps.branch-name.outputs.current_branch }}
           # Replace / with --, e.g. user/feature => user--feature.
-          tag=${tag//\//--}
-          echo "tag=${tag}" >> $GITHUB_OUTPUT
+          tag=${BRANCH_NAME//\//--}
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+        env:
+          BRANCH_NAME: ${{ steps.branch-name.outputs.current_branch }}
 
       - name: Set up Depot CLI
         uses: depot/setup-action@b0b1ea4f69e92ebf5dea3f8713a1b0c37b2126a5 # v1.6.0
@@ -107,15 +109,20 @@ jobs:
 
           CURRENT_SYSTEM=$(nix eval --impure --raw --expr 'builtins.currentSystem')
 
-          docker image tag codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM codercom/oss-dogfood-nix:${{ steps.docker-tag-name.outputs.tag }}
-          docker image push codercom/oss-dogfood-nix:${{ steps.docker-tag-name.outputs.tag }}
+          docker image tag "codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM" "codercom/oss-dogfood-nix:${DOCKER_TAG}"
+          docker image push "codercom/oss-dogfood-nix:${DOCKER_TAG}"
 
-          docker image tag codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM codercom/oss-dogfood-nix:latest
-          docker image push codercom/oss-dogfood-nix:latest
+          docker image tag "codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM" "codercom/oss-dogfood-nix:latest"
+          docker image push "codercom/oss-dogfood-nix:latest"
+        env:
+          DOCKER_TAG: ${{ steps.docker-tag-name.outputs.tag }}
 
   deploy_template:
     needs: build_image
     runs-on: ubuntu-latest
+    permissions:
+      # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
+      id-token: write
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -124,6 +131,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
 
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
@@ -152,12 +161,12 @@ jobs:
       - name: Get short commit SHA
         if: github.ref == 'refs/heads/main'
         id: vars
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Get latest commit title
         if: github.ref == 'refs/heads/main'
         id: message
-        run: echo "pr_title=$(git log --format=%s -n 1 ${{ github.sha }})" >> $GITHUB_OUTPUT
+        run: echo "pr_title=$(git log --format=%s -n 1 ${{ github.sha }})" >> "$GITHUB_OUTPUT"
 
       - name: "Push template"
         if: github.ref == 'refs/heads/main'
@@ -169,6 +178,7 @@ jobs:
           CODER_URL: https://dev.coder.com
           CODER_SESSION_TOKEN: ${{ secrets.CODER_SESSION_TOKEN }}
           # Template source & details
+          TF_VAR_CODER_DOGFOOD_ANTHROPIC_API_KEY: ${{ secrets.CODER_DOGFOOD_ANTHROPIC_API_KEY }}
           TF_VAR_CODER_TEMPLATE_NAME: ${{ secrets.CODER_TEMPLATE_NAME }}
           TF_VAR_CODER_TEMPLATE_VERSION: ${{ steps.vars.outputs.sha_short }}
           TF_VAR_CODER_TEMPLATE_DIR: ./coder

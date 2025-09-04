@@ -37,7 +37,6 @@ func TestMetrics(t *testing.T) {
 		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
@@ -226,7 +225,6 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	t.Parallel()
 
 	// SETUP
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
@@ -320,7 +318,6 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	t.Parallel()
 
 	// SETUP
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
@@ -400,7 +397,6 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)

@@ -424,6 +424,107 @@ func TestWorkspaceLatestBuildStatuses(t *testing.T) {
 	}
 }
 
+func TestWorkspaceCreationTotal(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		Name               string
+		Database           func() database.Store
+		ExpectedWorkspaces int
+	}{
+		{
+			Name: "None",
+			Database: func() database.Store {
+				db, _ := dbtestutil.NewDB(t)
+				return db
+			},
+			ExpectedWorkspaces: 0,
+		},
+		{
+			// Should count only the successfully created workspaces
+			Name: "Multiple",
+			Database: func() database.Store {
+				db, _ := dbtestutil.NewDB(t)
+				u := dbgen.User(t, db, database.User{})
+				org := dbgen.Organization(t, db, database.Organization{})
+				insertTemplates(t, db, u, org)
+				insertCanceled(t, db, u, org)
+				insertFailed(t, db, u, org)
+				insertFailed(t, db, u, org)
+				insertSuccess(t, db, u, org)
+				insertSuccess(t, db, u, org)
+				insertSuccess(t, db, u, org)
+				insertRunning(t, db, u, org)
+				return db
+			},
+			ExpectedWorkspaces: 3,
+		},
+		{
+			// Should not include prebuilt workspaces
+			Name: "MultipleWithPrebuild",
+			Database: func() database.Store {
+				ctx := context.Background()
+				db, _ := dbtestutil.NewDB(t)
+				u := dbgen.User(t, db, database.User{})
+				prebuildUser, err := db.GetUserByID(ctx, database.PrebuildsSystemUserID)
+				require.NoError(t, err)
+				org := dbgen.Organization(t, db, database.Organization{})
+				insertTemplates(t, db, u, org)
+				insertCanceled(t, db, u, org)
+				insertFailed(t, db, u, org)
+				insertSuccess(t, db, u, org)
+				insertSuccess(t, db, prebuildUser, org)
+				insertRunning(t, db, u, org)
+				return db
+			},
+			ExpectedWorkspaces: 1,
+		},
+		{
+			// Should include deleted workspaces
+			Name: "MultipleWithDeleted",
+			Database: func() database.Store {
+				db, _ := dbtestutil.NewDB(t)
+				u := dbgen.User(t, db, database.User{})
+				org := dbgen.Organization(t, db, database.Organization{})
+				insertTemplates(t, db, u, org)
+				insertCanceled(t, db, u, org)
+				insertFailed(t, db, u, org)
+				insertSuccess(t, db, u, org)
+				insertRunning(t, db, u, org)
+				insertDeleted(t, db, u, org)
+				return db
+			},
+			ExpectedWorkspaces: 2,
+		},
+	} {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			registry := prometheus.NewRegistry()
+			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), testutil.Logger(t), registry, tc.Database(), testutil.IntervalFast)
+			require.NoError(t, err)
+			t.Cleanup(closeFunc)
+
+			require.Eventually(t, func() bool {
+				metrics, err := registry.Gather()
+				assert.NoError(t, err)
+
+				sum := 0
+				for _, m := range metrics {
+					if m.GetName() != "coderd_workspace_creation_total" {
+						continue
+					}
+					for _, metric := range m.Metric {
+						sum += int(metric.GetCounter().GetValue())
+					}
+				}
+
+				t.Logf("count = %d, expected == %d", sum, tc.ExpectedWorkspaces)
+				return sum == tc.ExpectedWorkspaces
+			}, testutil.WaitShort, testutil.IntervalFast)
+		})
+	}
+}
+
 func TestAgents(t *testing.T) {
 	t.Parallel()
 
@@ -774,8 +875,7 @@ func prepareWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersd
 	})
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-	ac := agentsdk.New(client.URL)
-	ac.SetSessionToken(authToken)
+	ac := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
 	conn, err := ac.ConnectRPC(ctx)
 	require.NoError(t, err)
 	agentAPI := agentproto.NewDRPCAgentClient(conn)
@@ -897,6 +997,7 @@ func insertRunning(t *testing.T, db database.Store, u database.User, org databas
 		Transition:        database.WorkspaceTransitionStart,
 		Reason:            database.BuildReasonInitiator,
 		TemplateVersionID: templateVersionID,
+		InitiatorID:       u.ID,
 	})
 	require.NoError(t, err)
 	// This marks the job as started.

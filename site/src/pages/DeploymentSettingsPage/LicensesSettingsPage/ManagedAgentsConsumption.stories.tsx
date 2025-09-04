@@ -26,6 +26,23 @@ type Story = StoryObj<typeof ManagedAgentsConsumption>;
 
 export const Default: Story = {};
 
+export const ZeroUsage: Story = {
+	args: {
+		managedAgentFeature: {
+			enabled: true,
+			actual: 0,
+			soft_limit: 60000,
+			limit: 120000,
+			usage_period: {
+				start: "February 27, 2025",
+				end: "February 27, 2026",
+				issued_at: "February 27, 2025",
+			},
+			entitlement: "entitled",
+		},
+	},
+};
+
 export const NearLimit: Story = {
 	args: {
 		managedAgentFeature: {

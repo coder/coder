@@ -261,20 +261,19 @@ func TestCache_BuildTime(t *testing.T) {
 				wantTransition := codersdk.WorkspaceTransition(tt.args.transition)
 				require.Eventuallyf(t, func() bool {
 					stats := cache.TemplateBuildTimeStats(template.ID)
-					return stats[wantTransition] != codersdk.TransitionStats{}
+					ts := stats[wantTransition]
+					return ts.P50 != nil && *ts.P50 == tt.want.buildTimeMs
 				}, testutil.WaitLong, testutil.IntervalMedium,
-					"BuildTime never populated",
+					"P50 never reached expected value for %v", wantTransition,
 				)
 
-				gotStats = cache.TemplateBuildTimeStats(template.ID)
-				for transition, stats := range gotStats {
+				gotStats := cache.TemplateBuildTimeStats(template.ID)
+				for transition, ts := range gotStats {
 					if transition == wantTransition {
-						require.Equal(t, tt.want.buildTimeMs, *stats.P50)
-					} else {
-						require.Empty(
-							t, stats, "%v", transition,
-						)
+						// Checked above
+						continue
 					}
+					require.Empty(t, ts, "%v", transition)
 				}
 			} else {
 				var stats codersdk.TemplateBuildTimeStats

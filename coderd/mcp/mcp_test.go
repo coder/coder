@@ -115,7 +115,7 @@ func TestMCPHTTP_ToolRegistration(t *testing.T) {
 	require.Contains(t, err.Error(), "client cannot be nil", "Should reject nil client with appropriate error message")
 
 	// Test registering tools with valid client should succeed
-	client := &codersdk.Client{}
+	client := codersdk.New(testutil.MustURL(t, "http://not-used"))
 	err = server.RegisterTools(client)
 	require.NoError(t, err)
 

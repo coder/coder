@@ -663,11 +663,19 @@ func (c *Client) WorkspaceTimings(ctx context.Context, id uuid.UUID) (WorkspaceB
 	return timings, json.NewDecoder(res.Body).Decode(&timings)
 }
 
-type UpdateWorkspaceACL struct {
-	// Keys must be valid UUIDs. To remove a user/group from the ACL use "" as the
-	// role name (available as a constant named `codersdk.WorkspaceRoleDeleted`)
-	UserRoles  map[string]WorkspaceRole `json:"user_roles,omitempty"`
-	GroupRoles map[string]WorkspaceRole `json:"group_roles,omitempty"`
+type WorkspaceACL struct {
+	Users  []WorkspaceUser  `json:"users"`
+	Groups []WorkspaceGroup `json:"group"`
+}
+
+type WorkspaceGroup struct {
+	Group
+	Role WorkspaceRole `json:"role" enums:"admin,use"`
+}
+
+type WorkspaceUser struct {
+	MinimalUser
+	Role WorkspaceRole `json:"role" enums:"admin,use"`
 }
 
 type WorkspaceRole string
@@ -677,6 +685,30 @@ const (
 	WorkspaceRoleUse     WorkspaceRole = "use"
 	WorkspaceRoleDeleted WorkspaceRole = ""
 )
+
+func (c *Client) WorkspaceACL(ctx context.Context, workspaceID uuid.UUID) (WorkspaceACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/acl", workspaceID), nil)
+	if err != nil {
+		return WorkspaceACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceACL{}, ReadBodyAsError(res)
+	}
+	var acl WorkspaceACL
+	return acl, json.NewDecoder(res.Body).Decode(&acl)
+}
+
+type UpdateWorkspaceACL struct {
+	// UserRoles is a mapping from valid user UUIDs to the workspace role they
+	// should be granted. To remove a user from the workspace, use "" as the role
+	// (available as a constant named codersdk.WorkspaceRoleDeleted)
+	UserRoles map[string]WorkspaceRole `json:"user_roles,omitempty"`
+	// GroupRoles is a mapping from valid group UUIDs to the workspace role they
+	// should be granted. To remove a group from the workspace, use "" as the role
+	// (available as a constant named codersdk.WorkspaceRoleDeleted)
+	GroupRoles map[string]WorkspaceRole `json:"group_roles,omitempty"`
+}
 
 func (c *Client) UpdateWorkspaceACL(ctx context.Context, workspaceID uuid.UUID, req UpdateWorkspaceACL) error {
 	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/workspaces/%s/acl", workspaceID), req)
@@ -688,4 +720,24 @@ func (c *Client) UpdateWorkspaceACL(ctx context.Context, workspaceID uuid.UUID, 
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// ExternalAgentCredentials contains the credentials needed for an external agent to connect to Coder.
+type ExternalAgentCredentials struct {
+	Command    string `json:"command"`
+	AgentToken string `json:"agent_token"`
+}
+
+func (c *Client) WorkspaceExternalAgentCredentials(ctx context.Context, workspaceID uuid.UUID, agentName string) (ExternalAgentCredentials, error) {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/external-agent/%s/credentials", workspaceID.String(), agentName)
+	res, err := c.Request(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return ExternalAgentCredentials{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ExternalAgentCredentials{}, ReadBodyAsError(res)
+	}
+	var credentials ExternalAgentCredentials
+	return credentials, json.NewDecoder(res.Body).Decode(&credentials)
 }

@@ -11,7 +11,7 @@ import { templateByNameKey } from "api/queries/templates";
 import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
 import type { Workspace } from "api/typesGenerated";
 import {
-	reactRouterNestedAncestors,
+	reactRouterOutlet,
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
 import { WorkspaceSettingsLayout } from "../WorkspaceSettingsLayout";
@@ -19,7 +19,7 @@ import WorkspaceSchedulePage from "./WorkspaceSchedulePage";
 
 const meta = {
 	title: "pages/WorkspaceSchedulePage",
-	component: WorkspaceSchedulePage,
+	component: WorkspaceSettingsLayout,
 	decorators: [withAuthProvider, withDashboardProvider],
 	parameters: {
 		layout: "fullscreen",
@@ -52,11 +52,11 @@ function workspaceRouterParameters(workspace: Workspace) {
 				workspace: workspace.name,
 			},
 		},
-		routing: reactRouterNestedAncestors(
+		routing: reactRouterOutlet(
 			{
 				path: "/:username/:workspace/settings/schedule",
 			},
-			<WorkspaceSettingsLayout />,
+			<WorkspaceSchedulePage />,
 		),
 	});
 }

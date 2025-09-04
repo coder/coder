@@ -55,7 +55,6 @@ func TestWorkspaceBuild(t *testing.T) {
 		Auditor:                  auditor,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
-	//nolint:gocritic // testing
 	up, err := db.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
 		ID:        user.UserID,
 		Email:     coderdtest.FirstUserParams.Email,
@@ -518,7 +517,6 @@ func TestWorkspaceBuildsProvisionerState(t *testing.T) {
 				OrganizationID: first.OrganizationID,
 			}).Do()
 
-			// nolint:gocritic // For testing
 			daemons, err := store.GetProvisionerDaemons(dbauthz.AsSystemReadProvisionerDaemons(ctx))
 			require.NoError(t, err)
 			require.Empty(t, daemons, "Provisioner daemons should be empty for this test")
@@ -579,8 +577,12 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 			build, err = client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
 			return assert.NoError(t, err) && build.Job.Status == codersdk.ProvisionerJobRunning
 		}, testutil.WaitShort, testutil.IntervalFast)
-		err := client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
-		require.NoError(t, err)
+
+		require.Eventually(t, func() bool {
+			err := client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
+			return assert.NoError(t, err)
+		}, testutil.WaitShort, testutil.IntervalMedium)
+
 		require.Eventually(t, func() bool {
 			var err error
 			build, err = client.WorkspaceBuild(ctx, build.ID)
@@ -1638,6 +1640,8 @@ func TestPostWorkspaceBuild(t *testing.T) {
 
 	t.Run("SetsPresetID", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -1645,9 +1649,20 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			ProvisionPlan: []*proto.Response{{
 				Type: &proto.Response_Plan{
 					Plan: &proto.PlanComplete{
-						Presets: []*proto.Preset{{
-							Name: "test",
-						}},
+						Presets: []*proto.Preset{
+							{
+								Name: "autodetected",
+							},
+							{
+								Name: "manual",
+								Parameters: []*proto.PresetParameter{
+									{
+										Name:  "param1",
+										Value: "value1",
+									},
+								},
+							},
+						},
 					},
 				},
 			}},
@@ -1655,28 +1670,29 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-		require.Nil(t, workspace.LatestBuild.TemplateVersionPresetID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
 
 		presets, err := client.TemplateVersionPresets(ctx, version.ID)
 		require.NoError(t, err)
-		require.Equal(t, 1, len(presets))
-		require.Equal(t, "test", presets[0].Name)
+		require.Equal(t, 2, len(presets))
+		require.Equal(t, "autodetected", presets[0].Name)
+		require.Equal(t, "manual", presets[1].Name)
+
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		// Preset ID was detected based on the workspace parameters:
+		require.Equal(t, presets[0].ID, *workspace.LatestBuild.TemplateVersionPresetID)
 
 		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID:       version.ID,
 			Transition:              codersdk.WorkspaceTransitionStart,
-			TemplateVersionPresetID: presets[0].ID,
+			TemplateVersionPresetID: presets[1].ID,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, build.TemplateVersionPresetID)
 
 		workspace, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
+		require.Equal(t, presets[1].ID, *workspace.LatestBuild.TemplateVersionPresetID)
 		require.Equal(t, build.TemplateVersionPresetID, workspace.LatestBuild.TemplateVersionPresetID)
 	})
 
