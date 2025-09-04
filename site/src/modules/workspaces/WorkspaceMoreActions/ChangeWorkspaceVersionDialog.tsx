@@ -1,11 +1,10 @@
 import { css } from "@emotion/css";
-import AlertTitle from "@mui/material/AlertTitle";
 import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
 import { templateVersions } from "api/queries/templates";
 import type { TemplateVersion, Workspace } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
+import { Alert, AlertTitle } from "components/Alert/Alert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";

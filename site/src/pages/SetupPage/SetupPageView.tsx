@@ -1,5 +1,4 @@
 import GitHubIcon from "@mui/icons-material/GitHub";
-import AlertTitle from "@mui/material/AlertTitle";
 import Autocomplete from "@mui/material/Autocomplete";
 import MuiButton from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
@@ -9,7 +8,7 @@ import TextField from "@mui/material/TextField";
 import { countries } from "api/countriesGenerated";
 import type * as TypesGen from "api/typesGenerated";
 import { isAxiosError } from "axios";
-import { Alert, AlertDetail } from "components/Alert/Alert";
+import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
 import { FormFields, VerticalForm } from "components/Form/Form";
 import { CoderIcon } from "components/Icons/CoderIcon";
