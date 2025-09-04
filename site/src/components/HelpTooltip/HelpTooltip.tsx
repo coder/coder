@@ -61,7 +61,7 @@ type HelpTooltipTriggerProps = HTMLAttributes<HTMLButtonElement> & {
 	hoverEffect?: boolean;
 };
 
-export const HelpTooltipTrigger = forwardRef<
+export const HelpTooltipIconTrigger = forwardRef<
 	HTMLButtonElement,
 	HelpTooltipTriggerProps
 >((props, ref) => {

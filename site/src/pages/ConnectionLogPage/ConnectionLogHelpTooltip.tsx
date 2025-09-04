@@ -5,7 +5,7 @@ import {
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
+	HelpTooltipIconTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import type { FC } from "react";
 import { docs } from "utils/docs";
@@ -19,7 +19,7 @@ const Language = {
 export const ConnectionLogHelpTooltip: FC = () => {
 	return (
 		<HelpTooltip>
-			<HelpTooltipTrigger />
+			<HelpTooltipIconTrigger />
 
 			<HelpTooltipContent>
 				<HelpTooltipTitle>{Language.title}</HelpTooltipTitle>

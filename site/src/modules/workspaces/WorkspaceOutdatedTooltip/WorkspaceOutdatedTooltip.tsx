@@ -12,7 +12,7 @@ import {
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
+	HelpTooltipIconTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { InfoIcon, RotateCcwIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
@@ -34,10 +34,10 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = (
 
 	return (
 		<HelpTooltip open={isOpen} onOpenChange={setIsOpen}>
-			<HelpTooltipTrigger size="small" hoverEffect={false}>
+			<HelpTooltipIconTrigger size="small" hoverEffect={false}>
 				<InfoIcon css={styles.icon} />
 				<span className="sr-only">Outdated info</span>
-			</HelpTooltipTrigger>
+			</HelpTooltipIconTrigger>
 			<WorkspaceOutdatedTooltipContent isOpen={isOpen} {...props} />
 		</HelpTooltip>
 	);

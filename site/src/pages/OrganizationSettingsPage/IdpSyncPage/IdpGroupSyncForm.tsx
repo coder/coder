@@ -10,7 +10,7 @@ import {
 	HelpTooltipContent,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
+	HelpTooltipIconTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
@@ -414,7 +414,7 @@ const GroupRow: FC<GroupRowProps> = ({
 const AutoCreateMissingGroupsHelpTooltip: FC = () => {
 	return (
 		<HelpTooltip>
-			<HelpTooltipTrigger />
+			<HelpTooltipIconTrigger />
 			<HelpTooltipContent>
 				<HelpTooltipText>
 					Enabling auto create missing groups will automatically create groups
@@ -431,7 +431,7 @@ const LegacyGroupSyncHeader: FC = () => {
 			<div className="flex items-end gap-2">
 				<span>Legacy group sync settings</span>
 				<HelpTooltip>
-					<HelpTooltipTrigger />
+					<HelpTooltipIconTrigger />
 					<HelpTooltipContent>
 						<HelpTooltipTitle>Legacy group sync settings</HelpTooltipTitle>
 						<HelpTooltipText>

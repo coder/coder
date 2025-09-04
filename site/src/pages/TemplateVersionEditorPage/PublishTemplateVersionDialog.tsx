@@ -17,7 +17,7 @@ import {
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
+	HelpTooltipIconTrigger,
 } from "../../components/HelpTooltip/HelpTooltip";
 import { docs } from "../../utils/docs";
 
@@ -121,7 +121,7 @@ export const PublishTemplateVersionDialog: FC<
 								/>
 
 								<HelpTooltip>
-									<HelpTooltipTrigger />
+									<HelpTooltipIconTrigger />
 
 									{/**
 									 * 2025-09-03 - Without disablePortal, the tooltip will render under the dialog;
