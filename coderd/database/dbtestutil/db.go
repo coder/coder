@@ -253,6 +253,10 @@ func PGDump(dbURL string) ([]byte, error) {
 
 const minimumPostgreSQLVersion = 13
 
+// Postgres 17.X introduced started inserting restrict keys into schema dumps.
+// This breaks sqlc, and our migration check script.
+const maximumPostgreSQLVersion = 16
+
 // PGDumpSchemaOnly is for use by gen/dump only.
 // It runs pg_dump against dbURL and sets a consistent timezone and encoding.
 func PGDumpSchemaOnly(dbURL string) ([]byte, error) {
@@ -265,7 +269,7 @@ func PGDumpSchemaOnly(dbURL string) ([]byte, error) {
 			parts := strings.Split(string(out), " ")
 			if len(parts) > 2 {
 				version, err := strconv.Atoi(strings.Split(parts[2], ".")[0])
-				if err == nil && version >= minimumPostgreSQLVersion {
+				if err == nil && version >= minimumPostgreSQLVersion && version <= maximumPostgreSQLVersion {
 					hasPGDump = true
 				}
 			}
