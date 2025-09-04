@@ -37,6 +37,7 @@ import {
 	ProvisionerAlert,
 } from "modules/provisioners/ProvisionerAlert";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
+import { WildcardHostnameWarning } from "modules/resources/WildcardHostnameWarning";
 import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
 import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
 import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
@@ -68,7 +69,6 @@ import { MonacoEditor } from "./MonacoEditor";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog";
 import { TemplateVersionStatusBadge } from "./TemplateVersionStatusBadge";
-import { WildcardHostnameWarning } from "./WildcardHostnameWarning";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 

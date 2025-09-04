@@ -14,7 +14,6 @@ import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
-import { WildcardHostnameWarning } from "pages/WorkspacePage/WildcardHostnameWarning";
 import {
 	type FC,
 	useCallback,
@@ -42,6 +41,7 @@ import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { useAgentContainers } from "./useAgentContainers";
 import { useAgentLogs } from "./useAgentLogs";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
+import { WildcardHostnameWarning } from "./WildcardHostnameWarning";
 
 interface AgentRowProps {
 	agent: WorkspaceAgent;
