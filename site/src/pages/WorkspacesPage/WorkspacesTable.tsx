@@ -13,6 +13,7 @@ import type {
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceApp,
+	Region,
 } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
@@ -69,16 +70,13 @@ import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/
 import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import { WorkspaceStatusIndicator } from "modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
-import {
-	useWorkspaceUpdate,
-	WorkspaceUpdateDialogs,
-} from "modules/workspaces/WorkspaceUpdateDialogs";
 import type React from "react";
 import {
 	type FC,
 	type PropsWithChildren,
 	type ReactNode,
 	useState,
+	useMemo,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
@@ -103,6 +101,29 @@ interface WorkspacesTableProps {
 	onActionError: (error: unknown) => void;
 }
 
+// Determine a workspace's connection region based on agent DERP latencies.
+const getWorkspaceConnectionRegion = (workspace: Workspace): string | undefined => {
+	const agents: readonly WorkspaceAgent[] = workspace.latest_build.resources
+		.flatMap((r) => r.agents ?? [])
+		.filter(Boolean);
+	const agent = agents[0];
+	const lat = agent?.latency;
+	if (!lat) return undefined;
+	const entries = Object.entries(lat);
+	const preferred = entries.find(([, v]) => v?.preferred);
+	if (preferred) return preferred[0];
+	const valid = entries.filter(([, v]) => typeof v?.latency_ms === "number" && v.latency_ms >= 0);
+	valid.sort((a, b) => a[1].latency_ms - b[1].latency_ms);
+	return (valid[0] ?? entries[0])?.[0];
+};
+
+// Return latency in ms for a selected region key, if available
+const getWorkspaceRegionLatencyMS = (workspace: Workspace, key: string): number | undefined => {
+	if (!key) return undefined;
+	const agent = workspace.latest_build.resources.flatMap((r) => r.agents ?? []).filter(Boolean)[0];
+	return agent?.latency?.[key]?.latency_ms;
+};
+
 export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	workspaces,
 	checkedWorkspaces,
@@ -115,8 +136,16 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	onActionError,
 }) => {
 	const dashboard = useDashboard();
-	const { proxy: preferred } = useProxy();
-	const connectionRegion = preferred.proxy?.display_name ?? preferred.proxy?.name ?? "—";
+	const { proxies } = useProxy();
+	const regionByKey = useMemo(() => {
+		const map = new Map<string, Region>();
+		(proxies ?? []).forEach((r: Region) => {
+			if (!r) return;
+			map.set(r.id, r);
+			map.set(r.name, r);
+		});
+		return map;
+	}, [proxies]);
 
 	return (
 		<Table>
@@ -172,6 +201,9 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 					const activeOrg = dashboard.organizations.find(
 						(o) => o.id === workspace.organization_id,
 					);
+					const workspaceRegionKey = getWorkspaceConnectionRegion(workspace) ?? "";
+					const region = regionByKey.get(workspaceRegionKey);
+					const regionLatency = getWorkspaceRegionLatencyMS(workspace, workspaceRegionKey);
 
 					return (
 						<WorkspacesRow
@@ -195,43 +227,40 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 													onCheckChange([...checkedWorkspaces, workspace]);
 												} else {
 													onCheckChange(
-														checkedWorkspaces.filter(
-															(w) => w.id !== workspace.id,
-														),
-													);
-												}
+														checkedWorkspaces.filter((w) => w.id !== workspace.id),
+												);
 											}}
 										/>
 									)}
-									<AvatarData
-										title={
-											<Stack direction="row" spacing={0.5} alignItems="center">
-												<span className="whitespace-nowrap">
-													{workspace.name}
-												</span>
-												{workspace.favorite && (
-													<StarIcon className="size-icon-xs" />
-												)}
-												{workspace.outdated && (
-													<WorkspaceOutdatedTooltip workspace={workspace} />
-												)}
-											</Stack>
-										}
-										subtitle={
-											<div>
-												<span className="sr-only">Owner: </span>
-												{workspace.owner_name}
-											</div>
-										}
-										avatar={
-											<Avatar
-												src={workspace.owner_avatar_url}
-												fallback={workspace.owner_name}
-												size="lg"
-											/>
-										}
-									/>
-								</div>
+								<AvatarData
+									title={
+										<Stack direction="row" spacing={0.5} alignItems="center">
+											<span className="whitespace-nowrap">
+												{workspace.name}
+											</span>
+											{workspace.favorite && (
+												<StarIcon className="size-icon-xs" />
+											)}
+											{workspace.outdated && (
+												<WorkspaceOutdatedTooltip workspace={workspace} />
+											)}
+										</Stack>
+									}
+									subtitle={
+										<div>
+											<span className="sr-only">Owner: </span>
+											{workspace.owner_name}
+										</div>
+									}
+									avatar={
+										<Avatar
+											src={workspace.owner_avatar_url}
+											fallback={workspace.owner_name}
+											size="lg"
+										/>
+									}
+								/>
+							</div>
 							</TableCell>
 
 							<TableCell>
@@ -260,9 +289,27 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								/>
 							</TableCell>
 
-							{/* Region column shows selected workspace proxy/connection region */}
+							{/* Region column */}
 							<TableCell>
-								<span className="whitespace-nowrap">{connectionRegion}</span>
+								{region ? (
+									<TooltipProvider>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<span className="inline-flex">
+													<AvatarData
+														title={<span className="whitespace-nowrap">{region.display_name || region.name}</span>}
+														avatar={<Avatar variant="icon" src={region.icon_url} fallback={region.display_name || region.name} size="lg" />}
+													/>
+												</span>
+											</TooltipTrigger>
+											<TooltipContent>
+												<span>{region.name}{typeof regionLatency === "number" ? ` • ${regionLatency} ms` : ""}</span>
+											</TooltipContent>
+										</Tooltip>
+									</TooltipProvider>
+								) : (
+									<span className="whitespace-nowrap">{workspaceRegionKey || "—"}</span>
+								)}
 							</TableCell>
 
 							<WorkspaceStatusCell workspace={workspace} />
@@ -730,32 +777,16 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	}
 
 	for (const app of userApps) {
-		buttons.push(
-			<IconAppLink
-				key={app.id}
-				app={app}
-				workspace={workspace}
-				agent={agent}
-			/>,
-		);
+		buttons.push(<IconAppLink key={app.id} app={app} workspace={workspace} agent={agent} />);
 	}
 
 	if (builtinApps.has("web_terminal")) {
-		const href = getTerminalHref({
-			username: workspace.owner_name,
-			workspace: workspace.name,
-			agent: agent.name,
-		});
+		const href = getTerminalHref({ username: workspace.owner_name, workspace: workspace.name, agent: agent.name });
 		buttons.push(
-			<BaseIconLink
-				key="terminal"
-				href={href}
-				onClick={(e) => {
-					e.preventDefault();
-					openAppInNewWindow(href);
-				}}
-				label="Open Terminal"
-			>
+			<BaseIconLink key="terminal" href={href} onClick={(e) => {
+				e.preventDefault();
+				openAppInNewWindow(href);
+			}} label="Open Terminal">
 				<SquareTerminalIcon />
 			</BaseIconLink>,
 		);
@@ -764,92 +795,40 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	return buttons;
 };
 
-type WorkspaceAppStatusLinksProps = {
-	workspace: Workspace;
-};
+type WorkspaceAppStatusLinksProps = { workspace: Workspace };
 
-const WorkspaceAppStatusLinks: FC<WorkspaceAppStatusLinksProps> = ({
-	workspace,
-}) => {
+const WorkspaceAppStatusLinks: FC<WorkspaceAppStatusLinksProps> = ({ workspace }) => {
 	const status = workspace.latest_app_status;
-	const agent = workspace.latest_build.resources
-		.flatMap((r) => r.agents)
-		.find((a) => a?.id === status?.agent_id);
+	const agent = workspace.latest_build.resources.flatMap((r) => r.agents).find((a) => a?.id === status?.agent_id);
 	const app = agent?.apps.find((a) => a.id === status?.app_id);
 
-	return (
-		<>
-			{agent && app && (
-				<IconAppLink app={app} workspace={workspace} agent={agent} />
-			)}
-
-			{status?.uri && status?.uri !== "n/a" && (
-				<BaseIconLink label={status.uri} href={status.uri} target="_blank">
-					{status.uri.startsWith("file://") ? (
-						<FileIcon />
-					) : (
-						<ExternalLinkIcon />
-					)}
-				</BaseIconLink>
-			)}
-		</>
-	);
+	return <>{agent && app && <IconAppLink app={app} workspace={workspace} agent={agent} />}{status?.uri && status?.uri !== "n/a" && (<BaseIconLink label={status.uri} href={status.uri} target="_blank">{status.uri.startsWith("file://") ? (<FileIcon />) : (<ExternalLinkIcon />)}</BaseIconLink>)}</>;
 };
 
-type IconAppLinkProps = {
-	app: WorkspaceApp;
-	workspace: Workspace;
-	agent: WorkspaceAgent;
-};
+type IconAppLinkProps = { app: WorkspaceApp; workspace: Workspace; agent: WorkspaceAgent };
 
 const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
-	const link = useAppLink(app, {
-		workspace,
-		agent,
-	});
+	const link = useAppLink(app, { workspace, agent });
 
 	return (
-		<BaseIconLink
-			key={app.id}
-			label={`Open ${link.label}`}
-			href={link.href}
-			onClick={link.onClick}
-		>
+		<BaseIconLink key={app.id} label={`Open ${link.label}`} href={link.href} onClick={link.onClick}>
 			<ExternalImage src={app.icon ?? "/icon/widgets.svg"} />
 		</BaseIconLink>
 	);
 };
 
-type BaseIconLinkProps = PropsWithChildren<{
-	label: string;
-	href: string;
-	isLoading?: boolean;
-	onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
-	target?: string;
-}>;
+type BaseIconLinkProps = PropsWithChildren<{ label: string; href: string; isLoading?: boolean; onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void; target?: string }>;
 
-const BaseIconLink: FC<BaseIconLinkProps> = ({
-	href,
-	isLoading,
-	label,
-	children,
-	target,
-	onClick,
-}) => {
+const BaseIconLink: FC<BaseIconLinkProps> = ({ href, isLoading, label, children, target, onClick }) => {
 	return (
 		<TooltipProvider>
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<Button variant="outline" size="icon-lg" asChild>
-						<a
-							target={target}
-							className={isLoading ? "animate-pulse" : ""}
-							href={href}
-							onClick={(e) => {
-								e.stopPropagation();
-								onClick?.(e);
-							}}
-						>
+						<a target={target} className={isLoading ? "animate-pulse" : ""} href={href} onClick={(e) => {
+							e.stopPropagation();
+							onClick?.(e);
+						}}>
 							{children}
 							<span className="sr-only">{label}</span>
 						</a>
