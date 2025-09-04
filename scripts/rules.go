@@ -182,32 +182,28 @@ func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
 	m.Match(`
 	go func($*_){
 		$*_
-		$require.$_($*_)
+		require.$_($*_)
 		$*_
 	}($*_)`).
-		At(m["require"]).
-		Where(m["require"].Text == "require").
 		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
 
 	// require.Eventually runs the function in a goroutine.
 	m.Match(`
 	require.Eventually(t, func() bool {
 		$*_
-		$require.$_($*_)
+		require.$_($*_)
 		$*_
 	}, $*_)`).
-		At(m["require"]).
-		Where(m["require"].Text == "require").
 		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
 
 	m.Match(`
 	go func($*_){
 		$*_
-		$t.$fail($*_)
+		t.$fail($*_)
 		$*_
 	}($*_)`).
 		At(m["fail"]).
-		Where(m["t"].Type.Implements("testing.TB") && m["fail"].Text.Matches("^(FailNow|Fatal|Fatalf)$")).
+		Where(m["fail"].Text.Matches("^(FailNow|Fatal|Fatalf)$")).
 		Report("Do not call functions that may call t.FailNow in a goroutine, as this can cause data races (see testing.go:834)")
 }
 
