@@ -63,6 +63,8 @@ function getClipboardCopyContent(
 	return `[![Open in Coder](${deploymentUrl}/open-in-coder.svg)](${buttonUrl})`;
 }
 
+const workspaceNameValidator = nameValidator("Workspace name");
+
 export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 	template,
 	templateParameters,
@@ -93,13 +95,16 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 	}, [buttonValues, templateParameters]);
 
 	const [workspaceNameError, setWorkspaceNameError] = useState("");
-	const workspaceNameValidator = nameValidator("Workspace name");
 	const validateWorkspaceName = (workspaceName: string) => {
 		try {
-			workspaceName && workspaceNameValidator.validateSync(workspaceName);
+			if (workspaceName) {
+				workspaceNameValidator.validateSync(workspaceName);
+			}
 			setWorkspaceNameError("");
 		} catch (e) {
-			setWorkspaceNameError(e instanceof ValidationError ? e.message : "");
+			if (e instanceof ValidationError) {
+				setWorkspaceNameError(e.message);
+			}
 		}
 	};
 
