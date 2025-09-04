@@ -102,6 +102,9 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 
 					username := userAndRole[1]
 					role := userAndRole[2]
+					if role == "" {
+						role = string(codersdk.WorkspaceRoleUse)
+					}
 
 					userID := ""
 					for _, member := range orgMembers {
@@ -139,6 +142,9 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 					}
 					groupName := groupAndRole[1]
 					role := groupAndRole[2]
+					if role == "" {
+						role = string(codersdk.WorkspaceRoleUse)
+					}
 
 					var orgGroup *codersdk.Group
 					for _, group := range orgGroups {
@@ -214,7 +220,7 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 
 func stringToWorkspaceRole(role string) (codersdk.WorkspaceRole, error) {
 	switch role {
-	case "", string(codersdk.WorkspaceRoleUse):
+	case string(codersdk.WorkspaceRoleUse):
 		return codersdk.WorkspaceRoleUse, nil
 	case string(codersdk.WorkspaceRoleAdmin):
 		return codersdk.WorkspaceRoleAdmin, nil
