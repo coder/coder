@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -261,20 +260,6 @@ const maximumPostgreSQLVersion = 16
 // It runs pg_dump against dbURL and sets a consistent timezone and encoding.
 func PGDumpSchemaOnly(dbURL string) ([]byte, error) {
 	hasPGDump := false
-	if _, err := exec.LookPath("pg_dump"); err == nil {
-		out, err := exec.Command("pg_dump", "--version").Output()
-		if err == nil {
-			// Parse output:
-			// pg_dump (PostgreSQL) 14.5 (Ubuntu 14.5-0ubuntu0.22.04.1)
-			parts := strings.Split(string(out), " ")
-			if len(parts) > 2 {
-				version, err := strconv.Atoi(strings.Split(parts[2], ".")[0])
-				if err == nil && version >= minimumPostgreSQLVersion && version <= maximumPostgreSQLVersion {
-					hasPGDump = true
-				}
-			}
-		}
-	}
 
 	cmdArgs := []string{
 		"pg_dump",
