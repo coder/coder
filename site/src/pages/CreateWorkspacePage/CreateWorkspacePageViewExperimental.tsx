@@ -340,7 +340,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 	});
 
 	return (
-		<>
+		<div className="flex flex-col flex-1 min-h-0 pb-12">
 			<div className="sticky top-5 ml-10">
 				<button
 					onClick={onCancel}
@@ -351,7 +351,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 					Go back
 				</button>
 			</div>
-			<div className="flex flex-col gap-6 max-w-screen-md mx-auto">
+			<div className="flex flex-col flex-1 min-h-0 gap-6 max-w-screen-md mx-auto">
 				<header className="flex flex-col items-start gap-3 mt-10">
 					<div className="flex items-center gap-2 justify-between w-full">
 						<span className="flex items-center gap-2">
@@ -412,7 +412,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 				<form
 					onSubmit={form.handleSubmit}
 					aria-label="Create workspace form"
-					className="flex flex-col gap-10 w-full border border-border-default border-solid rounded-lg p-6"
+					className="relative flex flex-col flex-1 min-h-0 overflow-y-auto gap-10 w-full border border-border-default border-solid rounded-lg p-6"
 				>
 					{Boolean(error) && <ErrorAlert error={error} />}
 
@@ -683,6 +683,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 					</div>
 				</form>
 			</div>
-		</>
+		</div>
 	);
 };
