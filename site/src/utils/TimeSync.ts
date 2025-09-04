@@ -217,18 +217,21 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	/**
-	 * Immediately updates TimeSync to a new snapshot and notifies all
-	 * subscribers.
+	 * The logic that should happen at each step in TimeSync's active interval.
 	 *
 	 * Defined as an arrow function so that we can just pass it directly to
 	 * setInterval without needing to make a new wrapper function each time. We
 	 * don't have many situations where we can lose the `this` context, but this
 	 * is one of them
 	 */
-	#tick = (): void => {
-		if (this.#isDisposed) {
+	#onTick = (): void => {
+		if (this.#isDisposed || this.#isFrozen) {
+			// Defensive step to make sure that an invalid tick wasn't started
+			window.clearInterval(this.#latestIntervalId);
+			this.#latestIntervalId = undefined;
 			return;
 		}
+
 		const updated = this.#updateDateSnapshot();
 		if (updated) {
 			this.#notifyAllSubscriptions();
@@ -251,15 +254,18 @@ export class TimeSync implements TimeSyncApi {
 		// from removing one
 		if (delta <= 0) {
 			window.clearInterval(this.#latestIntervalId);
-			this.#tick();
-			this.#latestIntervalId = window.setInterval(this.#tick, fastest);
+			const updated = this.#updateDateSnapshot();
+			if (updated) {
+				this.#notifyAllSubscriptions();
+			}
+			this.#latestIntervalId = window.setInterval(this.#onTick, fastest);
 			return;
 		}
 
 		window.clearInterval(this.#latestIntervalId);
 		this.#latestIntervalId = window.setInterval(() => {
 			window.clearInterval(this.#latestIntervalId);
-			this.#latestIntervalId = window.setInterval(this.#tick, fastest);
+			this.#latestIntervalId = window.setInterval(this.#onTick, fastest);
 		}, delta);
 	}
 
