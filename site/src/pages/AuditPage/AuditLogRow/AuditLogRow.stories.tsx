@@ -1,10 +1,3 @@
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
-import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
 import {
 	MockAuditLog,
@@ -15,6 +8,13 @@ import {
 	MockAuditLogWithWorkspaceBuild,
 	MockUserOwner,
 } from "testHelpers/entities";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { AuditLogRow } from "./AuditLogRow";
 
 const meta: Meta<typeof AuditLogRow> = {

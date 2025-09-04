@@ -2,24 +2,25 @@ import MenuItem, { type MenuItemProps } from "@mui/material/MenuItem";
 import MenuList, { type MenuListProps } from "@mui/material/MenuList";
 import { Button, type ButtonProps } from "components/Button/Button";
 import {
-	SearchField,
-	type SearchFieldProps,
-} from "components/SearchField/SearchField";
-import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
+import {
+	SearchField,
+	type SearchFieldProps,
+} from "components/SearchField/SearchField";
 import { CheckIcon, ChevronDownIcon } from "lucide-react";
 import {
 	Children,
 	type FC,
-	type HTMLProps,
-	type ReactElement,
 	forwardRef,
+	type HTMLProps,
 	isValidElement,
+	type ReactElement,
 	useMemo,
 } from "react";
+import { cn } from "utils/cn";
 
 const SIDE_PADDING = 16;
 
@@ -76,19 +77,22 @@ export const SelectMenuSearch: FC<SearchFieldProps> = (props) => {
 	);
 };
 
-export const SelectMenuList: FC<MenuListProps> = (props) => {
+export const SelectMenuList: FC<MenuListProps> = ({
+	children,
+	className,
+	...attrs
+}) => {
 	const items = useMemo(() => {
-		let children = Children.toArray(props.children);
-		if (!children.every(isValidElement)) {
+		let items = Children.toArray(children);
+		if (!items.every(isValidElement)) {
 			throw new Error("SelectMenuList only accepts MenuItem children");
 		}
-		children = moveSelectedElementToFirst(
-			children as ReactElement<MenuItemProps>[],
-		);
-		return children;
-	}, [props.children]);
+		items = moveSelectedElementToFirst(items as ReactElement<MenuItemProps>[]);
+		return items;
+	}, [children]);
+
 	return (
-		<MenuList css={{ maxHeight: 480 }} {...props}>
+		<MenuList className={cn("max-h-[480px]", className)} {...attrs}>
 			{items}
 		</MenuList>
 	);
@@ -106,25 +110,31 @@ function moveSelectedElementToFirst(items: ReactElement<MenuItemProps>[]) {
 	return newItems;
 }
 
-export const SelectMenuIcon: FC<HTMLProps<HTMLDivElement>> = (props) => {
-	return <div css={{ marginRight: 16 }} {...props} />;
+export const SelectMenuIcon: FC<HTMLProps<HTMLDivElement>> = ({
+	children,
+	className,
+	...attrs
+}) => {
+	return (
+		<div className={cn("mr-4", className)} {...attrs}>
+			{children}
+		</div>
+	);
 };
 
-export const SelectMenuItem: FC<MenuItemProps> = (props) => {
+export const SelectMenuItem: FC<MenuItemProps> = ({
+	children,
+	className,
+	selected,
+	...attrs
+}) => {
 	return (
 		<MenuItem
-			css={{
-				fontSize: 14,
-				gap: 0,
-				lineHeight: 1,
-				padding: `12px ${SIDE_PADDING}px`,
-			}}
-			{...props}
+			className={cn("text-sm gap-0 leading-none py-3 px-4", className)}
+			{...attrs}
 		>
-			{props.children}
-			{props.selected && (
-				<CheckIcon className="size-icon-xs" css={{ marginLeft: "auto" }} />
-			)}
+			{children}
+			{selected && <CheckIcon className="size-icon-xs ml-auto" />}
 		</MenuItem>
 	);
 };

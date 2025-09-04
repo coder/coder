@@ -255,6 +255,7 @@ func Test_ResolveRequest(t *testing.T) {
 		for _, c := range cases {
 			t.Run(c.name, func(t *testing.T) {
 				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitShort)
 
 				// Try resolving a request for each app as the owner, without a
 				// token, then use the token to resolve each app.
@@ -301,11 +302,12 @@ func Test_ResolveRequest(t *testing.T) {
 						RegisteredClaims: jwtutils.RegisteredClaims{
 							Expiry: jwt.NewNumericDate(token.Expiry.Time()),
 						},
-						Request:     req,
-						UserID:      me.ID,
-						WorkspaceID: workspace.ID,
-						AgentID:     agentID,
-						AppURL:      appURL,
+						Request:      req,
+						UserID:       me.ID,
+						WorkspaceID:  workspace.ID,
+						AgentID:      agentID,
+						AppURL:       appURL,
+						CORSBehavior: codersdk.CORSBehaviorSimple,
 					}, token)
 					require.NotZero(t, token.Expiry)
 					require.WithinDuration(t, time.Now().Add(workspaceapps.DefaultTokenExpiry), token.Expiry.Time(), time.Minute)
@@ -588,6 +590,7 @@ func Test_ResolveRequest(t *testing.T) {
 
 	t.Run("TokenDoesNotMatchRequest", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		badToken := workspaceapps.SignedToken{
 			Request: (workspaceapps.Request{

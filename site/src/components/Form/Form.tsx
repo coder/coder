@@ -3,11 +3,11 @@ import { AlphaBadge, DeprecatedBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 import {
 	type ComponentProps,
+	createContext,
 	type FC,
+	forwardRef,
 	type HTMLProps,
 	type ReactNode,
-	createContext,
-	forwardRef,
 	useContext,
 } from "react";
 import { cn } from "utils/cn";
@@ -159,10 +159,13 @@ const styles = {
 			position: "initial" as const,
 		},
 	}),
-	formSectionInfoHorizontal: {
+	formSectionInfoHorizontal: (theme) => ({
 		maxWidth: 312,
-		position: "sticky",
-	},
+
+		[theme.breakpoints.up("lg")]: {
+			position: "sticky",
+		},
+	}),
 	formSectionInfoTitle: (theme) => ({
 		fontSize: 20,
 		color: theme.palette.text.primary,

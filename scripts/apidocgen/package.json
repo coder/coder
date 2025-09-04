@@ -8,7 +8,11 @@
 	},
 	"pnpm": {
     "overrides": {
-      "@babel/runtime": "7.26.10"
+      "@babel/runtime": "7.26.10",
+      "form-data": "4.0.4",
+      "yargs-parser": "13.1.2",
+      "ajv": "6.12.3",
+      "markdown-it": "12.3.2"
     }
   }
 }

@@ -9,9 +9,8 @@ Coder Desktop provides seamless access to your remote workspaces through a nativ
 - Access to your Coder deployment URL
 - Valid Coder account credentials
 
-**Estimated setup time:** 5-10 minutes
-
 ## Quick Start
+
 
 1. Install: `brew install --cask coder/coder/coder-desktop` (macOS) or `winget install Coder.CoderDesktop` (Windows)
 1. Open Coder Desktop and approve any system prompts to complete the installation.
@@ -111,7 +110,7 @@ ping -n 3 your-workspace.coder
 
 **Web Services**
 
-Open `http://your-workspace.coder:8080` in your browser (replace `8080` with your service's port)
+Open `http://your-workspace.coder:PORT` in your browser (replace `PORT` with your service's port)
 
 ## Troubleshooting
 
@@ -129,13 +128,6 @@ Open `http://your-workspace.coder:8080` in your browser (replace `8080` with you
 - Ensure only one copy of Coder Desktop is installed
 
 ### Known Limitations
-
-**VPN Conflicts**
-Coder Desktop is unable to connect if the Coder deployment is only accessible via a VPN. This affects:
-- [macOS](https://github.com/coder/coder-desktop-macos/issues/201)
-- [Windows](https://github.com/coder/coder-desktop-windows/issues/147)
-
-A resolution is in development. For now, use the [Coder CLI](../cli.md) when connected to corporate VPNs.
 
 **Secure Browser Context**
 Some web applications require HTTPS for certain features. While Coder Connect uses encrypted WireGuard tunnels, browsers may show security warnings for HTTP connections to `.coder` hostnames.

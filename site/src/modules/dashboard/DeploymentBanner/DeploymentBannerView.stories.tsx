@@ -1,8 +1,8 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import {
 	DeploymentHealthUnhealthy,
 	MockDeploymentStats,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { DeploymentBannerView } from "./DeploymentBannerView";
 
 const meta: Meta<typeof DeploymentBannerView> = {

@@ -1,9 +1,9 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import {
 	MockWorkspaceResource,
 	MockWorkspaceResourceMultipleAgents,
 } from "testHelpers/entities";
 import { withProxyProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { AgentRowPreview } from "./AgentRowPreview";
 import { Resources } from "./Resources";
 

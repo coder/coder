@@ -169,6 +169,9 @@ func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client
 	if buildFlags.provisionerLogDebug {
 		wbr.LogLevel = codersdk.ProvisionerLogLevelDebug
 	}
+	if buildFlags.reason != "" {
+		wbr.Reason = codersdk.CreateWorkspaceBuildReason(buildFlags.reason)
+	}
 
 	return wbr, nil
 }

@@ -76,8 +76,8 @@ func TestCalculateAutoStop(t *testing.T) {
 	t.Log("saturdayMidnightAfterDstOut", saturdayMidnightAfterDstOut)
 
 	cases := []struct {
-		name string
-		now  time.Time
+		name             string
+		buildCompletedAt time.Time
 
 		wsAutostart       string
 		templateAutoStart schedule.TemplateAutostartRequirement
@@ -98,7 +98,7 @@ func TestCalculateAutoStop(t *testing.T) {
 	}{
 		{
 			name:                        "OK",
-			now:                         now,
+			buildCompletedAt:            now,
 			templateAllowAutostop:       true,
 			templateDefaultTTL:          0,
 			templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
@@ -108,7 +108,7 @@ func TestCalculateAutoStop(t *testing.T) {
 		},
 		{
 			name:                        "Delete",
-			now:                         now,
+			buildCompletedAt:            now,
 			templateAllowAutostop:       true,
 			templateDefaultTTL:          0,
 			templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
@@ -118,7 +118,7 @@ func TestCalculateAutoStop(t *testing.T) {
 		},
 		{
 			name:                        "WorkspaceTTL",
-			now:                         now,
+			buildCompletedAt:            now,
 			templateAllowAutostop:       true,
 			templateDefaultTTL:          0,
 			templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
@@ -128,7 +128,7 @@ func TestCalculateAutoStop(t *testing.T) {
 		},
 		{
 			name:                        "TemplateDefaultTTLIgnored",
-			now:                         now,
+			buildCompletedAt:            now,
 			templateAllowAutostop:       true,
 			templateDefaultTTL:          time.Hour,
 			templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
@@ -138,7 +138,7 @@ func TestCalculateAutoStop(t *testing.T) {
 		},
 		{
 			name:                        "WorkspaceTTLOverridesTemplateDefaultTTL",
-			now:                         now,
+			buildCompletedAt:            now,
 			templateAllowAutostop:       true,
 			templateDefaultTTL:          2 * time.Hour,
 			templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
@@ -148,7 +148,7 @@ func TestCalculateAutoStop(t *testing.T) {
 		},
 		{
 			name:                        "TemplateBlockWorkspaceTTL",
-			now:                         now,
+			buildCompletedAt:            now,
 			templateAllowAutostop:       false,
 			templateDefaultTTL:          3 * time.Hour,
 			templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
@@ -158,7 +158,7 @@ func TestCalculateAutoStop(t *testing.T) {
 		},
 		{
 			name:                   "TemplateAutostopRequirement",
-			now:                    wednesdayMidnightUTC,
+			buildCompletedAt:       wednesdayMidnightUTC,
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
@@ -172,7 +172,7 @@ func TestCalculateAutoStop(t *testing.T) {
 		},
 		{
 			name:                   "TemplateAutostopRequirement1HourSkip",
-			now:                    saturdayMidnightSydney.Add(-59 * time.Minute),
+			buildCompletedAt:       saturdayMidnightSydney.Add(-59 * time.Minute),
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
@@ -188,7 +188,7 @@ func TestCalculateAutoStop(t *testing.T) {
 			// The next autostop requirement should be skipped if the
 			// workspace is started within 1 hour of it.
 			name:                   "TemplateAutostopRequirementDaily",
-			now:                    fridayEveningSydney,
+			buildCompletedAt:       fridayEveningSydney,
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
@@ -202,7 +202,7 @@ func TestCalculateAutoStop(t *testing.T) {
 		},
 		{
 			name:                   "TemplateAutostopRequirementFortnightly/Skip",
-			now:                    wednesdayMidnightUTC,
+			buildCompletedAt:       wednesdayMidnightUTC,
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
@@ -216,7 +216,7 @@ func TestCalculateAutoStop(t *testing.T) {
 		},
 		{
 			name:                   "TemplateAutostopRequirementFortnightly/NoSkip",
-			now:                    wednesdayMidnightUTC.AddDate(0, 0, 7),
+			buildCompletedAt:       wednesdayMidnightUTC.AddDate(0, 0, 7),
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
@@ -230,7 +230,7 @@ func TestCalculateAutoStop(t *testing.T) {
 		},
 		{
 			name:                   "TemplateAutostopRequirementTriweekly/Skip",
-			now:                    wednesdayMidnightUTC,
+			buildCompletedAt:       wednesdayMidnightUTC,
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
@@ -246,7 +246,7 @@ func TestCalculateAutoStop(t *testing.T) {
 		},
 		{
 			name:                   "TemplateAutostopRequirementTriweekly/NoSkip",
-			now:                    wednesdayMidnightUTC.AddDate(0, 0, 7),
+			buildCompletedAt:       wednesdayMidnightUTC.AddDate(0, 0, 7),
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
@@ -262,7 +262,7 @@ func TestCalculateAutoStop(t *testing.T) {
 			name: "TemplateAutostopRequirementOverridesWorkspaceTTL",
 			// now doesn't have to be UTC, but it helps us ensure that
 			// timezones are compared correctly in this test.
-			now:                    fridayEveningSydney.In(time.UTC),
+			buildCompletedAt:       fridayEveningSydney.In(time.UTC),
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
@@ -276,7 +276,7 @@ func TestCalculateAutoStop(t *testing.T) {
 		},
 		{
 			name:                   "TemplateAutostopRequirementOverridesTemplateDefaultTTL",
-			now:                    fridayEveningSydney.In(time.UTC),
+			buildCompletedAt:       fridayEveningSydney.In(time.UTC),
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     3 * time.Hour,
 			userQuietHoursSchedule: sydneyQuietHours,
@@ -293,7 +293,7 @@ func TestCalculateAutoStop(t *testing.T) {
 			// The epoch is 2023-01-02 in each timezone. We set the time to
 			// 1 second before 11pm the previous day, as this is the latest time
 			// we allow due to our 2h leeway logic.
-			now:                    time.Date(2023, 1, 1, 21, 59, 59, 0, sydneyLoc),
+			buildCompletedAt:       time.Date(2023, 1, 1, 21, 59, 59, 0, sydneyLoc),
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
@@ -306,7 +306,7 @@ func TestCalculateAutoStop(t *testing.T) {
 		},
 		{
 			name:                   "DaylightSavings/OK",
-			now:                    duringDst,
+			buildCompletedAt:       duringDst,
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
@@ -320,7 +320,7 @@ func TestCalculateAutoStop(t *testing.T) {
 		},
 		{
 			name:                   "DaylightSavings/SwitchMidWeek/In",
-			now:                    beforeDstIn,
+			buildCompletedAt:       beforeDstIn,
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
@@ -334,7 +334,7 @@ func TestCalculateAutoStop(t *testing.T) {
 		},
 		{
 			name:                   "DaylightSavings/SwitchMidWeek/Out",
-			now:                    beforeDstOut,
+			buildCompletedAt:       beforeDstOut,
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
@@ -348,7 +348,7 @@ func TestCalculateAutoStop(t *testing.T) {
 		},
 		{
 			name:                   "DaylightSavings/QuietHoursFallsOnDstSwitch/In",
-			now:                    beforeDstIn.Add(-24 * time.Hour),
+			buildCompletedAt:       beforeDstIn.Add(-24 * time.Hour),
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: dstInQuietHours,
@@ -362,7 +362,7 @@ func TestCalculateAutoStop(t *testing.T) {
 		},
 		{
 			name:                   "DaylightSavings/QuietHoursFallsOnDstSwitch/Out",
-			now:                    beforeDstOut.Add(-24 * time.Hour),
+			buildCompletedAt:       beforeDstOut.Add(-24 * time.Hour),
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: dstOutQuietHours,
@@ -382,7 +382,7 @@ func TestCalculateAutoStop(t *testing.T) {
 			// activity on the workspace.
 			name: "AutostopCrossAutostartBorder",
 			// Starting at 9:45pm, with the autostart at 9am.
-			now:                   pastDateNight,
+			buildCompletedAt:      pastDateNight,
 			templateAllowAutostop: false,
 			templateDefaultTTL:    time.Hour * 12,
 			workspaceTTL:          time.Hour * 12,
@@ -405,7 +405,7 @@ func TestCalculateAutoStop(t *testing.T) {
 			// Same as AutostopCrossAutostartBorder, but just misses the autostart.
 			name: "AutostopCrossMissAutostartBorder",
 			// Starting at 8:45pm, with the autostart at 9am.
-			now:                   time.Date(pastDateNight.Year(), pastDateNight.Month(), pastDateNight.Day(), 20, 30, 0, 0, chicago),
+			buildCompletedAt:      time.Date(pastDateNight.Year(), pastDateNight.Month(), pastDateNight.Day(), 20, 30, 0, 0, chicago),
 			templateAllowAutostop: false,
 			templateDefaultTTL:    time.Hour * 12,
 			workspaceTTL:          time.Hour * 12,
@@ -429,7 +429,7 @@ func TestCalculateAutoStop(t *testing.T) {
 			// The autostop deadline is before the autostart threshold.
 			name: "AutostopCrossAutostartBorderMaxEarlyDeadline",
 			// Starting at 9:45pm, with the autostart at 9am.
-			now:                   pastDateNight,
+			buildCompletedAt:      pastDateNight,
 			templateAllowAutostop: false,
 			templateDefaultTTL:    time.Hour * 12,
 			workspaceTTL:          time.Hour * 12,
@@ -459,7 +459,7 @@ func TestCalculateAutoStop(t *testing.T) {
 			// So the deadline is > 12 hours, but stops at the max deadline.
 			name: "AutostopCrossAutostartBorderMaxDeadline",
 			// Starting at 9:45pm, with the autostart at 9am.
-			now:                   pastDateNight,
+			buildCompletedAt:      pastDateNight,
 			templateAllowAutostop: false,
 			templateDefaultTTL:    time.Hour * 12,
 			workspaceTTL:          time.Hour * 12,
@@ -571,7 +571,7 @@ func TestCalculateAutoStop(t *testing.T) {
 				Database:                    db,
 				TemplateScheduleStore:       templateScheduleStore,
 				UserQuietHoursScheduleStore: userQuietHoursScheduleStore,
-				Now:                         c.now,
+				WorkspaceBuildCompletedAt:   c.buildCompletedAt,
 				Workspace:                   workspace,
 				WorkspaceAutostart:          c.wsAutostart,
 			})

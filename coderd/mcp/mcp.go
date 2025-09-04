@@ -67,7 +67,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.streamableServer.ServeHTTP(w, r)
 }
 
-// RegisterTools registers all available MCP tools with the server
+// Register all available MCP tools with the server excluding:
+// - ReportTask - which requires dependencies not available in the remote MCP context
+// - ChatGPT search and fetch tools, which are redundant with the standard tools.
 func (s *Server) RegisterTools(client *codersdk.Client) error {
 	if client == nil {
 		return xerrors.New("client cannot be nil: MCP HTTP server requires authenticated client")
@@ -79,11 +81,41 @@ func (s *Server) RegisterTools(client *codersdk.Client) error {
 		return xerrors.Errorf("failed to initialize tool dependencies: %w", err)
 	}
 
-	// Register all available tools
 	for _, tool := range toolsdk.All {
+		// the ReportTask tool requires dependencies not available in the remote MCP context
+		// the ChatGPT search and fetch tools are redundant with the standard tools.
+		if tool.Name == toolsdk.ToolNameReportTask ||
+			tool.Name == toolsdk.ToolNameChatGPTSearch || tool.Name == toolsdk.ToolNameChatGPTFetch {
+			continue
+		}
+
 		s.mcpServer.AddTools(mcpFromSDK(tool, toolDeps))
 	}
+	return nil
+}
 
+// ChatGPT tools are the search and fetch tools as defined in https://platform.openai.com/docs/mcp.
+// We do not expose any extra ones because ChatGPT has an undocumented "Safety Scan" feature.
+// In my experiments, if I included extra tools in the MCP server, ChatGPT would often - but not always -
+// refuse to add Coder as a connector.
+func (s *Server) RegisterChatGPTTools(client *codersdk.Client) error {
+	if client == nil {
+		return xerrors.New("client cannot be nil: MCP HTTP server requires authenticated client")
+	}
+
+	// Create tool dependencies
+	toolDeps, err := toolsdk.NewDeps(client)
+	if err != nil {
+		return xerrors.Errorf("failed to initialize tool dependencies: %w", err)
+	}
+
+	for _, tool := range toolsdk.All {
+		if tool.Name != toolsdk.ToolNameChatGPTSearch && tool.Name != toolsdk.ToolNameChatGPTFetch {
+			continue
+		}
+
+		s.mcpServer.AddTools(mcpFromSDK(tool, toolDeps))
+	}
 	return nil
 }
 

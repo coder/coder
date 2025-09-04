@@ -59,6 +59,25 @@ WHERE
 			tv.has_ai_task = sqlc.narg('has_ai_task') :: boolean
 		ELSE true
 	END
+	-- Filter by author_id
+	AND CASE
+		  WHEN @author_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			  t.created_by = @author_id
+		  ELSE true
+	END
+	-- Filter by author_username
+	AND CASE
+		  WHEN @author_username :: text != '' THEN
+			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower(@author_username) AND deleted = false)
+		  ELSE true
+	END
+
+	-- Filter by has_external_agent in latest version
+	AND CASE
+		WHEN sqlc.narg('has_external_agent') :: boolean IS NOT NULL THEN
+			tv.has_external_agent = sqlc.narg('has_external_agent') :: boolean
+		ELSE true
+	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
   -- @authorize_filter
 ORDER BY (t.name, t.id) ASC
@@ -99,10 +118,11 @@ INSERT INTO
 		display_name,
 		allow_user_cancel_workspace_jobs,
 		max_port_sharing_level,
-		use_classic_parameter_flow
+		use_classic_parameter_flow,
+		cors_behavior
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16);
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17);
 
 -- name: UpdateTemplateActiveVersionByID :exec
 UPDATE
@@ -134,7 +154,8 @@ SET
 	allow_user_cancel_workspace_jobs = $7,
 	group_acl = $8,
 	max_port_sharing_level = $9,
-	use_classic_parameter_flow = $10
+	use_classic_parameter_flow = $10,
+	cors_behavior = $11
 WHERE
 	id = $1
 ;
@@ -182,11 +203,11 @@ JOIN provisioner_jobs pj ON
 WHERE
 	template_versions.template_id = @template_id AND
 		(pj.completed_at IS NOT NULL) AND (pj.started_at IS NOT NULL) AND
-		(pj.started_at > @start_time) AND
 		(pj.canceled_at IS NULL) AND
 		((pj.error IS NULL) OR (pj.error = ''))
 ORDER BY
 	workspace_builds.created_at DESC
+LIMIT 100
 )
 SELECT
 	-- Postgres offers no clear way to DRY this short of a function or other

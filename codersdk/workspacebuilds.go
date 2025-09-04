@@ -49,6 +49,16 @@ const (
 	// BuildReasonDormancy "dormancy" is used when a build to stop a workspace is triggered due to inactivity (dormancy).
 	// The initiator id/username in this case is the workspace owner and can be ignored.
 	BuildReasonDormancy BuildReason = "dormancy"
+	// BuildReasonDashboard "dashboard" is used when a build to start a workspace is triggered by the dashboard.
+	BuildReasonDashboard BuildReason = "dashboard"
+	// BuildReasonCLI "cli" is used when a build to start a workspace is triggered by the CLI.
+	BuildReasonCLI BuildReason = "cli"
+	// BuildReasonSSHConnection "ssh_connection" is used when a build to start a workspace is triggered by an SSH connection.
+	BuildReasonSSHConnection BuildReason = "ssh_connection"
+	// BuildReasonVSCodeConnection "vscode_connection" is used when a build to start a workspace is triggered by a VS Code connection.
+	BuildReasonVSCodeConnection BuildReason = "vscode_connection"
+	// BuildReasonJetbrainsConnection "jetbrains_connection" is used when a build to start a workspace is triggered by a JetBrains connection.
+	BuildReasonJetbrainsConnection BuildReason = "jetbrains_connection"
 )
 
 // WorkspaceBuild is an at-point representation of a workspace state.
@@ -80,6 +90,7 @@ type WorkspaceBuild struct {
 	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id" format:"uuid"`
 	HasAITask               *bool                `json:"has_ai_task,omitempty"`
 	AITaskSidebarAppID      *uuid.UUID           `json:"ai_task_sidebar_app_id,omitempty" format:"uuid"`
+	HasExternalAgent        *bool                `json:"has_external_agent,omitempty"`
 }
 
 // WorkspaceResource describes resources used to create a workspace, for instance:

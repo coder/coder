@@ -49,6 +49,14 @@ const (
 	ProvisionerDaemonBusy    ProvisionerDaemonStatus = "busy"
 )
 
+func ProvisionerDaemonStatusEnums() []ProvisionerDaemonStatus {
+	return []ProvisionerDaemonStatus{
+		ProvisionerDaemonOffline,
+		ProvisionerDaemonIdle,
+		ProvisionerDaemonBusy,
+	}
+}
+
 type ProvisionerDaemon struct {
 	ID             uuid.UUID         `json:"id" format:"uuid" table:"id"`
 	OrganizationID uuid.UUID         `json:"organization_id" format:"uuid" table:"organization id"`
@@ -188,6 +196,7 @@ type ProvisionerJob struct {
 	Type             ProvisionerJobType     `json:"type" table:"type"`
 	AvailableWorkers []uuid.UUID            `json:"available_workers,omitempty" format:"uuid" table:"available workers"`
 	Metadata         ProvisionerJobMetadata `json:"metadata" table:"metadata,recursive_inline"`
+	LogsOverflowed   bool                   `json:"logs_overflowed" table:"logs overflowed"`
 }
 
 // ProvisionerJobLog represents the provisioner log entry annotated with source and level.

@@ -115,6 +115,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"max_port_sharing_level":            ActionTrack,
 		"activity_bump":                     ActionTrack,
 		"use_classic_parameter_flow":        ActionTrack,
+		"cors_behavior":                     ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                      ActionTrack,
@@ -134,6 +135,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"archived":                ActionTrack,
 		"source_example_id":       ActionIgnore, // Never changes.
 		"has_ai_task":             ActionIgnore, // Never changes.
+		"has_external_agent":      ActionIgnore, // Never changes.
 	},
 	&database.User{}: {
 		"id":                           ActionTrack,
@@ -172,6 +174,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"automatic_updates":  ActionTrack,
 		"favorite":           ActionTrack,
 		"next_start_at":      ActionTrack,
+		"group_acl":          ActionTrack,
+		"user_acl":           ActionTrack,
 	},
 	&database.WorkspaceBuild{}: {
 		"id":                         ActionIgnore,
@@ -194,6 +198,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"template_version_preset_id": ActionIgnore, // Never changes.
 		"has_ai_task":                ActionIgnore, // Never changes.
 		"ai_task_sidebar_app_id":     ActionIgnore, // Never changes.
+		"has_external_agent":         ActionIgnore, // Never changes.
 	},
 	&database.AuditableGroup{}: {
 		"id":              ActionTrack,

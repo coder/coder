@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
@@ -56,6 +57,7 @@ type Builder struct {
 	logLevel         string
 	deploymentValues *codersdk.DeploymentValues
 	experiments      codersdk.Experiments
+	usageChecker     UsageChecker
 
 	richParameterValues     []codersdk.WorkspaceBuildParameter
 	initiator               uuid.UUID
@@ -89,7 +91,24 @@ type Builder struct {
 	verifyNoLegacyParametersOnce bool
 }
 
-type Option func(Builder) Builder
+type UsageChecker interface {
+	CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion) (UsageCheckResponse, error)
+}
+
+type UsageCheckResponse struct {
+	Permitted bool
+	Message   string
+}
+
+type NoopUsageChecker struct{}
+
+var _ UsageChecker = NoopUsageChecker{}
+
+func (NoopUsageChecker) CheckBuildUsage(_ context.Context, _ database.Store, _ *database.TemplateVersion) (UsageCheckResponse, error) {
+	return UsageCheckResponse{
+		Permitted: true,
+	}, nil
+}
 
 // versionTarget expresses how to determine the template version for the build.
 //
@@ -121,8 +140,8 @@ type stateTarget struct {
 	explicit *[]byte
 }
 
-func New(w database.Workspace, t database.WorkspaceTransition) Builder {
-	return Builder{workspace: w, trans: t}
+func New(w database.Workspace, t database.WorkspaceTransition, uc UsageChecker) Builder {
+	return Builder{workspace: w, trans: t, usageChecker: uc}
 }
 
 // Methods that customize the build are public, have a struct receiver and return a new Builder.
@@ -321,6 +340,10 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	err = b.checkUsage()
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	err = b.checkRunningBuild()
 	if err != nil {
 		return nil, nil, nil, err
@@ -387,6 +410,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			Valid:      true,
 			RawMessage: traceMetadataRaw,
 		},
+		LogsOverflowed: false,
 	})
 	if err != nil {
 		return nil, nil, nil, BuildError{http.StatusInternalServerError, "insert provisioner job", err}
@@ -419,6 +443,20 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 
 	var workspaceBuild database.WorkspaceBuild
 	err = b.store.InTx(func(store database.Store) error {
+		names, values, err := b.getParameters()
+		if err != nil {
+			// getParameters already wraps errors in BuildError
+			return err
+		}
+
+		if b.templateVersionPresetID == uuid.Nil {
+			presetID, err := prebuilds.FindMatchingPresetID(b.ctx, b.store, templateVersionID, names, values)
+			if err != nil {
+				return BuildError{http.StatusInternalServerError, "find matching preset", err}
+			}
+			b.templateVersionPresetID = presetID
+		}
+
 		err = store.InsertWorkspaceBuild(b.ctx, database.InsertWorkspaceBuildParams{
 			ID:                workspaceBuildID,
 			CreatedAt:         now,
@@ -448,12 +486,6 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 				code = http.StatusConflict
 			}
 			return BuildError{code, "insert workspace build", err}
-		}
-
-		names, values, err := b.getParameters()
-		if err != nil {
-			// getParameters already wraps errors in BuildError
-			return err
 		}
 
 		err = store.InsertWorkspaceBuildParameters(b.ctx, database.InsertWorkspaceBuildParametersParams{
@@ -633,10 +665,16 @@ func (b *Builder) getDynamicParameterRenderer() (dynamicparameters.Renderer, err
 		return nil, xerrors.Errorf("get template version terraform values: %w", err)
 	}
 
+	variableValues, err := b.getTemplateVersionVariables()
+	if err != nil {
+		return nil, xerrors.Errorf("get template version variables: %w", err)
+	}
+
 	renderer, err := dynamicparameters.Prepare(b.ctx, b.store, b.fileCache, tv.ID,
 		dynamicparameters.WithTemplateVersion(*tv),
 		dynamicparameters.WithProvisionerJob(*job),
 		dynamicparameters.WithTerraformValues(*tfVals),
+		dynamicparameters.WithTemplateVariableValues(variableValues),
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("get template version renderer: %w", err)
@@ -1244,6 +1282,23 @@ func (b *Builder) checkTemplateJobStatus() error {
 			xerrors.New(msg),
 		}
 	}
+	return nil
+}
+
+func (b *Builder) checkUsage() error {
+	templateVersion, err := b.getTemplateVersion()
+	if err != nil {
+		return BuildError{http.StatusInternalServerError, "Failed to fetch template version", err}
+	}
+
+	resp, err := b.usageChecker.CheckBuildUsage(b.ctx, b.store, templateVersion)
+	if err != nil {
+		return BuildError{http.StatusInternalServerError, "Failed to check build usage", err}
+	}
+	if !resp.Permitted {
+		return BuildError{http.StatusForbidden, "Build is not permitted: " + resp.Message, nil}
+	}
+
 	return nil
 }
 

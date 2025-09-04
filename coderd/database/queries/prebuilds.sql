@@ -2,7 +2,20 @@
 UPDATE workspaces w
 SET owner_id   = @new_user_id::uuid,
 	name       = @new_name::text,
-	updated_at = NOW()
+	updated_at = @now::timestamptz,
+	-- Update autostart_schedule, next_start_at and ttl according to template and workspace-level
+	-- configurations, allowing the workspace to be managed by the lifecycle executor as expected.
+	autostart_schedule = @autostart_schedule,
+	next_start_at = @next_start_at,
+	ttl = @workspace_ttl,
+	-- Update last_used_at during claim to ensure the claimed workspace is treated as recently used.
+	-- This avoids unintended dormancy caused by prebuilds having stale usage timestamps.
+	last_used_at = @now::timestamptz,
+	-- Clear dormant and deletion timestamps as a safeguard to ensure a clean lifecycle state after claim.
+	-- These fields should not be set on prebuilds, but we defensively reset them here to prevent
+	-- accidental dormancy or deletion by the lifecycle executor.
+	dormant_at = NULL,
+	deleting_at = NULL
 WHERE w.id IN (
 	SELECT p.id
 	FROM workspace_prebuilds p
@@ -48,7 +61,7 @@ WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a pre
   -- AND NOT t.deleted -- We don't exclude deleted templates because there's no constraint in the DB preventing a soft deletion on a template while workspaces are running.
 	AND (t.id = sqlc.narg('template_id')::uuid OR sqlc.narg('template_id') IS NULL);
 
--- name: GetRunningPrebuiltWorkspacesOptimized :many
+-- name: GetRunningPrebuiltWorkspaces :many
 WITH latest_prebuilds AS (
 	-- All workspaces that match the following criteria:
 	-- 1. Owned by prebuilds user
@@ -105,21 +118,6 @@ FROM latest_prebuilds
 LEFT JOIN ready_agents ON ready_agents.job_id = latest_prebuilds.job_id
 LEFT JOIN workspace_latest_presets ON workspace_latest_presets.workspace_id = latest_prebuilds.id
 ORDER BY latest_prebuilds.id;
-
--- name: GetRunningPrebuiltWorkspaces :many
-SELECT
-		p.id,
-		p.name,
-		p.template_id,
-		b.template_version_id,
-		p.current_preset_id AS current_preset_id,
-		p.ready,
-		p.created_at
-FROM workspace_prebuilds p
-		INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
-WHERE (b.transition = 'start'::workspace_transition
-	AND b.job_status = 'succeeded'::provisioner_job_status)
-ORDER BY p.id;
 
 -- name: CountInProgressPrebuilds :many
 -- CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.
@@ -232,7 +230,7 @@ HAVING COUNT(*) = @hard_limit::bigint;
 SELECT
 	t.name as template_name,
 	tvp.name as preset_name,
-		o.name as organization_name,
+	o.name as organization_name,
 	COUNT(*) as created_count,
 	COUNT(*) FILTER (WHERE pj.job_status = 'failed'::provisioner_job_status) as failed_count,
 	COUNT(*) FILTER (
@@ -247,3 +245,30 @@ INNER JOIN organizations o ON o.id = w.organization_id
 WHERE NOT t.deleted AND wpb.build_number = 1
 GROUP BY t.name, tvp.name, o.name
 ORDER BY t.name, tvp.name, o.name;
+
+-- name: FindMatchingPresetID :one
+-- FindMatchingPresetID finds a preset ID that is the largest exact subset of the provided parameters.
+-- It returns the preset ID if a match is found, or NULL if no match is found.
+-- The query finds presets where all preset parameters are present in the provided parameters,
+-- and returns the preset with the most parameters (largest subset).
+WITH provided_params AS (
+	SELECT
+		unnest(@parameter_names::text[]) AS name,
+		unnest(@parameter_values::text[]) AS value
+),
+preset_matches AS (
+	SELECT
+		tvp.id AS template_version_preset_id,
+		COALESCE(COUNT(tvpp.name), 0) AS total_preset_params,
+		COALESCE(COUNT(pp.name), 0) AS matching_params
+	FROM template_version_presets tvp
+	LEFT JOIN template_version_preset_parameters tvpp ON tvpp.template_version_preset_id = tvp.id
+	LEFT JOIN provided_params pp ON pp.name = tvpp.name AND pp.value = tvpp.value
+	WHERE tvp.template_version_id = @template_version_id
+	GROUP BY tvp.id
+)
+SELECT pm.template_version_preset_id
+FROM preset_matches pm
+WHERE pm.total_preset_params = pm.matching_params  -- All preset parameters must match
+ORDER BY pm.total_preset_params DESC               -- Return the preset with the most parameters
+LIMIT 1;

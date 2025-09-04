@@ -1,8 +1,3 @@
-import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { API, withDefaultFeatures } from "api/api";
-import type { UpdateTemplateMeta } from "api/typesGenerated";
-import { http, HttpResponse } from "msw";
 import {
 	MockEntitlements,
 	MockTemplate,
@@ -13,6 +8,11 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { API, withDefaultFeatures } from "api/api";
+import type { UpdateTemplateMeta } from "api/typesGenerated";
+import { HttpResponse, http } from "msw";
 import { validationSchema } from "./TemplateSettingsForm";
 import TemplateSettingsPage from "./TemplateSettingsPage";
 
@@ -55,6 +55,7 @@ const validFormValues: FormValues = {
 	disable_everyone_group_access: false,
 	max_port_share_level: "owner",
 	use_classic_parameter_flow: true,
+	cors_behavior: "simple",
 };
 
 const renderTemplateSettingsPage = async () => {

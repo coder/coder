@@ -2,15 +2,21 @@
 	"_comment": "This version doesn't matter, it's just to allow importing from other repos.",
 	"name": "coder",
 	"version": "0.0.0",
-	"packageManager": "pnpm@9.14.4",
+	"packageManager": "pnpm@10.14.0+sha512.ad27a79641b49c3e481a16a805baa71817a04bbe06a38d17e60e2eaee83f6a146c6a688125f5792e48dd5ba30e7da52a5cda4c3992b9ccf333f9ce223af84748",
 	"scripts": {
 		"format-docs": "markdown-table-formatter $(find docs -name '*.md') *.md",
 		"lint-docs": "markdownlint-cli2 --fix $(find docs -name '*.md') *.md",
 		"storybook": "pnpm run -C site/ storybook"
 	},
 	"devDependencies": {
+		"@biomejs/biome": "2.2.0",
 		"markdown-table-formatter": "^1.6.1",
 		"markdownlint-cli2": "^0.16.0",
 		"quicktype": "^23.0.0"
+	},
+	"pnpm": {
+		"overrides": {
+			"brace-expansion": "1.1.12"
+		}
 	}
 }

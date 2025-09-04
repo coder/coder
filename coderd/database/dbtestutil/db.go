@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -206,7 +205,7 @@ func DumpOnFailure(t testing.TB, connectionURL string) {
 	outPath := filepath.Join(cwd, snakeCaseName+"."+timeSuffix+".test.sql")
 	dump, err := PGDump(connectionURL)
 	if err != nil {
-		t.Errorf("dump on failure: failed to run pg_dump")
+		t.Errorf("dump on failure: failed to run pg_dump: %s", err.Error())
 		return
 	}
 	if err := os.WriteFile(outPath, normalizeDump(dump), 0o600); err != nil {
@@ -251,26 +250,31 @@ func PGDump(dbURL string) ([]byte, error) {
 	return stdout.Bytes(), nil
 }
 
-const minimumPostgreSQLVersion = 13
+const (
+	minimumPostgreSQLVersion = 13
+	postgresImageSha         = "sha256:467e7f2fb97b2f29d616e0be1d02218a7bbdfb94eb3cda7461fd80165edfd1f7"
+)
 
 // PGDumpSchemaOnly is for use by gen/dump only.
 // It runs pg_dump against dbURL and sets a consistent timezone and encoding.
 func PGDumpSchemaOnly(dbURL string) ([]byte, error) {
 	hasPGDump := false
-	if _, err := exec.LookPath("pg_dump"); err == nil {
-		out, err := exec.Command("pg_dump", "--version").Output()
-		if err == nil {
-			// Parse output:
-			// pg_dump (PostgreSQL) 14.5 (Ubuntu 14.5-0ubuntu0.22.04.1)
-			parts := strings.Split(string(out), " ")
-			if len(parts) > 2 {
-				version, err := strconv.Atoi(strings.Split(parts[2], ".")[0])
-				if err == nil && version >= minimumPostgreSQLVersion {
-					hasPGDump = true
-				}
-			}
-		}
-	}
+	// TODO: Temporarily pin pg_dump to the docker image until
+	// https://github.com/sqlc-dev/sqlc/issues/4065 is resolved.
+	// if _, err := exec.LookPath("pg_dump"); err == nil {
+	// 	out, err := exec.Command("pg_dump", "--version").Output()
+	// 	if err == nil {
+	// 		// Parse output:
+	// 		// pg_dump (PostgreSQL) 14.5 (Ubuntu 14.5-0ubuntu0.22.04.1)
+	// 		parts := strings.Split(string(out), " ")
+	// 		if len(parts) > 2 {
+	// 			version, err := strconv.Atoi(strings.Split(parts[2], ".")[0])
+	// 			if err == nil && version >= minimumPostgreSQLVersion {
+	// 				hasPGDump = true
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	cmdArgs := []string{
 		"pg_dump",
@@ -295,7 +299,7 @@ func PGDumpSchemaOnly(dbURL string) ([]byte, error) {
 			"run",
 			"--rm",
 			"--network=host",
-			fmt.Sprintf("%s:%d", postgresImage, minimumPostgreSQLVersion),
+			fmt.Sprintf("%s:%d@%s", postgresImage, minimumPostgreSQLVersion, postgresImageSha),
 		}, cmdArgs...)
 	}
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...) //#nosec

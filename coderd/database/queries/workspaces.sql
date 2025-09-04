@@ -117,7 +117,8 @@ SELECT
 	latest_build.error as latest_build_error,
 	latest_build.transition as latest_build_transition,
 	latest_build.job_status as latest_build_status,
-	latest_build.has_ai_task as latest_build_has_ai_task
+	latest_build.has_ai_task as latest_build_has_ai_task,
+	latest_build.has_external_agent as latest_build_has_external_agent
 FROM
 	workspaces_expanded as workspaces
 JOIN
@@ -130,6 +131,7 @@ LEFT JOIN LATERAL (
 		workspace_builds.transition,
 		workspace_builds.template_version_id,
 		workspace_builds.has_ai_task,
+		workspace_builds.has_external_agent,
 		template_versions.name AS template_version_name,
 		provisioner_jobs.id AS provisioner_job_id,
 		provisioner_jobs.started_at,
@@ -370,6 +372,12 @@ WHERE
 			)) = (sqlc.narg('has_ai_task') :: boolean)
 		ELSE true
 	END
+	-- Filter by has_external_agent in latest build
+	AND CASE
+		WHEN sqlc.narg('has_external_agent') :: boolean IS NOT NULL THEN
+			latest_build.has_external_agent = sqlc.narg('has_external_agent') :: boolean
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ), filtered_workspaces_order AS (
@@ -418,6 +426,8 @@ WHERE
 		'never'::automatic_updates, -- automatic_updates
 		false, -- favorite
 		'0001-01-01 00:00:00+00'::timestamptz, -- next_start_at
+		'{}'::jsonb, -- group_acl
+		'{}'::jsonb, -- user_acl
 		'', -- owner_avatar_url
 		'', -- owner_username
 		'', -- owner_name
@@ -437,7 +447,8 @@ WHERE
 		'', -- latest_build_error
 		'start'::workspace_transition, -- latest_build_transition
 		'unknown'::provisioner_job_status, -- latest_build_status
-		false -- latest_build_has_ai_task
+		false, -- latest_build_has_ai_task
+		false -- latest_build_has_external_agent
 	WHERE
 		@with_summary :: boolean = true
 ), total_count AS (
@@ -516,7 +527,11 @@ SET
 	autostart_schedule = $2,
 	next_start_at = $3
 WHERE
-	id = $1;
+	id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+  	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+  	-- autostart_schedule and next_start_at
+  	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID;
 
 -- name: UpdateWorkspaceNextStartAt :exec
 UPDATE
@@ -524,7 +539,11 @@ UPDATE
 SET
 	next_start_at = $2
 WHERE
-	id = $1;
+	id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- next_start_at
+	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID;
 
 -- name: BatchUpdateWorkspaceNextStartAt :exec
 UPDATE
@@ -548,15 +567,23 @@ UPDATE
 SET
 	ttl = $2
 WHERE
-	id = $1;
+	id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- ttl
+	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID;
 
 -- name: UpdateWorkspacesTTLByTemplateID :exec
 UPDATE
-		workspaces
+	workspaces
 SET
-		ttl = $2
+	ttl = $2
 WHERE
-		template_id = $1;
+	template_id = $1
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- should not have their TTL updated, as they are handled by the prebuilds
+	-- reconciliation loop.
+	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID;
 
 -- name: UpdateWorkspaceLastUsedAt :exec
 UPDATE
@@ -789,6 +816,10 @@ FROM
 WHERE
     workspaces.id = $1
     AND templates.id = workspaces.template_id
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- dormant_at and deleting_at
+	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 RETURNING
     workspaces.*;
 
@@ -797,14 +828,17 @@ UPDATE workspaces
 SET
     deleting_at = CASE
         WHEN @time_til_dormant_autodelete_ms::bigint = 0 THEN NULL
-        WHEN @dormant_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN  (@dormant_at::timestamptz) + interval '1 milliseconds' * @time_til_dormant_autodelete_ms::bigint
+        WHEN @dormant_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN (@dormant_at::timestamptz) + interval '1 milliseconds' * @time_til_dormant_autodelete_ms::bigint
         ELSE dormant_at + interval '1 milliseconds' * @time_til_dormant_autodelete_ms::bigint
     END,
     dormant_at = CASE WHEN @dormant_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN @dormant_at::timestamptz ELSE dormant_at END
 WHERE
     template_id = @template_id
-AND
-    dormant_at IS NOT NULL
+	AND dormant_at IS NOT NULL
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- should not have their dormant or deleting at set, as these are handled by the
+    -- prebuilds reconciliation loop.
+	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 RETURNING *;
 
 -- name: UpdateTemplateWorkspacesLastUsedAt :exec
@@ -871,3 +905,54 @@ GROUP BY workspaces.id, workspaces.name, latest_build.job_status, latest_build.j
 
 -- name: GetWorkspacesByTemplateID :many
 SELECT * FROM workspaces WHERE template_id = $1 AND deleted = false;
+
+-- name: GetWorkspaceACLByID :one
+SELECT
+	group_acl as groups,
+	user_acl as users
+FROM
+	workspaces
+WHERE
+	id = @id;
+
+-- name: UpdateWorkspaceACLByID :exec
+UPDATE
+	workspaces
+SET
+	group_acl = @group_acl,
+	user_acl = @user_acl
+WHERE
+	id = @id;
+
+-- name: GetRegularWorkspaceCreateMetrics :many
+-- Count regular workspaces: only those whose first successful 'start' build
+-- was not initiated by the prebuild system user.
+WITH first_success_build AS (
+	-- Earliest successful 'start' build per workspace
+	SELECT DISTINCT ON (wb.workspace_id)
+		wb.workspace_id,
+		wb.template_version_preset_id,
+		wb.initiator_id
+	FROM workspace_builds wb
+	JOIN provisioner_jobs pj ON pj.id = wb.job_id
+	WHERE
+		wb.transition = 'start'::workspace_transition
+  		AND pj.job_status = 'succeeded'::provisioner_job_status
+	ORDER BY wb.workspace_id, wb.build_number, wb.id
+)
+SELECT
+	t.name AS template_name,
+	COALESCE(tvp.name, '') AS preset_name,
+	o.name AS organization_name,
+	COUNT(*) AS created_count
+FROM first_success_build fsb
+	JOIN workspaces w ON w.id = fsb.workspace_id
+	JOIN templates t ON t.id = w.template_id
+	LEFT JOIN template_version_presets tvp ON tvp.id = fsb.template_version_preset_id
+	JOIN organizations o ON o.id = w.organization_id
+WHERE
+	NOT t.deleted
+	-- Exclude workspaces whose first successful start was the prebuilds system user
+	AND fsb.initiator_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+GROUP BY t.name, COALESCE(tvp.name, ''), o.name
+ORDER BY t.name, preset_name, o.name;

@@ -49,7 +49,7 @@
 	"[javascript][javascriptreact][json][jsonc][typescript][typescriptreact]": {
 		"editor.defaultFormatter": "biomejs.biome",
 		"editor.codeActionsOnSave": {
-			"quickfix.biome": "explicit"
+			"source.fixAll.biome": "explicit"
 			//   "source.organizeImports.biome": "explicit"
 		}
 	},

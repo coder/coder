@@ -21,9 +21,11 @@
  */
 import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
 import type dayjs from "dayjs";
+import type { Task } from "modules/tasks/tasks";
 import userAgentParser from "ua-parser-js";
-import { OneWayWebSocket } from "../utils/OneWayWebSocket";
 import { delay } from "../utils/delay";
+import { OneWayWebSocket } from "../utils/OneWayWebSocket";
+import { type FieldError, isApiError } from "./errors";
 import type {
 	DynamicParametersRequest,
 	PostWorkspaceUsageRequest,
@@ -105,6 +107,13 @@ const getMissingParameters = (
 
 	return missingParameters;
 };
+
+/**
+ * Originally from codersdk/client.go.
+ * The below declaration is required to stop Knip from complaining.
+ * @public
+ */
+export const SessionTokenCookie = "coder_session_token";
 
 /**
  * @param agentId
@@ -390,6 +399,15 @@ export class MissingBuildParameters extends Error {
 	}
 }
 
+export class ParameterValidationError extends Error {
+	constructor(
+		public readonly versionId: string,
+		public readonly validations: FieldError[],
+	) {
+		super("Parameters are not valid for new template version");
+	}
+}
+
 export type GetProvisionerJobsParams = {
 	status?: string;
 	limit?: number;
@@ -403,6 +421,12 @@ export type GetProvisionerDaemonsParams = {
 	// Stringified JSON Object
 	tags?: string;
 	limit?: number;
+	// Include offline provisioner daemons?
+	offline?: boolean;
+};
+
+export type TasksFilter = {
+	username?: string;
 };
 
 /**
@@ -1170,9 +1194,9 @@ class ApiMethods {
 	};
 
 	getWorkspaces = async (
-		options: TypesGen.WorkspacesRequest,
+		req: TypesGen.WorkspacesRequest,
 	): Promise<TypesGen.WorkspacesResponse> => {
-		const url = getURLWithSearchParams("/api/v2/workspaces", options);
+		const url = getURLWithSearchParams("/api/v2/workspaces", req);
 		const response = await this.axios.get<TypesGen.WorkspacesResponse>(url);
 		return response.data;
 	};
@@ -1205,7 +1229,7 @@ class ApiMethods {
 	waitForBuild = (build: TypesGen.WorkspaceBuild) => {
 		return new Promise<TypesGen.ProvisionerJob | undefined>((res, reject) => {
 			void (async () => {
-				let latestJobInfo: TypesGen.ProvisionerJob | undefined = undefined;
+				let latestJobInfo: TypesGen.ProvisionerJob | undefined;
 
 				while (
 					!["succeeded", "canceled"].some((status) =>
@@ -1239,7 +1263,6 @@ class ApiMethods {
 			`/api/v2/workspaces/${workspaceId}/builds`,
 			data,
 		);
-
 		return response.data;
 	};
 
@@ -1263,6 +1286,7 @@ class ApiMethods {
 			template_version_id: templateVersionId,
 			log_level: logLevel,
 			rich_parameter_values: buildParameters,
+			reason: "dashboard",
 		});
 	};
 
@@ -1879,6 +1903,13 @@ class ApiMethods {
 		return response.data;
 	};
 
+	updateWorkspaceACL = async (
+		workspaceId: string,
+		data: TypesGen.UpdateWorkspaceACL,
+	): Promise<void> => {
+		await this.axios.patch(`/api/v2/workspaces/${workspaceId}/acl`, data);
+	};
+
 	getApplicationsHost = async (): Promise<TypesGen.AppHostResponse> => {
 		const response = await this.axios.get("/api/v2/applications/host");
 		return response.data;
@@ -1994,6 +2025,16 @@ class ApiMethods {
 	): Promise<TypesGen.WorkspaceAgentPortShares> => {
 		const response = await this.axios.get(
 			`/api/v2/workspaces/${workspaceID}/port-share`,
+		);
+		return response.data;
+	};
+
+	getWorkspaceAgentCredentials = async (
+		workspaceID: string,
+		agentName: string,
+	): Promise<TypesGen.ExternalAgentCredentials> => {
+		const response = await this.axios.get(
+			`/api/v2/workspaces/${workspaceID}/external-agent/${agentName}/credentials`,
 		);
 		return response.data;
 	};
@@ -2268,18 +2309,33 @@ class ApiMethods {
 
 		const activeVersionId = template.active_version_id;
 
-		let templateParameters: TypesGen.TemplateVersionParameter[] = [];
-
 		if (isDynamicParametersEnabled) {
-			templateParameters = await this.getDynamicParameters(
-				activeVersionId,
-				workspace.owner_id,
-				oldBuildParameters,
-			);
-		} else {
-			templateParameters =
-				await this.getTemplateVersionRichParameters(activeVersionId);
+			try {
+				return await this.postWorkspaceBuild(workspace.id, {
+					transition: "start",
+					template_version_id: activeVersionId,
+					rich_parameter_values: newBuildParameters,
+				});
+			} catch (error) {
+				// If the build failed because of a parameter validation error, then we
+				// throw a special sentinel error that can be caught by the caller.
+				if (
+					isApiError(error) &&
+					error.response.status === 400 &&
+					error.response.data.validations &&
+					error.response.data.validations.length > 0
+				) {
+					throw new ParameterValidationError(
+						activeVersionId,
+						error.response.data.validations,
+					);
+				}
+				throw error;
+			}
 		}
+
+		const templateParameters =
+			await this.getTemplateVersionRichParameters(activeVersionId);
 
 		const missingParameters = getMissingParameters(
 			oldBuildParameters,
@@ -2625,6 +2681,42 @@ class ExperimentalApiMethods {
 		);
 
 		return response.data;
+	};
+
+	createTask = async (
+		user: string,
+		req: TypesGen.CreateTaskRequest,
+	): Promise<TypesGen.Task> => {
+		const response = await this.axios.post<TypesGen.Task>(
+			`/api/experimental/tasks/${user}`,
+			req,
+		);
+
+		return response.data;
+	};
+
+	getTasks = async (filter: TasksFilter): Promise<Task[]> => {
+		const queryExpressions = ["has-ai-task:true"];
+
+		if (filter.username) {
+			queryExpressions.push(`owner:${filter.username}`);
+		}
+
+		const res = await API.getWorkspaces({
+			q: queryExpressions.join(" "),
+		});
+		// Exclude prebuild workspaces as they are not user-facing.
+		const workspaces = res.workspaces.filter(
+			(workspace) => !workspace.is_prebuild,
+		);
+		const prompts = await API.experimental.getAITasksPrompts(
+			workspaces.map((workspace) => workspace.latest_build.id),
+		);
+
+		return workspaces.map((workspace) => ({
+			workspace,
+			prompt: prompts.prompts[workspace.latest_build.id],
+		}));
 	};
 }
 

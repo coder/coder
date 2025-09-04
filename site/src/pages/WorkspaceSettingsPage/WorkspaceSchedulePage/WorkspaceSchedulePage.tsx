@@ -20,14 +20,14 @@ import { useWorkspaceSettings } from "pages/WorkspaceSettingsPage/WorkspaceSetti
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
-import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
 import {
 	formValuesToAutostartRequest,
 	formValuesToTTLRequest,
 } from "./formToRequest";
+import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
 
 const permissionsToCheck = (workspace: TypesGen.Workspace) =>
 	({

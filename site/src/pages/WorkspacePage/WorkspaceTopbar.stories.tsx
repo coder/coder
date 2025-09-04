@@ -1,8 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, screen, userEvent, waitFor, within } from "@storybook/test";
-import { getWorkspaceQuotaQueryKey } from "api/queries/workspaceQuota";
-import type { Workspace, WorkspaceQuota } from "api/typesGenerated";
-import dayjs from "dayjs";
 import {
 	MockOrganization,
 	MockTemplate,
@@ -11,6 +6,11 @@ import {
 	MockWorkspace,
 } from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { getWorkspaceQuotaQueryKey } from "api/queries/workspaceQuota";
+import type { Workspace, WorkspaceQuota } from "api/typesGenerated";
+import dayjs from "dayjs";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
 // We want a workspace without a deadline to not pollute the screenshot. Also

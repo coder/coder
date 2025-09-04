@@ -1,8 +1,8 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import {
 	MockOrganizationAuditorRole,
 	MockRoleWithOrgPermissions,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { CustomRolesPageView } from "./CustomRolesPageView";
 
 const meta: Meta<typeof CustomRolesPageView> = {

@@ -1,6 +1,6 @@
-import { action } from "@storybook/addon-actions";
-import type { Meta, StoryObj } from "@storybook/react";
 import { MockTemplate, mockApiError } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { action } from "storybook/actions";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 
 const meta: Meta<typeof TemplateSettingsPageView> = {

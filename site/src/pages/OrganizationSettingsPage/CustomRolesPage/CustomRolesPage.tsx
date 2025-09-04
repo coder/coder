@@ -16,7 +16,7 @@ import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { CustomRolesPageView } from "./CustomRolesPageView";
 
@@ -58,7 +58,7 @@ const CustomRolesPage: FC = () => {
 	}
 
 	return (
-		<>
+		<div className="w-full max-w-screen-2xl pb-10">
 			<Helmet>
 				<title>
 					{pageTitle(
@@ -116,7 +116,7 @@ const CustomRolesPage: FC = () => {
 					}}
 				/>
 			</RequirePermission>
-		</>
+		</div>
 	);
 };
 

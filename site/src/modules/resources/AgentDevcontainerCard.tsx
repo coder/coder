@@ -218,7 +218,8 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							text-sm font-semibold text-content-primary
 							md:overflow-visible"
 						>
-							{subAgent?.name ?? devcontainer.name}
+							{subAgent?.name ??
+								(devcontainer.name || devcontainer.config_path)}
 							{devcontainer.container && (
 								<span className="text-content-tertiary">
 									{" "}
@@ -253,7 +254,8 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						disabled={devcontainer.status === "starting"}
 					>
 						<Spinner loading={devcontainer.status === "starting"} />
-						Rebuild
+
+						{devcontainer.container === undefined ? "Start" : "Rebuild"}
 					</Button>
 
 					{showDevcontainerControls && displayApps.includes("ssh_helper") && (
@@ -294,28 +296,26 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 					{showSubAgentApps && (
 						<section className={appsClasses}>
-							<>
-								{showVSCode && (
-									<VSCodeDevContainerButton
-										userName={workspace.owner_name}
-										workspaceName={workspace.name}
-										devContainerName={devcontainer.container.name}
-										devContainerFolder={subAgent?.directory ?? ""}
-										localWorkspaceFolder={devcontainer.workspace_folder}
-										localConfigFile={devcontainer.config_path || ""}
-										displayApps={displayApps} // TODO(mafredri): We could use subAgent display apps here but we currently set none.
-										agentName={parentAgent.name}
-									/>
-								)}
-								{appSections.map((section, i) => (
-									<AgentApps
-										key={section.group ?? i}
-										section={section}
-										agent={subAgent}
-										workspace={workspace}
-									/>
-								))}
-							</>
+							{showVSCode && (
+								<VSCodeDevContainerButton
+									userName={workspace.owner_name}
+									workspaceName={workspace.name}
+									devContainerName={devcontainer.container.name}
+									devContainerFolder={subAgent?.directory ?? ""}
+									localWorkspaceFolder={devcontainer.workspace_folder}
+									localConfigFile={devcontainer.config_path || ""}
+									displayApps={displayApps} // TODO(mafredri): We could use subAgent display apps here but we currently set none.
+									agentName={parentAgent.name}
+								/>
+							)}
+							{appSections.map((section, i) => (
+								<AgentApps
+									key={section.group ?? i}
+									section={section}
+									agent={subAgent}
+									workspace={workspace}
+								/>
+							))}
 
 							{displayApps.includes("web_terminal") && (
 								<TerminalLink

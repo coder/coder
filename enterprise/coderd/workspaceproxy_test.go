@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -311,8 +312,7 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		proxyClient := wsproxysdk.New(client.URL)
-		proxyClient.SetSessionToken(createRes.ProxyToken)
+		proxyClient := wsproxysdk.New(client.URL, createRes.ProxyToken)
 
 		// Register
 		req := wsproxysdk.RegisterWorkspaceProxyRequest{
@@ -426,8 +426,7 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		proxyClient := wsproxysdk.New(client.URL)
-		proxyClient.SetSessionToken(createRes.ProxyToken)
+		proxyClient := wsproxysdk.New(client.URL, createRes.ProxyToken)
 
 		req := wsproxysdk.RegisterWorkspaceProxyRequest{
 			AccessURL:           "https://proxy.coder.test",
@@ -471,8 +470,7 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		proxyClient := wsproxysdk.New(client.URL)
-		proxyClient.SetSessionToken(createRes.ProxyToken)
+		proxyClient := wsproxysdk.New(client.URL, createRes.ProxyToken)
 
 		err = proxyClient.DeregisterWorkspaceProxy(ctx, wsproxysdk.DeregisterWorkspaceProxyRequest{
 			ReplicaID: uuid.New(),
@@ -500,8 +498,7 @@ func TestProxyRegisterDeregister(t *testing.T) {
 
 		// Register a replica on proxy 2. This shouldn't be returned by replicas
 		// for proxy 1.
-		proxyClient2 := wsproxysdk.New(client.URL)
-		proxyClient2.SetSessionToken(createRes2.ProxyToken)
+		proxyClient2 := wsproxysdk.New(client.URL, createRes2.ProxyToken)
 		_, err = proxyClient2.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
 			AccessURL:           "https://other.proxy.coder.test",
 			WildcardHostname:    "*.other.proxy.coder.test",
@@ -515,8 +512,7 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		require.NoError(t, err)
 
 		// Register replica 1.
-		proxyClient1 := wsproxysdk.New(client.URL)
-		proxyClient1.SetSessionToken(createRes1.ProxyToken)
+		proxyClient1 := wsproxysdk.New(client.URL, createRes1.ProxyToken)
 		req1 := wsproxysdk.RegisterWorkspaceProxyRequest{
 			AccessURL:           "https://one.proxy.coder.test",
 			WildcardHostname:    "*.one.proxy.coder.test",
@@ -573,8 +569,7 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		proxyClient := wsproxysdk.New(client.URL)
-		proxyClient.SetSessionToken(createRes.ProxyToken)
+		proxyClient := wsproxysdk.New(client.URL, createRes.ProxyToken)
 
 		for i := 0; i < 100; i++ {
 			ok := false
@@ -651,8 +646,7 @@ func TestIssueSignedAppToken(t *testing.T) {
 
 	t.Run("BadAppRequest", func(t *testing.T) {
 		t.Parallel()
-		proxyClient := wsproxysdk.New(client.URL)
-		proxyClient.SetSessionToken(proxyRes.ProxyToken)
+		proxyClient := wsproxysdk.New(client.URL, proxyRes.ProxyToken)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := proxyClient.IssueSignedAppToken(ctx, workspaceapps.IssueTokenRequest{
@@ -673,8 +667,7 @@ func TestIssueSignedAppToken(t *testing.T) {
 	}
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
-		proxyClient := wsproxysdk.New(client.URL)
-		proxyClient.SetSessionToken(proxyRes.ProxyToken)
+		proxyClient := wsproxysdk.New(client.URL, proxyRes.ProxyToken)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := proxyClient.IssueSignedAppToken(ctx, goodRequest)
@@ -683,8 +676,7 @@ func TestIssueSignedAppToken(t *testing.T) {
 
 	t.Run("OKHTML", func(t *testing.T) {
 		t.Parallel()
-		proxyClient := wsproxysdk.New(client.URL)
-		proxyClient.SetSessionToken(proxyRes.ProxyToken)
+		proxyClient := wsproxysdk.New(client.URL, proxyRes.ProxyToken)
 
 		rw := httptest.NewRecorder()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1009,11 +1001,16 @@ func TestGetCryptoKeys(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		db, pubsub := dbtestutil.NewDB(t)
+		// IgnoreErrors is set here to avoid a test failure due to "used of closed network connection".
+		logger := slogtest.Make(t, &slogtest.Options{
+			IgnoreErrors: true,
+		})
 		cclient, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				Database:                 db,
 				Pubsub:                   pubsub,
 				IncludeProvisionerDaemon: true,
+				Logger:                   &logger,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -1026,8 +1023,7 @@ func TestGetCryptoKeys(t *testing.T) {
 			Name: testutil.GetRandomName(t),
 		})
 
-		client := wsproxysdk.New(cclient.URL)
-		client.SetSessionToken(cclient.SessionToken())
+		client := wsproxysdk.New(cclient.URL, cclient.SessionToken())
 
 		_, err := client.CryptoKeys(ctx, codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey)
 		require.Error(t, err)

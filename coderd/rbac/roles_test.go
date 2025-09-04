@@ -858,6 +858,36 @@ func TestRolePermissions(t *testing.T) {
 				false: {setOtherOrg, setOrgNotMe, memberMe, orgMemberMe, templateAdmin, userAdmin},
 			},
 		},
+		// Only the user themselves can access their own secrets — no one else.
+		{
+			Name:     "UserSecrets",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceUserSecret.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {memberMe, orgMemberMe},
+				false: {
+					owner, orgAdmin,
+					otherOrgAdmin, otherOrgMember, orgAuditor, orgUserAdmin, orgTemplateAdmin,
+					templateAdmin, userAdmin, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
+		{
+			Name:     "UsageEvents",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceUsageEvent,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {},
+				false: {
+					owner,
+					memberMe, orgMemberMe, otherOrgMember,
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
 	}
 
 	// We expect every permission to be tested above.

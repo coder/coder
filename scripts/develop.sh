@@ -14,11 +14,17 @@ source "${SCRIPT_DIR}/lib.sh"
 set -euo pipefail
 
 CODER_DEV_ACCESS_URL="${CODER_DEV_ACCESS_URL:-http://127.0.0.1:3000}"
+DEVELOP_IN_CODER="${DEVELOP_IN_CODER:-0}"
 debug=0
 DEFAULT_PASSWORD="SomeSecurePassword!"
 password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
 use_proxy=0
 multi_org=0
+
+# Ensure that extant environment variables do not override
+# the config dir we use to override auth for dev.coder.com.
+unset CODER_SESSION_TOKEN
+unset CODER_URL
 
 args="$(getopt -o "" -l access-url:,use-proxy,agpl,debug,password:,multi-organization -- "$@")"
 eval set -- "$args"
@@ -66,16 +72,36 @@ if [ "${CODER_BUILD_AGPL:-0}" -gt "0" ] && [ "${multi_org}" -gt "0" ]; then
 	echo '== ERROR: cannot use both multi-organizations and APGL build.' && exit 1
 fi
 
+if [ -n "${CODER_AGENT_URL:-}" ]; then
+	DEVELOP_IN_CODER=1
+fi
+
 # Preflight checks: ensure we have our required dependencies, and make sure nothing is listening on port 3000 or 8080
-dependencies curl git go make pnpm
-curl --fail http://127.0.0.1:3000 >/dev/null 2>&1 && echo '== ERROR: something is listening on port 3000. Kill it and re-run this script.' && exit 1
-curl --fail http://127.0.0.1:8080 >/dev/null 2>&1 && echo '== ERROR: something is listening on port 8080. Kill it and re-run this script.' && exit 1
+dependencies curl git go jq make pnpm
+
+if curl --silent --fail http://127.0.0.1:3000; then
+	# Check if this is the Coder development server.
+	if curl --silent --fail http://127.0.0.1:3000/api/v2/buildinfo 2>&1 | jq -r '.version' >/dev/null 2>&1; then
+		echo '== INFO: Coder development server is already running on port 3000!' && exit 0
+	else
+		echo '== ERROR: something is listening on port 3000. Kill it and re-run this script.' && exit 1
+	fi
+fi
+
+if curl --fail http://127.0.0.1:8080 >/dev/null 2>&1; then
+	# Check if this is the Coder development frontend.
+	if curl --silent --fail http://127.0.0.1:8080/api/v2/buildinfo 2>&1 | jq -r '.version' >/dev/null 2>&1; then
+		echo '== INFO: Coder development frontend is already running on port 8080!' && exit 0
+	else
+		echo '== ERROR: something is listening on port 8080. Kill it and re-run this script.' && exit 1
+	fi
+fi
 
 # Compile the CLI binary. This should also compile the frontend and refresh
 # node_modules if necessary.
 GOOS="$(go env GOOS)"
 GOARCH="$(go env GOARCH)"
-make -j "build/coder_${GOOS}_${GOARCH}"
+DEVELOP_IN_CODER="${DEVELOP_IN_CODER}" make -j "build/coder_${GOOS}_${GOARCH}"
 
 # Use the coder dev shim so we don't overwrite the user's existing Coder config.
 CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
@@ -150,7 +176,7 @@ fatal() {
 	trap 'fatal "Script encountered an error"' ERR
 
 	cdroot
-	DEBUG_DELVE="${debug}" start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "${CODER_DEV_ACCESS_URL}" --dangerous-allow-cors-requests=true --enable-terraform-debug-mode "$@"
+	DEBUG_DELVE="${debug}" DEVELOP_IN_CODER="${DEVELOP_IN_CODER}" start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "${CODER_DEV_ACCESS_URL}" --dangerous-allow-cors-requests=true --enable-terraform-debug-mode "$@"
 
 	echo '== Waiting for Coder to become ready'
 	# Start the timeout in the background so interrupting this script

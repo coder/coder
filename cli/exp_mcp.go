@@ -56,7 +56,7 @@ func (r *RootCmd) mcpConfigure() *serpent.Command {
 		},
 		Children: []*serpent.Command{
 			r.mcpConfigureClaudeDesktop(),
-			r.mcpConfigureClaudeCode(),
+			mcpConfigureClaudeCode(),
 			r.mcpConfigureCursor(),
 		},
 	}
@@ -117,7 +117,7 @@ func (*RootCmd) mcpConfigureClaudeDesktop() *serpent.Command {
 	return cmd
 }
 
-func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
+func mcpConfigureClaudeCode() *serpent.Command {
 	var (
 		claudeAPIKey     string
 		claudeConfigPath string
@@ -127,9 +127,11 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 		appStatusSlug    string
 		testBinaryName   string
 		aiAgentAPIURL    url.URL
+		claudeUseBedrock string
 
 		deprecatedCoderMCPClaudeAPIKey string
 	)
+	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use:   "claude-code <project-directory>",
 		Short: "Configure the Claude Code server. You will need to run this command for each project you want to use. Specify the project directory as the first argument.",
@@ -147,21 +149,22 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				binPath = testBinaryName
 			}
 			configureClaudeEnv := map[string]string{}
-			agentClient, err := r.createAgentClient()
+			agentClient, err := agentAuth.CreateClient()
 			if err != nil {
 				cliui.Warnf(inv.Stderr, "failed to create agent client: %s", err)
 			} else {
 				configureClaudeEnv[envAgentURL] = agentClient.SDK.URL.String()
 				configureClaudeEnv[envAgentToken] = agentClient.SDK.SessionToken()
 			}
-			if claudeAPIKey == "" {
-				if deprecatedCoderMCPClaudeAPIKey == "" {
-					cliui.Warnf(inv.Stderr, "CLAUDE_API_KEY is not set.")
-				} else {
-					cliui.Warnf(inv.Stderr, "CODER_MCP_CLAUDE_API_KEY is deprecated, use CLAUDE_API_KEY instead")
-					claudeAPIKey = deprecatedCoderMCPClaudeAPIKey
-				}
+
+			if deprecatedCoderMCPClaudeAPIKey != "" {
+				cliui.Warnf(inv.Stderr, "CODER_MCP_CLAUDE_API_KEY is deprecated, use CLAUDE_API_KEY instead")
+				claudeAPIKey = deprecatedCoderMCPClaudeAPIKey
 			}
+			if claudeAPIKey == "" && claudeUseBedrock != "1" {
+				cliui.Warnf(inv.Stderr, "CLAUDE_API_KEY is not set.")
+			}
+
 			if appStatusSlug != "" {
 				configureClaudeEnv[envAppStatusSlug] = appStatusSlug
 			}
@@ -280,8 +283,17 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				Value:       serpent.StringOf(&testBinaryName),
 				Hidden:      true,
 			},
+			{
+				Name:        "claude-code-use-bedrock",
+				Description: "Use Amazon Bedrock.",
+				Env:         "CLAUDE_CODE_USE_BEDROCK",
+				Flag:        "claude-code-use-bedrock",
+				Value:       serpent.StringOf(&claudeUseBedrock),
+				Hidden:      true,
+			},
 		},
 	}
+	agentAuth.AttachOptions(cmd, false)
 	return cmd
 }
 
@@ -393,7 +405,8 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 		appStatusSlug string
 		aiAgentAPIURL url.URL
 	)
-	return &serpent.Command{
+	agentAuth := &AgentAuth{}
+	cmd := &serpent.Command{
 		Use: "server",
 		Handler: func(inv *serpent.Invocation) error {
 			var lastReport taskReport
@@ -484,7 +497,7 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 			}
 
 			// Try to create an agent client for status reporting.  Not validated.
-			agentClient, err := r.createAgentClient()
+			agentClient, err := agentAuth.CreateClient()
 			if err == nil {
 				cliui.Infof(inv.Stderr, "Agent URL      : %s", agentClient.SDK.URL.String())
 				srv.agentClient = agentClient
@@ -569,6 +582,8 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 			},
 		},
 	}
+	agentAuth.AttachOptions(cmd, false)
+	return cmd
 }
 
 func (s *mcpServer) startReporter(ctx context.Context, inv *serpent.Invocation) {

@@ -162,6 +162,8 @@ export interface Preset {
   parameters: PresetParameter[];
   prebuild: Prebuild | undefined;
   default: boolean;
+  description: string;
+  icon: string;
 }
 
 export interface PresetParameter {
@@ -460,6 +462,7 @@ export interface PlanComplete {
    */
   hasAiTasks: boolean;
   aiTasks: AITask[];
+  hasExternalAgents: boolean;
 }
 
 /**
@@ -714,6 +717,12 @@ export const Preset = {
     }
     if (message.default === true) {
       writer.uint32(32).bool(message.default);
+    }
+    if (message.description !== "") {
+      writer.uint32(42).string(message.description);
+    }
+    if (message.icon !== "") {
+      writer.uint32(50).string(message.icon);
     }
     return writer;
   },
@@ -1386,6 +1395,9 @@ export const PlanComplete = {
     }
     for (const v of message.aiTasks) {
       AITask.encode(v!, writer.uint32(114).fork()).ldelim();
+    }
+    if (message.hasExternalAgents === true) {
+      writer.uint32(120).bool(message.hasExternalAgents);
     }
     return writer;
   },

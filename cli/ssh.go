@@ -590,7 +590,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 
 				err = sshSession.Wait()
-				conn.SendDisconnectedTelemetry()
+				conn.TailnetConn().SendDisconnectedTelemetry()
 				if err != nil {
 					if exitErr := (&gossh.ExitError{}); errors.As(err, &exitErr) {
 						// Clear the error since it's not useful beyond
@@ -754,7 +754,7 @@ func findWorkspaceAndAgentByHostname(
 		hostname = strings.TrimSuffix(hostname, qualifiedSuffix)
 	}
 	hostname = normalizeWorkspaceInput(hostname)
-	ws, agent, _, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, hostname)
+	ws, agent, _, err := GetWorkspaceAndAgent(ctx, inv, client, !disableAutostart, hostname)
 	return ws, agent, err
 }
 
@@ -827,11 +827,11 @@ startWatchLoop:
 	}
 }
 
-// getWorkspaceAgent returns the workspace and agent selected using either the
+// GetWorkspaceAndAgent returns the workspace and agent selected using either the
 // `<workspace>[.<agent>]` syntax via `in`. It will also return any other agents
 // in the workspace as a slice for use in child->parent lookups.
 // If autoStart is true, the workspace will be started if it is not already running.
-func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, autostart bool, input string) (codersdk.Workspace, codersdk.WorkspaceAgent, []codersdk.WorkspaceAgent, error) { //nolint:revive
+func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, autostart bool, input string) (codersdk.Workspace, codersdk.WorkspaceAgent, []codersdk.WorkspaceAgent, error) { //nolint:revive
 	var (
 		workspace codersdk.Workspace
 		// The input will be `owner/name.agent`
@@ -873,12 +873,14 @@ func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 		// It's possible for a workspace build to fail due to the template requiring starting
 		// workspaces with the active version.
 		_, _ = fmt.Fprintf(inv.Stderr, "Workspace was stopped, starting workspace to allow connecting to %q...\n", workspace.Name)
-		_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, buildFlags{}, WorkspaceStart)
+		_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, buildFlags{
+			reason: string(codersdk.BuildReasonSSHConnection),
+		}, WorkspaceStart)
 		if cerr, ok := codersdk.AsError(err); ok {
 			switch cerr.StatusCode() {
 			case http.StatusConflict:
 				_, _ = fmt.Fprintln(inv.Stderr, "Unable to start the workspace due to conflict, the workspace may be starting, retrying without autostart...")
-				return getWorkspaceAndAgent(ctx, inv, client, false, input)
+				return GetWorkspaceAndAgent(ctx, inv, client, false, input)
 
 			case http.StatusForbidden:
 				_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, buildFlags{}, WorkspaceUpdate)
@@ -1362,7 +1364,7 @@ func getUsageAppName(usageApp string) codersdk.UsageAppName {
 
 func setStatsCallback(
 	ctx context.Context,
-	agentConn *workspacesdk.AgentConn,
+	agentConn workspacesdk.AgentConn,
 	logger slog.Logger,
 	networkInfoDir string,
 	networkInfoInterval time.Duration,
@@ -1435,7 +1437,7 @@ func setStatsCallback(
 
 	now := time.Now()
 	cb(now, now.Add(time.Nanosecond), map[netlogtype.Connection]netlogtype.Counts{}, map[netlogtype.Connection]netlogtype.Counts{})
-	agentConn.SetConnStatsCallback(networkInfoInterval, 2048, cb)
+	agentConn.TailnetConn().SetConnStatsCallback(networkInfoInterval, 2048, cb)
 	return errCh, nil
 }
 
@@ -1449,13 +1451,13 @@ type sshNetworkStats struct {
 	UsingCoderConnect bool               `json:"using_coder_connect"`
 }
 
-func collectNetworkStats(ctx context.Context, agentConn *workspacesdk.AgentConn, start, end time.Time, counts map[netlogtype.Connection]netlogtype.Counts) (*sshNetworkStats, error) {
+func collectNetworkStats(ctx context.Context, agentConn workspacesdk.AgentConn, start, end time.Time, counts map[netlogtype.Connection]netlogtype.Counts) (*sshNetworkStats, error) {
 	latency, p2p, pingResult, err := agentConn.Ping(ctx)
 	if err != nil {
 		return nil, err
 	}
-	node := agentConn.Node()
-	derpMap := agentConn.DERPMap()
+	node := agentConn.TailnetConn().Node()
+	derpMap := agentConn.TailnetConn().DERPMap()
 
 	totalRx := uint64(0)
 	totalTx := uint64(0)

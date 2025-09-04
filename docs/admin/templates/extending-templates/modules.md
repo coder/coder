@@ -40,14 +40,14 @@ in the Terraform documentation.
 Coder publishes plenty of modules that can be used to simplify some common tasks
 across templates. Some of the modules we publish are,
 
-1. [`code-server`](https://registry.coder.com/modules/code-server) and
-   [`vscode-web`](https://registry.coder.com/modules/vscode-web)
-2. [`git-clone`](https://registry.coder.com/modules/git-clone)
-3. [`dotfiles`](https://registry.coder.com/modules/dotfiles)
-4. [`jetbrains-gateway`](https://registry.coder.com/modules/jetbrains-gateway)
-5. [`jfrog-oauth`](https://registry.coder.com/modules/jfrog-oauth) and
-   [`jfrog-token`](https://registry.coder.com/modules/jfrog-token)
-6. [`vault-github`](https://registry.coder.com/modules/vault-github)
+1. [`code-server`](https://registry.coder.com/modules/coder/code-server) and
+   [`vscode-web`](https://registry.coder.com/modules/coder/vscode-web)
+2. [`git-clone`](https://registry.coder.com/modules/coder/git-clone)
+3. [`dotfiles`](https://registry.coder.com/modules/coder/dotfiles)
+4. [`jetbrains`](https://registry.coder.com/modules/coder/jetbrains)
+5. [`jfrog-oauth`](https://registry.coder.com/modules/coder/jfrog-oauth) and
+   [`jfrog-token`](https://registry.coder.com/modules/coder/jfrog-token)
+6. [`vault-github`](https://registry.coder.com/modules/coder/vault-github)
 
 For a full list of available modules please check
 [Coder module registry](https://registry.coder.com/modules).

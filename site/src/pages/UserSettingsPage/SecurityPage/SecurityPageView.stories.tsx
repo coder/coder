@@ -1,11 +1,11 @@
-import { action } from "@storybook/addon-actions";
-import type { Meta, StoryObj } from "@storybook/react";
-import set from "lodash/fp/set";
-import type { ComponentProps } from "react";
 import {
 	MockAuthMethodsAll,
 	MockAuthMethodsPasswordOnly,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import set from "lodash/fp/set";
+import type { ComponentProps } from "react";
+import { action } from "storybook/actions";
 import { SecurityPageView } from "./SecurityPage";
 
 const defaultArgs: ComponentProps<typeof SecurityPageView> = {

@@ -10,8 +10,7 @@ import {
 import { organizationRoles } from "api/queries/roles";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Link } from "components/Link/Link";
 import { Paywall } from "components/Paywall/Paywall";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
@@ -20,7 +19,7 @@ import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import IdpSyncPageView from "./IdpSyncPageView";
@@ -75,6 +74,13 @@ const IdpSyncPage: FC = () => {
 		enabled: !!field,
 	});
 
+	const patchGroupSyncSettingsMutation = useMutation(
+		patchGroupSyncSettings(organizationName, queryClient),
+	);
+	const patchRoleSyncSettingsMutation = useMutation(
+		patchRoleSyncSettings(organizationName, queryClient),
+	);
+
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
 	}
@@ -96,13 +102,6 @@ const IdpSyncPage: FC = () => {
 		);
 	}
 
-	const patchGroupSyncSettingsMutation = useMutation(
-		patchGroupSyncSettings(organizationName, queryClient),
-	);
-	const patchRoleSyncSettingsMutation = useMutation(
-		patchRoleSyncSettings(organizationName, queryClient),
-	);
-
 	const error =
 		patchGroupSyncSettingsMutation.error ||
 		patchRoleSyncSettingsMutation.error ||
@@ -118,7 +117,7 @@ const IdpSyncPage: FC = () => {
 	}
 
 	return (
-		<>
+		<div className="w-full max-w-screen-2xl pb-10">
 			{helmet}
 
 			<div className="flex flex-col gap-12">
@@ -183,7 +182,7 @@ const IdpSyncPage: FC = () => {
 					</Cond>
 				</ChooseOne>
 			</div>
-		</>
+		</div>
 	);
 };
 

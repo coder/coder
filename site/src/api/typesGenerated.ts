@@ -275,13 +275,27 @@ export interface BuildInfoResponse {
 }
 
 // From codersdk/workspacebuilds.go
-export type BuildReason = "autostart" | "autostop" | "dormancy" | "initiator";
+export type BuildReason =
+	| "autostart"
+	| "autostop"
+	| "cli"
+	| "dashboard"
+	| "dormancy"
+	| "initiator"
+	| "jetbrains_connection"
+	| "ssh_connection"
+	| "vscode_connection";
 
 export const BuildReasons: BuildReason[] = [
 	"autostart",
 	"autostop",
+	"cli",
+	"dashboard",
 	"dormancy",
 	"initiator",
+	"jetbrains_connection",
+	"ssh_connection",
+	"vscode_connection",
 ];
 
 // From codersdk/client.go
@@ -292,6 +306,11 @@ export const BypassRatelimitHeader = "X-Coder-Bypass-Ratelimit";
 
 // From codersdk/client.go
 export const CLITelemetryHeader = "Coder-CLI-Telemetry";
+
+// From codersdk/cors_behavior.go
+export type CORSBehavior = "passthru" | "simple";
+
+export const CORSBehaviors: CORSBehavior[] = ["passthru", "simple"];
 
 // From codersdk/workspacebuilds.go
 export interface CancelWorkspaceBuildParams {
@@ -457,6 +476,13 @@ export interface CreateProvisionerKeyResponse {
 	readonly key: string;
 }
 
+// From codersdk/aitasks.go
+export interface CreateTaskRequest {
+	readonly template_version_id: string;
+	readonly template_version_preset_id?: string;
+	readonly prompt: string;
+}
+
 // From codersdk/organizations.go
 export interface CreateTemplateRequest {
 	readonly name: string;
@@ -478,6 +504,7 @@ export interface CreateTemplateRequest {
 	readonly require_active_version: boolean;
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel | null;
 	readonly template_use_classic_parameter_flow?: boolean;
+	readonly cors_behavior: CORSBehavior | null;
 }
 
 // From codersdk/templateversions.go
@@ -531,6 +558,22 @@ export interface CreateUserRequestWithOrgs {
 }
 
 // From codersdk/workspaces.go
+export type CreateWorkspaceBuildReason =
+	| "cli"
+	| "dashboard"
+	| "jetbrains_connection"
+	| "ssh_connection"
+	| "vscode_connection";
+
+export const CreateWorkspaceBuildReasons: CreateWorkspaceBuildReason[] = [
+	"cli",
+	"dashboard",
+	"jetbrains_connection",
+	"ssh_connection",
+	"vscode_connection",
+];
+
+// From codersdk/workspaces.go
 export interface CreateWorkspaceBuildRequest {
 	readonly template_version_id?: string;
 	readonly transition: WorkspaceTransition;
@@ -540,6 +583,7 @@ export interface CreateWorkspaceBuildRequest {
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly log_level?: ProvisionerLogLevel;
 	readonly template_version_preset_id?: string;
+	readonly reason?: CreateWorkspaceBuildReason;
 }
 
 // From codersdk/workspaceproxy.go
@@ -880,6 +924,7 @@ export type Experiment =
 	| "notifications"
 	| "oauth2"
 	| "web-push"
+	| "workspace-sharing"
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
@@ -889,8 +934,15 @@ export const Experiments: Experiment[] = [
 	"notifications",
 	"oauth2",
 	"web-push",
+	"workspace-sharing",
 	"workspace-usage",
 ];
+
+// From codersdk/workspaces.go
+export interface ExternalAgentCredentials {
+	readonly command: string;
+	readonly agent_token: string;
+}
 
 // From codersdk/externalauth.go
 export interface ExternalAuth {
@@ -1005,6 +1057,7 @@ export type FeatureName =
 	| "user_limit"
 	| "user_role_management"
 	| "workspace_batch_actions"
+	| "workspace_external_agent"
 	| "workspace_prebuilds"
 	| "workspace_proxy";
 
@@ -1028,6 +1081,7 @@ export const FeatureNames: FeatureName[] = [
 	"user_limit",
 	"user_role_management",
 	"workspace_batch_actions",
+	"workspace_external_agent",
 	"workspace_prebuilds",
 	"workspace_proxy",
 ];
@@ -1786,6 +1840,9 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 // From codersdk/organizations.go
 export interface OrganizationProvisionerDaemonsOptions {
 	readonly Limit: number;
+	readonly Offline: boolean;
+	readonly Status: readonly ProvisionerDaemonStatus[];
+	readonly MaxAge: number;
 	readonly IDs: readonly string[];
 	readonly Tags: Record<string, string>;
 }
@@ -1966,6 +2023,9 @@ export interface Preset {
 	readonly Name: string;
 	readonly Parameters: readonly PresetParameter[];
 	readonly Default: boolean;
+	readonly DesiredPrebuildInstances: number | null;
+	readonly Description: string;
+	readonly Icon: string;
 }
 
 // From codersdk/presets.go
@@ -2116,6 +2176,7 @@ export interface ProvisionerJob {
 	readonly type: ProvisionerJobType;
 	readonly available_workers?: readonly string[];
 	readonly metadata: ProvisionerJobMetadata;
+	readonly logs_overflowed: boolean;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -2342,7 +2403,9 @@ export type RBACResource =
 	| "system"
 	| "tailnet_coordinator"
 	| "template"
+	| "usage_event"
 	| "user"
+	| "user_secret"
 	| "webpush_subscription"
 	| "*"
 	| "workspace"
@@ -2382,7 +2445,9 @@ export const RBACResources: RBACResource[] = [
 	"system",
 	"tailnet_coordinator",
 	"template",
+	"usage_event",
 	"user",
+	"user_secret",
 	"webpush_subscription",
 	"*",
 	"workspace",
@@ -2670,9 +2735,6 @@ export interface SessionLifetime {
 }
 
 // From codersdk/client.go
-export const SessionTokenCookie = "coder_session_token";
-
-// From codersdk/client.go
 export const SessionTokenHeader = "Coder-Session-Token";
 
 // From codersdk/client.go
@@ -2745,6 +2807,51 @@ export interface TailDERPRegion {
 	readonly Nodes: readonly TailDERPNode[];
 }
 
+// From codersdk/aitasks.go
+export interface Task {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly owner_id: string;
+	readonly owner_name: string;
+	readonly name: string;
+	readonly template_id: string;
+	readonly template_name: string;
+	readonly template_display_name: string;
+	readonly template_icon: string;
+	readonly workspace_id: string | null;
+	readonly workspace_agent_id: string | null;
+	readonly workspace_agent_lifecycle: WorkspaceAgentLifecycle | null;
+	readonly workspace_agent_health: WorkspaceAgentHealth | null;
+	readonly initial_prompt: string;
+	readonly status: WorkspaceStatus;
+	readonly current_state: TaskStateEntry | null;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/aitasks.go
+export type TaskState = "completed" | "failed" | "idle" | "working";
+
+// From codersdk/aitasks.go
+export interface TaskStateEntry {
+	readonly timestamp: string;
+	readonly state: TaskState;
+	readonly message: string;
+	readonly uri: string;
+}
+
+export const TaskStates: TaskState[] = [
+	"completed",
+	"failed",
+	"idle",
+	"working",
+];
+
+// From codersdk/aitasks.go
+export interface TasksFilter {
+	readonly owner?: string;
+}
+
 // From codersdk/deployment.go
 export interface TelemetryConfig {
 	readonly enable: boolean;
@@ -2785,6 +2892,7 @@ export interface Template {
 	readonly time_til_dormant_autodelete_ms: number;
 	readonly require_active_version: boolean;
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel;
+	readonly cors_behavior: CORSBehavior;
 	readonly use_classic_parameter_flow: boolean;
 }
 
@@ -2947,6 +3055,7 @@ export interface TemplateVersion {
 	readonly archived: boolean;
 	readonly warnings?: readonly TemplateVersionWarning[];
 	readonly matched_provisioners?: MatchedProvisioners;
+	readonly has_external_agent: boolean;
 }
 
 // From codersdk/templateversions.go
@@ -3157,6 +3266,7 @@ export interface UpdateTemplateMeta {
 	readonly deprecation_message?: string;
 	readonly disable_everyone_group_access: boolean;
 	readonly max_port_share_level?: WorkspaceAgentPortShareLevel;
+	readonly cors_behavior?: CORSBehavior;
 	readonly use_classic_parameter_flow?: boolean;
 }
 
@@ -3186,6 +3296,12 @@ export interface UpdateUserProfileRequest {
 // From codersdk/users.go
 export interface UpdateUserQuietHoursScheduleRequest {
 	readonly schedule: string;
+}
+
+// From codersdk/workspaces.go
+export interface UpdateWorkspaceACL {
+	readonly user_roles?: Record<string, WorkspaceRole>;
+	readonly group_roles?: Record<string, WorkspaceRole>;
 }
 
 // From codersdk/workspaces.go
@@ -3460,6 +3576,12 @@ export interface Workspace {
 	readonly favorite: boolean;
 	readonly next_start_at: string | null;
 	readonly is_prebuild: boolean;
+}
+
+// From codersdk/workspaces.go
+export interface WorkspaceACL {
+	readonly users: readonly WorkspaceUser[];
+	readonly group: readonly WorkspaceGroup[];
 }
 
 // From codersdk/workspaceagents.go
@@ -3816,6 +3938,7 @@ export interface WorkspaceBuild {
 	readonly template_version_preset_id: string | null;
 	readonly has_ai_task?: boolean;
 	readonly ai_task_sidebar_app_id?: string;
+	readonly has_external_agent?: boolean;
 }
 
 // From codersdk/workspacebuilds.go
@@ -3857,6 +3980,11 @@ export interface WorkspaceDeploymentStats {
 // From codersdk/workspaces.go
 export interface WorkspaceFilter {
 	readonly q?: string;
+}
+
+// From codersdk/workspaces.go
+export interface WorkspaceGroup extends Group {
+	readonly role: WorkspaceRole;
 }
 
 // From codersdk/workspaces.go
@@ -3928,6 +4056,11 @@ export interface WorkspaceResourceMetadata {
 	readonly sensitive: boolean;
 }
 
+// From codersdk/workspaces.go
+export type WorkspaceRole = "admin" | "" | "use";
+
+export const WorkspaceRoles: WorkspaceRole[] = ["admin", "", "use"];
+
 // From codersdk/workspacebuilds.go
 export type WorkspaceStatus =
 	| "canceled"
@@ -3962,6 +4095,11 @@ export const WorkspaceTransitions: WorkspaceTransition[] = [
 	"start",
 	"stop",
 ];
+
+// From codersdk/workspaces.go
+export interface WorkspaceUser extends MinimalUser {
+	readonly role: WorkspaceRole;
+}
 
 // From codersdk/workspaces.go
 export interface WorkspacesRequest extends Pagination {
