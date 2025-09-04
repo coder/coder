@@ -194,18 +194,21 @@ module "xray_database" {
 
 ### Common Issues
 
-**"No scan results found"**
+#### "No scan results found"
+
 - Verify the image exists in Artifactory
 - Check that Xray has scanned the image
 - Confirm the image path format is correct
 - Review Xray watch configuration
 
-**"Authentication failed"**
+#### "Authentication failed"
+
 - Verify the access token is valid and not expired
 - Check token permissions include Xray read access
 - Ensure the Xray URL is correct and accessible
 
-**"Module fails to apply"**
+#### "Module fails to apply"
+
 - Verify network connectivity from Coder to JFrog instance
 - Check Terraform provider versions are compatible
 - Review Coder logs for detailed error messages
