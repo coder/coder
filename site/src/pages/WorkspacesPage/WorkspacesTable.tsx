@@ -88,29 +88,7 @@ import {
 	lastUsedMessage,
 } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
-
-// Helper to extract a human-readable region from job tags
-const getWorkspaceRegion = (workspace: Workspace): string | undefined => {
-	const tags = workspace.latest_build?.job?.tags as Record<string, string> | undefined;
-	if (!tags) return undefined;
-	const preferredKeys = [
-		"region",
-		"region_name",
-		"region_code",
-		"cloud_region",
-		"workspace_region",
-		"aws_region",
-		"gcp_region",
-		"azure_region",
-	];
-	for (const key of preferredKeys) {
-		const val = tags[key];
-		if (val && typeof val === "string" && val.trim() !== "") {
-			return val;
-		}
-	}
-	return undefined;
-};
+import { useProxy } from "contexts/ProxyContext";
 
 interface WorkspacesTableProps {
 	workspaces?: readonly Workspace[];
@@ -137,6 +115,8 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	onActionError,
 }) => {
 	const dashboard = useDashboard();
+	const { proxy: preferred } = useProxy();
+	const connectionRegion = preferred.proxy?.display_name ?? preferred.proxy?.name ?? "—";
 
 	return (
 		<Table>
@@ -280,9 +260,9 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								/>
 							</TableCell>
 
-							{/* Region column */}
+							{/* Region column shows selected workspace proxy/connection region */}
 							<TableCell>
-								<span className="whitespace-nowrap">{getWorkspaceRegion(workspace) ?? "—"}</span>
+								<span className="whitespace-nowrap">{connectionRegion}</span>
 							</TableCell>
 
 							<WorkspaceStatusCell workspace={workspace} />
