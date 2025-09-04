@@ -51,8 +51,8 @@ export const WildcardHostnameWarning: FC<WildcardHostnameWarningProps> = ({
 							<code className="py-px px-1 bg-surface-tertiary rounded-sm text-content-primary">
 								subdomain = true
 							</code>
-							, but subdomain applications are not configured. Users won't be able
-							to access these applications until you configure the{" "}
+							, but subdomain applications are not configured. Users won't be
+							able to access these applications until you configure the{" "}
 							<code className="py-px px-1 bg-surface-tertiary rounded-sm text-content-primary">
 								--wildcard-access-url
 							</code>{" "}
@@ -71,7 +71,9 @@ export const WildcardHostnameWarning: FC<WildcardHostnameWarningProps> = ({
 				</div>
 				<div className="pt-2">
 					<Link href={docs("/admin/setup#wildcard-access-url")} target="_blank">
-						<span className="font-semibold">Learn more about wildcard access URL</span>
+						<span className="font-semibold">
+							Learn more about wildcard access URL
+						</span>
 					</Link>
 				</div>
 			</AlertDetail>
