@@ -71,7 +71,6 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 							icon={RotateCcwIcon}
 							onClick={() => {
 								onUpdate();
-								// TODO can we move this tooltip-closing logic to the definition of HelpTooltipAction?
 								setIsOpen(false);
 							}}
 							ariaLabel="Update workspace"
