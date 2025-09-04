@@ -105,7 +105,7 @@ var (
 )
 
 const (
-	metricsUpdateInterval = time.Second * 15
+	metricsUpdateInterval = time.Second * 60
 	metricsUpdateTimeout  = time.Second * 10
 )
 
