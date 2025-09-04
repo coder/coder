@@ -66,12 +66,12 @@ export type SubscriptionHandshake = Readonly<{
 	 * among all subscribers.
 	 *
 	 * For example, let's say that we have these three subscribers:
-	 * 1. A - Needs to be updated every 500ms
-	 * 2. B – Needs to be updated every 1500ms
-	 * 3. C – Uses update interval of Infinity
+	 * 1. A - Needs updates no slower than 500ms
+	 * 2. B – Needs updates no slower than 1000ms
+	 * 3. C – Uses interval of Infinity (does not strictly need an update)
 	 *
 	 * A, B, and C will all be updated at a rate of 500ms. If A unsubscribes,
-	 * then B and C will shift to being updated every 1500ms. If B unsubscribes,
+	 * then B and C will shift to being updated every 1000ms. If B unsubscribes,
 	 * updates will pause completely.
 	 */
 	targetRefreshIntervalMs: number;
