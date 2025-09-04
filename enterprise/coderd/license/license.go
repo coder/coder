@@ -125,10 +125,19 @@ func Entitlements(
 		ExternalWorkspaceCount: int64(len(externalWorkspaces)),
 		ExternalTemplateCount:  int64(len(externalTemplates)),
 		ManagedAgentCountFn: func(ctx context.Context, startTime time.Time, endTime time.Time) (int64, error) {
+			// This is not super accurate, as the start and end times will be
+			// truncated to the date in UTC timezone. This is an optimization
+			// so we can use an aggregate table instead of scanning the usage
+			// events table.
+			//
+			// High accuracy is not super necessary, as we give buffers in our
+			// licenses (e.g. higher hard limit) to account for additional
+			// usage.
+			//
 			// nolint:gocritic // Requires permission to read all workspaces to read managed agent count.
-			return db.GetManagedAgentCount(dbauthz.AsSystemRestricted(ctx), database.GetManagedAgentCountParams{
-				StartTime: startTime,
-				EndTime:   endTime,
+			return db.GetTotalUsageDCManagedAgentsV1(dbauthz.AsSystemRestricted(ctx), database.GetTotalUsageDCManagedAgentsV1Params{
+				StartDate: startTime,
+				EndDate:   endTime,
 			})
 		},
 	})

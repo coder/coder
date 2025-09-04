@@ -364,6 +364,8 @@ module "git-config" {
   source   = "dev.registry.coder.com/coder/git-config/coder"
   version  = "1.0.31"
   agent_id = coder_agent.dev.id
+  # If you prefer to commit with a different email, this allows you to do so.
+  allow_email_change = true
 }
 
 module "git-clone" {

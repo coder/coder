@@ -53,23 +53,23 @@ type CreateTaskRequest struct {
 	Prompt                  string    `json:"prompt"`
 }
 
-func (c *ExperimentalClient) CreateTask(ctx context.Context, user string, request CreateTaskRequest) (Workspace, error) {
+func (c *ExperimentalClient) CreateTask(ctx context.Context, user string, request CreateTaskRequest) (Task, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/tasks/%s", user), request)
 	if err != nil {
-		return Workspace{}, err
+		return Task{}, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusCreated {
-		return Workspace{}, ReadBodyAsError(res)
+		return Task{}, ReadBodyAsError(res)
 	}
 
-	var workspace Workspace
-	if err := json.NewDecoder(res.Body).Decode(&workspace); err != nil {
-		return Workspace{}, err
+	var task Task
+	if err := json.NewDecoder(res.Body).Decode(&task); err != nil {
+		return Task{}, err
 	}
 
-	return workspace, nil
+	return task, nil
 }
 
 // TaskState represents the high-level lifecycle of a task.

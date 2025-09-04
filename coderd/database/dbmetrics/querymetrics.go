@@ -523,6 +523,13 @@ func (m queryMetricsStore) EnqueueNotificationMessage(ctx context.Context, arg d
 	return r0
 }
 
+func (m queryMetricsStore) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
+	start := time.Now()
+	r0 := m.s.ExpirePrebuildsAPIKeys(ctx, now)
+	m.queryLatencies.WithLabelValues("ExpirePrebuildsAPIKeys").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) FavoriteWorkspace(ctx context.Context, arg uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.FavoriteWorkspace(ctx, arg)
@@ -976,13 +983,6 @@ func (m queryMetricsStore) GetLogoURL(ctx context.Context) (string, error) {
 	url, err := m.s.GetLogoURL(ctx)
 	m.queryLatencies.WithLabelValues("GetLogoURL").Observe(time.Since(start).Seconds())
 	return url, err
-}
-
-func (m queryMetricsStore) GetManagedAgentCount(ctx context.Context, arg database.GetManagedAgentCountParams) (int64, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetManagedAgentCount(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetManagedAgentCount").Observe(time.Since(start).Seconds())
-	return r0, r1
 }
 
 func (m queryMetricsStore) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
@@ -1454,7 +1454,7 @@ func (m queryMetricsStore) GetTemplateAppInsightsByTemplate(ctx context.Context,
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
+func (m queryMetricsStore) GetTemplateAverageBuildTime(ctx context.Context, arg uuid.NullUUID) (database.GetTemplateAverageBuildTimeRow, error) {
 	start := time.Now()
 	buildTime, err := m.s.GetTemplateAverageBuildTime(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetTemplateAverageBuildTime").Observe(time.Since(start).Seconds())
@@ -1613,6 +1613,13 @@ func (m queryMetricsStore) GetTemplatesWithFilter(ctx context.Context, arg datab
 	templates, err := m.s.GetTemplatesWithFilter(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetTemplatesWithFilter").Observe(time.Since(start).Seconds())
 	return templates, err
+}
+
+func (m queryMetricsStore) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg database.GetTotalUsageDCManagedAgentsV1Params) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTotalUsageDCManagedAgentsV1(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTotalUsageDCManagedAgentsV1").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) GetUnexpiredLicenses(ctx context.Context) ([]database.License, error) {

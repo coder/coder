@@ -21,7 +21,7 @@ import {
 	TopbarDivider,
 	TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
-import { displayError } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import {
 	ChevronLeftIcon,
@@ -186,6 +186,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 			templateVersion.job.status === "succeeded"
 		) {
 			setDirty(false);
+			displaySuccess(
+				`Template version "${previousVersion.current.name}" built successfully.`,
+			);
 		}
 		previousVersion.current = templateVersion;
 	}, [templateVersion]);

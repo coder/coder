@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -637,4 +638,69 @@ func TestDeleteOldAuditLogConnectionEventsLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, logs, 0)
+}
+
+func TestExpireOldAPIKeys(t *testing.T) {
+	t.Parallel()
+
+	// Given: a number of workspaces and API keys owned by a regular user and the prebuilds system user.
+	var (
+		ctx    = testutil.Context(t, testutil.WaitShort)
+		now    = dbtime.Now()
+		db, _  = dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+		org    = dbgen.Organization(t, db, database.Organization{})
+		user   = dbgen.User(t, db, database.User{})
+		tpl    = dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: user.ID})
+		userWs = dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:    user.ID,
+			TemplateID: tpl.ID,
+		})
+		prebuildsWs = dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:    database.PrebuildsSystemUserID,
+			TemplateID: tpl.ID,
+		})
+		createAPIKey = func(userID uuid.UUID, name string) database.APIKey {
+			k, _ := dbgen.APIKey(t, db, database.APIKey{UserID: userID, TokenName: name, ExpiresAt: now.Add(time.Hour)}, func(iap *database.InsertAPIKeyParams) {
+				iap.TokenName = name
+			})
+			return k
+		}
+		assertKeyActive = func(kid string) {
+			k, err := db.GetAPIKeyByID(ctx, kid)
+			require.NoError(t, err)
+			assert.True(t, k.ExpiresAt.After(now))
+		}
+		assertKeyExpired = func(kid string) {
+			k, err := db.GetAPIKeyByID(ctx, kid)
+			require.NoError(t, err)
+			assert.True(t, k.ExpiresAt.Equal(now))
+		}
+		unnamedUserAPIKey         = createAPIKey(user.ID, "")
+		unnamedPrebuildsAPIKey    = createAPIKey(database.PrebuildsSystemUserID, "")
+		namedUserAPIKey           = createAPIKey(user.ID, "my-token")
+		namedPrebuildsAPIKey      = createAPIKey(database.PrebuildsSystemUserID, "also-my-token")
+		userWorkspaceAPIKey1      = createAPIKey(user.ID, provisionerdserver.WorkspaceSessionTokenName(user.ID, userWs.ID))
+		userWorkspaceAPIKey2      = createAPIKey(user.ID, provisionerdserver.WorkspaceSessionTokenName(user.ID, prebuildsWs.ID))
+		prebuildsWorkspaceAPIKey1 = createAPIKey(database.PrebuildsSystemUserID, provisionerdserver.WorkspaceSessionTokenName(database.PrebuildsSystemUserID, prebuildsWs.ID))
+		prebuildsWorkspaceAPIKey2 = createAPIKey(database.PrebuildsSystemUserID, provisionerdserver.WorkspaceSessionTokenName(database.PrebuildsSystemUserID, userWs.ID))
+	)
+
+	// When: we call ExpirePrebuildsAPIKeys
+	err := db.ExpirePrebuildsAPIKeys(ctx, now)
+	// Then: no errors is reported.
+	require.NoError(t, err)
+
+	// We do not touch user API keys.
+	assertKeyActive(unnamedUserAPIKey.ID)
+	assertKeyActive(namedUserAPIKey.ID)
+	assertKeyActive(userWorkspaceAPIKey1.ID)
+	assertKeyActive(userWorkspaceAPIKey2.ID)
+	// Unnamed prebuilds API keys get expired.
+	assertKeyExpired(unnamedPrebuildsAPIKey.ID)
+	// API keys for workspaces still owned by prebuilds user remain active until claimed.
+	assertKeyActive(prebuildsWorkspaceAPIKey1.ID)
+	// API keys for workspaces no longer owned by prebuilds user get expired.
+	assertKeyExpired(prebuildsWorkspaceAPIKey2.ID)
+	// Out of an abundance of caution, we do not expire explicitly named prebuilds API keys.
+	assertKeyActive(namedPrebuildsAPIKey.ID)
 }
