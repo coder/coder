@@ -2957,7 +2957,7 @@ type AIBridgeSession struct {
 	InitiatorID uuid.UUID `db:"initiator_id" json:"initiator_id"`
 	Provider    string    `db:"provider" json:"provider"`
 	Model       string    `db:"model" json:"model"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	StartedAt   time.Time `db:"started_at" json:"started_at"`
 }
 
 type APIKey struct {

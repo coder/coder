@@ -112,7 +112,7 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 }
 
 const getAIBridgeSessionByID = `-- name: GetAIBridgeSessionByID :one
-SELECT id, initiator_id, provider, model, created_at FROM aibridge_sessions WHERE id = $1::uuid
+SELECT id, initiator_id, provider, model, started_at FROM aibridge_sessions WHERE id = $1::uuid
 LIMIT 1
 `
 
@@ -124,15 +124,15 @@ func (q *sqlQuerier) GetAIBridgeSessionByID(ctx context.Context, id uuid.UUID) (
 		&i.InitiatorID,
 		&i.Provider,
 		&i.Model,
-		&i.CreatedAt,
+		&i.StartedAt,
 	)
 	return i, err
 }
 
 const insertAIBridgeSession = `-- name: InsertAIBridgeSession :one
-INSERT INTO aibridge_sessions (id, initiator_id, provider, model)
-VALUES ($1::uuid, $2::uuid, $3, $4)
-RETURNING id, initiator_id, provider, model, created_at
+INSERT INTO aibridge_sessions (id, initiator_id, provider, model, started_at)
+VALUES ($1::uuid, $2::uuid, $3, $4, $5)
+RETURNING id, initiator_id, provider, model, started_at
 `
 
 type InsertAIBridgeSessionParams struct {
@@ -140,6 +140,7 @@ type InsertAIBridgeSessionParams struct {
 	InitiatorID uuid.UUID `db:"initiator_id" json:"initiator_id"`
 	Provider    string    `db:"provider" json:"provider"`
 	Model       string    `db:"model" json:"model"`
+	StartedAt   time.Time `db:"started_at" json:"started_at"`
 }
 
 func (q *sqlQuerier) InsertAIBridgeSession(ctx context.Context, arg InsertAIBridgeSessionParams) (AIBridgeSession, error) {
@@ -148,6 +149,7 @@ func (q *sqlQuerier) InsertAIBridgeSession(ctx context.Context, arg InsertAIBrid
 		arg.InitiatorID,
 		arg.Provider,
 		arg.Model,
+		arg.StartedAt,
 	)
 	var i AIBridgeSession
 	err := row.Scan(
@@ -155,7 +157,7 @@ func (q *sqlQuerier) InsertAIBridgeSession(ctx context.Context, arg InsertAIBrid
 		&i.InitiatorID,
 		&i.Provider,
 		&i.Model,
-		&i.CreatedAt,
+		&i.StartedAt,
 	)
 	return i, err
 }

@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS aibridge_sessions (
 	initiator_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     provider TEXT NOT NULL,
     model TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+    started_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
 CREATE INDEX idx_aibridge_sessions_initiator_id ON aibridge_sessions(initiator_id);

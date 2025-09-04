@@ -73,6 +73,7 @@ func (s *Server) RecordSession(ctx context.Context, in *proto.RecordSessionReque
 		InitiatorID: initID,
 		Provider:    in.Provider,
 		Model:       in.Model,
+		StartedAt:   in.StartedAt.AsTime(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("start session: %w", err)

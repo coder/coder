@@ -8,6 +8,7 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/coder/coder/v2/aibridged/proto"
 
@@ -27,6 +28,8 @@ func (t *recorderTranslation) RecordSession(ctx context.Context, req *aibridge.S
 		InitiatorId: req.InitiatorID,
 		Provider:    req.Provider,
 		Model:       req.Model,
+		Metadata:    marshalForProto(req.Metadata),
+		StartedAt:   timestamppb.New(req.StartedAt),
 	})
 	return err
 }

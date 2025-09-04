@@ -869,7 +869,7 @@ CREATE TABLE aibridge_sessions (
     initiator_id uuid NOT NULL,
     provider text NOT NULL,
     model text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    started_at timestamp with time zone NOT NULL
 );
 
 CREATE TABLE aibridge_token_usages (

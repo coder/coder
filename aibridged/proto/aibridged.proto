@@ -4,12 +4,15 @@ option go_package = "github.com/coder/coder/v2/aibridged/proto";
 package proto;
 
 import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
 
 message RecordSessionRequest {
   string session_id = 1; // UUID.
   string initiator_id = 2; // UUID.
   string provider = 3;
   string model = 4;
+  map<string, google.protobuf.Any> metadata = 5;
+  google.protobuf.Timestamp started_at = 6;
 }
 
 message RecordSessionResponse {}
@@ -34,10 +37,11 @@ message RecordPromptUsageResponse {}
 message RecordToolUsageRequest {
   string session_id = 1; // UUID.
   string msg_id = 2; // ID provided by provider.
-  string tool = 3;
-  string input = 4;
-  bool injected = 5;
-  map<string, google.protobuf.Any> metadata = 6;
+  string server = 3; // The name of the MCP server.
+  string tool = 4;
+  string input = 5;
+  bool injected = 6;
+  map<string, google.protobuf.Any> metadata = 7;
 }
 message RecordToolUsageResponse {}
 
