@@ -2,16 +2,17 @@ import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
-import TextField from "@mui/material/TextField";
 import { API } from "api/api";
 import type { Template, TemplateVersionParameter } from "api/typesGenerated";
 import { FormSection, VerticalForm } from "components/Form/Form";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
 import { Loader } from "components/Loader/Loader";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import { useClipboard } from "hooks/useClipboard";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useEffect, useId, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { nameValidator } from "utils/formUtils";
@@ -58,6 +59,9 @@ function getClipboardCopyContent(
 	const deploymentUrl = `${window.location.protocol}//${window.location.host}`;
 	const createWorkspaceUrl = `${deploymentUrl}/templates/${organization}/${templateName}/workspace`;
 	const createWorkspaceParams = new URLSearchParams(buttonValues);
+	if (createWorkspaceParams.get("name") === "") {
+		createWorkspaceParams.delete("name"); // skip default workspace name if undefined
+	}
 	const buttonUrl = `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`;
 
 	return `[![Open in Coder](${deploymentUrl}/open-in-coder.svg)](${buttonUrl})`;
@@ -84,6 +88,7 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 		if (templateParameters && !buttonValues) {
 			const buttonValues: ButtonValues = {
 				mode: "manual",
+				name: "",
 			};
 			for (const parameter of getInitialRichParameterValues(
 				templateParameters,
@@ -107,6 +112,9 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 			}
 		}
 	};
+
+	const hookId = useId();
+	const defaultWorkspaceNameID = `${hookId}-default-workspace-name`;
 
 	return (
 		<>
@@ -145,14 +153,21 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 								</RadioGroup>
 							</FormSection>
 
-							<FormSection
-								title="Workspace name"
-								description="Default name for the new workspace"
-							>
-								<TextField
-									data-testid="default-workspace-name"
-									defaultValue={buttonValues.name}
-									fullWidth
+							<div className="flex flex-col gap-1">
+								<Label className="text-md" htmlFor={defaultWorkspaceNameID}>
+									Workspace name
+								</Label>
+								<div
+									className={"text-sm mb-3"}
+									css={(theme) => ({
+										color: theme.palette.text.secondary,
+									})}
+								>
+									Default name for the new workspace
+								</div>
+								<Input
+									id={defaultWorkspaceNameID}
+									value={buttonValues.name}
 									onChange={(event) => {
 										validateWorkspaceName(event.target.value);
 										setButtonValues((buttonValues) => ({
@@ -160,10 +175,17 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 											name: event.target.value,
 										}));
 									}}
-									error={workspaceNameError !== ""}
-									helperText={workspaceNameError}
 								/>
-							</FormSection>
+								<div
+									className="text-sm mt-1"
+									role="alert"
+									css={(theme) => ({
+										color: theme.palette.error.main,
+									})}
+								>
+									{workspaceNameError || "\u00A0"}
+								</div>
+							</div>
 
 							{templateParameters.length > 0 && (
 								<div

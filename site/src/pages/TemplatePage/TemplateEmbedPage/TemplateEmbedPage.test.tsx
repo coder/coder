@@ -7,7 +7,7 @@ import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
-import { screen, within } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import { TemplateLayout } from "pages/TemplatePage/TemplateLayout";
@@ -30,9 +30,9 @@ test("Users can fill the parameters and copy the open in coder url", async () =>
 	await waitForLoaderToBeRemoved();
 
 	const user = userEvent.setup();
-	const workspaceName = within(
-		screen.getByTestId("default-workspace-name"),
-	).getByRole("textbox");
+	const workspaceName = screen.getByRole("textbox", {
+		name: "Workspace name",
+	});
 	await user.clear(workspaceName);
 	await user.type(workspaceName, "my-first-workspace");
 	const firstParameterField = screen.getByLabelText(
@@ -52,6 +52,6 @@ test("Users can fill the parameters and copy the open in coder url", async () =>
 	const copyButton = screen.getByRole("button", { name: /copy/i });
 	await userEvent.click(copyButton);
 	expect(window.navigator.clipboard.writeText).toBeCalledWith(
-		`[![Open in Coder](http://localhost/open-in-coder.svg)](http://localhost/templates/${MockTemplate.organization_name}/${MockTemplate.name}/workspace?mode=manual&param.first_parameter=firstParameterValue&param.second_parameter=123456&name=my-first-workspace)`,
+		`[![Open in Coder](http://localhost/open-in-coder.svg)](http://localhost/templates/${MockTemplate.organization_name}/${MockTemplate.name}/workspace?mode=manual&name=my-first-workspace&param.first_parameter=firstParameterValue&param.second_parameter=123456)`,
 	);
 });
