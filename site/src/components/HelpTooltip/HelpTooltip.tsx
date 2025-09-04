@@ -28,6 +28,8 @@ type Icon = typeof CircleHelpIcon;
 
 type Size = "small" | "medium";
 
+export const HelpTooltipTrigger = TooltipTrigger;
+
 export const HelpTooltipIcon = CircleHelpIcon;
 
 export const HelpTooltip: FC<TooltipProps> = (props) => {
@@ -80,7 +82,7 @@ export const HelpTooltipIconTrigger = forwardRef<
 	});
 
 	return (
-		<TooltipTrigger asChild>
+		<HelpTooltipTrigger asChild>
 			<button
 				{...buttonProps}
 				aria-label="More info"
@@ -106,7 +108,7 @@ export const HelpTooltipIconTrigger = forwardRef<
 			>
 				{children}
 			</button>
-		</TooltipTrigger>
+		</HelpTooltipTrigger>
 	);
 });
 

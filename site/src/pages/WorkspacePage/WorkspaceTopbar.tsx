@@ -17,8 +17,8 @@ import {
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import { TooltipTrigger } from "components/Tooltip/Tooltip";
 import { ChevronLeftIcon, CircleDollarSign, TrashIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
@@ -257,12 +257,12 @@ const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
 }) => {
 	return (
 		<HelpTooltip>
-			<TooltipTrigger asChild>
+			<HelpTooltipTrigger asChild>
 				<span css={styles.breadcrumbSegment}>
 					<Avatar size="sm" fallback={ownerName} src={ownerAvatarUrl} />
 					<span css={styles.breadcrumbText}>{ownerName}</span>
 				</span>
-			</TooltipTrigger>
+			</HelpTooltipTrigger>
 
 			<HelpTooltipContent align="center">
 				<AvatarData title={ownerName} subtitle="Owner" src={ownerAvatarUrl} />
@@ -284,7 +284,7 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 }) => {
 	return (
 		<HelpTooltip>
-			<TooltipTrigger asChild>
+			<HelpTooltipTrigger asChild>
 				<span css={styles.breadcrumbSegment}>
 					<Avatar
 						size="sm"
@@ -294,7 +294,7 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 					/>
 					<span css={styles.breadcrumbText}>{orgName}</span>
 				</span>
-			</TooltipTrigger>
+			</HelpTooltipTrigger>
 
 			<HelpTooltipContent align="center">
 				<AvatarData
@@ -344,7 +344,7 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 	return (
 		<div className="flex items-center">
 			<HelpTooltip>
-				<TooltipTrigger asChild>
+				<HelpTooltipTrigger asChild>
 					<span css={styles.breadcrumbSegment}>
 						<TopbarAvatar
 							src={templateIconUrl}
@@ -355,7 +355,7 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 							{workspaceName}
 						</span>
 					</span>
-				</TooltipTrigger>
+				</HelpTooltipTrigger>
 
 				<HelpTooltipContent align="center">
 					<AvatarData

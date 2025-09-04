@@ -5,9 +5,9 @@ import {
 	HelpTooltipContent,
 	HelpTooltipText,
 	HelpTooltipTitle,
+	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
-import { TooltipTrigger } from "components/Tooltip/Tooltip";
 import type { FC } from "react";
 import { getLatencyColor } from "utils/latency";
 
@@ -44,7 +44,7 @@ export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 
 	return (
 		<HelpTooltip>
-			<TooltipTrigger asChild>
+			<HelpTooltipTrigger asChild>
 				<span
 					role="presentation"
 					aria-label="latency"
@@ -52,7 +52,7 @@ export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 				>
 					{Math.round(latency.latency_ms)}ms
 				</span>
-			</TooltipTrigger>
+			</HelpTooltipTrigger>
 			<HelpTooltipContent>
 				<HelpTooltipTitle>Latency</HelpTooltipTitle>
 				<HelpTooltipText>
