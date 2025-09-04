@@ -296,7 +296,7 @@ func PGDumpSchemaOnly(dbURL string) ([]byte, error) {
 			"run",
 			"--rm",
 			"--network=host",
-			fmt.Sprintf("%s:%d", postgresImage, postgresImageSha),
+			fmt.Sprintf("%s@%d", postgresImage, postgresImageSha),
 		}, cmdArgs...)
 	}
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...) //#nosec
