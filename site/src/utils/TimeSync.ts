@@ -86,17 +86,7 @@ export const defaultOptions: TimeSyncInitOptions = {
 };
 
 type InvalidateSnapshotOptions = Readonly<{
-	/**
-	 * By default, invalidating the Date snapshot immediately notifies all
-	 * subscribers.
-	 *
-	 * Turn this off if in situations where it's not safe to notify all
-	 * subscriptions immediately (e.g., when integrating with a library like
-	 * React). However, if you do turn this off, it's expected that you will
-	 * eventually call invalidateStateSnapshot again with the default behavior.
-	 */
-	notificationBehavior: "notifyOnChange" | "neverNotify" | "alwaysNotify";
-	notifyAfterUpdate?: boolean;
+	notificationBehavior: "onChange" | "never" | "always";
 }>;
 
 interface TimeSyncApi {

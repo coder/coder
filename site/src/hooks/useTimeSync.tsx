@@ -242,7 +242,7 @@ class ReactTimeSync {
 		let latestSyncState: Date;
 		if (this.#shouldInvalidateDate()) {
 			latestSyncState = this.#timeSync.invalidateStateSnapshot({
-				notifyAfterUpdate: true,
+				notificationBehavior: "onChange",
 			});
 		} else {
 			latestSyncState = this.#timeSync.getStateSnapshot();
@@ -314,7 +314,9 @@ class ReactTimeSync {
 		// uses the same core system as useState's dispatch, and React does not
 		// let you call a mid-render dispatch for any component that is not
 		// actively being rendered in the fiber tree
-		return this.#timeSync.invalidateStateSnapshot({ notifyAfterUpdate: false });
+		return this.#timeSync.invalidateStateSnapshot({
+			notificationBehavior: "never",
+		});
 	}
 
 	onComponentMount(componentId: string): void {
@@ -328,7 +330,9 @@ class ReactTimeSync {
 				`Trying to call component mount logic before component ID has been added to tracking (received value ${componentId})`,
 			);
 		}
-		void this.#timeSync.invalidateStateSnapshot({ notifyAfterUpdate: true });
+		void this.#timeSync.invalidateStateSnapshot({
+			notificationBehavior: "always",
+		});
 		this.#hasPendingUpdates = false;
 	}
 
