@@ -250,7 +250,7 @@ func PGDump(dbURL string) ([]byte, error) {
 	return stdout.Bytes(), nil
 }
 
-const minimumPostgreSQLVersion = 13
+const postgresImageSha = "sha256:467e7f2fb97b2f29d616e0be1d02218a7bbdfb94eb3cda7461fd80165edfd1f7"
 
 // PGDumpSchemaOnly is for use by gen/dump only.
 // It runs pg_dump against dbURL and sets a consistent timezone and encoding.
@@ -296,7 +296,7 @@ func PGDumpSchemaOnly(dbURL string) ([]byte, error) {
 			"run",
 			"--rm",
 			"--network=host",
-			fmt.Sprintf("%s:%d", postgresImage, minimumPostgreSQLVersion),
+			fmt.Sprintf("%s:%d", postgresImage, postgresImageSha),
 		}, cmdArgs...)
 	}
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...) //#nosec
