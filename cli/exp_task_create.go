@@ -22,6 +22,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 		templateVersionName string
 		presetName          string
 		stdin               bool
+		quiet               bool
 	)
 
 	cmd := &serpent.Command{
@@ -56,6 +57,13 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				Flag:        "stdin",
 				Description: "Reads from stdin for the task input.",
 				Value:       serpent.BoolOf(&stdin),
+			},
+			{
+				Name:          "quiet",
+				Flag:          "quiet",
+				FlagShorthand: "q",
+				Description:   "Only display the created task's ID.",
+				Value:         serpent.BoolOf(&quiet),
 			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
@@ -166,12 +174,16 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				return xerrors.Errorf("create task: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(
-				inv.Stdout,
-				"The task %s has been created at %s!\n",
-				cliui.Keyword(task.Name),
-				cliui.Timestamp(task.CreatedAt),
-			)
+			if quiet {
+				_, _ = fmt.Fprintln(inv.Stdout, task.ID)
+			} else {
+				_, _ = fmt.Fprintf(
+					inv.Stdout,
+					"The task %s has been created at %s!\n",
+					cliui.Keyword(task.Name),
+					cliui.Timestamp(task.CreatedAt),
+				)
+			}
 
 			return nil
 		},
