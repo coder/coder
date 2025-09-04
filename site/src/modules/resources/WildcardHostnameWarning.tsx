@@ -3,6 +3,7 @@ import type { WorkspaceResource } from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { Link } from "components/Link/Link";
 import { useProxy } from "contexts/ProxyContext";
+import { useAuthenticated } from "hooks/useAuthenticated";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
@@ -15,7 +16,10 @@ export const WildcardHostnameWarning: FC<WildcardHostnameWarningProps> = ({
 	resources,
 }) => {
 	const { proxy } = useProxy();
+	const { permissions } = useAuthenticated();
+
 	const hasResources = Boolean(resources);
+	const canEditDeploymentConfig = Boolean(permissions.editDeploymentConfig);
 
 	if (proxy.proxy?.wildcard_hostname) {
 		return null;
@@ -45,12 +49,14 @@ export const WildcardHostnameWarning: FC<WildcardHostnameWarningProps> = ({
 			<AlertTitle>Some workspace applications will not work</AlertTitle>
 			<AlertDetail>
 				<div>
-					{hasResources ? (
+					{hasResources
+						? "This template contains coder_app resources with"
+						: "One or more apps in this workspace have"}{" "}
+					<code className="py-px px-1 bg-surface-tertiary rounded-sm text-content-primary">
+						subdomain = true
+					</code>
+					{canEditDeploymentConfig ? (
 						<>
-							This template contains coder_app resources with{" "}
-							<code className="py-px px-1 bg-surface-tertiary rounded-sm text-content-primary">
-								subdomain = true
-							</code>
 							, but subdomain applications are not configured. Users won't be
 							able to access these applications until you configure the{" "}
 							<code className="py-px px-1 bg-surface-tertiary rounded-sm text-content-primary">
@@ -59,14 +65,7 @@ export const WildcardHostnameWarning: FC<WildcardHostnameWarningProps> = ({
 							flag when starting the Coder server.
 						</>
 					) : (
-						<>
-							One or more apps in this workspace have{" "}
-							<code className="py-px px-1 bg-surface-tertiary rounded-sm text-content-primary">
-								subdomain = true
-							</code>
-							, which requires a Coder deployment with a Wildcard Access URL
-							configured. Please contact your administrator.
-						</>
+						", which requires a Coder deployment with a Wildcard Access URL configured. Please contact your administrator."
 					)}
 				</div>
 				<div className="pt-2">
