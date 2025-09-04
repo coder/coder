@@ -284,6 +284,46 @@ func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context
 	return err
 }
 
+const expirePrebuildsAPIKeys = `-- name: ExpirePrebuildsAPIKeys :exec
+WITH unexpired_prebuilds_workspace_session_tokens AS (
+	SELECT id, SUBSTRING(token_name FROM 38 FOR 36)::uuid AS workspace_id
+	FROM api_keys
+	WHERE user_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+	AND expires_at > $1::timestamptz
+	AND token_name SIMILAR TO 'c42fdf75-3097-471c-8c33-fb52454d81c0_[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}_session_token'
+),
+stale_prebuilds_workspace_session_tokens AS (
+	SELECT upwst.id
+	FROM unexpired_prebuilds_workspace_session_tokens upwst
+	LEFT JOIN workspaces w
+	ON w.id = upwst.workspace_id
+	WHERE w.owner_id <> 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+),
+unnamed_prebuilds_api_keys AS (
+	SELECT id
+	FROM api_keys
+	WHERE user_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+	AND token_name = ''
+	AND expires_at > $1::timestamptz
+)
+UPDATE api_keys
+SET expires_at = $1::timestamptz
+WHERE id IN (
+	SELECT id FROM stale_prebuilds_workspace_session_tokens
+	UNION
+	SELECT id FROM unnamed_prebuilds_api_keys
+)
+`
+
+// Firstly, collect api_keys owned by the prebuilds user that correlate
+// to workspaces no longer owned by the prebuilds user.
+// Next, collect api_keys that belong to the prebuilds user but have no token name.
+// These were most likely created via 'coder login' as the prebuilds user.
+func (q *sqlQuerier) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
+	_, err := q.db.ExecContext(ctx, expirePrebuildsAPIKeys, now)
+	return err
+}
+
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
 	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
@@ -12039,11 +12079,11 @@ JOIN provisioner_jobs pj ON
 WHERE
 	template_versions.template_id = $1 AND
 		(pj.completed_at IS NOT NULL) AND (pj.started_at IS NOT NULL) AND
-		(pj.started_at > $2) AND
 		(pj.canceled_at IS NULL) AND
 		((pj.error IS NULL) OR (pj.error = ''))
 ORDER BY
 	workspace_builds.created_at DESC
+LIMIT 100
 )
 SELECT
 	-- Postgres offers no clear way to DRY this short of a function or other
@@ -12057,11 +12097,6 @@ SELECT
 FROM build_times
 `
 
-type GetTemplateAverageBuildTimeParams struct {
-	TemplateID uuid.NullUUID `db:"template_id" json:"template_id"`
-	StartTime  sql.NullTime  `db:"start_time" json:"start_time"`
-}
-
 type GetTemplateAverageBuildTimeRow struct {
 	Start50  float64 `db:"start_50" json:"start_50"`
 	Stop50   float64 `db:"stop_50" json:"stop_50"`
@@ -12071,8 +12106,8 @@ type GetTemplateAverageBuildTimeRow struct {
 	Delete95 float64 `db:"delete_95" json:"delete_95"`
 }
 
-func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTemplateAverageBuildTimeParams) (GetTemplateAverageBuildTimeRow, error) {
-	row := q.db.QueryRowContext(ctx, getTemplateAverageBuildTime, arg.TemplateID, arg.StartTime)
+func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, templateID uuid.NullUUID) (GetTemplateAverageBuildTimeRow, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateAverageBuildTime, templateID)
 	var i GetTemplateAverageBuildTimeRow
 	err := row.Scan(
 		&i.Start50,
