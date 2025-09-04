@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { within } from "@testing-library/react";
 import type { ComponentProps } from "react";
+import { userEvent } from "storybook/test";
 import { TemplateInsightsControls } from "./TemplateInsightsPage";
 
 const meta: Meta<typeof TemplateInsightsControls> = {
@@ -25,11 +27,21 @@ export const Day: Story = {
 		...defaultArgs,
 		interval: "day",
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const datePicker = canvas.getAllByRole("button")[1];
+		await userEvent.click(datePicker);
+	},
 };
 
 export const Week: Story = {
 	args: {
 		...defaultArgs,
 		interval: "week",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const dropdown = canvas.getAllByRole("button")[1];
+		await userEvent.click(dropdown);
 	},
 };
