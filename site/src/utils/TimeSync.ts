@@ -86,7 +86,7 @@ export const defaultOptions: TimeSyncInitOptions = {
 };
 
 type InvalidateSnapshotOptions = Readonly<{
-	notificationBehavior: "onChange" | "never" | "always";
+	notificationBehavior?: "onChange" | "never" | "always";
 }>;
 
 interface TimeSyncApi {
@@ -372,11 +372,13 @@ export class TimeSync implements TimeSyncApi {
 			return this.#latestDateSnapshot;
 		}
 
-		const { notifyAfterUpdate = true } = options ?? {};
-		if (notifyAfterUpdate) {
-			this.#tick();
-		} else {
-			void this.#updateDateSnapshot();
+		const { notificationBehavior = "onChange" } = options ?? {};
+		const changed = this.#updateDateSnapshot();
+		const shouldNotify =
+			(changed && notificationBehavior === "onChange") ||
+			notificationBehavior === "always";
+		if (shouldNotify) {
+			this.#notifyAllSubscriptions();
 		}
 		return this.#latestDateSnapshot;
 	}
