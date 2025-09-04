@@ -54,7 +54,7 @@ export const ExternalAuthSettingsPageView: FC<
 					marginBottom: 24,
 				}}
 			>
-				<Alert severity="info" actions={<PremiumBadge key="enterprise" />}>
+				<Alert variant="info" actions={<PremiumBadge key="enterprise" />}>
 					Integrating with multiple External authentication providers is an
 					Premium feature.
 				</Alert>

@@ -130,14 +130,14 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	return (
 		<>
 			{disabled && (
-				<Alert severity="warning" className="mb-8">
+				<Alert variant="warning" className="mb-8">
 					The template for this workspace requires automatic updates. Update the
 					workspace to edit parameters.
 				</Alert>
 			)}
 
 			{hasIncompatibleParameters && (
-				<Alert severity="error">
+				<Alert variant="destructive">
 					<p className="text-lg leading-tight font-bold m-0">
 						Workspace update blocked
 					</p>

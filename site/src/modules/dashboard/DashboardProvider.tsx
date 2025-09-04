@@ -61,7 +61,7 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 		!organizationsQuery.data;
 
 	if (isLoading) {
-		return <Loader fullscreen />;
+		return <Loader variant="fullscreen" />;
 	}
 
 	const hasMultipleOrganizations = organizationsQuery.data.length > 1;

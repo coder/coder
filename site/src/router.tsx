@@ -337,7 +337,7 @@ const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
 
 const RoutesWithSuspense = () => {
 	return (
-		<Suspense fallback={<Loader fullscreen />}>
+		<Suspense fallback={<Loader variant="fullscreen" />}>
 			<Outlet />
 		</Suspense>
 	);

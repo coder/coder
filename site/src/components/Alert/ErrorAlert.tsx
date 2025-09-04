@@ -4,7 +4,7 @@ import { Link } from "../Link/Link";
 import { Alert, AlertDetail, AlertTitle, type AlertProps } from "./Alert";
 
 export const ErrorAlert: FC<
-	Omit<AlertProps, "severity" | "children"> & { error: unknown }
+	Omit<AlertProps, "variant" | "children"> & { error: unknown }
 > = ({ error, ...alertProps }) => {
 	const message = getErrorMessage(error, "Something went wrong.");
 	const detail = getErrorDetail(error);
@@ -15,7 +15,7 @@ export const ErrorAlert: FC<
 	const shouldDisplayDetail = message !== detail;
 
 	return (
-		<Alert severity="error" {...alertProps}>
+		<Alert variant="destructive" {...alertProps}>
 			{
 				// When the error is a Forbidden response we include a link for the user to
 				// go back to a known viewable page.

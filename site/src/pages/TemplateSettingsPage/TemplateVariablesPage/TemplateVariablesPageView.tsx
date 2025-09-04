@@ -69,7 +69,7 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
 				/>
 			)}
 			{templateVariables && templateVariables.length === 0 && (
-				<Alert severity="info">
+				<Alert variant="info">
 					This template does not use managed variables.
 				</Alert>
 			)}

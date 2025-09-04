@@ -104,7 +104,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 
 			<div css={styles.links}>
 				{!hasInstallations && externalAuth.app_installable && (
-					<Alert severity="warning" css={styles.installAlert}>
+					<Alert variant="warning" css={styles.installAlert}>
 						You must {installTheApp} to clone private repositories. Accounts
 						will appear here once authorized.
 					</Alert>

@@ -332,7 +332,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							}}
 						>
 							<Alert
-								severity="success"
+								variant="success"
 								dismissible
 								actions={
 									<Button
@@ -604,7 +604,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 											<ProvisionerAlert
 												title="Error during the build"
 												detail={templateVersion.job.error}
-												severity="error"
+												variant="destructive"
 												tags={templateVersion.job.tags}
 												variant={AlertVariant.Inline}
 											/>

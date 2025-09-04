@@ -85,7 +85,7 @@ export const SignInForm: FC<SignInFormProps> = ({
 
 			{message && (
 				<div css={styles.alert}>
-					<Alert severity="info">{message}</Alert>
+					<Alert variant="info">{message}</Alert>
 				</div>
 			)}
 
@@ -114,7 +114,7 @@ export const SignInForm: FC<SignInFormProps> = ({
 			)}
 
 			{!passwordEnabled && !oAuthEnabled && (
-				<Alert severity="error">No authentication methods configured!</Alert>
+				<Alert variant="destructive">No authentication methods configured!</Alert>
 			)}
 		</div>
 	);

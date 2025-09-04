@@ -86,7 +86,7 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 				status = (
 					<div>
 						{status}
-						<Alert severity="warning">
+						<Alert variant="warning">
 							Rate limit reached. Waiting a few seconds before retrying...
 						</Alert>
 					</div>
@@ -94,19 +94,19 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 				break;
 			case DeviceExchangeError.ExpiredToken:
 				status = (
-					<Alert severity="error">
+					<Alert variant="destructive">
 						The one-time code has expired. Refresh to get a new one!
 					</Alert>
 				);
 				break;
 			case DeviceExchangeError.AccessDenied:
 				status = (
-					<Alert severity="error">Access to the Git provider was denied.</Alert>
+					<Alert variant="destructive">Access to the Git provider was denied.</Alert>
 				);
 				break;
 			default:
 				status = (
-					<Alert severity="error">
+					<Alert variant="destructive">
 						<AlertTitle>{deviceExchangeError.message}</AlertTitle>
 						{deviceExchangeError.detail && (
 							<AlertDetail>{deviceExchangeError.detail}</AlertDetail>

@@ -50,7 +50,7 @@ export const OverviewPageView: FC<OverviewPageViewProps> = ({
 					}))}
 				/>
 				{invalidExperiments.length > 0 && (
-					<Alert severity="warning">
+					<Alert variant="warning">
 						<AlertTitle>Invalid experiments in use:</AlertTitle>
 						<ul>
 							{invalidExperiments.map((it) => (

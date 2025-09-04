@@ -1,5 +1,5 @@
 import type { Theme } from "@emotion/react";
-import { Alert, type AlertColor, AlertDetail, AlertTitle } from "components/Alert/Alert";
+import { Alert, AlertDetail, AlertTitle, type AlertProps } from "components/Alert/Alert";
 import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
 import type { FC } from "react";
 
@@ -16,20 +16,28 @@ export enum AlertVariant {
 interface ProvisionerAlertProps {
 	title: string;
 	detail: string;
-	severity: AlertColor;
+	variant: NonNullable<AlertProps["variant"]>;
 	tags: Record<string, string>;
-	variant?: AlertVariant;
+	alertVariant?: AlertVariant;
 }
 
-const getAlertStyles = (variant: AlertVariant, severity: AlertColor) => {
-	switch (variant) {
+const getAlertStyles = (alertVariant: AlertVariant, variant: NonNullable<AlertProps["variant"]>) => {
+	switch (alertVariant) {
 		case AlertVariant.Inline:
 			return {
 				css: (theme: Theme) => ({
 					borderRadius: 0,
 					border: 0,
 					borderBottom: `1px solid ${theme.palette.divider}`,
-					borderLeft: `2px solid ${theme.palette[severity].main}`,
+					borderLeft: `3px solid ${
+						variant === "destructive"
+							? theme.palette.error.main
+							: variant === "warning"
+								? theme.palette.warning.main
+								: variant === "success"
+									? theme.palette.success.main
+									: theme.palette.info.main
+					}`,
 				}),
 			};
 		default:
@@ -40,12 +48,12 @@ const getAlertStyles = (variant: AlertVariant, severity: AlertColor) => {
 export const ProvisionerAlert: FC<ProvisionerAlertProps> = ({
 	title,
 	detail,
-	severity,
+	variant,
 	tags,
-	variant = AlertVariant.Standalone,
+	alertVariant = AlertVariant.Standalone,
 }) => {
 	return (
-		<Alert severity={severity} {...getAlertStyles(variant, severity)}>
+		<Alert variant={variant} {...getAlertStyles(alertVariant, variant)}>
 			<AlertTitle>{title}</AlertTitle>
 			<AlertDetail>
 				<div>{detail}</div>

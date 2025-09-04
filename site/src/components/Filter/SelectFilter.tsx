@@ -109,7 +109,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 						</div>
 					)
 				) : (
-					<Loader size="sm" />
+					<Loader spinnerSize="sm" />
 				)}
 			</SelectMenuContent>
 		</SelectMenu>

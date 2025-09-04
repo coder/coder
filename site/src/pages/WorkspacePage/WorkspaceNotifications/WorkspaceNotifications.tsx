@@ -251,7 +251,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 			{infoNotifications.length > 0 && (
 				<Notifications
 					items={infoNotifications}
-					severity="info"
+					variant="info"
 					icon={<InfoIcon aria-hidden="true" className="size-icon-sm" />}
 				/>
 			)}
@@ -259,7 +259,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 			{warningNotifications.length > 0 && (
 				<Notifications
 					items={warningNotifications}
-					severity="warning"
+					variant="warning"
 					icon={<TriangleAlertIcon className="size-icon-sm" />}
 				/>
 			)}

@@ -283,7 +283,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				{Boolean(error) && <ErrorAlert error={error} />}
 
 				{mode === "duplicate" && (
-					<Alert severity="info" dismissible data-testid="duplication-warning">
+					<Alert variant="info" dismissible data-testid="duplication-warning">
 						{Language.duplicationWarning}
 					</Alert>
 				)}
@@ -357,7 +357,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					>
 						<FormFields>
 							{Boolean(error) && !hasAllRequiredExternalAuth && (
-								<Alert severity="error">
+								<Alert variant="destructive">
 									To create a workspace using this template, please connect to
 									all required external authentication providers listed below.
 								</Alert>

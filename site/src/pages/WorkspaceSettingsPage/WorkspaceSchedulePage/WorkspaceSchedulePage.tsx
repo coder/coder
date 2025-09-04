@@ -90,7 +90,7 @@ const WorkspaceSchedulePage: FC = () => {
 			{isLoading && <Loader />}
 
 			{permissions && !permissions.updateWorkspace && (
-				<Alert severity="error">
+				<Alert variant="destructive">
 					You don&apos;t have permissions to update the schedule for this
 					workspace.
 				</Alert>
@@ -98,7 +98,7 @@ const WorkspaceSchedulePage: FC = () => {
 
 			{template &&
 				(workspace.is_prebuild ? (
-					<Alert severity="info">
+					<Alert variant="info">
 						Prebuilt workspaces ignore workspace-level scheduling until they are
 						claimed. For prebuilt workspace specific scheduling refer to the{" "}
 						<Link

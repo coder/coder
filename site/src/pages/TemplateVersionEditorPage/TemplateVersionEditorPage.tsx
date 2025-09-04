@@ -135,7 +135,7 @@ const TemplateVersionEditorPage: FC = () => {
 			</Helmet>
 
 			{!(templateQuery.data && activeTemplateVersion && fileTree) ? (
-				<Loader fullscreen />
+				<Loader variant="fullscreen" />
 			) : (
 				<TemplateVersionEditor
 					activePath={activePath}

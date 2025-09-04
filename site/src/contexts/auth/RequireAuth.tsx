@@ -57,7 +57,7 @@ export const RequireAuth: FC<RequireAuthProps> = ({
 	}, [isLoading, isSigningOut, isSignedIn, signOut]);
 
 	if (isLoading || isSigningOut) {
-		return <Loader fullscreen />;
+		return <Loader variant="fullscreen" />;
 	}
 
 	if (isSignedOut) {

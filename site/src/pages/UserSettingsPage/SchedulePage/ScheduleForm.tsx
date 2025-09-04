@@ -88,7 +88,7 @@ export const ScheduleForm: FC<ScheduleFormProps> = ({
 				{Boolean(submitError) && <ErrorAlert error={submitError} />}
 
 				{!initialValues.user_set && (
-					<Alert severity="info">
+					<Alert variant="info">
 						You are currently using the default quiet hours schedule, which
 						starts every day at <code>{initialValues.time}</code> in{" "}
 						<code>{initialValues.timezone}</code>.
@@ -96,7 +96,7 @@ export const ScheduleForm: FC<ScheduleFormProps> = ({
 				)}
 
 				{!initialValues.user_can_set && (
-					<Alert severity="error">
+					<Alert variant="destructive">
 						Your administrator has disabled the ability to set a custom quiet
 						hours schedule.
 					</Alert>

@@ -36,7 +36,7 @@ export const SetupPage: FC = () => {
 	}, [buildInfoQuery.data]);
 
 	if (isLoading || authMethodsQuery.isLoading) {
-		return <Loader fullscreen />;
+		return <Loader variant="fullscreen" />;
 	}
 
 	// If the user is logged in, navigate to the app

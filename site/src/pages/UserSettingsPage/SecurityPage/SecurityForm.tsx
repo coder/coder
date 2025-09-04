@@ -66,7 +66,7 @@ export const SecurityForm: FC<SecurityFormProps> = ({
 
 	if (disabled) {
 		return (
-			<Alert severity="info">
+			<Alert variant="info">
 				Password changes are only allowed for password based accounts.
 			</Alert>
 		);

@@ -123,7 +123,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 
 			<Stack>
 				{searchParams.has("created") && (
-					<Alert severity="info" dismissible>
+					<Alert variant="info" dismissible>
 						Your OAuth2 application has been created. Generate a client secret
 						below to start using your application.
 					</Alert>

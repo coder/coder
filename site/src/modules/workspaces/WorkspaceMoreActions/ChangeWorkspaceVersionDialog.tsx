@@ -144,7 +144,7 @@ export const ChangeWorkspaceVersionDialog: FC<
 											{selectedVersion.message}
 										</TemplateUpdateMessage>
 									)}
-									<Alert severity="info">
+									<Alert variant="info">
 										<AlertTitle>
 											Published by {selectedVersion.created_by.username}
 										</AlertTitle>

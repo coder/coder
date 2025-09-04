@@ -16,7 +16,7 @@ export const WorkspaceDeletedBanner: FC<WorkspaceDeletedBannerProps> = ({
 	);
 
 	return (
-		<Alert severity="warning" actions={NewWorkspaceButton}>
+		<Alert variant="warning" actions={NewWorkspaceButton}>
 			This workspace has been deleted and cannot be edited.
 		</Alert>
 	);

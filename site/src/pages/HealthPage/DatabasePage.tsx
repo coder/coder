@@ -39,7 +39,7 @@ const DatabasePage = () => {
 						<Alert
 							actions={HealthMessageDocsLink(warning)}
 							key={warning.code}
-							severity="warning"
+							variant="warning"
 						>
 							{warning.message}
 						</Alert>

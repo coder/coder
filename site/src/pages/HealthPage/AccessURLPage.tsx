@@ -34,14 +34,14 @@ const AccessURLPage = () => {
 			</Header>
 
 			<Main>
-				{accessUrl.error && <Alert severity="error">{accessUrl.error}</Alert>}
+				{accessUrl.error && <Alert variant="destructive">{accessUrl.error}</Alert>}
 
 				{accessUrl.warnings.map((warning) => {
 					return (
 						<Alert
 							actions={HealthMessageDocsLink(warning)}
 							key={warning.code}
-							severity="warning"
+							variant="warning"
 						>
 							{warning.message}
 						</Alert>

@@ -42,14 +42,14 @@ const WorkspaceProxyPage: FC = () => {
 
 			<Main>
 				{workspace_proxy.error && (
-					<Alert severity="error">{workspace_proxy.error}</Alert>
+					<Alert variant="destructive">{workspace_proxy.error}</Alert>
 				)}
 				{workspace_proxy.warnings.map((warning) => {
 					return (
 						<Alert
 							actions={HealthMessageDocsLink(warning)}
 							key={warning.code}
-							severity="warning"
+							variant="warning"
 						>
 							{warning.message}
 						</Alert>

@@ -65,7 +65,7 @@ export const TerminalAlerts = ({
 const ErrorScriptAlert: FC = () => {
 	return (
 		<TerminalAlert
-			severity="warning"
+			variant="warning"
 			dismissible
 			actions={<RefreshSessionButton />}
 		>
@@ -108,7 +108,7 @@ const LoadingScriptsAlert: FC = () => {
 	return (
 		<TerminalAlert
 			dismissible
-			severity="info"
+			variant="info"
 			actions={<RefreshSessionButton />}
 		>
 			Startup scripts are still running. You can continue using this terminal,
@@ -131,7 +131,7 @@ const LoadingScriptsAlert: FC = () => {
 const LoadedScriptsAlert: FC = () => {
 	return (
 		<TerminalAlert
-			severity="success"
+			variant="success"
 			dismissible
 			actions={<RefreshSessionButton />}
 		>
@@ -176,7 +176,7 @@ const DisconnectedAlert: FC<AlertProps> = (props) => {
 	return (
 		<TerminalAlert
 			{...props}
-			severity="info"
+			variant="info"
 			actions={<RefreshSessionButton />}
 		>
 			Trying to connect...

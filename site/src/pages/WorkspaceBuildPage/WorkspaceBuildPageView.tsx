@@ -187,7 +187,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 					</Tabs>
 					{build.transition === "delete" && build.job.status === "failed" && (
 						<Alert
-							severity="error"
+							variant="destructive"
 							css={{
 								borderRadius: 0,
 								border: 0,
@@ -214,7 +214,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 
 					{build?.job?.logs_overflowed && (
 						<Alert
-							severity="warning"
+							variant="warning"
 							css={{
 								borderRadius: 0,
 								border: 0,

@@ -55,7 +55,7 @@ export const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 	}
 
 	if (isLoading || !auths) {
-		return <Loader fullscreen />;
+		return <Loader variant="fullscreen" />;
 	}
 
 	return (

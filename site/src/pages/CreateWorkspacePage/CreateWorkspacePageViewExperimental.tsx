@@ -418,7 +418,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 					{mode === "duplicate" && (
 						<Alert
-							severity="info"
+							variant="info"
 							dismissible
 							data-testid="duplication-warning"
 						>
@@ -514,7 +514,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 							</hgroup>
 							<div className="flex flex-col gap-4">
 								{Boolean(error) && !hasAllRequiredExternalAuth && (
-									<Alert severity="error">
+									<Alert variant="destructive">
 										To create a workspace using this template, please connect to
 										all required external authentication providers listed below.
 									</Alert>

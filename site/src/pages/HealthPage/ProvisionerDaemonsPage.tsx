@@ -33,13 +33,13 @@ const ProvisionerDaemonsPage: FC = () => {
 			</Header>
 
 			<Main>
-				{daemons.error && <Alert severity="error">{daemons.error}</Alert>}
+				{daemons.error && <Alert variant="destructive">{daemons.error}</Alert>}
 				{daemons.warnings.map((warning) => {
 					return (
 						<Alert
 							actions={HealthMessageDocsLink(warning)}
 							key={warning.code}
-							severity="warning"
+							variant="warning"
 						>
 							{warning.message}
 						</Alert>

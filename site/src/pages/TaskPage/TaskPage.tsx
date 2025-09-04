@@ -88,7 +88,7 @@ const TaskPage = () => {
 				<Helmet>
 					<title>{pageTitle("Loading task")}</title>
 				</Helmet>
-				<Loader fullscreen />
+				<Loader variant="fullscreen" />
 			</>
 		);
 	}
