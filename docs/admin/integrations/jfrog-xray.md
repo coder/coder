@@ -1,15 +1,12 @@
 # JFrog Xray Integration
 
-JFrog Xray is a security and compliance scanning tool that analyzes container images and other artifacts for vulnerabilities, license compliance, and policy violations. This guide shows how to integrate Xray vulnerability scanning results into your Coder workspace metadata.
+JFrog Xray is a security and compliance scanning tool that analyzes container images and other artifacts for vulnerabilities, license compliance, and policy violations. This guide shows how to integrate JFrog Xray vulnerability scanning results into your Coder workspace metadata using the `jfrog-xray` Terraform module from the Coder registry.
 
 ## Overview
 
-Coder provides two approaches for integrating with JFrog Xray:
+This guide shows how to integrate JFrog Xray vulnerability scanning results into your Coder workspace metadata using the `jfrog-xray` Terraform module from the Coder registry.
 
-1. **Terraform Module (Recommended)**: Uses the `jfrog-xray` module from the Coder registry to display vulnerability counts directly in workspace metadata
-2. **External Service**: Uses the `coder-xray` utility for Kubernetes-based workspaces
-
-This guide focuses on the Terraform module approach, which offers several advantages:
+The Terraform module approach offers several advantages:
 
 - Works with all workspace types (not just Kubernetes)
 - No additional service deployment required
@@ -249,16 +246,6 @@ Ensure Coder can reach your JFrog instance:
 - **TLS/HTTPS**: Always use encrypted connections
 - **Network Segmentation**: Restrict network access where possible
 - **VPN/Private Networks**: Use private connectivity when available
-
-## Alternative: External Service Approach
-
-For Kubernetes-based workspaces, you can also use the external `coder-xray` service:
-
-1. **Deploy Service**: Install `coder-xray` in your Kubernetes cluster
-2. **Configure Scanning**: Set up namespace-based scanning
-3. **View Results**: Results appear in the Coder dashboard
-
-See the [coder-xray repository](https://github.com/coder/coder-xray) for detailed setup instructions.
 
 ## Related Resources
 
