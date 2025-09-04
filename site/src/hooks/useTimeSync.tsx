@@ -10,13 +10,7 @@ import {
 	useState,
 	useSyncExternalStore,
 } from "react";
-import {
-	defaultOptions,
-	newReadonlyDate,
-	noOp,
-	type OnUpdate,
-	TimeSync,
-} from "utils/TimeSync";
+import { newReadonlyDate, noOp, type OnUpdate, TimeSync } from "utils/TimeSync";
 import { useEffectEvent } from "./hookPolyfills";
 
 export const REFRESH_IDLE = Number.POSITIVE_INFINITY;
@@ -132,9 +126,7 @@ function structuralMerge<T = unknown>(oldValue: T, newValue: T): T {
 }
 
 type ReactTimeSyncInitOptions = Readonly<{
-	initialDate: Date;
-	minimumRefreshIntervalMs: number;
-	disableUpdates: boolean;
+	snapshotDate: Date;
 }>;
 
 type TransformCallback<T> = (
@@ -173,15 +165,12 @@ class ReactTimeSync {
 	#hasPendingUpdates: boolean;
 
 	constructor(options?: Partial<ReactTimeSyncInitOptions>) {
-		const {
-			initialDate = defaultOptions.initialDate,
-			minimumRefreshIntervalMs = defaultOptions.minimumRefreshIntervalMs,
-		} = options ?? {};
+		const { snapshotDate } = options ?? {};
 
 		this.#isProviderMounted = true;
 		this.#hasPendingUpdates = false;
 		this.#entries = new Map();
-		this.#timeSync = new TimeSync({ initialDate, minimumRefreshIntervalMs });
+		this.#timeSync = new TimeSync({ snapshotDate });
 
 		// Don't need to store the unsubscribe callback separately, because this
 		// will be ejected when the onProviderUnmount method gets called
@@ -368,18 +357,14 @@ function useReactTimeSync(): ReactTimeSync {
 	return reactTs;
 }
 
-type TimeSyncProviderProps = PropsWithChildren<{
-	initialDate?: Date;
-	minimumRefreshIntervalMs?: number;
-}>;
+type TimeSyncProviderProps = PropsWithChildren<{ snapshotDate?: Date }>;
 
 export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 	children,
-	initialDate,
-	minimumRefreshIntervalMs,
+	snapshotDate,
 }) => {
 	const [readonlyReactTs] = useState(() => {
-		return new ReactTimeSync({ initialDate, minimumRefreshIntervalMs });
+		return new ReactTimeSync({ snapshotDate });
 	});
 
 	useEffect(() => {

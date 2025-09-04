@@ -28,17 +28,13 @@ export function newReadonlyDate(sourceDate?: Date): Date {
 	return new Proxy(newDate, readonlyEnforcer);
 }
 
-/**
- * @todo Figure out if we can rename `initialDate` to `snapshotDate`, and make
- * it so that if it's defined, that's the actual cue for freezing the instance.
- *
- * Having an initial date might actually make Jest tests easier. Not sure yet.
- */
-export type TimeSyncInitOptions = Readonly<{
+type TimeSyncInitOptions = Readonly<{
 	/**
-	 * The Date value to use when initializing a TimeSync instance.
+	 * The Date object to initialize TimeSync with to help with snapshot tests.
+	 * If this value is specified, the TimeSync instance will be 100% frozen
+	 * and will not ever update its state after initialization.
 	 */
-	initialDate: Date;
+	snapshotDate: Date;
 
 	/**
 	 * The minimum refresh interval (in milliseconds) to use when dispatching
@@ -86,10 +82,7 @@ export type SubscriptionHandshake = Readonly<{
 	onUpdate: OnUpdate;
 }>;
 
-export const defaultOptions: TimeSyncInitOptions = {
-	initialDate: new Date(),
-	minimumRefreshIntervalMs: 100,
-};
+const defaultMinimumRefreshIntervalMs: number = 100;
 
 type InvalidateSnapshotOptions = Readonly<{
 	notificationBehavior?: "onChange" | "never" | "always";
@@ -157,6 +150,7 @@ type SubscriptionEntry = Readonly<{
  */
 export class TimeSync implements TimeSyncApi {
 	readonly #minimumRefreshIntervalMs: number;
+	readonly #isFrozen: boolean;
 	#isDisposed: boolean;
 	#latestDateSnapshot: Date;
 
@@ -179,32 +173,26 @@ export class TimeSync implements TimeSyncApi {
 
 	constructor(options?: Partial<TimeSyncInitOptions>) {
 		const {
-			initialDate = defaultOptions.initialDate,
-			minimumRefreshIntervalMs = defaultOptions.minimumRefreshIntervalMs,
+			snapshotDate,
+			minimumRefreshIntervalMs = defaultMinimumRefreshIntervalMs,
 		} = options ?? {};
 
 		const isMinValid =
-			minimumRefreshIntervalMs === Number.POSITIVE_INFINITY ||
-			(Number.isInteger(minimumRefreshIntervalMs) &&
-				minimumRefreshIntervalMs > 0);
+			Number.isInteger(minimumRefreshIntervalMs) &&
+			minimumRefreshIntervalMs > 0;
 		if (!isMinValid) {
 			throw new Error(
-				`Minimum refresh interval must be positive infinity or a positive integer (received ${minimumRefreshIntervalMs}ms)`,
+				`Minimum refresh interval must be a positive integer (received ${minimumRefreshIntervalMs}ms)`,
 			);
 		}
 
-		this.#isDisposed = false;
 		this.#subscriptions = new Map();
 		this.#minimumRefreshIntervalMs = minimumRefreshIntervalMs;
-		this.#latestDateSnapshot = newReadonlyDate(initialDate);
+		this.#isDisposed = false;
+		this.#isFrozen = snapshotDate !== undefined;
+		this.#latestDateSnapshot = newReadonlyDate(snapshotDate);
 		this.#fastestRefreshInterval = Number.POSITIVE_INFINITY;
 		this.#latestIntervalId = undefined;
-	}
-
-	// Doesn't encapsulate much logic; main use is providing a descriptive name
-	// for the comparison
-	#isFrozen(): boolean {
-		return this.#minimumRefreshIntervalMs === Number.POSITIVE_INFINITY;
 	}
 
 	#notifyAllSubscriptions(): void {
@@ -212,7 +200,7 @@ export class TimeSync implements TimeSyncApi {
 		// interval is Infinity, so that we can support letting any arbitrary
 		// consumer invalidate the date immediately
 		const subscriptionsPaused =
-			this.#isDisposed || this.#isFrozen() || this.#subscriptions.size === 0;
+			this.#isDisposed || this.#isFrozen || this.#subscriptions.size === 0;
 		if (subscriptionsPaused) {
 			return;
 		}
@@ -376,7 +364,7 @@ export class TimeSync implements TimeSyncApi {
 	}
 
 	invalidateStateSnapshot(options?: InvalidateSnapshotOptions): Date {
-		if (this.#isDisposed || this.#isFrozen()) {
+		if (this.#isDisposed || this.#isFrozen) {
 			return this.#latestDateSnapshot;
 		}
 

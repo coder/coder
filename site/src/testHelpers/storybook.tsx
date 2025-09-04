@@ -1,4 +1,4 @@
-import type { StoryContext } from "@storybook/react-vite";
+import type { Decorator, StoryContext } from "@storybook/react-vite";
 import { withDefaultFeatures } from "api/api";
 import { getAuthorizationKey } from "api/queries/authCheck";
 import { hasFirstUserKey, meKey } from "api/queries/users";
@@ -10,6 +10,7 @@ import {
 	ProxyContext,
 	type ProxyContextValue,
 } from "contexts/ProxyContext";
+import { TimeSyncProvider } from "hooks/useTimeSync";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import { DeploymentConfigContext } from "modules/management/DeploymentConfigProvider";
 import { OrganizationSettingsContext } from "modules/management/OrganizationSettingsLayout";
@@ -25,6 +26,15 @@ import {
 	MockOrganizationPermissions,
 	MockProxyLatencies,
 } from "./entities";
+
+export const withTimeSyncProvider: Decorator = (Story) => {
+	return (
+		// Very important, personal date. Please don't change 🙏
+		<TimeSyncProvider snapshotDate={new Date("March 15, 2022")}>
+			<Story />
+		</TimeSyncProvider>
+	);
+};
 
 export const withDashboardProvider = (
 	Story: FC,
