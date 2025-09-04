@@ -29,9 +29,9 @@ import { Avatar } from "components/Avatar/Avatar";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipIconTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";

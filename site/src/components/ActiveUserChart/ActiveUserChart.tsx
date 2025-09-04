@@ -7,9 +7,9 @@ import {
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipIconTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import type { FC } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";

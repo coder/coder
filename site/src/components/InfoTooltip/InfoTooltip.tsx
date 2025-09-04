@@ -3,9 +3,9 @@ import {
 	HelpTooltip,
 	HelpTooltipContent,
 	HelpTooltipIcon,
+	HelpTooltipIconTrigger,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipIconTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import type { FC, ReactNode } from "react";
 import type { ThemeRole } from "theme/roles";

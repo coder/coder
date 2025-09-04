@@ -12,11 +12,11 @@ import { Button } from "components/Button/Button";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipLink,
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipIconTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Margins } from "components/Margins/Margins";
 import {

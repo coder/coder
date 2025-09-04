@@ -13,11 +13,11 @@ import * as Yup from "yup";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipLink,
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipIconTrigger,
 } from "../../components/HelpTooltip/HelpTooltip";
 import { docs } from "../../utils/docs";
 

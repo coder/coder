@@ -11,9 +11,9 @@ import {
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipIconTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { EditSquare } from "components/Icons/EditSquare";
 import { UserIcon } from "lucide-react";

@@ -8,9 +8,9 @@ import { Combobox } from "components/Combobox/Combobox";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipIconTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
