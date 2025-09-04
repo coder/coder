@@ -25,7 +25,7 @@ import {
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import { useFormik } from "formik";
 import { ChevronDownIcon } from "lucide-react";
-import { useState, type FC } from "react";
+import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";

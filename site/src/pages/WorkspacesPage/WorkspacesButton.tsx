@@ -2,14 +2,14 @@ import Link from "@mui/material/Link";
 import type { Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
+import { Loader } from "components/Loader/Loader";
+import { MenuSearch } from "components/Menu/MenuSearch";
+import { OverflowY } from "components/OverflowY/OverflowY";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
-import { Loader } from "components/Loader/Loader";
-import { MenuSearch } from "components/Menu/MenuSearch";
-import { OverflowY } from "components/OverflowY/OverflowY";
 import { SearchEmpty, searchStyles } from "components/Search/Search";
 import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";

@@ -27,15 +27,15 @@ import {
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/Popover/Popover";
-import {
 	HelpTooltipLink,
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
 import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
