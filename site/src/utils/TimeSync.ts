@@ -46,10 +46,6 @@ type TimeSyncInitOptions = Readonly<{
 	 * It is highly recommended that you only modify this value if you have a
 	 * good reason. Updating this value to be too low and make the event loop
 	 * get really hot and really tank performance elsewhere in the app.
-	 *
-	 * If a value of `Number.POSITIVE_INFINITY` is passed in, that renders the
-	 * TimeSync completely inert, and no subscriptions will ever be notified.
-	 * This behavior can be helpful when setting up snapshot tests.
 	 */
 	minimumRefreshIntervalMs: number;
 }>;
