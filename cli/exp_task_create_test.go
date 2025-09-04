@@ -31,6 +31,7 @@ func TestTaskCreate(t *testing.T) {
 		templateID              = uuid.New()
 		templateVersionID       = uuid.New()
 		templateVersionPresetID = uuid.New()
+		taskID                  = uuid.New()
 	)
 
 	templateAndVersionFoundHandler := func(t *testing.T, ctx context.Context, orgID uuid.UUID, templateName, templateVersionName, presetName, prompt string) http.HandlerFunc {
@@ -44,11 +45,11 @@ func TestTaskCreate(t *testing.T) {
 						ID: orgID,
 					}},
 				})
-			case fmt.Sprintf("/api/v2/organizations/%s/templates/my-template/versions/my-template-version", orgID):
+			case fmt.Sprintf("/api/v2/organizations/%s/templates/%s/versions/%s", orgID, templateName, templateVersionName):
 				httpapi.Write(ctx, w, http.StatusOK, codersdk.TemplateVersion{
 					ID: templateVersionID,
 				})
-			case fmt.Sprintf("/api/v2/organizations/%s/templates/my-template", orgID):
+			case fmt.Sprintf("/api/v2/organizations/%s/templates/%s", orgID, templateName):
 				httpapi.Write(ctx, w, http.StatusOK, codersdk.Template{
 					ID:              templateID,
 					ActiveVersionID: templateVersionID,
@@ -83,7 +84,8 @@ func TestTaskCreate(t *testing.T) {
 					assert.Equal(t, templateVersionPresetID, req.TemplateVersionPresetID, "template version preset id mismatch")
 				}
 
-				httpapi.Write(ctx, w, http.StatusCreated, codersdk.Workspace{
+				httpapi.Write(ctx, w, http.StatusCreated, codersdk.Task{
+					ID:        taskID,
 					Name:      "task-wild-goldfish-27",
 					CreatedAt: taskCreatedAt,
 				})
@@ -159,6 +161,13 @@ func TestTaskCreate(t *testing.T) {
 			expectOutput: fmt.Sprintf("The task %s has been created at %s!", cliui.Keyword("task-wild-goldfish-27"), cliui.Timestamp(taskCreatedAt)),
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
 				return templateAndVersionFoundHandler(t, ctx, organizationID, "my-template", "", "my-preset", "my custom prompt")
+			},
+		},
+		{
+			args:         []string{"my custom prompt", "-q"},
+			expectOutput: taskID.String(),
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return templateAndVersionFoundHandler(t, ctx, organizationID, "my-template", "my-template-version", "", "my custom prompt")
 			},
 		},
 		{
