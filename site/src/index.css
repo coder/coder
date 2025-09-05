@@ -142,4 +142,8 @@
 	body[style*="overflow: hidden"][style*="padding-right"] {
 		padding-right: 0px;
 	}
+
+	a {
+		text-decoration: none;
+	}
 }
