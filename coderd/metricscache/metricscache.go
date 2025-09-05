@@ -181,16 +181,14 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 
 func (c *Cache) run(ctx context.Context, name string, interval time.Duration, refresh func(context.Context) error) {
 	logger := c.log.With(slog.F("name", name), slog.F("interval", interval))
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
 
-	for {
+	tickerFunc := func() error {
+		start := c.clock.Now()
 		for r := retry.New(time.Millisecond*100, time.Minute); r.Wait(ctx); {
-			start := time.Now()
 			err := refresh(ctx)
 			if err != nil {
 				if ctx.Err() != nil {
-					return
+					return nil
 				}
 				if xerrors.Is(err, sql.ErrNoRows) {
 					break
@@ -198,18 +196,17 @@ func (c *Cache) run(ctx context.Context, name string, interval time.Duration, re
 				logger.Error(ctx, "refresh metrics failed", slog.Error(err))
 				continue
 			}
-			logger.Debug(ctx, "metrics refreshed", slog.F("took", time.Since(start)))
+			logger.Debug(ctx, "metrics refreshed", slog.F("took", c.clock.Since(start)))
 			break
 		}
-
-		select {
-		case <-ticker.C:
-		case <-c.done:
-			return
-		case <-ctx.Done():
-			return
-		}
+		return nil
 	}
+
+	// Call once immediately before starting ticker
+	_ = tickerFunc()
+
+	tkr := c.clock.TickerFunc(ctx, interval, tickerFunc, "metricscache", name)
+	_ = tkr.Wait()
 }
 
 func (c *Cache) Close() error {
