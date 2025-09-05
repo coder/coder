@@ -28,8 +28,12 @@ export function newReadonlyDate(sourceDate?: Date): Date {
 	return new Proxy(newDate, readonlyEnforcer);
 }
 
-const epsilonThreshold = 0.001;
+/**
+ * Mainly used here to guarantee no mantissa problems from double-based math,
+ * but using it for all non-infinity comparisons to be on the safe side
+ */
 function areIntervalsEqual(interval1: number, interval2: number): boolean {
+	const epsilonThreshold = 0.001;
 	return Math.abs(interval1 - interval2) < epsilonThreshold;
 }
 
@@ -257,13 +261,9 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		const elapsed = Date.now() - this.#latestDateSnapshot.getMilliseconds();
-		const delta = fastest - elapsed;
+		const timeBeforeNextUpdate = fastest - elapsed;
 
-		// If we're behind on updates, we need to sync immediately before
-		// setting up the new interval. With how TimeSync is designed, this case
-		// should only be triggered in response to adding a subscription, never
-		// from removing one
-		if (delta <= 0) {
+		if (timeBeforeNextUpdate <= 0) {
 			clearInterval(this.#intervalId);
 			const updated = this.#updateDateSnapshot();
 			if (updated) {
@@ -277,7 +277,7 @@ export class TimeSync implements TimeSyncApi {
 		this.#intervalId = setInterval(() => {
 			clearInterval(this.#intervalId);
 			this.#intervalId = setInterval(this.#onTick, fastest);
-		}, delta);
+		}, timeBeforeNextUpdate);
 	}
 
 	#updateFastestInterval(): void {
@@ -345,7 +345,7 @@ export class TimeSync implements TimeSyncApi {
 			);
 		}
 
-		const unsubscribe = () => {
+		const unsubscribe = (): void => {
 			const entries = this.#subscriptions.get(onUpdate);
 			if (entries === undefined) {
 				return;
@@ -365,7 +365,6 @@ export class TimeSync implements TimeSyncApi {
 			this.#updateFastestInterval();
 		};
 
-		// Add new subscription and reconcile state if need be
 		let entries = this.#subscriptions.get(onUpdate);
 		if (entries === undefined) {
 			entries = [];
