@@ -108,7 +108,7 @@ ping -n 3 your-workspace.coder
 
 ### Web Services
 
-Open `http://your-workspace.coder:PORT` in your browser (replace `PORT` with your service's port)
+Open `http://your-workspace.coder:PORT` in your browser, replacing `PORT` with the specific service port you want to access (e.g. 3000 for frontend, 8080 for API)
 
 </div>
 
