@@ -11,9 +11,9 @@ import {
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { EditSquare } from "components/Icons/EditSquare";
 import { UserIcon } from "lucide-react";
@@ -83,7 +83,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = (props) => {
 	if (!canSetRoles) {
 		return (
 			<HelpTooltip>
-				<HelpTooltipTrigger size="small" />
+				<HelpTooltipIconTrigger size="small" />
 				<HelpTooltipContent>
 					<HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
 					<HelpTooltipText>

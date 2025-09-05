@@ -12,11 +12,11 @@ import { Button } from "components/Button/Button";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipLink,
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Margins } from "components/Margins/Margins";
 import {
@@ -72,7 +72,7 @@ const Language = {
 const TemplateHelpTooltip: FC = () => {
 	return (
 		<HelpTooltip>
-			<HelpTooltipTrigger />
+			<HelpTooltipIconTrigger />
 			<HelpTooltipContent>
 				<HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
 				<HelpTooltipText>{Language.templateTooltipText}</HelpTooltipText>

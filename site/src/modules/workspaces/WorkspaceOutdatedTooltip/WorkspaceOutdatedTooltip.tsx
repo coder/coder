@@ -4,49 +4,56 @@ import Skeleton from "@mui/material/Skeleton";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { templateVersion } from "api/queries/templates";
 import type { Workspace } from "api/typesGenerated";
-import { usePopover } from "components/deprecated/Popover/Popover";
 import { displayError } from "components/GlobalSnackbar/utils";
 import {
 	HelpTooltip,
 	HelpTooltipAction,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { InfoIcon, RotateCcwIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import {
 	useWorkspaceUpdate,
 	WorkspaceUpdateDialogs,
 } from "../WorkspaceUpdateDialogs";
 
-interface TooltipProps {
+interface WorkspaceOutdatedTooltipProps {
 	workspace: Workspace;
 }
 
-export const WorkspaceOutdatedTooltip: FC<TooltipProps> = (props) => {
+export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = (
+	props,
+) => {
+	const [isOpen, setIsOpen] = useState(false);
+
 	return (
-		<HelpTooltip>
-			<HelpTooltipTrigger size="small" hoverEffect={false}>
+		<HelpTooltip open={isOpen} onOpenChange={setIsOpen}>
+			<HelpTooltipIconTrigger size="small" hoverEffect={false}>
 				<InfoIcon css={styles.icon} />
 				<span className="sr-only">Outdated info</span>
-			</HelpTooltipTrigger>
-			<WorkspaceOutdatedTooltipContent {...props} />
+			</HelpTooltipIconTrigger>
+			<WorkspaceOutdatedTooltipContent isOpen={isOpen} {...props} />
 		</HelpTooltip>
 	);
 };
 
-const WorkspaceOutdatedTooltipContent: FC<TooltipProps> = ({ workspace }) => {
+type TooltipContentProps = WorkspaceOutdatedTooltipProps & { isOpen: boolean };
+
+const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
+	workspace,
+	isOpen,
+}) => {
 	const getLink = useLinks();
 	const theme = useTheme();
-	const popover = usePopover();
 	const { data: activeVersion } = useQuery({
 		...templateVersion(workspace.template_active_version_id),
-		enabled: popover.open,
+		enabled: isOpen,
 	});
 	const updateWorkspace = useWorkspaceUpdate({
 		workspace,
