@@ -14,12 +14,6 @@ import (
 
 const defaultGroupDisplay = "-"
 
-type workspaceShareRow struct {
-	User  string                 `table:"user"`
-	Group string                 `table:"group,default_sort"`
-	Role  codersdk.WorkspaceRole `table:"role"`
-}
-
 func (r *RootCmd) sharing() *serpent.Command {
 	orgContext := NewOrganizationContext()
 
