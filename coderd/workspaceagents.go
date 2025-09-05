@@ -883,10 +883,10 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 	// close frames.
 	_ = conn.CloseRead(context.Background())
 
-	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
-
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close()
+
+	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
 
 	encoder := json.NewEncoder(wsNetConn)
 
