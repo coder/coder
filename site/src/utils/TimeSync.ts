@@ -5,11 +5,10 @@ export const noOp = (..._: readonly unknown[]): void => {};
  * keeping it updated, and notifying subscribers of changes over time. If even a
  * single mutation slips through, that has a risk of breaking everything. So for
  * correctness guarantees, we have to prevent runtime mutations and can't just
- * hope that lying about the types does enough.
+ * hope that lying to TypeScript about the types is enough.
  *
- * Using Object.freeze would typically be enough, but Date objects have a lot of
- * set methods that can bypass this restriction and modify internal state. A
- * proxy wrapper is literally our only option.
+ * Date objects have a lot of private state that can be modified via its set
+ * methods, so Object.freeze doesn't do anything to help us.
  */
 const readonlyEnforcer: ProxyHandler<Date> = {
 	get: (date, key) => {
@@ -33,8 +32,9 @@ export function newReadonlyDate(sourceDate?: Date): Date {
 }
 
 /**
- * Mainly used here to guarantee no mantissa problems from double-based math,
- * but using it for all non-infinity comparisons to be on the safe side
+ * Mainly used here to guarantee no mantissa problems when doing math on
+ * intervals but to be on the safe side, we can use this anywhere that doesn't
+ * check if a value is equal to the Number.POSITIVE_INFINITY constant
  */
 function areIntervalsEqual(interval1: number, interval2: number): boolean {
 	const epsilonThreshold = 0.001;
@@ -51,7 +51,7 @@ type TimeSyncInitOptions = Readonly<{
 
 	/**
 	 * The minimum refresh interval (in milliseconds) to use when dispatching
-	 * interval-based state updates.
+	 * interval-based state updates. Defaults to 200ms.
 	 *
 	 * If a value smaller than this is specified when trying to set up a new
 	 * subscription, this minimum will be used instead.
@@ -90,8 +90,6 @@ export type SubscriptionHandshake = Readonly<{
 	targetRefreshIntervalMs: number;
 	onUpdate: OnUpdate;
 }>;
-
-const defaultMinimumRefreshIntervalMs: number = 100;
 
 type InvalidateSnapshotOptions = Readonly<{
 	notificationBehavior?: "onChange" | "never" | "always";
@@ -142,6 +140,8 @@ type SubscriptionEntry = Readonly<{
 	targetInterval: number;
 	unsubscribe: () => void;
 }>;
+
+const defaultMinimumRefreshIntervalMs: number = 200;
 
 /**
  * TimeSync provides a centralized authority for working with time values in a
@@ -264,7 +264,8 @@ export class TimeSync implements TimeSyncApi {
 			return;
 		}
 
-		const elapsed = Date.now() - this.#latestDateSnapshot.getMilliseconds();
+		const elapsed =
+			newReadonlyDate().getTime() - this.#latestDateSnapshot.getMilliseconds();
 		const timeBeforeNextUpdate = fastest - elapsed;
 
 		if (timeBeforeNextUpdate <= 0) {
