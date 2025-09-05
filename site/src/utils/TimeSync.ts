@@ -28,6 +28,11 @@ export function newReadonlyDate(sourceDate?: Date): Date {
 	return new Proxy(newDate, readonlyEnforcer);
 }
 
+const epsilonThreshold = 0.001;
+function areIntervalsEqual(interval1: number, interval2: number): boolean {
+	return Math.abs(interval1 - interval2) < epsilonThreshold;
+}
+
 type TimeSyncInitOptions = Readonly<{
 	/**
 	 * The Date object to initialize TimeSync with to help with snapshot tests.
@@ -164,7 +169,8 @@ export class TimeSync implements TimeSyncApi {
 	// This class uses setInterval for both its intended purpose and as a janky
 	// version of setTimeout. There are a few times when we need timeout-like
 	// logic, but if we use setInterval for everything, we have fewer IDs to
-	// juggle, and less risk of things getting out of sync
+	// juggle, and less risk of things getting out of sync. Type defined like
+	// this to support client-rendering and non-RSC server-rendering
 	#intervalId: NodeJS.Timeout | number | undefined;
 
 	constructor(options?: Partial<TimeSyncInitOptions>) {
@@ -284,7 +290,7 @@ export class TimeSync implements TimeSyncApi {
 		let newFastest = Number.POSITIVE_INFINITY;
 
 		// This setup requires that every interval array stay sorted. It
-		// immediately falls apart that this isn't guaranteed.
+		// immediately falls apart if this isn't guaranteed.
 		for (const entries of this.#subscriptions.values()) {
 			const subFastest = entries[0]?.targetInterval ?? Number.POSITIVE_INFINITY;
 			if (subFastest < newFastest) {
@@ -293,7 +299,7 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		this.#fastestRefreshInterval = newFastest;
-		if (prevFastest !== newFastest) {
+		if (!areIntervalsEqual(prevFastest, newFastest)) {
 			this.#onFastestIntervalChange();
 		}
 	}
@@ -308,8 +314,10 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		const newSnap = newReadonlyDate();
-		const noStateChange =
-			newSnap.getMilliseconds() === this.#latestDateSnapshot.getMilliseconds();
+		const noStateChange = areIntervalsEqual(
+			newSnap.getMilliseconds(),
+			this.#latestDateSnapshot.getMilliseconds(),
+		);
 		if (noStateChange) {
 			return false;
 		}
