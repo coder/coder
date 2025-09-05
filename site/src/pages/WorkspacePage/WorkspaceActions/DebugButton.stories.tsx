@@ -1,6 +1,6 @@
 import { MockWorkspace } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, screen, userEvent, waitFor } from "storybook/test";
 import { DebugButton } from "./DebugButton";
 
 const meta: Meta<typeof DebugButton> = {
@@ -41,9 +41,7 @@ export const WithOpenBuildParameters: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement, step }) => {
-		const screen = within(canvasElement);
-
+	play: async ({ step }) => {
 		await step("open popover", async () => {
 			await userEvent.click(screen.getByTestId("build-parameters-button"));
 			await waitFor(() =>
