@@ -815,9 +815,12 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 // @Router /workspaceagents/{workspaceagent}/containers/watch [get]
 func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx            = r.Context()
 		workspaceAgent = httpmw.WorkspaceAgentParam(r)
+		logger         = api.Logger.Named("agent_container_watcher").With(slog.F("agent_id", workspaceAgent.ID))
 	)
+
+	ctx, cancelCtx := context.WithCancel(r.Context())
+	defer cancelCtx()
 
 	// If the agent is unreachable, the request will hang. Assume that if we
 	// don't get a response after 30s that the agent is unreachable.
@@ -857,8 +860,7 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 	}
 	defer release()
 
-	watcherLogger := api.Logger.Named("agent_container_watcher").With(slog.F("agent_id", workspaceAgent.ID))
-	containersCh, closer, err := agentConn.WatchContainers(ctx, watcherLogger)
+	containersCh, closer, err := agentConn.WatchContainers(ctx, logger)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error watching agent's containers.",
@@ -881,10 +883,10 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 	// close frames.
 	_ = conn.CloseRead(context.Background())
 
+	go httpapi.HeartbeatClose(ctx, logger, cancelCtx, conn)
+
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close()
-
-	go httpapi.Heartbeat(ctx, conn)
 
 	encoder := json.NewEncoder(wsNetConn)
 
