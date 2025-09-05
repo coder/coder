@@ -9,6 +9,7 @@ import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import { Loader } from "components/Loader/Loader";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { useDebouncedFunction } from "hooks/debounce";
 import { useClipboard } from "hooks/useClipboard";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
@@ -112,6 +113,10 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 			}
 		}
 	};
+	const { debounced: debouncedValidateWorkspaceName } = useDebouncedFunction(
+		validateWorkspaceName,
+		500,
+	);
 
 	const hookId = useId();
 	const defaultWorkspaceNameID = `${hookId}-default-workspace-name`;
@@ -164,7 +169,7 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 									id={defaultWorkspaceNameID}
 									value={buttonValues.name}
 									onChange={(event) => {
-										validateWorkspaceName(event.target.value);
+										debouncedValidateWorkspaceName(event.target.value);
 										setButtonValues((buttonValues) => ({
 											...buttonValues,
 											name: event.target.value,
