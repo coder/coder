@@ -38,7 +38,7 @@ They allow you to set resource guardrails by referencing Coder identity in the `
 
 ## How to enable Dynamic Parameters
 
-In Coder v2.25.0, Dynamic Parameters are automatically enabled for new templates. You can opt-in to Dynamic Parameters for individual existing templates via template settings.
+In Coder v2.25.0 and later, Dynamic Parameters are automatically enabled for new templates. For Coder v2.24 and below, you can opt-in to Dynamic Parameters for individual existing templates via template settings.
 
 1. Go to your template's settings and enable the **Enable dynamic parameters for workspace creation** option.
 
