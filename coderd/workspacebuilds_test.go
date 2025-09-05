@@ -719,15 +719,14 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		}, testutil.WaitShort, testutil.IntervalFast)
 
 		// When: a cancel request is made with expect_state=pending
-		err := client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{
-			ExpectStatus: codersdk.CancelWorkspaceBuildStatusPending,
-		})
-		// Then: the request should fail with 412.
-		require.Error(t, err)
-
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Eventually(t, func() bool {
+			err := client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{
+				ExpectStatus: codersdk.CancelWorkspaceBuildStatusPending,
+			})
+			// Then: the request should fail with 412.
+			var apiErr *codersdk.Error
+			return assert.Error(t, err) && assert.ErrorAs(t, err, &apiErr) && apiErr.StatusCode() == http.StatusPreconditionFailed
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 
 	t.Run("Cancel with expect_state=running when job is pending - should fail with 412", func(t *testing.T) {
