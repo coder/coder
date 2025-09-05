@@ -128,7 +128,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 									<span className="sr-only">
 										Legend for total limit in the chart
 									</span>
-									<div className="w-full border-b-1 border-t-1 border-dashed border-content-disabled" />
+									<div className="w-full border-b border-t border-dashed border-content-disabled" />
 								</div>
 								Total limit after which further AI workspace builds will be
 								blocked.

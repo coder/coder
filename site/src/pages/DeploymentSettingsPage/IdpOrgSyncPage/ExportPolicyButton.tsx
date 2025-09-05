@@ -21,7 +21,7 @@ export const ExportPolicyButton: FC<ExportPolicyButtonProps> = ({
 
 	return (
 		<Button
-			variant={"outline"}
+			variant="outline"
 			disabled={!canCreatePolicyJson || isDownloading}
 			onClick={async () => {
 				if (canCreatePolicyJson) {

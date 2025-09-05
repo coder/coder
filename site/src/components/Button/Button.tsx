@@ -14,7 +14,7 @@ const buttonVariants = cva(
 	inline-flex items-center justify-center gap-1 whitespace-nowrap font-sans
 	border-solid rounded-md transition-colors
 	text-sm font-medium cursor-pointer no-underline
-	focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
+	focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
 	disabled:pointer-events-none disabled:text-content-disabled
 	[&:is(a):not([href])]:pointer-events-none [&:is(a):not([href])]:text-content-disabled
 	[&>svg]:pointer-events-none [&>svg]:shrink-0 [&>svg]:p-0.5

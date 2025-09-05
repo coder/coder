@@ -63,7 +63,7 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
 			{open && (
-				<div className="fixed inset-0 top-[72px] backdrop-blur-sm z-10 bg-surface-primary/50" />
+				<div className="fixed inset-0 top-[72px] backdrop-blur-xs z-10 bg-surface-primary/50" />
 			)}
 			<DropdownMenuTrigger asChild>
 				<Button

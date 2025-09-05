@@ -133,17 +133,17 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 const AgentMetadataSkeleton: FC = () => {
 	return (
 		<Stack alignItems="baseline" direction="row" spacing={6}>
-			<div className="leading-relaxed flex flex-col overflow-visible flex-shrink-0">
+			<div className="leading-relaxed flex flex-col overflow-visible shrink-0">
 				<Skeleton width={40} height={12} variant="text" />
 				<Skeleton width={65} height={14} variant="text" />
 			</div>
 
-			<div className="leading-relaxed flex flex-col overflow-visible flex-shrink-0">
+			<div className="leading-relaxed flex flex-col overflow-visible shrink-0">
 				<Skeleton width={40} height={12} variant="text" />
 				<Skeleton width={65} height={14} variant="text" />
 			</div>
 
-			<div className="leading-relaxed flex flex-col overflow-visible flex-shrink-0">
+			<div className="leading-relaxed flex flex-col overflow-visible shrink-0">
 				<Skeleton width={40} height={12} variant="text" />
 				<Skeleton width={65} height={14} variant="text" />
 			</div>
@@ -200,7 +200,7 @@ const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
 		);
 
 	return (
-		<div className="leading-relaxed flex flex-col overflow-visible flex-shrink-0">
+		<div className="leading-relaxed flex flex-col overflow-visible shrink-0">
 			<div className="text-content-secondary text-ellipsis overflow-hidden whitespace-nowrap text-[13px]">
 				{item.description.display_name}
 			</div>

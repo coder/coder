@@ -143,7 +143,7 @@ const GroupRow: FC<GroupRowProps> = ({ group }) => {
 							/>
 						))}
 						{remainingAvatars > 0 && (
-							<Badge className="h-[--avatar-default]">
+							<Badge className="h-(--avatar-default)">
 								+{remainingAvatars}
 							</Badge>
 						)}

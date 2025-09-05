@@ -93,7 +93,7 @@ export const LicenseSeatConsumptionChart: FC<
 									<span className="sr-only">
 										Legend for license seat limit in the chart
 									</span>
-									<div className="w-full border-b-1 border-t-1 border-dashed border-content-disabled" />
+									<div className="w-full border-b border-t border-dashed border-content-disabled" />
 								</div>
 								Current license seat limit, or the maximum number of allowed
 								Active accounts.

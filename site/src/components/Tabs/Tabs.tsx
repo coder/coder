@@ -54,7 +54,7 @@ export const TabLink: FC<TabLinkProps> = ({ value, ...linkProps }) => {
 			className={cn(
 				`text-sm text-content-secondary no-underline font-medium py-3 px-1 mr-6 hover:text-content-primary rounded-md
 				focus-visible:ring-offset-1 focus-visible:ring-offset-surface-primary
-				focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link focus-visible:rounded-sm`,
+				focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link focus-visible:rounded-sm`,
 				{
 					"text-content-primary relative before:absolute before:bg-surface-invert-primary before:left-0 before:w-full before:h-px before:-bottom-px before:content-['']":
 						isActive,

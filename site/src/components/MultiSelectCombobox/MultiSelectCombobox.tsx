@@ -496,8 +496,8 @@ export const MultiSelectCombobox = forwardRef<
 									<Badge
 										key={option.value}
 										className={cn(
-											"data-[disabled]:bg-content-disabled data-[disabled]:text-surface-tertiarydata-[disabled]:hover:bg-content-disabled",
-											"data-[fixed]:bg-content-disabled data-[fixed]:text-surface-tertiary data-[fixed]:hover:bg-surface-secondary",
+											"data-disabled:bg-content-disabled data-[disabled]:text-surface-tertiarydata-[disabled]:hover:bg-content-disabled",
+											"data-fixed:bg-content-disabled data-fixed:text-surface-tertiary data-fixed:hover:bg-surface-secondary",
 											badgeClassName,
 										)}
 										data-fixed={option.fixed}
@@ -517,7 +517,7 @@ export const MultiSelectCombobox = forwardRef<
 											type="button"
 											data-testid="clear-option-button"
 											className={cn(
-												`ml-1 pr-0 rounded-sm bg-transparent border-none outline-none
+												`ml-1 pr-0 rounded-sm bg-transparent border-none outline-hidden
 												focus:ring-2 focus:ring-content-link focus:ml-2.5 focus:pl-0 cursor-pointer`,
 												(disabled || option.fixed) && "hidden",
 											)}
@@ -564,7 +564,7 @@ export const MultiSelectCombobox = forwardRef<
 										: placeholder
 								}
 								className={cn(
-									"flex-1 border-none outline-none bg-transparent placeholder:text-content-secondary",
+									"flex-1 border-none outline-hidden bg-transparent placeholder:text-content-secondary",
 									{
 										"w-full": hidePlaceholderWhenSelected,
 										"px-3 py-2.5": selected.length === 0,
@@ -589,7 +589,7 @@ export const MultiSelectCombobox = forwardRef<
 									}
 								}}
 								className={cn(
-									"bg-transparent mt-1 border-none rounded-sm cursor-pointer text-content-secondary hover:text-content-primary outline-none focus:ring-2 focus:ring-content-link",
+									"bg-transparent mt-1 border-none rounded-sm cursor-pointer text-content-secondary hover:text-content-primary outline-hidden focus:ring-2 focus:ring-content-link",
 									(hideClearAllButton ||
 										disabled ||
 										selected.length < 1 ||
@@ -608,7 +608,7 @@ export const MultiSelectCombobox = forwardRef<
 						<CommandList
 							className={`absolute top-1 z-10 w-full rounded-md
 								border border-solid border-border
-								bg-surface-primary text-content-primary shadow-md outline-none
+								bg-surface-primary text-content-primary shadow-md outline-hidden
 								animate-in`}
 							onPointerLeave={() => {
 								setOnScrollbar(false);
@@ -678,7 +678,7 @@ export const MultiSelectCombobox = forwardRef<
 																		<Tooltip>
 																			<TooltipTrigger asChild>
 																				<span className="flex items-center pointer-events-auto">
-																					<Info className="!w-3.5 !h-3.5 text-content-secondary" />
+																					<Info className="w-3.5! h-3.5! text-content-secondary" />
 																				</span>
 																			</TooltipTrigger>
 																			<TooltipContent

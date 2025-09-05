@@ -48,7 +48,7 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 				<InboxButton unreadCount={unreadCount} />
 			</PopoverTrigger>
 			<PopoverContent
-				className="w-[var(--radix-popper-available-width)] max-w-[466px]"
+				className="w-(--radix-popper-available-width) max-w-[466px]"
 				align="end"
 			>
 				{/*
@@ -59,7 +59,7 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 					className={cn([
 						"[--bottom-offset:48px]",
 						"[--max-height:calc(var(--radix-popover-content-available-height)-var(--bottom-offset))]",
-						"[&>[data-radix-scroll-area-viewport]]:max-h-[var(--max-height)]",
+						"*:data-radix-scroll-area-viewport:max-h-(--max-height)",
 					])}
 				>
 					<div
