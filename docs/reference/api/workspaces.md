@@ -177,6 +177,7 @@ of the template will be used.
                 ],
                 "subdomain": true,
                 "subdomain_name": "string",
+                "tooltip": "string",
                 "url": "string"
               }
             ],
@@ -466,6 +467,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
                 ],
                 "subdomain": true,
                 "subdomain_name": "string",
+                "tooltip": "string",
                 "url": "string"
               }
             ],
@@ -780,6 +782,7 @@ of the template will be used.
                 ],
                 "subdomain": true,
                 "subdomain_name": "string",
+                "tooltip": "string",
                 "url": "string"
               }
             ],
@@ -1055,6 +1058,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                     "statuses": [],
                     "subdomain": true,
                     "subdomain_name": "string",
+                    "tooltip": "string",
                     "url": "string"
                   }
                 ],
@@ -1345,6 +1349,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
                 ],
                 "subdomain": true,
                 "subdomain_name": "string",
+                "tooltip": "string",
                 "url": "string"
               }
             ],
@@ -1867,6 +1872,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
                 ],
                 "subdomain": true,
                 "subdomain_name": "string",
+                "tooltip": "string",
                 "url": "string"
               }
             ],

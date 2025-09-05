@@ -50,9 +50,12 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.9:
 //   - Added new field named 'has_external_agent' in 'CompleteJob.TemplateImport'
+//
+// API v1.10:
+//   - Added new field `tooltip` in `App`
 const (
 	CurrentMajor = 1
-	CurrentMinor = 9
+	CurrentMinor = 10
 )
 
 // CurrentVersion is the current provisionerd API version.

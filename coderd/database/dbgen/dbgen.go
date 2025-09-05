@@ -866,6 +866,7 @@ func WorkspaceApp(t testing.TB, db database.Store, orig database.WorkspaceApp) d
 		DisplayGroup:         orig.DisplayGroup,
 		Hidden:               orig.Hidden,
 		OpenIn:               takeFirst(orig.OpenIn, database.WorkspaceAppOpenInSlimWindow),
+		Tooltip:              takeFirst(orig.Tooltip, testutil.GetRandomName(t)),
 	})
 	require.NoError(t, err, "insert app")
 	return resource

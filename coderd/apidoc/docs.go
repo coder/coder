@@ -18781,6 +18781,10 @@ const docTemplate = `{
                     "description": "SubdomainName is the application domain exposed on the ` + "`" + `coder server` + "`" + `.",
                     "type": "string"
                 },
+                "tooltip": {
+                    "description": "Tooltip is an optional markdown supported field that is displayed\nwhen hovering over workspace apps in the UI.",
+                    "type": "string"
+                },
                 "url": {
                     "description": "URL is the address being proxied to inside the workspace.\nIf external is specified, this will be opened on the client.",
                     "type": "string"

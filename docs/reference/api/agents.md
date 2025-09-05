@@ -562,6 +562,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
       ],
       "subdomain": true,
       "subdomain_name": "string",
+      "tooltip": "string",
       "url": "string"
     }
   ],
