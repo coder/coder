@@ -815,12 +815,10 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 // @Router /workspaceagents/{workspaceagent}/containers/watch [get]
 func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Request) {
 	var (
+		ctx            = r.Context()
 		workspaceAgent = httpmw.WorkspaceAgentParam(r)
 		logger         = api.Logger.Named("agent_container_watcher").With(slog.F("agent_id", workspaceAgent.ID))
 	)
-
-	ctx, cancel := context.WithCancel(r.Context())
-	defer cancel()
 
 	// If the agent is unreachable, the request will hang. Assume that if we
 	// don't get a response after 30s that the agent is unreachable.
@@ -878,6 +876,9 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 		})
 		return
 	}
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 
 	// Here we close the websocket for reading, so that the websocket library will handle pings and
 	// close frames.
