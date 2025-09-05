@@ -42,7 +42,7 @@ export const WrongWorkspaceName: Story = {
 		templateParameters: [MockTemplateVersionParameter1],
 	},
 	play: async () => {
-		const workspaceName = screen.getByRole("textbox", {
+		const workspaceName = await screen.findByRole("textbox", {
 			name: "Workspace name",
 		});
 		await userEvent.type(workspaceName, "b@d");
