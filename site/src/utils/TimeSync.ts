@@ -165,7 +165,7 @@ export class TimeSync implements TimeSyncApi {
 	// version of setTimeout. There are a few times when we need timeout-like
 	// logic, but if we use setInterval for everything, we have fewer IDs to
 	// juggle, and less risk of things getting out of sync
-	#intervalId: number | undefined;
+	#intervalId: NodeJS.Timeout | number | undefined;
 
 	constructor(options?: Partial<TimeSyncInitOptions>) {
 		const {
@@ -227,7 +227,7 @@ export class TimeSync implements TimeSyncApi {
 	#onTick = (): void => {
 		if (this.#isDisposed || this.#isFrozen) {
 			// Defensive step to make sure that an invalid tick wasn't started
-			window.clearInterval(this.#intervalId);
+			clearInterval(this.#intervalId);
 			this.#intervalId = undefined;
 			return;
 		}
@@ -245,7 +245,7 @@ export class TimeSync implements TimeSyncApi {
 			this.#isFrozen ||
 			fastest === Number.POSITIVE_INFINITY;
 		if (skipUpdate) {
-			window.clearInterval(this.#intervalId);
+			clearInterval(this.#intervalId);
 			this.#intervalId = undefined;
 			return;
 		}
@@ -258,19 +258,19 @@ export class TimeSync implements TimeSyncApi {
 		// should only be triggered in response to adding a subscription, never
 		// from removing one
 		if (delta <= 0) {
-			window.clearInterval(this.#intervalId);
+			clearInterval(this.#intervalId);
 			const updated = this.#updateDateSnapshot();
 			if (updated) {
 				this.#notifyAllSubscriptions();
 			}
-			this.#intervalId = window.setInterval(this.#onTick, fastest);
+			this.#intervalId = setInterval(this.#onTick, fastest);
 			return;
 		}
 
-		window.clearInterval(this.#intervalId);
-		this.#intervalId = window.setInterval(() => {
-			window.clearInterval(this.#intervalId);
-			this.#intervalId = window.setInterval(this.#onTick, fastest);
+		clearInterval(this.#intervalId);
+		this.#intervalId = setInterval(() => {
+			clearInterval(this.#intervalId);
+			this.#intervalId = setInterval(this.#onTick, fastest);
 		}, delta);
 	}
 
@@ -401,7 +401,7 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		this.#isDisposed = true;
-		window.clearInterval(this.#intervalId);
+		clearInterval(this.#intervalId);
 		for (const entries of this.#subscriptions.values()) {
 			for (const e of entries) {
 				e.unsubscribe();
