@@ -31,7 +31,7 @@ export const RadioGroupItem = React.forwardRef<
 			ref={ref}
 			className={cn(
 				`relative aspect-square h-4 w-4 rounded-full border border-solid border-border text-content-primary bg-surface-primary
-			focus:outline-none focus-visible:ring-2 focus-visible:ring-content-link
+			focus:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
 			focus-visible:ring-offset-4 focus-visible:ring-offset-surface-primary
 			disabled:cursor-not-allowed disabled:opacity-25 disabled:border-surface-invert-primary
 			hover:border-border-hover data-[state=checked]:border-border-hover`,

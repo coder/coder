@@ -68,7 +68,7 @@ export const OrganizationSettingsPageView: FC<
 	const [isDeleting, setIsDeleting] = useState(false);
 
 	return (
-		<div className="w-full max-w-screen-2xl pb-10">
+		<div className="w-full max-w-(--breakpoint-2xl) pb-10">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Settings</SettingsHeaderTitle>
 			</SettingsHeader>
@@ -135,7 +135,7 @@ export const OrganizationSettingsPageView: FC<
 						title="Settings"
 						description="Change or delete your organization."
 					>
-						<div className="flex bg-surface-orange items-center justify-between border border-solid border-orange-600 rounded-md p-3 pl-4 gap-2 flex-grow">
+						<div className="flex bg-surface-orange items-center justify-between border border-solid border-orange-600 rounded-md p-3 pl-4 gap-2 grow">
 							<span>Deleting an organization is irreversible.</span>
 							<Button
 								variant="destructive"

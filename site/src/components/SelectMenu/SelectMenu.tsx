@@ -42,7 +42,7 @@ export const SelectMenuButton = forwardRef<
 	return (
 		<Button variant="outline" size="lg" ref={ref} {...restProps}>
 			{startIcon}
-			<span className="text-left block overflow-hidden text-ellipsis flex-grow">
+			<span className="text-left block overflow-hidden text-ellipsis grow">
 				{props.children}
 			</span>
 			<ChevronDownIcon />

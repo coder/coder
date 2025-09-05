@@ -176,7 +176,7 @@ const EnabledEditRolesButton: FC<EditRolesButtonProps> = ({
 						)}
 					</div>
 				</fieldset>
-				<div className="p-6 border-t-1 border-solid border-border text-sm">
+				<div className="p-6 border-t border-solid border-border text-sm">
 					<div className="flex gap-4">
 						<UserIcon />
 						<div className="flex flex-col">

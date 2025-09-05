@@ -151,7 +151,7 @@ const TaskPage = () => {
 				<PanelResizeHandle>
 					<div className="w-1 bg-border h-full hover:bg-border-hover transition-all relative" />
 				</PanelResizeHandle>
-				<Panel className="[&>*]:h-full">
+				<Panel className="*:h-full">
 					<TaskApps task={task} />
 				</Panel>
 			</PanelGroup>
@@ -218,7 +218,7 @@ const TaskBuildingWorkspace: FC<TaskBuildingWorkspaceProps> = ({ task }) => {
 						</p>
 					</header>
 
-					<div className="w-full max-w-screen-lg flex flex-col gap-4 overflow-hidden">
+					<div className="w-full max-w-(--breakpoint-lg) flex flex-col gap-4 overflow-hidden">
 						<WorkspaceBuildProgress
 							workspace={task.workspace}
 							transitionStats={transitionStats}
@@ -269,7 +269,7 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ agent }) => {
 						</p>
 					</header>
 
-					<div className="w-full max-w-screen-lg flex flex-col gap-4 overflow-hidden">
+					<div className="w-full max-w-(--breakpoint-lg) flex flex-col gap-4 overflow-hidden">
 						<div className="h-96 border border-solid border-border rounded-lg">
 							<AgentLogs
 								logs={logs.map((l) => ({

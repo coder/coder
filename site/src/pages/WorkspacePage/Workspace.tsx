@@ -245,7 +245,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 						)}
 
 						{selectedResource && (
-							<section className="flex flex-col gap-6 flex-grow min-w-0">
+							<section className="flex flex-col gap-6 grow min-w-0">
 								{selectedResource.agents
 									// If an agent has a `parent_id`, that means it is
 									// child of another agent. We do not want these agents

@@ -73,7 +73,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 			<div
 				className={`
 					flex items-center justify-between px-4 py-3 gap-6
-					border-0 [&:not(:last-child)]:border-b border-solid border-border
+					border-0 not-last:border-b border-solid border-border
 				`}
 			>
 				<div className="flex flex-col overflow-hidden">
@@ -161,7 +161,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 								key={status.id}
 								className={`
 							flex items-center justify-between px-4 py-3
-							border-0 [&:not(:last-child)]:border-b border-solid border-border
+							border-0 not-last:border-b border-solid border-border
 						`}
 							>
 								<div className="flex items-center justify-between w-full text-content-secondary">

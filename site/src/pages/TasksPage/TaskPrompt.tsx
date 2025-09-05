@@ -103,8 +103,8 @@ const TaskPromptSkeleton: FC = () => {
 					id="prompt"
 					name="prompt"
 					placeholder={textareaPlaceholder}
-					className={`border-0 resize-none w-full h-full bg-transparent rounded-lg outline-none flex min-h-[60px]
-				text-sm shadow-sm text-content-primary placeholder:text-content-secondary md:text-sm`}
+					className={`border-0 resize-none w-full h-full bg-transparent rounded-lg outline-hidden flex min-h-[60px]
+				text-sm shadow-xs text-content-primary placeholder:text-content-secondary md:text-sm`}
 				/>
 
 				{/* Bottom controls skeleton */}
@@ -249,8 +249,8 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 					value={presetAIPrompt || undefined}
 					readOnly={isPromptReadOnly}
 					placeholder={textareaPlaceholder}
-					className={`border-0 resize-none w-full h-full bg-transparent rounded-lg outline-none flex min-h-[60px]
-						text-sm shadow-sm text-content-primary placeholder:text-content-secondary md:text-sm ${
+					className={`border-0 resize-none w-full h-full bg-transparent rounded-lg outline-hidden flex min-h-[60px]
+						text-sm shadow-xs text-content-primary placeholder:text-content-secondary md:text-sm ${
 							isPromptReadOnly ? "opacity-60 cursor-not-allowed" : ""
 						}`}
 				/>

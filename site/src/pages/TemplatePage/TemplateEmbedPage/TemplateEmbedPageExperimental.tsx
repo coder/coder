@@ -188,7 +188,7 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 
 	return (
 		<div className="flex items-start gap-12">
-			<div className="w-full flex flex-col gap-5 max-w-screen-md">
+			<div className="w-full flex flex-col gap-5 max-w-(--breakpoint-md)">
 				{isLoading ? (
 					<div className="flex flex-col gap-9">
 						<div className="flex flex-col gap-2">

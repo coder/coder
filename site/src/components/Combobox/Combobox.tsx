@@ -90,7 +90,7 @@ export const Combobox: FC<ComboboxProps> = ({
 					<ChevronDown className="size-icon-sm text-content-secondary group-hover:text-content-primary" />
 				</Button>
 			</PopoverTrigger>
-			<PopoverContent className="w-[var(--radix-popover-trigger-width)]">
+			<PopoverContent className="w-(--radix-popover-trigger-width)">
 				<Command>
 					<CommandInput
 						placeholder="Search or enter custom value"
