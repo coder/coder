@@ -238,9 +238,6 @@ func TestSharingStatus(t *testing.T) {
 		for _, line := range strings.Split(out.String(), "\n") {
 			if strings.Contains(line, orgMember.Username) && strings.Contains(line, string(codersdk.WorkspaceRoleUse)) && strings.Contains(line, group.Name) {
 				found = true
-			}
-
-			if found {
 				break
 			}
 		}
