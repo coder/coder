@@ -9,10 +9,6 @@ import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";
 import { CreateUserForm } from "./CreateUserForm";
 
-const _Language = {
-	unknownError: "Oops, an unknown error occurred.",
-};
-
 const CreateUserPage: FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();

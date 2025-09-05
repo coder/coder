@@ -18,7 +18,7 @@ import { getExternalImageStylesFromUrl } from "theme/externalImages";
 import { cn } from "utils/cn";
 
 const avatarVariants = cva(
-	"relative flex shrink-0 overflow-hidden rounded border border-solid bg-surface-secondary text-content-secondary",
+	"relative flex shrink-0 overflow-hidden rounded border border-solid border-border bg-surface-secondary text-content-secondary",
 	{
 		variants: {
 			size: {
