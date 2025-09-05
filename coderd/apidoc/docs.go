@@ -18782,7 +18782,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "tooltip": {
-                    "description": "Tooltip is an optional markdown supported field that is displayed when\nhovering over app buttons in the workspace dashboard.",
+                    "description": "Tooltip is an optional markdown supported field that is displayed\nwhen hovering over workspace apps in the UI.",
                     "type": "string"
                 },
                 "url": {

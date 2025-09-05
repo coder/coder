@@ -4104,7 +4104,7 @@ type WorkspaceApp struct {
 	Hidden       bool               `db:"hidden" json:"hidden"`
 	OpenIn       WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
 	DisplayGroup sql.NullString     `db:"display_group" json:"display_group"`
-	// Markdown-supported text that is displayed when hovering over app icons in the workspace dashboard (max 512 characters).
+	// Markdown text that is displayed when hovering over workspace apps.
 	Tooltip string `db:"tooltip" json:"tooltip"`
 }
 

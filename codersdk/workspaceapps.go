@@ -89,8 +89,8 @@ type WorkspaceApp struct {
 	Group       string             `json:"group,omitempty"`
 	Hidden      bool               `json:"hidden"`
 	OpenIn      WorkspaceAppOpenIn `json:"open_in"`
-	// Tooltip is an optional markdown supported field that is displayed when
-	// hovering over app buttons in the workspace dashboard.
+	// Tooltip is an optional markdown supported field that is displayed
+	// when hovering over workspace apps in the UI.
 	Tooltip string `json:"tooltip,omitempty"`
 
 	// Statuses is a list of statuses for the app.
