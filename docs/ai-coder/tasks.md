@@ -1,6 +1,6 @@
 # Coder Tasks (Beta)
 
-Coder Tasks is an interface for running & managing coding agents such as Claude Code and Aider, powered by Coder workspaces.
+Coder Tasks is an interface for running & managing coding agents such as Claude Code, Codex, Gemini, and Aider, powered by Coder workspaces.
 
 ![Tasks UI](../images/guides/ai-agents/tasks-ui.png)
 
@@ -9,21 +9,25 @@ Coder Tasks is best for cases where the IDE is secondary, such as prototyping or
 > [!NOTE]
 > Coder Tasks is free and open source. If you are a Coder Premium customer or want to run hundreds of tasks in the background, [contact us](https://coder.com/contact) for roadmap information and volume pricing.
 
-## Supported Agents (and Models)
+## Supported Agents
 
 Any terminal-based agent that supports Model Context Protocol (MCP) can be integrated with Coder Tasks, including your own custom agents.
 
-Out of the box, agents like Claude Code and Goose are supported with built-in modules that can be added to a template. [See all modules compatible with Tasks in the Registry](https://registry.coder.com/modules?search=tag%3Atasks).
+Out of the box, agents like Claude Code, Codex, Gemini, and Aider are supported with custom-built modules that can be added to a template to convert them into Coder Tasks. [See all modules compatible with Tasks in the Registry](https://registry.coder.com/modules?search=tag%3Atasks).
+
+## Enterprise LLM Providers and Proxies
 
 Enterprise LLM Providers such as AWS Bedrock, GCP Vertex and proxies such as LiteLLM can be used as well in order to keep intellectual property private. Self-hosted models such as llama4 can also be configured with specific agents, such as Aider and Goose.
 
+Configuration is Agent specific and further instructions can be found in the [Registry](https://registry.coder.com/modules?search=tag%3Atasks) for each of the supported agents.
+
 ## Architecture
 
-Each task runs inside its own Coder workspace for isolation purposes. Agents like Claude Code also run in the workspace, and can be pre-installed via a module in the Coder Template. Agents then communicate with your LLM provider, so no GPUs are directly required in your workspaces for inference.
+Each task runs inside its own Coder workspace for isolation purposes. Agents like Claude Code, Codex, and Aider run in the workspace, and can be pre-installed via a module in the Coder Template. Agents then communicate with your LLM provider, so no GPUs are directly required in your workspaces.
 
 ![High-Level Architecture](../images/guides/ai-agents/architecture-high-level.png)
 
-Coder's [built-in modules for agents](https://registry.coder.com/modules?search=tag%3Atasks) will pre-install the agent alongside [AgentAPI](https://github.com/coder/agentapi). AgentAPI is an open source project developed by Coder which improves status reporting and the Chat UI, regardless of which agent you use.
+Coder's [custom-built modules for agents](https://registry.coder.com/modules?search=tag%3Atasks) will pre-install the agent alongside [AgentAPI](https://github.com/coder/agentapi). AgentAPI is an open source project developed by Coder which improves status reporting and the Chat UI, regardless of which agent you use.
 
 ## Getting Started with Tasks
 
@@ -44,7 +48,15 @@ To import the template and begin configuring it, follow the [documentation in th
 > [!NOTE]
 > The Tasks tab will appear automatically after you add a Tasks-compatible template and refresh the page.
 
-### Option 2&rpar; Create or Duplicate Your Own Template
+### Option 2&rpar; Use Any of Our Tasks Modules
+
+We have a growing collection of agent modules that enable Coder Tasks in any existing Coder template. To start,
+
+1. Find your favourite agent with Tasks support in Coder Regitsry
+1. Follow the instcrtion to edit your template and drop the agent module
+1. Refresh your browser to see Coder Tasks show up.
+
+### Option 3&rpar; Create or Duplicate Your Own Template
 
 A template becomes a Task template if it defines a `coder_ai_task` resource and a `coder_parameter` named `"AI Prompt"`. Coder analyzes template files during template version import to determine if these requirements are met.
 
@@ -73,6 +85,39 @@ resource "coder_ai_task" "claude-code" {
 Because Tasks run unpredictable AI agents, often for background tasks, we recommend creating a separate template for Coder Tasks with limited permissions. You can always duplicate your existing template, then apply separate network policies/firewalls/permissions to the template. From there, follow the docs for one of our [built-in modules for agents](https://registry.coder.com/modules?search=tag%3Atasks) in order to add it to your template, configure your LLM provider.
 
 Alternatively, follow our guide for [custom agents](./custom-agents.md).
+
+## Agent Identity and permissions
+
+Some users may wish to or are requiredto run agents with their own identity and permissions.
+
+### Git Identity
+
+You can make use of `.gitconfig` to configure the identity of the agent. For example, you can configure the author and committer	identities separately.
+
+```tf
+resource "coder_agent" "main" {
+	...
+	env = {
+		GIT_AUTHOR_NAME = "AI Bot"
+		GIT_AUTHOR_EMAIL = "ai.bot@example.com"
+		GIT_COMMITTER_NAME = "Jane Doe"
+		GIT_COMMITTER_EMAIL = "jane.doe@example.com"
+	}
+}
+```
+
+### Permissions
+
+You have two options here to either choose the developer orchestrating the agent's permissions as you are already doing with [External Auth](https://coder.com/docs/admin/external-auth) or inject a Bot specific PAT if the tasks are started by a [headless system user](https://coder.com/docs/admin/users/headless-auth) as shown below:
+
+```tf
+resource "coder_agent" "main" {
+	...
+	env = {
+		GITHUB_TOKEN = "ghp_1234567890abcdef" # Inject a Bot specific PAT
+	}
+}
+```
 
 ## Customizing the Task UI
 
