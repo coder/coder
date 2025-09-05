@@ -10,7 +10,6 @@ Coder Desktop provides seamless access to your remote workspaces through a nativ
 
 ## Quick Start
 
-
 1. Install: `brew install --cask coder/coder/coder-desktop` (macOS) or `winget install Coder.CoderDesktop` (Windows)
 1. Open Coder Desktop and approve any system prompts to complete the installation.
 1. Sign in with your deployment URL and session token
@@ -19,7 +18,7 @@ Coder Desktop provides seamless access to your remote workspaces through a nativ
 
 ## How It Works
 
-Coder Desktop creates a secure tunnel to your Coder deployment, allowing you to:
+**Coder Connect** the primmary component of Coder Destop creates a secure tunnel to your Coder deployment, allowing you to:
 
 - **Access workspaces directly**: Connect via `workspace-name.coder` hostnames
 - **Use any application**: SSH clients, browsers, IDEs work seamlessly
@@ -50,8 +49,6 @@ brew install --cask coder/coder/coder-desktop
 
 </div>
 
-**System Permissions**
-
 Coder Desktop requires VPN extension permissions:
 
 1. When prompted with **"Coder Desktop" would like to use a new network extension**, select **Open System Settings**
@@ -80,9 +77,7 @@ winget install Coder.CoderDesktop
 
 </div>
 
-**System Requirements**
-
-- .NET Windows Desktop Runtime (installed automatically if needed)
+- [.NET Windows Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) (installed automatically if not present)
 - Windows App Runtime SDK (may require manual installation)
 
 ✅ **Verify Installation**: Coder Desktop should appear in your system tray (you may need to click **^** to show hidden icons)
