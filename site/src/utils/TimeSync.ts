@@ -20,9 +20,13 @@ const readonlyEnforcer: ProxyHandler<Date> = {
 	},
 };
 
-// Returns a Date that cannot be modified at runtime. All set methods are turned
-// into no-ops. This function does not use a custom type to make it easier to
-// interface with existing time libraries.
+/**
+ * Returns a Date that cannot be modified at runtime (all set methods still
+ * exist, but are turned into no-ops).
+ *
+ * This function does not use a custom type to make it easier to interface with
+ * existing time libraries.
+ */
 export function newReadonlyDate(sourceDate?: Date): Date {
 	const newDate = sourceDate ? new Date(sourceDate) : new Date();
 	return new Proxy(newDate, readonlyEnforcer);
