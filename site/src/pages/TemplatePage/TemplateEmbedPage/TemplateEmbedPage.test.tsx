@@ -33,7 +33,6 @@ test("Users can fill the parameters and copy the open in coder url", async () =>
 	const workspaceName = screen.getByRole("textbox", {
 		name: "Workspace name",
 	});
-	await user.clear(workspaceName);
 	await user.type(workspaceName, "my-first-workspace");
 	const firstParameterField = screen.getByLabelText(
 		parameter1.display_name ?? parameter1.name,

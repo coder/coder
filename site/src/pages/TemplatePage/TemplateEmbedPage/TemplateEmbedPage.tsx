@@ -60,7 +60,7 @@ function getClipboardCopyContent(
 	const createWorkspaceUrl = `${deploymentUrl}/templates/${organization}/${templateName}/workspace`;
 	const createWorkspaceParams = new URLSearchParams(buttonValues);
 	if (createWorkspaceParams.get("name") === "") {
-		createWorkspaceParams.delete("name"); // skip default workspace name if undefined
+		createWorkspaceParams.delete("name"); // no default workspace name if empty
 	}
 	const buttonUrl = `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`;
 
@@ -157,12 +157,7 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 								<Label className="text-md" htmlFor={defaultWorkspaceNameID}>
 									Workspace name
 								</Label>
-								<div
-									className={"text-sm mb-3"}
-									css={(theme) => ({
-										color: theme.palette.text.secondary,
-									})}
-								>
+								<div className={"text-sm text-content-secondary mb-3"}>
 									Default name for the new workspace
 								</div>
 								<Input
@@ -176,14 +171,8 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 										}));
 									}}
 								/>
-								<div
-									className="text-sm mt-1"
-									role="alert"
-									css={(theme) => ({
-										color: theme.palette.error.main,
-									})}
-								>
-									{workspaceNameError || "\u00A0"}
+								<div className="text-sm text-highlight-red mt-1" role="alert">
+									{workspaceNameError}
 								</div>
 							</div>
 
