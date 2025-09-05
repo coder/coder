@@ -3,7 +3,6 @@ package license
 import (
 	"context"
 	"crypto/ed25519"
-	"database/sql"
 	"fmt"
 	"math"
 	"sort"
@@ -97,23 +96,13 @@ func Entitlements(
 	}
 
 	// nolint:gocritic // Getting external workspaces is a system function.
-	externalWorkspaces, err := db.GetWorkspaces(dbauthz.AsSystemRestricted(ctx), database.GetWorkspacesParams{
-		HasExternalAgent: sql.NullBool{
-			Bool:  true,
-			Valid: true,
-		},
-	})
+	externalWorkspaceCount, err := db.GetExternalWorkspaceCount(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		return codersdk.Entitlements{}, xerrors.Errorf("query external workspaces: %w", err)
 	}
 
 	// nolint:gocritic // Getting external templates is a system function.
-	externalTemplates, err := db.GetTemplatesWithFilter(dbauthz.AsSystemRestricted(ctx), database.GetTemplatesWithFilterParams{
-		HasExternalAgent: sql.NullBool{
-			Bool:  true,
-			Valid: true,
-		},
-	})
+	externalTemplateCount, err := db.GetExternalTemplateCount(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		return codersdk.Entitlements{}, xerrors.Errorf("query external templates: %w", err)
 	}
@@ -122,8 +111,8 @@ func Entitlements(
 		ActiveUserCount:        activeUserCount,
 		ReplicaCount:           replicaCount,
 		ExternalAuthCount:      externalAuthCount,
-		ExternalWorkspaceCount: int64(len(externalWorkspaces)),
-		ExternalTemplateCount:  int64(len(externalTemplates)),
+		ExternalWorkspaceCount: externalWorkspaceCount,
+		ExternalTemplateCount:  externalTemplateCount,
 		ManagedAgentCountFn: func(ctx context.Context, startTime time.Time, endTime time.Time) (int64, error) {
 			// This is not super accurate, as the start and end times will be
 			// truncated to the date in UTC timezone. This is an optimization

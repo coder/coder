@@ -11929,6 +11929,21 @@ func (q *sqlQuerier) UpsertTelemetryItem(ctx context.Context, arg UpsertTelemetr
 	return err
 }
 
+const getExternalTemplateCount = `-- name: GetExternalTemplateCount :one
+SELECT COUNT(*)
+FROM template_with_names AS t
+LEFT JOIN template_versions tv ON t.active_version_id = tv.id
+WHERE t.deleted = false
+  AND tv.has_external_agent = true
+`
+
+func (q *sqlQuerier) GetExternalTemplateCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getExternalTemplateCount)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getTemplateAverageBuildTime = `-- name: GetTemplateAverageBuildTime :one
 WITH build_times AS (
 SELECT
@@ -20160,6 +20175,33 @@ func (q *sqlQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploy
 		&i.StoppedWorkspaces,
 	)
 	return i, err
+}
+
+const getExternalWorkspaceCount = `-- name: GetExternalWorkspaceCount :one
+SELECT COUNT(*)
+FROM workspaces_expanded as workspaces
+WHERE workspaces.deleted = false
+  AND EXISTS (
+    SELECT 1
+    FROM workspace_builds wb
+    JOIN provisioner_jobs pj ON pj.id = wb.job_id
+    WHERE wb.workspace_id = workspaces.id
+      AND wb.has_external_agent = true
+      AND wb.id = (
+        SELECT wb2.id
+        FROM workspace_builds wb2
+        WHERE wb2.workspace_id = workspaces.id
+        ORDER BY wb2.build_number DESC
+        LIMIT 1
+      )
+  )
+`
+
+func (q *sqlQuerier) GetExternalWorkspaceCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getExternalWorkspaceCount)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const getRegularWorkspaceCreateMetrics = `-- name: GetRegularWorkspaceCreateMetrics :many

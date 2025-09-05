@@ -95,6 +95,13 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetExternalTemplateCount :one
+SELECT COUNT(*)
+FROM template_with_names AS t
+LEFT JOIN template_versions tv ON t.active_version_id = tv.id
+WHERE t.deleted = false
+  AND tv.has_external_agent = true;
+
 -- name: GetTemplates :many
 SELECT * FROM template_with_names AS templates
 ORDER BY (name, id) ASC

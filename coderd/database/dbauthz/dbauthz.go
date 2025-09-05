@@ -2081,6 +2081,22 @@ func (q *querier) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.
 	return fetchWithPostFilter(q.auth, policy.ActionReadPersonal, q.db.GetExternalAuthLinksByUserID)(ctx, userID)
 }
 
+func (q *querier) GetExternalTemplateCount(ctx context.Context) (int64, error) {
+	// This is a system-level count query for license entitlements
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.GetExternalTemplateCount(ctx)
+}
+
+func (q *querier) GetExternalWorkspaceCount(ctx context.Context) (int64, error) {
+	// This is a system-level count query for license entitlements
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.GetExternalWorkspaceCount(ctx)
+}
+
 func (q *querier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.GetFailedWorkspaceBuildsByTemplateIDRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
