@@ -3,16 +3,17 @@ import Skeleton from "@mui/material/Skeleton";
 import { templateVersion } from "api/queries/templates";
 import { apiKey } from "api/queries/users";
 import {
-	cancelBuild,
-	deleteWorkspace,
-	startWorkspace,
-	stopWorkspace,
+  cancelBuild,
+  deleteWorkspace,
+  startWorkspace,
+  stopWorkspace,
 } from "api/queries/workspaces";
 import type {
-	Template,
-	Workspace,
-	WorkspaceAgent,
-	WorkspaceApp,
+  Region,
+  Template,
+  Workspace,
+  WorkspaceAgent,
+  WorkspaceApp,
 } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
@@ -25,42 +26,39 @@ import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "components/Table/Table";
 import {
-	TableLoaderSkeleton,
-	TableRowSkeleton,
+  TableLoaderSkeleton,
+  TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { useProxy } from "contexts/ProxyContext";
 import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import {
-	BanIcon,
-	CloudIcon,
-	EllipsisVertical,
-	ExternalLinkIcon,
-	FileIcon,
-	PlayIcon,
-	RefreshCcwIcon,
-	SquareIcon,
-	SquareTerminalIcon,
-	StarIcon,
+  BanIcon,
+  CloudIcon,
+  EllipsisVertical,
+  ExternalLinkIcon,
+  FileIcon,
+  PlayIcon,
+  RefreshCcwIcon,
+  SquareIcon,
+  SquareTerminalIcon,
+  StarIcon,
 } from "lucide-react";
-import {
-	getTerminalHref,
-	getVSCodeHref,
-	openAppInNewWindow,
-} from "modules/apps/apps";
+import { getTerminalHref, getVSCodeHref, openAppInNewWindow } from "modules/apps/apps";
 import { useAppLink } from "modules/apps/useAppLink";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { abilitiesByWorkspaceStatus } from "modules/workspaces/actions";
@@ -69,24 +67,12 @@ import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/
 import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import { WorkspaceStatusIndicator } from "modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
-import {
-	useWorkspaceUpdate,
-	WorkspaceUpdateDialogs,
-} from "modules/workspaces/WorkspaceUpdateDialogs";
 import type React from "react";
-import {
-	type FC,
-	type PropsWithChildren,
-	type ReactNode,
-	useState,
-} from "react";
+import { type FC, type PropsWithChildren, type ReactNode, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { cn } from "utils/cn";
-import {
-	getDisplayWorkspaceTemplateName,
-	lastUsedMessage,
-} from "utils/workspace";
+import { getDisplayWorkspaceTemplateName, lastUsedMessage } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
 
 interface WorkspacesTableProps {
@@ -102,6 +88,38 @@ interface WorkspacesTableProps {
 	onActionError: (error: unknown) => void;
 }
 
+// Determine a workspace's connection region based on agent DERP latencies.
+const getWorkspaceConnectionRegion = (
+	workspace: Workspace,
+): string | undefined => {
+	const agents: readonly WorkspaceAgent[] = workspace.latest_build.resources
+		.flatMap((r) => r.agents ?? [])
+		.filter(Boolean);
+	const agent = agents[0];
+	const lat = agent?.latency;
+	if (!lat) return undefined;
+	const entries = Object.entries(lat);
+	const preferred = entries.find(([, v]) => v?.preferred);
+	if (preferred) return preferred[0];
+	const valid = entries.filter(
+		([, v]) => typeof v?.latency_ms === "number" && v.latency_ms >= 0,
+	);
+	valid.sort((a, b) => a[1].latency_ms - b[1].latency_ms);
+	return (valid[0] ?? entries[0])?.[0];
+};
+
+// Return latency in ms for a selected region key, if available
+const getWorkspaceRegionLatencyMS = (
+	workspace: Workspace,
+	key: string,
+): number | undefined => {
+	if (!key) return undefined;
+	const agent = workspace.latest_build.resources
+		.flatMap((r) => r.agents ?? [])
+		.filter(Boolean)[0];
+	return agent?.latency?.[key]?.latency_ms;
+};
+
 export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	workspaces,
 	checkedWorkspaces,
@@ -114,6 +132,16 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	onActionError,
 }) => {
 	const dashboard = useDashboard();
+	const { proxies } = useProxy();
+	const regionByKey = useMemo(() => {
+		const map = new Map<string, Region>();
+		(proxies ?? []).forEach((r: Region) => {
+			if (!r) return;
+			map.set(r.id, r);
+			map.set(r.name, r);
+		});
+		return map;
+	}, [proxies]);
 
 	return (
 		<Table>
@@ -144,6 +172,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 						</div>
 					</TableHead>
 					<TableHead className="w-1/3">Template</TableHead>
+					<TableHead className="w-1/6">Region</TableHead>
 					<TableHead className="w-1/3">Status</TableHead>
 					<TableHead className="w-0">
 						<span className="sr-only">Actions</span>
@@ -167,6 +196,13 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 					const checked = checkedWorkspaces.some((w) => w.id === workspace.id);
 					const activeOrg = dashboard.organizations.find(
 						(o) => o.id === workspace.organization_id,
+					);
+					const workspaceRegionKey =
+						getWorkspaceConnectionRegion(workspace) ?? "";
+					const region = regionByKey.get(workspaceRegionKey);
+					const regionLatency = getWorkspaceRegionLatencyMS(
+						workspace,
+						workspaceRegionKey,
 					);
 
 					return (
@@ -256,6 +292,47 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								/>
 							</TableCell>
 
+							{/* Region column */}
+							<TableCell>
+								{region ? (
+									<TooltipProvider>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<span className="inline-flex">
+													<AvatarData
+														title={
+															<span className="whitespace-nowrap">
+																{region.display_name || region.name}
+															</span>
+														}
+														avatar={
+															<Avatar
+																variant="icon"
+																src={region.icon_url}
+																fallback={region.display_name || region.name}
+																size="lg"
+															/>
+														}
+													/>
+												</span>
+											</TooltipTrigger>
+											<TooltipContent>
+												<span>
+													{region.name}
+													{typeof regionLatency === "number"
+														? ` • ${regionLatency} ms`
+														: ""}
+												</span>
+											</TooltipContent>
+										</Tooltip>
+									</TooltipProvider>
+								) : (
+									<span className="whitespace-nowrap">
+										{workspaceRegionKey || "—"}
+									</span>
+								)}
+							</TableCell>
+
 							<WorkspaceStatusCell workspace={workspace} />
 
 							<WorkspaceActionsCell
@@ -333,6 +410,10 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 				</TableCell>
 				<TableCell className="w-2/6">
 					<AvatarDataSkeleton />
+				</TableCell>
+				{/* Region skeleton cell */}
+				<TableCell className="w-1/6">
+					<Skeleton variant="text" width="40%" />
 				</TableCell>
 				<TableCell className="w-2/6">
 					<Skeleton variant="text" width="50%" />
@@ -748,14 +829,10 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 		);
 	}
 
-	buttons.push();
-
 	return buttons;
 };
 
-type WorkspaceAppStatusLinksProps = {
-	workspace: Workspace;
-};
+type WorkspaceAppStatusLinksProps = { workspace: Workspace };
 
 const WorkspaceAppStatusLinks: FC<WorkspaceAppStatusLinksProps> = ({
 	workspace,
@@ -771,7 +848,6 @@ const WorkspaceAppStatusLinks: FC<WorkspaceAppStatusLinksProps> = ({
 			{agent && app && (
 				<IconAppLink app={app} workspace={workspace} agent={agent} />
 			)}
-
 			{status?.uri && status?.uri !== "n/a" && (
 				<BaseIconLink label={status.uri} href={status.uri} target="_blank">
 					{status.uri.startsWith("file://") ? (
@@ -792,10 +868,7 @@ type IconAppLinkProps = {
 };
 
 const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
-	const link = useAppLink(app, {
-		workspace,
-		agent,
-	});
+	const link = useAppLink(app, { workspace, agent });
 
 	return (
 		<BaseIconLink
