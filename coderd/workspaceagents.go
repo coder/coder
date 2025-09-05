@@ -819,13 +819,13 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 		logger         = api.Logger.Named("agent_container_watcher").With(slog.F("agent_id", workspaceAgent.ID))
 	)
 
-	ctx, cancelCtx := context.WithCancel(r.Context())
-	defer cancelCtx()
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 
 	// If the agent is unreachable, the request will hang. Assume that if we
 	// don't get a response after 30s that the agent is unreachable.
-	dialCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
+	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer dialCancel()
 	apiAgent, err := db2sdk.WorkspaceAgent(
 		api.DERPMap(),
 		*api.TailnetCoordinator.Load(),
@@ -883,7 +883,7 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 	// close frames.
 	_ = conn.CloseRead(context.Background())
 
-	go httpapi.HeartbeatClose(ctx, logger, cancelCtx, conn)
+	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
 
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close()
