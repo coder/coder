@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import { SearchIcon } from "lucide-react";
 import type { FC, HTMLAttributes, InputHTMLAttributes, Ref } from "react";
 import { cn } from "utils/cn";
@@ -76,14 +75,3 @@ export const SearchEmpty: FC<HTMLAttributes<HTMLDivElement>> = ({
 		</div>
 	);
 };
-
-/**
- * Reusable styles for consumers of the base components
- */
-export const searchStyles = {
-	content: {
-		width: 320,
-		padding: 0,
-		borderRadius: 4,
-	},
-} satisfies Record<string, Interpolation<Theme>>;
