@@ -22,8 +22,6 @@ import {
 } from "react";
 import { cn } from "utils/cn";
 
-const SIDE_PADDING = 16;
-
 export const SelectMenu = Popover;
 
 export const SelectMenuTrigger = PopoverTrigger;
@@ -60,23 +58,7 @@ export const SelectMenuSearch: FC<SearchFieldProps> = (props) => {
 		<SearchField
 			fullWidth
 			size="medium"
-			className=""
-			css={(theme) => ({
-				borderBottom: `1px solid ${theme.palette.divider}`,
-				"& input": {
-					fontSize: 14,
-				},
-				"& fieldset": {
-					border: 0,
-					borderRadius: 0,
-				},
-				"& .MuiInputBase-root": {
-					padding: `12px ${SIDE_PADDING}px`,
-				},
-				"& .MuiInputAdornment-positionStart": {
-					marginRight: SIDE_PADDING,
-				},
-			})}
+			className="border border-solid border-border [&_input]:text-sm [&_fieldset]:border-0 [&_fieldset]:rounded-none [&_.MuiInputBase-root]:px-4 [&_.MuiInputBase-root]:py-3"
 			{...props}
 			inputProps={{ autoFocus: true, ...props.inputProps }}
 		/>
