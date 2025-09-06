@@ -1,6 +1,6 @@
 import "./theme/globalFonts";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { TimeSyncProvider } from "hooks/useTimeSync";
+import { type InitialDate, TimeSyncProvider } from "hooks/useTimeSync";
 import {
 	type FC,
 	type ReactNode,
@@ -28,6 +28,7 @@ const defaultQueryClient = new QueryClient({
 interface AppProvidersProps {
 	children: ReactNode;
 	queryClient?: QueryClient;
+	initialDate?: InitialDate;
 }
 
 // extending the global window interface so we can conditionally
@@ -41,6 +42,7 @@ declare global {
 export const AppProviders: FC<AppProvidersProps> = ({
 	children,
 	queryClient = defaultQueryClient,
+	initialDate = new Date(),
 }) => {
 	// https://tanstack.com/query/v4/docs/react/devtools
 	const [showDevtools, setShowDevtools] = useState(false);
@@ -64,7 +66,7 @@ export const AppProviders: FC<AppProvidersProps> = ({
 	}, []);
 
 	return (
-		<TimeSyncProvider>
+		<TimeSyncProvider initialDate={initialDate}>
 			<HelmetProvider>
 				<QueryClientProvider client={queryClient}>
 					<AuthProvider>

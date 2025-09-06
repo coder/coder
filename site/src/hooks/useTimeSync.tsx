@@ -18,6 +18,8 @@ export const REFRESH_ONE_SECOND: number = 1_000;
 export const REFRESH_ONE_MINUTE = 60 * REFRESH_ONE_SECOND;
 export const REFRESH_ONE_HOUR = 60 * REFRESH_ONE_MINUTE;
 
+export type InitialDate = Date | (() => Date);
+
 /**
  * @todo 2025-08-29 - This isn't 100% correct, but for the initial
  * implementation, we're going to assume that no one is going to be monkey-
@@ -126,7 +128,8 @@ function structuralMerge<T = unknown>(oldValue: T, newValue: T): T {
 }
 
 type ReactTimeSyncInitOptions = Readonly<{
-	snapshotDate: Date;
+	initialDate: Date | (() => Date);
+	isSnapshot: boolean;
 }>;
 
 type TransformCallback<T> = (
@@ -165,12 +168,15 @@ class ReactTimeSync {
 	#hasPendingUpdates: boolean;
 
 	constructor(options?: Partial<ReactTimeSyncInitOptions>) {
-		const { snapshotDate } = options ?? {};
+		const { initialDate, isSnapshot } = options ?? {};
 
 		this.#isProviderMounted = true;
 		this.#hasPendingUpdates = false;
 		this.#entries = new Map();
-		this.#timeSync = new TimeSync({ snapshotDate });
+
+		const init =
+			typeof initialDate === "function" ? initialDate() : initialDate;
+		this.#timeSync = new TimeSync({ initialDate: init, isSnapshot });
 
 		// Don't need to store the unsubscribe callback separately, because this
 		// will be ejected when the onProviderUnmount method gets called
@@ -357,14 +363,18 @@ function useReactTimeSync(): ReactTimeSync {
 	return reactTs;
 }
 
-type TimeSyncProviderProps = PropsWithChildren<{ snapshotDate?: Date }>;
+type TimeSyncProviderProps = PropsWithChildren<{
+	initialDate?: InitialDate;
+	isSnapshot?: boolean;
+}>;
 
 export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 	children,
-	snapshotDate,
+	initialDate,
+	isSnapshot = false,
 }) => {
 	const [readonlyReactTs] = useState(() => {
-		return new ReactTimeSync({ snapshotDate });
+		return new ReactTimeSync({ initialDate, isSnapshot });
 	});
 
 	useEffect(() => {
@@ -462,11 +472,6 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// stale data after the very first render.
 	const externalTransform = useEffectEvent(activeTransform);
 
-	// Memozing both callbacks for useSyncExternalStore to avoid too much
-	// thrashing on re-renders. useSyncExternalStore will re-call either
-	// function if their reference changes. getSnap should be 100% stable for
-	// the component's lifecycle, while subscribe should only get invalidated
-	// when the target interval changes
 	const subscribe = useCallback<ReactSubscriptionCallback>(
 		(notifyReact) => {
 			return reactTs.subscribeToTransformations({
@@ -478,10 +483,16 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 		},
 		[reactTs, hookId, externalTransform, targetIntervalMs],
 	);
-	const getSnap = useCallback(
-		() => reactTs.getTransformationSnapshot<T>(hookId),
-		[reactTs, hookId],
-	);
+
+	// This function is deliberately *not* memoized. useSyncExternalStore will
+	// re-call the state getter each time it changes by reference (even if the
+	// subscription callback is unchanged), just to avoid stale data issues.
+	// Stale data is a huge concern when trying to bind time to React lifecycles
+	const getSnap = () => {
+		// Opt the React compiler out of memoizing this
+		"use no memo";
+		return reactTs.getTransformationSnapshot<T>(hookId);
+	};
 
 	/**
 	 * This is how useSyncExternalStore's on-mount logic works (which the React

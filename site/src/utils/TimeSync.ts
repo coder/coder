@@ -43,11 +43,16 @@ function areIntervalsEqual(interval1: number, interval2: number): boolean {
 
 type TimeSyncInitOptions = Readonly<{
 	/**
-	 * The Date object to initialize TimeSync with to help with snapshot tests.
-	 * If this value is specified, the TimeSync instance will be 100% frozen
-	 * and will not ever update its state after initialization.
+	 * The Date object to use when initializing TimeSync to make the constructor
+	 * more pure and deterministic.
 	 */
-	snapshotDate: Date;
+	initialDate: Date;
+
+	/**
+	 * Defaults to false. Indicates whether the TimeSync instance should be
+	 * frozen for Snapshot tests. Should be used together with initialDate.
+	 */
+	isSnapshot: boolean;
 
 	/**
 	 * The minimum refresh interval (in milliseconds) to use when dispatching
@@ -183,7 +188,8 @@ export class TimeSync implements TimeSyncApi {
 
 	constructor(options?: Partial<TimeSyncInitOptions>) {
 		const {
-			snapshotDate,
+			isSnapshot = false,
+			initialDate = new Date(),
 			minimumRefreshIntervalMs = defaultMinimumRefreshIntervalMs,
 		} = options ?? {};
 
@@ -196,12 +202,12 @@ export class TimeSync implements TimeSyncApi {
 			);
 		}
 
-		this.#subscriptions = new Map();
-		this.#minimumRefreshIntervalMs = minimumRefreshIntervalMs;
 		this.#isDisposed = false;
-		this.#isFrozen = snapshotDate !== undefined;
-		this.#latestDateSnapshot = newReadonlyDate(snapshotDate);
+		this.#isFrozen = isSnapshot;
+		this.#subscriptions = new Map();
+		this.#latestDateSnapshot = newReadonlyDate(initialDate);
 		this.#fastestRefreshInterval = Number.POSITIVE_INFINITY;
+		this.#minimumRefreshIntervalMs = minimumRefreshIntervalMs;
 		this.#intervalId = undefined;
 	}
 

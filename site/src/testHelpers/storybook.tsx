@@ -30,7 +30,7 @@ import {
 export const withTimeSyncProvider: Decorator = (Story) => {
 	return (
 		// Very important, personal date. Please don't change 🙏
-		<TimeSyncProvider snapshotDate={new Date("March 15, 2022")}>
+		<TimeSyncProvider isSnapshot initialDate={new Date("March 15, 2022")}>
 			<Story />
 		</TimeSyncProvider>
 	);
