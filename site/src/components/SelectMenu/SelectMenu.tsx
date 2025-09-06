@@ -53,7 +53,7 @@ export const SelectMenuSearch: FC<SearchFieldProps> = (props) => {
 		<SearchField
 			fullWidth
 			size="medium"
-			className="border-solid border-b-px [&_input]:font-sm [&_fieldset]:border-none [&_fieldset]:rounded-none [&.MuiInputBase-root]:py-3 [&.MuiInputBase-root]:px-4 [&.MuiInputAdornment-positionStart]:mr-4"
+			className="border-solid border-b-px [&_input]:font-sm [&_fieldset]:border-none [&_fieldset]:rounded-none [&_.MuiInputBase-root]:py-3 [&_.MuiInputBase-root]:px-4 [&_.MuiInputAdornment-positionStart]:mr-4"
 			{...props}
 			inputProps={{ autoFocus: true, ...props.inputProps }}
 		/>
