@@ -12,16 +12,16 @@ export type SearchFieldProps = Omit<TextFieldProps, "onChange"> & {
 };
 
 export const SearchField: FC<SearchFieldProps> = ({
-	value = "",
-	onChange,
-	autoFocus = false,
 	InputProps,
+	onChange,
+	value = "",
+	autoFocus = false,
 	...textFieldProps
 }) => {
 	// MUI's autoFocus behavior is wonky. If you set autoFocus=true, the
 	// component will keep getting focus on every single render, even if there
 	// are other input elements on screen. We want this to be one-time logic
-	const onMountRef = useEffectEvent((node: HTMLDivElement | null): void => {
+	const onMountRef = useEffectEvent((node: HTMLInputElement | null): void => {
 		if (autoFocus) {
 			node?.focus();
 		}
@@ -29,7 +29,7 @@ export const SearchField: FC<SearchFieldProps> = ({
 
 	return (
 		<TextField
-			ref={onMountRef}
+			inputRef={onMountRef}
 			// Specifying min width so that the text box can't shrink so much
 			// that it becomes un-clickable as we add more filter controls
 			className="min-w-[280px]"

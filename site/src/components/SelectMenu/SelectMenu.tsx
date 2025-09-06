@@ -37,13 +37,18 @@ type SelectMenuButtonProps = ButtonProps & {
 export const SelectMenuButton = forwardRef<
 	HTMLButtonElement,
 	SelectMenuButtonProps
->((props, ref) => {
-	const { startIcon, ...restProps } = props;
+>(({ className, startIcon, children, ...delegatedProps }, ref) => {
 	return (
-		<Button variant="outline" size="lg" ref={ref} {...restProps}>
+		<Button
+			variant="outline"
+			size="lg"
+			ref={ref}
+			className={cn("flex flex-row gap-3.5", className)}
+			{...delegatedProps}
+		>
 			{startIcon}
 			<span className="text-left block overflow-hidden text-ellipsis flex-grow">
-				{props.children}
+				{children}
 			</span>
 			<ChevronDownIcon />
 		</Button>
@@ -55,6 +60,7 @@ export const SelectMenuSearch: FC<SearchFieldProps> = (props) => {
 		<SearchField
 			fullWidth
 			size="medium"
+			className=""
 			css={(theme) => ({
 				borderBottom: `1px solid ${theme.palette.divider}`,
 				"& input": {
