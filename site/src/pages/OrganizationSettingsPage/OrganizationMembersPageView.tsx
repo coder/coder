@@ -81,7 +81,7 @@ export const OrganizationMembersPageView: FC<
 	updateMemberRoles,
 }) => {
 	return (
-		<div>
+		<div className="w-full max-w-screen-2xl pb-10">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Members</SettingsHeaderTitle>
 			</SettingsHeader>

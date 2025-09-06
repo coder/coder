@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/tls"
+	"database/sql"
 	"io"
 	"net/http"
 	"os/exec"
@@ -23,10 +24,13 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	entprebuilds "github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisioner/terraform"
@@ -105,7 +109,7 @@ func NewWithAPI(t *testing.T, options *Options) (
 		AuditLogging:               options.AuditLogging,
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,
-		DERPServerRelayAddress:     oop.AccessURL.String(),
+		DERPServerRelayAddress:     serverURL.String(),
 		DERPServerRegionID:         oop.BaseDERPMap.RegionIDs()[0],
 		ReplicaSyncUpdateInterval:  options.ReplicaSyncUpdateInterval,
 		ReplicaErrorGracePeriod:    options.ReplicaErrorGracePeriod,
@@ -161,12 +165,13 @@ func NewWithAPI(t *testing.T, options *Options) (
 // LicenseOptions is used to generate a license for testing.
 // It supports the builder pattern for easy customization.
 type LicenseOptions struct {
-	AccountType   string
-	AccountID     string
-	DeploymentIDs []string
-	Trial         bool
-	FeatureSet    codersdk.FeatureSet
-	AllFeatures   bool
+	AccountType      string
+	AccountID        string
+	DeploymentIDs    []string
+	Trial            bool
+	FeatureSet       codersdk.FeatureSet
+	AllFeatures      bool
+	PublishUsageData bool
 	// GraceAt is the time at which the license will enter the grace period.
 	GraceAt time.Time
 	// ExpiresAt is the time at which the license will hard expire.
@@ -271,6 +276,13 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		issuedAt = time.Now().Add(-time.Minute)
 	}
 
+	if options.AccountType == "" {
+		options.AccountType = license.AccountTypeSalesforce
+	}
+	if options.AccountID == "" {
+		options.AccountID = "test-account-id"
+	}
+
 	c := &license.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        uuid.NewString(),
@@ -279,15 +291,16 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 			NotBefore: jwt.NewNumericDate(options.NotBefore),
 			IssuedAt:  jwt.NewNumericDate(issuedAt),
 		},
-		LicenseExpires: jwt.NewNumericDate(options.GraceAt),
-		AccountType:    options.AccountType,
-		AccountID:      options.AccountID,
-		DeploymentIDs:  options.DeploymentIDs,
-		Trial:          options.Trial,
-		Version:        license.CurrentVersion,
-		AllFeatures:    options.AllFeatures,
-		FeatureSet:     options.FeatureSet,
-		Features:       options.Features,
+		LicenseExpires:   jwt.NewNumericDate(options.GraceAt),
+		AccountType:      options.AccountType,
+		AccountID:        options.AccountID,
+		DeploymentIDs:    options.DeploymentIDs,
+		Trial:            options.Trial,
+		Version:          license.CurrentVersion,
+		AllFeatures:      options.AllFeatures,
+		FeatureSet:       options.FeatureSet,
+		Features:         options.Features,
+		PublishUsageData: options.PublishUsageData,
 	}
 	return GenerateLicenseRaw(t, c)
 }
@@ -436,4 +449,99 @@ func newExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 	})
 
 	return closer
+}
+
+func GetRunningPrebuilds(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	desiredPrebuilds int,
+) []database.GetRunningPrebuiltWorkspacesRow {
+	t.Helper()
+
+	var runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		prebuiltWorkspaces, err := db.GetRunningPrebuiltWorkspaces(ctx)
+		assert.NoError(t, err, "failed to get running prebuilds")
+
+		for _, prebuild := range prebuiltWorkspaces {
+			runningPrebuilds = append(runningPrebuilds, prebuild)
+
+			agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, prebuild.ID)
+			assert.NoError(t, err, "failed to get agents")
+
+			// Manually mark all agents as ready since tests don't have real agent processes
+			// that would normally report their lifecycle state. Prebuilt workspaces are only
+			// eligible for claiming when their agents reach the "ready" state.
+			for _, agent := range agents {
+				err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+					ID:             agent.ID,
+					LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+					StartedAt:      sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
+					ReadyAt:        sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
+				})
+				assert.NoError(t, err, "failed to update agent")
+			}
+		}
+
+		t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), desiredPrebuilds)
+		return len(runningPrebuilds) == desiredPrebuilds
+	}, testutil.IntervalSlow, "found %d running prebuilds, expected %d", len(runningPrebuilds), desiredPrebuilds)
+
+	return runningPrebuilds
+}
+
+func MustRunReconciliationLoopForPreset(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	reconciler *entprebuilds.StoreReconciler,
+	preset codersdk.Preset,
+) []*prebuilds.ReconciliationActions {
+	t.Helper()
+
+	state, err := reconciler.SnapshotState(ctx, db)
+	require.NoError(t, err)
+	ps, err := state.FilterByPreset(preset.ID)
+	require.NoError(t, err)
+	require.NotNil(t, ps)
+	actions, err := reconciler.CalculateActions(ctx, *ps)
+	require.NoError(t, err)
+	require.NotNil(t, actions)
+	require.NoError(t, reconciler.ReconcilePreset(ctx, *ps))
+
+	return actions
+}
+
+func MustClaimPrebuild(
+	ctx context.Context,
+	t *testing.T,
+	client *codersdk.Client,
+	userClient *codersdk.Client,
+	username string,
+	version codersdk.TemplateVersion,
+	presetID uuid.UUID,
+	autostartSchedule ...string,
+) codersdk.Workspace {
+	t.Helper()
+
+	var startSchedule string
+	if len(autostartSchedule) > 0 {
+		startSchedule = autostartSchedule[0]
+	}
+
+	workspaceName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
+	userWorkspace, err := userClient.CreateUserWorkspace(ctx, username, codersdk.CreateWorkspaceRequest{
+		TemplateVersionID:       version.ID,
+		Name:                    workspaceName,
+		TemplateVersionPresetID: presetID,
+		AutostartSchedule:       ptr.Ref(startSchedule),
+	})
+	require.NoError(t, err)
+	build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)
+	require.Equal(t, build.Job.Status, codersdk.ProvisionerJobSucceeded)
+	workspace := coderdtest.MustWorkspace(t, client, userWorkspace.ID)
+	require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
+
+	return workspace
 }

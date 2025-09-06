@@ -72,6 +72,12 @@ WHERE
 		  ELSE true
 	END
 
+	-- Filter by has_external_agent in latest version
+	AND CASE
+		WHEN sqlc.narg('has_external_agent') :: boolean IS NOT NULL THEN
+			tv.has_external_agent = sqlc.narg('has_external_agent') :: boolean
+		ELSE true
+	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
   -- @authorize_filter
 ORDER BY (t.name, t.id) ASC
@@ -197,11 +203,11 @@ JOIN provisioner_jobs pj ON
 WHERE
 	template_versions.template_id = @template_id AND
 		(pj.completed_at IS NOT NULL) AND (pj.started_at IS NOT NULL) AND
-		(pj.started_at > @start_time) AND
 		(pj.canceled_at IS NULL) AND
 		((pj.error IS NULL) OR (pj.error = ''))
 ORDER BY
 	workspace_builds.created_at DESC
+LIMIT 100
 )
 SELECT
 	-- Postgres offers no clear way to DRY this short of a function or other

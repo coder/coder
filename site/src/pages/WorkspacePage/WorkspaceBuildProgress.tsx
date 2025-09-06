@@ -9,9 +9,9 @@ import { type FC, useEffect, useState } from "react";
 
 dayjs.extend(duration);
 
-// ActiveTransition gets the build estimate for the workspace,
+// getActiveTransitionStats gets the build estimate for the workspace,
 // if it is in a transition state.
-export const ActiveTransition = (
+export const getActiveTransitionStats = (
 	template: Template,
 	workspace: Workspace,
 ): TransitionStats | undefined => {

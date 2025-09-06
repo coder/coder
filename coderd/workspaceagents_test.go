@@ -228,8 +228,7 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 		err := agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
 			Logs: []agentsdk.Log{
 				{
@@ -269,8 +268,7 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 		err := agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
 			Logs: []agentsdk.Log{
 				{
@@ -314,8 +312,7 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 		updates, err := client.WatchWorkspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 		err = agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
 			Logs: []agentsdk.Log{{
 				CreatedAt: dbtime.Now(),
@@ -360,8 +357,7 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		return a
 	}).Do()
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(r.AgentToken)
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -542,8 +538,7 @@ func TestWorkspaceAgentConnectRPC(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild.ID)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
 
 		_, err = agentClient.ConnectRPC(ctx)
 		require.Error(t, err)
@@ -562,15 +557,13 @@ func TestWorkspaceAgentConnectRPC(t *testing.T) {
 		seed := database.WorkspaceTable{OrganizationID: user.OrganizationID, OwnerID: user.UserID}
 		wsb := dbfake.WorkspaceBuild(t, db, seed).WithAgent().Do()
 		// When: the workspace is marked as soft-deleted
-		// nolint:gocritic // this is a test
 		err := db.UpdateWorkspaceDeletedByID(
 			dbauthz.AsProvisionerd(ctx),
 			database.UpdateWorkspaceDeletedByIDParams{ID: wsb.Workspace.ID, Deleted: true},
 		)
 		require.NoError(t, err)
 		// Then: the agent token should no longer be valid
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(wsb.AgentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken((wsb.AgentToken)))
 		_, err = agentClient.ConnectRPC(ctx)
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
@@ -593,7 +586,7 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	_ = agenttest.New(t, client.URL, r.AgentToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 
-	conn, err := func() (*workspacesdk.AgentConn, error) {
+	conn, err := func() (workspacesdk.AgentConn, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel() // Connection should remain open even if the dial context is canceled.
 
@@ -633,7 +626,6 @@ func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	agentToken, err := uuid.Parse(r.AgentToken)
 	require.NoError(t, err)
-	//nolint: gocritic // testing
 	ao, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentToken)
 	require.NoError(t, err)
 
@@ -724,7 +716,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 		agentTokenUUID, err := uuid.Parse(r.AgentToken)
 		require.NoError(t, err)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		agentAndBuild, err := api.Database.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID) //nolint
+		agentAndBuild, err := api.Database.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID)
 		require.NoError(t, err)
 
 		// Connect with no resume token, and ensure that the peer ID is set to a
@@ -796,7 +788,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 		agentTokenUUID, err := uuid.Parse(r.AgentToken)
 		require.NoError(t, err)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		agentAndBuild, err := api.Database.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID) //nolint
+		agentAndBuild, err := api.Database.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID)
 		require.NoError(t, err)
 
 		// Connect with no resume token, and ensure that the peer ID is set to a
@@ -892,8 +884,7 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	// Verify that the manifest has DisableDirectConnections set to true.
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(r.AgentToken)
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 	rpc, err := agentClient.ConnectRPC(ctx)
 	require.NoError(t, err)
 	defer func() {
@@ -1389,169 +1380,147 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
 	t.Parallel()
 
-	var (
-		ctx               = testutil.Context(t, testutil.WaitLong)
-		logger            = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		mClock            = quartz.NewMock(t)
-		updaterTickerTrap = mClock.Trap().TickerFunc("updaterLoop")
-		mCtrl             = gomock.NewController(t)
-		mCCLI             = acmock.NewMockContainerCLI(mCtrl)
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
 
-		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{Logger: &logger})
-		user       = coderdtest.CreateFirstUser(t, client)
-		r          = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
-		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
-			return agents
-		}).Do()
+		var (
+			ctx               = testutil.Context(t, testutil.WaitLong)
+			logger            = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			mClock            = quartz.NewMock(t)
+			updaterTickerTrap = mClock.Trap().TickerFunc("updaterLoop")
+			mCtrl             = gomock.NewController(t)
+			mCCLI             = acmock.NewMockContainerCLI(mCtrl)
 
-		fakeContainer1 = codersdk.WorkspaceAgentContainer{
-			ID:           "container1",
-			CreatedAt:    dbtime.Now(),
-			FriendlyName: "container1",
-			Image:        "busybox:latest",
-			Labels: map[string]string{
-				agentcontainers.DevcontainerLocalFolderLabel: "/home/coder/project1",
-				agentcontainers.DevcontainerConfigFileLabel:  "/home/coder/project1/.devcontainer/devcontainer.json",
-			},
-			Running: true,
-			Status:  "running",
-		}
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{Logger: &logger})
+			user       = coderdtest.CreateFirstUser(t, client)
+			r          = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+			}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+				return agents
+			}).Do()
 
-		fakeContainer2 = codersdk.WorkspaceAgentContainer{
-			ID:           "container1",
-			CreatedAt:    dbtime.Now(),
-			FriendlyName: "container2",
-			Image:        "busybox:latest",
-			Labels: map[string]string{
-				agentcontainers.DevcontainerLocalFolderLabel: "/home/coder/project2",
-				agentcontainers.DevcontainerConfigFileLabel:  "/home/coder/project2/.devcontainer/devcontainer.json",
-			},
-			Running: true,
-			Status:  "running",
-		}
-	)
+			fakeContainer1 = codersdk.WorkspaceAgentContainer{
+				ID:           "container1",
+				CreatedAt:    dbtime.Now(),
+				FriendlyName: "container1",
+				Image:        "busybox:latest",
+				Labels: map[string]string{
+					agentcontainers.DevcontainerLocalFolderLabel: "/home/coder/project1",
+					agentcontainers.DevcontainerConfigFileLabel:  "/home/coder/project1/.devcontainer/devcontainer.json",
+				},
+				Running: true,
+				Status:  "running",
+			}
 
-	stages := []struct {
-		containers []codersdk.WorkspaceAgentContainer
-		expected   codersdk.WorkspaceAgentListContainersResponse
-	}{
-		{
-			containers: []codersdk.WorkspaceAgentContainer{fakeContainer1},
-			expected: codersdk.WorkspaceAgentListContainersResponse{
-				Containers: []codersdk.WorkspaceAgentContainer{fakeContainer1},
-				Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
-					{
-						Name:            "project1",
-						WorkspaceFolder: fakeContainer1.Labels[agentcontainers.DevcontainerLocalFolderLabel],
-						ConfigPath:      fakeContainer1.Labels[agentcontainers.DevcontainerConfigFileLabel],
-						Status:          "running",
-						Container:       &fakeContainer1,
+			fakeContainer2 = codersdk.WorkspaceAgentContainer{
+				ID:           "container1",
+				CreatedAt:    dbtime.Now(),
+				FriendlyName: "container2",
+				Image:        "busybox:latest",
+				Labels: map[string]string{
+					agentcontainers.DevcontainerLocalFolderLabel: "/home/coder/project2",
+					agentcontainers.DevcontainerConfigFileLabel:  "/home/coder/project2/.devcontainer/devcontainer.json",
+				},
+				Running: true,
+				Status:  "running",
+			}
+		)
+
+		stages := []struct {
+			containers []codersdk.WorkspaceAgentContainer
+			expected   codersdk.WorkspaceAgentListContainersResponse
+		}{
+			{
+				containers: []codersdk.WorkspaceAgentContainer{fakeContainer1},
+				expected: codersdk.WorkspaceAgentListContainersResponse{
+					Containers: []codersdk.WorkspaceAgentContainer{fakeContainer1},
+					Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+						{
+							Name:            "project1",
+							WorkspaceFolder: fakeContainer1.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+							ConfigPath:      fakeContainer1.Labels[agentcontainers.DevcontainerConfigFileLabel],
+							Status:          "running",
+							Container:       &fakeContainer1,
+						},
 					},
 				},
 			},
-		},
-		{
-			containers: []codersdk.WorkspaceAgentContainer{fakeContainer1, fakeContainer2},
-			expected: codersdk.WorkspaceAgentListContainersResponse{
-				Containers: []codersdk.WorkspaceAgentContainer{fakeContainer1, fakeContainer2},
-				Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
-					{
-						Name:            "project1",
-						WorkspaceFolder: fakeContainer1.Labels[agentcontainers.DevcontainerLocalFolderLabel],
-						ConfigPath:      fakeContainer1.Labels[agentcontainers.DevcontainerConfigFileLabel],
-						Status:          "running",
-						Container:       &fakeContainer1,
-					},
-					{
-						Name:            "project2",
-						WorkspaceFolder: fakeContainer2.Labels[agentcontainers.DevcontainerLocalFolderLabel],
-						ConfigPath:      fakeContainer2.Labels[agentcontainers.DevcontainerConfigFileLabel],
-						Status:          "running",
-						Container:       &fakeContainer2,
-					},
-				},
-			},
-		},
-		{
-			containers: []codersdk.WorkspaceAgentContainer{fakeContainer2},
-			expected: codersdk.WorkspaceAgentListContainersResponse{
-				Containers: []codersdk.WorkspaceAgentContainer{fakeContainer2},
-				Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
-					{
-						Name:            "",
-						WorkspaceFolder: fakeContainer1.Labels[agentcontainers.DevcontainerLocalFolderLabel],
-						ConfigPath:      fakeContainer1.Labels[agentcontainers.DevcontainerConfigFileLabel],
-						Status:          "stopped",
-						Container:       nil,
-					},
-					{
-						Name:            "project2",
-						WorkspaceFolder: fakeContainer2.Labels[agentcontainers.DevcontainerLocalFolderLabel],
-						ConfigPath:      fakeContainer2.Labels[agentcontainers.DevcontainerConfigFileLabel],
-						Status:          "running",
-						Container:       &fakeContainer2,
+			{
+				containers: []codersdk.WorkspaceAgentContainer{fakeContainer1, fakeContainer2},
+				expected: codersdk.WorkspaceAgentListContainersResponse{
+					Containers: []codersdk.WorkspaceAgentContainer{fakeContainer1, fakeContainer2},
+					Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+						{
+							Name:            "project1",
+							WorkspaceFolder: fakeContainer1.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+							ConfigPath:      fakeContainer1.Labels[agentcontainers.DevcontainerConfigFileLabel],
+							Status:          "running",
+							Container:       &fakeContainer1,
+						},
+						{
+							Name:            "project2",
+							WorkspaceFolder: fakeContainer2.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+							ConfigPath:      fakeContainer2.Labels[agentcontainers.DevcontainerConfigFileLabel],
+							Status:          "running",
+							Container:       &fakeContainer2,
+						},
 					},
 				},
 			},
-		},
-	}
-
-	// Set up initial state for immediate send on connection
-	mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{Containers: stages[0].containers}, nil)
-	mCCLI.EXPECT().DetectArchitecture(gomock.Any(), gomock.Any()).Return("<none>", nil).AnyTimes()
-
-	_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
-		o.Logger = logger.Named("agent")
-		o.Devcontainers = true
-		o.DevcontainerAPIOptions = []agentcontainers.Option{
-			agentcontainers.WithClock(mClock),
-			agentcontainers.WithContainerCLI(mCCLI),
-			agentcontainers.WithWatcher(watcher.NewNoop()),
+			{
+				containers: []codersdk.WorkspaceAgentContainer{fakeContainer2},
+				expected: codersdk.WorkspaceAgentListContainersResponse{
+					Containers: []codersdk.WorkspaceAgentContainer{fakeContainer2},
+					Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+						{
+							Name:            "",
+							WorkspaceFolder: fakeContainer1.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+							ConfigPath:      fakeContainer1.Labels[agentcontainers.DevcontainerConfigFileLabel],
+							Status:          "stopped",
+							Container:       nil,
+						},
+						{
+							Name:            "project2",
+							WorkspaceFolder: fakeContainer2.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+							ConfigPath:      fakeContainer2.Labels[agentcontainers.DevcontainerConfigFileLabel],
+							Status:          "running",
+							Container:       &fakeContainer2,
+						},
+					},
+				},
+			},
 		}
-	})
 
-	resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
-	require.Len(t, resources, 1, "expected one resource")
-	require.Len(t, resources[0].Agents, 1, "expected one agent")
-	agentID := resources[0].Agents[0].ID
+		// Set up initial state for immediate send on connection
+		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{Containers: stages[0].containers}, nil)
+		mCCLI.EXPECT().DetectArchitecture(gomock.Any(), gomock.Any()).Return("<none>", nil).AnyTimes()
 
-	updaterTickerTrap.MustWait(ctx).MustRelease(ctx)
-	defer updaterTickerTrap.Close()
+		_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
+			o.Logger = logger.Named("agent")
+			o.Devcontainers = true
+			o.DevcontainerAPIOptions = []agentcontainers.Option{
+				agentcontainers.WithClock(mClock),
+				agentcontainers.WithContainerCLI(mCCLI),
+				agentcontainers.WithWatcher(watcher.NewNoop()),
+			}
+		})
 
-	containers, closer, err := client.WatchWorkspaceAgentContainers(ctx, agentID)
-	require.NoError(t, err)
-	defer func() {
-		closer.Close()
-	}()
+		resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+		require.Len(t, resources, 1, "expected one resource")
+		require.Len(t, resources[0].Agents, 1, "expected one agent")
+		agentID := resources[0].Agents[0].ID
 
-	// Read initial state sent immediately on connection
-	var got codersdk.WorkspaceAgentListContainersResponse
-	select {
-	case <-ctx.Done():
-	case got = <-containers:
-	}
-	require.NoError(t, ctx.Err())
+		updaterTickerTrap.MustWait(ctx).MustRelease(ctx)
+		defer updaterTickerTrap.Close()
 
-	require.Equal(t, stages[0].expected.Containers, got.Containers)
-	require.Len(t, got.Devcontainers, len(stages[0].expected.Devcontainers))
-	for j, expectedDev := range stages[0].expected.Devcontainers {
-		gotDev := got.Devcontainers[j]
-		require.Equal(t, expectedDev.Name, gotDev.Name)
-		require.Equal(t, expectedDev.WorkspaceFolder, gotDev.WorkspaceFolder)
-		require.Equal(t, expectedDev.ConfigPath, gotDev.ConfigPath)
-		require.Equal(t, expectedDev.Status, gotDev.Status)
-		require.Equal(t, expectedDev.Container, gotDev.Container)
-	}
+		containers, closer, err := client.WatchWorkspaceAgentContainers(ctx, agentID)
+		require.NoError(t, err)
+		defer func() {
+			closer.Close()
+		}()
 
-	// Process remaining stages through updater loop
-	for i, stage := range stages[1:] {
-		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{Containers: stage.containers}, nil)
-
-		_, aw := mClock.AdvanceNext()
-		aw.MustWait(ctx)
-
+		// Read initial state sent immediately on connection
 		var got codersdk.WorkspaceAgentListContainersResponse
 		select {
 		case <-ctx.Done():
@@ -1559,9 +1528,9 @@ func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
 		}
 		require.NoError(t, ctx.Err())
 
-		require.Equal(t, stages[i+1].expected.Containers, got.Containers)
-		require.Len(t, got.Devcontainers, len(stages[i+1].expected.Devcontainers))
-		for j, expectedDev := range stages[i+1].expected.Devcontainers {
+		require.Equal(t, stages[0].expected.Containers, got.Containers)
+		require.Len(t, got.Devcontainers, len(stages[0].expected.Devcontainers))
+		for j, expectedDev := range stages[0].expected.Devcontainers {
 			gotDev := got.Devcontainers[j]
 			require.Equal(t, expectedDev.Name, gotDev.Name)
 			require.Equal(t, expectedDev.WorkspaceFolder, gotDev.WorkspaceFolder)
@@ -1569,7 +1538,33 @@ func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
 			require.Equal(t, expectedDev.Status, gotDev.Status)
 			require.Equal(t, expectedDev.Container, gotDev.Container)
 		}
-	}
+
+		// Process remaining stages through updater loop
+		for i, stage := range stages[1:] {
+			mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{Containers: stage.containers}, nil)
+
+			_, aw := mClock.AdvanceNext()
+			aw.MustWait(ctx)
+
+			var got codersdk.WorkspaceAgentListContainersResponse
+			select {
+			case <-ctx.Done():
+			case got = <-containers:
+			}
+			require.NoError(t, ctx.Err())
+
+			require.Equal(t, stages[i+1].expected.Containers, got.Containers)
+			require.Len(t, got.Devcontainers, len(stages[i+1].expected.Devcontainers))
+			for j, expectedDev := range stages[i+1].expected.Devcontainers {
+				gotDev := got.Devcontainers[j]
+				require.Equal(t, expectedDev.Name, gotDev.Name)
+				require.Equal(t, expectedDev.WorkspaceFolder, gotDev.WorkspaceFolder)
+				require.Equal(t, expectedDev.ConfigPath, gotDev.ConfigPath)
+				require.Equal(t, expectedDev.Status, gotDev.Status)
+				require.Equal(t, expectedDev.Container, gotDev.Container)
+			}
+		}
+	})
 }
 
 func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
@@ -1608,63 +1603,77 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 		)
 
 		for _, tc := range []struct {
-			name               string
-			devcontainerID     string
-			setupDevcontainers []codersdk.WorkspaceAgentDevcontainer
-			setupMock          func(mccli *acmock.MockContainerCLI, mdccli *acmock.MockDevcontainerCLI) (status int)
+			name            string
+			devcontainerID  string
+			devcontainers   []codersdk.WorkspaceAgentDevcontainer
+			containers      []codersdk.WorkspaceAgentContainer
+			expectRecreate  bool
+			expectErrorCode int
 		}{
 			{
-				name:               "Recreate",
-				devcontainerID:     devcontainerID.String(),
-				setupDevcontainers: []codersdk.WorkspaceAgentDevcontainer{devcontainer},
-				setupMock: func(mccli *acmock.MockContainerCLI, mdccli *acmock.MockDevcontainerCLI) int {
-					mccli.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
-						Containers: []codersdk.WorkspaceAgentContainer{devContainer},
-					}, nil).AnyTimes()
-					// DetectArchitecture always returns "<none>" for this test to disable agent injection.
-					mccli.EXPECT().DetectArchitecture(gomock.Any(), devContainer.ID).Return("<none>", nil).AnyTimes()
-					mdccli.EXPECT().ReadConfig(gomock.Any(), workspaceFolder, configFile, gomock.Any()).Return(agentcontainers.DevcontainerConfig{}, nil).AnyTimes()
-					mdccli.EXPECT().Up(gomock.Any(), workspaceFolder, configFile, gomock.Any()).Return("someid", nil).Times(1)
-					return 0
-				},
+				name:           "Recreate",
+				devcontainerID: devcontainerID.String(),
+				devcontainers:  []codersdk.WorkspaceAgentDevcontainer{devcontainer},
+				containers:     []codersdk.WorkspaceAgentContainer{devContainer},
+				expectRecreate: true,
 			},
 			{
-				name:               "Devcontainer does not exist",
-				devcontainerID:     uuid.NewString(),
-				setupDevcontainers: nil,
-				setupMock: func(mccli *acmock.MockContainerCLI, mdccli *acmock.MockDevcontainerCLI) int {
-					mccli.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{}, nil).AnyTimes()
-					return http.StatusNotFound
-				},
+				name:            "Devcontainer does not exist",
+				devcontainerID:  uuid.NewString(),
+				devcontainers:   nil,
+				containers:      []codersdk.WorkspaceAgentContainer{},
+				expectErrorCode: http.StatusNotFound,
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				ctrl := gomock.NewController(t)
-				mccli := acmock.NewMockContainerCLI(ctrl)
-				mdccli := acmock.NewMockDevcontainerCLI(ctrl)
-				wantStatus := tc.setupMock(mccli, mdccli)
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-				client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-					Logger: &logger,
-				})
-				user := coderdtest.CreateFirstUser(t, client)
-				r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-					OrganizationID: user.OrganizationID,
-					OwnerID:        user.UserID,
-				}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
-					return agents
-				}).Do()
+				var (
+					ctx        = testutil.Context(t, testutil.WaitLong)
+					mCtrl      = gomock.NewController(t)
+					mCCLI      = acmock.NewMockContainerCLI(mCtrl)
+					mDCCLI     = acmock.NewMockDevcontainerCLI(mCtrl)
+					logger     = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+					client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+						Logger: &logger,
+					})
+					user = coderdtest.CreateFirstUser(t, client)
+					r    = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+						OrganizationID: user.OrganizationID,
+						OwnerID:        user.UserID,
+					}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+						return agents
+					}).Do()
+				)
+
+				mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+					Containers: tc.containers,
+				}, nil).AnyTimes()
+
+				var upCalled chan struct{}
+
+				if tc.expectRecreate {
+					upCalled = make(chan struct{})
+
+					// DetectArchitecture always returns "<none>" for this test to disable agent injection.
+					mCCLI.EXPECT().DetectArchitecture(gomock.Any(), devContainer.ID).Return("<none>", nil).AnyTimes()
+					mDCCLI.EXPECT().ReadConfig(gomock.Any(), workspaceFolder, configFile, gomock.Any()).Return(agentcontainers.DevcontainerConfig{}, nil).AnyTimes()
+					mDCCLI.EXPECT().Up(gomock.Any(), workspaceFolder, configFile, gomock.Any()).
+						DoAndReturn(func(_ context.Context, _, _ string, _ ...agentcontainers.DevcontainerCLIUpOptions) (string, error) {
+							close(upCalled)
+
+							return "someid", nil
+						}).Times(1)
+				}
 
 				devcontainerAPIOptions := []agentcontainers.Option{
-					agentcontainers.WithContainerCLI(mccli),
-					agentcontainers.WithDevcontainerCLI(mdccli),
+					agentcontainers.WithContainerCLI(mCCLI),
+					agentcontainers.WithDevcontainerCLI(mDCCLI),
 					agentcontainers.WithWatcher(watcher.NewNoop()),
 				}
-				if tc.setupDevcontainers != nil {
+				if tc.devcontainers != nil {
 					devcontainerAPIOptions = append(devcontainerAPIOptions,
-						agentcontainers.WithDevcontainers(tc.setupDevcontainers, nil))
+						agentcontainers.WithDevcontainers(tc.devcontainers, nil))
 				}
 
 				_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
@@ -1677,15 +1686,14 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 				require.Len(t, resources[0].Agents, 1, "expected one agent")
 				agentID := resources[0].Agents[0].ID
 
-				ctx := testutil.Context(t, testutil.WaitLong)
-
 				_, err := client.WorkspaceAgentRecreateDevcontainer(ctx, agentID, tc.devcontainerID)
-				if wantStatus > 0 {
+				if tc.expectErrorCode > 0 {
 					cerr, ok := codersdk.AsError(err)
 					require.True(t, ok, "expected error to be a coder error")
-					assert.Equal(t, wantStatus, cerr.StatusCode())
+					assert.Equal(t, tc.expectErrorCode, cerr.StatusCode())
 				} else {
 					require.NoError(t, err, "failed to recreate devcontainer")
+					testutil.TryReceive(ctx, t, upCalled)
 				}
 			})
 		}
@@ -1727,8 +1735,7 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(r.AgentToken)
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 	conn, err := agentClient.ConnectRPC(ctx)
 	require.NoError(t, err)
 	defer func() {
@@ -1803,8 +1810,7 @@ func TestWorkspaceAgentPostLogSource(t *testing.T) {
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 
 		req := agentsdk.PostLogSourceRequest{
 			ID:          uuid.New(),
@@ -1852,8 +1858,7 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 			}
 		}
 
-		ac := agentsdk.New(client.URL)
-		ac.SetSessionToken(r.AgentToken)
+		ac := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 		conn, err := ac.ConnectRPC(ctx)
 		require.NoError(t, err)
 		defer func() {
@@ -1950,8 +1955,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 		}
 	}
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(r.AgentToken)
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	conn, err := agentClient.ConnectRPC(ctx)
@@ -2214,8 +2218,7 @@ func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
 		}
 	}
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(r.AgentToken)
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	conn, err := agentClient.ConnectRPC(ctx)
@@ -2320,8 +2323,7 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
@@ -2367,8 +2369,7 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
@@ -2417,7 +2418,7 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	agentID := resources[0].Agents[0].ID
 
 	// Connect from a client.
-	conn1, err := func() (*workspacesdk.AgentConn, error) {
+	conn1, err := func() (workspacesdk.AgentConn, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel() // Connection should remain open even if the dial context is canceled.
 
@@ -2458,7 +2459,7 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 
 	// Wait for the DERP map to be updated on the existing client.
 	require.Eventually(t, func() bool {
-		regionIDs := conn1.Conn.DERPMap().RegionIDs()
+		regionIDs := conn1.TailnetConn().DERPMap().RegionIDs()
 		return len(regionIDs) == 1 && regionIDs[0] == 2
 	}, testutil.WaitLong, testutil.IntervalFast)
 
@@ -2475,7 +2476,7 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	defer conn2.Close()
 	ok = conn2.AwaitReachable(ctx)
 	require.True(t, ok)
-	require.Equal(t, []int{2}, conn2.DERPMap().RegionIDs())
+	require.Equal(t, []int{2}, conn2.TailnetConn().DERPMap().RegionIDs())
 }
 
 func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
@@ -2532,8 +2533,7 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 			return agents
 		}).Do()
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 
 		// We need to include an invalid oauth token that is not expired.
 		dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
@@ -3013,8 +3013,7 @@ func TestReinit(t *testing.T) {
 	pubsubSpy.Unlock()
 
 	agentCtx := testutil.Context(t, testutil.WaitShort)
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(r.AgentToken)
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 
 	agentReinitializedCh := make(chan *agentsdk.ReinitializationEvent)
 	go func() {

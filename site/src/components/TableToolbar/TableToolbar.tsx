@@ -3,8 +3,7 @@ import type { FC, PropsWithChildren } from "react";
 
 export const TableToolbar: FC<PropsWithChildren> = ({ children }) => {
 	return (
-		// The height is meant to match the size of a small button
-		<div className="text-[13px] mb-2 mt-0 h-9 flex items-center [&_strong]:text-content-primary text-content-secondary">
+		<div className="text-sm mb-2 mt-0 h-9 text-content-secondary flex items-center [&_strong]:text-content-primary">
 			{children}
 		</div>
 	);

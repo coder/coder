@@ -22,7 +22,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -456,8 +455,6 @@ func TestAgent_GitSSH(t *testing.T) {
 
 func TestAgent_SessionTTYShell(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	t.Cleanup(cancel)
 	if runtime.GOOS == "windows" {
 		// This might be our implementation, or ConPTY itself.
 		// It's difficult to find extensive tests for it, so
@@ -468,6 +465,7 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 	for _, port := range sshPorts {
 		t.Run(fmt.Sprintf("(%d)", port), func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
 
 			session := setupSSHSessionOnPort(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, port)
 			command := "sh"
@@ -2669,11 +2667,11 @@ func TestAgent_Dial(t *testing.T) {
 
 	cases := []struct {
 		name  string
-		setup func(t *testing.T) net.Listener
+		setup func(t testing.TB) net.Listener
 	}{
 		{
 			name: "TCP",
-			setup: func(t *testing.T) net.Listener {
+			setup: func(t testing.TB) net.Listener {
 				l, err := net.Listen("tcp", "127.0.0.1:0")
 				require.NoError(t, err, "create TCP listener")
 				return l
@@ -2681,7 +2679,7 @@ func TestAgent_Dial(t *testing.T) {
 		},
 		{
 			name: "UDP",
-			setup: func(t *testing.T) net.Listener {
+			setup: func(t testing.TB) net.Listener {
 				addr := net.UDPAddr{
 					IP:   net.ParseIP("127.0.0.1"),
 					Port: 0,
@@ -2699,57 +2697,69 @@ func TestAgent_Dial(t *testing.T) {
 
 			// The purpose of this test is to ensure that a client can dial a
 			// listener in the workspace over tailnet.
-			l := c.setup(t)
-			done := make(chan struct{})
-			defer func() {
-				l.Close()
-				<-done
-			}()
+			//
+			// The OS sometimes drops packets if the system can't keep up with
+			// them. For TCP packets, it's typically fine due to
+			// retransmissions, but for UDP packets, it can fail this test.
+			//
+			// The OS gets involved for the Wireguard traffic (either via DERP
+			// or direct UDP), and also for the traffic between the agent and
+			// the listener in the "workspace".
+			//
+			// To avoid this, we'll retry this test up to 3 times.
+			//nolint:gocritic // This test is flaky due to uncontrollable OS packet drops under heavy load.
+			testutil.RunRetry(t, 3, func(t testing.TB) {
+				ctx := testutil.Context(t, testutil.WaitLong)
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
+				l := c.setup(t)
+				done := make(chan struct{})
+				defer func() {
+					l.Close()
+					<-done
+				}()
 
-			go func() {
-				defer close(done)
-				for range 2 {
-					c, err := l.Accept()
-					if assert.NoError(t, err, "accept connection") {
-						testAccept(ctx, t, c)
-						_ = c.Close()
+				go func() {
+					defer close(done)
+					for range 2 {
+						c, err := l.Accept()
+						if assert.NoError(t, err, "accept connection") {
+							testAccept(ctx, t, c)
+							_ = c.Close()
+						}
 					}
+				}()
+
+				agentID := uuid.UUID{0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}
+				//nolint:dogsled
+				agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{
+					AgentID: agentID,
+				}, 0)
+				require.True(t, agentConn.AwaitReachable(ctx))
+				conn, err := agentConn.DialContext(ctx, l.Addr().Network(), l.Addr().String())
+				require.NoError(t, err)
+				testDial(ctx, t, conn)
+				err = conn.Close()
+				require.NoError(t, err)
+
+				// also connect via the CoderServicePrefix, to test that we can reach the agent on this
+				// IP. This will be required for CoderVPN.
+				_, rawPort, _ := net.SplitHostPort(l.Addr().String())
+				port, _ := strconv.ParseUint(rawPort, 10, 16)
+				ipp := netip.AddrPortFrom(tailnet.CoderServicePrefix.AddrFromUUID(agentID), uint16(port))
+
+				switch l.Addr().Network() {
+				case "tcp":
+					conn, err = agentConn.TailnetConn().DialContextTCP(ctx, ipp)
+				case "udp":
+					conn, err = agentConn.TailnetConn().DialContextUDP(ctx, ipp)
+				default:
+					t.Fatalf("unknown network: %s", l.Addr().Network())
 				}
-			}()
-
-			agentID := uuid.UUID{0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}
-			//nolint:dogsled
-			agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{
-				AgentID: agentID,
-			}, 0)
-			require.True(t, agentConn.AwaitReachable(ctx))
-			conn, err := agentConn.DialContext(ctx, l.Addr().Network(), l.Addr().String())
-			require.NoError(t, err)
-			testDial(ctx, t, conn)
-			err = conn.Close()
-			require.NoError(t, err)
-
-			// also connect via the CoderServicePrefix, to test that we can reach the agent on this
-			// IP. This will be required for CoderVPN.
-			_, rawPort, _ := net.SplitHostPort(l.Addr().String())
-			port, _ := strconv.ParseUint(rawPort, 10, 16)
-			ipp := netip.AddrPortFrom(tailnet.CoderServicePrefix.AddrFromUUID(agentID), uint16(port))
-
-			switch l.Addr().Network() {
-			case "tcp":
-				conn, err = agentConn.Conn.DialContextTCP(ctx, ipp)
-			case "udp":
-				conn, err = agentConn.Conn.DialContextUDP(ctx, ipp)
-			default:
-				t.Fatalf("unknown network: %s", l.Addr().Network())
-			}
-			require.NoError(t, err)
-			testDial(ctx, t, conn)
-			err = conn.Close()
-			require.NoError(t, err)
+				require.NoError(t, err)
+				testDial(ctx, t, conn)
+				err = conn.Close()
+				require.NoError(t, err)
+			})
 		})
 	}
 }
@@ -2800,7 +2810,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	})
 
 	// Setup a client connection.
-	newClientConn := func(derpMap *tailcfg.DERPMap, name string) *workspacesdk.AgentConn {
+	newClientConn := func(derpMap *tailcfg.DERPMap, name string) workspacesdk.AgentConn {
 		conn, err := tailnet.NewConn(&tailnet.Options{
 			Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
 			DERPMap:   derpMap,
@@ -2880,13 +2890,13 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 
 	// Connect from a second client and make sure it uses the new DERP map.
 	conn2 := newClientConn(newDerpMap, "client2")
-	require.Equal(t, []int{2}, conn2.DERPMap().RegionIDs())
+	require.Equal(t, []int{2}, conn2.TailnetConn().DERPMap().RegionIDs())
 	t.Log("conn2 got the new DERPMap")
 
 	// If the first client gets a DERP map update, it should be able to
 	// reconnect just fine.
-	conn1.SetDERPMap(newDerpMap)
-	require.Equal(t, []int{2}, conn1.DERPMap().RegionIDs())
+	conn1.TailnetConn().SetDERPMap(newDerpMap)
+	require.Equal(t, []int{2}, conn1.TailnetConn().DERPMap().RegionIDs())
 	t.Log("set the new DERPMap on conn1")
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -2915,11 +2925,11 @@ func TestAgent_Speedtest(t *testing.T) {
 
 func TestAgent_Reconnect(t *testing.T) {
 	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := testutil.Logger(t)
 	// After the agent is disconnected from a coordinator, it's supposed
 	// to reconnect!
-	coordinator := tailnet.NewCoordinator(logger)
-	defer coordinator.Close()
+	fCoordinator := tailnettest.NewFakeCoordinator()
 
 	agentID := uuid.New()
 	statsCh := make(chan *proto.Stats, 50)
@@ -2931,27 +2941,24 @@ func TestAgent_Reconnect(t *testing.T) {
 			DERPMap: derpMap,
 		},
 		statsCh,
-		coordinator,
+		fCoordinator,
 	)
 	defer client.Close()
-	initialized := atomic.Int32{}
+
 	closer := agent.New(agent.Options{
-		ExchangeToken: func(ctx context.Context) (string, error) {
-			initialized.Add(1)
-			return "", nil
-		},
 		Client: client,
 		Logger: logger.Named("agent"),
 	})
 	defer closer.Close()
 
-	require.Eventually(t, func() bool {
-		return coordinator.Node(agentID) != nil
-	}, testutil.WaitShort, testutil.IntervalFast)
-	client.LastWorkspaceAgent()
-	require.Eventually(t, func() bool {
-		return initialized.Load() == 2
-	}, testutil.WaitShort, testutil.IntervalFast)
+	call1 := testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
+	require.Equal(t, client.GetNumRefreshTokenCalls(), 1)
+	close(call1.Resps) // hang up
+	// expect reconnect
+	testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
+	// Check that the agent refreshes the token when it reconnects.
+	require.Equal(t, client.GetNumRefreshTokenCalls(), 2)
+	closer.Close()
 }
 
 func TestAgent_WriteVSCodeConfigs(t *testing.T) {
@@ -2973,9 +2980,6 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 	defer client.Close()
 	filesystem := afero.NewMemMapFs()
 	closer := agent.New(agent.Options{
-		ExchangeToken: func(ctx context.Context) (string, error) {
-			return "", nil
-		},
 		Client:     client,
 		Logger:     logger.Named("agent"),
 		Filesystem: filesystem,
@@ -3004,9 +3008,6 @@ func TestAgent_DebugServer(t *testing.T) {
 	conn, _, _, _, agnt := setupAgent(t, agentsdk.Manifest{
 		DERPMap: derpMap,
 	}, 0, func(c *agenttest.Client, o *agent.Options) {
-		o.ExchangeToken = func(context.Context) (string, error) {
-			return "token", nil
-		}
 		o.LogDir = logDir
 	})
 
@@ -3252,8 +3253,8 @@ func setupSSHSessionOnPort(
 	return session
 }
 
-func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Duration, opts ...func(*agenttest.Client, *agent.Options)) (
-	*workspacesdk.AgentConn,
+func setupAgent(t testing.TB, metadata agentsdk.Manifest, ptyTimeout time.Duration, opts ...func(*agenttest.Client, *agent.Options)) (
+	workspacesdk.AgentConn,
 	*agenttest.Client,
 	<-chan *proto.Stats,
 	afero.Fs,
@@ -3350,7 +3351,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 
 var dialTestPayload = []byte("dean-was-here123")
 
-func testDial(ctx context.Context, t *testing.T, c net.Conn) {
+func testDial(ctx context.Context, t testing.TB, c net.Conn) {
 	t.Helper()
 
 	if deadline, ok := ctx.Deadline(); ok {
@@ -3366,7 +3367,7 @@ func testDial(ctx context.Context, t *testing.T, c net.Conn) {
 	assertReadPayload(t, c, dialTestPayload)
 }
 
-func testAccept(ctx context.Context, t *testing.T, c net.Conn) {
+func testAccept(ctx context.Context, t testing.TB, c net.Conn) {
 	t.Helper()
 	defer c.Close()
 
@@ -3383,7 +3384,7 @@ func testAccept(ctx context.Context, t *testing.T, c net.Conn) {
 	assertWritePayload(t, c, dialTestPayload)
 }
 
-func assertReadPayload(t *testing.T, r io.Reader, payload []byte) {
+func assertReadPayload(t testing.TB, r io.Reader, payload []byte) {
 	t.Helper()
 	b := make([]byte, len(payload)+16)
 	n, err := r.Read(b)
@@ -3392,11 +3393,11 @@ func assertReadPayload(t *testing.T, r io.Reader, payload []byte) {
 	assert.Equal(t, payload, b[:n])
 }
 
-func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
+func assertWritePayload(t testing.TB, w io.Writer, payload []byte) {
 	t.Helper()
 	n, err := w.Write(payload)
 	assert.NoError(t, err, "write payload")
-	assert.Equal(t, len(payload), n, "payload length does not match")
+	assert.Equal(t, len(payload), n, "written payload length does not match")
 }
 
 func testSessionOutput(t *testing.T, session *ssh.Session, expected, unexpected []string, expectedRe *regexp.Regexp) {
@@ -3459,7 +3460,11 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 	registry := prometheus.NewRegistry()
 
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{
+		// Make sure we always get a DERP connection for
+		// currently_reachable_peers.
+		DisableDirectConnections: true,
+	}, 0, func(_ *agenttest.Client, o *agent.Options) {
 		o.PrometheusRegistry = registry
 	})
 
@@ -3513,7 +3518,7 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 		{
 			Name:  "coderd_agentstats_currently_reachable_peers",
 			Type:  proto.Stats_Metric_GAUGE,
-			Value: 0,
+			Value: 1,
 			Labels: []*proto.Stats_Metric_Label{
 				{
 					Name:  "connection_type",
@@ -3524,7 +3529,7 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 		{
 			Name:  "coderd_agentstats_currently_reachable_peers",
 			Type:  proto.Stats_Metric_GAUGE,
-			Value: 1,
+			Value: 0,
 			Labels: []*proto.Stats_Metric_Label{
 				{
 					Name:  "connection_type",

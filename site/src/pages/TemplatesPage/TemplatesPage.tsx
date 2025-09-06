@@ -1,6 +1,7 @@
 import { workspacePermissionsByOrganization } from "api/queries/organizations";
 import { templateExamples, templates } from "api/queries/templates";
-import { useFilter } from "components/Filter/Filter";
+import { type UseFilterResult, useFilter } from "components/Filter/Filter";
+import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { useAuthenticated } from "hooks";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
@@ -15,14 +16,12 @@ const TemplatesPage: FC = () => {
 	const { showOrganizations } = useDashboard();
 
 	const [searchParams, setSearchParams] = useSearchParams();
-	const filter = useFilter({
-		fallbackFilter: "deprecated:false",
+	const filterState = useTemplatesFilter({
 		searchParams,
 		onSearchParamsChange: setSearchParams,
-		onUpdate: () => {}, // reset pagination
 	});
 
-	const templatesQuery = useQuery(templates({ q: filter.query }));
+	const templatesQuery = useQuery(templates({ q: filterState.filter.query }));
 	const examplesQuery = useQuery({
 		...templateExamples(),
 		enabled: permissions.createTemplates,
@@ -47,7 +46,7 @@ const TemplatesPage: FC = () => {
 			</Helmet>
 			<TemplatesPageView
 				error={error}
-				filter={filter}
+				filterState={filterState}
 				showOrganizations={showOrganizations}
 				canCreateTemplates={permissions.createTemplates}
 				examples={examplesQuery.data}
@@ -59,3 +58,42 @@ const TemplatesPage: FC = () => {
 };
 
 export default TemplatesPage;
+
+export type TemplateFilterState = {
+	filter: UseFilterResult;
+	menus: {
+		user?: ReturnType<typeof useUserFilterMenu>;
+	};
+};
+
+type UseTemplatesFilterOptions = {
+	searchParams: URLSearchParams;
+	onSearchParamsChange: (params: URLSearchParams) => void;
+};
+
+const useTemplatesFilter = ({
+	searchParams,
+	onSearchParamsChange,
+}: UseTemplatesFilterOptions): TemplateFilterState => {
+	const filter = useFilter({
+		fallbackFilter: "deprecated:false",
+		searchParams,
+		onSearchParamsChange,
+	});
+
+	const { permissions } = useAuthenticated();
+	const canFilterByUser = permissions.viewAllUsers;
+	const userMenu = useUserFilterMenu({
+		value: filter.values.author,
+		onChange: (option) =>
+			filter.update({ ...filter.values, author: option?.value }),
+		enabled: canFilterByUser,
+	});
+
+	return {
+		filter,
+		menus: {
+			user: canFilterByUser ? userMenu : undefined,
+		},
+	};
+};

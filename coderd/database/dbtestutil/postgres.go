@@ -138,6 +138,7 @@ func initDefaultConnection(t TBSubset) error {
 
 type OpenOptions struct {
 	DBFrom *string
+	LogDSN bool
 }
 
 type OpenOption func(*OpenOptions)
@@ -150,9 +151,18 @@ func WithDBFrom(dbFrom string) OpenOption {
 	}
 }
 
+// WithLogDSN sets whether the DSN should be logged during testing.
+// This provides an ergonomic way to connect to test databases during debugging.
+func WithLogDSN(logDSN bool) OpenOption {
+	return func(o *OpenOptions) {
+		o.LogDSN = logDSN
+	}
+}
+
 // TBSubset is a subset of the testing.TB interface.
 // It allows to use dbtestutil.Open outside of tests.
 type TBSubset interface {
+	Name() string
 	Cleanup(func())
 	Helper()
 	Logf(format string, args ...any)
@@ -227,6 +237,11 @@ func Open(t TBSubset, opts ...OpenOption) (string, error) {
 		Port:     port,
 		DBName:   dbName,
 	}.DSN()
+
+	// Optionally log the DSN to help connect to the test database.
+	if openOptions.LogDSN {
+		_, _ = fmt.Fprintf(os.Stderr, "Connect to the database for %s using: psql '%s'\n", t.Name(), dsn)
+	}
 	return dsn, nil
 }
 

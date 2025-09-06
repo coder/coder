@@ -344,9 +344,12 @@ func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, e
 }
 
 type OrganizationProvisionerDaemonsOptions struct {
-	Limit int
-	IDs   []uuid.UUID
-	Tags  map[string]string
+	Limit   int
+	Offline bool
+	Status  []ProvisionerDaemonStatus
+	MaxAge  time.Duration
+	IDs     []uuid.UUID
+	Tags    map[string]string
 }
 
 func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizationID uuid.UUID, opts *OrganizationProvisionerDaemonsOptions) ([]ProvisionerDaemon, error) {
@@ -354,6 +357,15 @@ func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizatio
 	if opts != nil {
 		if opts.Limit > 0 {
 			qp.Add("limit", strconv.Itoa(opts.Limit))
+		}
+		if opts.Offline {
+			qp.Add("offline", "true")
+		}
+		if len(opts.Status) > 0 {
+			qp.Add("status", joinSlice(opts.Status))
+		}
+		if opts.MaxAge > 0 {
+			qp.Add("max_age", opts.MaxAge.String())
 		}
 		if len(opts.IDs) > 0 {
 			qp.Add("ids", joinSliceStringer(opts.IDs))

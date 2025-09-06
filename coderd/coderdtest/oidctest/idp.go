@@ -641,7 +641,7 @@ func (f *FakeIDP) LoginWithClient(t testing.TB, client *codersdk.Client, idToken
 
 // ExternalLogin does the oauth2 flow for external auth providers. This requires
 // an authenticated coder client.
-func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, opts ...func(r *http.Request)) {
+func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, opts ...codersdk.RequestOption) {
 	coderOauthURL, err := client.URL.Parse(fmt.Sprintf("/external-auth/%s/callback", f.externalProviderID))
 	require.NoError(t, err)
 	f.SetRedirect(t, coderOauthURL.String())
@@ -660,11 +660,7 @@ func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, opts ...f
 	req, err := http.NewRequestWithContext(ctx, "GET", coderOauthURL.String(), nil)
 	require.NoError(t, err)
 	// External auth flow requires the user be authenticated.
-	headerName := client.SessionTokenHeader
-	if headerName == "" {
-		headerName = codersdk.SessionTokenHeader
-	}
-	req.Header.Set(headerName, client.SessionToken())
+	opts = append([]codersdk.RequestOption{client.SessionTokenProvider.AsRequestOption()}, opts...)
 	if cli.Jar == nil {
 		cli.Jar, err = cookiejar.New(nil)
 		require.NoError(t, err, "failed to create cookie jar")

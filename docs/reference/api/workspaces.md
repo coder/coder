@@ -88,6 +88,7 @@ of the template will be used.
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
     "has_ai_task": true,
+    "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -376,6 +377,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
     "has_ai_task": true,
+    "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -689,6 +691,7 @@ of the template will be used.
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
     "has_ai_task": true,
+    "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -930,11 +933,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 
 ### Parameters
 
-| Name     | In    | Type    | Required | Description                                                                                                                                                    |
-|----------|-------|---------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task. |
-| `limit`  | query | integer | false    | Page limit                                                                                                                                                     |
-| `offset` | query | integer | false    | Page offset                                                                                                                                                    |
+| Name     | In    | Type    | Required | Description                                                                                                                                                                        |
+|----------|-------|---------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent. |
+| `limit`  | query | integer | false    | Page limit                                                                                                                                                                         |
+| `offset` | query | integer | false    | Page offset                                                                                                                                                                        |
 
 ### Example responses
 
@@ -980,6 +983,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
         "daily_cost": 0,
         "deadline": "2019-08-24T14:15:22Z",
         "has_ai_task": true,
+        "has_external_agent": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
         "initiator_name": "string",
@@ -1252,6 +1256,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
     "has_ai_task": true,
+    "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -1514,6 +1519,80 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get workspace ACLs
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaces/{workspace}/acl`
+
+### Parameters
+
+| Name        | In   | Type         | Required | Description  |
+|-------------|------|--------------|----------|--------------|
+| `workspace` | path | string(uuid) | true     | Workspace ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "group": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "admin",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "role": "admin",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                   |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceACL](schemas.md#codersdkworkspaceacl) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Update workspace ACL
 
 ### Code samples
@@ -1699,6 +1778,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
     "has_ai_task": true,
+    "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",

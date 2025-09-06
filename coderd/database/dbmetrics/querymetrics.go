@@ -523,6 +523,13 @@ func (m queryMetricsStore) EnqueueNotificationMessage(ctx context.Context, arg d
 	return r0
 }
 
+func (m queryMetricsStore) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
+	start := time.Now()
+	r0 := m.s.ExpirePrebuildsAPIKeys(ctx, now)
+	m.queryLatencies.WithLabelValues("ExpirePrebuildsAPIKeys").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) FavoriteWorkspace(ctx context.Context, arg uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.FavoriteWorkspace(ctx, arg)
@@ -562,6 +569,13 @@ func (m queryMetricsStore) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.
 	start := time.Now()
 	r0, r1 := m.s.FetchVolumesResourceMonitorsUpdatedAfter(ctx, updatedAt)
 	m.queryLatencies.WithLabelValues("FetchVolumesResourceMonitorsUpdatedAfter").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) FindMatchingPresetID(ctx context.Context, arg database.FindMatchingPresetIDParams) (uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.FindMatchingPresetID(ctx, arg)
+	m.queryLatencies.WithLabelValues("FindMatchingPresetID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -971,13 +985,6 @@ func (m queryMetricsStore) GetLogoURL(ctx context.Context) (string, error) {
 	return url, err
 }
 
-func (m queryMetricsStore) GetManagedAgentCount(ctx context.Context, arg database.GetManagedAgentCountParams) (int64, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetManagedAgentCount(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetManagedAgentCount").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetNotificationMessagesByStatus(ctx, arg)
@@ -1349,6 +1356,13 @@ func (m queryMetricsStore) GetQuotaConsumedForUser(ctx context.Context, ownerID 
 	return consumed, err
 }
 
+func (m queryMetricsStore) GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]database.GetRegularWorkspaceCreateMetricsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetRegularWorkspaceCreateMetrics(ctx)
+	m.queryLatencies.WithLabelValues("GetRegularWorkspaceCreateMetrics").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetReplicaByID(ctx context.Context, id uuid.UUID) (database.Replica, error) {
 	start := time.Now()
 	replica, err := m.s.GetReplicaByID(ctx, id)
@@ -1440,7 +1454,7 @@ func (m queryMetricsStore) GetTemplateAppInsightsByTemplate(ctx context.Context,
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
+func (m queryMetricsStore) GetTemplateAverageBuildTime(ctx context.Context, arg uuid.NullUUID) (database.GetTemplateAverageBuildTimeRow, error) {
 	start := time.Now()
 	buildTime, err := m.s.GetTemplateAverageBuildTime(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetTemplateAverageBuildTime").Observe(time.Since(start).Seconds())
@@ -1601,6 +1615,13 @@ func (m queryMetricsStore) GetTemplatesWithFilter(ctx context.Context, arg datab
 	return templates, err
 }
 
+func (m queryMetricsStore) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg database.GetTotalUsageDCManagedAgentsV1Params) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTotalUsageDCManagedAgentsV1(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTotalUsageDCManagedAgentsV1").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUnexpiredLicenses(ctx context.Context) ([]database.License, error) {
 	start := time.Now()
 	licenses, err := m.s.GetUnexpiredLicenses(ctx)
@@ -1738,6 +1759,13 @@ func (m queryMetricsStore) GetWebpushVAPIDKeys(ctx context.Context) (database.Ge
 	start := time.Now()
 	r0, r1 := m.s.GetWebpushVAPIDKeys(ctx)
 	m.queryLatencies.WithLabelValues("GetWebpushVAPIDKeys").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceACLByIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceACLByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetWorkspaceACLByID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -2392,6 +2420,13 @@ func (m queryMetricsStore) InsertTemplateVersionWorkspaceTag(ctx context.Context
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertUsageEvent(ctx context.Context, arg database.InsertUsageEventParams) error {
+	start := time.Now()
+	r0 := m.s.InsertUsageEvent(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertUsageEvent").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
 	start := time.Now()
 	user, err := m.s.InsertUser(ctx, arg)
@@ -2651,6 +2686,13 @@ func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest
 	return r0
 }
 
+func (m queryMetricsStore) SelectUsageEventsForPublishing(ctx context.Context, arg time.Time) ([]database.UsageEvent, error) {
+	start := time.Now()
+	r0, r1 := m.s.SelectUsageEventsForPublishing(ctx, arg)
+	m.queryLatencies.WithLabelValues("SelectUsageEventsForPublishing").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error) {
 	start := time.Now()
 	ok, err := m.s.TryAcquireLock(ctx, pgTryAdvisoryXactLock)
@@ -2903,13 +2945,6 @@ func (m queryMetricsStore) UpdateTemplateScheduleByID(ctx context.Context, arg d
 	return err
 }
 
-func (m queryMetricsStore) UpdateTemplateVersionAITaskByJobID(ctx context.Context, arg database.UpdateTemplateVersionAITaskByJobIDParams) error {
-	start := time.Now()
-	r0 := m.s.UpdateTemplateVersionAITaskByJobID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateTemplateVersionAITaskByJobID").Observe(time.Since(start).Seconds())
-	return r0
-}
-
 func (m queryMetricsStore) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateTemplateVersionByID(ctx, arg)
@@ -2931,10 +2966,24 @@ func (m queryMetricsStore) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx
 	return err
 }
 
+func (m queryMetricsStore) UpdateTemplateVersionFlagsByJobID(ctx context.Context, arg database.UpdateTemplateVersionFlagsByJobIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateTemplateVersionFlagsByJobID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateVersionFlagsByJobID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateTemplateWorkspacesLastUsedAt(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateWorkspacesLastUsedAt").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) UpdateUsageEventsPostPublish(ctx context.Context, arg database.UpdateUsageEventsPostPublishParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateUsageEventsPostPublish(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUsageEventsPostPublish").Observe(time.Since(start).Seconds())
 	return r0
 }
 
@@ -3127,13 +3176,6 @@ func (m queryMetricsStore) UpdateWorkspaceAutostart(ctx context.Context, arg dat
 	return err
 }
 
-func (m queryMetricsStore) UpdateWorkspaceBuildAITaskByID(ctx context.Context, arg database.UpdateWorkspaceBuildAITaskByIDParams) error {
-	start := time.Now()
-	r0 := m.s.UpdateWorkspaceBuildAITaskByID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildAITaskByID").Observe(time.Since(start).Seconds())
-	return r0
-}
-
 func (m queryMetricsStore) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateWorkspaceBuildCostByID(ctx, arg)
@@ -3145,6 +3187,13 @@ func (m queryMetricsStore) UpdateWorkspaceBuildDeadlineByID(ctx context.Context,
 	start := time.Now()
 	r0 := m.s.UpdateWorkspaceBuildDeadlineByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildDeadlineByID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) UpdateWorkspaceBuildFlagsByID(ctx context.Context, arg database.UpdateWorkspaceBuildFlagsByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceBuildFlagsByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildFlagsByID").Observe(time.Since(start).Seconds())
 	return r0
 }
 

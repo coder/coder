@@ -213,6 +213,7 @@ Status Code **200**
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
 | `resource_type` | `template`                         |
+| `resource_type` | `usage_event`                      |
 | `resource_type` | `user`                             |
 | `resource_type` | `user_secret`                      |
 | `resource_type` | `webpush_subscription`             |
@@ -384,6 +385,7 @@ Status Code **200**
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
 | `resource_type` | `template`                         |
+| `resource_type` | `usage_event`                      |
 | `resource_type` | `user`                             |
 | `resource_type` | `user_secret`                      |
 | `resource_type` | `webpush_subscription`             |
@@ -555,6 +557,7 @@ Status Code **200**
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
 | `resource_type` | `template`                         |
+| `resource_type` | `usage_event`                      |
 | `resource_type` | `user`                             |
 | `resource_type` | `user_secret`                      |
 | `resource_type` | `webpush_subscription`             |
@@ -695,6 +698,7 @@ Status Code **200**
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
 | `resource_type` | `template`                         |
+| `resource_type` | `usage_event`                      |
 | `resource_type` | `user`                             |
 | `resource_type` | `user_secret`                      |
 | `resource_type` | `webpush_subscription`             |
@@ -1057,6 +1061,7 @@ Status Code **200**
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
 | `resource_type` | `template`                         |
+| `resource_type` | `usage_event`                      |
 | `resource_type` | `user`                             |
 | `resource_type` | `user_secret`                      |
 | `resource_type` | `webpush_subscription`             |

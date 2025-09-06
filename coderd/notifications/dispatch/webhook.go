@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"text/template"
@@ -39,7 +40,22 @@ type WebhookPayload struct {
 }
 
 func NewWebhookHandler(cfg codersdk.NotificationsWebhookConfig, log slog.Logger) *WebhookHandler {
-	return &WebhookHandler{cfg: cfg, log: log, cl: &http.Client{}}
+	// Create a new transport in favor of reusing the default, since other http clients may interfere.
+	// http.Transport maintains its own connection pool, and we want to avoid cross-contamination.
+	var rt http.RoundTripper
+
+	def := http.DefaultTransport
+	t, ok := def.(*http.Transport)
+	if !ok {
+		// The API has changed (very unlikely), so let's use the default transport (previous behavior) and log.
+		log.Warn(context.Background(), "failed to clone default HTTP transport, unexpected type", slog.F("type", fmt.Sprintf("%T", def)))
+		rt = def
+	} else {
+		// Clone the transport's exported fields, but not its connection pool.
+		rt = t.Clone()
+	}
+
+	return &WebhookHandler{cfg: cfg, log: log, cl: &http.Client{Transport: rt}}
 }
 
 func (w *WebhookHandler) Dispatcher(payload types.MessagePayload, titleMarkdown, bodyMarkdown string, _ template.FuncMap) (DeliveryFunc, error) {

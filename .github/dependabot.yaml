@@ -33,6 +33,7 @@ updates:
       - dependency-name: "*"
         update-types:
           - version-update:semver-patch
+      - dependency-name: "github.com/mark3labs/mcp-go"
 
   # Update our Dockerfile.
   - package-ecosystem: "docker"

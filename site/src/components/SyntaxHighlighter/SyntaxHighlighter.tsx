@@ -44,7 +44,7 @@ export const SyntaxHighlighter: FC<SyntaxHighlighterProps> = ({
 	return (
 		<div
 			data-chromatic="ignore"
-			className="px-2 py-0 h-full"
+			className="py-2 h-full"
 			style={{
 				backgroundColor: theme.monaco.colors["editor.background"],
 			}}
