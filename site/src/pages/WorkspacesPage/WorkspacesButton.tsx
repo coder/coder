@@ -2,14 +2,14 @@ import Link from "@mui/material/Link";
 import type { Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
+import { Loader } from "components/Loader/Loader";
+import { MenuSearch } from "components/Menu/MenuSearch";
+import { OverflowY } from "components/OverflowY/OverflowY";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
-import { Loader } from "components/Loader/Loader";
-import { MenuSearch } from "components/Menu/MenuSearch";
-import { OverflowY } from "components/OverflowY/OverflowY";
+} from "components/Popover/Popover";
 import { SearchEmpty, searchStyles } from "components/Search/Search";
 import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
@@ -54,14 +54,15 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 
 	return (
 		<Popover>
-			<PopoverTrigger>
+			<PopoverTrigger asChild>
 				<Button size="lg">
 					{children}
 					<ChevronDownIcon />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
-				horizontal="right"
+				align="end"
+				className="bg-surface-secondary border-surface-quaternary w-[320px]"
 				css={{
 					".MuiPaper-root": searchStyles.content,
 				}}

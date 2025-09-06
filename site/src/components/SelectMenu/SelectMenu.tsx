@@ -1,11 +1,15 @@
 import MenuItem, { type MenuItemProps } from "@mui/material/MenuItem";
 import MenuList, { type MenuListProps } from "@mui/material/MenuList";
+import type {
+	PopoverContentProps,
+	PopoverTriggerProps,
+} from "@radix-ui/react-popover";
 import { Button, type ButtonProps } from "components/Button/Button";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
+} from "components/Popover/Popover";
 import {
 	SearchField,
 	type SearchFieldProps,
@@ -26,9 +30,21 @@ const SIDE_PADDING = 16;
 
 export const SelectMenu = Popover;
 
-export const SelectMenuTrigger = PopoverTrigger;
+export const SelectMenuTrigger: FC<PopoverTriggerProps> = (props) => {
+	return <PopoverTrigger asChild {...props} />;
+};
 
-export const SelectMenuContent = PopoverContent;
+export const SelectMenuContent: FC<PopoverContentProps> = (props) => {
+	return (
+		<PopoverContent
+			className={cn(
+				"bg-surface-secondary border-surface-quaternary overflow-y-auto",
+				props.className,
+			)}
+			{...props}
+		/>
+	);
+};
 
 type SelectMenuButtonProps = ButtonProps & {
 	startIcon?: React.ReactNode;

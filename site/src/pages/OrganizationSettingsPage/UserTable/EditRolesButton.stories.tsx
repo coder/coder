@@ -43,6 +43,17 @@ export const Loading: Story = {
 	},
 };
 
+export const CannotSetRoles: Story = {
+	args: {
+		userLoginType: "oidc",
+		oidcRoleSync: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByLabelText("More info"));
+	},
+};
+
 export const AdvancedOpen: Story = {
 	args: {
 		selectedRoleNames: new Set([MockWorkspaceCreationBanRole.name]),
