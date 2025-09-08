@@ -274,10 +274,6 @@ $(CODER_DYLIBS): go.mod go.sum $(MOST_GO_SRC_FILES)
 		exit 1
 	fi
 
-# This task builds both dylibs
-build/coder-dylib: $(CODER_DYLIBS)
-.PHONY: build/coder-dylib
-
 # This task builds all archives. It parses the target name to get the metadata
 # for the build, so it must be specified in this format:
 #     build/coder_${version}_${os}_${arch}.${format}
@@ -1097,6 +1093,31 @@ test-postgres-docker:
 test-race:
 	$(GIT_FLAGS) gotestsum --junitfile="gotests.xml" -- -race -count=1 -parallel 4 -p 4 ./...
 .PHONY: test-race
+
+test-flakes: test-postgres-docker
+	go run ./scripts/flakecheck -repeat 10 -p 4 -parallel 4
+.PHONY: test-flakes
+
+# Note: we used to add this to the test target, but it's not necessary and we can
+# achieve the desired result by specifying -count=1 in the go test invocation
+# instead. Keeping it here for convenience.
+test-clean:
+	go clean -testcache
+.PHONY: test-clean
+
+site/e2e/bin/coder: go.mod go.sum $(GO_SRC_FILES)
+	go build -o $@ \
+		-tags ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube \
+		./enterprise/cmd/coder
+
+test-e2e: site/e2e/bin/coder site/node_modules/.installed site/out/index.html
+	cd site/
+ifdef CI
+	DEBUG=pw:api pnpm playwright:test --forbid-only --workers 1
+else
+	pnpm playwright:test
+endif
+.PHONY: test-e2e
 
 test-tailnet-integration:
 	env \
