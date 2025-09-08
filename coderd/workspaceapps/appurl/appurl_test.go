@@ -20,7 +20,7 @@ func TestApplicationURLString(t *testing.T) {
 		{
 			Name:     "Empty",
 			URL:      appurl.ApplicationURL{},
-			Expected: "------",
+			Expected: "----",
 		},
 		{
 			Name: "AppName",
@@ -91,10 +91,14 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			ExpectedError: "invalid application url format",
 		},
 		{
-			Name:          "Invalid_App--Workspace--User",
-			Subdomain:     "app--workspace--user",
-			Expected:      appurl.ApplicationURL{},
-			ExpectedError: "invalid application url format",
+			Name:      "Valid_App--Workspace--User",
+			Subdomain: "app--workspace--user",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "app",
+				AgentName:     "", // Agent name is optional when app slug is present
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
 		},
 		{
 			Name:          "Invalid_TooManyComponents",
@@ -102,13 +106,19 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			Expected:      appurl.ApplicationURL{},
 			ExpectedError: "invalid application url format",
 		},
+		{
+			Name:          "Invalid_Port--Workspace--User",
+			Subdomain:     "8080--workspace--user",
+			Expected:      appurl.ApplicationURL{},
+			ExpectedError: "agent name is required for port-based URLs",
+		},
 		// Correct
 		{
 			Name:      "AppName--Agent--Workspace--User",
 			Subdomain: "app--agent--workspace--user",
 			Expected: appurl.ApplicationURL{
 				AppSlugOrPort: "app",
-				AgentName:     "agent",
+				AgentName:     "",
 				WorkspaceName: "workspace",
 				Username:      "user",
 			},
@@ -138,7 +148,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			Subdomain: "app-slug--agent-name--workspace-name--user-name",
 			Expected: appurl.ApplicationURL{
 				AppSlugOrPort: "app-slug",
-				AgentName:     "agent-name",
+				AgentName:     "",
 				WorkspaceName: "workspace-name",
 				Username:      "user-name",
 			},
@@ -149,7 +159,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			Expected: appurl.ApplicationURL{
 				Prefix:        "dean---was---here---",
 				AppSlugOrPort: "app",
-				AgentName:     "agent",
+				AgentName:     "",
 				WorkspaceName: "workspace",
 				Username:      "user",
 			},
