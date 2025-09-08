@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"io"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -199,6 +201,43 @@ func TestExpTaskList(t *testing.T) {
 		require.NoError(t, err)
 
 		pty.ExpectMatch(ws.Name)
+	})
+
+	t.Run("Quiet", func(t *testing.T) {
+		t.Parallel()
+
+		// Quiet logger to reduce noise.
+		quiet := slog.Make(sloghuman.Sink(io.Discard))
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{Logger: &quiet})
+		owner := coderdtest.CreateFirstUser(t, client)
+		memberClient, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// Given: We have two tasks
+		task1 := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStart, "keep me running")
+		task2 := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStop, "stop me please")
+
+		// Given: We add the `--quiet` flag
+		inv, root := clitest.New(t, "exp", "task", "list", "--quiet")
+		clitest.SetupConfig(t, memberClient, root)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		var stdout bytes.Buffer
+		inv.Stdout = &stdout
+		inv.Stderr = &stdout
+
+		// When: We run the command
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		want := []string{task1.ID.String(), task2.ID.String()}
+		got := slice.Filter(strings.Split(stdout.String(), "\n"), func(s string) bool {
+			return len(s) != 0
+		})
+
+		slices.Sort(want)
+		slices.Sort(got)
+
+		require.Equal(t, want, got)
 	})
 }
 
