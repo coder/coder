@@ -531,9 +531,6 @@ jobs:
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
-  # NOTE: this could instead be defined as a matrix strategy, but we want to
-  # only block merging if tests on postgres 13 fail. Using a matrix strategy
-  # here makes the check in the above `required` job rather complicated.
   test-go-pg-17:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs:
@@ -926,6 +923,7 @@ jobs:
       - lint
       - gen
       - test-go-pg
+      - test-go-pg-17
       - test-go-race-pg
       - test-js
       - test-e2e
@@ -948,6 +946,7 @@ jobs:
           echo "- lint: ${{ needs.lint.result }}"
           echo "- gen: ${{ needs.gen.result }}"
           echo "- test-go-pg: ${{ needs.test-go-pg.result }}"
+          echo "- test-go-pg-17: ${{ needs.test-go-pg-17.result }}"
           echo "- test-go-race-pg: ${{ needs.test-go-race-pg.result }}"
           echo "- test-js: ${{ needs.test-js.result }}"
           echo "- test-e2e: ${{ needs.test-e2e.result }}"
