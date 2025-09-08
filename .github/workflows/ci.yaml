@@ -32,7 +32,7 @@ jobs:
       offlinedocs-only: ${{ steps.filter.outputs.offlinedocs_count == steps.filter.outputs.all_count }}
       offlinedocs: ${{ steps.filter.outputs.offlinedocs }}
       tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
-+     go-tests: ${{ steps.filter.outputs.go-tests }}
+      go-tests: ${{ steps.filter.outputs.go-tests }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -90,8 +90,8 @@ jobs:
               - "scaletest/**"
               - "tailnet/**"
               - "testutil/**"
-+           go-tests:
-+             - "**/*_test.go"
+            go-tests:
+              - "**/*_test.go"
             gomod:
               - "go.mod"
               - "go.sum"
