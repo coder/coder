@@ -106,6 +106,7 @@ func (mc *mockConnection) Reset() {
 
 // mockReconnector implements the Reconnector interface for testing
 type mockReconnector struct {
+	mu              sync.Mutex
 	connections     []*mockConnection
 	connectionIndex int
 	callCount       int
@@ -114,6 +115,9 @@ type mockReconnector struct {
 
 // Reconnect implements the Reconnector interface
 func (m *mockReconnector) Reconnect(ctx context.Context, readerSeqNum uint64) (io.ReadWriteCloser, uint64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.callCount++
 
 	if m.connectionIndex >= len(m.connections) {
@@ -146,8 +150,15 @@ func (m *mockReconnector) Reconnect(ctx context.Context, readerSeqNum uint64) (i
 	return conn, remoteReaderSeqNum, nil
 }
 
+// GetCallCount returns the current call count in a thread-safe manner
+func (m *mockReconnector) GetCallCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.callCount
+}
+
 // mockReconnectFunc creates a unified reconnector with all behaviors enabled
-func mockReconnectFunc(connections ...*mockConnection) (backedpipe.Reconnector, *int, chan struct{}) {
+func mockReconnectFunc(connections ...*mockConnection) (*mockReconnector, chan struct{}) {
 	signalChan := make(chan struct{}, 1)
 
 	reconnector := &mockReconnector{
@@ -155,7 +166,7 @@ func mockReconnectFunc(connections ...*mockConnection) (backedpipe.Reconnector, 
 		signalChan:  signalChan,
 	}
 
-	return reconnector, &reconnector.callCount, signalChan
+	return reconnector, signalChan
 }
 
 // blockingReconnector is a reconnector that blocks on a channel for deterministic testing
@@ -201,7 +212,14 @@ func (b *blockingReconnector) Reconnect(ctx context.Context, readerSeqNum uint64
 	return b.conn2, 0, nil
 }
 
-func mockBlockingReconnectFunc(conn1, conn2 *mockConnection, blockChan <-chan struct{}) (backedpipe.Reconnector, *int, chan struct{}) {
+// GetCallCount returns the current call count in a thread-safe manner
+func (b *blockingReconnector) GetCallCount() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.callCount
+}
+
+func mockBlockingReconnectFunc(conn1, conn2 *mockConnection, blockChan <-chan struct{}) (*blockingReconnector, chan struct{}) {
 	blockedChan := make(chan struct{}, 1)
 	reconnector := &blockingReconnector{
 		conn1:       conn1,
@@ -210,23 +228,27 @@ func mockBlockingReconnectFunc(conn1, conn2 *mockConnection, blockChan <-chan st
 		blockedChan: blockedChan,
 	}
 
-	return reconnector, &reconnector.callCount, blockedChan
+	return reconnector, blockedChan
 }
 
 // eofTestReconnector is a custom reconnector for the EOF test case
 type eofTestReconnector struct {
+	mu        sync.Mutex
 	conn1     io.ReadWriteCloser
 	conn2     io.ReadWriteCloser
-	callCount *int
+	callCount int
 }
 
 func (e *eofTestReconnector) Reconnect(ctx context.Context, readerSeqNum uint64) (io.ReadWriteCloser, uint64, error) {
-	*e.callCount++
+	e.mu.Lock()
+	defer e.mu.Unlock()
 
-	if *e.callCount == 1 {
+	e.callCount++
+
+	if e.callCount == 1 {
 		return e.conn1, 0, nil
 	}
-	if *e.callCount == 2 {
+	if e.callCount == 2 {
 		// Second call is the reconnection after EOF
 		// Return 5 to indicate remote has read all 5 bytes of "hello"
 		return e.conn2, 5, nil
@@ -235,11 +257,18 @@ func (e *eofTestReconnector) Reconnect(ctx context.Context, readerSeqNum uint64)
 	return nil, 0, xerrors.New("no more connections")
 }
 
+// GetCallCount returns the current call count in a thread-safe manner
+func (e *eofTestReconnector) GetCallCount() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.callCount
+}
+
 func TestBackedPipe_NewBackedPipe(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	reconnectFn, _, _ := mockReconnectFunc(newMockConnection())
+	reconnectFn, _ := mockReconnectFunc(newMockConnection())
 
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
 	defer bp.Close()
@@ -252,15 +281,15 @@ func TestBackedPipe_Connect(t *testing.T) {
 
 	ctx := context.Background()
 	conn := newMockConnection()
-	reconnectFn, callCount, _ := mockReconnectFunc(conn)
+	reconnector, _ := mockReconnectFunc(conn)
 
-	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
+	bp := backedpipe.NewBackedPipe(ctx, reconnector)
 	defer bp.Close()
 
 	err := bp.Connect()
 	require.NoError(t, err)
 	require.True(t, bp.Connected())
-	require.Equal(t, 1, *callCount)
+	require.Equal(t, 1, reconnector.GetCallCount())
 }
 
 func TestBackedPipe_ConnectAlreadyConnected(t *testing.T) {
@@ -268,7 +297,7 @@ func TestBackedPipe_ConnectAlreadyConnected(t *testing.T) {
 
 	ctx := context.Background()
 	conn := newMockConnection()
-	reconnectFn, _, _ := mockReconnectFunc(conn)
+	reconnectFn, _ := mockReconnectFunc(conn)
 
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
 	defer bp.Close()
@@ -287,7 +316,7 @@ func TestBackedPipe_ConnectAfterClose(t *testing.T) {
 
 	ctx := context.Background()
 	conn := newMockConnection()
-	reconnectFn, _, _ := mockReconnectFunc(conn)
+	reconnectFn, _ := mockReconnectFunc(conn)
 
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
 
@@ -304,7 +333,7 @@ func TestBackedPipe_BasicReadWrite(t *testing.T) {
 
 	ctx := context.Background()
 	conn := newMockConnection()
-	reconnectFn, _, _ := mockReconnectFunc(conn)
+	reconnectFn, _ := mockReconnectFunc(conn)
 
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
 	defer bp.Close()
@@ -333,7 +362,7 @@ func TestBackedPipe_WriteBeforeConnect(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	conn := newMockConnection()
-	reconnectFn, _, _ := mockReconnectFunc(conn)
+	reconnectFn, _ := mockReconnectFunc(conn)
 
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
 	defer bp.Close()
@@ -370,7 +399,7 @@ func TestBackedPipe_ReadBlocksWhenDisconnected(t *testing.T) {
 
 	ctx := context.Background()
 	testCtx := testutil.Context(t, testutil.WaitShort)
-	reconnectFn, _, _ := mockReconnectFunc(newMockConnection())
+	reconnectFn, _ := mockReconnectFunc(newMockConnection())
 
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
 	defer bp.Close()
@@ -417,7 +446,7 @@ func TestBackedPipe_Reconnection(t *testing.T) {
 	conn1 := newMockConnection()
 	conn2 := newMockConnection()
 	conn2.seqNum = 17 // Remote has received 17 bytes, so replay from sequence 17
-	reconnectFn, _, signalChan := mockReconnectFunc(conn1, conn2)
+	reconnectFn, signalChan := mockReconnectFunc(conn1, conn2)
 
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
 	defer bp.Close()
@@ -460,7 +489,7 @@ func TestBackedPipe_Close(t *testing.T) {
 
 	ctx := context.Background()
 	conn := newMockConnection()
-	reconnectFn, _, _ := mockReconnectFunc(conn)
+	reconnectFn, _ := mockReconnectFunc(conn)
 
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
 
@@ -484,7 +513,7 @@ func TestBackedPipe_CloseIdempotent(t *testing.T) {
 
 	ctx := context.Background()
 	conn := newMockConnection()
-	reconnectFn, _, _ := mockReconnectFunc(conn)
+	reconnectFn, _ := mockReconnectFunc(conn)
 
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
 
@@ -522,16 +551,16 @@ func TestBackedPipe_ForceReconnect(t *testing.T) {
 	conn2 := newMockConnection()
 	// Set conn2 sequence number to 9 to indicate remote has read all 9 bytes of "test data"
 	conn2.seqNum = 9
-	reconnectFn, callCount, _ := mockReconnectFunc(conn1, conn2)
+	reconnector, _ := mockReconnectFunc(conn1, conn2)
 
-	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
+	bp := backedpipe.NewBackedPipe(ctx, reconnector)
 	defer bp.Close()
 
 	// Initial connect
 	err := bp.Connect()
 	require.NoError(t, err)
 	require.True(t, bp.Connected())
-	require.Equal(t, 1, *callCount)
+	require.Equal(t, 1, reconnector.GetCallCount())
 
 	// Write some data to the first connection
 	_, err = bp.Write([]byte("test data"))
@@ -542,7 +571,7 @@ func TestBackedPipe_ForceReconnect(t *testing.T) {
 	err = bp.ForceReconnect()
 	require.NoError(t, err)
 	require.True(t, bp.Connected())
-	require.Equal(t, 2, *callCount)
+	require.Equal(t, 2, reconnector.GetCallCount())
 
 	// Since the mock returns the proper sequence number, no data should be replayed
 	// The new connection should be empty
@@ -567,7 +596,7 @@ func TestBackedPipe_ForceReconnectWhenClosed(t *testing.T) {
 
 	ctx := context.Background()
 	conn := newMockConnection()
-	reconnectFn, _, _ := mockReconnectFunc(conn)
+	reconnectFn, _ := mockReconnectFunc(conn)
 
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
 
@@ -588,9 +617,9 @@ func TestBackedPipe_StateTransitionsAndGenerationTracking(t *testing.T) {
 	conn1 := newMockConnection()
 	conn2 := newMockConnection()
 	conn3 := newMockConnection()
-	reconnectFn, callCount, signalChan := mockReconnectFunc(conn1, conn2, conn3)
+	reconnector, signalChan := mockReconnectFunc(conn1, conn2, conn3)
 
-	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
+	bp := backedpipe.NewBackedPipe(ctx, reconnector)
 	defer bp.Close()
 
 	// Initial state should be disconnected
@@ -600,7 +629,7 @@ func TestBackedPipe_StateTransitionsAndGenerationTracking(t *testing.T) {
 	err := bp.Connect()
 	require.NoError(t, err)
 	require.True(t, bp.Connected())
-	require.Equal(t, 1, *callCount)
+	require.Equal(t, 1, reconnector.GetCallCount())
 
 	// Write some data
 	_, err = bp.Write([]byte("test data gen 1"))
@@ -620,13 +649,13 @@ func TestBackedPipe_StateTransitionsAndGenerationTracking(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return bp.Connected()
 	}, testutil.WaitShort, testutil.IntervalFast, "should reconnect")
-	require.Equal(t, 2, *callCount)
+	require.Equal(t, 2, reconnector.GetCallCount())
 
 	// Force another reconnection
 	err = bp.ForceReconnect()
 	require.NoError(t, err)
 	require.True(t, bp.Connected())
-	require.Equal(t, 3, *callCount)
+	require.Equal(t, 3, reconnector.GetCallCount())
 
 	// Close should transition to closed state
 	err = bp.Close()
@@ -647,9 +676,9 @@ func TestBackedPipe_GenerationFiltering(t *testing.T) {
 	ctx := context.Background()
 	conn1 := newMockConnection()
 	conn2 := newMockConnection()
-	reconnectFn, callCount, _ := mockReconnectFunc(conn1, conn2)
+	reconnector, _ := mockReconnectFunc(conn1, conn2)
 
-	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
+	bp := backedpipe.NewBackedPipe(ctx, reconnector)
 	defer bp.Close()
 
 	// Connect
@@ -663,12 +692,19 @@ func TestBackedPipe_GenerationFiltering(t *testing.T) {
 	conn1.SetWriteError(xerrors.New("error 2"))
 
 	// Trigger multiple errors quickly
+	var wg sync.WaitGroup
+	wg.Add(2)
 	go func() {
+		defer wg.Done()
 		_, _ = bp.Write([]byte("trigger error 1"))
 	}()
 	go func() {
+		defer wg.Done()
 		_, _ = bp.Write([]byte("trigger error 2"))
 	}()
+
+	// Wait for both writes to complete
+	wg.Wait()
 
 	// Wait for reconnection to complete
 	require.Eventually(t, func() bool {
@@ -676,7 +712,7 @@ func TestBackedPipe_GenerationFiltering(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast, "should reconnect once")
 
 	// Should have only reconnected once despite multiple errors
-	require.Equal(t, 2, *callCount) // Initial connect + 1 reconnect
+	require.Equal(t, 2, reconnector.GetCallCount()) // Initial connect + 1 reconnect
 }
 
 func TestBackedPipe_DuplicateReconnectionPrevention(t *testing.T) {
@@ -689,15 +725,15 @@ func TestBackedPipe_DuplicateReconnectionPrevention(t *testing.T) {
 	conn1 := newMockConnection()
 	conn2 := newMockConnection()
 	blockChan := make(chan struct{})
-	reconnectFn, callCount, blockedChan := mockBlockingReconnectFunc(conn1, conn2, blockChan)
+	reconnector, blockedChan := mockBlockingReconnectFunc(conn1, conn2, blockChan)
 
-	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
+	bp := backedpipe.NewBackedPipe(ctx, reconnector)
 	defer bp.Close()
 
 	// Initial connect
 	err := bp.Connect()
 	require.NoError(t, err)
-	require.Equal(t, 1, *callCount, "should have exactly 1 call after initial connect")
+	require.Equal(t, 1, reconnector.GetCallCount(), "should have exactly 1 call after initial connect")
 
 	// We'll use channels to coordinate the test execution:
 	// 1. Start all goroutines but have them wait
@@ -750,7 +786,7 @@ func TestBackedPipe_DuplicateReconnectionPrevention(t *testing.T) {
 	// and all other goroutines have called ForceReconnect and should be
 	// waiting on the same singleflight operation.
 	// Due to singleflight, only one reconnect should have been attempted.
-	require.Equal(t, 2, *callCount, "should have exactly 2 calls: initial connect + 1 reconnect due to singleflight")
+	require.Equal(t, 2, reconnector.GetCallCount(), "should have exactly 2 calls: initial connect + 1 reconnect due to singleflight")
 
 	// Release the blocking reconnect function
 	close(blockChan)
@@ -764,7 +800,7 @@ func TestBackedPipe_DuplicateReconnectionPrevention(t *testing.T) {
 	}
 
 	// Final verification: call count should still be exactly 2
-	require.Equal(t, 2, *callCount, "final call count should be exactly 2: initial connect + 1 singleflight reconnect")
+	require.Equal(t, 2, reconnector.GetCallCount(), "final call count should be exactly 2: initial connect + 1 singleflight reconnect")
 }
 
 func TestBackedPipe_SingleReconnectionOnMultipleErrors(t *testing.T) {
@@ -776,16 +812,16 @@ func TestBackedPipe_SingleReconnectionOnMultipleErrors(t *testing.T) {
 	// Create connections for initial connect and reconnection
 	conn1 := newMockConnection()
 	conn2 := newMockConnection()
-	reconnectFn, callCount, signalChan := mockReconnectFunc(conn1, conn2)
+	reconnector, signalChan := mockReconnectFunc(conn1, conn2)
 
-	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
+	bp := backedpipe.NewBackedPipe(ctx, reconnector)
 	defer bp.Close()
 
 	// Initial connect
 	err := bp.Connect()
 	require.NoError(t, err)
 	require.True(t, bp.Connected())
-	require.Equal(t, 1, *callCount)
+	require.Equal(t, 1, reconnector.GetCallCount())
 
 	// Write some initial data to establish the connection
 	_, err = bp.Write([]byte("initial data"))
@@ -809,7 +845,7 @@ func TestBackedPipe_SingleReconnectionOnMultipleErrors(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast, "should reconnect after write error")
 
 	// Verify that only one reconnection occurred
-	require.Equal(t, 2, *callCount, "should have exactly 2 calls: initial connect + 1 reconnection")
+	require.Equal(t, 2, reconnector.GetCallCount(), "should have exactly 2 calls: initial connect + 1 reconnection")
 	require.True(t, bp.Connected(), "should be connected after reconnection")
 }
 
@@ -818,16 +854,16 @@ func TestBackedPipe_ForceReconnectWhenDisconnected(t *testing.T) {
 
 	ctx := context.Background()
 	conn := newMockConnection()
-	reconnectFn, callCount, _ := mockReconnectFunc(conn)
+	reconnector, _ := mockReconnectFunc(conn)
 
-	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
+	bp := backedpipe.NewBackedPipe(ctx, reconnector)
 	defer bp.Close()
 
 	// Don't connect initially, just force reconnect
 	err := bp.ForceReconnect()
 	require.NoError(t, err)
 	require.True(t, bp.Connected())
-	require.Equal(t, 1, *callCount)
+	require.Equal(t, 1, reconnector.GetCallCount())
 
 	// Verify we can write and read
 	_, err = bp.Write([]byte("test"))
@@ -868,11 +904,9 @@ func TestBackedPipe_EOFTriggersReconnection(t *testing.T) {
 	}
 	conn1.WriteString("world")
 
-	callCount := 0
 	reconnector := &eofTestReconnector{
-		conn1:     conn1,
-		conn2:     conn2,
-		callCount: &callCount,
+		conn1: conn1,
+		conn2: conn2,
 	}
 
 	bp := backedpipe.NewBackedPipe(ctx, reconnector)
@@ -881,7 +915,7 @@ func TestBackedPipe_EOFTriggersReconnection(t *testing.T) {
 	// Initial connect
 	err := bp.Connect()
 	require.NoError(t, err)
-	require.Equal(t, 1, callCount)
+	require.Equal(t, 1, reconnector.GetCallCount())
 
 	// Write some data
 	_, err = bp.Write([]byte("hello"))
@@ -903,7 +937,7 @@ func TestBackedPipe_EOFTriggersReconnection(t *testing.T) {
 	require.Equal(t, "newdata", string(buf[:n]))
 
 	// Verify reconnection happened
-	require.Equal(t, 2, callCount)
+	require.Equal(t, 2, reconnector.GetCallCount())
 
 	// Verify the pipe is still connected and functional
 	require.True(t, bp.Connected())
@@ -917,7 +951,7 @@ func TestBackedPipe_EOFTriggersReconnection(t *testing.T) {
 func BenchmarkBackedPipe_Write(b *testing.B) {
 	ctx := context.Background()
 	conn := newMockConnection()
-	reconnectFn, _, _ := mockReconnectFunc(conn)
+	reconnectFn, _ := mockReconnectFunc(conn)
 
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
 	bp.Connect()
@@ -936,7 +970,7 @@ func BenchmarkBackedPipe_Write(b *testing.B) {
 func BenchmarkBackedPipe_Read(b *testing.B) {
 	ctx := context.Background()
 	conn := newMockConnection()
-	reconnectFn, _, _ := mockReconnectFunc(conn)
+	reconnectFn, _ := mockReconnectFunc(conn)
 
 	bp := backedpipe.NewBackedPipe(ctx, reconnectFn)
 	bp.Connect()
