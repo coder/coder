@@ -393,24 +393,6 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION check_user_can_create_session() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-    -- Check if the user exists and is not deleted or a system user.
-    IF EXISTS (
-        SELECT 1 FROM users
-        WHERE id = NEW.initiator_id
-        AND (deleted = true OR is_system = true)
-    ) THEN
-        RAISE EXCEPTION 'Cannot create session: user is deleted or is a system user';
-    END IF;
-
-    -- If user doesn't exist at all, the foreign key constraint will handle it.
-    RETURN NEW;
-END;
-$$;
-
 CREATE FUNCTION check_workspace_agent_name_unique() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -875,7 +857,7 @@ CREATE TABLE aibridge_sessions (
 CREATE TABLE aibridge_token_usages (
     id uuid NOT NULL,
     session_id uuid NOT NULL,
-    provider_id text NOT NULL,
+    provider_session_id text NOT NULL,
     input_tokens bigint NOT NULL,
     output_tokens bigint NOT NULL,
     metadata jsonb,
@@ -885,7 +867,8 @@ CREATE TABLE aibridge_token_usages (
 CREATE TABLE aibridge_tool_usages (
     id uuid NOT NULL,
     session_id uuid NOT NULL,
-    provider_id text NOT NULL,
+    provider_session_id text NOT NULL,
+    server_url text,
     tool text NOT NULL,
     input text NOT NULL,
     injected boolean DEFAULT false NOT NULL,
@@ -896,7 +879,7 @@ CREATE TABLE aibridge_tool_usages (
 CREATE TABLE aibridge_user_prompts (
     id uuid NOT NULL,
     session_id uuid NOT NULL,
-    provider_id text NOT NULL,
+    provider_session_id text NOT NULL,
     prompt text NOT NULL,
     metadata jsonb,
     created_at timestamp with time zone NOT NULL
@@ -2939,23 +2922,17 @@ CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_
 
 CREATE INDEX idx_aibridge_sessions_initiator_id ON aibridge_sessions USING btree (initiator_id);
 
-CREATE INDEX idx_aibridge_sessions_model ON aibridge_sessions USING btree (model);
-
-CREATE INDEX idx_aibridge_sessions_provider ON aibridge_sessions USING btree (provider);
+CREATE INDEX idx_aibridge_token_usages_provider_session_id ON aibridge_token_usages USING btree (provider_session_id);
 
 CREATE INDEX idx_aibridge_token_usages_session_id ON aibridge_token_usages USING btree (session_id);
 
-CREATE INDEX idx_aibridge_token_usages_session_provider_id ON aibridge_token_usages USING btree (session_id, provider_id);
-
 CREATE INDEX idx_aibridge_tool_usages_session_id ON aibridge_tool_usages USING btree (session_id);
 
-CREATE INDEX idx_aibridge_tool_usages_session_provider_id ON aibridge_tool_usages USING btree (session_id, provider_id);
+CREATE INDEX idx_aibridge_tool_usagesprovider_session_id ON aibridge_tool_usages USING btree (provider_session_id);
 
-CREATE INDEX idx_aibridge_tool_usages_tool ON aibridge_tool_usages USING btree (tool);
+CREATE INDEX idx_aibridge_user_prompts_provider_session_id ON aibridge_user_prompts USING btree (provider_session_id);
 
 CREATE INDEX idx_aibridge_user_prompts_session_id ON aibridge_user_prompts USING btree (session_id);
-
-CREATE INDEX idx_aibridge_user_prompts_session_provider_id ON aibridge_user_prompts USING btree (session_id, provider_id);
 
 CREATE UNIQUE INDEX idx_api_key_name ON api_keys USING btree (user_id, token_name) WHERE (login_type = 'token'::login_type);
 
@@ -3194,8 +3171,6 @@ CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links F
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 
 CREATE TRIGGER user_status_change_trigger AFTER INSERT OR UPDATE ON users FOR EACH ROW EXECUTE FUNCTION record_user_status_change();
-
-CREATE TRIGGER validate_user_before_session BEFORE INSERT OR UPDATE OF initiator_id ON aibridge_sessions FOR EACH ROW EXECUTE FUNCTION check_user_can_create_session();
 
 CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF name, resource_id ON workspace_agents FOR EACH ROW EXECUTE FUNCTION check_workspace_agent_name_unique();
 

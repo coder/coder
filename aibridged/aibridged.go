@@ -3,14 +3,11 @@ package aibridged
 import (
 	"context"
 	"errors"
-	"io"
 	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/hashicorp/yamux"
-	"github.com/valyala/fasthttp/fasthttputil"
 	"golang.org/x/xerrors"
 	"storj.io/drpc"
 
@@ -33,13 +30,12 @@ type DRPCClient interface {
 	proto.DRPCMCPConfiguratorClient
 }
 
-var _ DRPCServer = &Server{}
 var _ DRPCClient = &Client{}
 
 type Dialer func(ctx context.Context) (DRPCClient, error)
 
-// Server is the implementation which fulfills the proto.DRPCRecorderServer interface.
-// It is responsible for communication with the
+// Server is the implementation which fulfills the proto.DRPCRecorderServer (TODO: add others) interface.
+// It is responsible for communication with the // TODO: ???
 type Server struct {
 	clientDialer Dialer
 	clientCh     chan DRPCClient
@@ -170,90 +166,6 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 	}
 
 	return reqBridge, nil
-}
-
-func (s *Server) RecordSession(ctx context.Context, in *proto.RecordSessionRequest) (*proto.RecordSessionResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client DRPCClient) (*proto.RecordSessionResponse, error) {
-		return client.RecordSession(ctx, in)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsageRequest) (*proto.RecordTokenUsageResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client DRPCClient) (*proto.RecordTokenUsageResponse, error) {
-		return client.RecordTokenUsage(ctx, in)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUsageRequest) (*proto.RecordPromptUsageResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client DRPCClient) (*proto.RecordPromptUsageResponse, error) {
-		return client.RecordPromptUsage(ctx, in)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageRequest) (*proto.RecordToolUsageResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client DRPCClient) (*proto.RecordToolUsageResponse, error) {
-		return client.RecordToolUsage(ctx, in)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (s *Server) RetrieveMCPServerConfigs(ctx context.Context, in *proto.RetrieveMCPServerConfigsRequest) (*proto.RetrieveMCPServerConfigsResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client DRPCClient) (*proto.RetrieveMCPServerConfigsResponse, error) {
-		return client.RetrieveMCPServerConfigs(ctx, in)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// NOTE: mostly copypasta from provisionerd; might be work abstracting.
-func retryable(err error) bool {
-	return xerrors.Is(err, yamux.ErrSessionShutdown) || xerrors.Is(err, io.EOF) || xerrors.Is(err, fasthttputil.ErrInmemoryListenerClosed) ||
-		// annoyingly, dRPC sometimes returns context.Canceled if the transport was closed, even if the context for
-		// the RPC *is not canceled*.  Retrying is fine if the RPC context is not canceled.
-		xerrors.Is(err, context.Canceled)
-}
-
-// clientDoWithRetries runs the function f with a client, and retries with
-// backoff until either the error returned is not retryable() or the context
-// expires.
-// NOTE: mostly copypasta from provisionerd; might be work abstracting.
-func clientDoWithRetries[T any](ctx context.Context,
-	getClient func() (DRPCClient, error),
-	f func(context.Context, DRPCClient) (T, error),
-) (ret T, _ error) {
-	for retrier := retry.New(25*time.Millisecond, 5*time.Second); retrier.Wait(ctx); {
-		var empty T
-		client, err := getClient()
-		if err != nil {
-			if retryable(err) {
-				continue
-			}
-			return empty, err
-		}
-		resp, err := f(ctx, client)
-		if retryable(err) {
-			continue
-		}
-		return resp, err
-	}
-	return ret, ctx.Err()
 }
 
 // isClosed returns whether the API is closed or not.

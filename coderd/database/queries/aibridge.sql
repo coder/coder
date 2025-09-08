@@ -5,23 +5,23 @@ RETURNING *;
 
 -- name: InsertAIBridgeTokenUsage :exec
 INSERT INTO aibridge_token_usages (
-  id, session_id, provider_id, input_tokens, output_tokens, metadata, created_at
+  id, session_id, provider_session_id, input_tokens, output_tokens, metadata, created_at
 ) VALUES (
-  @id, @session_id, @provider_id, @input_tokens, @output_tokens, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
+  @id, @session_id, @provider_session_id, @input_tokens, @output_tokens, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
 );
 
 -- name: InsertAIBridgeUserPrompt :exec
 INSERT INTO aibridge_user_prompts (
-  id, session_id, provider_id, prompt, metadata, created_at
+  id, session_id, provider_session_id, prompt, metadata, created_at
 ) VALUES (
-  @id, @session_id, @provider_id, @prompt, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
+  @id, @session_id, @provider_session_id, @prompt, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
 );
 
 -- name: InsertAIBridgeToolUsage :exec
 INSERT INTO aibridge_tool_usages (
-  id, session_id, provider_id, tool, input, injected, metadata, created_at
+  id, session_id, provider_session_id, tool, server_url, input, injected, metadata, created_at
 ) VALUES (
-  @id, @session_id, @provider_id, @tool, @input, @injected, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
+  @id, @session_id, @provider_session_id, @tool, @server_url, @input, @injected, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
 );
 
 -- name: GetAIBridgeSessionByID :one

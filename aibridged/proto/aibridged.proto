@@ -23,6 +23,7 @@ message RecordTokenUsageRequest {
   int64 input_tokens = 3;
   int64 output_tokens = 4;
   map<string, google.protobuf.Any> metadata = 5;
+  google.protobuf.Timestamp created_at = 6;
 }
 message RecordTokenUsageResponse {}
 
@@ -31,17 +32,19 @@ message RecordPromptUsageRequest {
   string msg_id = 2; // ID provided by provider.
   string prompt = 3;
   map<string, google.protobuf.Any> metadata = 4;
+  google.protobuf.Timestamp created_at = 5;
 }
 message RecordPromptUsageResponse {}
 
 message RecordToolUsageRequest {
   string session_id = 1; // UUID.
   string msg_id = 2; // ID provided by provider.
-  string server = 3; // The name of the MCP server.
+  optional string server_url = 3; // The URL of the MCP server.
   string tool = 4;
   string input = 5;
   bool injected = 6;
   map<string, google.protobuf.Any> metadata = 7;
+  google.protobuf.Timestamp created_at = 8;
 }
 message RecordToolUsageResponse {}
 

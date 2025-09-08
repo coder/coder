@@ -22,7 +22,7 @@ type recorderTranslation struct {
 	client proto.DRPCRecorderClient
 }
 
-func (t *recorderTranslation) RecordSession(ctx context.Context, req *aibridge.SessionRequest) error {
+func (t *recorderTranslation) RecordSession(ctx context.Context, req *aibridge.SessionRecord) error {
 	_, err := t.client.RecordSession(ctx, &proto.RecordSessionRequest{
 		SessionId:   req.SessionID,
 		InitiatorId: req.InitiatorID,
@@ -34,40 +34,44 @@ func (t *recorderTranslation) RecordSession(ctx context.Context, req *aibridge.S
 	return err
 }
 
-func (t *recorderTranslation) RecordPromptUsage(ctx context.Context, req *aibridge.PromptUsageRequest) error {
+func (t *recorderTranslation) RecordPromptUsage(ctx context.Context, req *aibridge.PromptUsageRecord) error {
 	_, err := t.client.RecordPromptUsage(ctx, &proto.RecordPromptUsageRequest{
 		SessionId: req.SessionID,
 		MsgId:     req.MsgID,
 		Prompt:    req.Prompt,
 		Metadata:  marshalForProto(req.Metadata),
+		CreatedAt: timestamppb.New(req.CreatedAt),
 	})
 	return err
 }
 
-func (t *recorderTranslation) RecordTokenUsage(ctx context.Context, req *aibridge.TokenUsageRequest) error {
+func (t *recorderTranslation) RecordTokenUsage(ctx context.Context, req *aibridge.TokenUsageRecord) error {
 	_, err := t.client.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
 		SessionId:    req.SessionID,
 		MsgId:        req.MsgID,
 		InputTokens:  req.Input,
 		OutputTokens: req.Output,
 		Metadata:     marshalForProto(req.Metadata),
+		CreatedAt:    timestamppb.New(req.CreatedAt),
 	})
 	return err
 }
 
-func (t *recorderTranslation) RecordToolUsage(ctx context.Context, req *aibridge.ToolUsageRequest) error {
+func (t *recorderTranslation) RecordToolUsage(ctx context.Context, req *aibridge.ToolUsageRecord) error {
 	serialized, err := json.Marshal(req.Args)
 	if err != nil {
-		return xerrors.Errorf("serialize tool %q args: %w", req.Name, err)
+		return xerrors.Errorf("serialize tool %q args: %w", req.Tool, err)
 	}
 
 	_, err = t.client.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
 		SessionId: req.SessionID,
 		MsgId:     req.MsgID,
-		Tool:      req.Name,
+		ServerUrl: req.ServerURL,
+		Tool:      req.Tool,
 		Input:     string(serialized),
 		Injected:  req.Injected,
 		Metadata:  marshalForProto(req.Metadata),
+		CreatedAt: timestamppb.New(req.CreatedAt),
 	})
 	return err
 }

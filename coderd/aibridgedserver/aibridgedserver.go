@@ -2,6 +2,7 @@ package aibridgedserver
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/url"
 	"sync"
@@ -14,14 +15,14 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/aibridged"
 	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/externalauth"
 )
 
-var _ proto.DRPCRecorderServer = &Server{}
-var _ proto.DRPCMCPConfiguratorServer = &Server{}
+var _ aibridged.DRPCServer = &Server{}
 
 type store interface {
 	// Recorder-related queries.
@@ -92,12 +93,13 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 	}
 
 	err = s.store.InsertAIBridgeTokenUsage(ctx, database.InsertAIBridgeTokenUsageParams{
-		ID:           uuid.New(),
-		SessionID:    sessID,
-		ProviderID:   in.GetMsgId(),
-		InputTokens:  in.GetInputTokens(),
-		OutputTokens: in.GetOutputTokens(),
-		Metadata:     s.marshalMetadata(in.GetMetadata()),
+		ID:                uuid.New(),
+		SessionID:         sessID,
+		ProviderSessionID: in.GetMsgId(),
+		InputTokens:       in.GetInputTokens(),
+		OutputTokens:      in.GetOutputTokens(),
+		Metadata:          s.marshalMetadata(in.GetMetadata()),
+		CreatedAt:         in.GetCreatedAt().AsTime(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert token usage: %w", err)
@@ -115,11 +117,12 @@ func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUs
 	}
 
 	err = s.store.InsertAIBridgeUserPrompt(ctx, database.InsertAIBridgeUserPromptParams{
-		ID:         uuid.New(),
-		SessionID:  sessID,
-		ProviderID: in.GetMsgId(),
-		Prompt:     in.GetPrompt(),
-		Metadata:   s.marshalMetadata(in.GetMetadata()),
+		ID:                uuid.New(),
+		SessionID:         sessID,
+		ProviderSessionID: in.GetMsgId(),
+		Prompt:            in.GetPrompt(),
+		Metadata:          s.marshalMetadata(in.GetMetadata()),
+		CreatedAt:         in.GetCreatedAt().AsTime(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert user prompt: %w", err)
@@ -137,13 +140,15 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 	}
 
 	err = s.store.InsertAIBridgeToolUsage(ctx, database.InsertAIBridgeToolUsageParams{
-		ID:         uuid.New(),
-		SessionID:  sessID,
-		ProviderID: in.GetMsgId(),
-		Tool:       in.GetTool(),
-		Input:      in.GetInput(),
-		Injected:   in.GetInjected(),
-		Metadata:   s.marshalMetadata(in.GetMetadata()),
+		ID:                uuid.New(),
+		SessionID:         sessID,
+		ProviderSessionID: in.GetMsgId(),
+		ServerUrl:         sql.NullString{String: in.GetServerUrl(), Valid: in.ServerUrl != nil},
+		Tool:              in.GetTool(),
+		Input:             in.GetInput(),
+		Injected:          in.GetInjected(),
+		Metadata:          s.marshalMetadata(in.GetMetadata()),
+		CreatedAt:         in.GetCreatedAt().AsTime(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert tool usage: %w", err)

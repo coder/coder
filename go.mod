@@ -466,6 +466,7 @@ require github.com/coder/clistat v1.0.0
 
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
+	github.com/anthropics/anthropic-sdk-go v1.4.0
 	github.com/coder/aibridge v0.0.0
 	github.com/dgraph-io/ristretto/v2 v2.3.0
 )
@@ -479,7 +480,6 @@ require (
 )
 
 require (
-	github.com/anthropics/anthropic-sdk-go v1.11.0
 	github.com/brianvoe/gofakeit/v7 v7.5.1
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
 	github.com/coder/aisdk-go v0.0.9
