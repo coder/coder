@@ -263,8 +263,8 @@ $(CODER_DYLIBS): go.mod go.sum $(MOST_GO_SRC_FILES)
 	@if [ "$(shell uname)" = "Darwin" ]; then
 		$(get-mode-os-arch-ext)
 		./scripts/build_go.sh \
-			--os "$$os" \
-			--arch "$$arch" \
+			--os "$${os}" \
+			--arch "$${arch}" \
 			--version "$(VERSION)" \
 			--output "$@" \
 			--dylib
@@ -273,6 +273,11 @@ $(CODER_DYLIBS): go.mod go.sum $(MOST_GO_SRC_FILES)
 		echo "ERROR: Can't build dylib on non-Darwin OS" 1>&2
 		exit 1
 	fi
+
+# Provide a convenience alias used in CI to build all dylibs
+build/coder-dylib: $(CODER_DYLIBS)
+	@true
+.PHONY: build/coder-dylib
 
 # This task builds all archives. It parses the target name to get the metadata
 # for the build, so it must be specified in this format:
