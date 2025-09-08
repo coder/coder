@@ -199,7 +199,7 @@ func (bp *BackedPipe) Close() error {
 func (bp *BackedPipe) Connected() bool {
 	bp.mu.RLock()
 	defer bp.mu.RUnlock()
-	return bp.state == connected
+	return bp.state == connected && bp.reader.Connected() && bp.writer.Connected()
 }
 
 // reconnectLocked handles the reconnection logic. Must be called with write lock held.
@@ -223,12 +223,6 @@ func (bp *BackedPipe) reconnectLocked() error {
 		bp.conn = nil
 	}
 
-	// Gather local sequence numbers:
-	// - readerSeqNum: how many bytes we've successfully read from remote (send to remote)
-	// - writerSeqNum: how many bytes we've written so far (used for validation)
-	readerSeqNum := bp.reader.SequenceNum()
-	writerSeqNum := bp.writer.SequenceNum()
-
 	// Increment the generation and update both reader and writer.
 	// We do it now to track even the connections that fail during
 	// Reconnect.
@@ -236,34 +230,33 @@ func (bp *BackedPipe) reconnectLocked() error {
 	bp.reader.SetGeneration(bp.connGen)
 	bp.writer.SetGeneration(bp.connGen)
 
-	// Send our reader sequence number to the remote and receive its reader sequence
-	// number. We will replay our outbound data from that point and backed pipe on the other
-	// side will replay from our reader sequence number.
-	conn, remoteReaderSeqNum, err := bp.reconnector.Reconnect(bp.ctx, readerSeqNum)
-	if err != nil {
-		return ErrReconnectFailed
-	}
-
-	// Validate sequence numbers
-	if remoteReaderSeqNum > writerSeqNum {
-		_ = conn.Close()
-		return ErrInvalidSequenceNumber
-	}
-
 	// Reconnect reader and writer
 	seqNum := make(chan uint64, 1)
 	newR := make(chan io.Reader, 1)
 
 	go bp.reader.Reconnect(seqNum, newR)
 
-	// Get sequence number and send new reader
-	<-seqNum
+	// Get the precise reader sequence number from the reader while it holds its lock
+	readerSeqNum, ok := <-seqNum
+	if !ok {
+		// Reader was closed during reconnection
+		return ErrReconnectFailed
+	}
+
+	// Perform reconnect using the exact sequence number we just received
+	conn, remoteReaderSeqNum, err := bp.reconnector.Reconnect(bp.ctx, readerSeqNum)
+	if err != nil {
+		// Unblock reader reconnect
+		newR <- nil
+		return ErrReconnectFailed
+	}
+
+	// Provide the new connection to the reader (reader still holds its lock)
 	newR <- conn
 
 	// Replay our outbound data from the remote's reader sequence number
-	err = bp.writer.Reconnect(remoteReaderSeqNum, conn)
-	if err != nil {
-		_ = conn.Close()
+	writerReconnectErr := bp.writer.Reconnect(remoteReaderSeqNum, conn)
+	if writerReconnectErr != nil {
 		return ErrReconnectWriterFailed
 	}
 
