@@ -2215,12 +2215,18 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		}
 		groupIDs = append(groupIDs, id)
 	}
-	// For context see https://github.com/coder/coder/pull/19375
-	// nolint:gocritic
-	dbGroups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.InternalServerError(rw, err)
-		return
+
+	// `GetGroups` returns all groups in the org if `GroupIds` is empty so we check
+	// the length before making the DB call.
+	dbGroups := make([]database.GetGroupsRow, 0)
+	if len(groupIDs) > 0 {
+		// For context see https://github.com/coder/coder/pull/19375
+		// nolint:gocritic
+		dbGroups, err = api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
 	}
 
 	groups := make([]codersdk.WorkspaceGroup, 0, len(dbGroups))
