@@ -106,7 +106,7 @@ func main() {
 	// Exit non-zero if any failures (policy: fail on any flake)
 	for _, r := range results {
 		if r.Failures > 0 {
-			os.Exit(1)
+			panic(exitErr{code: 1, msg: ""})
 		}
 	}
 }
