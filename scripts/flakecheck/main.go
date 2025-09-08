@@ -24,8 +24,8 @@ import (
 var (
 	flagBase     = flag.String("base", "origin/main", "git ref to diff against (merge-base with HEAD)")
 	flagRepeat   = flag.Int("repeat", 10, "number of runs per test selector")
-	flagP        = flag.Int("p", 4, "-p package test concurrency")
-	flagParallel = flag.Int("parallel", 4, "-parallel test concurrency for t.Parallel")
+	flagP        = flag.Int("p", 8, "-p package test concurrency")
+	flagParallel = flag.Int("parallel", 8, "-parallel test concurrency for t.Parallel")
 	flagTimeout  = flag.Duration("timeout", 5*time.Minute, "per-run go test timeout")
 	flagWork     = flag.Int("concurrency", 4, "number of selectors to run concurrently")
 )
@@ -48,18 +48,34 @@ func main() {
 
 	flag.Parse()
 
-	changed, err := changedTestFiles(*flagBase)
+	changedTests, err := changedTestFiles(*flagBase)
 	if err != nil {
 		fatalf("detecting changed files: %v", err)
 	}
-	if len(changed) == 0 {
-		_, _ = fmt.Println("No modified *_test.go files detected; nothing to run.")
-		return
+	codePkgs, err := changedCodePackages(*flagBase)
+	if err != nil {
+		fatalf("detecting changed packages: %v", err)
 	}
 
-	packages, err := groupByPackage(changed)
+	packages, err := groupByPackage(changedTests)
 	if err != nil {
 		fatalf("resolving packages: %v", err)
+	}
+	// Add all *_test.go files from packages that changed due to non-test code changes
+	for pkg := range codePkgs {
+		tfs, err := testFilesForPackage(pkg)
+		if err != nil {
+			fatalf("enumerating tests for %s: %v", pkg, err)
+		}
+		if len(tfs) == 0 {
+			continue
+		}
+		packages[pkg] = mergeUnique(packages[pkg], tfs)
+	}
+
+	if len(packages) == 0 {
+		_, _ = fmt.Println("No modified tests or changed packages with tests detected; nothing to run.")
+		return
 	}
 
 	selectors, err := enumerateSelectors(packages)
@@ -67,7 +83,7 @@ func main() {
 		fatalf("enumerating selectors: %v", err)
 	}
 	if len(selectors) == 0 {
-		_, _ = fmt.Println("No test selectors found in modified files.")
+		_, _ = fmt.Println("No test selectors found to run.")
 		return
 	}
 
@@ -94,7 +110,7 @@ func main() {
 
 	var out bytes.Buffer
 	if len(flakyOrBroken) == 0 {
-		_, _ = fmt.Fprintf(&out, "No flakes or failures detected across %d modified selectors with %dx runs.\n", len(results), *flagRepeat)
+		_, _ = fmt.Fprintf(&out, "No flakes or failures detected across %d selectors with %dx runs.\n", len(results), *flagRepeat)
 	} else {
 		_, _ = fmt.Fprintf(&out, "Detected flakes or failures (failures/total):\n\n")
 		for _, row := range flakyOrBroken {
@@ -140,6 +156,64 @@ func changedTestFiles(base string) ([]string, error) {
 	return tests, scanner.Err()
 }
 
+// changedCodePackages returns the set of import paths whose non-test *.go files changed.
+func changedCodePackages(base string) (map[string]struct{}, error) {
+	mb, err := runOut("git", "merge-base", base, "HEAD")
+	if err != nil {
+		mb = strings.TrimSpace(base)
+	} else {
+		mb = strings.TrimSpace(mb)
+	}
+	out, err := runOut("git", "diff", "--name-only", mb+"..HEAD")
+	if err != nil {
+		return nil, err
+	}
+	byDir := map[string]struct{}{}
+	s := bufio.NewScanner(strings.NewReader(out))
+	for s.Scan() {
+		p := s.Text()
+		if strings.HasSuffix(p, ".go") && !strings.HasSuffix(p, "_test.go") {
+			byDir[filepath.Dir(p)] = struct{}{}
+		}
+	}
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+	pkgs := map[string]struct{}{}
+	for d := range byDir {
+		pkg, err := runOut("go", "list", "-f", "{{.ImportPath}}", d)
+		if err != nil {
+			return nil, fmt.Errorf("go list %s: %w", d, err)
+		}
+		pkgs[strings.TrimSpace(pkg)] = struct{}{}
+	}
+	return pkgs, nil
+}
+
+// testFilesForPackage lists all *_test.go files for the given import path.
+func testFilesForPackage(pkg string) ([]string, error) {
+	dir, err := runOut("go", "list", "-f", "{{.Dir}}", pkg)
+	if err != nil {
+		return nil, fmt.Errorf("go list dir %s: %w", pkg, err)
+	}
+	dir = strings.TrimSpace(dir)
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, e := range ents {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if strings.HasSuffix(name, "_test.go") {
+			out = append(out, filepath.Join(dir, name))
+		}
+	}
+	return out, nil
+}
+
 // groupByPackage groups files by their import path using `go list` for each directory.
 func groupByPackage(files []string) (map[string][]string, error) {
 	byDir := map[string][]string{}
@@ -156,6 +230,22 @@ func groupByPackage(files []string) (map[string][]string, error) {
 		res[strings.TrimSpace(pkg)] = append(res[strings.TrimSpace(pkg)], fs...)
 	}
 	return res, nil
+}
+
+func mergeUnique(a []string, b []string) []string {
+	m := map[string]struct{}{}
+	for _, x := range a {
+		m[x] = struct{}{}
+	}
+	for _, x := range b {
+		m[x] = struct{}{}
+	}
+	out := make([]string, 0, len(m))
+	for x := range m {
+		out = append(out, x)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // selector represents a package test selector and its regex for -run.
@@ -384,10 +474,7 @@ func runOnce(sel selector, p, parallel int, timeout time.Duration) (bool, error)
 	for {
 		var ev testEvent
 		if err := dec.Decode(&ev); err != nil {
-			if errors.Is(err, os.ErrClosed) || strings.Contains(err.Error(), "EOF") {
-				break
-			}
-			// Reading error; stop and rely on exit code
+			// If we hit EOF or the pipe closed, rely on the process exit code
 			break
 		}
 		if ev.Test == sel.Selector {
