@@ -487,6 +487,16 @@ var (
 					rbac.ResourceFile.Type: {
 						policy.ActionRead,
 					},
+					// Needs to be able to add the prebuilds system user to the "prebuilds" group in each organization that needs prebuilt workspaces
+					// so that prebuilt workspaces can be scheduled and owned in those organizations.
+					rbac.ResourceGroup.Type: {
+						policy.ActionRead,
+						policy.ActionCreate,
+						policy.ActionUpdate,
+					},
+					rbac.ResourceGroupMember.Type: {
+						policy.ActionRead,
+					},
 				}),
 			},
 		}),
@@ -1777,6 +1787,13 @@ func (q *querier) EnqueueNotificationMessage(ctx context.Context, arg database.E
 	return q.db.EnqueueNotificationMessage(ctx, arg)
 }
 
+func (q *querier) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceApiKey); err != nil {
+		return err
+	}
+	return q.db.ExpirePrebuildsAPIKeys(ctx, now)
+}
+
 func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	fetch := func(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, id)
@@ -2242,14 +2259,6 @@ func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	return q.db.GetLogoURL(ctx)
 }
 
-func (q *querier) GetManagedAgentCount(ctx context.Context, arg database.GetManagedAgentCountParams) (int64, error) {
-	// Must be able to read all workspaces to check usage.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace); err != nil {
-		return 0, xerrors.Errorf("authorize read all workspaces: %w", err)
-	}
-	return q.db.GetManagedAgentCount(ctx, arg)
-}
-
 func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationMessage); err != nil {
 		return nil, err
@@ -2689,6 +2698,13 @@ func (q *querier) GetQuotaConsumedForUser(ctx context.Context, params database.G
 	return q.db.GetQuotaConsumedForUser(ctx, params)
 }
 
+func (q *querier) GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]database.GetRegularWorkspaceCreateMetricsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetRegularWorkspaceCreateMetrics(ctx)
+}
+
 func (q *querier) GetReplicaByID(ctx context.Context, id uuid.UUID) (database.Replica, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.Replica{}, err
@@ -2783,7 +2799,7 @@ func (q *querier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg data
 }
 
 // Only used by metrics cache.
-func (q *querier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
+func (q *querier) GetTemplateAverageBuildTime(ctx context.Context, arg uuid.NullUUID) (database.GetTemplateAverageBuildTimeRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.GetTemplateAverageBuildTimeRow{}, err
 	}
@@ -3041,6 +3057,13 @@ func (q *querier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTe
 	return q.db.GetAuthorizedTemplates(ctx, arg, prep)
 }
 
+func (q *querier) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg database.GetTotalUsageDCManagedAgentsV1Params) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUsageEvent); err != nil {
+		return 0, err
+	}
+	return q.db.GetTotalUsageDCManagedAgentsV1(ctx, arg)
+}
+
 func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceLicense); err != nil {
 		return nil, err
@@ -3234,6 +3257,17 @@ func (q *querier) GetWebpushVAPIDKeys(ctx context.Context) (database.GetWebpushV
 		return database.GetWebpushVAPIDKeysRow{}, err
 	}
 	return q.db.GetWebpushVAPIDKeys(ctx)
+}
+
+func (q *querier) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceACLByIDRow, error) {
+	workspace, err := q.db.GetWorkspaceByID(ctx, id)
+	if err != nil {
+		return database.GetWorkspaceACLByIDRow{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionCreate, workspace); err != nil {
+		return database.GetWorkspaceACLByIDRow{}, err
+	}
+	return q.db.GetWorkspaceACLByID(ctx, id)
 }
 
 func (q *querier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
@@ -3700,6 +3734,14 @@ func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now ti
 }
 
 func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
+	// TODO(Cian): ideally this would be encoded in the policy, but system users are just members and we
+	// don't currently have a capability to conditionally deny creating resources by owner ID in a role.
+	// We also need to enrich rbac.Actor with IsSystem so that we can distinguish all system users.
+	// For now, there is only one system user (prebuilds).
+	if act, ok := ActorFromContext(ctx); ok && act.ID == database.PrebuildsSystemUserID.String() {
+		return database.APIKey{}, logNotAuthorizedError(ctx, q.log, NotAuthorizedError{Err: xerrors.Errorf("prebuild user may not create api keys")})
+	}
+
 	return insert(q.log, q.auth,
 		rbac.ResourceApiKey.WithOwner(arg.UserID.String()),
 		q.db.InsertAPIKey)(ctx, arg)
@@ -4563,6 +4605,7 @@ func (q *querier) UpdatePresetPrebuildStatus(ctx context.Context, arg database.U
 		return err
 	}
 
+	// TODO: This does not check the acl list on the template. Should it?
 	object := rbac.ResourceTemplate.
 		WithID(preset.TemplateID.UUID).
 		InOrg(preset.OrganizationID)

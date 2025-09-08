@@ -523,6 +523,13 @@ func (m queryMetricsStore) EnqueueNotificationMessage(ctx context.Context, arg d
 	return r0
 }
 
+func (m queryMetricsStore) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
+	start := time.Now()
+	r0 := m.s.ExpirePrebuildsAPIKeys(ctx, now)
+	m.queryLatencies.WithLabelValues("ExpirePrebuildsAPIKeys").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) FavoriteWorkspace(ctx context.Context, arg uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.FavoriteWorkspace(ctx, arg)
@@ -978,13 +985,6 @@ func (m queryMetricsStore) GetLogoURL(ctx context.Context) (string, error) {
 	return url, err
 }
 
-func (m queryMetricsStore) GetManagedAgentCount(ctx context.Context, arg database.GetManagedAgentCountParams) (int64, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetManagedAgentCount(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetManagedAgentCount").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetNotificationMessagesByStatus(ctx, arg)
@@ -1356,6 +1356,13 @@ func (m queryMetricsStore) GetQuotaConsumedForUser(ctx context.Context, ownerID 
 	return consumed, err
 }
 
+func (m queryMetricsStore) GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]database.GetRegularWorkspaceCreateMetricsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetRegularWorkspaceCreateMetrics(ctx)
+	m.queryLatencies.WithLabelValues("GetRegularWorkspaceCreateMetrics").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetReplicaByID(ctx context.Context, id uuid.UUID) (database.Replica, error) {
 	start := time.Now()
 	replica, err := m.s.GetReplicaByID(ctx, id)
@@ -1447,7 +1454,7 @@ func (m queryMetricsStore) GetTemplateAppInsightsByTemplate(ctx context.Context,
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
+func (m queryMetricsStore) GetTemplateAverageBuildTime(ctx context.Context, arg uuid.NullUUID) (database.GetTemplateAverageBuildTimeRow, error) {
 	start := time.Now()
 	buildTime, err := m.s.GetTemplateAverageBuildTime(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetTemplateAverageBuildTime").Observe(time.Since(start).Seconds())
@@ -1608,6 +1615,13 @@ func (m queryMetricsStore) GetTemplatesWithFilter(ctx context.Context, arg datab
 	return templates, err
 }
 
+func (m queryMetricsStore) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg database.GetTotalUsageDCManagedAgentsV1Params) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTotalUsageDCManagedAgentsV1(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTotalUsageDCManagedAgentsV1").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUnexpiredLicenses(ctx context.Context) ([]database.License, error) {
 	start := time.Now()
 	licenses, err := m.s.GetUnexpiredLicenses(ctx)
@@ -1745,6 +1759,13 @@ func (m queryMetricsStore) GetWebpushVAPIDKeys(ctx context.Context) (database.Ge
 	start := time.Now()
 	r0, r1 := m.s.GetWebpushVAPIDKeys(ctx)
 	m.queryLatencies.WithLabelValues("GetWebpushVAPIDKeys").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceACLByIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceACLByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetWorkspaceACLByID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

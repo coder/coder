@@ -53,23 +53,23 @@ type CreateTaskRequest struct {
 	Prompt                  string    `json:"prompt"`
 }
 
-func (c *ExperimentalClient) CreateTask(ctx context.Context, user string, request CreateTaskRequest) (Workspace, error) {
+func (c *ExperimentalClient) CreateTask(ctx context.Context, user string, request CreateTaskRequest) (Task, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/tasks/%s", user), request)
 	if err != nil {
-		return Workspace{}, err
+		return Task{}, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusCreated {
-		return Workspace{}, ReadBodyAsError(res)
+		return Task{}, ReadBodyAsError(res)
 	}
 
-	var workspace Workspace
-	if err := json.NewDecoder(res.Body).Decode(&workspace); err != nil {
-		return Workspace{}, err
+	var task Task
+	if err := json.NewDecoder(res.Body).Decode(&task); err != nil {
+		return Task{}, err
 	}
 
-	return workspace, nil
+	return task, nil
 }
 
 // TaskState represents the high-level lifecycle of a task.
@@ -88,35 +88,48 @@ const (
 //
 // Experimental: This type is experimental and may change in the future.
 type Task struct {
-	ID             uuid.UUID       `json:"id" format:"uuid"`
-	OrganizationID uuid.UUID       `json:"organization_id" format:"uuid"`
-	OwnerID        uuid.UUID       `json:"owner_id" format:"uuid"`
-	Name           string          `json:"name"`
-	TemplateID     uuid.UUID       `json:"template_id" format:"uuid"`
-	WorkspaceID    uuid.NullUUID   `json:"workspace_id" format:"uuid"`
-	InitialPrompt  string          `json:"initial_prompt"`
-	Status         WorkspaceStatus `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
-	CurrentState   *TaskStateEntry `json:"current_state"`
-	CreatedAt      time.Time       `json:"created_at" format:"date-time"`
-	UpdatedAt      time.Time       `json:"updated_at" format:"date-time"`
+	ID                      uuid.UUID                `json:"id" format:"uuid" table:"id"`
+	OrganizationID          uuid.UUID                `json:"organization_id" format:"uuid" table:"organization id"`
+	OwnerID                 uuid.UUID                `json:"owner_id" format:"uuid" table:"owner id"`
+	OwnerName               string                   `json:"owner_name" table:"owner name"`
+	Name                    string                   `json:"name" table:"name,default_sort"`
+	TemplateID              uuid.UUID                `json:"template_id" format:"uuid" table:"template id"`
+	TemplateName            string                   `json:"template_name" table:"template name"`
+	TemplateDisplayName     string                   `json:"template_display_name" table:"template display name"`
+	TemplateIcon            string                   `json:"template_icon" table:"template icon"`
+	WorkspaceID             uuid.NullUUID            `json:"workspace_id" format:"uuid" table:"workspace id"`
+	WorkspaceAgentID        uuid.NullUUID            `json:"workspace_agent_id" format:"uuid" table:"workspace agent id"`
+	WorkspaceAgentLifecycle *WorkspaceAgentLifecycle `json:"workspace_agent_lifecycle" table:"workspace agent lifecycle"`
+	WorkspaceAgentHealth    *WorkspaceAgentHealth    `json:"workspace_agent_health" table:"workspace agent health"`
+	InitialPrompt           string                   `json:"initial_prompt" table:"initial prompt"`
+	Status                  WorkspaceStatus          `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted" table:"status"`
+	CurrentState            *TaskStateEntry          `json:"current_state" table:"cs,recursive_inline"`
+	CreatedAt               time.Time                `json:"created_at" format:"date-time" table:"created at"`
+	UpdatedAt               time.Time                `json:"updated_at" format:"date-time" table:"updated at"`
 }
 
 // TaskStateEntry represents a single entry in the task's state history.
 //
 // Experimental: This type is experimental and may change in the future.
 type TaskStateEntry struct {
-	Timestamp time.Time `json:"timestamp" format:"date-time"`
-	State     TaskState `json:"state" enum:"working,idle,completed,failed"`
-	Message   string    `json:"message"`
-	URI       string    `json:"uri"`
+	Timestamp time.Time `json:"timestamp" format:"date-time" table:"-"`
+	State     TaskState `json:"state" enum:"working,idle,completed,failed" table:"state"`
+	Message   string    `json:"message" table:"message"`
+	URI       string    `json:"uri" table:"-"`
 }
 
 // TasksFilter filters the list of tasks.
 //
 // Experimental: This type is experimental and may change in the future.
 type TasksFilter struct {
-	// Owner can be a username, UUID, or "me"
+	// Owner can be a username, UUID, or "me".
 	Owner string `json:"owner,omitempty"`
+	// Status is a task status.
+	Status string `json:"status,omitempty" typescript:"-"`
+	// Offset is the number of tasks to skip before returning results.
+	Offset int `json:"offset,omitempty" typescript:"-"`
+	// Limit is a limit on the number of tasks returned.
+	Limit int `json:"limit,omitempty" typescript:"-"`
 }
 
 // Tasks lists all tasks belonging to the user or specified owner.
@@ -126,12 +139,16 @@ func (c *ExperimentalClient) Tasks(ctx context.Context, filter *TasksFilter) ([]
 	if filter == nil {
 		filter = &TasksFilter{}
 	}
-	user := filter.Owner
-	if user == "" {
-		user = "me"
+
+	var wsFilter WorkspaceFilter
+	wsFilter.Owner = filter.Owner
+	wsFilter.Status = filter.Status
+	page := Pagination{
+		Offset: filter.Offset,
+		Limit:  filter.Limit,
 	}
 
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/tasks/%s", user), nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/tasks", nil, wsFilter.asRequestOption(), page.asRequestOption())
 	if err != nil {
 		return nil, err
 	}
@@ -172,4 +189,19 @@ func (c *ExperimentalClient) TaskByID(ctx context.Context, id uuid.UUID) (Task, 
 	}
 
 	return task, nil
+}
+
+// DeleteTask deletes a task by its ID.
+//
+// Experimental: This method is experimental and may change in the future.
+func (c *ExperimentalClient) DeleteTask(ctx context.Context, user string, id uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/tasks/%s/%s", user, id.String()), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusAccepted {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }

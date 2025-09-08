@@ -1720,24 +1720,30 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 	// Stop the workspace while provisioner is available
 	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
-	// Wait for provisioner to be available for this specific workspace
-	coderdtest.MustWaitForProvisionersAvailable(t, db, workspace)
 	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
 	require.NoError(t, err, "Error getting provisioner for workspace")
 
-	daemon1Closer.Close()
-
-	// Ensure the provisioner is stale
-	staleTime := sched.Next(workspace.LatestBuild.CreatedAt).Add((-1 * provisionerdserver.StaleInterval) + -10*time.Second)
+	// We're going to use an artificial next scheduled autostart time, as opposed to calculating it via sched.Next, since
+	// we want to assert/require specific behavior here around the provisioner being stale, and therefore we need to be
+	// able to give the provisioner(s) specific `LastSeenAt` times while dealing with the contraint that we cannot set
+	// that value to some time in the past (relative to it's current value).
+	next := p.LastSeenAt.Time.Add(5 * time.Minute)
+	staleTime := next.Add(-(provisionerdserver.StaleInterval + time.Second))
 	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, staleTime)
 
-	// Trigger autobuild
-	tickCh <- sched.Next(workspace.LatestBuild.CreatedAt)
+	// Require that the provisioners LastSeenAt has been updated to the expected time.
+	p, err = coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
+	require.NoError(t, err, "Error getting provisioner for workspace")
+	// This assertion *may* no longer need to be `Eventually`.
+	require.Eventually(t, func() bool { return p.LastSeenAt.Time.UnixNano() == staleTime.UnixNano() },
+		testutil.WaitMedium, testutil.IntervalFast, "expected provisioner LastSeenAt to be:%+v, saw :%+v", staleTime.UTC(), p.LastSeenAt.Time.UTC())
 
+	// Ensure the provisioner is gone or stale, relative to the artificial next autostart time, before triggering the autobuild.
+	coderdtest.MustWaitForProvisionersUnavailable(t, db, workspace, provisionerDaemonTags, next)
+
+	// Trigger autobuild.
+	tickCh <- next
 	stats := <-statsCh
-
-	// This assertion should FAIL when provisioner is available (not stale), can confirm by commenting out the
-	// UpdateProvisionerLastSeenAt call above.
 	assert.Len(t, stats.Transitions, 0, "should not create builds when no provisioners available")
 
 	daemon2Closer := coderdtest.NewTaggedProvisionerDaemon(t, api, "name", provisionerDaemonTags)
@@ -1748,15 +1754,21 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 	// Ensure the provisioner is  NOT stale, and see if we get a successful state transition.
 	p, err = coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
 	require.NoError(t, err, "Error getting provisioner for workspace")
-	notStaleTime := sched.Next(workspace.LatestBuild.CreatedAt).Add((-1 * provisionerdserver.StaleInterval) + 10*time.Second)
+
+	next = sched.Next(workspace.LatestBuild.CreatedAt)
+	notStaleTime := next.Add((-1 * provisionerdserver.StaleInterval) + 10*time.Second)
 	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, notStaleTime)
+	// Require that the provisioner time has actually been updated to the expected value.
+	p, err = coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
+	require.NoError(t, err, "Error getting provisioner for workspace")
+	require.True(t, next.UnixNano() > p.LastSeenAt.Time.UnixNano())
 
 	// Trigger autobuild
 	go func() {
-		tickCh <- sched.Next(workspace.LatestBuild.CreatedAt)
+		tickCh <- next
 		close(tickCh)
 	}()
 	stats = <-statsCh
 
-	assert.Len(t, stats.Transitions, 1, "should not create builds when no provisioners available")
+	assert.Len(t, stats.Transitions, 1, "should create builds when provisioners are available")
 }

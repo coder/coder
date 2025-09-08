@@ -129,9 +129,9 @@ To set this up, follow these steps:
 If you don't want to use the official modules, you can read through the [example template](https://github.com/coder/coder/tree/main/examples/jfrog/docker), which uses Docker as the underlying compute. The
 same concepts apply to all compute types.
 
-## Offline Deployments
+## Air-Gapped Deployments
 
-See the [offline deployments](../templates/extending-templates/modules.md#offline-installations) section for instructions on how to use Coder modules in an offline environment with Artifactory.
+See the [air-gapped deployments](../templates/extending-templates/modules.md#offline-installations) section for instructions on how to use Coder modules in an offline environment with Artifactory.
 
 ## Next Steps
 

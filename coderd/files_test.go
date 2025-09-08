@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/archive"
@@ -88,7 +89,7 @@ func TestPostFiles(t *testing.T) {
 				data := make([]byte, 1024)
 				_, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(data))
 				end.Done()
-				require.NoError(t, err)
+				assert.NoError(t, err)
 			}()
 		}
 		wg.Done()

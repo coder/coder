@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -6578,4 +6579,204 @@ func TestWorkspaceBuildDeadlineConstraint(t *testing.T) {
 			require.True(t, database.IsCheckViolation(err, database.CheckWorkspaceBuildsDeadlineBelowMaxDeadline))
 		}
 	}
+}
+
+// TestGetLatestWorkspaceBuildsByWorkspaceIDs populates the database with
+// workspaces and builds. It then tests that
+// GetLatestWorkspaceBuildsByWorkspaceIDs returns the latest build for some
+// subset of the workspaces.
+func TestGetLatestWorkspaceBuildsByWorkspaceIDs(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	admin := dbgen.User(t, db, database.User{})
+
+	tv := dbfake.TemplateVersion(t, db).
+		Seed(database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      admin.ID,
+		}).
+		Do()
+
+	users := make([]database.User, 5)
+	wrks := make([][]database.WorkspaceTable, len(users))
+	exp := make(map[uuid.UUID]database.WorkspaceBuild)
+	for i := range users {
+		users[i] = dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         users[i].ID,
+			OrganizationID: org.ID,
+		})
+
+		// Each user gets 2 workspaces.
+		wrks[i] = make([]database.WorkspaceTable, 2)
+		for wi := range wrks[i] {
+			wrks[i][wi] = dbgen.Workspace(t, db, database.WorkspaceTable{
+				TemplateID: tv.Template.ID,
+				OwnerID:    users[i].ID,
+			})
+
+			// Choose a deterministic number of builds per workspace
+			// No more than 5 builds though, that would be excessive.
+			for j := int32(1); int(j) <= (i+wi)%5; j++ {
+				wb := dbfake.WorkspaceBuild(t, db, wrks[i][wi]).
+					Seed(database.WorkspaceBuild{
+						WorkspaceID: wrks[i][wi].ID,
+						BuildNumber: j + 1,
+					}).
+					Do()
+
+				exp[wrks[i][wi].ID] = wb.Build // Save the final workspace build
+			}
+		}
+	}
+
+	// Only take half the users. And only take 1 workspace per user for the test.
+	// The others are just noice. This just queries a subset of workspaces and builds
+	// to make sure the noise doesn't interfere with the results.
+	assertWrks := wrks[:len(users)/2]
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ids := slice.Convert[[]database.WorkspaceTable, uuid.UUID](assertWrks, func(pair []database.WorkspaceTable) uuid.UUID {
+		return pair[0].ID
+	})
+
+	require.Greater(t, len(ids), 0, "expected some workspace ids for test")
+	builds, err := db.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, ids)
+	require.NoError(t, err)
+	for _, b := range builds {
+		expB, ok := exp[b.WorkspaceID]
+		require.Truef(t, ok, "unexpected workspace build for workspace id %s", b.WorkspaceID)
+		require.Equalf(t, expB.ID, b.ID, "unexpected workspace build id for workspace id %s", b.WorkspaceID)
+		require.Equal(t, expB.BuildNumber, b.BuildNumber, "unexpected build number")
+	}
+}
+
+func TestUsageEventsTrigger(t *testing.T) {
+	t.Parallel()
+
+	// This is not exposed in the querier interface intentionally.
+	getDailyRows := func(ctx context.Context, sqlDB *sql.DB) []database.UsageEventsDaily {
+		t.Helper()
+		rows, err := sqlDB.QueryContext(ctx, "SELECT day, event_type, usage_data FROM usage_events_daily ORDER BY day ASC")
+		require.NoError(t, err, "perform query")
+		defer rows.Close()
+
+		var out []database.UsageEventsDaily
+		for rows.Next() {
+			var row database.UsageEventsDaily
+			err := rows.Scan(&row.Day, &row.EventType, &row.UsageData)
+			require.NoError(t, err, "scan row")
+			out = append(out, row)
+		}
+		return out
+	}
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+		// Assert there are no daily rows.
+		rows := getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 0)
+
+		// Insert a usage event.
+		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "1",
+			EventType: "dc_managed_agents_v1",
+			EventData: []byte(`{"count": 41}`),
+			CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		})
+		require.NoError(t, err)
+
+		// Assert there is one daily row that contains the correct data.
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 1)
+		require.Equal(t, "dc_managed_agents_v1", rows[0].EventType)
+		require.JSONEq(t, `{"count": 41}`, string(rows[0].UsageData))
+		// The read row might be `+0000` rather than `UTC` specifically, so just
+		// ensure it's within 1 second of the expected time.
+		require.WithinDuration(t, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), rows[0].Day, time.Second)
+
+		// Insert a new usage event on the same UTC day, should increment the count.
+		locSydney, err := time.LoadLocation("Australia/Sydney")
+		require.NoError(t, err)
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "2",
+			EventType: "dc_managed_agents_v1",
+			EventData: []byte(`{"count": 1}`),
+			// Insert it at a random point during the same day. Sydney is +1000 or
+			// +1100, so 8am in Sydney is the previous day in UTC.
+			CreatedAt: time.Date(2025, 1, 2, 8, 38, 57, 0, locSydney),
+		})
+		require.NoError(t, err)
+
+		// There should still be only one daily row with the incremented count.
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 1)
+		require.Equal(t, "dc_managed_agents_v1", rows[0].EventType)
+		require.JSONEq(t, `{"count": 42}`, string(rows[0].UsageData))
+		require.WithinDuration(t, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), rows[0].Day, time.Second)
+
+		// TODO: when we have a new event type, we should test that adding an
+		// event with a different event type on the same day creates a new daily
+		// row.
+
+		// Insert a new usage event on a different day, should create a new daily
+		// row.
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "3",
+			EventType: "dc_managed_agents_v1",
+			EventData: []byte(`{"count": 1}`),
+			CreatedAt: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC),
+		})
+		require.NoError(t, err)
+
+		// There should now be two daily rows.
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 2)
+		// Output is sorted by day ascending, so the first row should be the
+		// previous day's row.
+		require.Equal(t, "dc_managed_agents_v1", rows[0].EventType)
+		require.JSONEq(t, `{"count": 42}`, string(rows[0].UsageData))
+		require.WithinDuration(t, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), rows[0].Day, time.Second)
+		require.Equal(t, "dc_managed_agents_v1", rows[1].EventType)
+		require.JSONEq(t, `{"count": 1}`, string(rows[1].UsageData))
+		require.WithinDuration(t, time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC), rows[1].Day, time.Second)
+	})
+
+	t.Run("UnknownEventType", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+		// Relax the usage_events.event_type check constraint to see what
+		// happens when we insert a usage event that the trigger doesn't know
+		// about.
+		_, err := sqlDB.ExecContext(ctx, "ALTER TABLE usage_events DROP CONSTRAINT usage_event_type_check")
+		require.NoError(t, err)
+
+		// Insert a usage event with an unknown event type.
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "broken",
+			EventType: "dean's cool event",
+			EventData: []byte(`{"my": "cool json"}`),
+			CreatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		})
+		require.ErrorContains(t, err, "Unhandled usage event type in aggregate_usage_event")
+
+		// The event should've been blocked.
+		var count int
+		err = sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM usage_events WHERE id = 'broken'").Scan(&count)
+		require.NoError(t, err)
+		require.Equal(t, 0, count)
+
+		// We should not have any daily rows.
+		rows := getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 0)
+	})
 }

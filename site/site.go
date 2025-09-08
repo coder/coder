@@ -1030,6 +1030,16 @@ func (b *binMetadataCache) getMetadata(name string) (binMetadata, error) {
 		b.sem <- struct{}{}
 		defer func() { <-b.sem }()
 
+		// Reject any invalid or non-basename paths before touching the filesystem.
+		if name == "" ||
+			name == "." ||
+			strings.Contains(name, "/") ||
+			strings.Contains(name, "\\") ||
+			!fs.ValidPath(name) ||
+			path.Base(name) != name {
+			return binMetadata{}, os.ErrNotExist
+		}
+
 		f, err := b.binFS.Open(name)
 		if err != nil {
 			return binMetadata{}, err

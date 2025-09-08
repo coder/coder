@@ -364,6 +364,8 @@ module "git-config" {
   source   = "dev.registry.coder.com/coder/git-config/coder"
   version  = "1.0.31"
   agent_id = coder_agent.dev.id
+  # If you prefer to commit with a different email, this allows you to do so.
+  allow_email_change = true
 }
 
 module "git-clone" {
@@ -425,14 +427,14 @@ module "filebrowser" {
 module "coder-login" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/coder-login/coder"
-  version  = "1.0.31"
+  version  = "1.1.0"
   agent_id = coder_agent.dev.id
 }
 
 module "cursor" {
   count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "cursor") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/cursor/coder"
-  version  = "1.3.1"
+  version  = "1.3.2"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
@@ -440,7 +442,7 @@ module "cursor" {
 module "windsurf" {
   count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "windsurf") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/windsurf/coder"
-  version  = "1.1.1"
+  version  = "1.2.0"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
@@ -473,7 +475,7 @@ module "devcontainers-cli" {
 module "claude-code" {
   count               = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "2.1.0"
+  version             = "2.2.0"
   agent_id            = coder_agent.dev.id
   folder              = local.repo_dir
   install_claude_code = true
@@ -742,6 +744,8 @@ resource "docker_container" "workspace" {
       name,
       hostname,
       labels,
+      env,
+      entrypoint
     ]
   }
   count = data.coder_workspace.me.start_count

@@ -40,3 +40,40 @@ fi
 | Type | <code>string</code> |
 
 Extract a field from the "extra" properties of the OAuth token.
+
+### --agent-token
+
+|             |                                 |
+|-------------|---------------------------------|
+| Type        | <code>string</code>             |
+| Environment | <code>$CODER_AGENT_TOKEN</code> |
+
+An agent authentication token.
+
+### --agent-token-file
+
+|             |                                      |
+|-------------|--------------------------------------|
+| Type        | <code>string</code>                  |
+| Environment | <code>$CODER_AGENT_TOKEN_FILE</code> |
+
+A file containing an agent authentication token.
+
+### --agent-url
+
+|             |                               |
+|-------------|-------------------------------|
+| Type        | <code>url</code>              |
+| Environment | <code>$CODER_AGENT_URL</code> |
+
+URL for an agent to access your deployment.
+
+### --auth
+
+|             |                                |
+|-------------|--------------------------------|
+| Type        | <code>string</code>            |
+| Environment | <code>$CODER_AGENT_AUTH</code> |
+| Default     | <code>token</code>             |
+
+Specify the authentication type to use for the agent.
