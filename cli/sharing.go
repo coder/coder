@@ -72,11 +72,12 @@ func (r *RootCmd) statusWorkspaceSharing() *serpent.Command {
 
 func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Command {
 	var (
+		client = new(codersdk.Client)
+		users  []string
+		groups []string
+
 		// Username regex taken from codersdk/name.go
 		nameRoleRegex = regexp.MustCompile(`(^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*)+(?::([A-Za-z0-9-]+))?`)
-		client        = new(codersdk.Client)
-		users         []string
-		groups        []string
 	)
 
 	cmd := &serpent.Command{
@@ -115,84 +116,35 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 				return err
 			}
 
-			userRoles := make(map[string]codersdk.WorkspaceRole, len(users))
-			if len(users) > 0 {
-				orgMembers, err := client.OrganizationMembers(inv.Context(), org.ID)
-				if err != nil {
-					return err
+			userRoleStrings := make([][2]string, len(users))
+			for index, user := range users {
+				userAndRole := nameRoleRegex.FindStringSubmatch(user)
+				if userAndRole == nil {
+					return xerrors.Errorf("invalid user format %q: must match pattern 'username:role'", user)
 				}
 
-				for _, user := range users {
-					userAndRole := nameRoleRegex.FindStringSubmatch(user)
-					if userAndRole == nil {
-						return xerrors.Errorf("invalid user format %q: must match pattern 'username:role'", user)
-					}
-
-					username := userAndRole[1]
-					role := userAndRole[2]
-					if role == "" {
-						role = string(codersdk.WorkspaceRoleUse)
-					}
-
-					userID := ""
-					for _, member := range orgMembers {
-						if member.Username == username {
-							userID = member.UserID.String()
-							break
-						}
-					}
-					if userID == "" {
-						return xerrors.Errorf("could not find user %s in the organization %s", username, org.Name)
-					}
-
-					workspaceRole, err := stringToWorkspaceRole(role)
-					if err != nil {
-						return err
-					}
-
-					userRoles[userID] = workspaceRole
-				}
+				userRoleStrings[index] = [2]string{userAndRole[1], userAndRole[2]}
 			}
 
-			groupRoles := make(map[string]codersdk.WorkspaceRole)
-			if len(groups) > 0 {
-				orgGroups, err := client.Groups(inv.Context(), codersdk.GroupArguments{
-					Organization: org.ID.String(),
-				})
-				if err != nil {
-					return err
+			groupRoleStrings := make([][2]string, len(groups))
+			for index, group := range groups {
+				groupAndRole := nameRoleRegex.FindStringSubmatch(group)
+				if groupAndRole == nil {
+					return xerrors.Errorf("invalid group format %q: must match pattern 'group:role'", group)
 				}
 
-				for _, group := range groups {
-					groupAndRole := nameRoleRegex.FindStringSubmatch(group)
-					if groupAndRole == nil {
-						return xerrors.Errorf("invalid group format %q: must match pattern 'group:role'", group)
-					}
-					groupName := groupAndRole[1]
-					role := groupAndRole[2]
-					if role == "" {
-						role = string(codersdk.WorkspaceRoleUse)
-					}
+				groupRoleStrings[index] = [2]string{groupAndRole[1], groupAndRole[2]}
+			}
 
-					var orgGroup *codersdk.Group
-					for _, group := range orgGroups {
-						if group.Name == groupName {
-							orgGroup = &group
-							break
-						}
-					}
-
-					if orgGroup == nil {
-						return xerrors.Errorf("could not find group named %s belonging to the organization %s", groupName, org.Name)
-					}
-
-					workspaceRole, err := stringToWorkspaceRole(role)
-					if err != nil {
-						return err
-					}
-
-					groupRoles[orgGroup.ID.String()] = workspaceRole
-				}
+			userRoles, groupRoles, err := fetchUsersAndGroups(inv.Context(), fetchUsersAndGroupsParams{
+				Client:      client,
+				Org:         &org,
+				Users:       userRoleStrings,
+				Groups:      groupRoleStrings,
+				DefaultRole: codersdk.WorkspaceRoleUse,
+			})
+			if err != nil {
+				return err
 			}
 
 			err = client.UpdateWorkspaceACL(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceACL{
@@ -227,6 +179,8 @@ func stringToWorkspaceRole(role string) (codersdk.WorkspaceRole, error) {
 		return codersdk.WorkspaceRoleUse, nil
 	case string(codersdk.WorkspaceRoleAdmin):
 		return codersdk.WorkspaceRoleAdmin, nil
+	case string(codersdk.WorkspaceRoleDeleted):
+		return codersdk.WorkspaceRoleDeleted, nil
 	default:
 		return "", xerrors.Errorf("invalid role %q: expected %q or %q",
 			role, codersdk.WorkspaceRoleAdmin, codersdk.WorkspaceRoleUse)
@@ -276,4 +230,95 @@ func workspaceACLToTable(ctx context.Context, acl *codersdk.WorkspaceACL) (strin
 	}
 
 	return out, nil
+}
+
+type fetchUsersAndGroupsParams struct {
+	Client      *codersdk.Client
+	Org         *codersdk.Organization
+	Users       [][2]string
+	Groups      [][2]string
+	DefaultRole codersdk.WorkspaceRole
+}
+
+func fetchUsersAndGroups(ctx context.Context, params fetchUsersAndGroupsParams) (map[string]codersdk.WorkspaceRole, map[string]codersdk.WorkspaceRole, error) {
+	var (
+		client      = params.Client
+		org         = params.Org
+		users       = params.Users
+		groups      = params.Groups
+		defaultRole = params.DefaultRole
+	)
+
+	userRoles := make(map[string]codersdk.WorkspaceRole, len(users))
+	if len(users) > 0 {
+		orgMembers, err := client.OrganizationMembers(ctx, org.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		for _, user := range users {
+			username := user[0]
+			role := user[1]
+			if role == "" {
+				role = string(defaultRole)
+			}
+
+			userID := ""
+			for _, member := range orgMembers {
+				if member.Username == username {
+					userID = member.UserID.String()
+					break
+				}
+			}
+			if userID == "" {
+				return nil, nil, xerrors.Errorf("could not find user %s in the organization %s", username, org.Name)
+			}
+
+			workspaceRole, err := stringToWorkspaceRole(role)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			userRoles[userID] = workspaceRole
+		}
+	}
+
+	groupRoles := make(map[string]codersdk.WorkspaceRole)
+	if len(groups) > 0 {
+		orgGroups, err := client.Groups(ctx, codersdk.GroupArguments{
+			Organization: org.ID.String(),
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+
+		for _, group := range groups {
+			groupName := group[0]
+			role := group[1]
+			if role == "" {
+				role = string(defaultRole)
+			}
+
+			var orgGroup *codersdk.Group
+			for _, group := range orgGroups {
+				if group.Name == groupName {
+					orgGroup = &group
+					break
+				}
+			}
+
+			if orgGroup == nil {
+				return nil, nil, xerrors.Errorf("could not find group named %s belonging to the organization %s", groupName, org.Name)
+			}
+
+			workspaceRole, err := stringToWorkspaceRole(role)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			groupRoles[orgGroup.ID.String()] = workspaceRole
+		}
+	}
+
+	return userRoles, groupRoles, nil
 }
