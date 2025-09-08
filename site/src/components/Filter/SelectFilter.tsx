@@ -52,8 +52,8 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 			<SelectMenuTrigger>
 				<SelectMenuButton
 					startIcon={selectedOption?.startIcon}
-					css={{ flexBasis: width, flexGrow: 1 }}
-					className="shrink-0"
+					className="shrink-0 grow"
+					style={{ flexBasis: width }}
 					aria-label={label}
 				>
 					{selectedOption?.label ?? placeholder}

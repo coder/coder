@@ -50,7 +50,7 @@ type BuildStatsItemProps = Readonly<
 const BuildStatsItem: FC<BuildStatsItemProps> = ({ children, label }) => {
 	return (
 		<StatsItem
-			className="flex-col gap-0 p-0 [&>span:first-of-type]:text-xs [&>span:first-of-type]:font-medium"
+			className="flex-col gap-0 p-0 [&>span:first-of-type]:text-xs [&>span:first-of-type]:font-medium md:p-0"
 			label={label}
 			value={children}
 		/>
@@ -105,7 +105,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 
 				<Stats
 					aria-label="Build details"
-					className="flex flex-col items-start gap-2 p-0 border-none grow basis-0 md:flex-row md:gap-x-12 md:gap-y-6"
+					className="flex flex-col items-start gap-2 px-0 border-none grow basis-0 md:flex-row md:gap-x-12 md:gap-y-6"
 				>
 					<BuildStatsItem label="Workspace">
 						<Link
@@ -124,7 +124,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 						{new Date(build.created_at).toLocaleString()}
 					</BuildStatsItem>
 					<BuildStatsItem label="Action">
-						<span className="uppercase">{build.transition}</span>
+						<span className="capitalize">{build.transition}</span>
 					</BuildStatsItem>
 				</Stats>
 			</FullWidthPageHeader>

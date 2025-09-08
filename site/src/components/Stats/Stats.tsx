@@ -33,13 +33,13 @@ export const StatsItem: FC<StatsItemProps> = ({
 	return (
 		<div
 			className={cn(
-				"p-2 flex items-baseline gap-2 md:py-3.5 md:px-4",
+				"text-sm p-2 flex items-baseline gap-2 md:py-3.5 md:px-4",
 				className,
 			)}
 			{...attrs}
 		>
 			<span className="block break-words">{label}:</span>
-			<span className="text-sm flex items-center break-words text-content-primary [&_a]:text-content-primary [&_a]:no-underline [&_a]:font-semibold [&_a:hover]:no-underline">
+			<span className="flex items-center break-words text-content-primary [&_a]:text-content-primary [&_a]:no-underline [&_a]:font-semibold [&_a:hover]:no-underline">
 				{value}
 			</span>
 		</div>

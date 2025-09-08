@@ -41,7 +41,9 @@ export const SelectMenuButton = forwardRef<
 			variant="outline"
 			size="lg"
 			ref={ref}
-			className={cn("flex flex-row gap-3.5", className)}
+			// Shrink padding right slightly to account for visual weight of
+			// the chevron
+			className={cn("flex flex-row gap-2 pr-1.5", className)}
 			{...delegatedProps}
 		>
 			{startIcon}
