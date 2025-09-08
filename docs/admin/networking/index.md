@@ -123,9 +123,7 @@ but this can be disabled or changed for
 By default, your Coder server also runs a built-in DERP relay which can be used
 for both public and [Air-gapped deployments](../../install/airgap.md).
 
-However, our Wireguard integration through Tailscale has graciously allowed us
-to use
-[their global DERP relays](https://tailscale.com/kb/1118/custom-derp-servers/#what-are-derp-servers).
+However, Tailscale maintains a global fleet of [DERP relays](https://tailscale.com/kb/1118/custom-derp-servers/#what-are-derp-servers) intended for their product, and has allowed Coder to access and use them.
 You can launch `coder server` with Tailscale's DERPs like so:
 
 ```bash
