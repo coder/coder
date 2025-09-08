@@ -32,6 +32,7 @@ jobs:
       offlinedocs-only: ${{ steps.filter.outputs.offlinedocs_count == steps.filter.outputs.all_count }}
       offlinedocs: ${{ steps.filter.outputs.offlinedocs }}
       tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
++     go-tests: ${{ steps.filter.outputs.go-tests }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -89,6 +90,8 @@ jobs:
               - "scaletest/**"
               - "tailnet/**"
               - "testutil/**"
++           go-tests:
++             - "**/*_test.go"
             gomod:
               - "go.mod"
               - "go.sum"
@@ -1603,6 +1606,39 @@ jobs:
       - name: Setup and run sqlc vet
         run: |
           make sqlc-vet
+
+  test-go-flakes:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    needs: changes
+    if: needs.changes.outputs.go-tests == 'true'
+    timeout-minutes: 25
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
+
+      - name: Start PostgreSQL (Docker)
+        run: make test-postgres-docker
+
+      - name: Run flake detection
+        run: |
+          set -euo pipefail
+          go run ./scripts/flakecheck -repeat 10 -p 4 -parallel 4 | tee flake_summary.txt
+          echo "### Flake report" >> "$GITHUB_STEP_SUMMARY"
+          cat flake_summary.txt >> "$GITHUB_STEP_SUMMARY"
 
   notify-slack-on-failure:
     needs:
