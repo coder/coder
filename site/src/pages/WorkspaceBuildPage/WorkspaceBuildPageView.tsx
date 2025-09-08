@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import type {
 	ProvisionerJobLog,
 	WorkspaceAgent,
@@ -30,6 +29,7 @@ import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/Worksp
 import {
 	type FC,
 	type HTMLProps,
+	type PropsWithChildren,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -40,6 +40,22 @@ import { displayWorkspaceBuildDuration } from "utils/workspace";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 
 export const LOGS_TAB_KEY = "logs";
+
+type BuildStatsItemProps = Readonly<
+	PropsWithChildren<{
+		label: string;
+	}>
+>;
+
+const BuildStatsItem: FC<BuildStatsItemProps> = ({ children, label }) => {
+	return (
+		<StatsItem
+			className="flex-col gap-0 p-0 [&>span:first-of-type]:text-xs [&>span:first-of-type]:font-medium"
+			label={label}
+			value={children}
+		/>
+	);
+};
 
 interface WorkspaceBuildPageViewProps {
 	logs: ProvisionerJobLog[] | undefined;
@@ -87,38 +103,29 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 					</div>
 				</Stack>
 
-				<Stats aria-label="Build details" css={styles.stats}>
-					<StatsItem
-						css={styles.statsItem}
-						label="Workspace"
-						value={
-							<Link
-								to={`/@${build.workspace_owner_name}/${build.workspace_name}`}
-							>
-								{build.workspace_name}
-							</Link>
-						}
-					/>
-					<StatsItem
-						css={styles.statsItem}
-						label="Template version"
-						value={build.template_version_name}
-					/>
-					<StatsItem
-						css={styles.statsItem}
-						label="Duration"
-						value={displayWorkspaceBuildDuration(build)}
-					/>
-					<StatsItem
-						css={styles.statsItem}
-						label="Started at"
-						value={new Date(build.created_at).toLocaleString()}
-					/>
-					<StatsItem
-						css={styles.statsItem}
-						label="Action"
-						value={<span className="uppercase">{build.transition}</span>}
-					/>
+				<Stats
+					aria-label="Build details"
+					className="flex flex-col items-start gap-2 p-0 border-none grow basis-0 md:flex-row md:gap-x-12 md:gap-y-6"
+				>
+					<BuildStatsItem label="Workspace">
+						<Link
+							to={`/@${build.workspace_owner_name}/${build.workspace_name}`}
+						>
+							{build.workspace_name}
+						</Link>
+					</BuildStatsItem>
+					<BuildStatsItem label="Template version">
+						{build.template_version_name}
+					</BuildStatsItem>
+					<BuildStatsItem label="Duration">
+						{displayWorkspaceBuildDuration(build)}
+					</BuildStatsItem>
+					<BuildStatsItem label="Started at">
+						{new Date(build.created_at).toLocaleString()}
+					</BuildStatsItem>
+					<BuildStatsItem label="Action">
+						<span className="uppercase">{build.transition}</span>
+					</BuildStatsItem>
 				</Stats>
 			</FullWidthPageHeader>
 
@@ -146,13 +153,18 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 
 				<ScrollArea>
 					<Tabs active={tabState.value}>
-						<TabsList>
-							<TabLink to={`?${LOGS_TAB_KEY}=build`} value="build">
+						<TabsList className="gap-0">
+							<TabLink
+								to={`?${LOGS_TAB_KEY}=build`}
+								value="build"
+								className="px-6 pb-2"
+							>
 								Build
 							</TabLink>
 
 							{agents.map((a) => (
 								<TabLink
+									className="px-6 pb-2"
 									to={`?${LOGS_TAB_KEY}=${a.id}`}
 									value={a.id}
 									key={a.id}
@@ -257,15 +269,10 @@ const BuildLogsContent: FC<{
 
 	return (
 		<WorkspaceBuildLogs
-			css={{
-				border: 0,
-				"--log-line-side-padding": `${TAB_PADDING_X}px`,
-				// Add extra spacing to the first log header to prevent it from being
-				// too close to the tabs
-				"& .logs-header:first-of-type": {
-					paddingTop: 16,
-				},
-			}}
+			// logs header class adds extra spacing to the first log header to
+			// prevent it from being too close to the tabs
+			className="border-none [&_.logs-header:first-of-type]:pt-4"
+			css={{ "--log-line-side-padding": `${TAB_PADDING_X}px` }}
 			build={build}
 			logs={[...logs].sort((a, b) => {
 				return (
@@ -302,31 +309,3 @@ const AgentLogsContent: FC<AgentLogsContentProps> = ({ agent }) => {
 		/>
 	);
 };
-
-const styles = {
-	stats: (theme) => ({
-		padding: 0,
-		border: 0,
-		gap: 48,
-		rowGap: 24,
-		flex: 1,
-
-		[theme.breakpoints.down("md")]: {
-			display: "flex",
-			flexDirection: "column",
-			alignItems: "flex-start",
-			gap: 8,
-		},
-	}),
-
-	statsItem: {
-		flexDirection: "column",
-		gap: 0,
-		padding: 0,
-
-		"& > span:first-of-type": {
-			fontSize: 12,
-			fontWeight: 500,
-		},
-	},
-} satisfies Record<string, Interpolation<Theme>>;
