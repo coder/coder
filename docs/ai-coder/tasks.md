@@ -111,10 +111,16 @@ resource "coder_agent" "main" {
 You have two options here to either choose the developer orchestrating the agent's permissions as you are already doing with [External Auth](https://coder.com/docs/admin/external-auth) or inject a Bot specific PAT if the tasks are started by a [headless system user](https://coder.com/docs/admin/users/headless-auth) as shown below:
 
 ```tf
+# Define a template variable to store the token.
+variable "github_pat" {
+	type      = string
+	sensitive = true
+}
+
 resource "coder_agent" "main" {
 	...
 	env = {
-		GITHUB_TOKEN = "ghp_1234567890abcdef" # Inject a Bot specific PAT
+		GITHUB_TOKEN = var.github_pat # Inject a Bot specific PAT
 	}
 }
 ```
