@@ -1,0 +1,9 @@
+.Heart__Love {
+    background:black;
+    color:#fff;
+    font-family: "Te Amo";
+    font-size:3em;
+    text-align:center;
+    scrollbar-width:none;
+    opacity:0; 
+}
