@@ -2861,6 +2861,10 @@ ALTER TABLE ONLY workspace_resources
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 
+CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
+
+COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
+
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
