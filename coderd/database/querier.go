@@ -296,6 +296,8 @@ type sqlcQuerier interface {
 	// Gets a single provisioner job by ID for update.
 	// This is used to securely reap jobs that have been hung/pending for a long time.
 	GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UUID) (ProvisionerJob, error)
+	// Gets a provisioner job by ID with exclusive lock.
+	// Blocks until the row is available for update.
 	GetProvisionerJobByIDWithLock(ctx context.Context, id uuid.UUID) (ProvisionerJob, error)
 	GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]ProvisionerJobTiming, error)
 	GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]ProvisionerJob, error)

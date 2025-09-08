@@ -8885,6 +8885,8 @@ WHERE
 FOR UPDATE
 `
 
+// Gets a provisioner job by ID with exclusive lock.
+// Blocks until the row is available for update.
 func (q *sqlQuerier) GetProvisionerJobByIDWithLock(ctx context.Context, id uuid.UUID) (ProvisionerJob, error) {
 	row := q.db.QueryRowContext(ctx, getProvisionerJobByIDWithLock, id)
 	var i ProvisionerJob
