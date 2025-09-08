@@ -217,3 +217,117 @@ func TestSharingStatus(t *testing.T) {
 		assert.True(t, found, "expected to find username %s with role %s in the output: %s", toShareWithUser.Username, codersdk.WorkspaceRoleUse, out.String())
 	})
 }
+
+func TestSharingRemove(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
+	t.Run("RemoveSharedUser_Simple", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				DeploymentValues: dv,
+			})
+			orgOwner                             = coderdtest.CreateFirstUser(t, client)
+			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			workspace                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_, toRemoveUser    = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+			_, toShareWithUser = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+		)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Share the workspace with a user to later remove
+		err := client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				toShareWithUser.ID.String(): codersdk.WorkspaceRoleUse,
+				toRemoveUser.ID.String():    codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		inv, root := clitest.New(t,
+			"sharing",
+			"remove",
+			workspace.Name,
+			"--org", orgOwner.OrganizationID.String(),
+			"--user", toRemoveUser.Username,
+		)
+		clitest.SetupConfig(t, workspaceOwnerClient, root)
+
+		out := bytes.NewBuffer(nil)
+		inv.Stdout = out
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		acl, err := workspaceOwnerClient.WorkspaceACL(inv.Context(), workspace.ID)
+		require.NoError(t, err)
+
+		removedCorrectUser := true
+		keptOtherUser := false
+		for _, user := range acl.Users {
+			if user.ID == toRemoveUser.ID {
+				removedCorrectUser = false
+			}
+
+			if user.ID == toShareWithUser.ID {
+				keptOtherUser = true
+			}
+		}
+		assert.True(t, removedCorrectUser)
+		assert.True(t, keptOtherUser)
+	})
+
+	t.Run("RemoveSharedUser_Multiple", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				DeploymentValues: dv,
+			})
+			orgOwner                             = coderdtest.CreateFirstUser(t, client)
+			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			workspace                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_, toRemoveUser1 = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+			_, toRemoveUser2 = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+		)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Share the workspace with a user to later remove
+		err := client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				toRemoveUser2.ID.String(): codersdk.WorkspaceRoleUse,
+				toRemoveUser1.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		inv, root := clitest.New(t,
+			"sharing",
+			"remove",
+			workspace.Name,
+			"--org", orgOwner.OrganizationID.String(),
+			fmt.Sprintf("--user=%s,%s", toRemoveUser1.Username, toRemoveUser2.Username),
+		)
+		clitest.SetupConfig(t, workspaceOwnerClient, root)
+
+		out := bytes.NewBuffer(nil)
+		inv.Stdout = out
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		acl, err := workspaceOwnerClient.WorkspaceACL(inv.Context(), workspace.ID)
+		require.NoError(t, err)
+		assert.Empty(t, acl.Users)
+	})
+}
