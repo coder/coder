@@ -164,9 +164,9 @@ func (q *sqlQuerier) InsertAIBridgeSession(ctx context.Context, arg InsertAIBrid
 
 const insertAIBridgeTokenUsage = `-- name: InsertAIBridgeTokenUsage :exec
 INSERT INTO aibridge_token_usages (
-  id, session_id, provider_id, input_tokens, output_tokens, metadata
+  id, session_id, provider_id, input_tokens, output_tokens, metadata, created_at
 ) VALUES (
-  $1, $2, $3, $4, $5, COALESCE($6::jsonb, '{}'::jsonb)
+  $1, $2, $3, $4, $5, COALESCE($6::jsonb, '{}'::jsonb), $7
 )
 `
 
@@ -177,6 +177,7 @@ type InsertAIBridgeTokenUsageParams struct {
 	InputTokens  int64           `db:"input_tokens" json:"input_tokens"`
 	OutputTokens int64           `db:"output_tokens" json:"output_tokens"`
 	Metadata     json.RawMessage `db:"metadata" json:"metadata"`
+	CreatedAt    time.Time       `db:"created_at" json:"created_at"`
 }
 
 func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) error {
@@ -187,15 +188,16 @@ func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIB
 		arg.InputTokens,
 		arg.OutputTokens,
 		arg.Metadata,
+		arg.CreatedAt,
 	)
 	return err
 }
 
 const insertAIBridgeToolUsage = `-- name: InsertAIBridgeToolUsage :exec
 INSERT INTO aibridge_tool_usages (
-  id, session_id, provider_id, tool, input, injected, metadata
+  id, session_id, provider_id, tool, input, injected, metadata, created_at
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, COALESCE($7::jsonb, '{}'::jsonb)
+  $1, $2, $3, $4, $5, $6, COALESCE($7::jsonb, '{}'::jsonb), $8
 )
 `
 
@@ -207,6 +209,7 @@ type InsertAIBridgeToolUsageParams struct {
 	Input      string          `db:"input" json:"input"`
 	Injected   bool            `db:"injected" json:"injected"`
 	Metadata   json.RawMessage `db:"metadata" json:"metadata"`
+	CreatedAt  time.Time       `db:"created_at" json:"created_at"`
 }
 
 func (q *sqlQuerier) InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBridgeToolUsageParams) error {
@@ -218,15 +221,16 @@ func (q *sqlQuerier) InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBr
 		arg.Input,
 		arg.Injected,
 		arg.Metadata,
+		arg.CreatedAt,
 	)
 	return err
 }
 
 const insertAIBridgeUserPrompt = `-- name: InsertAIBridgeUserPrompt :exec
 INSERT INTO aibridge_user_prompts (
-  id, session_id, provider_id, prompt, metadata
+  id, session_id, provider_id, prompt, metadata, created_at
 ) VALUES (
-  $1, $2, $3, $4, COALESCE($5::jsonb, '{}'::jsonb)
+  $1, $2, $3, $4, COALESCE($5::jsonb, '{}'::jsonb), $6
 )
 `
 
@@ -236,6 +240,7 @@ type InsertAIBridgeUserPromptParams struct {
 	ProviderID string          `db:"provider_id" json:"provider_id"`
 	Prompt     string          `db:"prompt" json:"prompt"`
 	Metadata   json.RawMessage `db:"metadata" json:"metadata"`
+	CreatedAt  time.Time       `db:"created_at" json:"created_at"`
 }
 
 func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIBridgeUserPromptParams) error {
@@ -245,6 +250,7 @@ func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIB
 		arg.ProviderID,
 		arg.Prompt,
 		arg.Metadata,
+		arg.CreatedAt,
 	)
 	return err
 }

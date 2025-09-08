@@ -879,7 +879,7 @@ CREATE TABLE aibridge_token_usages (
     input_tokens bigint NOT NULL,
     output_tokens bigint NOT NULL,
     metadata jsonb,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone NOT NULL
 );
 
 CREATE TABLE aibridge_tool_usages (
@@ -890,7 +890,7 @@ CREATE TABLE aibridge_tool_usages (
     input text NOT NULL,
     injected boolean DEFAULT false NOT NULL,
     metadata jsonb,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone NOT NULL
 );
 
 CREATE TABLE aibridge_user_prompts (
@@ -899,7 +899,7 @@ CREATE TABLE aibridge_user_prompts (
     provider_id text NOT NULL,
     prompt text NOT NULL,
     metadata jsonb,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone NOT NULL
 );
 
 CREATE TABLE api_keys (

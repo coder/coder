@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS aibridge_token_usages (
     input_tokens BIGINT NOT NULL,
     output_tokens BIGINT NOT NULL,
     metadata JSONB DEFAULT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
 CREATE INDEX idx_aibridge_token_usages_session_id ON aibridge_token_usages(session_id);
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS aibridge_user_prompts (
     provider_id TEXT NOT NULL, -- The ID for the session in which the tokens were used, produced by the provider.
     prompt TEXT NOT NULL,
     metadata JSONB DEFAULT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
 CREATE INDEX idx_aibridge_user_prompts_session_id ON aibridge_user_prompts(session_id);
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS aibridge_tool_usages (
     input TEXT NOT NULL,
     injected BOOLEAN NOT NULL DEFAULT FALSE, -- Whether this tool was injected or was defined by the client.
     metadata JSONB DEFAULT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
 CREATE INDEX idx_aibridge_tool_usages_session_id ON aibridge_tool_usages(session_id);
