@@ -43,10 +43,10 @@ rules:
     - patch
     - update
     - watch
-{{- end }}
-{{- with .Values.coder.serviceAccount.extraRules }}
-{{ toYaml . | nindent 2 }}
-{{- end }}
+  {{- end }}
+  {{- with .Values.coder.serviceAccount.extraRules }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -62,63 +62,150 @@ roleRef:
   name: {{ .Values.coder.serviceAccount.name }}-workspace-perms
 {{- end }}
 
-{{- with .Values.coder.serviceAccount.workspaceNamespaces }}
-{{- if .enabled }}
-{{- range $ns := .namespaces }}
-{{- if and $ns (ne $ns $.Release.Namespace) }}
+{{- if .Values.coder.serviceAccount.workspaceNamespaces }}
+{{- if .Values.coder.serviceAccount.workspaceNamespaces.namespaces }}
+{{- range .Values.coder.serviceAccount.workspaceNamespaces.namespaces }}
+{{- if .name }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: {{ $.Values.coder.serviceAccount.name }}-workspace-perms
-  namespace: {{ $ns }}
+  namespace: {{ .name }}
 rules:
+  {{- if (hasKey . "workspacePerms") }}
+    {{- if .workspacePerms }}
   - apiGroups: [""]
     resources: ["pods"]
     verbs:
-    - create
-    - delete
-    - deletecollection
-    - get
-    - list
-    - patch
-    - update
-    - watch
+      - create
+      - delete
+      - deletecollection
+      - get
+      - list
+      - patch
+      - update
+      - watch
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
     verbs:
-    - create
-    - delete
-    - deletecollection
-    - get
-    - list
-    - patch
-    - update
-    - watch
-{{- if $.Values.coder.serviceAccount.enableDeployments }}
-  - apiGroups:
-    - apps
-    resources:
-    - deployments
+      - create
+      - delete
+      - deletecollection
+      - get
+      - list
+      - patch
+      - update
+      - watch
+      {{- if (hasKey . "enableDeployments") }}
+        {{- if .enableDeployments }}
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
     verbs:
-    - create
-    - delete
-    - deletecollection
-    - get
-    - list
-    - patch
-    - update
-    - watch
-{{- end }}
-{{- with $.Values.coder.serviceAccount.extraRules }}
-{{ toYaml . | nindent 2 }}
-{{- end }}
+      - create
+      - delete
+      - deletecollection
+      - get
+      - list
+      - patch
+      - update
+      - watch
+        {{- end }}
+      {{- else }}
+        {{- if $.Values.coder.serviceAccount.enableDeployments }}
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs:
+      - create
+      - delete
+      - deletecollection
+      - get
+      - list
+      - patch
+      - update
+      - watch
+        {{- end }}
+      {{- end }}
+      {{- if (hasKey . "extraRules") }}
+        {{- with .extraRules }}
+  {{- toYaml . | nindent 2 }}
+        {{- end }}
+      {{- else }}
+        {{- with $.Values.coder.serviceAccount.extraRules }}
+  {{- toYaml . | nindent 2 }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- else }}
+    {{- if $.Values.coder.serviceAccount.workspacePerms }}
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs:
+      - create
+      - delete
+      - deletecollection
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs:
+      - create
+      - delete
+      - deletecollection
+      - get
+      - list
+      - patch
+      - update
+      - watch
+      {{- if (hasKey . "enableDeployments") }}
+        {{- if .enableDeployments }}
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs:
+      - create
+      - delete
+      - deletecollection
+      - get
+      - list
+      - patch
+      - update
+      - watch
+        {{- end }}
+      {{- else }}
+        {{- if $.Values.coder.serviceAccount.enableDeployments }}
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs:
+      - create
+      - delete
+      - deletecollection
+      - get
+      - list
+      - patch
+      - update
+      - watch
+        {{- end }}
+      {{- end }}
+      {{- if (hasKey . "extraRules") }}
+        {{- with .extraRules }}
+  {{- toYaml . | nindent 2 }}
+        {{- end }}
+      {{- else }}
+        {{- with $.Values.coder.serviceAccount.extraRules }}
+  {{- toYaml . | nindent 2 }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: {{ $.Values.coder.serviceAccount.name | quote }}
-  namespace: {{ $ns }}
+  namespace: {{ .name }}
 subjects:
   - kind: ServiceAccount
     name: {{ $.Values.coder.serviceAccount.name | quote }}
@@ -127,7 +214,7 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: {{ $.Values.coder.serviceAccount.name }}-workspace-perms
-{{- end }}
+ {{- end }}
 {{- end }}
 {{- end }}
 {{- end }}
