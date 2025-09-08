@@ -52,12 +52,13 @@ interface TemplateEmbedPageViewProps {
 	templateParameters?: TemplateVersionParameter[];
 }
 
+const deploymentUrl = `${window.location.protocol}//${window.location.host}`;
+
 function getClipboardCopyContent(
 	templateName: string,
 	organization: string,
 	buttonValues: ButtonValues | undefined,
 ): string {
-	const deploymentUrl = `${window.location.protocol}//${window.location.host}`;
 	const createWorkspaceUrl = `${deploymentUrl}/templates/${organization}/${templateName}/workspace`;
 	const createWorkspaceParams = new URLSearchParams(buttonValues);
 	if (createWorkspaceParams.get("name") === "") {
@@ -162,7 +163,7 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 								<Label className="text-md" htmlFor={defaultWorkspaceNameID}>
 									Workspace name
 								</Label>
-								<div className={"text-sm text-content-secondary mb-3"}>
+								<div className="text-sm text-content-secondary pb-3">
 									Default name for the new workspace
 								</div>
 								<Input
