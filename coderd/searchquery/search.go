@@ -389,8 +389,11 @@ func splitQueryParameterByDelimiter(query string, delimiter rune, maintainQuotes
 	return parts
 }
 
-// processTokens takes the split tokens and groups them based on a delimiter. Tokens
-// without a delimiter present are joined to support searching with spaces.
+// processTokens takes the split tokens and groups them based on a delimiter (':').
+// Tokens without a delimiter present are joined to support searching with spaces.
+//
+//	Example Input: ['deprecated:false', 'test', 'template']
+//	Example Output: ['deprecated:false', 'test template']
 func processTokens(tokens []string) []string {
 	var results []string
 	var nonFieldTerms []string
