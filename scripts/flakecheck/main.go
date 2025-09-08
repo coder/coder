@@ -22,12 +22,12 @@ import (
 
 // Configurable flags
 var (
-	flagBase      = flag.String("base", "origin/main", "git ref to diff against (merge-base with HEAD)")
-	flagRepeat    = flag.Int("repeat", 10, "number of runs per test selector")
-	flagP         = flag.Int("p", 4, "-p package test concurrency")
-	flagParallel  = flag.Int("parallel", 4, "-parallel test concurrency for t.Parallel")
-	flagTimeout   = flag.Duration("timeout", 5*time.Minute, "per-run go test timeout")
-	flagWork      = flag.Int("concurrency", 4, "number of selectors to run concurrently")
+	flagBase     = flag.String("base", "origin/main", "git ref to diff against (merge-base with HEAD)")
+	flagRepeat   = flag.Int("repeat", 10, "number of runs per test selector")
+	flagP        = flag.Int("p", 4, "-p package test concurrency")
+	flagParallel = flag.Int("parallel", 4, "-parallel test concurrency for t.Parallel")
+	flagTimeout  = flag.Duration("timeout", 5*time.Minute, "per-run go test timeout")
+	flagWork     = flag.Int("concurrency", 4, "number of selectors to run concurrently")
 )
 
 type exitErr struct {
