@@ -26,6 +26,7 @@ func (r *RootCmd) sharing() *serpent.Command {
 		},
 		Children: []*serpent.Command{
 			r.shareWorkspace(orgContext),
+			r.unshareWorkspace(orgContext),
 			r.statusWorkspaceSharing(),
 		},
 		Hidden: true,
@@ -173,6 +174,104 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 	return cmd
 }
 
+func (r *RootCmd) unshareWorkspace(orgContext *OrganizationContext) *serpent.Command {
+	var (
+		client = new(codersdk.Client)
+		users  []string
+		groups []string
+	)
+
+	cmd := &serpent.Command{
+		Use:     "remove <workspace> --user <user> --group <group>",
+		Aliases: []string{"unshare"},
+		Short:   "Remove shared access for users or groups from a workspace.",
+		Options: serpent.OptionSet{
+			{
+				Name:        "user",
+				Description: "A comma separated list of users to share the workspace with.",
+				Flag:        "user",
+				Value:       serpent.StringArrayOf(&users),
+			}, {
+				Name:        "group",
+				Description: "A comma separated list of groups to share the workspace with.",
+				Flag:        "group",
+				Value:       serpent.StringArrayOf(&groups),
+			},
+		},
+		Middleware: serpent.Chain(
+			r.InitClient(client),
+			serpent.RequireNArgs(1),
+		),
+		Handler: func(inv *serpent.Invocation) error {
+			if len(users) == 0 && len(groups) == 0 {
+				return xerrors.New("at least one user or group must be provided")
+			}
+
+			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			if err != nil {
+				return xerrors.Errorf("could not fetch the workspace %s: %w", inv.Args[0], err)
+			}
+
+			org, err := orgContext.Selected(inv, client)
+			if err != nil {
+				return err
+			}
+
+			userRoleStrings := make([][2]string, len(users))
+			for index, user := range users {
+				if !codersdk.UsernameValidRegex.MatchString(user) {
+					return xerrors.Errorf("invalid username")
+				}
+
+				userRoleStrings[index] = [2]string{user, ""}
+			}
+
+			groupRoleStrings := make([][2]string, len(groups))
+			for index, group := range groups {
+				if !codersdk.UsernameValidRegex.MatchString(group) {
+					return xerrors.Errorf("invalid group name")
+				}
+
+				groupRoleStrings[index] = [2]string{group, ""}
+			}
+
+			userRoles, groupRoles, err := fetchUsersAndGroups(inv.Context(), fetchUsersAndGroupsParams{
+				Client:      client,
+				Org:         &org,
+				Users:       userRoleStrings,
+				Groups:      groupRoleStrings,
+				DefaultRole: codersdk.WorkspaceRoleDeleted,
+			})
+			if err != nil {
+				return err
+			}
+
+			err = client.UpdateWorkspaceACL(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceACL{
+				UserRoles:  userRoles,
+				GroupRoles: groupRoles,
+			})
+			if err != nil {
+				return err
+			}
+
+			acl, err := client.WorkspaceACL(inv.Context(), workspace.ID)
+			if err != nil {
+				return xerrors.Errorf("could not fetch current workspace ACL after sharing %w", err)
+			}
+
+			out, err := workspaceACLToTable(inv.Context(), &acl)
+			if err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprintln(inv.Stdout, out)
+			return err
+		},
+	}
+
+	return cmd
+}
+
 func stringToWorkspaceRole(role string) (codersdk.WorkspaceRole, error) {
 	switch role {
 	case string(codersdk.WorkspaceRoleUse):
@@ -182,8 +281,8 @@ func stringToWorkspaceRole(role string) (codersdk.WorkspaceRole, error) {
 	case string(codersdk.WorkspaceRoleDeleted):
 		return codersdk.WorkspaceRoleDeleted, nil
 	default:
-		return "", xerrors.Errorf("invalid role %q: expected %q or %q",
-			role, codersdk.WorkspaceRoleAdmin, codersdk.WorkspaceRoleUse)
+		return "", xerrors.Errorf("invalid role %q: expected %q, %q, or \"%q\"",
+			role, codersdk.WorkspaceRoleAdmin, codersdk.WorkspaceRoleUse, codersdk.WorkspaceRoleDeleted)
 	}
 }
 
@@ -240,7 +339,7 @@ type fetchUsersAndGroupsParams struct {
 	DefaultRole codersdk.WorkspaceRole
 }
 
-func fetchUsersAndGroups(ctx context.Context, params fetchUsersAndGroupsParams) (map[string]codersdk.WorkspaceRole, map[string]codersdk.WorkspaceRole, error) {
+func fetchUsersAndGroups(ctx context.Context, params fetchUsersAndGroupsParams) (userRoles map[string]codersdk.WorkspaceRole, groupRoles map[string]codersdk.WorkspaceRole, err error) {
 	var (
 		client      = params.Client
 		org         = params.Org
@@ -249,7 +348,7 @@ func fetchUsersAndGroups(ctx context.Context, params fetchUsersAndGroupsParams) 
 		defaultRole = params.DefaultRole
 	)
 
-	userRoles := make(map[string]codersdk.WorkspaceRole, len(users))
+	userRoles = make(map[string]codersdk.WorkspaceRole, len(users))
 	if len(users) > 0 {
 		orgMembers, err := client.OrganizationMembers(ctx, org.ID)
 		if err != nil {
@@ -283,7 +382,7 @@ func fetchUsersAndGroups(ctx context.Context, params fetchUsersAndGroupsParams) 
 		}
 	}
 
-	groupRoles := make(map[string]codersdk.WorkspaceRole)
+	groupRoles = make(map[string]codersdk.WorkspaceRole)
 	if len(groups) > 0 {
 		orgGroups, err := client.Groups(ctx, codersdk.GroupArguments{
 			Organization: org.ID.String(),
@@ -300,9 +399,9 @@ func fetchUsersAndGroups(ctx context.Context, params fetchUsersAndGroupsParams) 
 			}
 
 			var orgGroup *codersdk.Group
-			for _, group := range orgGroups {
-				if group.Name == groupName {
-					orgGroup = &group
+			for _, og := range orgGroups {
+				if og.Name == groupName {
+					orgGroup = &og
 					break
 				}
 			}
