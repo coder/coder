@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import type {
 	ProvisionerJobLog,
 	WorkspaceAgent,
@@ -28,7 +28,6 @@ import {
 } from "modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import {
-	type CSSProperties,
 	type FC,
 	type HTMLProps,
 	useLayoutEffect,
@@ -36,17 +35,11 @@ import {
 	useState,
 } from "react";
 import { Link } from "react-router";
+import { cn } from "utils/cn";
 import { displayWorkspaceBuildDuration } from "utils/workspace";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 
 export const LOGS_TAB_KEY = "logs";
-
-const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
-	return [...logs].sort(
-		(a, b) =>
-			new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-	);
-};
 
 interface WorkspaceBuildPageViewProps {
 	logs: ProvisionerJobLog[] | undefined;
@@ -63,7 +56,6 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	builds,
 	activeBuildNumber,
 }) => {
-	const theme = useTheme();
 	const tabState = useSearchParamsKey({
 		key: LOGS_TAB_KEY,
 		defaultValue: "build",
@@ -72,10 +64,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	if (buildError) {
 		return (
 			<Margins>
-				<ErrorAlert
-					error={buildError}
-					css={{ marginTop: 16, marginBottom: 16 }}
-				/>
+				<ErrorAlert error={buildError} className="my-4" />
 			</Margins>
 		);
 	}
@@ -128,24 +117,12 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 					<StatsItem
 						css={styles.statsItem}
 						label="Action"
-						value={
-							<span css={{ textTransform: "capitalize" }}>
-								{build.transition}
-							</span>
-						}
+						value={<span className="uppercase">{build.transition}</span>}
 					/>
 				</Stats>
 			</FullWidthPageHeader>
 
-			<div
-				css={{
-					display: "flex",
-					alignItems: "start",
-					overflow: "hidden",
-					flex: 1,
-					flexBasis: 0,
-				}}
-			>
+			<div className="flex items-start overflow-hidden grow basis-0">
 				<Sidebar>
 					<SidebarCaption>Builds</SidebarCaption>
 					{!builds &&
@@ -188,23 +165,12 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 					{build.transition === "delete" && build.job.status === "failed" && (
 						<Alert
 							severity="error"
-							css={{
-								borderRadius: 0,
-								border: 0,
-								background: theme.roles.error.background,
-								borderBottom: `1px solid ${theme.palette.divider}`,
-							}}
+							className="rounded-none border-0 border-b border-solid border-border"
 						>
 							<div>
 								The workspace may have failed to delete due to a Terraform state
 								mismatch. A template admin may run{" "}
-								<code
-									css={{
-										display: "inline-block",
-										width: "fit-content",
-										fontWeight: 600,
-									}}
-								>
+								<code className="font-semibold w-fit inline-block">
 									{`coder rm ${`${build.workspace_owner_name}/${build.workspace_name}`} --orphan`}
 								</code>{" "}
 								to delete the workspace skipping resource destruction.
@@ -215,12 +181,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 					{build?.job?.logs_overflowed && (
 						<Alert
 							severity="warning"
-							css={{
-								borderRadius: 0,
-								border: 0,
-								background: theme.roles.warning.background,
-								borderBottom: `1px solid ${theme.palette.divider}`,
-							}}
+							className="rounded-none border-0 border-b border-solid border-border"
 						>
 							Provisioner logs exceeded the max size of 1MB. Will not continue
 							to write provisioner logs for workspace build.
@@ -239,41 +200,49 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	);
 };
 
-const ScrollArea: FC<HTMLProps<HTMLDivElement>> = (props) => {
-	// TODO: Use only CSS to set the height of the content.
-	// Note: On Safari, when content is rendered inside a flex container and needs
-	// to scroll, the parent container must have a height set. Achieving this may
-	// require significant refactoring of the layout components where we currently
-	// use height and min-height set to 100%.
-	// Issue: https://github.com/coder/coder/issues/9687
-	// Reference: https://stackoverflow.com/questions/43381836/height100-works-in-chrome-but-not-in-safari
+const ScrollArea: FC<HTMLProps<HTMLDivElement>> = ({
+	className,
+	style = {},
+	...delegatedProps
+}) => {
+	/**
+	 * @todo 2024-10-03 - Use only CSS to set the height of the content.
+	 *
+	 * On Safari, when content is rendered inside a flex container and needs to
+	 * scroll, the parent container must have a height set. Achieving this may
+	 * require significant refactoring of the layout components where we
+	 * currently use height and min-height set to 100%.
+	 *
+	 * @see {@link https://github.com/coder/coder/issues/9687}
+	 * @see {@link https://stackoverflow.com/questions/43381836/height100-works-in-chrome-but-not-in-safari}
+	 */
 	const contentRef = useRef<HTMLDivElement>(null);
-	const [height, setHeight] = useState<CSSProperties["height"]>("100%");
+	const [height, setHeight] = useState(0);
 	useLayoutEffect(() => {
 		const contentEl = contentRef.current;
 		if (!contentEl) {
 			return;
 		}
 
-		const resizeObserver = new ResizeObserver(() => {
+		const syncParentSize = () => {
 			const parentEl = contentEl.parentElement;
-			if (!parentEl) {
-				return;
+			if (parentEl) {
+				setHeight(parentEl.clientHeight);
 			}
-			setHeight(parentEl.clientHeight);
-		});
-		resizeObserver.observe(document.body);
-
-		return () => {
-			resizeObserver.disconnect();
 		};
+
+		syncParentSize();
+		const resizeObserver = new ResizeObserver(syncParentSize);
+		resizeObserver.observe(document.body);
+		return () => resizeObserver.disconnect();
 	}, []);
 
 	return (
 		<div
 			ref={contentRef}
-			css={{ height, overflowY: "auto", width: "100%" }}
-			{...props}
+			className={cn("overflow-y-auto w-full", className)}
+			style={{ ...style, height }}
+			{...delegatedProps}
 		/>
 	);
 };
@@ -297,8 +266,12 @@ const BuildLogsContent: FC<{
 					paddingTop: 16,
 				},
 			}}
-			logs={sortLogsByCreatedAt(logs)}
 			build={build}
+			logs={[...logs].sort((a, b) => {
+				return (
+					new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+				);
+			})}
 		/>
 	);
 };
