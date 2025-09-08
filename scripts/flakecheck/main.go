@@ -22,15 +22,30 @@ import (
 
 // Configurable flags
 var (
-	flagBase     = flag.String("base", "origin/main", "git ref to diff against (merge-base with HEAD)")
-	flagRepeat   = flag.Int("repeat", 10, "number of runs per test selector")
-	flagP        = flag.Int("p", 4, "-p package test concurrency")
-	flagParallel = flag.Int("parallel", 4, "-parallel test concurrency for t.Parallel")
-	flagTimeout  = flag.Duration("timeout", 5*time.Minute, "per-run go test timeout")
-	flagWork     = flag.Int("concurrency", 4, "number of selectors to run concurrently")
+	flagBase      = flag.String("base", "origin/main", "git ref to diff against (merge-base with HEAD)")
+	flagRepeat    = flag.Int("repeat", 10, "number of runs per test selector")
+	flagP         = flag.Int("p", 4, "-p package test concurrency")
+	flagParallel  = flag.Int("parallel", 4, "-parallel test concurrency for t.Parallel")
+	flagTimeout   = flag.Duration("timeout", 5*time.Minute, "per-run go test timeout")
+	flagWork      = flag.Int("concurrency", 4, "number of selectors to run concurrently")
 )
 
+type exitErr struct {
+	code int
+	msg  string
+}
+
 func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			if ee, ok := r.(exitErr); ok {
+				_, _ = fmt.Fprintln(os.Stderr, ee.msg)
+				os.Exit(ee.code)
+			}
+			panic(r)
+		}
+	}()
+
 	flag.Parse()
 
 	changed, err := changedTestFiles(*flagBase)
@@ -38,7 +53,7 @@ func main() {
 		fatalf("detecting changed files: %v", err)
 	}
 	if len(changed) == 0 {
-		fmt.Println("No modified *_test.go files detected; nothing to run.")
+		_, _ = fmt.Println("No modified *_test.go files detected; nothing to run.")
 		return
 	}
 
@@ -52,7 +67,7 @@ func main() {
 		fatalf("enumerating selectors: %v", err)
 	}
 	if len(selectors) == 0 {
-		fmt.Println("No test selectors found in modified files.")
+		_, _ = fmt.Println("No test selectors found in modified files.")
 		return
 	}
 
@@ -79,14 +94,14 @@ func main() {
 
 	var out bytes.Buffer
 	if len(flakyOrBroken) == 0 {
-		fmt.Fprintf(&out, "No flakes or failures detected across %d modified selectors with %dx runs.\n", len(results), *flagRepeat)
+		_, _ = fmt.Fprintf(&out, "No flakes or failures detected across %d modified selectors with %dx runs.\n", len(results), *flagRepeat)
 	} else {
-		fmt.Fprintf(&out, "Detected flakes or failures (failures/total):\n\n")
+		_, _ = fmt.Fprintf(&out, "Detected flakes or failures (failures/total):\n\n")
 		for _, row := range flakyOrBroken {
-			fmt.Fprintf(&out, "- %s %s: %d/%d (%s)\n", row.Pkg, row.Selector, row.Fails, row.Total, row.State)
+			_, _ = fmt.Fprintf(&out, "- %s %s: %d/%d (%s)\n", row.Pkg, row.Selector, row.Fails, row.Total, row.State)
 		}
 	}
-	fmt.Print(out.String())
+	_, _ = fmt.Print(out.String())
 
 	// Exit non-zero if any failures (policy: fail on any flake)
 	for _, r := range results {
@@ -97,8 +112,8 @@ func main() {
 }
 
 func fatalf(format string, args ...any) {
-	fmt.Fprintf(os.Stderr, format+"\n", args...)
-	os.Exit(2)
+	msg := fmt.Sprintf(format, args...)
+	panic(exitErr{code: 2, msg: msg})
 }
 
 // changedTestFiles returns a list of modified *_test.go files between merge-base(base, HEAD) and HEAD.
