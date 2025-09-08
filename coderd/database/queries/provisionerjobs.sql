@@ -55,6 +55,15 @@ WHERE
 FOR UPDATE
 SKIP LOCKED;
 
+-- name: GetProvisionerJobByIDWithLock :one
+SELECT
+	*
+FROM
+	provisioner_jobs
+WHERE
+	id = $1
+FOR UPDATE;
+
 -- name: GetProvisionerJobsByIDs :many
 SELECT
 	*
