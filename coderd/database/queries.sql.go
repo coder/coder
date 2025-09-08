@@ -8875,6 +8875,47 @@ func (q *sqlQuerier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid
 	return i, err
 }
 
+const getProvisionerJobByIDWithLock = `-- name: GetProvisionerJobByIDWithLock :one
+SELECT
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
+FROM
+	provisioner_jobs
+WHERE
+	id = $1
+FOR UPDATE
+`
+
+// Gets a provisioner job by ID with exclusive lock.
+// Blocks until the row is available for update.
+func (q *sqlQuerier) GetProvisionerJobByIDWithLock(ctx context.Context, id uuid.UUID) (ProvisionerJob, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerJobByIDWithLock, id)
+	var i ProvisionerJob
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StartedAt,
+		&i.CanceledAt,
+		&i.CompletedAt,
+		&i.Error,
+		&i.OrganizationID,
+		&i.InitiatorID,
+		&i.Provisioner,
+		&i.StorageMethod,
+		&i.Type,
+		&i.Input,
+		&i.WorkerID,
+		&i.FileID,
+		&i.Tags,
+		&i.ErrorCode,
+		&i.TraceMetadata,
+		&i.JobStatus,
+		&i.LogsLength,
+		&i.LogsOverflowed,
+	)
+	return i, err
+}
+
 const getProvisionerJobTimingsByJobID = `-- name: GetProvisionerJobTimingsByJobID :many
 SELECT job_id, started_at, ended_at, stage, source, action, resource FROM provisioner_job_timings
 WHERE job_id = $1
