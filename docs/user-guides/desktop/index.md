@@ -18,7 +18,7 @@ Coder Desktop provides seamless access to your remote workspaces through a nativ
 
 ## How It Works
 
-**Coder Connect** the primmary component of Coder Desktop creates a secure tunnel to your Coder deployment, allowing you to:
+**Coder Connect** the primary component of Coder Desktop creates a secure tunnel to your Coder deployment, allowing you to:
 
 - **Access workspaces directly**: Connect via `workspace-name.coder` hostnames
 - **Use any application**: SSH clients, browsers, IDEs work seamlessly
