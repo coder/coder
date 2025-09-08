@@ -27,7 +27,7 @@ Each task runs inside its own Coder workspace for isolation purposes. Agents lik
 
 ![High-Level Architecture](../images/guides/ai-agents/architecture-high-level.png)
 
-Coder's [custom-built modules for agents](https://registry.coder.com/modules?search=tag%3Atasks) will pre-install the agent alongside [AgentAPI](https://github.com/coder/agentapi). AgentAPI is an open source project developed by Coder which improves status reporting and the Chat UI, regardless of which agent you use.
+Coder's [pre-built modules for agents](https://registry.coder.com/modules?search=tag%3Atasks) will pre-install the agent alongside [AgentAPI](https://github.com/coder/agentapi). AgentAPI is an open source project developed by Coder which improves status reporting and the Chat UI, regardless of which agent you use.
 
 ## Getting Started with Tasks
 
