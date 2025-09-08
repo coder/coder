@@ -272,7 +272,7 @@ const BuildLogsContent: FC<{
 			// logs header class adds extra spacing to the first log header to
 			// prevent it from being too close to the tabs
 			className="border-none [&_.logs-header:first-of-type]:pt-4"
-			css={{ "--log-line-side-padding": `${TAB_PADDING_X}px` }}
+			style={{ "--log-line-side-padding": `${TAB_PADDING_X}px` }}
 			build={build}
 			logs={[...logs].sort((a, b) => {
 				return (
