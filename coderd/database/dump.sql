@@ -2861,6 +2861,10 @@ ALTER TABLE ONLY workspace_resources
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 
+CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
+
+COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
+
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
@@ -2948,6 +2952,10 @@ CREATE UNIQUE INDEX organizations_single_default_org ON organizations USING btre
 CREATE INDEX provisioner_job_logs_id_job_id_idx ON provisioner_job_logs USING btree (job_id, id);
 
 CREATE INDEX provisioner_jobs_started_at_idx ON provisioner_jobs USING btree (started_at) WHERE (started_at IS NULL);
+
+CREATE INDEX provisioner_jobs_worker_id_organization_id_completed_at_idx ON provisioner_jobs USING btree (worker_id, organization_id, completed_at DESC);
+
+COMMENT ON INDEX provisioner_jobs_worker_id_organization_id_completed_at_idx IS 'Support index for finding the latest completed jobs for a worker (and organization), nulls first so that active jobs have priority; targets: GetProvisionerDaemonsWithStatusByOrganization';
 
 CREATE UNIQUE INDEX provisioner_keys_organization_id_name_idx ON provisioner_keys USING btree (organization_id, lower((name)::text));
 
