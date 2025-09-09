@@ -143,9 +143,11 @@ type TransformationHandshake = Readonly<{
 	transform: TransformCallback<unknown>;
 }>;
 
+// All properties in this type are mutable on purpose
 type TransformationEntry = {
-	readonly unsubscribe: () => void;
+	unsubscribe: () => void;
 	cachedTransformation: unknown;
+	lastUpdateSource: "mount" | "rerender" | "newSubscription";
 };
 
 /**
@@ -159,9 +161,9 @@ type TransformationEntry = {
 class ReactTimeSync {
 	static readonly #stalenessThresholdMs = 250;
 
-	// Need to figure out the best way to remodel the state so that when you
-	// invalidate a transformation on mount, that just "pre-seeds" the cache
-	// with the initial transformation, instead of doing nothing
+	// Just need to update subscribeToTransformations to account for the entry
+	// source property (and remove redundant computations), and the initial
+	// implementation should be good to go
 	#fixMe = undefined;
 
 	// Each string is a globally-unique ID that identifies a specific React
@@ -248,23 +250,11 @@ class ReactTimeSync {
 			latestSyncState = this.#timeSync.getStateSnapshot();
 		}
 
-		const newEntry: TransformationEntry = {
+		this.#entries.set(componentId, {
+			lastUpdateSource: "newSubscription",
 			unsubscribe: unsubscribeFromRootSync,
-			/**
-			 * @todo 2025-08-29 - There is one unfortunate behavior with the
-			 * current subscription logic. Because of how React lifecycles work,
-			 * each new component instance needs to call the transform callback
-			 * twice on setup. You need to call it once from the render, and
-			 * again from the subscribe method.
-			 *
-			 * Trying to fix this got really nasty, and caused a bunch of
-			 * chicken-and-the-egg problems. Luckily, most transformations
-			 * should be super cheap, which should buy us some time to get this
-			 * fixed.
-			 */
 			cachedTransformation: transform(latestSyncState),
-		};
-		this.#entries.set(componentId, newEntry);
+		});
 
 		return () => {
 			unsubscribeFromRootSync();
@@ -277,8 +267,17 @@ class ReactTimeSync {
 			return;
 		}
 
+		// If we're invalidating the transformation before a subscription has
+		// been set up, then we almost definitely need to pre-seed the class
+		// with data. We want to avoid redundant transformations, when we don't
+		// know in advance how expensive transformations can get
 		const entry = this.#entries.get(componentId);
 		if (entry === undefined) {
+			this.#entries.set(componentId, {
+				lastUpdateSource: "mount",
+				unsubscribe: noOp,
+				cachedTransformation: newValue,
+			});
 			return;
 		}
 
