@@ -358,11 +358,11 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: "update usage events",
 		},
 	},
-	"aibridge_session": {
+	"aibridge_interception": {
 		Actions: map[Action]ActionDefinition{
-			ActionRead:   "read aibridge sessions & related records",
-			ActionUpdate: "update aibridge sessions & related records",
-			ActionCreate: "create aibridge sessions & related records",
+			ActionRead:   "read aibridge interceptionss & related records",
+			ActionUpdate: "update aibridge interceptionss & related records",
+			ActionCreate: "create aibridge interceptionss & related records",
 		},
 	},
 }

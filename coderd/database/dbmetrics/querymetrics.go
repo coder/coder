@@ -579,10 +579,10 @@ func (m queryMetricsStore) FindMatchingPresetID(ctx context.Context, arg databas
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAIBridgeSessionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeSession, error) {
+func (m queryMetricsStore) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetAIBridgeSessionByID(ctx, id)
-	m.queryLatencies.WithLabelValues("GetAIBridgeSessionByID").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetAIBridgeInterceptionByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAIBridgeInterceptionByID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -2168,10 +2168,10 @@ func (m queryMetricsStore) GetWorkspacesEligibleForTransition(ctx context.Contex
 	return workspaces, err
 }
 
-func (m queryMetricsStore) InsertAIBridgeSession(ctx context.Context, arg database.InsertAIBridgeSessionParams) (database.AIBridgeSession, error) {
+func (m queryMetricsStore) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
 	start := time.Now()
-	r0, r1 := m.s.InsertAIBridgeSession(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertAIBridgeSession").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.InsertAIBridgeInterception(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIBridgeInterception").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

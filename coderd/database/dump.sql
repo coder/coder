@@ -846,7 +846,7 @@ BEGIN
 END;
 $$;
 
-CREATE TABLE aibridge_sessions (
+CREATE TABLE aibridge_interceptions (
     id uuid NOT NULL,
     initiator_id uuid NOT NULL,
     provider text NOT NULL,
@@ -856,8 +856,8 @@ CREATE TABLE aibridge_sessions (
 
 CREATE TABLE aibridge_token_usages (
     id uuid NOT NULL,
-    session_id uuid NOT NULL,
-    provider_session_id text NOT NULL,
+    interception_id uuid NOT NULL,
+    provider_response_id text NOT NULL,
     input_tokens bigint NOT NULL,
     output_tokens bigint NOT NULL,
     metadata jsonb,
@@ -866,8 +866,8 @@ CREATE TABLE aibridge_token_usages (
 
 CREATE TABLE aibridge_tool_usages (
     id uuid NOT NULL,
-    session_id uuid NOT NULL,
-    provider_session_id text NOT NULL,
+    interception_id uuid NOT NULL,
+    provider_response_id text NOT NULL,
     server_url text,
     tool text NOT NULL,
     input text NOT NULL,
@@ -878,8 +878,8 @@ CREATE TABLE aibridge_tool_usages (
 
 CREATE TABLE aibridge_user_prompts (
     id uuid NOT NULL,
-    session_id uuid NOT NULL,
-    provider_session_id text NOT NULL,
+    interception_id uuid NOT NULL,
+    provider_response_id text NOT NULL,
     prompt text NOT NULL,
     metadata jsonb,
     created_at timestamp with time zone NOT NULL
@@ -2612,8 +2612,8 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY aibridge_sessions
-    ADD CONSTRAINT aibridge_sessions_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY aibridge_interceptions
+    ADD CONSTRAINT aibridge_interceptions_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY aibridge_token_usages
     ADD CONSTRAINT aibridge_token_usages_pkey PRIMARY KEY (id);
@@ -2920,19 +2920,19 @@ CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (cr
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
 
-CREATE INDEX idx_aibridge_sessions_initiator_id ON aibridge_sessions USING btree (initiator_id);
+CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions USING btree (initiator_id);
 
-CREATE INDEX idx_aibridge_token_usages_provider_session_id ON aibridge_token_usages USING btree (provider_session_id);
+CREATE INDEX idx_aibridge_token_usages_interception_id ON aibridge_token_usages USING btree (interception_id);
 
-CREATE INDEX idx_aibridge_token_usages_session_id ON aibridge_token_usages USING btree (session_id);
+CREATE INDEX idx_aibridge_token_usages_provider_response_id ON aibridge_token_usages USING btree (provider_response_id);
 
-CREATE INDEX idx_aibridge_tool_usages_session_id ON aibridge_tool_usages USING btree (session_id);
+CREATE INDEX idx_aibridge_tool_usages_interception_id ON aibridge_tool_usages USING btree (interception_id);
 
-CREATE INDEX idx_aibridge_tool_usagesprovider_session_id ON aibridge_tool_usages USING btree (provider_session_id);
+CREATE INDEX idx_aibridge_tool_usagesprovider_response_id ON aibridge_tool_usages USING btree (provider_response_id);
 
-CREATE INDEX idx_aibridge_user_prompts_provider_session_id ON aibridge_user_prompts USING btree (provider_session_id);
+CREATE INDEX idx_aibridge_user_prompts_interception_id ON aibridge_user_prompts USING btree (interception_id);
 
-CREATE INDEX idx_aibridge_user_prompts_session_id ON aibridge_user_prompts USING btree (session_id);
+CREATE INDEX idx_aibridge_user_prompts_provider_response_id ON aibridge_user_prompts USING btree (provider_response_id);
 
 CREATE UNIQUE INDEX idx_api_key_name ON api_keys USING btree (user_id, token_name) WHERE (login_type = 'token'::login_type);
 
@@ -3178,17 +3178,17 @@ COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'U
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
 
-ALTER TABLE ONLY aibridge_sessions
-    ADD CONSTRAINT aibridge_sessions_initiator_id_fkey FOREIGN KEY (initiator_id) REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY aibridge_interceptions
+    ADD CONSTRAINT aibridge_interceptions_initiator_id_fkey FOREIGN KEY (initiator_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY aibridge_token_usages
-    ADD CONSTRAINT aibridge_token_usages_session_id_fkey FOREIGN KEY (session_id) REFERENCES aibridge_sessions(id) ON DELETE CASCADE;
+    ADD CONSTRAINT aibridge_token_usages_interception_id_fkey FOREIGN KEY (interception_id) REFERENCES aibridge_interceptions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY aibridge_tool_usages
-    ADD CONSTRAINT aibridge_tool_usages_session_id_fkey FOREIGN KEY (session_id) REFERENCES aibridge_sessions(id) ON DELETE CASCADE;
+    ADD CONSTRAINT aibridge_tool_usages_interception_id_fkey FOREIGN KEY (interception_id) REFERENCES aibridge_interceptions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY aibridge_user_prompts
-    ADD CONSTRAINT aibridge_user_prompts_session_id_fkey FOREIGN KEY (session_id) REFERENCES aibridge_sessions(id) ON DELETE CASCADE;
+    ADD CONSTRAINT aibridge_user_prompts_interception_id_fkey FOREIGN KEY (interception_id) REFERENCES aibridge_interceptions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

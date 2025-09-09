@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS aibridge_sessions (
+CREATE TABLE IF NOT EXISTS aibridge_interceptions (
     id UUID PRIMARY KEY,
     initiator_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     provider TEXT NOT NULL,
@@ -6,39 +6,39 @@ CREATE TABLE IF NOT EXISTS aibridge_sessions (
     started_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
-CREATE INDEX idx_aibridge_sessions_initiator_id ON aibridge_sessions (initiator_id);
+CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions (initiator_id);
 
 CREATE TABLE IF NOT EXISTS aibridge_token_usages (
     id UUID PRIMARY KEY,
-    session_id UUID NOT NULL REFERENCES aibridge_sessions (id) ON DELETE CASCADE,
-    provider_session_id TEXT NOT NULL, -- The ID for the session in which the tokens were used, produced by the provider.
+    interception_id UUID NOT NULL REFERENCES aibridge_interceptions (id) ON DELETE CASCADE,
+    provider_response_id TEXT NOT NULL, -- The ID for the response in which the tokens were used, produced by the provider.
     input_tokens BIGINT NOT NULL,
     output_tokens BIGINT NOT NULL,
     metadata JSONB DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
-CREATE INDEX idx_aibridge_token_usages_session_id ON aibridge_token_usages (session_id);
+CREATE INDEX idx_aibridge_token_usages_interception_id ON aibridge_token_usages (interception_id);
 
-CREATE INDEX idx_aibridge_token_usages_provider_session_id ON aibridge_token_usages (provider_session_id);
+CREATE INDEX idx_aibridge_token_usages_provider_response_id ON aibridge_token_usages (provider_response_id);
 
 CREATE TABLE IF NOT EXISTS aibridge_user_prompts (
     id UUID PRIMARY KEY,
-    session_id UUID NOT NULL REFERENCES aibridge_sessions (id) ON DELETE CASCADE,
-    provider_session_id TEXT NOT NULL, -- The ID for the session in which the tokens were used, produced by the provider.
+    interception_id UUID NOT NULL REFERENCES aibridge_interceptions (id) ON DELETE CASCADE,
+    provider_response_id TEXT NOT NULL, -- The ID for the response in which the tokens were used, produced by the provider.
     prompt TEXT NOT NULL,
     metadata JSONB DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
-CREATE INDEX idx_aibridge_user_prompts_session_id ON aibridge_user_prompts (session_id);
+CREATE INDEX idx_aibridge_user_prompts_interception_id ON aibridge_user_prompts (interception_id);
 
-CREATE INDEX idx_aibridge_user_prompts_provider_session_id ON aibridge_user_prompts (provider_session_id);
+CREATE INDEX idx_aibridge_user_prompts_provider_response_id ON aibridge_user_prompts (provider_response_id);
 
 CREATE TABLE IF NOT EXISTS aibridge_tool_usages (
     id UUID PRIMARY KEY,
-    session_id UUID NOT NULL REFERENCES aibridge_sessions (id) ON DELETE CASCADE,
-    provider_session_id TEXT NOT NULL, -- The ID for the session in which the tokens were used, produced by the provider.
+    interception_id UUID NOT NULL REFERENCES aibridge_interceptions (id) ON DELETE CASCADE,
+    provider_response_id TEXT NOT NULL, -- The ID for the response in which the tokens were used, produced by the provider.
     server_url TEXT NULL, -- The name of the MCP server against which this tool was invoked. May be NULL, in which case the tool was defined by the client, not injected.
     tool TEXT NOT NULL,
     input TEXT NOT NULL,
@@ -47,6 +47,6 @@ CREATE TABLE IF NOT EXISTS aibridge_tool_usages (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
-CREATE INDEX idx_aibridge_tool_usages_session_id ON aibridge_tool_usages (session_id);
+CREATE INDEX idx_aibridge_tool_usages_interception_id ON aibridge_tool_usages (interception_id);
 
-CREATE INDEX idx_aibridge_tool_usagesprovider_session_id ON aibridge_tool_usages (provider_session_id);
+CREATE INDEX idx_aibridge_tool_usagesprovider_response_id ON aibridge_tool_usages (provider_response_id);

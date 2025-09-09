@@ -22,9 +22,9 @@ type recorderTranslation struct {
 	client proto.DRPCRecorderClient
 }
 
-func (t *recorderTranslation) RecordSession(ctx context.Context, req *aibridge.SessionRecord) error {
-	_, err := t.client.RecordSession(ctx, &proto.RecordSessionRequest{
-		SessionId:   req.SessionID,
+func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibridge.InterceptionRecord) error {
+	_, err := t.client.RecordInterception(ctx, &proto.RecordInterceptionRequest{
+		Id:          req.ID,
 		InitiatorId: req.InitiatorID,
 		Provider:    req.Provider,
 		Model:       req.Model,
@@ -36,23 +36,23 @@ func (t *recorderTranslation) RecordSession(ctx context.Context, req *aibridge.S
 
 func (t *recorderTranslation) RecordPromptUsage(ctx context.Context, req *aibridge.PromptUsageRecord) error {
 	_, err := t.client.RecordPromptUsage(ctx, &proto.RecordPromptUsageRequest{
-		SessionId: req.SessionID,
-		MsgId:     req.MsgID,
-		Prompt:    req.Prompt,
-		Metadata:  marshalForProto(req.Metadata),
-		CreatedAt: timestamppb.New(req.CreatedAt),
+		InterceptionId: req.InterceptionID,
+		MsgId:          req.MsgID,
+		Prompt:         req.Prompt,
+		Metadata:       marshalForProto(req.Metadata),
+		CreatedAt:      timestamppb.New(req.CreatedAt),
 	})
 	return err
 }
 
 func (t *recorderTranslation) RecordTokenUsage(ctx context.Context, req *aibridge.TokenUsageRecord) error {
 	_, err := t.client.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
-		SessionId:    req.SessionID,
-		MsgId:        req.MsgID,
-		InputTokens:  req.Input,
-		OutputTokens: req.Output,
-		Metadata:     marshalForProto(req.Metadata),
-		CreatedAt:    timestamppb.New(req.CreatedAt),
+		InterceptionId: req.InterceptionID,
+		MsgId:          req.MsgID,
+		InputTokens:    req.Input,
+		OutputTokens:   req.Output,
+		Metadata:       marshalForProto(req.Metadata),
+		CreatedAt:      timestamppb.New(req.CreatedAt),
 	})
 	return err
 }
@@ -64,14 +64,14 @@ func (t *recorderTranslation) RecordToolUsage(ctx context.Context, req *aibridge
 	}
 
 	_, err = t.client.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
-		SessionId: req.SessionID,
-		MsgId:     req.MsgID,
-		ServerUrl: req.ServerURL,
-		Tool:      req.Tool,
-		Input:     string(serialized),
-		Injected:  req.Injected,
-		Metadata:  marshalForProto(req.Metadata),
-		CreatedAt: timestamppb.New(req.CreatedAt),
+		InterceptionId: req.InterceptionID,
+		MsgId:          req.MsgID,
+		ServerUrl:      req.ServerURL,
+		Tool:           req.Tool,
+		Input:          string(serialized),
+		Injected:       req.Injected,
+		Metadata:       marshalForProto(req.Metadata),
+		CreatedAt:      timestamppb.New(req.CreatedAt),
 	})
 	return err
 }

@@ -889,9 +889,9 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "AIBridgeSessions",
+			Name:     "AIBridgeInterceptions",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
-			Resource: rbac.ResourceAibridgeSession,
+			Resource: rbac.ResourceAibridgeInterception,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {},
 				false: {

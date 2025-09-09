@@ -26,7 +26,7 @@ var _ aibridged.DRPCServer = &Server{}
 
 type store interface {
 	// Recorder-related queries.
-	InsertAIBridgeSession(ctx context.Context, arg database.InsertAIBridgeSessionParams) (database.AIBridgeSession, error)
+	InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error)
 	InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) error
 	InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) error
 	InsertAIBridgeToolUsage(ctx context.Context, arg database.InsertAIBridgeToolUsageParams) error
@@ -56,50 +56,50 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 	}, nil
 }
 
-func (s *Server) RecordSession(ctx context.Context, in *proto.RecordSessionRequest) (*proto.RecordSessionResponse, error) {
+func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
-	sessID, err := uuid.Parse(in.GetSessionId())
+	intcID, err := uuid.Parse(in.GetId())
 	if err != nil {
-		return nil, xerrors.Errorf("invalid session ID %q: %w", in.GetSessionId(), err)
+		return nil, xerrors.Errorf("invalid interception ID %q: %w", in.GetId(), err)
 	}
 	initID, err := uuid.Parse(in.GetInitiatorId())
 	if err != nil {
 		return nil, xerrors.Errorf("invalid initiator ID %q: %w", in.GetInitiatorId(), err)
 	}
 
-	_, err = s.store.InsertAIBridgeSession(ctx, database.InsertAIBridgeSessionParams{
-		ID:          sessID,
+	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
+		ID:          intcID,
 		InitiatorID: initID,
 		Provider:    in.Provider,
 		Model:       in.Model,
 		StartedAt:   in.StartedAt.AsTime(),
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("start session: %w", err)
+		return nil, xerrors.Errorf("start interception: %w", err)
 	}
 
-	return &proto.RecordSessionResponse{}, nil
+	return &proto.RecordInterceptionResponse{}, nil
 }
 
 func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsageRequest) (*proto.RecordTokenUsageResponse, error) {
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
-	sessID, err := uuid.Parse(in.GetSessionId())
+	intcID, err := uuid.Parse(in.GetInterceptionId())
 	if err != nil {
-		return nil, xerrors.Errorf("failed to parse session_id %q: %w", in.GetSessionId(), err)
+		return nil, xerrors.Errorf("failed to parse interception_id %q: %w", in.GetInterceptionId(), err)
 	}
 
 	err = s.store.InsertAIBridgeTokenUsage(ctx, database.InsertAIBridgeTokenUsageParams{
-		ID:                uuid.New(),
-		SessionID:         sessID,
-		ProviderSessionID: in.GetMsgId(),
-		InputTokens:       in.GetInputTokens(),
-		OutputTokens:      in.GetOutputTokens(),
-		Metadata:          s.marshalMetadata(in.GetMetadata()),
-		CreatedAt:         in.GetCreatedAt().AsTime(),
+		ID:                 uuid.New(),
+		InterceptionID:     intcID,
+		ProviderResponseID: in.GetMsgId(),
+		InputTokens:        in.GetInputTokens(),
+		OutputTokens:       in.GetOutputTokens(),
+		Metadata:           s.marshalMetadata(in.GetMetadata()),
+		CreatedAt:          in.GetCreatedAt().AsTime(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert token usage: %w", err)
@@ -111,18 +111,18 @@ func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUs
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
-	sessID, err := uuid.Parse(in.GetSessionId())
+	intcID, err := uuid.Parse(in.GetInterceptionId())
 	if err != nil {
-		return nil, xerrors.Errorf("failed to parse session_id %q: %w", in.GetSessionId(), err)
+		return nil, xerrors.Errorf("failed to parse interception_id %q: %w", in.GetInterceptionId(), err)
 	}
 
 	err = s.store.InsertAIBridgeUserPrompt(ctx, database.InsertAIBridgeUserPromptParams{
-		ID:                uuid.New(),
-		SessionID:         sessID,
-		ProviderSessionID: in.GetMsgId(),
-		Prompt:            in.GetPrompt(),
-		Metadata:          s.marshalMetadata(in.GetMetadata()),
-		CreatedAt:         in.GetCreatedAt().AsTime(),
+		ID:                 uuid.New(),
+		InterceptionID:     intcID,
+		ProviderResponseID: in.GetMsgId(),
+		Prompt:             in.GetPrompt(),
+		Metadata:           s.marshalMetadata(in.GetMetadata()),
+		CreatedAt:          in.GetCreatedAt().AsTime(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert user prompt: %w", err)
@@ -134,21 +134,21 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
-	sessID, err := uuid.Parse(in.GetSessionId())
+	intcID, err := uuid.Parse(in.GetInterceptionId())
 	if err != nil {
-		return nil, xerrors.Errorf("failed to parse session_id %q: %w", in.GetSessionId(), err)
+		return nil, xerrors.Errorf("failed to parse interception_id %q: %w", in.GetInterceptionId(), err)
 	}
 
 	err = s.store.InsertAIBridgeToolUsage(ctx, database.InsertAIBridgeToolUsageParams{
-		ID:                uuid.New(),
-		SessionID:         sessID,
-		ProviderSessionID: in.GetMsgId(),
-		ServerUrl:         sql.NullString{String: in.GetServerUrl(), Valid: in.ServerUrl != nil},
-		Tool:              in.GetTool(),
-		Input:             in.GetInput(),
-		Injected:          in.GetInjected(),
-		Metadata:          s.marshalMetadata(in.GetMetadata()),
-		CreatedAt:         in.GetCreatedAt().AsTime(),
+		ID:                 uuid.New(),
+		InterceptionID:     intcID,
+		ProviderResponseID: in.GetMsgId(),
+		ServerUrl:          sql.NullString{String: in.GetServerUrl(), Valid: in.ServerUrl != nil},
+		Tool:               in.GetTool(),
+		Input:              in.GetInput(),
+		Injected:           in.GetInjected(),
+		Metadata:           s.marshalMetadata(in.GetMetadata()),
+		CreatedAt:          in.GetCreatedAt().AsTime(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert tool usage: %w", err)

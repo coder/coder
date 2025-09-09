@@ -38,7 +38,7 @@ func (drpcEncoding_File_aibridged_proto_aibridged_proto) JSONUnmarshal(buf []byt
 type DRPCRecorderClient interface {
 	DRPCConn() drpc.Conn
 
-	RecordSession(ctx context.Context, in *RecordSessionRequest) (*RecordSessionResponse, error)
+	RecordInterception(ctx context.Context, in *RecordInterceptionRequest) (*RecordInterceptionResponse, error)
 	RecordTokenUsage(ctx context.Context, in *RecordTokenUsageRequest) (*RecordTokenUsageResponse, error)
 	RecordPromptUsage(ctx context.Context, in *RecordPromptUsageRequest) (*RecordPromptUsageResponse, error)
 	RecordToolUsage(ctx context.Context, in *RecordToolUsageRequest) (*RecordToolUsageResponse, error)
@@ -54,9 +54,9 @@ func NewDRPCRecorderClient(cc drpc.Conn) DRPCRecorderClient {
 
 func (c *drpcRecorderClient) DRPCConn() drpc.Conn { return c.cc }
 
-func (c *drpcRecorderClient) RecordSession(ctx context.Context, in *RecordSessionRequest) (*RecordSessionResponse, error) {
-	out := new(RecordSessionResponse)
-	err := c.cc.Invoke(ctx, "/proto.Recorder/RecordSession", drpcEncoding_File_aibridged_proto_aibridged_proto{}, in, out)
+func (c *drpcRecorderClient) RecordInterception(ctx context.Context, in *RecordInterceptionRequest) (*RecordInterceptionResponse, error) {
+	out := new(RecordInterceptionResponse)
+	err := c.cc.Invoke(ctx, "/proto.Recorder/RecordInterception", drpcEncoding_File_aibridged_proto_aibridged_proto{}, in, out)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func (c *drpcRecorderClient) RecordToolUsage(ctx context.Context, in *RecordTool
 }
 
 type DRPCRecorderServer interface {
-	RecordSession(context.Context, *RecordSessionRequest) (*RecordSessionResponse, error)
+	RecordInterception(context.Context, *RecordInterceptionRequest) (*RecordInterceptionResponse, error)
 	RecordTokenUsage(context.Context, *RecordTokenUsageRequest) (*RecordTokenUsageResponse, error)
 	RecordPromptUsage(context.Context, *RecordPromptUsageRequest) (*RecordPromptUsageResponse, error)
 	RecordToolUsage(context.Context, *RecordToolUsageRequest) (*RecordToolUsageResponse, error)
@@ -99,7 +99,7 @@ type DRPCRecorderServer interface {
 
 type DRPCRecorderUnimplementedServer struct{}
 
-func (s *DRPCRecorderUnimplementedServer) RecordSession(context.Context, *RecordSessionRequest) (*RecordSessionResponse, error) {
+func (s *DRPCRecorderUnimplementedServer) RecordInterception(context.Context, *RecordInterceptionRequest) (*RecordInterceptionResponse, error) {
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
@@ -122,14 +122,14 @@ func (DRPCRecorderDescription) NumMethods() int { return 4 }
 func (DRPCRecorderDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
 	case 0:
-		return "/proto.Recorder/RecordSession", drpcEncoding_File_aibridged_proto_aibridged_proto{},
+		return "/proto.Recorder/RecordInterception", drpcEncoding_File_aibridged_proto_aibridged_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCRecorderServer).
-					RecordSession(
+					RecordInterception(
 						ctx,
-						in1.(*RecordSessionRequest),
+						in1.(*RecordInterceptionRequest),
 					)
-			}, DRPCRecorderServer.RecordSession, true
+			}, DRPCRecorderServer.RecordInterception, true
 	case 1:
 		return "/proto.Recorder/RecordTokenUsage", drpcEncoding_File_aibridged_proto_aibridged_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
@@ -166,16 +166,16 @@ func DRPCRegisterRecorder(mux drpc.Mux, impl DRPCRecorderServer) error {
 	return mux.Register(impl, DRPCRecorderDescription{})
 }
 
-type DRPCRecorder_RecordSessionStream interface {
+type DRPCRecorder_RecordInterceptionStream interface {
 	drpc.Stream
-	SendAndClose(*RecordSessionResponse) error
+	SendAndClose(*RecordInterceptionResponse) error
 }
 
-type drpcRecorder_RecordSessionStream struct {
+type drpcRecorder_RecordInterceptionStream struct {
 	drpc.Stream
 }
 
-func (x *drpcRecorder_RecordSessionStream) SendAndClose(m *RecordSessionResponse) error {
+func (x *drpcRecorder_RecordInterceptionStream) SendAndClose(m *RecordInterceptionResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_aibridged_proto_aibridged_proto{}); err != nil {
 		return err
 	}

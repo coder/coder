@@ -6,8 +6,8 @@ package proto;
 import "google/protobuf/any.proto";
 import "google/protobuf/timestamp.proto";
 
-message RecordSessionRequest {
-  string session_id = 1; // UUID.
+message RecordInterceptionRequest {
+  string id = 1; // UUID.
   string initiator_id = 2; // UUID.
   string provider = 3;
   string model = 4;
@@ -15,10 +15,10 @@ message RecordSessionRequest {
   google.protobuf.Timestamp started_at = 6;
 }
 
-message RecordSessionResponse {}
+message RecordInterceptionResponse {}
 
 message RecordTokenUsageRequest {
-  string session_id = 1; // UUID.
+  string interception_id = 1; // UUID.
   string msg_id = 2; // ID provided by provider.
   int64 input_tokens = 3;
   int64 output_tokens = 4;
@@ -28,7 +28,7 @@ message RecordTokenUsageRequest {
 message RecordTokenUsageResponse {}
 
 message RecordPromptUsageRequest {
-  string session_id = 1; // UUID.
+  string interception_id = 1; // UUID.
   string msg_id = 2; // ID provided by provider.
   string prompt = 3;
   map<string, google.protobuf.Any> metadata = 4;
@@ -37,7 +37,7 @@ message RecordPromptUsageRequest {
 message RecordPromptUsageResponse {}
 
 message RecordToolUsageRequest {
-  string session_id = 1; // UUID.
+  string interception_id = 1; // UUID.
   string msg_id = 2; // ID provided by provider.
   optional string server_url = 3; // The URL of the MCP server.
   string tool = 4;
@@ -48,11 +48,11 @@ message RecordToolUsageRequest {
 }
 message RecordToolUsageResponse {}
 
-// Recorder is responsible for persisting AI usage records along with their concomitant session.
+// Recorder is responsible for persisting AI usage records along with their concomitant interception.
 service Recorder {
-  // RecordSession creates a new session to which all other sub-resources (token, prompt, tool uses)
-  // will be related.
-  rpc RecordSession(RecordSessionRequest) returns (RecordSessionResponse);
+  // RecordInterception creates a new interception record to which all other sub-resources
+  // (token, prompt, tool uses) will be related.
+  rpc RecordInterception(RecordInterceptionRequest) returns (RecordInterceptionResponse);
   rpc RecordTokenUsage(RecordTokenUsageRequest) returns (RecordTokenUsageResponse);
   rpc RecordPromptUsage(RecordPromptUsageRequest) returns (RecordPromptUsageResponse);
   rpc RecordToolUsage(RecordToolUsageRequest) returns (RecordToolUsageResponse);

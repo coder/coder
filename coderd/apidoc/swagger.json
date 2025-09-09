@@ -14402,7 +14402,7 @@
 			"type": "string",
 			"enum": [
 				"*",
-				"aibridge_session",
+				"aibridge_interception",
 				"api_key",
 				"assign_org_role",
 				"assign_role",
@@ -14445,7 +14445,7 @@
 			],
 			"x-enum-varnames": [
 				"ResourceWildcard",
-				"ResourceAibridgeSession",
+				"ResourceAibridgeInterception",
 				"ResourceApiKey",
 				"ResourceAssignOrgRole",
 				"ResourceAssignRole",

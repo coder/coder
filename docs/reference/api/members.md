@@ -183,7 +183,7 @@ Status Code **200**
 | `action`        | `start`                            |
 | `action`        | `stop`                             |
 | `resource_type` | `*`                                |
-| `resource_type` | `aibridge_session`                 |
+| `resource_type` | `aibridge_interception`            |
 | `resource_type` | `api_key`                          |
 | `resource_type` | `assign_org_role`                  |
 | `resource_type` | `assign_role`                      |
@@ -356,7 +356,7 @@ Status Code **200**
 | `action`        | `start`                            |
 | `action`        | `stop`                             |
 | `resource_type` | `*`                                |
-| `resource_type` | `aibridge_session`                 |
+| `resource_type` | `aibridge_interception`            |
 | `resource_type` | `api_key`                          |
 | `resource_type` | `assign_org_role`                  |
 | `resource_type` | `assign_role`                      |
@@ -529,7 +529,7 @@ Status Code **200**
 | `action`        | `start`                            |
 | `action`        | `stop`                             |
 | `resource_type` | `*`                                |
-| `resource_type` | `aibridge_session`                 |
+| `resource_type` | `aibridge_interception`            |
 | `resource_type` | `api_key`                          |
 | `resource_type` | `assign_org_role`                  |
 | `resource_type` | `assign_role`                      |
@@ -671,7 +671,7 @@ Status Code **200**
 | `action`        | `start`                            |
 | `action`        | `stop`                             |
 | `resource_type` | `*`                                |
-| `resource_type` | `aibridge_session`                 |
+| `resource_type` | `aibridge_interception`            |
 | `resource_type` | `api_key`                          |
 | `resource_type` | `assign_org_role`                  |
 | `resource_type` | `assign_role`                      |
@@ -1035,7 +1035,7 @@ Status Code **200**
 | `action`        | `start`                            |
 | `action`        | `stop`                             |
 | `resource_type` | `*`                                |
-| `resource_type` | `aibridge_session`                 |
+| `resource_type` | `aibridge_interception`            |
 | `resource_type` | `api_key`                          |
 | `resource_type` | `assign_org_role`                  |
 | `resource_type` | `assign_role`                      |

@@ -163,7 +163,7 @@ sql:
           ai_task_sidebar_app_id: AITaskSidebarAppID
           latest_build_has_ai_task: LatestBuildHasAITask
           cors_behavior: CorsBehavior
-          aibridge_session: AIBridgeSession
+          aibridge_interception: AIBridgeInterception
 rules:
   - name: do-not-use-public-schema-in-queries
     message: "do not use public schema in queries"
