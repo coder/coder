@@ -1,12 +1,12 @@
 # Get Started
 
-** Keywords: ** install, setup, get started, quickstart, templates, workspaces, tasks, users
+** Keywords: ** install, setup, get started, templates, workspaces, tasks, users
 
 Follow the steps in this guide to get your first Coder development environment running in under 10 minutes. This guide covers the essential concepts and walks you through creating your first workspace and running VS Code from it. You can also get Claude Code up and running in the background!
 
 ## What You'll Build
 
-In this quickstart, you'll:
+In this guide, you'll:
 - ✅ Install Coder server
 - ✅ Create a **template** (blueprint for dev environments)
 - ✅ Launch a **workspace** (your actual dev environment)
@@ -160,8 +160,8 @@ Templates define what's in your development environment. Let's start simple:
 3. Click **"Use template"** on **Docker Containers**
 
 4. **Name your template:**
-   - Name: `quickstart`
-   - Display name: `quickstart doc template`
+   - Name: `get-started`
+   - Display name: `get started doc template`
    - Description: `Provision Docker containers as Coder workspaces`
 
 ![Create template](../images/screenshots/create-template.png)

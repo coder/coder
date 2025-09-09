@@ -11,7 +11,7 @@ are several ways to extend/automate Coder:
 - [Coder SDK](https://pkg.go.dev/github.com/coder/coder/v2/codersdk)
 - [Agent API](../reference/agent-api/index.md)
 
-## Quickstart
+## Get Started
 
 Generate a token on your Coder deployment by visiting:
 

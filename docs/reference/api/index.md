@@ -2,7 +2,7 @@
 
 Get started with the Coder API:
 
-## Quickstart
+## Get Started
 
 Generate a token on your Coder deployment by visiting:
 
