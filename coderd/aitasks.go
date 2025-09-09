@@ -114,12 +114,14 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	taskName := req.Name
-	if err := codersdk.NameValid(taskName); taskName != "" && err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Unable to create a Task with the provided name.",
-			Detail:  err.Error(),
-		})
-		return
+	if taskName != "" {
+		if err := codersdk.NameValid(taskName); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Unable to create a Task with the provided name.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	if taskName == "" {
