@@ -203,25 +203,25 @@ Usage:
 - apiGroups: [""]
   resources: ["pods"]
   verbs:
-    - create
-    - delete
-    - deletecollection
-    - get
-    - list
-    - patch
-    - update
-    - watch
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups: [""]
   resources: ["persistentvolumeclaims"]
   verbs:
-    - create
-    - delete
-    - deletecollection
-    - get
-    - list
-    - patch
-    - update
-    - watch
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
 {{- end }}
 
 {{- define "libcoder.rbac.rules.deployments" -}}
@@ -239,3 +239,5 @@ Usage:
   - update
   - watch
 {{- end }}
+
+

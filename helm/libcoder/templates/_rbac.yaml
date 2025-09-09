@@ -12,12 +12,12 @@ metadata:
   namespace: {{ $ns }}
 rules:
   {{- if $nsPerms }}
-{{ include "libcoder.rbac.rules.basic" $top | nindent 2 }}
+{{ include "libcoder.rbac.rules.basic" $top | indent 2 }}
     {{- if $nsDeploy }}
-{{ include "libcoder.rbac.rules.deployments" $top | nindent 2 }}
+{{ include "libcoder.rbac.rules.deployments" $top | indent 2 }}
     {{- end }}
 
-  {{ with $nsExtra }}
+  {{- with $nsExtra }}
 {{ toYaml . | nindent 2 }}
   {{- end }}
   {{- end }}
