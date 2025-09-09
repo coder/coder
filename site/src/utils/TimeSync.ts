@@ -97,6 +97,29 @@ export type SubscriptionHandshake = Readonly<{
 }>;
 
 type InvalidateSnapshotOptions = Readonly<{
+	/**
+	 * The amount of time (in milliseconds) that you can tolerate stale dates.
+	 * If the time since the last subscription dispatch and the current time
+	 * does not exceed this value, the state will not be changed. Defaults to
+	 * `0` if not specified (always invalidates the date snapshot).
+	 *
+	 * By definition, date state becomes stale the moment that it gets stored in
+	 * a TimeSync instance (even if the execution context never changes, some
+	 * time needs to elapse between the date being created, and it being
+	 * stored). Specifying this value lets you protect against over-notifying
+	 * subscribers if you can afford to rely on having the default subscription
+	 * behavior handle the next dispatch.
+	 */
+	stalenessThresholdMs?: number;
+
+	/**
+	 * Lets you define how subscribers should be notified when an invalidation
+	 * happens. Defaults to "onChange" if not specified.
+	 *
+	 * `onChange` - Only notify subscribers if the data snapshot changed.
+	 * `never` - Never notify subscribers, regardless of any state changes.
+	 * `always` - Notify subscribers, even if the date didn't change.
+	 */
 	notificationBehavior?: "onChange" | "never" | "always";
 }>;
 
@@ -127,8 +150,11 @@ interface TimeSyncApi {
 
 	/**
 	 * Immediately tries to refresh the current date snapshot, regardless of
-	 * which refresh intervals have been specified.
+	 * which refresh intervals have been specified among subscribers.
 	 *
+	 * @throws {RangeError} If the provided interval for the
+	 * `stalenessThresholdMs` property is neither a positive integer nor
+	 * positive infinity.
 	 * @returns The date state post-invalidation (which might be the same as
 	 * before).
 	 */
@@ -167,6 +193,7 @@ export class TimeSync implements TimeSyncApi {
 	readonly #isFrozen: boolean;
 	#isDisposed: boolean;
 	#latestDateSnapshot: Date;
+	#hasPendingUpdates: boolean;
 
 	// Stores all refresh intervals actively associated with an onUpdate
 	// callback (along with their associated unsubscribe callbacks). "Duplicate"
@@ -203,6 +230,7 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		this.#isDisposed = false;
+		this.#hasPendingUpdates = false;
 		this.#isFrozen = isSnapshot;
 		this.#subscriptions = new Map();
 		this.#latestDateSnapshot = newReadonlyDate(initialDate);
@@ -253,9 +281,10 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		const updated = this.#updateDateSnapshot();
-		if (updated) {
+		if (updated || this.#hasPendingUpdates) {
 			this.#notifyAllSubscriptions();
 		}
+		this.#hasPendingUpdates = false;
 	};
 
 	#onFastestIntervalChange(): void {
@@ -279,6 +308,7 @@ export class TimeSync implements TimeSyncApi {
 			const updated = this.#updateDateSnapshot();
 			if (updated) {
 				this.#notifyAllSubscriptions();
+				this.#hasPendingUpdates = false;
 			}
 			this.#intervalId = setInterval(this.#onTick, fastest);
 			return;
@@ -319,7 +349,7 @@ export class TimeSync implements TimeSyncApi {
 	 * Attempts to update the current Date snapshot, no questions asked.
 	 * @returns {boolean} Indicates whether the state actually changed.
 	 */
-	#updateDateSnapshot(): boolean {
+	#updateDateSnapshot(stalenessThresholdMs = 0): boolean {
 		if (this.#isDisposed || this.#isFrozen) {
 			return false;
 		}
@@ -402,14 +432,30 @@ export class TimeSync implements TimeSyncApi {
 			return this.#latestDateSnapshot;
 		}
 
-		const { notificationBehavior = "onChange" } = options ?? {};
-		const changed = this.#updateDateSnapshot();
-		const shouldNotify =
-			(changed && notificationBehavior === "onChange") ||
-			notificationBehavior === "always";
-		if (shouldNotify) {
-			this.#notifyAllSubscriptions();
+		const { stalenessThresholdMs = 0, notificationBehavior = "onChange" } =
+			options ?? {};
+
+		const changed = this.#updateDateSnapshot(stalenessThresholdMs);
+		switch (notificationBehavior) {
+			case "always": {
+				this.#hasPendingUpdates = false;
+				this.#notifyAllSubscriptions();
+				break;
+			}
+			case "onChange": {
+				const prevPending = this.#hasPendingUpdates;
+				this.#hasPendingUpdates = false;
+				if (changed || prevPending) {
+					this.#notifyAllSubscriptions();
+				}
+				break;
+			}
+			case "never": {
+				this.#hasPendingUpdates ||= changed;
+				break;
+			}
 		}
+
 		return this.#latestDateSnapshot;
 	}
 

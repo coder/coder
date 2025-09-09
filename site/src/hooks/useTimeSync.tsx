@@ -10,7 +10,7 @@ import {
 	useState,
 	useSyncExternalStore,
 } from "react";
-import { newReadonlyDate, noOp, type OnUpdate, TimeSync } from "utils/TimeSync";
+import { newReadonlyDate, noOp, TimeSync } from "utils/TimeSync";
 import { useEffectEvent } from "./hookPolyfills";
 
 export const REFRESH_IDLE = Number.POSITIVE_INFINITY;
@@ -159,34 +159,29 @@ type TransformationEntry = {
 class ReactTimeSync {
 	static readonly #staleStateThresholdMs = 100;
 
+	// Need to figure out the best way to remodel the state so that when you
+	// invalidate a transformation on mount, that just "pre-seeds" the cache
+	// with the initial transformation, instead of doing nothing
+	#fixMe = undefined;
+
 	// Each string is a globally-unique ID that identifies a specific React
 	// component instance (i.e., two React Fiber entries made from the same
 	// function component should have different IDs)
 	readonly #entries: Map<string, TransformationEntry>;
 	readonly #timeSync: TimeSync;
 	#isProviderMounted: boolean;
-	#hasPendingUpdates: boolean;
+	#invalidationIntervalId: NodeJS.Timeout | number | undefined;
 
 	constructor(options?: Partial<ReactTimeSyncInitOptions>) {
 		const { initialDate, isSnapshot } = options ?? {};
 
 		this.#isProviderMounted = true;
-		this.#hasPendingUpdates = false;
+		this.#invalidationIntervalId = undefined;
 		this.#entries = new Map();
 
 		const init =
 			typeof initialDate === "function" ? initialDate() : initialDate;
 		this.#timeSync = new TimeSync({ initialDate: init, isSnapshot });
-
-		// Don't need to store the unsubscribe callback separately, because this
-		// will be ejected when the onProviderUnmount method gets called
-		const onReactTimeSyncUpdate: OnUpdate = () => {
-			this.#hasPendingUpdates = false;
-		};
-		void this.#timeSync.subscribe({
-			targetRefreshIntervalMs: REFRESH_IDLE,
-			onUpdate: onReactTimeSyncUpdate,
-		});
 	}
 
 	#shouldInvalidateDate(): boolean {
@@ -199,6 +194,10 @@ class ReactTimeSync {
 			newReadonlyDate().getTime() - snap.getTime() >
 			ReactTimeSync.#staleStateThresholdMs
 		);
+	}
+
+	getDateSnapshot(): Date {
+		return this.#timeSync.getStateSnapshot();
 	}
 
 	getTimeSync(): TimeSync {
@@ -305,49 +304,39 @@ class ReactTimeSync {
 		return latestDate as T;
 	}
 
-	getNewSourceDateForMemo(): Date {
-		const oldSnap = this.#timeSync.getStateSnapshot();
-		if (!this.#shouldInvalidateDate()) {
-			return oldSnap;
-		}
-
-		// Have to disable notifications, because while this method is used to
-		// bend the React rules, the one thing we absolutely can't do is notify
-		// subscribers mid-render. The notify function for useSyncExternalStore
-		// uses the same core system as useState's dispatch, and React does not
-		// let you call a mid-render dispatch for any component that is not
-		// actively being rendered in the fiber tree
-		const newSnap = this.#timeSync.invalidateStateSnapshot({
-			notificationBehavior: "never",
-		});
-		this.#hasPendingUpdates = oldSnap !== newSnap;
-		return newSnap;
-	}
-
-	onComponentMount(componentId: string): void {
-		if (!this.#isProviderMounted || !this.#hasPendingUpdates) {
-			return;
-		}
-
-		const entry = this.#entries.get(componentId);
-		if (entry === undefined) {
-			throw new Error(
-				`Trying to call component mount logic before component ID has been added to tracking (received value ${componentId})`,
-			);
-		}
-		void this.#timeSync.invalidateStateSnapshot({
-			notificationBehavior: "always",
-		});
-		this.#hasPendingUpdates = false;
-	}
-
-	onProviderUnmount(): void {
+	onComponentMount(): void {
 		if (!this.#isProviderMounted) {
 			return;
 		}
-		this.#timeSync.dispose();
-		this.#entries.clear();
-		this.#isProviderMounted = false;
+
+		void this.#timeSync.invalidateStateSnapshot({
+			notificationBehavior: "onChange",
+		});
+	}
+
+	onProviderMount(): undefined | (() => void) {
+		if (!this.#isProviderMounted) {
+			return undefined;
+		}
+
+		// Periodially invalidate the state, so that even if all subscribers
+		// have really high refresh intervals, when a new component gets
+		// mounted, it will be guaranteed to have "fresh-ish" data.
+		this.#invalidationIntervalId = setTimeout(() => {
+			this.#timeSync.invalidateStateSnapshot({
+				stalenessThresholdMs: 500,
+				notificationBehavior: "never",
+			});
+		}, 500);
+
+		const cleanup = () => {
+			this.#isProviderMounted = false;
+			clearTimeout(this.#invalidationIntervalId);
+			this.#invalidationIntervalId = undefined;
+			this.#timeSync.dispose();
+			this.#entries.clear();
+		};
+		return cleanup;
 	}
 }
 
@@ -378,7 +367,7 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 	});
 
 	useEffect(() => {
-		return () => readonlyReactTs.onProviderUnmount();
+		return readonlyReactTs.onProviderMount();
 	}, [readonlyReactTs]);
 
 	return (
@@ -389,12 +378,16 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 };
 
 /**
- * Provides access to the TimeSync instance currently being dependency-injected
- * throughout the application. This lets you set up manual subscriptions that
- * don't need to be directly tied to React's lifecycles.
+ * Provides direct access to the TimeSync instance being dependency-injected
+ * throughout the React application.
  *
- * This hook shouldn't be necessary the majority of the time. If you need to
- * bind state updates to TimeSync, consider using `useTimeSyncState` instead.
+ * This lets you a component receive the active TimeSync without binding it to
+ * React lifecycles (essentially making it ref state).
+ *
+ * The instance methods generally shouldn't be called during a render, unless
+ * you take the pains to make all the logic render-safe. If you need to
+ * bind state updates to TimeSync, consider using `useTimeSyncState` instead,
+ * which handles all those safety concerns for you automatically.
  */
 function useTimeSync(): TimeSync {
 	const reactTs = useReactTimeSync();
@@ -402,7 +395,7 @@ function useTimeSync(): TimeSync {
 }
 
 /**
- * This hook is a core part of the design for TimeSync, but because no
+ * useTimeSync is a core part of the design for TimeSync, but because no
  * components need it yet, we're doing this to suppress Knip warnings.
  */
 const _unused = useTimeSync;
@@ -467,51 +460,25 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	const hookId = useId();
 	const reactTs = useReactTimeSync();
 
-	// Because of how React lifecycles work, the effect event callback should
-	// never be called from inside render logic. It will *always* give you
-	// stale data after the very first render.
-	const externalTransform = useEffectEvent(activeTransform);
-
-	const subscribe = useCallback<ReactSubscriptionCallback>(
-		(notifyReact) => {
-			return reactTs.subscribeToTransformations({
-				componentId: hookId,
-				targetRefreshIntervalMs: targetIntervalMs,
-				transform: externalTransform,
-				onStateUpdate: notifyReact,
-			});
-		},
-		[reactTs, hookId, externalTransform, targetIntervalMs],
+	// getSnap should be 100% stable for the entire component lifetime. Note
+	// that because of how React lifecycles work, getSnap will always return
+	// the TimeSync's current Date object on the mounting render (without ever
+	// applying any transformations). This is expected, and the rest of the hook
+	// logic ensures that it will be intercepted before being returned to
+	// consumers
+	const getSnap = useCallback(
+		() => reactTs.getTransformationSnapshot<T>(hookId),
+		[reactTs, hookId],
 	);
 
-	// This function is deliberately *not* memoized. useSyncExternalStore will
-	// re-call the state getter each time it changes by reference (even if the
-	// subscription callback is unchanged), just to avoid stale data issues.
-	// Stale data is a huge concern when trying to bind time to React lifecycles
-	const getSnap = () => {
-		// Opt the React compiler out of memoizing this
-		"use no memo";
-		return reactTs.getTransformationSnapshot<T>(hookId);
-	};
-
-	/**
-	 * This is how useSyncExternalStore's on-mount logic works (which the React
-	 * Docs doesn't cover at all):
-	 * 1. It calls the snapshot getter function twice to validate that the
-	 *    state has a stable reference.
-	 * 2. The hook stores the second return value as state and returns it out
-	 *    immediately
-	 * 3. Once the render has finished, React will set up the subscription. This
-	 *    happens at useEffect speed (so slowest priority).
-	 *
-	 * Because of this, cachedTransformation will always be a Date object on
-	 * mount (no matter what transformation was provided), because nothing will
-	 * have been set up to uniquely identify the component instance for the
-	 * ReactTimeSync class. This is expected, and the useMemo calls later in the
-	 * hook make sure that it doesn't get returned out if a transformation is
-	 * specified.
-	 */
-	const cachedTransformation = useSyncExternalStore(subscribe, getSnap);
+	// This is a little cursed, but to avoid chicken-and-the-egg problems when
+	// dealing with React lifecycles, we need to manually split
+	// useSyncExternalStore's logic in half. We need to get the state
+	// immediately, and then delay calling the actual hook (and the timing for
+	// when the subscription actually gets set up) to be after all the
+	// invalidation effects are mounted. This is technically breaking the rules,
+	// but useSyncExternalStore ensures that state will never get out of sync
+	const cachedTransformation = getSnap();
 
 	// There's some trade-offs with this memo (notably, if the consumer passes
 	// in an inline transform callback, the memo result will be invalidated on
@@ -519,13 +486,13 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// option of memoizing expensive transformations at the render level without
 	// polluting the hook's API with super-fragile dependency array logic
 	const newTransformation = useMemo(() => {
-		// Calling reactTs.getDateSnapshot is technically breaking the React
-		// rules, but we need to make sure that if activeTransform changes
-		// on re-renders, and it's been a while since the cached transformation
-		// changed, we don't have drastically outdated date state. We can't
-		// subscribe to the date itself, because then it would be 100%
-		// impossible to re-render only on transformation updates
-		const latestDate = reactTs.getNewSourceDateForMemo();
+		// This state getter is technically breaking the React rules, because
+		// we're getting a mutable value while in a render without binding it to
+		// state. But it's "pure enough", and the useSyncExternalStore logic for
+		// the transformation snapshots ensures that things won't actually get
+		// out of sync. We can't subscribe to the date, because then that makes
+		// it impossible to subscribe just to changed transformations
+		const latestDate = reactTs.getDateSnapshot();
 		return activeTransform(latestDate);
 	}, [reactTs, activeTransform]);
 
@@ -544,8 +511,33 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// transform invalidation to minimize the risks of React being over-notified
 	// of state updates
 	useEffect(() => {
-		reactTs.onComponentMount(hookId);
-	}, [reactTs, hookId]);
+		reactTs.onComponentMount();
+	}, [reactTs]);
+
+	// Because of how React lifecycles work, this effect event callback should
+	// never be called from inside render logic. It will *always* give you
+	// stale data after the very first render.
+	const externalTransform = useEffectEvent(activeTransform);
+
+	// Dependency array elements listed for correctness, but the only value that
+	// can change on re-renders (which React guarantees) is the target interval
+	const subscribe = useCallback<ReactSubscriptionCallback>(
+		(notifyReact) => {
+			return reactTs.subscribeToTransformations({
+				componentId: hookId,
+				targetRefreshIntervalMs: targetIntervalMs,
+				transform: externalTransform,
+				onStateUpdate: notifyReact,
+			});
+		},
+		[reactTs, hookId, externalTransform, targetIntervalMs],
+	);
+
+	// We already have the actual state value at this point, so we just need to
+	// pass in both callbacks to useSyncExternalStore to satisfy the hook API
+	// and give ourselves state-binding guarantees. Both callbacks should stay
+	// as stable as possible to avoid state thrashing on re-renders
+	void useSyncExternalStore(subscribe, getSnap);
 
 	return merged;
 }
