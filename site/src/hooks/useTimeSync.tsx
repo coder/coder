@@ -197,10 +197,12 @@ class ReactTimeSync {
 		);
 	}
 
+	// Only safe to call inside a render with useSyncExternalStore
 	getDateSnapshot(): Date {
 		return this.#timeSync.getStateSnapshot();
 	}
 
+	// Always safe to call inside a render
 	getTimeSync(): TimeSync {
 		return this.#timeSync;
 	}
@@ -294,10 +296,11 @@ class ReactTimeSync {
 		}
 	}
 
-	// It's super important that we have this function be set up to always
-	// return a value, because on mount, useSyncExternalStore will call the
-	// state getter before the subscription has been set up
+	// Always safe to call inside a render
 	getTransformationSnapshot<T>(componentId: string): T {
+		// It's super important that we have this function be set up to always
+		// return a value, because on mount, useSyncExternalStore will call the
+		// state getter before the subscription has been set up
 		const prev = this.#entries.get(componentId);
 		if (prev !== undefined) {
 			return prev.cachedTransformation as T;
