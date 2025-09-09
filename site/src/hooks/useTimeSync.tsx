@@ -157,7 +157,7 @@ type TransformationEntry = {
  * of `unknown` types to handle storing arbitrary data.
  */
 class ReactTimeSync {
-	static readonly #staleStateThresholdMs = 100;
+	static readonly #stalenessThresholdMs = 250;
 
 	// Need to figure out the best way to remodel the state so that when you
 	// invalidate a transformation on mount, that just "pre-seeds" the cache
@@ -192,7 +192,7 @@ class ReactTimeSync {
 		const snap = this.#timeSync.getStateSnapshot();
 		return (
 			newReadonlyDate().getTime() - snap.getTime() >
-			ReactTimeSync.#staleStateThresholdMs
+			ReactTimeSync.#stalenessThresholdMs
 		);
 	}
 
@@ -324,10 +324,10 @@ class ReactTimeSync {
 		// mounted, it will be guaranteed to have "fresh-ish" data.
 		this.#invalidationIntervalId = setTimeout(() => {
 			this.#timeSync.invalidateStateSnapshot({
-				stalenessThresholdMs: 500,
+				stalenessThresholdMs: ReactTimeSync.#stalenessThresholdMs,
 				notificationBehavior: "never",
 			});
-		}, 500);
+		}, ReactTimeSync.#stalenessThresholdMs);
 
 		const cleanup = () => {
 			this.#isProviderMounted = false;
