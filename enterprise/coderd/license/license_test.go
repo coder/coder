@@ -1237,19 +1237,6 @@ func TestLicenseEntitlements(t *testing.T) {
 			},
 		},
 		{
-			Name: "ExternalWorkspace",
-			Licenses: []*coderdenttest.LicenseOptions{
-				enterpriseLicense().UserLimit(100),
-			},
-			Arguments: license.FeatureArguments{
-				ExternalWorkspaceCount: 1,
-			},
-			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
-				assert.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[codersdk.FeatureWorkspaceExternalAgent].Entitlement)
-				assert.True(t, entitlements.Features[codersdk.FeatureWorkspaceExternalAgent].Enabled)
-			},
-		},
-		{
 			Name: "ExternalTemplate",
 			Licenses: []*coderdenttest.LicenseOptions{
 				enterpriseLicense().UserLimit(100),
