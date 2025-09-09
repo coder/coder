@@ -147,7 +147,7 @@ type TransformationHandshake = Readonly<{
 type TransformationEntry = {
 	unsubscribe: () => void;
 	cachedTransformation: unknown;
-	lastUpdateSource: "mount" | "rerender" | "newSubscription";
+	lastUpdateSource: "mount" | "rerender" | "subscriptionInit" | "notification";
 };
 
 /**
@@ -235,6 +235,7 @@ class ReactTimeSync {
 
 				if (oldState !== merged) {
 					entry.cachedTransformation = merged;
+					entry.lastUpdateSource = "notification";
 					onStateUpdate();
 				}
 			},
@@ -259,7 +260,7 @@ class ReactTimeSync {
 
 		this.#entries.set(componentId, {
 			unsubscribe,
-			lastUpdateSource: "newSubscription",
+			lastUpdateSource: "subscriptionInit",
 			cachedTransformation: transform(latestSyncState),
 		});
 
