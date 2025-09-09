@@ -2663,6 +2663,18 @@ func (q *querier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UU
 	return job, nil
 }
 
+func (q *querier) GetProvisionerJobByIDWithLock(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+	job, err := q.db.GetProvisionerJobByIDWithLock(ctx, id)
+	if err != nil {
+		return database.ProvisionerJob{}, err
+	}
+
+	if err := q.authorizeProvisionerJob(ctx, job); err != nil {
+		return database.ProvisionerJob{}, err
+	}
+	return job, nil
+}
+
 func (q *querier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
 	_, err := q.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
