@@ -173,15 +173,14 @@ class ReactTimeSync {
 	#invalidationIntervalId: NodeJS.Timeout | number | undefined;
 
 	constructor(options?: Partial<ReactTimeSyncInitOptions>) {
-		const { initialDate, isSnapshot } = options ?? {};
+		const { initialDate: init, isSnapshot } = options ?? {};
 
 		this.#isProviderMounted = true;
 		this.#invalidationIntervalId = undefined;
 		this.#entries = new Map();
 
-		const init =
-			typeof initialDate === "function" ? initialDate() : initialDate;
-		this.#timeSync = new TimeSync({ initialDate: init, isSnapshot });
+		const initialDate = typeof init === "function" ? init() : init;
+		this.#timeSync = new TimeSync({ initialDate, isSnapshot });
 	}
 
 	#shouldInvalidateDate(): boolean {
@@ -449,6 +448,22 @@ type UseTimeSyncOptions<T> = Readonly<{
 	transform?: TransformCallback<T>;
 }>;
 
+/**
+ * Lets you bind your React component's state to a TimeSync's time management
+ * logic.
+ *
+ * When the hook is called for the first time, the date state is guaranteed to
+ * be updated, no matter how many subscribers were set up before, or what
+ * intervals they subscribed with.
+ *
+ * Note that any component mounted with this hook will re-render under two
+ * situations:
+ * 1. A state update was dispatched via the TimeSync's normal time update logic.
+ * 2. If a component was mounted for the first time with a fresh date, all other
+ *    components will be "refreshed" to use the same date as well. This is to
+ *    avoid stale date issues, and it will happen even if all other subscribers
+ *    were subscribed with an interval of positive infinity.
+ */
 export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	const { targetIntervalMs, transform } = options;
 	const activeTransform = (transform ?? identity) as TransformCallback<T>;
