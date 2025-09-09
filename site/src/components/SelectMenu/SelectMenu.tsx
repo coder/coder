@@ -37,11 +37,11 @@ export const SelectMenuTrigger: FC<PopoverTriggerProps> = (props) => {
 export const SelectMenuContent: FC<PopoverContentProps> = (props) => {
 	return (
 		<PopoverContent
+			{...props}
 			className={cn(
 				"bg-surface-secondary border-surface-quaternary overflow-y-auto",
 				props.className,
 			)}
-			{...props}
 		/>
 	);
 };
