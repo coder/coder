@@ -280,3 +280,21 @@ func (c *Client) PostTestWebpushMessage(ctx context.Context) error {
 	}
 	return nil
 }
+
+type CustomNotification struct {
+	Title   string `json:"title"`
+	Message string `json:"message"`
+}
+
+func (c *Client) PostCustomNotification(ctx context.Context, req CustomNotification) error {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/notifications/custom", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}

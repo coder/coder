@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -321,6 +322,62 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 
 	out := convertNotificationPreferences(userPrefs)
 	httpapi.Write(ctx, rw, http.StatusOK, out)
+}
+
+// @Summary Send a custom notification
+// @ID send-a-custom-notification
+// @Security CoderSessionToken
+// @Tags Notifications
+// @Accept json
+// @Produce json
+// @Param request body codersdk.CustomNotification true "Provide a non-empty title or message"
+// @Success 204 "No Content"
+// @Failure 400 {object} codersdk.Response "Invalid request body"
+// @Failure 500 {object} codersdk.Response "Failed to send custom notification"
+// @Router /notifications/custom [post]
+func (api *API) postCustomNotification(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	// Parse request
+	var req codersdk.CustomNotification
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Require at least one non-empty field
+	if strings.TrimSpace(req.Title) == "" && strings.TrimSpace(req.Message) == "" {
+		api.Logger.Error(ctx, "send custom notification: invalid request body")
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid request body",
+			Detail:  "Provide a non-empty 'title' or 'message'.",
+		})
+		return
+	}
+
+	userID := apiKey.UserID
+	if _, err := api.NotificationsEnqueuer.Enqueue(
+		//nolint:gocritic // We need to be notifier to send the notification.
+		dbauthz.AsNotifier(ctx),
+		userID,
+		notifications.TemplateCustomNotification,
+		map[string]string{
+			"custom_title":   req.Title,
+			"custom_message": req.Message,
+		},
+		userID.String(),
+	); err != nil {
+		api.Logger.Error(ctx, "send custom notification", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to send custom notification",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 func convertNotificationTemplates(in []database.NotificationTemplate) (out []codersdk.NotificationTemplate) {

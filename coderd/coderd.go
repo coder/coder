@@ -1581,6 +1581,7 @@ func New(options *Options) *API {
 			})
 			r.Get("/dispatch-methods", api.notificationDispatchMethods)
 			r.Post("/test", api.postTestNotification)
+			r.Post("/custom", api.postCustomNotification)
 		})
 		r.Route("/tailnet", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

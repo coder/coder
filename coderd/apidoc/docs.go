@@ -1673,6 +1673,54 @@ const docTemplate = `{
                 }
             }
         },
+        "/notifications/custom": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Send a custom notification",
+                "operationId": "send-a-custom-notification",
+                "parameters": [
+                    {
+                        "description": "Provide a non-empty title or message",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CustomNotification"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to send custom notification",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/notifications/dispatch-methods": {
             "get": {
                 "security": [
@@ -12450,6 +12498,17 @@ const docTemplate = `{
                 "CryptoKeyFeatureOIDCConvert",
                 "CryptoKeyFeatureTailnetResume"
             ]
+        },
+        "codersdk.CustomNotification": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.CustomRoleRequest": {
             "type": "object",

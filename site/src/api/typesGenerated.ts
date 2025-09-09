@@ -629,6 +629,12 @@ export const CryptoKeyFeatures: CryptoKeyFeature[] = [
 	"workspace_apps_token",
 ];
 
+// From codersdk/notifications.go
+export interface CustomNotification {
+	readonly title: string;
+	readonly message: string;
+}
+
 // From codersdk/roles.go
 export interface CustomRoleRequest {
 	readonly name: string;

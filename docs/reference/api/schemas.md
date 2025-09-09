@@ -1872,6 +1872,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `oidc_convert`           |
 | `tailnet_resume`         |
 
+## codersdk.CustomNotification
+
+```json
+{
+  "message": "string",
+  "title": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description |
+|-----------|--------|----------|--------------|-------------|
+| `message` | string | false    |              |             |
+| `title`   | string | false    |              |             |
+
 ## codersdk.CustomRoleRequest
 
 ```json
