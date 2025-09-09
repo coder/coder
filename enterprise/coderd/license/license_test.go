@@ -844,9 +844,6 @@ func TestEntitlements(t *testing.T) {
 			})).
 			Return(int64(175), nil)
 		mDB.EXPECT().
-			GetWorkspaces(gomock.Any(), gomock.Any()).
-			Return([]database.GetWorkspacesRow{}, nil)
-		mDB.EXPECT().
 			GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
 			Return([]database.Template{}, nil)
 
