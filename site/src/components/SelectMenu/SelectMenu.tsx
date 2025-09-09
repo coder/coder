@@ -4,9 +4,9 @@ import { Button, type ButtonProps } from "components/Button/Button";
 import {
 	Popover,
 	PopoverContent,
-	PopoverContentProps,
+	type PopoverContentProps,
 	PopoverTrigger,
-	PopoverTriggerProps,
+	type PopoverTriggerProps,
 } from "components/Popover/Popover";
 import {
 	SearchField,
