@@ -120,45 +120,57 @@ is installed.
 
 </div>
 
+Coder will attempt to open the setup page in your browser. If it doesn't open
+automatically, go to <http://localhost:3000>.
 
-## Configure Coder with a new Workspace
+- If you get a browser warning similar to `Secure Site Not Available`, you
+   can ignore the warning and continue to the setup page.
 
-1. Coder will attempt to open the setup page in your browser. If it doesn't open
-   automatically, go to <http://localhost:3000>.
+If your Coder server is on a network or cloud device, or you are having
+trouble viewing the page, locate the web UI URL in Coder logs in your
+terminal. It looks like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`.
+It's one of the first lines of output, so you might have to scroll up to find
+it.
 
-   - If you get a browser warning similar to `Secure Site Not Available`, you
-     can ignore the warning and continue to the setup page.
+## Step 3: Initial Setup 
 
-   If your Coder server is on a network or cloud device, or you are having
-   trouble viewing the page, locate the web UI URL in Coder logs in your
-   terminal. It looks like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`.
-   It's one of the first lines of output, so you might have to scroll up to find
-   it.
+1. **Create your admin account:**
+   - Username: `yourname` (lowercase, no spaces)
+   - Email: `your.email@example.com`
+   - Password: Choose a strong password
 
-1. On the **Welcome to Coder** page, to use your GitHub account to log in,
-   select **Continue with GitHub**.
-   You can also enter an email and password to create a new admin account on
-   the Coder deployment:
+	You can also choose to **Continue with GitHub** instead of creating an admin account
 
-   ![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)_Welcome
-   to Coder - Create admin user_
+   ![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)
 
-1. On the **Workspaces** page, select **Go to templates** to create a new
-   template.
+## Step 4: Create your First Template and Workspace 
 
-1. For this guide, use a Docker container. Locate **Docker Containers** and
-   select **Use template**.
+Templates define what's in your development environment. Let's start simple:
 
-1. Give the template a **Name** that you'll recognize both in the Coder UI and
-   in command-line calls.
+1. Click **"Templates"** → **"New Template"**
 
-   The rest of the template details are optional, but will be helpful when you
-   have more templates.
+2. **Choose a starter template:**
 
-   ![Create template](../images/screenshots/create-template.png)_Create
-   template_
+   | Starter | Best For | Includes |
+   |---------|----------|----------|
+   | **Docker Containers** (Recommended) | Getting started quickly, local development, prototyping | Ubuntu container with common dev tools, Docker runtime |
+   | **Kubernetes (Deployment)** | Cloud-native teams, scalable workspaces | Pod-based workspaces, Kubernetes orchestration |
+   | **AWS EC2 (Linux)** | Teams needing full VMs, AWS-native infrastructure | Full EC2 instances with AWS integration |
 
-1. Select **Save**.
+3. Click **"Use template"** on **Docker Containers**
+
+4. **Name your template:**
+   - Name: `quickstart`
+   - Display name: `quickstart doc template`
+   - Description: `Provision Docker containers as Coder workspaces`
+
+![Create template](../images/screenshots/create-template.png)
+
+5. Click **"Save"**
+
+**What just happened?** You defined a template — a reusable blueprint for dev environments — in your Coder deployment. It’s now stored in your organization’s template list, where you and any teammates in the same org can create workspaces from it. Let’s launch one.
+
+## Step 5: Launch your Workspace
 
 1. After the template is ready, select **Create Workspace**.
 
@@ -169,10 +181,9 @@ is installed.
    ![getting-started-workspace is running](../images/screenshots/workspace-running-with-topbar.png)_Workspace
    is running_
 
-1. Select **VS Code Desktop** to install the Coder extension and connect to your
-   Coder workspace.
+## Step 6: Connect your IDE
 
-## Work on some code
+Select **VS Code Desktop** to install the Coder extension and connect to your Coder workspace.
 
 After VS Code loads the remote environment, you can select **Open Folder** to
 explore directories in the Docker container or work on something new.
@@ -196,19 +207,17 @@ To clone an existing repository:
 
 1. You are now using VS Code in your Coder environment!
 
-## What's next?
+## Success! You're Coding in Coder
 
-Now that you have your own workspace, use the same template to set one up for a
-teammate.
+You now have:
+- **Coder server** running locally
+- **A template** defining your environment
+- **A workspace** running that environment
+- **IDE access** to code remotely
 
-Go to **Templates** and select **Create Workspace** and continue from Step 7 in
-[Configure Coder with a new workspace](#configure-coder-with-a-new-workspace).
+### Get Coder Tasks Running
 
-After that, you can try to:
-
-- [Customize templates](../admin/templates/extending-templates/index.md)
-- [Enable Prometheus metrics](../admin/integrations/prometheus.md)
-- [Deploy to Google Cloud Platform (GCP)](../install/cloud/compute-engine.md)
+tbd @david
 
 ## Troubleshooting
 
