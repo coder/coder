@@ -10,9 +10,15 @@ import {
 } from "react";
 import { cn } from "utils/cn";
 
+export type PopoverContentProps = PopoverPrimitive.PopoverContentProps;
+
+export type PopoverTriggerProps = PopoverPrimitive.PopoverTriggerProps;
+
 export const Popover = PopoverPrimitive.Root;
 
 export const PopoverTrigger = PopoverPrimitive.Trigger;
+
+export const PopoverClose = PopoverPrimitive.PopoverClose;
 
 export const PopoverContent = forwardRef<
 	ElementRef<typeof PopoverPrimitive.Content>,

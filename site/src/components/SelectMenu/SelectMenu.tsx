@@ -1,14 +1,12 @@
 import MenuItem, { type MenuItemProps } from "@mui/material/MenuItem";
 import MenuList, { type MenuListProps } from "@mui/material/MenuList";
-import type {
-	PopoverContentProps,
-	PopoverTriggerProps,
-} from "@radix-ui/react-popover";
 import { Button, type ButtonProps } from "components/Button/Button";
 import {
 	Popover,
 	PopoverContent,
+	PopoverContentProps,
 	PopoverTrigger,
+	PopoverTriggerProps,
 } from "components/Popover/Popover";
 import {
 	SearchField,
