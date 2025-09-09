@@ -219,6 +219,34 @@ You now have:
 
 tbd @david
 
+Coder Tasks is an interface that allows you to run and manage code agents like Claude Code. We define a task by modifying an existing template, and adding a `coder_ai_task` resource and `coder_parameter` named `AI Prompt`. In doing this, you can make any template a Task template by adding in that resource and parameter. 
+
+Let's try turning the existing **Docker Containers** template into a Task template: 
+1. Head to **Templates**
+2.  by adding in the following at the botton modifying the template 
+
+```
+data "coder_parameter" "ai_prompt" {
+    name = "AI Prompt"
+    type = "string"
+}
+
+# Multiple coder_ai_tasks can be defined in a template
+resource "coder_ai_task" "claude-code" {
+    # At most one coder ai task can be instantiated during a workspace build.
+    # Coder fails the build if it would instantiate more than 1.
+    count = data.coder_parameter.ai_prompt.value != "" ? 1 : 0
+
+    sidebar_app {
+        # which app to display in the sidebar on the task page
+        id = coder_app.claude-code.id
+    }
+}
+```
+
+
+1. 
+
 ## Troubleshooting
 
 ### Cannot connect to the Docker daemon
