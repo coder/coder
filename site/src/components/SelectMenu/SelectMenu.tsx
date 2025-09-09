@@ -39,7 +39,7 @@ export const SelectMenuContent: FC<PopoverContentProps> = (props) => {
 		<PopoverContent
 			{...props}
 			className={cn(
-				"w-auto bg-surface-secondary border-surface-quaternary overflow-y-auto",
+				"w-auto bg-surface-secondary border-surface-quaternary overflow-y-auto text-sm",
 				props.className,
 			)}
 		/>
