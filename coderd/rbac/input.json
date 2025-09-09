@@ -43,7 +43,7 @@
 			"allow_list": [
 				{
 					"type": "workspace",
-					"id": "9046b041-58ed-47a3-9c3a-de302577875a"
+					"id": "*"
 				}]
 		}
 	}
