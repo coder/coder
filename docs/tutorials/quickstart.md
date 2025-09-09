@@ -1,13 +1,38 @@
-# Quickstart
+# Get Started
 
-Follow the steps in this guide to install Coder locally or on a cloud-hosting
-provider, set up a workspace, and connect to it from VS Code.
+** Keywords: ** install, setup, get started, quickstart, templates, workspaces, tasks, users
 
-By the end of this guide, you'll have a remote development environment that you
-can connect to from any device anywhere, so you can work on the same files in a
-persistent environment from your main device, a tablet, or your phone.
+Follow the steps in this guide to get your first Coder development environment running in under 10 minutes. This guide covers the essential concepts and walks you through creating your first workspace and running VS Code from it. You can also get Claude Code up and running in the background!
 
-## Install and start Coder
+## What You'll Build
+
+In this quickstart, you'll:
+- ✅ Install Coder server
+- ✅ Create a **template** (blueprint for dev environments)
+- ✅ Launch a **workspace** (your actual dev environment)
+- ✅ Connect from your favorite IDE
+- ✅ Optionally setup a **task** running Claude Code 
+
+## Understanding Coder: 30-Second Overview
+
+Before diving in, here are the four concepts that power Coder explained through a cooking analogy:
+
+| Component | What It Is | Real-World Analogy |
+|-----------|------------|-------------------|
+| **You** | The engineer/developer/builder working | The head chef cooking the meal |
+| **Templates** | A Terraform blueprint that defines your dev environment (OS, tools, resources) | Recipe for a meal |
+| **Workspaces** | The actual running environment created from the template | The cooked meal |
+| **Tasks** | AI-powered coding agents that run inside a workspace | Your sous chef helping you cook the meal |
+| **Users** | A developer who launches the workspace from a template and does their work inside it | The people eating the meal |
+
+**First time here?** Coder separates how an environment is defined (Admin’s job) from where you do your day-to-day coding (Developer’s job). As a developer, you’ll use templates to launch workspaces, and as an admin, you’ll create and manage those templates for others.
+
+## Prerequisites
+
+- A machine with 2+ CPU cores and 4GB+ RAM
+- 10 minutes of your time
+
+## Step 1: Install Docker and Setup Permissions
 
 <div class="tabs">
 
@@ -39,6 +64,24 @@ persistent environment from your main device, a tablet, or your phone.
    You might need to log out and back in or restart the machine for changes to
    take effect.
 
+## Windows
+
+If you plan to use the built-in PostgreSQL database, ensure that the
+[Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
+is installed.
+
+1. [Install Docker](https://docs.docker.com/desktop/install/windows-install/).
+
+</div>
+
+## Step 2: Install & Start Coder
+
+The `coder` CLI is all you need to install. It let's you run both the Coder server as well as the client. 
+
+<div class="tabs">
+
+## Linux/macOS
+
 1. Install Coder:
 
    ```shell
@@ -61,8 +104,6 @@ If you plan to use the built-in PostgreSQL database, ensure that the
 [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
 is installed.
 
-1. [Install Docker](https://docs.docker.com/desktop/install/windows-install/).
-
 1. Use the
    [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
    package manager to install Coder:
@@ -78,6 +119,7 @@ is installed.
    ```
 
 </div>
+
 
 ## Configure Coder with a new Workspace
 
