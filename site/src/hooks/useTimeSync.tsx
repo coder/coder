@@ -489,9 +489,10 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// dealing with React lifecycles, we need to manually split
 	// useSyncExternalStore's logic in half. We need to get the state
 	// immediately, and then delay calling the actual hook (and the timing for
-	// when the subscription actually gets set up) to be after all the
-	// invalidation effects are mounted. This is technically breaking the rules,
-	// but useSyncExternalStore ensures that state will never get out of sync
+	// when the subscription actually gets set up) to be after all the other
+	// effects have been mounted. This is technically breaking the rules, but
+	// as long as we call useSyncExternalStore at some point with this exact
+	// same callback, there's no risk of data getting out of sync
 	const cachedTransformation = getSnap();
 
 	// There's some trade-offs with this memo (notably, if the consumer passes
@@ -500,12 +501,17 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// option of memoizing expensive transformations at the render level without
 	// polluting the hook's API with super-fragile dependency array logic
 	const newTransformation = useMemo(() => {
+		// Since we're breaking the rules slightly below, we need to opt this
+		// function out of being compiled by the React Compiler to make sure it
+		// doesn't compile the function the wrong way
+		"use no memo";
+
 		// This state getter is technically breaking the React rules, because
 		// we're getting a mutable value while in a render without binding it to
 		// state. But it's "pure enough", and the useSyncExternalStore logic for
 		// the transformation snapshots ensures that things won't actually get
-		// out of sync. We can't subscribe to the date, because then that makes
-		// it impossible to subscribe just to changed transformations
+		// out of sync. We can't subscribe to the date itself, because then we
+		// lose the ability to re-render only on changed transformations
 		const latestDate = reactTs.getDateSnapshot();
 		return activeTransform(latestDate);
 	}, [reactTs, activeTransform]);
@@ -548,9 +554,8 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	);
 
 	// We already have the actual state value at this point, so we just need to
-	// pass in both callbacks to useSyncExternalStore to satisfy the hook API
-	// and give ourselves state-binding guarantees. Both callbacks should stay
-	// as stable as possible to avoid state thrashing on re-renders
+	// wire up useSyncExternalStore to satisfy the hook API and give ourselves
+	// state-binding guarantees
 	void useSyncExternalStore(subscribe, getSnap);
 
 	return merged;
