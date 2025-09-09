@@ -1,6 +1,7 @@
 package agent_test
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -36,6 +38,40 @@ func (fs *testFs) Open(name string) (afero.File, error) {
 		return nil, err
 	}
 	return fs.Fs.Open(name)
+}
+
+func (fs *testFs) Create(name string) (afero.File, error) {
+	if err := fs.intercept("create", name); err != nil {
+		return nil, err
+	}
+	// Unlike os, afero lets you create files where directories already exist and
+	// lets you nest them underneath files, somehow.
+	stat, err := fs.Fs.Stat(name)
+	if err == nil && stat.IsDir() {
+		return nil, xerrors.New("is a directory")
+	}
+	stat, err = fs.Fs.Stat(filepath.Dir(name))
+	if err == nil && !stat.IsDir() {
+		return nil, xerrors.New("not a directory")
+	}
+	return fs.Fs.Create(name)
+}
+
+func (fs *testFs) MkdirAll(name string, mode os.FileMode) error {
+	if err := fs.intercept("mkdirall", name); err != nil {
+		return err
+	}
+	// Unlike os, afero lets you create directories where files already exist and
+	// lets you nest them underneath files somehow.
+	stat, err := fs.Fs.Stat(filepath.Dir(name))
+	if err == nil && !stat.IsDir() {
+		return xerrors.New("not a directory")
+	}
+	stat, err = fs.Fs.Stat(name)
+	if err == nil && !stat.IsDir() {
+		return xerrors.New("not a directory")
+	}
+	return fs.Fs.MkdirAll(name, mode)
 }
 
 func TestReadFile(t *testing.T) {
@@ -210,6 +246,110 @@ func TestReadFile(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, tt.bytes, bytes)
 				require.Equal(t, tt.mimeType, mimeType)
+			}
+		})
+	}
+}
+
+func TestWriteFile(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	noPermsFilePath := filepath.Join(tmpdir, "no-perms-file")
+	noPermsDirPath := filepath.Join(tmpdir, "no-perms-dir")
+	//nolint:dogsled
+	conn, _, _, fs, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, opts *agent.Options) {
+		opts.Filesystem = newTestFs(opts.Filesystem, func(call, file string) error {
+			if file == noPermsFilePath || file == noPermsDirPath {
+				return os.ErrPermission
+			}
+			return nil
+		})
+	})
+
+	dirPath := filepath.Join(tmpdir, "directory")
+	err := fs.MkdirAll(dirPath, 0o755)
+	require.NoError(t, err)
+
+	filePath := filepath.Join(tmpdir, "file")
+	err = afero.WriteFile(fs, filePath, []byte("content"), 0o644)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		path    string
+		bytes   []byte
+		errCode int
+		error   string
+	}{
+		{
+			name:    "NoPath",
+			path:    "",
+			errCode: http.StatusBadRequest,
+			error:   "\"path\" is required",
+		},
+		{
+			name:    "RelativePath",
+			path:    "./relative",
+			errCode: http.StatusBadRequest,
+			error:   "file path must be absolute",
+		},
+		{
+			name:    "RelativePath",
+			path:    "also-relative",
+			errCode: http.StatusBadRequest,
+			error:   "file path must be absolute",
+		},
+		{
+			name:  "NonExistent",
+			path:  filepath.Join(tmpdir, "/nested/does-not-exist"),
+			bytes: []byte("now it does exist"),
+		},
+		{
+			name:    "IsDir",
+			path:    dirPath,
+			errCode: http.StatusBadRequest,
+			error:   "is a directory",
+		},
+		{
+			name:    "IsNotDir",
+			path:    filepath.Join(filePath, "file2"),
+			errCode: http.StatusBadRequest,
+			error:   "not a directory",
+		},
+		{
+			name:    "NoPermissionsFile",
+			path:    noPermsFilePath,
+			errCode: http.StatusForbidden,
+			error:   "permission denied",
+		},
+		{
+			name:    "NoPermissionsDir",
+			path:    filepath.Join(noPermsDirPath, "within-no-perm-dir"),
+			errCode: http.StatusForbidden,
+			error:   "permission denied",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			reader := bytes.NewReader(tt.bytes)
+			err := conn.WriteFile(ctx, tt.path, reader)
+			if tt.errCode != 0 {
+				require.Error(t, err)
+				cerr := coderdtest.SDKError(t, err)
+				require.Contains(t, cerr.Error(), tt.error)
+				require.Equal(t, tt.errCode, cerr.StatusCode())
+			} else {
+				require.NoError(t, err)
+				b, err := afero.ReadFile(fs, tt.path)
+				require.NoError(t, err)
+				require.Equal(t, tt.bytes, b)
 			}
 		})
 	}
