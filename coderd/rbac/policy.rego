@@ -125,7 +125,6 @@ org := org_allow(input.subject.roles)
 default scope_org := 0
 scope_org := org_allow([input.subject.scope])
 
-
 # org_allow_set is a helper function that iterates over all orgs that the actor
 # is a member of. For each organization it sets the numerical allow value
 # for the given object + action if the object is in the organization.
