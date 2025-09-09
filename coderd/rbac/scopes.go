@@ -48,11 +48,11 @@ func WorkspaceAgentScope(params WorkspaceAgentScopeParams) Scope {
 		// This prevents the agent from being able to access any other resource.
 		// Include the list of IDs of anything that is required for the
 		// agent to function.
-		AllowIDList: []string{
-			params.WorkspaceID.String(),
-			params.TemplateID.String(),
-			params.VersionID.String(),
-			params.OwnerID.String(),
+		AllowIDList: []AllowListElement{
+			{Type: ResourceWorkspace.Type, ID: params.WorkspaceID.String()},
+			{Type: ResourceTemplate.Type, ID: params.TemplateID.String()},
+			{Type: ResourceTemplate.Type, ID: params.VersionID.String()},
+			{Type: ResourceUser.Type, ID: params.OwnerID.String()},
 		},
 	}
 }
@@ -77,7 +77,7 @@ var builtinScopes = map[ScopeName]Scope{
 			Org:  map[string][]Permission{},
 			User: []Permission{},
 		},
-		AllowIDList: []string{policy.WildcardSymbol},
+		AllowIDList: []AllowListElement{AllowListAll()},
 	},
 
 	ScopeApplicationConnect: {
@@ -90,7 +90,7 @@ var builtinScopes = map[ScopeName]Scope{
 			Org:  map[string][]Permission{},
 			User: []Permission{},
 		},
-		AllowIDList: []string{policy.WildcardSymbol},
+		AllowIDList: []AllowListElement{AllowListAll()},
 	},
 
 	ScopeNoUserData: {
@@ -101,7 +101,7 @@ var builtinScopes = map[ScopeName]Scope{
 			Org:         map[string][]Permission{},
 			User:        []Permission{},
 		},
-		AllowIDList: []string{policy.WildcardSymbol},
+		AllowIDList: []AllowListElement{AllowListAll()},
 	},
 }
 
@@ -129,7 +129,16 @@ func (name ScopeName) Name() RoleIdentifier {
 // AllowIDList. Eg: 'AllowIDList: []string{WildcardSymbol}'
 type Scope struct {
 	Role
-	AllowIDList []string `json:"allow_list"`
+	AllowIDList []AllowListElement `json:"allow_list"`
+}
+
+type AllowListElement struct {
+	ID   string `json:"id"`
+	Type string `json:"type"`
+}
+
+func AllowListAll() AllowListElement {
+	return AllowListElement{ID: policy.WildcardSymbol, Type: policy.WildcardSymbol}
 }
 
 func (s Scope) Expand() (Scope, error) {

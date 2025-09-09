@@ -929,7 +929,7 @@ func TestAuthorizeScope(t *testing.T) {
 				Org:  map[string][]Permission{},
 				User: []Permission{},
 			},
-			AllowIDList: []string{workspaceID.String()},
+			AllowIDList: []AllowListElement{{Type: ResourceWorkspace.Type, ID: workspaceID.String()}},
 		},
 	}
 
@@ -1019,7 +1019,9 @@ func TestAuthorizeScope(t *testing.T) {
 				User: []Permission{},
 			},
 			// Empty string allow_list is allowed for actions like 'create'
-			AllowIDList: []string{""},
+			AllowIDList: []AllowListElement{{
+				Type: ResourceWorkspace.Type, ID: "",
+			}},
 		},
 	}
 
@@ -1145,7 +1147,7 @@ func TestAuthorizeScope(t *testing.T) {
 					ResourceUser.Type: {policy.ActionRead},
 				}),
 			},
-			AllowIDList: []string{policy.WildcardSymbol},
+			AllowIDList: []AllowListElement{AllowListAll()},
 		},
 	}
 
