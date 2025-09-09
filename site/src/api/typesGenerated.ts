@@ -947,6 +947,7 @@ export interface ExternalAgentCredentials {
 // From codersdk/externalauth.go
 export interface ExternalAuth {
 	readonly authenticated: boolean;
+	readonly is_dynamic: boolean;
 	readonly device: boolean;
 	readonly display_name: string;
 	readonly user: ExternalAuthUser | null;
@@ -966,7 +967,9 @@ export interface ExternalAuthAppInstallation {
 export interface ExternalAuthConfig {
 	readonly type: string;
 	readonly client_id: string;
+	readonly use_dynamic_client_registration: boolean;
 	readonly id: string;
+	readonly issuer_url: string;
 	readonly auth_url: string;
 	readonly token_url: string;
 	readonly validate_url: string;
@@ -1010,6 +1013,7 @@ export interface ExternalAuthLink {
 export interface ExternalAuthLinkProvider {
 	readonly id: string;
 	readonly type: string;
+	readonly is_dynamic: boolean;
 	readonly device: boolean;
 	readonly display_name: string;
 	readonly display_icon: string;

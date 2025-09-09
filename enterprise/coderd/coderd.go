@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -101,37 +102,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		options.Options.UsageInserter.Store(&collector)
 	}
 
-	ctx, cancelFunc := context.WithCancel(ctx)
-
-	if options.ExternalTokenEncryption == nil {
-		options.ExternalTokenEncryption = make([]dbcrypt.Cipher, 0)
-	}
-	// Database encryption is an enterprise feature, but as checking license entitlements
-	// depends on the database, we end up in a chicken-and-egg situation. To avoid this,
-	// we always enable it but only soft-enforce it.
-	if len(options.ExternalTokenEncryption) > 0 {
-		var keyDigests []string
-		for _, cipher := range options.ExternalTokenEncryption {
-			keyDigests = append(keyDigests, cipher.HexDigest())
-		}
-		options.Logger.Info(ctx, "database encryption enabled", slog.F("keys", keyDigests))
-	}
-
-	cryptDB, err := dbcrypt.New(ctx, options.Database, options.ExternalTokenEncryption...)
-	if err != nil {
-		cancelFunc()
-		// If we fail to initialize the database, it's likely that the
-		// database is encrypted with an unknown external token encryption key.
-		// This is a fatal error.
-		var derr *dbcrypt.DecryptFailedError
-		if xerrors.As(err, &derr) {
-			return nil, xerrors.Errorf("database encrypted with unknown key, either add the key or see https://coder.com/docs/admin/encryption#disabling-encryption: %w", derr)
-		}
-		return nil, xerrors.Errorf("init database encryption: %w", err)
-	}
-
-	options.Database = cryptDB
-
 	if options.IDPSync == nil {
 		options.IDPSync = enidpsync.NewSync(options.Logger, options.RuntimeConfig, options.Entitlements, idpsync.FromDeploymentValues(options.DeploymentValues))
 	}
@@ -143,6 +113,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		)
 	}
 
+	ctx, cancelFunc := context.WithCancel(ctx)
 	api := &API{
 		ctx:     ctx,
 		cancel:  cancelFunc,
@@ -636,8 +607,6 @@ type Options struct {
 	BrowserOnly bool
 	SCIMAPIKey  []byte
 
-	ExternalTokenEncryption []dbcrypt.Cipher
-
 	// Used for high availability.
 	ReplicaSyncUpdateInterval time.Duration
 	ReplicaErrorGracePeriod   time.Duration
@@ -728,6 +697,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			agedReplicas = append(agedReplicas, replica)
 		}
 
+		// We expect the database to only be wrapped with dbcrypt if external
+		// token encryption is enabled.
+		hasExternalTokenEncryption := slices.Contains(api.Database.Wrappers(), dbcrypt.WrapName)
+
 		reloadedEntitlements, err := license.Entitlements(
 			ctx, api.Database,
 			len(agedReplicas), len(api.ExternalAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
@@ -737,7 +710,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
 				codersdk.FeatureMultipleExternalAuth:       len(api.ExternalAuthConfigs) > 1,
 				codersdk.FeatureTemplateRBAC:               api.RBAC,
-				codersdk.FeatureExternalTokenEncryption:    len(api.ExternalTokenEncryption) > 0,
+				codersdk.FeatureExternalTokenEncryption:    hasExternalTokenEncryption,
 				codersdk.FeatureExternalProvisionerDaemons: true,
 				codersdk.FeatureAdvancedTemplateScheduling: true,
 				codersdk.FeatureWorkspaceProxy:             true,
@@ -931,7 +904,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 		// External token encryption is soft-enforced
 		featureExternalTokenEncryption := reloadedEntitlements.Features[codersdk.FeatureExternalTokenEncryption]
-		featureExternalTokenEncryption.Enabled = len(api.ExternalTokenEncryption) > 0
+		featureExternalTokenEncryption.Enabled = hasExternalTokenEncryption
 		if featureExternalTokenEncryption.Enabled && featureExternalTokenEncryption.Entitlement != codersdk.EntitlementEntitled {
 			msg := fmt.Sprintf("%s is enabled (due to setting external token encryption keys) but your license is not entitled to this feature.", codersdk.FeatureExternalTokenEncryption.Humanize())
 			api.Logger.Warn(ctx, msg)

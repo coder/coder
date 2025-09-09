@@ -723,9 +723,15 @@ type ExternalAuthConfig struct {
 	Type         string `json:"type" yaml:"type"`
 	ClientID     string `json:"client_id" yaml:"client_id"`
 	ClientSecret string `json:"-" yaml:"client_secret"`
+	// UseDynamicClientRegistration denotes that the client will be registered
+	// dynamically using the OAuth2 client registration endpoint. ClientID and
+	// ClientSecret must not be supplied when this is true. IssuerURL must be
+	// supplied when this is true.
+	UseDynamicClientRegistration bool `json:"use_dynamic_client_registration" yaml:"use_dynamic_client_registration"`
 	// ID is a unique identifier for the auth config.
 	// It defaults to `type` when not provided.
 	ID                  string   `json:"id" yaml:"id"`
+	IssuerURL           string   `json:"issuer_url" yaml:"issuer_url"`
 	AuthURL             string   `json:"auth_url" yaml:"auth_url"`
 	TokenURL            string   `json:"token_url" yaml:"token_url"`
 	ValidateURL         string   `json:"validate_url" yaml:"validate_url"`

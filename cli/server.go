@@ -55,6 +55,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/v2/coderd/oauth2dcr"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/pretty"
 	"github.com/coder/quartz"
@@ -74,6 +75,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmetrics"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/devtunnel"
@@ -294,8 +296,18 @@ func enablePrometheus(
 	), nil
 }
 
+type DatabaseWrapperFunc func(context.Context, slog.Logger, *codersdk.DeploymentValues, database.Store) (database.Store, error)
+
+type NewAPIFunc func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)
+
+// Server creates a new Coder server command with the provided
+// DatabaseWrapperFunc and NewAPIFunc. The optional DatabaseWrapperFunc is used
+// to wrap the database store with additional functionality, such as enterprise
+// features like dbcrypt. The NewAPIFunc is used to create the Coder API
+// instance.
+//
 //nolint:gocognit // TODO(dannyk): reduce complexity of this function
-func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *serpent.Command {
+func (r *RootCmd) Server(dbWrapper DatabaseWrapperFunc, newAPI NewAPIFunc) *serpent.Command {
 	if newAPI == nil {
 		newAPI = func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
 			api := coderd.New(o)
@@ -593,7 +605,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}
 
-			extAuthEnv, err := ReadExternalAuthProvidersFromEnv(os.Environ())
+			extAuthEnv, err := ReadExternalAuthProvidersFromEnv(ctx, logger, os.Environ())
 			if err != nil {
 				return xerrors.Errorf("read external auth providers from env: %w", err)
 			}
@@ -601,20 +613,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			promRegistry := prometheus.NewRegistry()
 			oauthInstrument := promoauth.NewFactory(promRegistry)
 			vals.ExternalAuthConfigs.Value = append(vals.ExternalAuthConfigs.Value, extAuthEnv...)
-			externalAuthConfigs, err := externalauth.ConvertConfig(
-				oauthInstrument,
-				vals.ExternalAuthConfigs.Value,
-				vals.AccessURL.Value(),
-			)
-			if err != nil {
-				return xerrors.Errorf("convert external auth config: %w", err)
-			}
-			for _, c := range externalAuthConfigs {
-				logger.Debug(
-					ctx, "loaded external auth config",
-					slog.F("id", c.ID),
-				)
-			}
 
 			realIPConfig, err := httpmw.ParseRealIPConfig(vals.ProxyTrustedHeaders, vals.ProxyTrustedOrigins)
 			if err != nil {
@@ -645,7 +643,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Pubsub:                      nil,
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
-				ExternalAuthConfigs:         externalAuthConfigs,
 				RealIPConfig:                realIPConfig,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
@@ -770,6 +767,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.Database = dbmetrics.NewDBMetrics(options.Database, options.Logger, options.PrometheusRegistry)
 			}
 
+			if dbWrapper != nil {
+				options.Database, err = dbWrapper(ctx, logger, options.DeploymentValues, options.Database)
+				if err != nil {
+					return xerrors.Errorf("wrap database: %w", err)
+				}
+			}
+
 			var deploymentID string
 			err = options.Database.InTx(func(tx database.Store) error {
 				// This will block until the lock is acquired, and will be
@@ -790,11 +794,39 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 						return xerrors.Errorf("set deployment id: %w", err)
 					}
 				}
+
+				// Ensure that every external auth config with DCR enabled has a
+				// valid client stored in the database. The updated configs are
+				// written back to the deployment values so they get picked up
+				// by the next step.
+				err = reconcileExternalAuthDcrClients(ctx, logger, tx, vals.AccessURL.Value(), vals.ExternalAuthConfigs.Value)
+				if err != nil {
+					return xerrors.Errorf("reconcile external auth dcr clients: %w", err)
+				}
+
 				return nil
 			}, nil)
 			if err != nil {
 				return xerrors.Errorf("set deployment id: %w", err)
 			}
+
+			// Configure external auth. This needs to happen after the
+			// deployment setup transaction as it reconciles DCR clients.
+			externalAuthConfigs, err := externalauth.ConvertConfig(
+				oauthInstrument,
+				vals.ExternalAuthConfigs.Value,
+				vals.AccessURL.Value(),
+			)
+			if err != nil {
+				return xerrors.Errorf("convert external auth config: %w", err)
+			}
+			for _, c := range externalAuthConfigs {
+				logger.Debug(
+					ctx, "loaded external auth config",
+					slog.F("id", c.ID),
+				)
+			}
+			options.ExternalAuthConfigs = externalAuthConfigs
 
 			// Manage push notifications.
 			experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
@@ -2625,16 +2657,21 @@ func redirectHTTPToHTTPSDeprecation(ctx context.Context, logger slog.Logger, inv
 
 // ReadExternalAuthProvidersFromEnv is provided for compatibility purposes with
 // the viper CLI.
-func ReadExternalAuthProvidersFromEnv(environ []string) ([]codersdk.ExternalAuthConfig, error) {
+func ReadExternalAuthProvidersFromEnv(ctx context.Context, logger slog.Logger, environ []string) ([]codersdk.ExternalAuthConfig, error) {
 	providers, err := parseExternalAuthProvidersFromEnv("CODER_EXTERNAL_AUTH_", environ)
 	if err != nil {
 		return nil, err
 	}
+
 	// Deprecated: To support legacy git auth!
 	gitProviders, err := parseExternalAuthProvidersFromEnv("CODER_GITAUTH_", environ)
 	if err != nil {
 		return nil, err
 	}
+	if len(gitProviders) > 0 {
+		logger.Warn(ctx, "⚠️ CODER_GITAUTH_* environment variables are deprecated, please use CODER_EXTERNAL_AUTH_ instead")
+	}
+
 	return append(providers, gitProviders...), nil
 }
 
@@ -2683,6 +2720,14 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 			provider.ClientID = v.Value
 		case "CLIENT_SECRET":
 			provider.ClientSecret = v.Value
+		case "USE_DYNAMIC_CLIENT_REGISTRATION":
+			b, err := strconv.ParseBool(v.Value)
+			if err != nil {
+				return nil, xerrors.Errorf("parse bool: %s", v.Value)
+			}
+			provider.UseDynamicClientRegistration = b
+		case "ISSUER_URL":
+			provider.IssuerURL = v.Value
 		case "AUTH_URL":
 			provider.AuthURL = v.Value
 		case "TOKEN_URL":
@@ -2718,6 +2763,11 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 		case "DISPLAY_ICON":
 			provider.DisplayIcon = v.Value
 		}
+
+		if provider.UseDynamicClientRegistration && (provider.ClientID != "" || provider.ClientSecret != "") {
+			return nil, xerrors.Errorf("client_id and client_secret must not be set when use_dynamic_client_registration is true")
+		}
+
 		providers[providerNum] = provider
 	}
 	return providers, nil
@@ -2795,4 +2845,117 @@ func getAndMigratePostgresDB(ctx context.Context, logger slog.Logger, postgresUR
 	}
 
 	return sqlDB, dbURL, nil
+}
+
+// reconcileExternalAuthDcrClients reconciles the database with the configured
+// clients. If a client is not found in the database, it will be registered
+// using OAuth2 dynamic client registration. If a client is found in the
+// database, the existing client ID and secret are used.
+// If a client is removed from the configuration, it will be removed from the
+// database.
+func reconcileExternalAuthDcrClients(ctx context.Context, logger slog.Logger, tx database.Store, accessURL *url.URL, configs []codersdk.ExternalAuthConfig) error {
+	// eg allows for concurrency.
+	eg, ctx := errgroup.WithContext(ctx)
+	// mu protects the transaction against concurrent queries within the
+	// errgroup.
+	mu := sync.Mutex{}
+
+	client := &http.Client{}
+	defer client.CloseIdleConnections()
+
+	dbClients, err := tx.ListExternalAuthDcrClients(ctx)
+	if err != nil {
+		return xerrors.Errorf("list external auth dcr clients: %w", err)
+	}
+	dbClientMap := make(map[string]database.ExternalAuthDcrClient)
+	for _, dbClient := range dbClients {
+		dbClientMap[dbClient.ProviderID] = dbClient
+	}
+
+	configuredProviderIDs := make(map[string]struct{})
+	for i := range configs {
+		// We use a pointer here so when we write the client ID back to the
+		// config it gets picked up by the caller.
+		externalAuthConfig := &configs[i]
+		configuredProviderIDs[externalAuthConfig.ID] = struct{}{}
+
+		if externalAuthConfig.UseDynamicClientRegistration {
+			dbClient, ok := dbClientMap[externalAuthConfig.ID]
+			if ok {
+				// Seems there's already a client in the DB. Use the existing
+				// values and continue.
+				externalAuthConfig.ClientID = dbClient.ClientID
+				externalAuthConfig.ClientSecret = dbClient.ClientSecret
+				continue
+			}
+
+			// No client in the DB, so we need to generate and insert one.
+			eg.Go(func() error {
+				clientName := fmt.Sprintf("Coder %s %s", accessURL.Hostname(), externalAuthConfig.ID)
+				redirectURLPath := "/external-auth/" + externalAuthConfig.ID + "/callback"
+				redirectURL, err := accessURL.Parse(redirectURLPath)
+				if err != nil {
+					return xerrors.Errorf("parse external auth callback url %q: %w", redirectURLPath, err)
+				}
+				registrationRequest := oauth2dcr.OAuth2ClientRegistrationRequest{
+					ClientName:    clientName,
+					RedirectURIs:  []string{redirectURL.String()},
+					GrantTypes:    []string{"authorization_code"},
+					ResponseTypes: []string{"code"},
+					Scope:         strings.Join(externalAuthConfig.Scopes, " "),
+				}
+				if externalAuthConfig.DeviceFlow {
+					registrationRequest.RedirectURIs = []string{}
+					registrationRequest.GrantTypes = []string{"urn:ietf:params:oauth:grant-type:device_code"}
+				}
+
+				// Enforce a 10 second timeout for creating the client. The
+				// passed in context does not have a default timeout since it's
+				// tied to the invocation context.
+				createClientCtx, createClientCancel := context.WithTimeout(ctx, 10*time.Second)
+				defer createClientCancel()
+				registrationResp, err := oauth2dcr.RegisterDynamicClientWithIssuer(createClientCtx, client, externalAuthConfig.IssuerURL, registrationRequest)
+				if err != nil {
+					return xerrors.Errorf("register dynamic client with issuer %q: %w", externalAuthConfig.IssuerURL, err)
+				}
+				externalAuthConfig.ClientID = registrationResp.ClientID
+				externalAuthConfig.ClientSecret = registrationResp.ClientSecret
+
+				// Lock the tx object while we insert, since transactions are
+				// not safe for use by multiple goroutines.
+				mu.Lock()
+				defer mu.Unlock()
+				now := dbtime.Now()
+				_, err = tx.InsertExternalAuthDcrClient(ctx, database.InsertExternalAuthDcrClientParams{
+					ProviderID:        externalAuthConfig.ID,
+					ClientID:          registrationResp.ClientID,
+					ClientSecret:      registrationResp.ClientSecret,
+					ClientSecretKeyID: sql.NullString{}, // set by dbcrypt if required
+					CreatedAt:         now,
+					UpdatedAt:         now,
+				})
+				if err != nil {
+					return xerrors.Errorf("insert external auth dcr client %s: %w", externalAuthConfig.ID, err)
+				}
+
+				return nil
+			})
+		}
+	}
+
+	// Remove clients from the database that are not in the configuration.
+	for _, dbClient := range dbClients {
+		if _, ok := configuredProviderIDs[dbClient.ProviderID]; !ok {
+			// TODO: an improvement could be made to also delete the existing
+			//       external_auth_links rows for this client as well, but we
+			//       don't do that for non-DCR clients either.
+			logger.Info(ctx, "deleting unconfigured external auth dynamic client registration client", slog.F("provider_id", dbClient.ProviderID))
+			err := tx.DeleteExternalAuthDcrClient(ctx, dbClient.ProviderID)
+			if err != nil {
+				return xerrors.Errorf("delete external auth dcr client %s: %w", dbClient.ProviderID, err)
+			}
+		}
+	}
+
+	return eg.Wait()
 }

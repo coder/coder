@@ -292,6 +292,13 @@ func (m queryMetricsStore) DeleteCustomRole(ctx context.Context, arg database.De
 	return r0
 }
 
+func (m queryMetricsStore) DeleteExternalAuthDcrClient(ctx context.Context, providerID string) error {
+	start := time.Now()
+	r0 := m.s.DeleteExternalAuthDcrClient(ctx, providerID)
+	m.queryLatencies.WithLabelValues("DeleteExternalAuthDcrClient").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteExternalAuthLink(ctx, arg)
@@ -2217,6 +2224,13 @@ func (m queryMetricsStore) InsertDeploymentID(ctx context.Context, value string)
 	return err
 }
 
+func (m queryMetricsStore) InsertExternalAuthDcrClient(ctx context.Context, arg database.InsertExternalAuthDcrClientParams) (database.ExternalAuthDcrClient, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertExternalAuthDcrClient(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertExternalAuthDcrClient").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertExternalAuthLink(ctx context.Context, arg database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	start := time.Now()
 	link, err := m.s.InsertExternalAuthLink(ctx, arg)
@@ -2593,6 +2607,13 @@ func (m queryMetricsStore) InsertWorkspaceResourceMetadata(ctx context.Context, 
 	metadata, err := m.s.InsertWorkspaceResourceMetadata(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceResourceMetadata").Observe(time.Since(start).Seconds())
 	return metadata, err
+}
+
+func (m queryMetricsStore) ListExternalAuthDcrClients(ctx context.Context) ([]database.ExternalAuthDcrClient, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListExternalAuthDcrClients(ctx)
+	m.queryLatencies.WithLabelValues("ListExternalAuthDcrClients").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {

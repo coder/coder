@@ -964,6 +964,19 @@ COMMENT ON COLUMN dbcrypt_keys.revoked_at IS 'The time at which the key was revo
 
 COMMENT ON COLUMN dbcrypt_keys.test IS 'A column used to test the encryption.';
 
+CREATE TABLE external_auth_dcr_clients (
+    provider_id text NOT NULL,
+    client_id text NOT NULL,
+    client_secret text NOT NULL,
+    client_secret_key_id text,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE external_auth_dcr_clients IS 'External authentication OAuth2 client details registered using dynamic client registration (e.g. public registration endpoint).';
+
+COMMENT ON COLUMN external_auth_dcr_clients.client_secret_key_id IS 'The ID of the key used to encrypt the client secret. If this is NULL, the client secret is not encrypted.';
+
 CREATE TABLE external_auth_links (
     provider_id text NOT NULL,
     user_id uuid NOT NULL,
@@ -2596,6 +2609,9 @@ ALTER TABLE ONLY dbcrypt_keys
 
 ALTER TABLE ONLY dbcrypt_keys
     ADD CONSTRAINT dbcrypt_keys_revoked_key_digest_key UNIQUE (revoked_key_digest);
+
+ALTER TABLE ONLY external_auth_dcr_clients
+    ADD CONSTRAINT external_auth_dcr_clients_pkey PRIMARY KEY (provider_id);
 
 ALTER TABLE ONLY files
     ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);

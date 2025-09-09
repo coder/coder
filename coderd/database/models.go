@@ -3052,6 +3052,17 @@ type DBCryptKey struct {
 	Test string `db:"test" json:"test"`
 }
 
+// External authentication OAuth2 client details registered using dynamic client registration (e.g. public registration endpoint).
+type ExternalAuthDcrClient struct {
+	ProviderID   string `db:"provider_id" json:"provider_id"`
+	ClientID     string `db:"client_id" json:"client_id"`
+	ClientSecret string `db:"client_secret" json:"client_secret"`
+	// The ID of the key used to encrypt the client secret. If this is NULL, the client secret is not encrypted.
+	ClientSecretKeyID sql.NullString `db:"client_secret_key_id" json:"client_secret_key_id"`
+	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+}
+
 type ExternalAuthLink struct {
 	ProviderID        string    `db:"provider_id" json:"provider_id"`
 	UserID            uuid.UUID `db:"user_id" json:"user_id"`

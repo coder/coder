@@ -1986,6 +1986,98 @@ func (q *sqlQuerier) UpdateExternalAuthLinkRefreshToken(ctx context.Context, arg
 	return err
 }
 
+const deleteExternalAuthDcrClient = `-- name: DeleteExternalAuthDcrClient :exec
+DELETE FROM
+    external_auth_dcr_clients
+WHERE
+    provider_id = $1
+`
+
+func (q *sqlQuerier) DeleteExternalAuthDcrClient(ctx context.Context, providerID string) error {
+	_, err := q.db.ExecContext(ctx, deleteExternalAuthDcrClient, providerID)
+	return err
+}
+
+const insertExternalAuthDcrClient = `-- name: InsertExternalAuthDcrClient :one
+INSERT INTO external_auth_dcr_clients (
+    provider_id,
+    client_id,
+    client_secret,
+    client_secret_key_id,
+    created_at,
+    updated_at
+)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING provider_id, client_id, client_secret, client_secret_key_id, created_at, updated_at
+`
+
+type InsertExternalAuthDcrClientParams struct {
+	ProviderID        string         `db:"provider_id" json:"provider_id"`
+	ClientID          string         `db:"client_id" json:"client_id"`
+	ClientSecret      string         `db:"client_secret" json:"client_secret"`
+	ClientSecretKeyID sql.NullString `db:"client_secret_key_id" json:"client_secret_key_id"`
+	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) InsertExternalAuthDcrClient(ctx context.Context, arg InsertExternalAuthDcrClientParams) (ExternalAuthDcrClient, error) {
+	row := q.db.QueryRowContext(ctx, insertExternalAuthDcrClient,
+		arg.ProviderID,
+		arg.ClientID,
+		arg.ClientSecret,
+		arg.ClientSecretKeyID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	var i ExternalAuthDcrClient
+	err := row.Scan(
+		&i.ProviderID,
+		&i.ClientID,
+		&i.ClientSecret,
+		&i.ClientSecretKeyID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listExternalAuthDcrClients = `-- name: ListExternalAuthDcrClients :many
+SELECT
+    provider_id, client_id, client_secret, client_secret_key_id, created_at, updated_at
+FROM
+    external_auth_dcr_clients
+`
+
+func (q *sqlQuerier) ListExternalAuthDcrClients(ctx context.Context) ([]ExternalAuthDcrClient, error) {
+	rows, err := q.db.QueryContext(ctx, listExternalAuthDcrClients)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExternalAuthDcrClient
+	for rows.Next() {
+		var i ExternalAuthDcrClient
+		if err := rows.Scan(
+			&i.ProviderID,
+			&i.ClientID,
+			&i.ClientSecret,
+			&i.ClientSecretKeyID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getFileByHashAndCreator = `-- name: GetFileByHashAndCreator :one
 SELECT
 	hash, created_at, created_by, mimetype, data, id

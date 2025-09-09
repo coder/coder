@@ -495,6 +495,20 @@ func (mr *MockStoreMockRecorder) DeleteCustomRole(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCustomRole", reflect.TypeOf((*MockStore)(nil).DeleteCustomRole), ctx, arg)
 }
 
+// DeleteExternalAuthDcrClient mocks base method.
+func (m *MockStore) DeleteExternalAuthDcrClient(ctx context.Context, providerID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteExternalAuthDcrClient", ctx, providerID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteExternalAuthDcrClient indicates an expected call of DeleteExternalAuthDcrClient.
+func (mr *MockStoreMockRecorder) DeleteExternalAuthDcrClient(ctx, providerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExternalAuthDcrClient", reflect.TypeOf((*MockStore)(nil).DeleteExternalAuthDcrClient), ctx, providerID)
+}
+
 // DeleteExternalAuthLink mocks base method.
 func (m *MockStore) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
 	m.ctrl.T.Helper()
@@ -4736,6 +4750,21 @@ func (mr *MockStoreMockRecorder) InsertDeploymentID(ctx, value any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertDeploymentID", reflect.TypeOf((*MockStore)(nil).InsertDeploymentID), ctx, value)
 }
 
+// InsertExternalAuthDcrClient mocks base method.
+func (m *MockStore) InsertExternalAuthDcrClient(ctx context.Context, arg database.InsertExternalAuthDcrClientParams) (database.ExternalAuthDcrClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertExternalAuthDcrClient", ctx, arg)
+	ret0, _ := ret[0].(database.ExternalAuthDcrClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertExternalAuthDcrClient indicates an expected call of InsertExternalAuthDcrClient.
+func (mr *MockStoreMockRecorder) InsertExternalAuthDcrClient(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertExternalAuthDcrClient", reflect.TypeOf((*MockStore)(nil).InsertExternalAuthDcrClient), ctx, arg)
+}
+
 // InsertExternalAuthLink mocks base method.
 func (m *MockStore) InsertExternalAuthLink(ctx context.Context, arg database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	m.ctrl.T.Helper()
@@ -5532,6 +5561,21 @@ func (m *MockStore) InsertWorkspaceResourceMetadata(ctx context.Context, arg dat
 func (mr *MockStoreMockRecorder) InsertWorkspaceResourceMetadata(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceResourceMetadata", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceResourceMetadata), ctx, arg)
+}
+
+// ListExternalAuthDcrClients mocks base method.
+func (m *MockStore) ListExternalAuthDcrClients(ctx context.Context) ([]database.ExternalAuthDcrClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListExternalAuthDcrClients", ctx)
+	ret0, _ := ret[0].([]database.ExternalAuthDcrClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListExternalAuthDcrClients indicates an expected call of ListExternalAuthDcrClients.
+func (mr *MockStoreMockRecorder) ListExternalAuthDcrClients(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListExternalAuthDcrClients", reflect.TypeOf((*MockStore)(nil).ListExternalAuthDcrClients), ctx)
 }
 
 // ListProvisionerKeysByOrganization mocks base method.

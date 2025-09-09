@@ -2,7 +2,9 @@ externalAuthProviders:
   - type: github
     client_id: client_id
     client_secret: client_secret
+    use_dynamic_client_registration: false
     id: id
+    issuer_url: ""
     auth_url: https://example.com/auth
     token_url: https://example.com/token
     validate_url: https://example.com/validate

@@ -4311,6 +4311,23 @@ func (s *MethodTestSuite) TestUsageEvents() {
 	}))
 }
 
+func (s *MethodTestSuite) TestExternalAuthDcrClients() {
+	s.Run("InsertExternalAuthDcrClient", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().InsertExternalAuthDcrClient(gomock.Any(), gomock.Any()).
+			Return(database.ExternalAuthDcrClient{}, nil)
+		check.Args(database.InsertExternalAuthDcrClientParams{}).
+			Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("ListExternalAuthDcrClients", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().ListExternalAuthDcrClients(gomock.Any()).Return([]database.ExternalAuthDcrClient{}, nil)
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("DeleteExternalAuthDcrClient", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().DeleteExternalAuthDcrClient(gomock.Any(), "provider_id").Return(nil)
+		check.Args("provider_id").Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
+}
+
 // Ensures that the prebuilds actor may never insert an api key.
 func TestInsertAPIKey_AsPrebuildsUser(t *testing.T) {
 	t.Parallel()

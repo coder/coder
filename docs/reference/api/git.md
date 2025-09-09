@@ -80,6 +80,7 @@ curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth} \
       "id": 0
     }
   ],
+  "is_dynamic": true,
   "user": {
     "avatar_url": "string",
     "id": 0,

@@ -34,6 +34,7 @@ func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
 
 	res := codersdk.ExternalAuth{
 		Authenticated:    false,
+		IsDynamic:        config.IsDynamic,
 		Device:           config.DeviceAuth != nil,
 		AppInstallURL:    config.AppInstallURL,
 		DisplayName:      config.DisplayName,
@@ -396,6 +397,7 @@ func ExternalAuthConfig(cfg *externalauth.Config) codersdk.ExternalAuthLinkProvi
 	return codersdk.ExternalAuthLinkProvider{
 		ID:            cfg.ID,
 		Type:          cfg.Type,
+		IsDynamic:     cfg.IsDynamic,
 		Device:        cfg.DeviceAuth != nil,
 		DisplayName:   cfg.DisplayName,
 		DisplayIcon:   cfg.DisplayIcon,

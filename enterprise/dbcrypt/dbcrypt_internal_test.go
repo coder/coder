@@ -722,6 +722,7 @@ func TestNew(t *testing.T) {
 		mockDB := dbmock.NewMockStore(ctrl)
 
 		gomock.InOrder(
+			mockDB.EXPECT().Wrappers().Times(1).Return([]string{}),
 			// First try: we get a serialization error.
 			expectInTx(mockDB),
 			mockDB.EXPECT().GetDBCryptKeys(gomock.Any()).Times(1).Return([]database.DBCryptKey{}, nil),

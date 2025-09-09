@@ -1519,6 +1519,14 @@ func (q *querier) DeleteCustomRole(ctx context.Context, arg database.DeleteCusto
 	return q.db.DeleteCustomRole(ctx, arg)
 }
 
+func (q *querier) DeleteExternalAuthDcrClient(ctx context.Context, providerID string) error {
+	// This query is only called during early startup without dbauthz active.
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteExternalAuthDcrClient(ctx, providerID)
+}
+
 func (q *querier) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
 	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, func(ctx context.Context, arg database.DeleteExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 		//nolint:gosimple
@@ -3821,6 +3829,14 @@ func (q *querier) InsertDeploymentID(ctx context.Context, value string) error {
 	return q.db.InsertDeploymentID(ctx, value)
 }
 
+func (q *querier) InsertExternalAuthDcrClient(ctx context.Context, arg database.InsertExternalAuthDcrClientParams) (database.ExternalAuthDcrClient, error) {
+	// This query is only called during early startup without dbauthz active.
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.ExternalAuthDcrClient{}, err
+	}
+	return q.db.InsertExternalAuthDcrClient(ctx, arg)
+}
+
 func (q *querier) InsertExternalAuthLink(ctx context.Context, arg database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	return insertWithAction(q.log, q.auth, rbac.ResourceUser.WithID(arg.UserID).WithOwner(arg.UserID.String()), policy.ActionUpdatePersonal, q.db.InsertExternalAuthLink)(ctx, arg)
 }
@@ -4286,6 +4302,14 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 		return nil, err
 	}
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
+}
+
+func (q *querier) ListExternalAuthDcrClients(ctx context.Context) ([]database.ExternalAuthDcrClient, error) {
+	// This query is only called during early startup without dbauthz active.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.ListExternalAuthDcrClients(ctx)
 }
 
 func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {

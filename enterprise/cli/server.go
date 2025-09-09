@@ -14,7 +14,10 @@ import (
 	"tailscale.com/derp"
 	"tailscale.com/types/key"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
@@ -31,7 +34,7 @@ import (
 )
 
 func (r *RootCmd) Server(_ func()) *serpent.Command {
-	cmd := r.RootCmd.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
+	cmd := r.RootCmd.Server(DBCryptWrapperFunc, func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
 		if options.DeploymentValues.DERP.Server.RelayURL.String() != "" {
 			_, err := url.Parse(options.DeploymentValues.DERP.Server.RelayURL.String())
 			if err != nil {
@@ -100,23 +103,6 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 
 			CheckInactiveUsersCancelFunc: dormancy.CheckInactiveUsers(ctx, options.Logger, quartz.NewReal(), options.Database, options.Auditor),
 		}
-
-		if encKeys := options.DeploymentValues.ExternalTokenEncryptionKeys.Value(); len(encKeys) != 0 {
-			keys := make([][]byte, 0, len(encKeys))
-			for idx, ek := range encKeys {
-				dk, err := base64.StdEncoding.DecodeString(ek)
-				if err != nil {
-					return nil, nil, xerrors.Errorf("decode external-token-encryption-key %d: %w", idx, err)
-				}
-				keys = append(keys, dk)
-			}
-			cs, err := dbcrypt.NewCiphers(keys...)
-			if err != nil {
-				return nil, nil, xerrors.Errorf("initialize encryption: %w", err)
-			}
-			o.ExternalTokenEncryption = cs
-		}
-
 		if o.LicenseKeys == nil {
 			o.LicenseKeys = coderd.Keys
 		}
@@ -150,6 +136,44 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		r.dbcryptCmd(),
 	)
 	return cmd
+}
+
+func DBCryptWrapperFunc(ctx context.Context, logger slog.Logger, deploymentValues *codersdk.DeploymentValues, store database.Store) (database.Store, error) {
+	if encKeys := deploymentValues.ExternalTokenEncryptionKeys.Value(); len(encKeys) != 0 {
+		keys := make([][]byte, 0, len(encKeys))
+		for idx, ek := range encKeys {
+			dk, err := base64.StdEncoding.DecodeString(ek)
+			if err != nil {
+				return nil, xerrors.Errorf("decode external-token-encryption-key %d: %w", idx, err)
+			}
+			keys = append(keys, dk)
+		}
+		cs, err := dbcrypt.NewCiphers(keys...)
+		if err != nil {
+			return nil, xerrors.Errorf("initialize encryption: %w", err)
+		}
+		var keyDigests []string
+		for _, cipher := range cs {
+			keyDigests = append(keyDigests, cipher.HexDigest())
+		}
+		logger.Info(ctx, "database encryption enabled", slog.F("keys", keyDigests))
+
+		cryptDB, err := dbcrypt.New(ctx, store, cs...)
+		if err != nil {
+			// If we fail to initialize the database, it's likely that the
+			// database is encrypted with an unknown external token
+			// encryption key. This is a fatal error.
+			var derr *dbcrypt.DecryptFailedError
+			if xerrors.As(err, &derr) {
+				return nil, xerrors.Errorf("database encrypted with unknown key, either add the key or see https://coder.com/docs/admin/encryption#disabling-encryption: %w", derr)
+			}
+			return nil, xerrors.Errorf("init database encryption: %w", err)
+		}
+		return cryptDB, nil
+	}
+
+	// No encryption keys, so just return the store as-is.
+	return store, nil
 }
 
 type multiCloser struct {
