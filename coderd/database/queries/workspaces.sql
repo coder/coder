@@ -97,6 +97,25 @@ WHERE
 			)
 	);
 
+-- name: GetExternalWorkspaceCount :one
+SELECT COUNT(*)
+FROM workspaces_expanded as workspaces
+WHERE workspaces.deleted = false
+  AND EXISTS (
+    SELECT 1
+    FROM workspace_builds wb
+    JOIN provisioner_jobs pj ON pj.id = wb.job_id
+    WHERE wb.workspace_id = workspaces.id
+      AND wb.has_external_agent = true
+      AND wb.id = (
+        SELECT wb2.id
+        FROM workspace_builds wb2
+        WHERE wb2.workspace_id = workspaces.id
+        ORDER BY wb2.build_number DESC
+        LIMIT 1
+      )
+  );
+
 -- name: GetWorkspaces :many
 WITH
 -- build_params is used to filter by build parameters if present.
