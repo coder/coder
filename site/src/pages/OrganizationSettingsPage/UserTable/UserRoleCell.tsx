@@ -14,7 +14,7 @@
  * users like that, though, know that it will be painful
  */
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Tooltip from "@mui/material/Tooltip";
+import MUITooltip from "@mui/material/Tooltip";
 import type { LoginType, SlimRole } from "api/typesGenerated";
 import {
 	Popover,
@@ -87,9 +87,9 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
 					}
 				>
 					{mainDisplayRole.global ? (
-						<Tooltip title="This user has this role for all organizations.">
+						<MUITooltip title="This user has this role for all organizations.">
 							<span>{displayName}*</span>
-						</Tooltip>
+						</MUITooltip>
 					) : (
 						displayName
 					)}
@@ -144,9 +144,9 @@ const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
 						css={role.global ? styles.globalRoleBadge : styles.roleBadge}
 					>
 						{role.global ? (
-							<Tooltip title="This user has this role for all organizations.">
+							<MUITooltip title="This user has this role for all organizations.">
 								<span>{role.display_name || role.name}*</span>
-							</Tooltip>
+							</MUITooltip>
 						) : (
 							role.display_name || role.name
 						)}
