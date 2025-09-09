@@ -113,15 +113,27 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	taskName := taskname.GenerateFallback()
-	if anthropicAPIKey := taskname.GetAnthropicAPIKeyFromEnv(); anthropicAPIKey != "" {
-		anthropicModel := taskname.GetAnthropicModelFromEnv()
+	taskName := req.Name
+	if err := codersdk.NameValid(taskName); taskName != "" && err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Unable to create a Task with the provided name.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
-		generatedName, err := taskname.Generate(ctx, req.Prompt, taskname.WithAPIKey(anthropicAPIKey), taskname.WithModel(anthropicModel))
-		if err != nil {
-			api.Logger.Error(ctx, "unable to generate task name", slog.Error(err))
-		} else {
-			taskName = generatedName
+	if taskName == "" {
+		taskName = taskname.GenerateFallback()
+
+		if anthropicAPIKey := taskname.GetAnthropicAPIKeyFromEnv(); anthropicAPIKey != "" {
+			anthropicModel := taskname.GetAnthropicModelFromEnv()
+
+			generatedName, err := taskname.Generate(ctx, req.Prompt, taskname.WithAPIKey(anthropicAPIKey), taskname.WithModel(anthropicModel))
+			if err != nil {
+				api.Logger.Error(ctx, "unable to generate task name", slog.Error(err))
+			} else {
+				taskName = generatedName
+			}
 		}
 	}
 
