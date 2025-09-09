@@ -39,6 +39,18 @@ export const MockOrganization2: TypesGen.Organization = {
 	is_default: false,
 };
 
+export const MockOrganization3: TypesGen.Organization = {
+	id: "my-organization-3-id",
+	name: "my-organization-3",
+	display_name: "My Organization 3",
+	description:
+		"Yet another organization that will show up in OrganizationPills.",
+	icon: "/emojis/1f957.png",
+	created_at: "",
+	updated_at: "",
+	is_default: false,
+};
+
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
 	tz_hour_offset: 0,
 	entries: [
@@ -2926,7 +2938,11 @@ export const MockOrganizationSyncSettings2: TypesGen.OrganizationSyncSettings =
 	{
 		field: "organization-test",
 		mapping: {
-			"idp-org-1": ["my-organization-id", "my-organization-2-id"],
+			"idp-org-1": [
+				"my-organization-id",
+				"my-organization-2-id",
+				"my-organization-3-id",
+			],
 			"idp-org-2": ["my-organization-id"],
 		},
 		organization_assign_default: true,
