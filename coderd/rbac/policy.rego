@@ -257,8 +257,15 @@ scope_allow_list if {
 	# If the wildcard is listed in the allow_list, we do not care about the
 	# object.id. This line is included to prevent partial compilations from
 	# ever needing to include the object.id.
-	not "*" in input.subject.scope.allow_list
-	input.object.id in input.subject.scope.allow_list
+	not {"type": "*", "id": "*"} in input.subject.scope.allow_list
+	allowed_ids := {allowed_id |
+  		# Iterate over all allow list elements
+  		ele := input.subject.scope.allow_list[_]
+  		ele.type in [input.object.type, "*"]
+      allowed_id := ele.id
+  }
+  # this feels weird
+  input.object.id in allowed_ids
 }
 
 # -------------------
