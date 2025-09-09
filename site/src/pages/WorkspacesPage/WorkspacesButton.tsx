@@ -10,7 +10,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
-import { SearchEmpty, searchStyles } from "components/Search/Search";
+import { SearchEmpty } from "components/Search/Search";
 import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, type ReactNode, useState } from "react";
@@ -63,9 +63,6 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 			<PopoverContent
 				align="end"
 				className="bg-surface-secondary border-surface-quaternary w-[320px]"
-				css={{
-					".MuiPaper-root": searchStyles.content,
-				}}
 			>
 				<MenuSearch
 					value={searchTerm}
