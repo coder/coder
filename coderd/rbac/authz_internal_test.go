@@ -1166,6 +1166,8 @@ func TestAuthorizeScope(t *testing.T) {
 }
 
 func TestScopeAllowList(t *testing.T) {
+	t.Parallel()
+
 	defOrg := uuid.New()
 
 	// Some IDs to use
