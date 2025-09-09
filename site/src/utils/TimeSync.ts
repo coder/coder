@@ -31,16 +31,6 @@ export function newReadonlyDate(sourceDate?: Date): Date {
 	return new Proxy(newDate, readonlyEnforcer);
 }
 
-/**
- * Mainly used here to guarantee no mantissa problems when doing math on
- * intervals but to be on the safe side, we can use this anywhere that doesn't
- * check if a value is equal to the Number.POSITIVE_INFINITY constant
- */
-function areIntervalsEqual(interval1: number, interval2: number): boolean {
-	const epsilonThreshold = 0.001;
-	return Math.abs(interval1 - interval2) < epsilonThreshold;
-}
-
 type TimeSyncInitOptions = Readonly<{
 	/**
 	 * The Date object to use when initializing TimeSync to make the constructor
@@ -340,7 +330,7 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		this.#fastestRefreshInterval = newFastest;
-		if (!areIntervalsEqual(prevFastest, newFastest)) {
+		if (prevFastest !== newFastest) {
 			this.#onFastestIntervalChange();
 		}
 	}
@@ -355,14 +345,17 @@ export class TimeSync implements TimeSyncApi {
 		}
 
 		const newSnap = newReadonlyDate();
-		const noStateChange = areIntervalsEqual(
-			newSnap.getMilliseconds(),
-			this.#latestDateSnapshot.getMilliseconds(),
-		);
-		if (noStateChange) {
+		const exceedsUpdateThreshold =
+			newSnap.getMilliseconds() - this.#latestDateSnapshot.getMilliseconds() <
+			stalenessThresholdMs;
+		if (!exceedsUpdateThreshold) {
 			return false;
 		}
 
+		// It's not ever safe for this method to flip this property to false,
+		// because it doesn't have enough context about where it will be called
+		// to know whether that could break other stateful logic
+		this.#hasPendingUpdates = true;
 		this.#latestDateSnapshot = newSnap;
 		return true;
 	}
@@ -437,21 +430,19 @@ export class TimeSync implements TimeSyncApi {
 
 		const changed = this.#updateDateSnapshot(stalenessThresholdMs);
 		switch (notificationBehavior) {
+			case "never": {
+				break;
+			}
 			case "always": {
 				this.#hasPendingUpdates = false;
 				this.#notifyAllSubscriptions();
 				break;
 			}
 			case "onChange": {
-				const prevPending = this.#hasPendingUpdates;
-				this.#hasPendingUpdates = false;
-				if (changed || prevPending) {
+				if (changed || this.#hasPendingUpdates) {
 					this.#notifyAllSubscriptions();
 				}
-				break;
-			}
-			case "never": {
-				this.#hasPendingUpdates ||= changed;
+				this.#hasPendingUpdates = false;
 				break;
 			}
 		}
