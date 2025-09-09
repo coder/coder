@@ -68,7 +68,10 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 					<span css={{ ...visuallyHidden }}>{label}</span>
 				</TopbarButton>
 			</PopoverTrigger>
-			<PopoverContent align="end" className="w-[304px]">
+			<PopoverContent
+				align="end"
+				className="bg-surface-secondary border-surface-quaternary w-[304px]"
+			>
 				<BuildParametersPopoverContent
 					workspace={workspace}
 					ephemeralParameters={ephemeralParameters}
