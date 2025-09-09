@@ -233,10 +233,10 @@ func (mr *MockAgentConnMockRecorder) PrometheusMetrics(ctx any) *gomock.Call {
 }
 
 // ReadFile mocks base method.
-func (m *MockAgentConn) ReadFile(ctx context.Context, path string, offset, limit int64) ([]byte, string, error) {
+func (m *MockAgentConn) ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadFile", ctx, path, offset, limit)
-	ret0, _ := ret[0].([]byte)
+	ret0, _ := ret[0].(io.ReadCloser)
 	ret1, _ := ret[1].(string)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2

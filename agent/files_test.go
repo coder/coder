@@ -2,6 +2,7 @@ package agent_test
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -125,53 +126,61 @@ func TestReadFile(t *testing.T) {
 			error:   "permission denied",
 		},
 		{
-			name:  "Defaults",
-			path:  filePath,
-			bytes: []byte("content"),
+			name:     "Defaults",
+			path:     filePath,
+			bytes:    []byte("content"),
+			mimeType: "application/octet-stream",
 		},
 		{
-			name:  "Limit1",
-			path:  filePath,
-			limit: 1,
-			bytes: []byte("c"),
+			name:     "Limit1",
+			path:     filePath,
+			limit:    1,
+			bytes:    []byte("c"),
+			mimeType: "application/octet-stream",
 		},
 		{
-			name:   "Offset1",
-			path:   filePath,
-			offset: 1,
-			bytes:  []byte("ontent"),
+			name:     "Offset1",
+			path:     filePath,
+			offset:   1,
+			bytes:    []byte("ontent"),
+			mimeType: "application/octet-stream",
 		},
 		{
-			name:   "Limit1Offset2",
-			path:   filePath,
-			limit:  1,
-			offset: 2,
-			bytes:  []byte("n"),
+			name:     "Limit1Offset2",
+			path:     filePath,
+			limit:    1,
+			offset:   2,
+			bytes:    []byte("n"),
+			mimeType: "application/octet-stream",
 		},
 		{
-			name:   "Limit7Offset0",
-			path:   filePath,
-			limit:  7,
-			offset: 0,
-			bytes:  []byte("content"),
+			name:     "Limit7Offset0",
+			path:     filePath,
+			limit:    7,
+			offset:   0,
+			bytes:    []byte("content"),
+			mimeType: "application/octet-stream",
 		},
 		{
-			name:  "Limit100",
-			path:  filePath,
-			limit: 100,
-			bytes: []byte("content"),
+			name:     "Limit100",
+			path:     filePath,
+			limit:    100,
+			bytes:    []byte("content"),
+			mimeType: "application/octet-stream",
 		},
 		{
-			name:   "Offset7",
-			path:   filePath,
-			offset: 7,
-			bytes:  []byte{},
+			name:     "Offset7",
+			path:     filePath,
+			offset:   7,
+			bytes:    []byte{},
+			mimeType: "application/octet-stream",
 		},
 		{
-			name:   "Offset100",
-			path:   filePath,
-			offset: 100,
-			bytes:  []byte{},
+			name:     "Offset100",
+			path:     filePath,
+			offset:   100,
+			bytes:    []byte{},
+			mimeType: "application/octet-stream",
 		},
 		{
 			name:     "MimeTypePng",
@@ -188,7 +197,7 @@ func TestReadFile(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			b, mimeType, err := conn.ReadFile(ctx, tt.path, tt.offset, tt.limit)
+			reader, mimeType, err := conn.ReadFile(ctx, tt.path, tt.offset, tt.limit)
 			if tt.errCode != 0 {
 				require.Error(t, err)
 				cerr := coderdtest.SDKError(t, err)
@@ -196,12 +205,11 @@ func TestReadFile(t *testing.T) {
 				require.Equal(t, tt.errCode, cerr.StatusCode())
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, tt.bytes, b)
-				expectedMimeType := tt.mimeType
-				if expectedMimeType == "" {
-					expectedMimeType = "application/octet-stream"
-				}
-				require.Equal(t, expectedMimeType, mimeType)
+				defer reader.Close()
+				bytes, err := io.ReadAll(reader)
+				require.NoError(t, err)
+				require.Equal(t, tt.bytes, bytes)
+				require.Equal(t, tt.mimeType, mimeType)
 			}
 		})
 	}

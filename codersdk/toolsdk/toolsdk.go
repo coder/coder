@@ -1380,6 +1380,8 @@ type WorkspaceReadFileResponse struct {
 	MimeType string `json:"mimeType"`
 }
 
+const maxFileLimit = 1 << 20 // 1MiB
+
 var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceReadFile,
@@ -1414,12 +1416,28 @@ var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 		}
 		defer conn.Close()
 
-		bytes, mimeType, err := conn.ReadFile(ctx, args.Path, args.Offset, args.Limit)
+		// Ideally we could stream this all the way back, but it looks like the MCP
+		// interfaces only allow returning full responses which means the whole
+		// thing has to be read into memory.  So, add a maximum limit to compensate.
+		limit := args.Limit
+		if limit == 0 {
+			limit = maxFileLimit
+		} else if limit > maxFileLimit {
+			return WorkspaceReadFileResponse{}, xerrors.Errorf("limit must be %d or less, got %d", maxFileLimit, limit)
+		}
+
+		reader, mimeType, err := conn.ReadFile(ctx, args.Path, args.Offset, limit)
 		if err != nil {
 			return WorkspaceReadFileResponse{}, err
 		}
+		defer reader.Close()
 
-		return WorkspaceReadFileResponse{Content: bytes, MimeType: mimeType}, nil
+		bs, err := io.ReadAll(reader)
+		if err != nil {
+			return WorkspaceReadFileResponse{}, xerrors.Errorf("read response body: %w", err)
+		}
+
+		return WorkspaceReadFileResponse{Content: bs, MimeType: mimeType}, nil
 	},
 }
 

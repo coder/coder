@@ -471,6 +471,12 @@ func TestTools(t *testing.T) {
 		err = afero.WriteFile(fs, filePath, []byte("content"), 0o644)
 		require.NoError(t, err)
 
+		largeFilePath := filepath.Join(tmpdir, "large")
+		largeFile, err := fs.Create(largeFilePath)
+		require.NoError(t, err)
+		err = largeFile.Truncate(1 << 21)
+		require.NoError(t, err)
+
 		imagePath := filepath.Join(tmpdir, "file.png")
 		err = afero.WriteFile(fs, imagePath, []byte("not really an image"), 0o644)
 		require.NoError(t, err)
@@ -482,6 +488,7 @@ func TestTools(t *testing.T) {
 			offset   int64
 			mimeType string
 			bytes    []byte
+			length   int
 			error    string
 		}{
 			{
@@ -504,7 +511,13 @@ func TestTools(t *testing.T) {
 				mimeType: "application/octet-stream",
 			},
 			{
-				name:  "MaxLimit",
+				name:     "DefaultMaxLimit",
+				path:     largeFilePath,
+				length:   1 << 20,
+				mimeType: "application/octet-stream",
+			},
+			{
+				name:  "ExceedMaxLimit",
 				path:  filePath,
 				limit: 1 << 21,
 				error: "limit must be 1048576 or less, got 2097152",
@@ -532,7 +545,12 @@ func TestTools(t *testing.T) {
 					require.Contains(t, err.Error(), tt.error)
 				} else {
 					require.NoError(t, err)
-					require.Equal(t, tt.bytes, resp.Content)
+					if tt.length != 0 {
+						require.Len(t, resp.Content, tt.length)
+					}
+					if tt.bytes != nil {
+						require.Equal(t, tt.bytes, resp.Content)
+					}
 					require.Equal(t, tt.mimeType, resp.MimeType)
 				}
 			})
