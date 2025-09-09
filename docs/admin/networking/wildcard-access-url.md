@@ -1,12 +1,12 @@
 # Wildcard Access URLs
 
-Wildcard access URLs unlock Coder's full potential for modern development workflows. While optional for basic SSH usage, this feature becomes essential when teams need web applications, development previews, or browser-based tools. **Wildcard access URL is essential for many development workflows in Coder** - Web IDEs (code-server, VS Code Web, JupyterLab) and some development frameworks work significantly better with subdomain-based access rather than path-based URLs.
+Wildcard access URLs unlock Coder's full potential for modern development workflows. While optional for basic SSH usage, this feature becomes essential when teams need web applications, development previews, or browser-based tools. **Wildcard access URLs are essential for many development workflows in Coder** - Web IDEs (code-server, VS Code Web, JupyterLab) and some development frameworks work significantly better with subdomain-based access rather than path-based URLs.
 
 ## Why configure wildcard access URLs?
 
 ### Key benefits
 
-- **Enables port access**: Each application gets a unique subdomain with port support (e.g., `8080--main--myworkspace--john.coder.example.com`)
+- **Enables port access**: Each application gets a unique subdomain with port support (e.g. `8080--main--myworkspace--john.coder.example.com`)
 - **Enhanced security**: Applications run in isolated subdomains with separate browser security contexts and prevents access to the Coder API from malicious JavaScript
 - **Better compatibility**: Most applications are designed to work at the root of a hostname rather than at a subpath, making subdomain access more reliable
 
@@ -35,7 +35,7 @@ coder server
 Wildcard access URLs require a TLS certificate that covers the wildcard domain. You have several options:
 
 > [!TIP]
-> You can use a single certificate for both the access URL and wildcard access URL. The certificate CN must match the wildcard domain, such as `*.coder.example.com`.
+> You can use a single certificate for both the access URL and wildcard access URL. The certificate CN or SANs must match the wildcard domain, such as `*.coder.example.com`.
 
 #### Direct TLS Configuration
 
