@@ -2955,15 +2955,23 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 	return nil
 }
 
-func workspaceSessionTokenName(workspace database.Workspace) string {
-	return fmt.Sprintf("%s_%s_session_token", workspace.OwnerID, workspace.ID)
+func WorkspaceSessionTokenName(ownerID, workspaceID uuid.UUID) string {
+	return fmt.Sprintf("%s_%s_session_token", ownerID, workspaceID)
 }
 
 func (s *server) regenerateSessionToken(ctx context.Context, user database.User, workspace database.Workspace) (string, error) {
+	// NOTE(Cian): Once a workspace is claimed, there's no reason for the session token to be valid any longer.
+	// Not generating any session token at all for a system user may unintentionally break existing templates,
+	// which we want to avoid. If there's no session token for the workspace belonging to the prebuilds user,
+	// then there's nothing for us to worry about here.
+	// TODO(Cian): Update this to handle _all_ system users. At the time of writing, only one system user exists.
+	if err := deleteSessionTokenForUserAndWorkspace(ctx, s.Database, database.PrebuildsSystemUserID, workspace.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		s.Logger.Error(ctx, "failed to delete prebuilds session token", slog.Error(err), slog.F("workspace_id", workspace.ID))
+	}
 	newkey, sessionToken, err := apikey.Generate(apikey.CreateParams{
 		UserID:          user.ID,
 		LoginType:       user.LoginType,
-		TokenName:       workspaceSessionTokenName(workspace),
+		TokenName:       WorkspaceSessionTokenName(workspace.OwnerID, workspace.ID),
 		DefaultLifetime: s.DeploymentValues.Sessions.DefaultTokenDuration.Value(),
 		LifetimeSeconds: int64(s.DeploymentValues.Sessions.MaximumTokenDuration.Value().Seconds()),
 	})
@@ -2991,10 +2999,14 @@ func (s *server) regenerateSessionToken(ctx context.Context, user database.User,
 }
 
 func deleteSessionToken(ctx context.Context, db database.Store, workspace database.Workspace) error {
+	return deleteSessionTokenForUserAndWorkspace(ctx, db, workspace.OwnerID, workspace.ID)
+}
+
+func deleteSessionTokenForUserAndWorkspace(ctx context.Context, db database.Store, userID, workspaceID uuid.UUID) error {
 	err := db.InTx(func(tx database.Store) error {
 		key, err := tx.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
-			UserID:    workspace.OwnerID,
-			TokenName: workspaceSessionTokenName(workspace),
+			UserID:    userID,
+			TokenName: WorkspaceSessionTokenName(userID, workspaceID),
 		})
 		if err == nil {
 			err = tx.DeleteAPIKeyByID(ctx, key.ID)

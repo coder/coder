@@ -6,9 +6,9 @@ import {
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 	HelpTooltipTitle,
+	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
-import { TooltipTrigger } from "components/Tooltip/Tooltip";
 import { RotateCcwIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { agentVersionStatus } from "../../utils/workspace";
@@ -40,11 +40,11 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 
 	return (
 		<HelpTooltip open={isOpen} onOpenChange={setIsOpen}>
-			<TooltipTrigger asChild>
+			<HelpTooltipTrigger asChild>
 				<span role="status" className="cursor-pointer">
 					{status === agentVersionStatus.Outdated ? "Outdated" : "Deprecated"}
 				</span>
-			</TooltipTrigger>
+			</HelpTooltipTrigger>
 			<HelpTooltipContent>
 				<Stack spacing={1}>
 					<div>
@@ -71,7 +71,6 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 							icon={RotateCcwIcon}
 							onClick={() => {
 								onUpdate();
-								// TODO can we move this tooltip-closing logic to the definition of HelpTooltipAction?
 								setIsOpen(false);
 							}}
 							ariaLabel="Update workspace"

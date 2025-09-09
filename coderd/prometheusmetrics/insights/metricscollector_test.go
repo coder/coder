@@ -90,8 +90,7 @@ func TestCollectInsights(t *testing.T) {
 	// Start an agent so that we can generate stats.
 	var agentClients []agentproto.DRPCAgentClient
 	for i, agent := range []database.WorkspaceAgent{agent1, agent2} {
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(agent.AuthToken.String())
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(agent.AuthToken.String()))
 		agentClient.SDK.SetLogger(logger.Leveled(slog.LevelDebug).Named(fmt.Sprintf("agent%d", i+1)))
 		conn, err := agentClient.ConnectRPC(context.Background())
 		require.NoError(t, err)

@@ -6,9 +6,9 @@ import { CollapsibleSummary } from "components/CollapsibleSummary/CollapsibleSum
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { EditSquare } from "components/Icons/EditSquare";
 import {
@@ -83,7 +83,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = (props) => {
 	if (!canSetRoles) {
 		return (
 			<HelpTooltip>
-				<HelpTooltipTrigger size="small" />
+				<HelpTooltipIconTrigger size="small" />
 				<HelpTooltipContent>
 					<HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
 					<HelpTooltipText>

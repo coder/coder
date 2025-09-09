@@ -148,6 +148,46 @@ func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context
 	return err
 }
 
+const expirePrebuildsAPIKeys = `-- name: ExpirePrebuildsAPIKeys :exec
+WITH unexpired_prebuilds_workspace_session_tokens AS (
+	SELECT id, SUBSTRING(token_name FROM 38 FOR 36)::uuid AS workspace_id
+	FROM api_keys
+	WHERE user_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+	AND expires_at > $1::timestamptz
+	AND token_name SIMILAR TO 'c42fdf75-3097-471c-8c33-fb52454d81c0_[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}_session_token'
+),
+stale_prebuilds_workspace_session_tokens AS (
+	SELECT upwst.id
+	FROM unexpired_prebuilds_workspace_session_tokens upwst
+	LEFT JOIN workspaces w
+	ON w.id = upwst.workspace_id
+	WHERE w.owner_id <> 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+),
+unnamed_prebuilds_api_keys AS (
+	SELECT id
+	FROM api_keys
+	WHERE user_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+	AND token_name = ''
+	AND expires_at > $1::timestamptz
+)
+UPDATE api_keys
+SET expires_at = $1::timestamptz
+WHERE id IN (
+	SELECT id FROM stale_prebuilds_workspace_session_tokens
+	UNION
+	SELECT id FROM unnamed_prebuilds_api_keys
+)
+`
+
+// Firstly, collect api_keys owned by the prebuilds user that correlate
+// to workspaces no longer owned by the prebuilds user.
+// Next, collect api_keys that belong to the prebuilds user but have no token name.
+// These were most likely created via 'coder login' as the prebuilds user.
+func (q *sqlQuerier) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
+	_, err := q.db.ExecContext(ctx, expirePrebuildsAPIKeys, now)
+	return err
+}
+
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
 	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
@@ -8835,6 +8875,47 @@ func (q *sqlQuerier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid
 	return i, err
 }
 
+const getProvisionerJobByIDWithLock = `-- name: GetProvisionerJobByIDWithLock :one
+SELECT
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
+FROM
+	provisioner_jobs
+WHERE
+	id = $1
+FOR UPDATE
+`
+
+// Gets a provisioner job by ID with exclusive lock.
+// Blocks until the row is available for update.
+func (q *sqlQuerier) GetProvisionerJobByIDWithLock(ctx context.Context, id uuid.UUID) (ProvisionerJob, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerJobByIDWithLock, id)
+	var i ProvisionerJob
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StartedAt,
+		&i.CanceledAt,
+		&i.CompletedAt,
+		&i.Error,
+		&i.OrganizationID,
+		&i.InitiatorID,
+		&i.Provisioner,
+		&i.StorageMethod,
+		&i.Type,
+		&i.Input,
+		&i.WorkerID,
+		&i.FileID,
+		&i.Tags,
+		&i.ErrorCode,
+		&i.TraceMetadata,
+		&i.JobStatus,
+		&i.LogsLength,
+		&i.LogsOverflowed,
+	)
+	return i, err
+}
+
 const getProvisionerJobTimingsByJobID = `-- name: GetProvisionerJobTimingsByJobID :many
 SELECT job_id, started_at, ended_at, stage, source, action, resource FROM provisioner_job_timings
 WHERE job_id = $1
@@ -11903,11 +11984,11 @@ JOIN provisioner_jobs pj ON
 WHERE
 	template_versions.template_id = $1 AND
 		(pj.completed_at IS NOT NULL) AND (pj.started_at IS NOT NULL) AND
-		(pj.started_at > $2) AND
 		(pj.canceled_at IS NULL) AND
 		((pj.error IS NULL) OR (pj.error = ''))
 ORDER BY
 	workspace_builds.created_at DESC
+LIMIT 100
 )
 SELECT
 	-- Postgres offers no clear way to DRY this short of a function or other
@@ -11921,11 +12002,6 @@ SELECT
 FROM build_times
 `
 
-type GetTemplateAverageBuildTimeParams struct {
-	TemplateID uuid.NullUUID `db:"template_id" json:"template_id"`
-	StartTime  sql.NullTime  `db:"start_time" json:"start_time"`
-}
-
 type GetTemplateAverageBuildTimeRow struct {
 	Start50  float64 `db:"start_50" json:"start_50"`
 	Stop50   float64 `db:"stop_50" json:"stop_50"`
@@ -11935,8 +12011,8 @@ type GetTemplateAverageBuildTimeRow struct {
 	Delete95 float64 `db:"delete_95" json:"delete_95"`
 }
 
-func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTemplateAverageBuildTimeParams) (GetTemplateAverageBuildTimeRow, error) {
-	row := q.db.QueryRowContext(ctx, getTemplateAverageBuildTime, arg.TemplateID, arg.StartTime)
+func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, templateID uuid.NullUUID) (GetTemplateAverageBuildTimeRow, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateAverageBuildTime, templateID)
 	var i GetTemplateAverageBuildTimeRow
 	err := row.Scan(
 		&i.Start50,
@@ -12154,23 +12230,41 @@ WHERE
 			LOWER(t.name) = LOWER($3)
 		ELSE true
 	END
-	-- Filter by name, matching on substring
+	-- Filter by exact display name
 	AND CASE
 		WHEN $4 :: text != '' THEN
-			lower(t.name) ILIKE '%' || lower($4) || '%'
+			LOWER(t.display_name) = LOWER($4)
+		ELSE true
+	END
+	-- Filter by name, matching on substring
+	AND CASE
+		WHEN $5 :: text != '' THEN
+			lower(t.name) ILIKE '%' || lower($5) || '%'
+		ELSE true
+	END
+	-- Filter by display_name, matching on substring (fallback to name if display_name is empty)
+	AND CASE
+		WHEN $6 :: text != '' THEN
+			CASE
+				WHEN t.display_name IS NOT NULL AND t.display_name != '' THEN
+					lower(t.display_name) ILIKE '%' || lower($6) || '%'
+				ELSE
+					-- Remove spaces if present since 't.name' cannot have any spaces
+					lower(t.name) ILIKE '%' || REPLACE(lower($6), ' ', '') || '%'
+			END
 		ELSE true
 	END
 	-- Filter by ids
 	AND CASE
-		WHEN array_length($5 :: uuid[], 1) > 0 THEN
-			t.id = ANY($5)
+		WHEN array_length($7 :: uuid[], 1) > 0 THEN
+			t.id = ANY($7)
 		ELSE true
 	END
 	-- Filter by deprecated
 	AND CASE
-		WHEN $6 :: boolean IS NOT NULL THEN
+		WHEN $8 :: boolean IS NOT NULL THEN
 			CASE
-				WHEN $6 :: boolean THEN
+				WHEN $8 :: boolean THEN
 					t.deprecated != ''
 				ELSE
 					t.deprecated = ''
@@ -12179,27 +12273,27 @@ WHERE
 	END
 	-- Filter by has_ai_task in latest version
 	AND CASE
-		WHEN $7 :: boolean IS NOT NULL THEN
-			tv.has_ai_task = $7 :: boolean
+		WHEN $9 :: boolean IS NOT NULL THEN
+			tv.has_ai_task = $9 :: boolean
 		ELSE true
 	END
 	-- Filter by author_id
 	AND CASE
-		  WHEN $8 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			  t.created_by = $8
+		  WHEN $10 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			  t.created_by = $10
 		  ELSE true
 	END
 	-- Filter by author_username
 	AND CASE
-		  WHEN $9 :: text != '' THEN
-			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($9) AND deleted = false)
+		  WHEN $11 :: text != '' THEN
+			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($11) AND deleted = false)
 		  ELSE true
 	END
 
 	-- Filter by has_external_agent in latest version
 	AND CASE
-		WHEN $10 :: boolean IS NOT NULL THEN
-			tv.has_external_agent = $10 :: boolean
+		WHEN $12 :: boolean IS NOT NULL THEN
+			tv.has_external_agent = $12 :: boolean
 		ELSE true
 	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
@@ -12211,7 +12305,9 @@ type GetTemplatesWithFilterParams struct {
 	Deleted          bool         `db:"deleted" json:"deleted"`
 	OrganizationID   uuid.UUID    `db:"organization_id" json:"organization_id"`
 	ExactName        string       `db:"exact_name" json:"exact_name"`
+	ExactDisplayName string       `db:"exact_display_name" json:"exact_display_name"`
 	FuzzyName        string       `db:"fuzzy_name" json:"fuzzy_name"`
+	FuzzyDisplayName string       `db:"fuzzy_display_name" json:"fuzzy_display_name"`
 	IDs              []uuid.UUID  `db:"ids" json:"ids"`
 	Deprecated       sql.NullBool `db:"deprecated" json:"deprecated"`
 	HasAITask        sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
@@ -12225,7 +12321,9 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		arg.Deleted,
 		arg.OrganizationID,
 		arg.ExactName,
+		arg.ExactDisplayName,
 		arg.FuzzyName,
+		arg.FuzzyDisplayName,
 		pq.Array(arg.IDs),
 		arg.Deprecated,
 		arg.HasAITask,

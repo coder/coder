@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/taskname"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -112,15 +113,29 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	taskName := taskname.GenerateFallback()
-	if anthropicAPIKey := taskname.GetAnthropicAPIKeyFromEnv(); anthropicAPIKey != "" {
-		anthropicModel := taskname.GetAnthropicModelFromEnv()
+	taskName := req.Name
+	if taskName != "" {
+		if err := codersdk.NameValid(taskName); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Unable to create a Task with the provided name.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
 
-		generatedName, err := taskname.Generate(ctx, req.Prompt, taskname.WithAPIKey(anthropicAPIKey), taskname.WithModel(anthropicModel))
-		if err != nil {
-			api.Logger.Error(ctx, "unable to generate task name", slog.Error(err))
-		} else {
-			taskName = generatedName
+	if taskName == "" {
+		taskName = taskname.GenerateFallback()
+
+		if anthropicAPIKey := taskname.GetAnthropicAPIKeyFromEnv(); anthropicAPIKey != "" {
+			anthropicModel := taskname.GetAnthropicModelFromEnv()
+
+			generatedName, err := taskname.Generate(ctx, req.Prompt, taskname.WithAPIKey(anthropicAPIKey), taskname.WithModel(anthropicModel))
+			if err != nil {
+				api.Logger.Error(ctx, "unable to generate task name", slog.Error(err))
+			} else {
+				taskName = generatedName
+			}
 		}
 	}
 
@@ -440,8 +455,32 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if data.builds[0].HasAITask == nil || !*data.builds[0].HasAITask {
-		httpapi.ResourceNotFound(rw)
-		return
+		// TODO(DanielleMaywood):
+		// This is a temporary workaround. When a task has just been created, but
+		// not yet provisioned, the workspace build will not have `HasAITask` set.
+		//
+		// When we reach this code flow, it is _either_ because the workspace is
+		// not a task, or it is a task that has not yet been provisioned. This
+		// endpoint should rarely be called with a non-task workspace so we
+		// should be fine with this extra database call to check if it has the
+		// special "AI Task" parameter.
+		parameters, err := api.Database.GetWorkspaceBuildParameters(ctx, data.builds[0].ID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching workspace build parameters.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		_, hasAITask := slice.Find(parameters, func(t database.WorkspaceBuildParameter) bool {
+			return t.Name == codersdk.AITaskPromptParameterName
+		})
+
+		if !hasAITask {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 	}
 
 	appStatus := codersdk.WorkspaceAppStatus{}
