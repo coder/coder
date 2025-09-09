@@ -45,9 +45,10 @@ func WorkspaceAgentScope(params WorkspaceAgentScopeParams) Scope {
 		// incase we change the behavior of the allowlist. The allowlist is new
 		// and evolving.
 		Role: scope.Role,
-		// This prevents the agent from being able to access any other resource.
-		// Include the list of IDs of anything that is required for the
-		// agent to function.
+
+		// Limit the agent to only be able to access the singular workspace and
+		// the template/version it was created from. Add additional resources here
+		// as needed, but do not add more workspace or template resource ids.
 		AllowIDList: []AllowListElement{
 			{Type: ResourceWorkspace.Type, ID: params.WorkspaceID.String()},
 			{Type: ResourceTemplate.Type, ID: params.TemplateID.String()},
@@ -133,6 +134,7 @@ type Scope struct {
 }
 
 type AllowListElement struct {
+	// ID must be a string to allow for the wildcard symbol.
 	ID   string `json:"id"`
 	Type string `json:"type"`
 }
