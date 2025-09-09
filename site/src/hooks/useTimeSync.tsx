@@ -250,16 +250,18 @@ class ReactTimeSync {
 			latestSyncState = this.#timeSync.getStateSnapshot();
 		}
 
-		this.#entries.set(componentId, {
-			lastUpdateSource: "newSubscription",
-			unsubscribe: unsubscribeFromRootSync,
-			cachedTransformation: transform(latestSyncState),
-		});
-
-		return () => {
+		const unsubscribe = (): void => {
 			unsubscribeFromRootSync();
 			this.#entries.delete(componentId);
 		};
+
+		this.#entries.set(componentId, {
+			unsubscribe,
+			lastUpdateSource: "newSubscription",
+			cachedTransformation: transform(latestSyncState),
+		});
+
+		return unsubscribe;
 	}
 
 	invalidateTransformation(componentId: string, newValue: unknown): void {
@@ -287,6 +289,9 @@ class ReactTimeSync {
 		// wrong, having an extra merge step removes some potential risks
 		const merged = structuralMerge(entry.cachedTransformation, newValue);
 		entry.cachedTransformation = merged;
+		if (merged !== newValue) {
+			entry.lastUpdateSource = "rerender";
+		}
 	}
 
 	// It's super important that we have this function be set up to always
