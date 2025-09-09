@@ -249,7 +249,8 @@ user_allow(roles) := num if {
 # Scope allow_list is a list of resource IDs explicitly allowed by the scope.
 # If the list is '*', then all resources are allowed.
 scope_allow_list if {
-	"*" in input.subject.scope.allow_list
+	some x
+	input.subject.scope.allow_list[x] == {"type": "*", "id": "*"}
 }
 
 scope_allow_list if {

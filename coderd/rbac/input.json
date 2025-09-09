@@ -40,7 +40,11 @@
 			],
 			"org": {},
 			"user": [],
-			"allow_list": ["*"]
+			"allow_list": [
+				{
+					"type": "*",
+					"id": "*"
+				}]
 		}
 	}
 }
