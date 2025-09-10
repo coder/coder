@@ -400,9 +400,9 @@ function useTimeSync(): TimeSync {
  */
 const _unused = useTimeSync;
 
-// Even though this is a really simple function, keeping it defined outside the
-// hook helps a lot with making sure useSyncExternalStore doesn't re-sync too
-// often
+// Even though this is a really simple function, keeping it defined outside
+// useTimeSyncState helps with render performance, and helps stabilize a bunch
+// of values in the hook when you're not doing transformations
 function identity<T>(value: T): T {
 	return value;
 }
@@ -415,8 +415,8 @@ type UseTimeSyncOptions<T> = Readonly<{
 	 * hook should refresh with the newest state value from TimeSync.
 	 *
 	 * Note that a refresh is not the same as a re-render. If the hook is
-	 * refreshed with a new datetime, but its transform callback produces the
-	 * same value as before, the hook will skip re-rendering.
+	 * refreshed with a new datetime, but the state for the component itself has
+	 * not changed, the hook will bail out of re-rendering.
 	 *
 	 * The hook reserves the right to refresh MORE frequently than the
 	 * specified interval if it would guarantee that the hook does not get out
@@ -450,19 +450,19 @@ type UseTimeSyncOptions<T> = Readonly<{
 }>;
 
 /**
- * Lets you bind your React component's state to a TimeSync's time management
+ * Lets you bind your React component's state to a TimeSync's time subscription
  * logic.
  *
- * When the hook is called for the first time, the date state is guaranteed to
- * be updated, no matter how many subscribers were set up before, or what
- * intervals they subscribed with.
+ * When the hook is called for the first time, the date state it works with is
+ * guaranteed to be within one second of the current time, not the date state
+ * that was used for the last notification (if any happened at all).
  *
  * Note that any component mounted with this hook will re-render under two
  * situations:
  * 1. A state update was dispatched via the TimeSync's normal time update logic.
  * 2. If a component was mounted for the first time with a fresh date, all other
  *    components will be "refreshed" to use the same date as well. This is to
- *    avoid stale date issues, and it will happen even if all other subscribers
+ *    avoid stale date issues, and will happen even if all other subscribers
  *    were subscribed with an interval of positive infinity.
  */
 export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
@@ -476,9 +476,10 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	const hookId = useId();
 	const reactTs = useReactTimeSync();
 
-	// getSnap should be 100% stable for the entire component lifetime. Note
-	// that because of how React lifecycles work, getSnap will always return
-	// the TimeSync's current Date object on the mounting render (without ever
+	// getSnap should be 100% stable for the entire component lifetime to
+	// minimize unnecessary function calls for useSyncExternalStore. Note that
+	// because of how React lifecycles work, getSnap will always return the
+	// TimeSync's current Date object on the mounting render (without ever
 	// applying any transformations). This is expected, and the rest of the hook
 	// logic ensures that it will be intercepted before being returned to
 	// consumers
@@ -529,8 +530,8 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 		reactTs.updateComponentState(hookId, merged);
 	}, [reactTs, hookId, merged]);
 
-	// We want to make sure that the mounting effect fires after the initial
-	// transform invalidation to minimize the risks of React being over-notified
+	// We want to make sure that this mounting logic fires after the initial
+	// transform update to minimize the risks of React being over-notified
 	// of state updates
 	useEffect(() => {
 		reactTs.onComponentMount();
