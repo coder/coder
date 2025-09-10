@@ -10,13 +10,12 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
+	"github.com/google/uuid"
 )
 
 const defaultGroupDisplay = "-"
 
 func (r *RootCmd) sharing() *serpent.Command {
-	orgContext := NewOrganizationContext()
-
 	cmd := &serpent.Command{
 		Use:     "sharing [subcommand]",
 		Short:   "Commands for managing shared workspaces",
@@ -25,14 +24,13 @@ func (r *RootCmd) sharing() *serpent.Command {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*serpent.Command{
-			r.shareWorkspace(orgContext),
-			r.unshareWorkspace(orgContext),
+			r.shareWorkspace(),
+			r.unshareWorkspace(),
 			r.statusWorkspaceSharing(),
 		},
 		Hidden: true,
 	}
 
-	orgContext.AttachOptions(cmd)
 	return cmd
 }
 
@@ -71,7 +69,7 @@ func (r *RootCmd) statusWorkspaceSharing() *serpent.Command {
 	return cmd
 }
 
-func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Command {
+func (r *RootCmd) shareWorkspace() *serpent.Command {
 	var (
 		client = new(codersdk.Client)
 		users  []string
@@ -112,11 +110,6 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 				return xerrors.Errorf("could not fetch the workspace %s: %w", inv.Args[0], err)
 			}
 
-			org, err := orgContext.Selected(inv, client)
-			if err != nil {
-				return err
-			}
-
 			userRoleStrings := make([][2]string, len(users))
 			for index, user := range users {
 				userAndRole := nameRoleRegex.FindStringSubmatch(user)
@@ -139,7 +132,8 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 
 			userRoles, groupRoles, err := fetchUsersAndGroups(inv.Context(), fetchUsersAndGroupsParams{
 				Client:      client,
-				Org:         &org,
+				OrgID:       workspace.OrganizationID,
+				OrgName:     workspace.OrganizationName,
 				Users:       userRoleStrings,
 				Groups:      groupRoleStrings,
 				DefaultRole: codersdk.WorkspaceRoleUse,
@@ -174,7 +168,7 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 	return cmd
 }
 
-func (r *RootCmd) unshareWorkspace(orgContext *OrganizationContext) *serpent.Command {
+func (r *RootCmd) unshareWorkspace() *serpent.Command {
 	var (
 		client = new(codersdk.Client)
 		users  []string
@@ -212,11 +206,6 @@ func (r *RootCmd) unshareWorkspace(orgContext *OrganizationContext) *serpent.Com
 				return xerrors.Errorf("could not fetch the workspace %s: %w", inv.Args[0], err)
 			}
 
-			org, err := orgContext.Selected(inv, client)
-			if err != nil {
-				return err
-			}
-
 			userRoleStrings := make([][2]string, len(users))
 			for index, user := range users {
 				if !codersdk.UsernameValidRegex.MatchString(user) {
@@ -237,7 +226,8 @@ func (r *RootCmd) unshareWorkspace(orgContext *OrganizationContext) *serpent.Com
 
 			userRoles, groupRoles, err := fetchUsersAndGroups(inv.Context(), fetchUsersAndGroupsParams{
 				Client:      client,
-				Org:         &org,
+				OrgID:       workspace.OrganizationID,
+				OrgName:     workspace.OrganizationName,
 				Users:       userRoleStrings,
 				Groups:      groupRoleStrings,
 				DefaultRole: codersdk.WorkspaceRoleDeleted,
@@ -333,7 +323,8 @@ func workspaceACLToTable(ctx context.Context, acl *codersdk.WorkspaceACL) (strin
 
 type fetchUsersAndGroupsParams struct {
 	Client      *codersdk.Client
-	Org         *codersdk.Organization
+	OrgID       uuid.UUID
+	OrgName     string
 	Users       [][2]string
 	Groups      [][2]string
 	DefaultRole codersdk.WorkspaceRole
@@ -342,7 +333,8 @@ type fetchUsersAndGroupsParams struct {
 func fetchUsersAndGroups(ctx context.Context, params fetchUsersAndGroupsParams) (userRoles map[string]codersdk.WorkspaceRole, groupRoles map[string]codersdk.WorkspaceRole, err error) {
 	var (
 		client      = params.Client
-		org         = params.Org
+		orgID       = params.OrgID
+		orgName     = params.OrgName
 		users       = params.Users
 		groups      = params.Groups
 		defaultRole = params.DefaultRole
@@ -350,7 +342,7 @@ func fetchUsersAndGroups(ctx context.Context, params fetchUsersAndGroupsParams) 
 
 	userRoles = make(map[string]codersdk.WorkspaceRole, len(users))
 	if len(users) > 0 {
-		orgMembers, err := client.OrganizationMembers(ctx, org.ID)
+		orgMembers, err := client.OrganizationMembers(ctx, orgID)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -370,7 +362,7 @@ func fetchUsersAndGroups(ctx context.Context, params fetchUsersAndGroupsParams) 
 				}
 			}
 			if userID == "" {
-				return nil, nil, xerrors.Errorf("could not find user %s in the organization %s", username, org.Name)
+				return nil, nil, xerrors.Errorf("could not find user %s in the organization %s", username, orgName)
 			}
 
 			workspaceRole, err := stringToWorkspaceRole(role)
@@ -385,7 +377,7 @@ func fetchUsersAndGroups(ctx context.Context, params fetchUsersAndGroupsParams) 
 	groupRoles = make(map[string]codersdk.WorkspaceRole)
 	if len(groups) > 0 {
 		orgGroups, err := client.Groups(ctx, codersdk.GroupArguments{
-			Organization: org.ID.String(),
+			Organization: orgID.String(),
 		})
 		if err != nil {
 			return nil, nil, err
@@ -407,7 +399,7 @@ func fetchUsersAndGroups(ctx context.Context, params fetchUsersAndGroupsParams) 
 			}
 
 			if orgGroup == nil {
-				return nil, nil, xerrors.Errorf("could not find group named %s belonging to the organization %s", groupName, org.Name)
+				return nil, nil, xerrors.Errorf("could not find group named %s belonging to the organization %s", groupName, orgName)
 			}
 
 			workspaceRole, err := stringToWorkspaceRole(role)

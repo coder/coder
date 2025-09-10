@@ -41,7 +41,7 @@ func TestSharingShare(t *testing.T) {
 		)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		inv, root := clitest.New(t, "sharing", "add", workspace.Name, "--org", orgOwner.OrganizationID.String(), "--user", toShareWithUser.Username)
+		inv, root := clitest.New(t, "sharing", "add", workspace.Name, "--user", toShareWithUser.Username)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
 		out := new(bytes.Buffer)
@@ -86,7 +86,7 @@ func TestSharingShare(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv, root := clitest.New(t,
 			"sharing",
-			"add", workspace.Name, "--org", orgOwner.OrganizationID.String(),
+			"add", workspace.Name,
 			fmt.Sprintf("--user=%s,%s", toShareWithUser1.Username, toShareWithUser2.Username),
 		)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
@@ -137,7 +137,6 @@ func TestSharingShare(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv, root := clitest.New(t, "sharing", "add", workspace.Name,
-			"--org", orgOwner.OrganizationID.String(),
 			"--user", fmt.Sprintf("%s:admin", toShareWithUser.Username),
 		)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
@@ -199,7 +198,7 @@ func TestSharingStatus(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		inv, root := clitest.New(t, "sharing", "status", workspace.Name, "--org", orgOwner.OrganizationID.String())
+		inv, root := clitest.New(t, "sharing", "status", workspace.Name)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
 		out := new(bytes.Buffer)
@@ -256,7 +255,6 @@ func TestSharingRemove(t *testing.T) {
 			"sharing",
 			"remove",
 			workspace.Name,
-			"--org", orgOwner.OrganizationID.String(),
 			"--user", toRemoveUser.Username,
 		)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
@@ -316,7 +314,6 @@ func TestSharingRemove(t *testing.T) {
 			"sharing",
 			"remove",
 			workspace.Name,
-			"--org", orgOwner.OrganizationID.String(),
 			fmt.Sprintf("--user=%s,%s", toRemoveUser1.Username, toRemoveUser2.Username),
 		)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)

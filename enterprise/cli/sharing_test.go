@@ -56,7 +56,7 @@ func TestSharingShare(t *testing.T) {
 		group, err := createGroupWithMembers(ctx, client, orgOwner.OrganizationID, "new-group", []uuid.UUID{orgMember.ID})
 		require.NoError(t, err)
 
-		inv, root := clitest.New(t, "sharing", "share", workspace.Name, "--org", orgOwner.OrganizationID.String(), "--group", group.Name)
+		inv, root := clitest.New(t, "sharing", "share", workspace.Name, "--group", group.Name)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
 		out := new(bytes.Buffer)
@@ -113,7 +113,7 @@ func TestSharingShare(t *testing.T) {
 		wobbleGroup, err := createGroupWithMembers(ctx, client, orgOwner.OrganizationID, "wobble", []uuid.UUID{wobbleMember.ID})
 		require.NoError(t, err)
 
-		inv, root := clitest.New(t, "sharing", "share", workspace.Name, "--org", orgOwner.OrganizationID.String(),
+		inv, root := clitest.New(t, "sharing", "share", workspace.Name,
 			fmt.Sprintf("--group=%s,%s", wibbleGroup.Name, wobbleGroup.Name))
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
@@ -161,7 +161,7 @@ func TestSharingShare(t *testing.T) {
 			group, err := createGroupWithMembers(ctx, client, orgOwner.OrganizationID, "new-group", []uuid.UUID{orgMember.ID})
 			require.NoError(t, err)
 
-			inv, root := clitest.New(t, "sharing", "share", workspace.Name, "--org", orgOwner.OrganizationID.String(), "--group", fmt.Sprintf("%s:admin", group.Name))
+			inv, root := clitest.New(t, "sharing", "share", workspace.Name, "--group", fmt.Sprintf("%s:admin", group.Name))
 			clitest.SetupConfig(t, workspaceOwnerClient, root)
 
 			out := new(bytes.Buffer)
@@ -226,7 +226,7 @@ func TestSharingStatus(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		inv, root := clitest.New(t, "sharing", "status", workspace.Name, "--org", orgOwner.OrganizationID.String())
+		inv, root := clitest.New(t, "sharing", "status", workspace.Name)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
 		out := new(bytes.Buffer)
@@ -295,7 +295,6 @@ func TestSharingRemove(t *testing.T) {
 			"sharing",
 			"remove",
 			workspace.Name,
-			"--org", orgOwner.OrganizationID.String(),
 			"--group", group1.Name,
 		)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
@@ -367,7 +366,6 @@ func TestSharingRemove(t *testing.T) {
 			"sharing",
 			"remove",
 			workspace.Name,
-			"--org", orgOwner.OrganizationID.String(),
 			fmt.Sprintf("--group=%s,%s", group1.Name, group2.Name),
 		)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
