@@ -290,6 +290,7 @@ type CustomNotificationContent struct {
 type CustomNotificationRequest struct {
 	Content *CustomNotificationContent `json:"content"`
 	// TODO(ssncferreira): Add target (user_ids, roles) to support multi-user and role-based delivery.
+	//   See: https://github.com/coder/coder/issues/19768
 }
 
 func (c CustomNotificationRequest) Validate() error {

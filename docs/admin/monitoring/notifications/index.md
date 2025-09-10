@@ -271,6 +271,10 @@ At this time, custom notifications can only be sent to the user making the reque
 
 To send a custom notification, execute [`coder notifications custom <title> <message>`](../../../reference/cli/notifications_custom.md).
 
+<!-- TODO(ssncferreira): Update when sending custom notifications to multiple users/roles is supported.
+	 Explain deduplication behaviour for multiple users/roles.
+	 See: https://github.com/coder/coder/issues/19768
+-->
 **Note:** The recipient is always the requesting user as targeting other users or groups isn’t supported yet.
 
 ### Examples

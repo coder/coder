@@ -396,7 +396,7 @@ func (api *API) postCustomNotification(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if _, err := api.NotificationsEnqueuer.Enqueue(
+	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
 		//nolint:gocritic // We need to be notifier to send the notification.
 		dbauthz.AsNotifier(ctx),
 		user.ID,
@@ -404,6 +404,15 @@ func (api *API) postCustomNotification(rw http.ResponseWriter, r *http.Request) 
 		map[string]string{
 			"custom_title":   req.Content.Title,
 			"custom_message": req.Content.Message,
+		},
+		map[string]any{
+			// Current dedupe is done via an hash of (template, user, method, payload, targets, day).
+			// We intentionally include a timestamp to bypass the per-day dedupe so the caller can
+			// resend identical content to themselves multiple times in one day.
+			// TODO(ssncferreira): When we support sending custom notifications to multiple users/roles,
+			//   enforce proper deduplication across recipients to reduce noise and prevent spam.
+			//   See https://github.com/coder/coder/issues/19768
+			"dedupe_bypass_ts": api.Clock.Now().UTC(),
 		},
 		user.ID.String(),
 	); err != nil {
