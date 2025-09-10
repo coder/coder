@@ -24,7 +24,7 @@ Before diving in, here are the four concepts that power Coder explained through
 a cooking analogy:
 
 | Component      | What It Is                                                                           | Real-World Analogy                       |
-| -------------- | ------------------------------------------------------------------------------------ | ---------------------------------------- |
+|----------------|--------------------------------------------------------------------------------------|------------------------------------------|
 | **You**        | The engineer/developer/builder working                                               | The head chef cooking the meal           |
 | **Templates**  | A Terraform blueprint that defines your dev environment (OS, tools, resources)       | Recipe for a meal                        |
 | **Workspaces** | The actual running environment created from the template                             | The cooked meal                          |
@@ -162,7 +162,7 @@ Templates define what's in your development environment. Let's start simple:
 2. **Choose a starter template:**
 
    | Starter                             | Best For                                                | Includes                                               |
-   | ----------------------------------- | ------------------------------------------------------- | ------------------------------------------------------ |
+   |-------------------------------------|---------------------------------------------------------|--------------------------------------------------------|
    | **Docker Containers** (Recommended) | Getting started quickly, local development, prototyping | Ubuntu container with common dev tools, Docker runtime |
    | **Kubernetes (Deployment)**         | Cloud-native teams, scalable workspaces                 | Pod-based workspaces, Kubernetes orchestration         |
    | **AWS EC2 (Linux)**                 | Teams needing full VMs, AWS-native infrastructure       | Full EC2 instances with AWS integration                |
