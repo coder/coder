@@ -9018,6 +9018,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 ],
                 "subdomain": true,
                 "subdomain_name": "string",
+                "tooltip": "string",
                 "url": "string"
               }
             ],
@@ -9282,6 +9283,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       ],
       "subdomain": true,
       "subdomain_name": "string",
+      "tooltip": "string",
       "url": "string"
     }
   ],
@@ -9950,6 +9952,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   ],
   "subdomain": true,
   "subdomain_name": "string",
+  "tooltip": "string",
   "url": "string"
 }
 ```
@@ -9973,6 +9976,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `statuses`       | array of [codersdk.WorkspaceAppStatus](#codersdkworkspaceappstatus)    | false    |              | Statuses is a list of statuses for the app.                                                                                                                                                                                                    |
 | `subdomain`      | boolean                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
 | `subdomain_name` | string                                                                 | false    |              | Subdomain name is the application domain exposed on the `coder server`.                                                                                                                                                                        |
+| `tooltip`        | string                                                                 | false    |              | Tooltip is an optional markdown supported field that is displayed when hovering over workspace apps in the UI.                                                                                                                                 |
 | `url`            | string                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
 
 #### Enumerated Values
@@ -10181,6 +10185,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               ],
               "subdomain": true,
               "subdomain_name": "string",
+              "tooltip": "string",
               "url": "string"
             }
           ],
@@ -10662,6 +10667,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           ],
           "subdomain": true,
           "subdomain_name": "string",
+          "tooltip": "string",
           "url": "string"
         }
       ],
@@ -10998,6 +11004,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                     "statuses": [],
                     "subdomain": true,
                     "subdomain_name": "string",
+                    "tooltip": "string",
                     "url": "string"
                   }
                 ],

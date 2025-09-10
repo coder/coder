@@ -18280,7 +18280,7 @@ func (q *sqlQuerier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Con
 }
 
 const getWorkspaceAppByAgentIDAndSlug = `-- name: GetWorkspaceAppByAgentIDAndSlug :one
-SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group FROM workspace_apps WHERE agent_id = $1 AND slug = $2
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group, tooltip FROM workspace_apps WHERE agent_id = $1 AND slug = $2
 `
 
 type GetWorkspaceAppByAgentIDAndSlugParams struct {
@@ -18311,6 +18311,7 @@ func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg Ge
 		&i.Hidden,
 		&i.OpenIn,
 		&i.DisplayGroup,
+		&i.Tooltip,
 	)
 	return i, err
 }
@@ -18352,7 +18353,7 @@ func (q *sqlQuerier) GetWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []
 }
 
 const getWorkspaceAppsByAgentID = `-- name: GetWorkspaceAppsByAgentID :many
-SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group FROM workspace_apps WHERE agent_id = $1 ORDER BY slug ASC
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group, tooltip FROM workspace_apps WHERE agent_id = $1 ORDER BY slug ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceApp, error) {
@@ -18384,6 +18385,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid
 			&i.Hidden,
 			&i.OpenIn,
 			&i.DisplayGroup,
+			&i.Tooltip,
 		); err != nil {
 			return nil, err
 		}
@@ -18399,7 +18401,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid
 }
 
 const getWorkspaceAppsByAgentIDs = `-- name: GetWorkspaceAppsByAgentIDs :many
-SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ]) ORDER BY slug ASC
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group, tooltip FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ]) ORDER BY slug ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceApp, error) {
@@ -18431,6 +18433,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.
 			&i.Hidden,
 			&i.OpenIn,
 			&i.DisplayGroup,
+			&i.Tooltip,
 		); err != nil {
 			return nil, err
 		}
@@ -18446,7 +18449,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.
 }
 
 const getWorkspaceAppsCreatedAfter = `-- name: GetWorkspaceAppsCreatedAfter :many
-SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group FROM workspace_apps WHERE created_at > $1 ORDER BY slug ASC
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group, tooltip FROM workspace_apps WHERE created_at > $1 ORDER BY slug ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceApp, error) {
@@ -18478,6 +18481,7 @@ func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt
 			&i.Hidden,
 			&i.OpenIn,
 			&i.DisplayGroup,
+			&i.Tooltip,
 		); err != nil {
 			return nil, err
 		}
@@ -18574,10 +18578,11 @@ INSERT INTO
         display_order,
         hidden,
         open_in,
-        display_group
+        display_group,
+        tooltip
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 ON CONFLICT (id) DO UPDATE SET
     display_name = EXCLUDED.display_name,
     icon = EXCLUDED.icon,
@@ -18595,8 +18600,9 @@ ON CONFLICT (id) DO UPDATE SET
     open_in = EXCLUDED.open_in,
     display_group = EXCLUDED.display_group,
     agent_id = EXCLUDED.agent_id,
-    slug = EXCLUDED.slug
-RETURNING id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group
+    slug = EXCLUDED.slug,
+    tooltip = EXCLUDED.tooltip
+RETURNING id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group, tooltip
 `
 
 type UpsertWorkspaceAppParams struct {
@@ -18619,6 +18625,7 @@ type UpsertWorkspaceAppParams struct {
 	Hidden               bool               `db:"hidden" json:"hidden"`
 	OpenIn               WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
 	DisplayGroup         sql.NullString     `db:"display_group" json:"display_group"`
+	Tooltip              string             `db:"tooltip" json:"tooltip"`
 }
 
 func (q *sqlQuerier) UpsertWorkspaceApp(ctx context.Context, arg UpsertWorkspaceAppParams) (WorkspaceApp, error) {
@@ -18642,6 +18649,7 @@ func (q *sqlQuerier) UpsertWorkspaceApp(ctx context.Context, arg UpsertWorkspace
 		arg.Hidden,
 		arg.OpenIn,
 		arg.DisplayGroup,
+		arg.Tooltip,
 	)
 	var i WorkspaceApp
 	err := row.Scan(
@@ -18664,6 +18672,7 @@ func (q *sqlQuerier) UpsertWorkspaceApp(ctx context.Context, arg UpsertWorkspace
 		&i.Hidden,
 		&i.OpenIn,
 		&i.DisplayGroup,
+		&i.Tooltip,
 	)
 	return i, err
 }

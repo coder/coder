@@ -3859,6 +3859,7 @@ export interface WorkspaceApp {
 	readonly group?: string;
 	readonly hidden: boolean;
 	readonly open_in: WorkspaceAppOpenIn;
+	readonly tooltip?: string;
 	readonly statuses: readonly WorkspaceAppStatus[];
 }
 
