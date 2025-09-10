@@ -125,9 +125,11 @@ func (r *RootCmd) customNotifications() *serpent.Command {
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			err := client.PostCustomNotification(inv.Context(), codersdk.CustomNotification{
-				Title:   inv.Args[0],
-				Message: inv.Args[1],
+			err := client.PostCustomNotification(inv.Context(), codersdk.CustomNotificationRequest{
+				Content: &codersdk.CustomNotificationContent{
+					Title:   inv.Args[0],
+					Message: inv.Args[1],
+				},
 			})
 			if err != nil {
 				return xerrors.Errorf("unable to post custom notification: %w", err)

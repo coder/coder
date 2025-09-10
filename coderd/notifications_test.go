@@ -397,9 +397,11 @@ func TestCustomNotification(t *testing.T) {
 		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, ownerUser.OrganizationID)
 
 		// When: The member user attempts to send a custom notification with empty title and message
-		err := memberClient.PostCustomNotification(ctx, codersdk.CustomNotification{
-			Title:   "",
-			Message: "",
+		err := memberClient.PostCustomNotification(ctx, codersdk.CustomNotificationRequest{
+			Content: &codersdk.CustomNotificationContent{
+				Title:   "",
+				Message: "",
+			},
 		})
 
 		// Then: a bad request error is expected with no notifications sent
@@ -433,9 +435,11 @@ func TestCustomNotification(t *testing.T) {
 		systemUserClient.SetSessionToken(token)
 
 		// When: The system user attempts to send a custom notification
-		err := systemUserClient.PostCustomNotification(ctx, codersdk.CustomNotification{
-			Title:   "Custom Title",
-			Message: "Custom Message",
+		err := systemUserClient.PostCustomNotification(ctx, codersdk.CustomNotificationRequest{
+			Content: &codersdk.CustomNotificationContent{
+				Title:   "Custom Title",
+				Message: "Custom Message",
+			},
 		})
 
 		// Then: a forbidden error is expected with no notifications sent
@@ -465,9 +469,11 @@ func TestCustomNotification(t *testing.T) {
 		memberClient, memberUser := coderdtest.CreateAnotherUser(t, ownerClient, ownerUser.OrganizationID)
 
 		// When: The member user attempts to send a custom notification
-		err := memberClient.PostCustomNotification(ctx, codersdk.CustomNotification{
-			Title:   "Custom Title",
-			Message: "Custom Message",
+		err := memberClient.PostCustomNotification(ctx, codersdk.CustomNotificationRequest{
+			Content: &codersdk.CustomNotificationContent{
+				Title:   "Custom Title",
+				Message: "Custom Message",
+			},
 		})
 		require.NoError(t, err)
 

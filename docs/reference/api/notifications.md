@@ -18,16 +18,18 @@ curl -X POST http://coder-server:8080/api/v2/notifications/custom \
 
 ```json
 {
-  "message": "string",
-  "title": "string"
+  "content": {
+    "message": "string",
+    "title": "string"
+  }
 }
 ```
 
 ### Parameters
 
-| Name   | In   | Type                                                                 | Required | Description                          |
-|--------|------|----------------------------------------------------------------------|----------|--------------------------------------|
-| `body` | body | [codersdk.CustomNotification](schemas.md#codersdkcustomnotification) | true     | Provide a non-empty title or message |
+| Name   | In   | Type                                                                               | Required | Description                          |
+|--------|------|------------------------------------------------------------------------------------|----------|--------------------------------------|
+| `body` | body | [codersdk.CustomNotificationRequest](schemas.md#codersdkcustomnotificationrequest) | true     | Provide a non-empty title or message |
 
 ### Example responses
 

@@ -630,9 +630,14 @@ export const CryptoKeyFeatures: CryptoKeyFeature[] = [
 ];
 
 // From codersdk/notifications.go
-export interface CustomNotification {
+export interface CustomNotificationContent {
 	readonly title: string;
 	readonly message: string;
+}
+
+// From codersdk/notifications.go
+export interface CustomNotificationRequest {
+	readonly content: CustomNotificationContent | null;
 }
 
 // From codersdk/roles.go

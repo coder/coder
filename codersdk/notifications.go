@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -281,12 +282,28 @@ func (c *Client) PostTestWebpushMessage(ctx context.Context) error {
 	return nil
 }
 
-type CustomNotification struct {
+type CustomNotificationContent struct {
 	Title   string `json:"title"`
 	Message string `json:"message"`
 }
 
-func (c *Client) PostCustomNotification(ctx context.Context, req CustomNotification) error {
+type CustomNotificationRequest struct {
+	Content *CustomNotificationContent `json:"content"`
+	// TODO(ssncferreira): Add target (user_ids, roles) to support multi-user and role-based delivery.
+}
+
+func (c CustomNotificationRequest) Validate() error {
+	if c.Content == nil {
+		return xerrors.Errorf("content is required")
+	}
+	if strings.TrimSpace(c.Content.Title) == "" &&
+		strings.TrimSpace(c.Content.Message) == "" {
+		return xerrors.Errorf("provide a non-empty 'content.title' or 'content.message'")
+	}
+	return nil
+}
+
+func (c *Client) PostCustomNotification(ctx context.Context, req CustomNotificationRequest) error {
 	res, err := c.Request(ctx, http.MethodPost, "/api/v2/notifications/custom", req)
 	if err != nil {
 		return err

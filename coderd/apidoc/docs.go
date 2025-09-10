@@ -1698,7 +1698,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.CustomNotification"
+                            "$ref": "#/definitions/codersdk.CustomNotificationRequest"
                         }
                     }
                 ],
@@ -12545,7 +12545,7 @@ const docTemplate = `{
                 "CryptoKeyFeatureTailnetResume"
             ]
         },
-        "codersdk.CustomNotification": {
+        "codersdk.CustomNotificationContent": {
             "type": "object",
             "properties": {
                 "message": {
@@ -12553,6 +12553,14 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.CustomNotificationRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "$ref": "#/definitions/codersdk.CustomNotificationContent"
                 }
             }
         },

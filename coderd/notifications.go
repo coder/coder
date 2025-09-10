@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/google/uuid"
 
@@ -349,7 +348,7 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 // @Tags Notifications
 // @Accept json
 // @Produce json
-// @Param request body codersdk.CustomNotification true "Provide a non-empty title or message"
+// @Param request body codersdk.CustomNotificationRequest true "Provide a non-empty title or message"
 // @Success 204 "No Content"
 // @Failure 400 {object} codersdk.Response "Invalid request body"
 // @Failure 403 {object} codersdk.Response "System users cannot send custom notifications"
@@ -362,17 +361,17 @@ func (api *API) postCustomNotification(rw http.ResponseWriter, r *http.Request) 
 	)
 
 	// Parse request
-	var req codersdk.CustomNotification
+	var req codersdk.CustomNotificationRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	// Require at least one non-empty field
-	if strings.TrimSpace(req.Title) == "" && strings.TrimSpace(req.Message) == "" {
-		api.Logger.Error(ctx, "send custom notification: invalid request body")
+	// Validate request: require `content` and at least one non-empty `title` or `message`.
+	if err := req.Validate(); err != nil {
+		api.Logger.Error(ctx, "send custom notification: validation failed", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid request body",
-			Detail:  "Provide a non-empty 'title' or 'message'.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -403,8 +402,8 @@ func (api *API) postCustomNotification(rw http.ResponseWriter, r *http.Request) 
 		user.ID,
 		notifications.TemplateCustomNotification,
 		map[string]string{
-			"custom_title":   req.Title,
-			"custom_message": req.Message,
+			"custom_title":   req.Content.Title,
+			"custom_message": req.Content.Message,
 		},
 		user.ID.String(),
 	); err != nil {
