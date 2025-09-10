@@ -60,7 +60,7 @@ type ControlledPopoverProps = BasePopoverProps & {
 	onOpenChange: (open: boolean) => void;
 };
 
-export type PopoverProps = UncontrolledPopoverProps | ControlledPopoverProps;
+type PopoverProps = UncontrolledPopoverProps | ControlledPopoverProps;
 
 /** @deprecated prefer `components.Popover` */
 export const Popover: FC<PopoverProps> = (props) => {
@@ -155,7 +155,7 @@ export const PopoverTrigger: FC<PopoverTriggerProps> = (props) => {
 
 type Horizontal = "left" | "right";
 
-export type PopoverContentProps = Omit<
+type PopoverContentProps = Omit<
 	MuiPopoverProps,
 	"open" | "onClose" | "anchorEl"
 > & {

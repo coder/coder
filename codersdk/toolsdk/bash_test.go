@@ -99,63 +99,6 @@ func TestWorkspaceBash(t *testing.T) {
 	})
 }
 
-func TestNormalizeWorkspaceInput(t *testing.T) {
-	t.Parallel()
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows: Workspace MCP bash tools rely on a Unix-like shell (bash) and POSIX/SSH semantics. Use Linux/macOS or WSL for these tests.")
-	}
-
-	testCases := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "SimpleWorkspace",
-			input:    "workspace",
-			expected: "workspace",
-		},
-		{
-			name:     "WorkspaceWithAgent",
-			input:    "workspace.agent",
-			expected: "workspace.agent",
-		},
-		{
-			name:     "OwnerAndWorkspace",
-			input:    "owner/workspace",
-			expected: "owner/workspace",
-		},
-		{
-			name:     "OwnerDashWorkspace",
-			input:    "owner--workspace",
-			expected: "owner/workspace",
-		},
-		{
-			name:     "OwnerWorkspaceAgent",
-			input:    "owner/workspace.agent",
-			expected: "owner/workspace.agent",
-		},
-		{
-			name:     "OwnerDashWorkspaceAgent",
-			input:    "owner--workspace.agent",
-			expected: "owner/workspace.agent",
-		},
-		{
-			name:     "CoderConnectFormat",
-			input:    "agent.workspace.owner", // Special Coder Connect reverse format
-			expected: "owner/workspace.agent",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			result := toolsdk.NormalizeWorkspaceInput(tc.input)
-			require.Equal(t, tc.expected, result, "Input %q should normalize to %q but got %q", tc.input, tc.expected, result)
-		})
-	}
-}
-
 func TestAllToolsIncludesBash(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
