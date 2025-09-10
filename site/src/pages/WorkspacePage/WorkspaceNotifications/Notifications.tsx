@@ -1,14 +1,14 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { useTheme, type Interpolation, type Theme } from "@emotion/react";
 import type { AlertProps } from "components/Alert/Alert";
 import { Button, type ButtonProps } from "components/Button/Button";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-	usePopover,
-} from "components/deprecated/Popover/Popover";
 import { Pill } from "components/Pill/Pill";
-import type { FC, ReactNode } from "react";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { useState, type FC, type ReactNode } from "react";
 import type { ThemeRole } from "theme/roles";
 
 export type NotificationItem = {
@@ -22,6 +22,7 @@ type NotificationsProps = {
 	items: NotificationItem[];
 	severity: ThemeRole;
 	icon: ReactNode;
+	isTooltipOpen: boolean;
 };
 
 export const Notifications: FC<NotificationsProps> = ({
@@ -29,32 +30,39 @@ export const Notifications: FC<NotificationsProps> = ({
 	severity,
 	icon,
 }) => {
+	const [isOpen, setIsOpen] = useState(false);
 	const theme = useTheme();
 
 	return (
-		<Popover mode="hover">
-			<PopoverTrigger>
-				<div
-					css={styles.pillContainer}
-					data-testid={`${severity}-notifications`}
-				>
-					<NotificationPill items={items} severity={severity} icon={icon} />
-				</div>
-			</PopoverTrigger>
-			<PopoverContent
-				horizontal="right"
-				css={{
-					"& .MuiPaper-root": {
+		<TooltipProvider>
+			<Tooltip open={isOpen} onOpenChange={setIsOpen} delayDuration={0}>
+				<TooltipTrigger asChild>
+					<div
+						css={styles.pillContainer}
+						data-testid={`${severity}-notifications`}
+					>
+						<NotificationPill
+							items={items}
+							severity={severity}
+							icon={icon}
+							isTooltipOpen={isOpen}
+						/>
+					</div>
+				</TooltipTrigger>
+				<TooltipContent
+					align="end"
+					collisionPadding={16}
+					className="max-w-[400px] p-0 bg-surface-secondary border-surface-quaternary text-sm  text-white"
+					style={{
 						borderColor: theme.roles[severity].outline,
-						maxWidth: 400,
-					},
-				}}
-			>
-				{items.map((n) => (
-					<NotificationItem notification={n} key={n.title} />
-				))}
-			</PopoverContent>
-		</Popover>
+					}}
+				>
+					{items.map((n) => (
+						<NotificationItem notification={n} key={n.title} />
+					))}
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
 
@@ -62,15 +70,14 @@ const NotificationPill: FC<NotificationsProps> = ({
 	items,
 	severity,
 	icon,
+	isTooltipOpen,
 }) => {
-	const popover = usePopover();
-
 	return (
 		<Pill
 			icon={icon}
 			css={(theme) => ({
 				"& svg": { color: theme.roles[severity].outline },
-				borderColor: popover.open ? theme.roles[severity].outline : undefined,
+				borderColor: isTooltipOpen ? theme.roles[severity].outline : undefined,
 			})}
 		>
 			{items.length}
@@ -99,7 +106,7 @@ export const NotificationActionButton: FC<ButtonProps> = (props) => {
 };
 
 const styles = {
-	// Adds some spacing from the popover content
+	// Adds some spacing from the Tooltip content
 	pillContainer: {
 		padding: "8px 0",
 	},
