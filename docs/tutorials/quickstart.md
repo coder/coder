@@ -1,8 +1,12 @@
 # Get Started
 
-**Keywords:** install, setup, get started, quickstart, templates, workspaces, tasks, users
+**Keywords:** install, setup, get started, quickstart, templates, workspaces,
+tasks, users
 
-Follow the steps in this guide to get your first Coder development environment running in under 10 minutes. This guide covers the essential concepts and walks you through creating your first workspace and running VS Code from it. You can also get Claude Code up and running in the background!
+Follow the steps in this guide to get your first Coder development environment
+running in under 10 minutes. This guide covers the essential concepts and walks
+you through creating your first workspace and running VS Code from it. You can
+also get Claude Code up and running in the background!
 
 ## What You'll Build
 
@@ -16,17 +20,21 @@ In this quickstart, you'll:
 
 ## Understanding Coder: 30-Second Overview
 
-Before diving in, here are the four concepts that power Coder explained through a cooking analogy:
+Before diving in, here are the four concepts that power Coder explained through
+a cooking analogy:
 
-| Component | What It Is | Real-World Analogy |
-|-----------|------------|-------------------|
-| **You** | The engineer/developer/builder working | The head chef cooking the meal |
-| **Templates** | A Terraform blueprint that defines your dev environment (OS, tools, resources) | Recipe for a meal |
-| **Workspaces** | The actual running environment created from the template | The cooked meal |
-| **Tasks** | AI-powered coding agents that run inside a workspace | Your sous chef helping you cook the meal |
-| **Users** | A developer who launches the workspace from a template and does their work inside it | The people eating the meal |
+| Component      | What It Is                                                                           | Real-World Analogy                       |
+| -------------- | ------------------------------------------------------------------------------------ | ---------------------------------------- |
+| **You**        | The engineer/developer/builder working                                               | The head chef cooking the meal           |
+| **Templates**  | A Terraform blueprint that defines your dev environment (OS, tools, resources)       | Recipe for a meal                        |
+| **Workspaces** | The actual running environment created from the template                             | The cooked meal                          |
+| **Tasks**      | AI-powered coding agents that run inside a workspace                                 | Your sous chef helping you cook the meal |
+| **Users**      | A developer who launches the workspace from a template and does their work inside it | The people eating the meal               |
 
-**First time here?** Coder separates how an environment is defined (Admin’s job) from where you do your day-to-day coding (Developer’s job). As a developer, you’ll use templates to launch workspaces, and as an admin, you’ll create and manage those templates for others.
+**First time here?** Coder separates how an environment is defined (Admin’s job)
+from where you do your day-to-day coding (Developer’s job). As a developer,
+you’ll use templates to launch workspaces, and as an admin, you’ll create and
+manage those templates for others.
 
 ## Prerequisites
 
@@ -46,7 +54,6 @@ Before diving in, here are the four concepts that power Coder explained through 
    ```
 
    For more details, visit:
-
    - [Linux instructions](https://docs.docker.com/desktop/install/linux-install/)
    - [Mac instructions](https://docs.docker.com/desktop/install/mac-install/)
 
@@ -77,7 +84,8 @@ is installed.
 
 ## Step 2: Install & Start Coder
 
-The `coder` CLI is all you need to install. It let's you run both the Coder server as well as the client.
+The `coder` CLI is all you need to install. It let's you run both the Coder
+server as well as the client.
 
 <div class="tabs">
 
@@ -124,14 +132,13 @@ is installed.
 Coder will attempt to open the setup page in your browser. If it doesn't open
 automatically, go to <http://localhost:3000>.
 
-- If you get a browser warning similar to `Secure Site Not Available`, you
-   can ignore the warning and continue to the setup page.
+- If you get a browser warning similar to `Secure Site Not Available`, you can
+  ignore the warning and continue to the setup page.
 
-If your Coder server is on a network or cloud device, or you are having
-trouble viewing the page, locate the web UI URL in Coder logs in your
-terminal. It looks like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`.
-It's one of the first lines of output, so you might have to scroll up to find
-it.
+If your Coder server is on a network or cloud device, or you are having trouble
+viewing the page, locate the web UI URL in Coder logs in your terminal. It looks
+like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`. It's one of the first
+lines of output, so you might have to scroll up to find it.
 
 ## Step 3: Initial Setup
 
@@ -140,7 +147,9 @@ it.
    - Email: `your.email@example.com`
    - Password: Choose a strong password
 
-   You can also choose to **Continue with GitHub** instead of creating an admin account. The first user that signs in is automatically granted admin permissions.
+   You can also choose to **Continue with GitHub** instead of creating an admin
+   account. The first user that signs in is automatically granted admin
+   permissions.
 
    ![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)
 
@@ -152,11 +161,11 @@ Templates define what's in your development environment. Let's start simple:
 
 2. **Choose a starter template:**
 
-   | Starter | Best For | Includes |
-   |---------|----------|----------|
+   | Starter                             | Best For                                                | Includes                                               |
+   | ----------------------------------- | ------------------------------------------------------- | ------------------------------------------------------ |
    | **Docker Containers** (Recommended) | Getting started quickly, local development, prototyping | Ubuntu container with common dev tools, Docker runtime |
-   | **Kubernetes (Deployment)** | Cloud-native teams, scalable workspaces | Pod-based workspaces, Kubernetes orchestration |
-   | **AWS EC2 (Linux)** | Teams needing full VMs, AWS-native infrastructure | Full EC2 instances with AWS integration |
+   | **Kubernetes (Deployment)**         | Cloud-native teams, scalable workspaces                 | Pod-based workspaces, Kubernetes orchestration         |
+   | **AWS EC2 (Linux)**                 | Teams needing full VMs, AWS-native infrastructure       | Full EC2 instances with AWS integration                |
 
 3. Click **"Use template"** on **Docker Containers**
 
@@ -169,7 +178,10 @@ Templates define what's in your development environment. Let's start simple:
 
 1. Click **"Save"**
 
-**What just happened?** You defined a template — a reusable blueprint for dev environments — in your Coder deployment. It's now stored in your organization's template list, where you and any teammates in the same org can create workspaces from it. Let's launch one.
+**What just happened?** You defined a template — a reusable blueprint for dev
+environments — in your Coder deployment. It's now stored in your organization's
+template list, where you and any teammates in the same org can create workspaces
+from it. Let's launch one.
 
 ## Step 5: Launch your Workspace
 
@@ -184,7 +196,8 @@ Templates define what's in your development environment. Let's start simple:
 
 ## Step 6: Connect your IDE
 
-Select **VS Code Desktop** to install the Coder extension and connect to your Coder workspace.
+Select **VS Code Desktop** to install the Coder extension and connect to your
+Coder workspace.
 
 After VS Code loads the remote environment, you can select **Open Folder** to
 explore directories in the Docker container or work on something new.
@@ -219,7 +232,8 @@ You now have:
 
 ### What's Next?
 
-Now that you have your own workspace running, you can start exploring more advanced capabilities that Coder offers.
+Now that you have your own workspace running, you can start exploring more
+advanced capabilities that Coder offers.
 
 - [Learn more about running Coder Tasks and our recommended Best Practices](https://coder.com/docs/ai-coder/best-practices)
 
@@ -229,13 +243,19 @@ Now that you have your own workspace running, you can start exploring more advan
 
 ### Get Coder Tasks Running
 
-Coder Tasks is an interface that allows you to run and manage coding agents like Claude Code. Tasks become available when a template has the `coder_ai_task` resource and `coder_parameter` named `AI Prompt` defined in its source code. Subsequently, any existing template can become a Task template by adding in that resource and parameter.
+Coder Tasks is an interface that allows you to run and manage coding agents like
+Claude Code. Tasks become available when a template has the `coder_ai_task`
+resource and `coder_parameter` named `AI Prompt` defined in its source code.
+Subsequently, any existing template can become a Task template by adding in that
+resource and parameter.
 
-Let's try turning the **Docker Containers** template into a Task template running Claude Code:
+Let's try turning the **Docker Containers** template into a Task template
+running Claude Code:
 
 1. Head to **Templates**
 1. Click into the template, and then click **Source Code** -> **Edit**
-1. Add the following code snippit to the bottom of the terraform. This defines the `coder_ai_task` resource and `coder_parameter`
+1. Add the following code snippit to the bottom of the terraform. This defines
+   the `coder_ai_task` resource and `coder_parameter`
 
 ```hcl
 # Claude API Key variable (filled in during template build)
@@ -267,7 +287,7 @@ resource "coder_app" "claude-code" {
 # Claude AI task
 resource "coder_ai_task" "claude-code" {
   count = data.coder_parameter.ai_prompt.value != "" ? 1 : 0
-  
+
   sidebar_app {
     id = coder_app.claude-code.id
   }
@@ -275,11 +295,16 @@ resource "coder_ai_task" "claude-code" {
 
 ```
 
-1. **Build the Template**: Click "Build version". This will process your template updates. After it finishes building successfully:
-1. **Activate the Template**: Click "Promote Version" on the new version to make it the active template version.
+1. **Build the Template**: Click "Build version". This will process your
+   template updates. After it finishes building successfully:
+1. **Activate the Template**: Click "Promote Version" on the new version to make
+   it the active template version.
 1. **Create a Task**: Click "Create Task".
-1. Once your workspace is running, navigate to the **Tasks** tab in the upper left hand corner. Type in a message or coding request like "Help me write a HelloWorld application in Python". Click **Run Task** to start the task
-1. The task will open VS Code with Claude Code running in the left sidebar. You are now successfully using Coder Tasks with Claude Code!
+1. Once your workspace is running, navigate to the **Tasks** tab in the upper
+   left hand corner. Type in a message or coding request like "Help me write a
+   HelloWorld application in Python". Click **Run Task** to start the task
+1. The task will open VS Code with Claude Code running in the left sidebar. You
+   are now successfully using Coder Tasks with Claude Code!
 
 ## Troubleshooting
 
