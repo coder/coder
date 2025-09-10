@@ -123,7 +123,7 @@ coder:
         #   workspacePerms: true # Defaults to top-level setting
         #   enableDeployments: true # Defaults to top-level setting
         #   extraRules: [] # Defaults to top-level setting
-      # - name: staging-ws
+        # - name: staging-ws
 
     # coder.serviceAccount.annotations -- The Coder service account annotations.
     annotations: {}
