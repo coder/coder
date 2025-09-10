@@ -19,6 +19,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+type HTTPResponseCode = int
+
 func (a *agent) HandleReadFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -45,7 +47,7 @@ func (a *agent) HandleReadFile(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a *agent) streamFile(ctx context.Context, rw http.ResponseWriter, path string, offset, limit int64) (int, error) {
+func (a *agent) streamFile(ctx context.Context, rw http.ResponseWriter, path string, offset, limit int64) (HTTPResponseCode, error) {
 	if !filepath.IsAbs(path) {
 		return http.StatusBadRequest, xerrors.Errorf("file path must be absolute: %q", path)
 	}
@@ -125,7 +127,7 @@ func (a *agent) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (a *agent) writeFile(ctx context.Context, r *http.Request, path string) (int, error) {
+func (a *agent) writeFile(ctx context.Context, r *http.Request, path string) (HTTPResponseCode, error) {
 	if !filepath.IsAbs(path) {
 		return http.StatusBadRequest, xerrors.Errorf("file path must be absolute: %q", path)
 	}
