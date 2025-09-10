@@ -136,7 +136,7 @@ type TransformCallback<T> = (
 	state: Date,
 ) => T extends Promise<unknown> ? never : T extends void ? never : T;
 
-type TransformationHandshake = Readonly<{
+type ReactSubscriptionHandshake = Readonly<{
 	componentId: string;
 	targetRefreshIntervalMs: number;
 	onStateUpdate: () => void;
@@ -207,13 +207,13 @@ class ReactTimeSync {
 		return this.#timeSync;
 	}
 
-	subscribeToTransformations(th: TransformationHandshake): () => void {
+	subscribe(rsh: ReactSubscriptionHandshake): () => void {
 		if (!this.#isProviderMounted) {
 			return noOp;
 		}
 
 		const { componentId, targetRefreshIntervalMs, onStateUpdate, transform } =
-			th;
+			rsh;
 
 		const prevEntry = this.#entries.get(componentId);
 		if (prevEntry !== undefined) {
@@ -267,7 +267,7 @@ class ReactTimeSync {
 		return unsubscribe;
 	}
 
-	invalidateTransformation(componentId: string, newValue: unknown): void {
+	updateComponentState(componentId: string, newValue: unknown): void {
 		if (!this.#isProviderMounted) {
 			return;
 		}
@@ -298,7 +298,7 @@ class ReactTimeSync {
 	}
 
 	// Always safe to call inside a render
-	getTransformationSnapshot<T>(componentId: string): T {
+	getComponentSnapshot<T>(componentId: string): T {
 		// It's super important that we have this function be set up to always
 		// return a value, because on mount, useSyncExternalStore will call the
 		// state getter before the subscription has been set up
@@ -490,7 +490,7 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// logic ensures that it will be intercepted before being returned to
 	// consumers
 	const getSnap = useCallback(
-		() => reactTs.getTransformationSnapshot<T>(hookId),
+		() => reactTs.getComponentSnapshot<T>(hookId),
 		[reactTs, hookId],
 	);
 
@@ -533,7 +533,7 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	);
 
 	useEffect(() => {
-		reactTs.invalidateTransformation(hookId, merged);
+		reactTs.updateComponentState(hookId, merged);
 	}, [reactTs, hookId, merged]);
 
 	// We want to make sure that the mounting effect fires after the initial
@@ -552,7 +552,7 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// can change on re-renders (which React guarantees) is the target interval
 	const subscribe = useCallback<ReactSubscriptionCallback>(
 		(notifyReact) => {
-			return reactTs.subscribeToTransformations({
+			return reactTs.subscribe({
 				componentId: hookId,
 				targetRefreshIntervalMs: targetIntervalMs,
 				transform: externalTransform,
