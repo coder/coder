@@ -17,14 +17,14 @@ const badgeVariants = cva(
 		variants: {
 			variant: {
 				default:
-					"border-transparent bg-surface-secondary text-content-secondary shadow",
+					"border border-solid border-red-600 bg-surface-secondary text-content-secondary shadow",
 				warning:
 					"border border-solid border-border-warning bg-surface-orange text-content-warning shadow",
 				destructive:
 					"border border-solid border-border-destructive bg-surface-red text-highlight-red shadow",
 				green:
-					"border border-solid border-surface-green bg-surface-green text-highlight-green shadow",
-				info: "border border-solid border-surface-sky bg-surface-sky text-highlight-sky shadow",
+					"border border-solid border-border-green bg-surface-green text-highlight-green shadow",
+				info: "border border-solid border-border-sky bg-surface-sky text-highlight-sky shadow",
 			},
 			size: {
 				xs: "text-2xs font-regular h-5 [&_svg]:hidden rounded px-1.5",
