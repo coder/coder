@@ -1712,6 +1712,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     },
+                    "403": {
+                        "description": "System users cannot send custom notifications",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
                     "500": {
                         "description": "Failed to send custom notification",
                         "schema": {

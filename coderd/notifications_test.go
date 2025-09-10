@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/codersdk"
@@ -407,6 +408,45 @@ func TestCustomNotification(t *testing.T) {
 		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
 		require.Equal(t, http.StatusBadRequest, sdkError.StatusCode())
 		require.Equal(t, "Invalid request body", sdkError.Message)
+
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		require.Len(t, sent, 0)
+	})
+
+	t.Run("SystemUserNotAllowed", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues:      coderdtest.DeploymentValues(t),
+			NotificationsEnqueuer: notifyEnq,
+		})
+
+		// Given: A system user (prebuilds system user)
+		_, token := dbgen.APIKey(t, db, database.APIKey{
+			UserID:    database.PrebuildsSystemUserID,
+			LoginType: database.LoginTypeNone,
+		})
+		systemUserClient := codersdk.New(ownerClient.URL)
+		systemUserClient.SetSessionToken(token)
+
+		// When: The system user attempts to send a custom notification
+		err := systemUserClient.PostCustomNotification(ctx, codersdk.CustomNotification{
+			Title:   "Custom Title",
+			Message: "Custom Message",
+		})
+
+		// Then: a forbidden error is expected with no notifications sent
+		var sdkError *codersdk.Error
+		require.Error(t, err)
+		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
+		require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
+		require.Equal(t, "Forbidden", sdkError.Message)
+
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		require.Len(t, sent, 0)
 	})
 
 	t.Run("Success", func(t *testing.T) {

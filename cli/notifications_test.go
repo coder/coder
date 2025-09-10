@@ -10,6 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/notifications"
@@ -175,11 +178,12 @@ func TestCustomNotifications(t *testing.T) {
 
 		notifyEnq := &notificationstest.FakeEnqueuer{}
 
-		// Given: A member user
 		ownerClient := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues:      coderdtest.DeploymentValues(t),
 			NotificationsEnqueuer: notifyEnq,
 		})
+
+		// Given: A member user
 		ownerUser := coderdtest.CreateFirstUser(t, ownerClient)
 		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, ownerUser.OrganizationID)
 
@@ -192,8 +196,42 @@ func TestCustomNotifications(t *testing.T) {
 		var sdkError *codersdk.Error
 		require.Error(t, err)
 		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
-		assert.Equal(t, http.StatusBadRequest, sdkError.StatusCode())
+		require.Equal(t, http.StatusBadRequest, sdkError.StatusCode())
 		require.Equal(t, "Invalid request body", sdkError.Message)
+
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
+		require.Len(t, sent, 0)
+	})
+
+	t.Run("SystemUserNotAllowed", func(t *testing.T) {
+		t.Parallel()
+
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+
+		ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues:      coderdtest.DeploymentValues(t),
+			NotificationsEnqueuer: notifyEnq,
+		})
+
+		// Given: A system user (prebuilds system user)
+		_, token := dbgen.APIKey(t, db, database.APIKey{
+			UserID:    database.PrebuildsSystemUserID,
+			LoginType: database.LoginTypeNone,
+		})
+		systemUserClient := codersdk.New(ownerClient.URL)
+		systemUserClient.SetSessionToken(token)
+
+		// When: The system user attempts to send a custom notification
+		inv, root := clitest.New(t, "notifications", "custom", "Custom Title", "Custom Message")
+		clitest.SetupConfig(t, systemUserClient, root)
+
+		// Then: an error is expected with no notifications sent
+		err := inv.Run()
+		var sdkError *codersdk.Error
+		require.Error(t, err)
+		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
+		require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
+		require.Equal(t, "Forbidden", sdkError.Message)
 
 		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTestNotification))
 		require.Len(t, sent, 0)
@@ -204,11 +242,12 @@ func TestCustomNotifications(t *testing.T) {
 
 		notifyEnq := &notificationstest.FakeEnqueuer{}
 
-		// Given: A member user
 		ownerClient := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues:      coderdtest.DeploymentValues(t),
 			NotificationsEnqueuer: notifyEnq,
 		})
+
+		// Given: A member user
 		ownerUser := coderdtest.CreateFirstUser(t, ownerClient)
 		memberClient, memberUser := coderdtest.CreateAnotherUser(t, ownerClient, ownerUser.OrganizationID)
 

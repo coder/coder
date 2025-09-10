@@ -333,6 +333,7 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 // @Param request body codersdk.CustomNotification true "Provide a non-empty title or message"
 // @Success 204 "No Content"
 // @Failure 400 {object} codersdk.Response "Invalid request body"
+// @Failure 403 {object} codersdk.Response "System users cannot send custom notifications"
 // @Failure 500 {object} codersdk.Response "Failed to send custom notification"
 // @Router /notifications/custom [post]
 func (api *API) postCustomNotification(rw http.ResponseWriter, r *http.Request) {
@@ -357,17 +358,36 @@ func (api *API) postCustomNotification(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	userID := apiKey.UserID
+	// Block system users from sending custom notifications
+	user, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	if err != nil {
+		api.Logger.Error(ctx, "send custom notification", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to send custom notification",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if user.IsSystemUser() {
+		api.Logger.Error(ctx, "send custom notification: system user is not allowed",
+			slog.F("id", user.ID.String()), slog.F("name", user.Name))
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Forbidden",
+			Detail:  "System users cannot send custom notifications.",
+		})
+		return
+	}
+
 	if _, err := api.NotificationsEnqueuer.Enqueue(
 		//nolint:gocritic // We need to be notifier to send the notification.
 		dbauthz.AsNotifier(ctx),
-		userID,
+		user.ID,
 		notifications.TemplateCustomNotification,
 		map[string]string{
 			"custom_title":   req.Title,
 			"custom_message": req.Message,
 		},
-		userID.String(),
+		user.ID.String(),
 	); err != nil {
 		api.Logger.Error(ctx, "send custom notification", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
