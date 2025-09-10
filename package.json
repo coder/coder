@@ -9,8 +9,14 @@
 		"storybook": "pnpm run -C site/ storybook"
 	},
 	"devDependencies": {
+		"@biomejs/biome": "2.2.0",
 		"markdown-table-formatter": "^1.6.1",
 		"markdownlint-cli2": "^0.16.0",
 		"quicktype": "^23.0.0"
+	},
+	"pnpm": {
+		"overrides": {
+			"brace-expansion": "1.1.12"
+		}
 	}
 }

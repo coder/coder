@@ -1,6 +1,6 @@
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { workspacePermissionsByOrganization } from "api/queries/organizations";
-import { templateVersionRoot, templates } from "api/queries/templates";
+import { templates, templateVersionRoot } from "api/queries/templates";
 import { workspaces } from "api/queries/workspaces";
 import type { WorkspaceStatus } from "api/typesGenerated";
 import { useFilter } from "components/Filter/Filter";
@@ -18,9 +18,9 @@ import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
 import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
-import { WorkspacesPageView } from "./WorkspacesPageView";
 import { useBatchActions } from "./batchActions";
 import { useStatusFilterMenu, useTemplateFilterMenu } from "./filter/menus";
+import { WorkspacesPageView } from "./WorkspacesPageView";
 
 /**
  * The set of all workspace statuses that indicate that the state for a
@@ -116,7 +116,8 @@ const WorkspacesPage: FC = () => {
 	});
 
 	const workspacesQueryOptions = workspaces({
-		...pagination,
+		limit: pagination.limit,
+		offset: pagination.offset,
 		q: filterState.filter.query,
 	});
 	const { data, error, refetch } = useQuery({

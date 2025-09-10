@@ -1,4 +1,3 @@
-import PerformanceObserver from "@fastly/performance-observer-polyfill";
 import { API } from "api/api";
 import type { Region } from "api/typesGenerated";
 import { useEffect, useReducer, useState } from "react";
@@ -75,7 +74,7 @@ export const useProxyLatency = (
 	const [latestFetchRequest, setLatestFetchRequest] = useState(
 		// The initial state is the current time minus the interval. Any proxies that have a latency after this
 		// in the cache are still valid.
-		new Date(new Date().getTime() - proxyIntervalSeconds * 1000).toISOString(),
+		new Date(Date.now() - proxyIntervalSeconds * 1000).toISOString(),
 	);
 
 	const [loaded, setLoaded] = useState(false);
@@ -163,7 +162,7 @@ export const useProxyLatency = (
 			// https://developer.mozilla.org/en-US/docs/Web/API/Performance_API/Resource_timing
 			let latencyMS = 0;
 			let accurate = false;
-			let nextHopProtocol: string | undefined = undefined;
+			let nextHopProtocol: string | undefined;
 			if (
 				"requestStart" in entry &&
 				(entry as PerformanceResourceTiming).requestStart !== 0

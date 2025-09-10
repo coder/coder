@@ -96,7 +96,9 @@ func RunIDP() func(t *testing.T) {
 				"groups":             []string{"testidp", "qa", "engineering"},
 				"roles":              []string{"testidp", "admin", "higher_power"},
 			}),
-			oidctest.WithDefaultIDClaims(jwt.MapClaims{}),
+			oidctest.WithDefaultIDClaims(jwt.MapClaims{
+				"sub": uuid.MustParse("26c6a19c-b9b8-493b-a991-88a4c3310314"),
+			}),
 			oidctest.WithDefaultExpire(*expiry),
 			oidctest.WithStaticCredentials(*clientID, *clientSecret),
 			oidctest.WithIssuer("http://localhost:4500"),

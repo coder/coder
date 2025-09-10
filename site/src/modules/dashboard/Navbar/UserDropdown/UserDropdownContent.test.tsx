@@ -1,7 +1,7 @@
-import { screen } from "@testing-library/react";
-import { Popover } from "components/deprecated/Popover/Popover";
 import { MockUserOwner } from "testHelpers/entities";
 import { render, waitForLoaderToBeRemoved } from "testHelpers/renderHelpers";
+import { screen } from "@testing-library/react";
+import { Popover } from "components/deprecated/Popover/Popover";
 import { Language, UserDropdownContent } from "./UserDropdownContent";
 
 describe("UserDropdownContent", () => {

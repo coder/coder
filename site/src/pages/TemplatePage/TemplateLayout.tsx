@@ -11,10 +11,10 @@ import {
 	workspacePermissionChecks,
 } from "modules/permissions/workspaces";
 import {
+	createContext,
 	type FC,
 	type PropsWithChildren,
 	Suspense,
-	createContext,
 	useContext,
 } from "react";
 import { useQuery } from "react-query";
@@ -108,7 +108,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 
 	if (error || workspacePermissionsQuery.error) {
 		return (
-			<div css={{ margin: 16 }}>
+			<div className="p-4">
 				<ErrorAlert error={error} />
 			</div>
 		);
@@ -119,7 +119,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 	}
 
 	return (
-		<>
+		<div className="pb-12">
 			<TemplatePageHeader
 				template={data.template}
 				activeVersion={data.activeVersion}
@@ -166,6 +166,6 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 					<Suspense fallback={<Loader />}>{children}</Suspense>
 				</TemplateLayoutContext.Provider>
 			</Margins>
-		</>
+		</div>
 	);
 };

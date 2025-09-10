@@ -257,7 +257,7 @@ func Test_Runner(t *testing.T) {
 			err := runner.Run(runnerCtx, "1", logs)
 			logsStr := logs.String()
 			t.Log("Runner logs:\n\n" + logsStr)
-			require.ErrorIs(t, err, context.Canceled)
+			assert.ErrorIs(t, err, context.Canceled)
 			close(done)
 		}()
 
@@ -561,8 +561,7 @@ func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *coder
 
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(agentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(agentToken))
 		agentCloser := agent.New(agent.Options{
 			Client: agentClient,
 			Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"sync"
@@ -11,12 +12,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
 	"github.com/coder/aisdk-go"
 
+	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -75,8 +78,7 @@ func TestTools(t *testing.T) {
 	}).Do()
 
 	// Given: a client configured with the agent token.
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(r.AgentToken)
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 	// Get the agent ID from the API. Overriding it in dbfake doesn't work.
 	ws, err := client.Workspace(setupCtx, r.Workspace.ID)
 	require.NoError(t, err)
@@ -450,6 +452,109 @@ func TestTools(t *testing.T) {
 		require.Equal(t, 0, result.ExitCode)
 		require.Equal(t, "owner format works", result.Output)
 	})
+
+	t.Run("WorkspaceReadFile", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		fs := afero.NewMemMapFs()
+		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
+			opts.Filesystem = fs
+		})
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		tmpdir := os.TempDir()
+		filePath := filepath.Join(tmpdir, "file")
+		err = afero.WriteFile(fs, filePath, []byte("content"), 0o644)
+		require.NoError(t, err)
+
+		largeFilePath := filepath.Join(tmpdir, "large")
+		largeFile, err := fs.Create(largeFilePath)
+		require.NoError(t, err)
+		err = largeFile.Truncate(1 << 21)
+		require.NoError(t, err)
+
+		imagePath := filepath.Join(tmpdir, "file.png")
+		err = afero.WriteFile(fs, imagePath, []byte("not really an image"), 0o644)
+		require.NoError(t, err)
+
+		tests := []struct {
+			name     string
+			path     string
+			limit    int64
+			offset   int64
+			mimeType string
+			bytes    []byte
+			length   int
+			error    string
+		}{
+			{
+				name:  "NonExistent",
+				path:  filepath.Join(tmpdir, "does-not-exist"),
+				error: "file does not exist",
+			},
+			{
+				name:     "Exists",
+				path:     filePath,
+				bytes:    []byte("content"),
+				mimeType: "application/octet-stream",
+			},
+			{
+				name:     "Limit1Offset2",
+				path:     filePath,
+				limit:    1,
+				offset:   2,
+				bytes:    []byte("n"),
+				mimeType: "application/octet-stream",
+			},
+			{
+				name:     "DefaultMaxLimit",
+				path:     largeFilePath,
+				length:   1 << 20,
+				mimeType: "application/octet-stream",
+			},
+			{
+				name:  "ExceedMaxLimit",
+				path:  filePath,
+				limit: 1 << 21,
+				error: "limit must be 1048576 or less, got 2097152",
+			},
+			{
+				name:     "ImageMimeType",
+				path:     imagePath,
+				bytes:    []byte("not really an image"),
+				mimeType: "image/png",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				resp, err := testTool(t, toolsdk.WorkspaceReadFile, tb, toolsdk.WorkspaceReadFileArgs{
+					Workspace: workspace.Name,
+					Path:      tt.path,
+					Limit:     tt.limit,
+					Offset:    tt.offset,
+				})
+				if tt.error != "" {
+					require.Error(t, err)
+					require.Contains(t, err.Error(), tt.error)
+				} else {
+					require.NoError(t, err)
+					if tt.length != 0 {
+						require.Len(t, resp.Content, tt.length)
+					}
+					if tt.bytes != nil {
+						require.Equal(t, tt.bytes, resp.Content)
+					}
+					require.Equal(t, tt.mimeType, resp.MimeType)
+				}
+			})
+		}
+	})
 }
 
 // TestedTools keeps track of which tools have been tested.
@@ -665,6 +770,10 @@ func TestMain(m *testing.M) {
 	var untested []string
 	for _, tool := range toolsdk.All {
 		if tested, ok := testedTools.Load(tool.Name); !ok || !tested.(bool) {
+			// Test is skipped on Windows
+			if runtime.GOOS == "windows" && tool.Name == "coder_workspace_bash" {
+				continue
+			}
 			untested = append(untested, tool.Name)
 		}
 	}
@@ -743,4 +852,58 @@ func TestReportTaskWithReporter(t *testing.T) {
 
 	// Verify response
 	require.Equal(t, "Thanks for reporting!", result.Message)
+}
+
+func TestNormalizeWorkspaceInput(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "SimpleWorkspace",
+			input:    "workspace",
+			expected: "workspace",
+		},
+		{
+			name:     "WorkspaceWithAgent",
+			input:    "workspace.agent",
+			expected: "workspace.agent",
+		},
+		{
+			name:     "OwnerAndWorkspace",
+			input:    "owner/workspace",
+			expected: "owner/workspace",
+		},
+		{
+			name:     "OwnerDashWorkspace",
+			input:    "owner--workspace",
+			expected: "owner/workspace",
+		},
+		{
+			name:     "OwnerWorkspaceAgent",
+			input:    "owner/workspace.agent",
+			expected: "owner/workspace.agent",
+		},
+		{
+			name:     "OwnerDashWorkspaceAgent",
+			input:    "owner--workspace.agent",
+			expected: "owner/workspace.agent",
+		},
+		{
+			name:     "CoderConnectFormat",
+			input:    "agent.workspace.owner", // Special Coder Connect reverse format
+			expected: "owner/workspace.agent",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result := toolsdk.NormalizeWorkspaceInput(tc.input)
+			require.Equal(t, tc.expected, result, "Input %q should normalize to %q but got %q", tc.input, tc.expected, result)
+		})
+	}
 }

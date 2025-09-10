@@ -86,7 +86,7 @@ jobs:
 
       - name: Get short commit SHA to use as template version name
         id: name
-        run: echo "version_name=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        run: echo "version_name=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Get latest commit title to use as template version description
         id: message

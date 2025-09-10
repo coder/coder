@@ -44,15 +44,17 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { ExternalLinkIcon, FileIcon, StarIcon } from "lucide-react";
-import { EllipsisVertical } from "lucide-react";
 import {
 	BanIcon,
 	CloudIcon,
+	EllipsisVertical,
+	ExternalLinkIcon,
+	FileIcon,
 	PlayIcon,
 	RefreshCcwIcon,
 	SquareIcon,
 	SquareTerminalIcon,
+	StarIcon,
 } from "lucide-react";
 import {
 	getTerminalHref,
@@ -61,23 +63,21 @@ import {
 } from "modules/apps/apps";
 import { useAppLink } from "modules/apps/useAppLink";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
+import { abilitiesByWorkspaceStatus } from "modules/workspaces/actions";
 import { WorkspaceBuildCancelDialog } from "modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
 import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import { WorkspaceStatusIndicator } from "modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
 import {
-	WorkspaceUpdateDialogs,
 	useWorkspaceUpdate,
+	WorkspaceUpdateDialogs,
 } from "modules/workspaces/WorkspaceUpdateDialogs";
-import { abilitiesByWorkspaceStatus } from "modules/workspaces/actions";
 import type React from "react";
 import {
 	type FC,
 	type PropsWithChildren,
 	type ReactNode,
-	useMemo,
 	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -114,51 +114,12 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	onActionError,
 }) => {
 	const dashboard = useDashboard();
-	const workspaceIDToAppByStatus = useMemo(() => {
-		return (
-			workspaces?.reduce(
-				(acc, workspace) => {
-					if (!workspace.latest_app_status) {
-						return acc;
-					}
-					for (const resource of workspace.latest_build.resources) {
-						for (const agent of resource.agents ?? []) {
-							for (const app of agent.apps ?? []) {
-								if (app.id === workspace.latest_app_status.app_id) {
-									acc[workspace.id] = { app, agent };
-									break;
-								}
-							}
-						}
-					}
-					return acc;
-				},
-				{} as Record<
-					string,
-					{
-						app: WorkspaceApp;
-						agent: WorkspaceAgent;
-					}
-				>,
-			) || {}
-		);
-	}, [workspaces]);
-	const hasActivity = useMemo(
-		() => Object.keys(workspaceIDToAppByStatus).length > 0,
-		[workspaceIDToAppByStatus],
-	);
-	const tableColumnSize = {
-		name: "w-2/6",
-		template: hasActivity ? "w-1/6" : "w-2/6",
-		status: hasActivity ? "w-1/6" : "w-2/6",
-		activity: "w-2/6",
-	};
 
 	return (
 		<Table>
 			<TableHeader>
 				<TableRow>
-					<TableHead className={tableColumnSize.name}>
+					<TableHead className="w-1/3">
 						<div className="flex items-center gap-2">
 							{canCheckWorkspaces && (
 								<Checkbox
@@ -182,11 +143,8 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							Name
 						</div>
 					</TableHead>
-					<TableHead className={tableColumnSize.template}>Template</TableHead>
-					<TableHead className={tableColumnSize.status}>Status</TableHead>
-					{hasActivity && (
-						<TableHead className={tableColumnSize.activity}>Activity</TableHead>
-					)}
+					<TableHead className="w-1/3">Template</TableHead>
+					<TableHead className="w-1/3">Status</TableHead>
 					<TableHead className="w-0">
 						<span className="sr-only">Actions</span>
 					</TableHead>
@@ -299,15 +257,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							</TableCell>
 
 							<WorkspaceStatusCell workspace={workspace} />
-
-							{hasActivity && (
-								<TableCell>
-									<WorkspaceAppStatus
-										status={workspace.latest_app_status}
-										disabled={workspace.latest_build.status !== "running"}
-									/>
-								</TableCell>
-							)}
 
 							<WorkspaceActionsCell
 								workspace={workspace}

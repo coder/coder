@@ -1,5 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { getPreferredProxy } from "contexts/ProxyContext";
 import {
 	MockPrimaryWorkspaceProxy,
 	MockWorkspace,
@@ -8,6 +6,8 @@ import {
 	MockWorkspaceProxies,
 } from "testHelpers/entities";
 import { withGlobalSnackbar, withProxyProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { getPreferredProxy } from "contexts/ProxyContext";
 import { AppLink } from "./AppLink";
 
 const meta: Meta<typeof AppLink> = {
@@ -163,6 +163,21 @@ export const InternalApp: Story = {
 			display_name: "Check my URL",
 			subdomain: true,
 			subdomain_name: "slug--agent_name--workspace_name--username",
+		},
+		agent: MockWorkspaceAgent,
+	},
+};
+
+export const InternalAppHostnameTooLong: Story = {
+	args: {
+		workspace: MockWorkspace,
+		app: {
+			...MockWorkspaceApp,
+			display_name: "Check my URL",
+			subdomain: true,
+			subdomain_name:
+				// 64 characters long; surpasses DNS hostname limit of 63 characters
+				"app_name_makes_subdomain64--agent_name--workspace_name--username",
 		},
 		agent: MockWorkspaceAgent,
 	},

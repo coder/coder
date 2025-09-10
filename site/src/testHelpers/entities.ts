@@ -614,7 +614,7 @@ const MockUserAuthProvisioner: TypesGen.ProvisionerDaemon = {
 	tags: { scope: "user" },
 };
 
-const MockPskProvisioner: TypesGen.ProvisionerDaemon = {
+const _MockPskProvisioner: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-psk-provisioner",
 	key_id: MockProvisionerPskKey.id,
@@ -622,7 +622,7 @@ const MockPskProvisioner: TypesGen.ProvisionerDaemon = {
 	name: "Test psk provisioner",
 };
 
-const MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
+const _MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-key-provisioner",
 	key_id: MockProvisionerKey.id,
@@ -632,7 +632,7 @@ const MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
 	tags: MockProvisionerKey.tags,
 };
 
-const MockProvisioner2: TypesGen.ProvisionerDaemon = {
+const _MockProvisioner2: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-provisioner-2",
 	name: "Test Provisioner 2",
@@ -732,6 +732,7 @@ You can add instructions here
 [Some link info](https://coder.com)`,
 	created_by: MockUserOwner,
 	archived: false,
+	has_external_agent: false,
 };
 
 export const MockTemplateVersion2: TypesGen.TemplateVersion = {
@@ -751,6 +752,7 @@ You can add instructions here
 [Some link info](https://coder.com)`,
 	created_by: MockUserOwner,
 	archived: false,
+	has_external_agent: false,
 };
 
 export const MockTemplateVersionWithMarkdownMessage: TypesGen.TemplateVersion =
@@ -831,7 +833,7 @@ export const MockTemplate: TypesGen.Template = {
 	cors_behavior: "simple",
 };
 
-const MockTemplateVersionFiles: TemplateVersionFiles = {
+const _MockTemplateVersionFiles: TemplateVersionFiles = {
 	"README.md": "# Example\n\nThis is an example template.",
 	"main.tf": `// Provides info about the workspace.
 data "coder_workspace" "me" {}
@@ -990,6 +992,15 @@ export const MockWorkspaceSubAgent: TypesGen.WorkspaceAgent = {
 		"vscode_insiders",
 		"web_terminal",
 	],
+};
+
+const MockWorkspaceUnhealthyAgent: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
+	id: "test-workspace-unhealthy-agent",
+	name: "a-workspace-unhealthy-agent",
+	status: "timeout",
+	lifecycle_state: "start_error",
+	health: { healthy: false },
 };
 
 export const MockWorkspaceAppStatus: TypesGen.WorkspaceAppStatus = {
@@ -1201,7 +1212,7 @@ export const MockWorkspaceResourceMultipleAgents: TypesGen.WorkspaceResource = {
 	],
 };
 
-const MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
+const _MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
 	...MockWorkspaceResource,
 	id: "test-workspace-resource-hidden",
 	name: "workspace-resource-hidden",
@@ -1244,7 +1255,7 @@ export const MockWorkspaceContainerResource: TypesGen.WorkspaceResource = {
 	daily_cost: 0,
 };
 
-const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest =
+const _MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest =
 	{
 		schedule: "",
 	};
@@ -1443,6 +1454,20 @@ export const MockStoppingWorkspace: TypesGen.Workspace = {
 		status: "stopping",
 	},
 };
+export const MockUnhealthyWorkspace: TypesGen.Workspace = {
+	...MockWorkspace,
+	id: "test-unhealthy-workspace",
+	health: {
+		healthy: false,
+		failing_agents: [MockWorkspaceUnhealthyAgent.id],
+	},
+	latest_build: {
+		...MockWorkspace.latest_build,
+		resources: [
+			{ ...MockWorkspaceResource, agents: [MockWorkspaceUnhealthyAgent] },
+		],
+	},
+};
 export const MockStartingWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
 	id: "test-starting-workspace",
@@ -1554,7 +1579,7 @@ export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspac
 		},
 	};
 
-const MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
+const _MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 	...MockOutdatedRunningWorkspaceAlwaysUpdate,
 	latest_build: {
 		...MockWorkspaceBuild,
@@ -1583,7 +1608,7 @@ export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
 	count: 26,
 };
 
-const MockWorkspacesResponseWithDeletions = {
+const _MockWorkspacesResponseWithDeletions = {
 	workspaces: [...MockWorkspacesResponse.workspaces, MockWorkspaceWithDeletion],
 	count: MockWorkspacesResponse.count + 1,
 };
@@ -1738,7 +1763,7 @@ export const MockWorkspaceRichParametersRequest: TypesGen.CreateWorkspaceRequest
 		],
 	};
 
-const MockUserAgent = {
+const _MockUserAgent = {
 	browser: "Chrome 99.0.4844",
 	device: "Other",
 	ip_address: "11.22.33.44",
@@ -2420,7 +2445,7 @@ export const MockEntitlements: TypesGen.Entitlements = {
 	refreshed_at: "2022-05-20T16:45:57.122Z",
 };
 
-const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
+const _MockEntitlementsWithWarnings: TypesGen.Entitlements = {
 	errors: [],
 	warnings: ["You are over your active user limit.", "And another thing."],
 	has_license: true,
@@ -2490,7 +2515,7 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
 	}),
 };
 
-const MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
+const _MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
 	errors: [],
 	warnings: [],
 	has_license: true,
@@ -2667,7 +2692,7 @@ export const MockAuditLogGitSSH: TypesGen.AuditLog = {
 	},
 };
 
-const MockAuditOauthConvert: TypesGen.AuditLog = {
+const _MockAuditOauthConvert: TypesGen.AuditLog = {
 	...MockAuditLog,
 	resource_type: "convert_login",
 	resource_target: "oidc",
@@ -4877,6 +4902,32 @@ export const MockTasks = [
 		prompt: "Fix accessibility issues",
 	},
 ];
+
+export const MockTask: TypesGen.Task = {
+	id: "test-task",
+	name: "task-wild-test-123",
+	organization_id: MockOrganization.id,
+	owner_id: MockUserOwner.id,
+	owner_name: MockUserOwner.username,
+	template_id: MockTemplate.id,
+	template_name: MockTemplate.name,
+	template_display_name: MockTemplate.display_name,
+	template_icon: MockTemplate.icon,
+	workspace_id: MockWorkspace.id,
+	workspace_agent_id: MockWorkspaceAgent.id,
+	workspace_agent_lifecycle: MockWorkspaceAgent.lifecycle_state,
+	workspace_agent_health: MockWorkspaceAgent.health,
+	initial_prompt: "Perform some task",
+	status: "running",
+	current_state: {
+		timestamp: "2022-05-17T17:39:01.382927298Z",
+		state: "idle",
+		message: "Should I continue?",
+		uri: "https://dev.coder.com",
+	},
+	created_at: "2022-05-17T17:39:01.382927298Z",
+	updated_at: "2022-05-17T17:39:01.382927298Z",
+};
 
 export const MockNewTaskData = {
 	prompt: "Create a new task",

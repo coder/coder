@@ -29,9 +29,9 @@ import { Avatar } from "components/Avatar/Avatar";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
@@ -59,8 +59,8 @@ import {
 import { getTemplatePageTitle } from "../utils";
 import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
-import { WeekPicker, numberOfWeeksOptions } from "./WeekPicker";
 import { lastWeeks } from "./utils";
+import { numberOfWeeksOptions, WeekPicker } from "./WeekPicker";
 
 const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
 
@@ -284,7 +284,7 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 				<PanelTitle css={{ display: "flex", alignItems: "center", gap: 8 }}>
 					Latency by user
 					<HelpTooltip>
-						<HelpTooltipTrigger size="small" />
+						<HelpTooltipIconTrigger size="small" />
 						<HelpTooltipContent>
 							<HelpTooltipTitle>How is latency calculated?</HelpTooltipTitle>
 							<HelpTooltipText>
@@ -352,7 +352,7 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 				<PanelTitle css={{ display: "flex", alignItems: "center", gap: 8 }}>
 					Activity by user
 					<HelpTooltip>
-						<HelpTooltipTrigger size="small" />
+						<HelpTooltipIconTrigger size="small" />
 						<HelpTooltipContent>
 							<HelpTooltipTitle>How is activity calculated?</HelpTooltipTitle>
 							<HelpTooltipText>

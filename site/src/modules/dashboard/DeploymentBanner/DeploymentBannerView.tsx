@@ -1,5 +1,4 @@
-import type { CSSInterpolation } from "@emotion/css/dist/declarations/src/create-instance";
-import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
+import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
@@ -15,14 +14,16 @@ import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
-import { type ClassName, useClassName } from "hooks/useClassName";
-import { CloudDownloadIcon } from "lucide-react";
-import { CloudUploadIcon } from "lucide-react";
-import { GitCompareArrowsIcon } from "lucide-react";
-import { GaugeIcon } from "lucide-react";
-import { AppWindowIcon } from "lucide-react";
-import { RotateCwIcon, WrenchIcon } from "lucide-react";
-import { CircleAlertIcon } from "lucide-react";
+import {
+	AppWindowIcon,
+	CircleAlertIcon,
+	CloudDownloadIcon,
+	CloudUploadIcon,
+	GaugeIcon,
+	GitCompareArrowsIcon,
+	RotateCwIcon,
+	WrenchIcon,
+} from "lucide-react";
 import prettyBytes from "pretty-bytes";
 import {
 	type FC,
@@ -50,7 +51,6 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 	fetchStats,
 }) => {
 	const theme = useTheme();
-	const summaryTooltip = useClassName(classNames.summaryTooltip, []);
 
 	const aggregatedMinutes = useMemo(() => {
 		if (!stats) {
@@ -105,6 +105,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 
 	return (
 		<div
+			className="w-full"
 			css={{
 				position: "sticky",
 				lineHeight: 1,
@@ -124,7 +125,10 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 			}}
 		>
 			<Tooltip
-				classes={{ tooltip: summaryTooltip }}
+				classes={{
+					tooltip:
+						"ml-3 mb-1 w-[400px] p-4 text-sm text-content-primary bg-surface-secondary border border-solid border-border pointer-events-none",
+				}}
 				title={
 					healthErrors.length > 0 ? (
 						<>
@@ -138,7 +142,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 							</Stack>
 						</>
 					) : (
-						<>Status of your Coder deployment. Only visible for admins!</>
+						"Status of your Coder deployment. Only visible for admins!"
 					)
 				}
 				open={process.env.STORYBOOK === "true" ? true : undefined}
@@ -232,10 +236,10 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						<div css={styles.value}>
 							<VSCodeIcon
 								css={css`
-                  & * {
-                    fill: currentColor;
-                  }
-                `}
+									& * {
+										fill: currentColor;
+									}
+								`}
 							/>
 							{typeof stats?.session_count.vscode === "undefined"
 								? "-"
@@ -247,10 +251,10 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						<div css={styles.value}>
 							<JetBrainsIcon
 								css={css`
-                  & * {
-                    fill: currentColor;
-                  }
-                `}
+									& * {
+										fill: currentColor;
+									}
+								`}
 							/>
 							{typeof stats?.session_count.jetbrains === "undefined"
 								? "-"
@@ -299,20 +303,20 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						css={[
 							styles.value,
 							css`
-                margin: 0;
-                padding: 0 8px;
-                height: unset;
-                min-height: unset;
-                font-size: unset;
-                color: unset;
-                border: 0;
-                min-width: unset;
-                font-family: inherit;
+								margin: 0;
+								padding: 0 8px;
+								height: unset;
+								min-height: unset;
+								font-size: unset;
+								color: unset;
+								border: 0;
+								min-width: unset;
+								font-family: inherit;
 
-                & svg {
-                  margin-right: 4px;
-                }
-              `,
+								& svg {
+									margin-right: 4px;
+								}
+							`,
 						]}
 						onClick={() => {
 							if (fetchStats) {
@@ -406,41 +410,27 @@ const getHealthErrors = (health: HealthcheckReport) => {
 	return warnings;
 };
 
-const classNames = {
-	summaryTooltip: (css, theme) => css`
-    ${theme.typography.body2 as CSSInterpolation}
-
-    margin: 0 0 4px 12px;
-    width: 400px;
-    padding: 16px;
-    color: ${theme.palette.text.primary};
-    background-color: ${theme.palette.background.paper};
-    border: 1px solid ${theme.palette.divider};
-    pointer-events: none;
-  `,
-} satisfies Record<string, ClassName>;
-
 const styles = {
 	statusBadge: (theme) => css`
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 12px;
-    height: 100%;
-    color: ${theme.experimental.l1.text};
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0 12px;
+		height: 100%;
+		color: ${theme.experimental.l1.text};
 
-    & svg {
-      width: 16px;
-      height: 16px;
-    }
-  `,
+		& svg {
+			width: 16px;
+			height: 16px;
+		}
+	`,
 	unhealthy: {
 		backgroundColor: colors.red[700],
 	},
 	group: css`
-    display: flex;
-    align-items: center;
-  `,
+		display: flex;
+		align-items: center;
+	`,
 	category: (theme) => ({
 		marginRight: 16,
 		color: theme.palette.text.primary,
@@ -451,15 +441,15 @@ const styles = {
 		color: theme.palette.text.secondary,
 	}),
 	value: css`
-    display: flex;
-    align-items: center;
-    gap: 4px;
+		display: flex;
+		align-items: center;
+		gap: 4px;
 
-    & svg {
-      width: 12px;
-      height: 12px;
-    }
-  `,
+		& svg {
+			width: 12px;
+			height: 12px;
+		}
+	`,
 	separator: (theme) => ({
 		color: theme.palette.text.disabled,
 	}),

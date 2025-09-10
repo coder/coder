@@ -1,14 +1,18 @@
 import { AuditActions, ResourceTypes } from "api/typesGenerated";
 import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
 import {
-	SelectFilter,
-	type SelectFilterOption,
-} from "components/Filter/SelectFilter";
-import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
-import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
 } from "components/Filter/menu";
+import {
+	SelectFilter,
+	type SelectFilterOption,
+} from "components/Filter/SelectFilter";
+import {
+	DEFAULT_USER_FILTER_WIDTH,
+	type UserFilterMenu,
+	UserMenu,
+} from "components/Filter/UserFilter";
 import capitalize from "lodash/capitalize";
 import {
 	type OrganizationsFilterMenu,
@@ -47,8 +51,7 @@ interface AuditFilterProps {
 }
 
 export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
-	const width = menus.organization ? 175 : undefined;
-
+	const width = menus.organization ? DEFAULT_USER_FILTER_WIDTH : undefined;
 	return (
 		<Filter
 			learnMoreLink={docs("/admin/security/audit-logs#filtering-logs")}

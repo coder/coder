@@ -1,24 +1,24 @@
+import {
+	MockFailedWorkspace,
+	MockStartingWorkspace,
+	MockStoppedWorkspace,
+	MockWorkspace,
+	MockWorkspaceAgentLogSource,
+	MockWorkspaceAgentReady,
+	MockWorkspaceAgentStarting,
+	MockWorkspaceApp,
+	MockWorkspaceAppStatus,
+	MockWorkspaceResource,
+	mockApiError,
+} from "testHelpers/entities";
+import { withProxyProvider, withWebSocket } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
 import type {
 	Workspace,
 	WorkspaceApp,
 	WorkspaceResource,
 } from "api/typesGenerated";
 import { expect, spyOn, within } from "storybook/test";
-import {
-	MockFailedWorkspace,
-	MockStartingWorkspace,
-	MockStoppedWorkspace,
-	MockTemplate,
-	MockWorkspace,
-	MockWorkspaceAgent,
-	MockWorkspaceApp,
-	MockWorkspaceAppStatus,
-	MockWorkspaceResource,
-	mockApiError,
-} from "testHelpers/entities";
-import { withProxyProvider } from "testHelpers/storybook";
 import TaskPage, { data, WorkspaceDoesNotHaveAITaskError } from "./TaskPage";
 
 const meta: Meta<typeof TaskPage> = {
@@ -36,7 +36,7 @@ type Story = StoryObj<typeof TaskPage>;
 export const Loading: Story = {
 	beforeEach: () => {
 		spyOn(data, "fetchTask").mockImplementation(
-			() => new Promise((res) => 1000 * 60 * 60),
+			() => new Promise((_res) => 1000 * 60 * 60),
 		);
 	},
 };
@@ -57,28 +57,6 @@ export const WaitingOnBuild: Story = {
 		spyOn(data, "fetchTask").mockResolvedValue({
 			prompt: "Create competitors page",
 			workspace: MockStartingWorkspace,
-		});
-	},
-};
-
-export const WaitingOnBuildWithTemplate: Story = {
-	beforeEach: () => {
-		spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: MockStartingWorkspace,
-		});
-	},
-};
-
-export const WaitingOnStatus: Story = {
-	beforeEach: () => {
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: {
-				...MockWorkspace,
-				latest_app_status: null,
-			},
 		});
 	},
 };
@@ -110,6 +88,65 @@ export const TerminatedBuildWithStatus: Story = {
 				latest_app_status: MockWorkspaceAppStatus,
 			},
 		});
+	},
+};
+
+export const WaitingOnStatus: Story = {
+	beforeEach: () => {
+		spyOn(data, "fetchTask").mockResolvedValue({
+			prompt: "Create competitors page",
+			workspace: {
+				...MockWorkspace,
+				latest_app_status: null,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					resources: [
+						{ ...MockWorkspaceResource, agents: [MockWorkspaceAgentReady] },
+					],
+				},
+			},
+		});
+	},
+};
+
+export const WaitingStartupScripts: Story = {
+	beforeEach: () => {
+		spyOn(data, "fetchTask").mockResolvedValue({
+			prompt: "Create competitors page",
+			workspace: {
+				...MockWorkspace,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					has_ai_task: true,
+					resources: [
+						{ ...MockWorkspaceResource, agents: [MockWorkspaceAgentStarting] },
+					],
+				},
+			},
+		});
+	},
+	decorators: [withWebSocket],
+	parameters: {
+		webSocket: [
+			{
+				event: "message",
+				data: JSON.stringify(
+					[
+						"\x1b[91mCloning Git repository...",
+						"\x1b[2;37;41mStarting Docker Daemon...",
+						"\x1b[1;95mAdding some 🧙magic🧙...",
+						"Starting VS Code...",
+						"\r  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\r100  1475    0  1475    0     0   4231      0 --:--:-- --:--:-- --:--:--  4238",
+					].map((line, index) => ({
+						id: index,
+						level: "info",
+						output: line,
+						source_id: MockWorkspaceAgentLogSource.id,
+						created_at: new Date("2024-01-01T12:00:00Z").toISOString(),
+					})),
+				),
+			},
+		],
 	},
 };
 
@@ -223,7 +260,7 @@ const mockResources = (
 		...MockWorkspaceResource,
 		agents: [
 			{
-				...MockWorkspaceAgent,
+				...MockWorkspaceAgentReady,
 				apps: [
 					...(props?.apps ?? []),
 					{

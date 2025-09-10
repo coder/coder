@@ -8,7 +8,7 @@ Power users can configure [claude.ai](https://claude.ai), Claude Desktop, Cursor
 - Check in on agent activity
 
 > [!NOTE]
-> See our [toolsdk](https://pkg.go.dev/github.com/coder/coder/v2@v2.24.1/codersdk/toolsdk#pkg-variables) documentation for a full list of tools included in the MCP server
+> See our [toolsdk](https://pkg.go.dev/github.com/coder/coder/v2/codersdk/toolsdk#pkg-variables) documentation for a full list of tools included in the MCP server
 
 In this model, any custom agent could interact with a remote Coder workspace, or Coder can be used in a remote pipeline or a larger workflow.
 

@@ -110,7 +110,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			defer notifyCancel()
 
 			workspaceName := inv.Args[0]
-			_, workspaceAgent, _, err := getWorkspaceAndAgent(
+			_, workspaceAgent, _, err := GetWorkspaceAndAgent(
 				ctx, inv, client,
 				false, // Do not autostart for a ping.
 				workspaceName,
@@ -147,7 +147,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			}
 			defer conn.Close()
 
-			derpMap := conn.DERPMap()
+			derpMap := conn.TailnetConn().DERPMap()
 
 			diagCtx, diagCancel := context.WithTimeout(inv.Context(), 30*time.Second)
 			defer diagCancel()
@@ -156,7 +156,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			// Silent ping to determine whether we should show diags
 			_, didP2p, _, _ := conn.Ping(ctx)
 
-			ni := conn.GetNetInfo()
+			ni := conn.TailnetConn().GetNetInfo()
 			connDiags := cliui.ConnDiags{
 				DisableDirect:      r.disableDirect,
 				LocalNetInfo:       ni,

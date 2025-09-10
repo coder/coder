@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"sort"
 	"testing"
 	"time"
@@ -105,6 +106,52 @@ func TestTelemetry(t *testing.T) {
 			OpenIn:       database.WorkspaceAppOpenInSlimWindow,
 			AgentID:      wsagent.ID,
 		})
+
+		taskJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Provisioner:    database.ProvisionerTypeTerraform,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
+			OrganizationID: org.ID,
+		})
+		taskTpl := dbgen.Template(t, db, database.Template{
+			Provisioner:    database.ProvisionerTypeTerraform,
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		taskTV := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			TemplateID:     uuid.NullUUID{UUID: taskTpl.ID, Valid: true},
+			CreatedBy:      user.ID,
+			JobID:          taskJob.ID,
+			HasAITask:      sql.NullBool{Bool: true, Valid: true},
+		})
+		taskWs := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			TemplateID:     taskTpl.ID,
+		})
+		taskWsResource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: taskJob.ID,
+		})
+		taskWsAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: taskWsResource.ID,
+		})
+		taskWsApp := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
+			SharingLevel: database.AppSharingLevelOwner,
+			Health:       database.WorkspaceAppHealthDisabled,
+			OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+			AgentID:      taskWsAgent.ID,
+		})
+		taskWB := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			Transition:         database.WorkspaceTransitionStart,
+			Reason:             database.BuildReasonAutostart,
+			WorkspaceID:        taskWs.ID,
+			TemplateVersionID:  tv.ID,
+			JobID:              taskJob.ID,
+			HasAITask:          sql.NullBool{Valid: true, Bool: true},
+			AITaskSidebarAppID: uuid.NullUUID{Valid: true, UUID: taskWsApp.ID},
+		})
+
 		group := dbgen.Group(t, db, database.Group{
 			OrganizationID: org.ID,
 		})
@@ -148,19 +195,19 @@ func TestTelemetry(t *testing.T) {
 		})
 
 		_, snapshot := collectSnapshot(ctx, t, db, nil)
-		require.Len(t, snapshot.ProvisionerJobs, 1)
+		require.Len(t, snapshot.ProvisionerJobs, 2)
 		require.Len(t, snapshot.Licenses, 1)
-		require.Len(t, snapshot.Templates, 1)
-		require.Len(t, snapshot.TemplateVersions, 2)
+		require.Len(t, snapshot.Templates, 2)
+		require.Len(t, snapshot.TemplateVersions, 3)
 		require.Len(t, snapshot.Users, 1)
 		require.Len(t, snapshot.Groups, 2)
 		// 1 member in the everyone group + 1 member in the custom group
 		require.Len(t, snapshot.GroupMembers, 2)
-		require.Len(t, snapshot.Workspaces, 1)
-		require.Len(t, snapshot.WorkspaceApps, 1)
-		require.Len(t, snapshot.WorkspaceAgents, 1)
-		require.Len(t, snapshot.WorkspaceBuilds, 1)
-		require.Len(t, snapshot.WorkspaceResources, 1)
+		require.Len(t, snapshot.Workspaces, 2)
+		require.Len(t, snapshot.WorkspaceApps, 2)
+		require.Len(t, snapshot.WorkspaceAgents, 2)
+		require.Len(t, snapshot.WorkspaceBuilds, 2)
+		require.Len(t, snapshot.WorkspaceResources, 2)
 		require.Len(t, snapshot.WorkspaceAgentStats, 1)
 		require.Len(t, snapshot.WorkspaceProxies, 1)
 		require.Len(t, snapshot.WorkspaceModules, 1)
@@ -169,10 +216,23 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.TelemetryItems, 2)
 		require.Len(t, snapshot.WorkspaceAgentMemoryResourceMonitors, 1)
 		require.Len(t, snapshot.WorkspaceAgentVolumeResourceMonitors, 1)
-		wsa := snapshot.WorkspaceAgents[0]
+		wsa := snapshot.WorkspaceAgents[1]
 		require.Len(t, wsa.Subsystems, 2)
 		require.Equal(t, string(database.WorkspaceAgentSubsystemEnvbox), wsa.Subsystems[0])
 		require.Equal(t, string(database.WorkspaceAgentSubsystemExectrace), wsa.Subsystems[1])
+
+		require.True(t, slices.ContainsFunc(snapshot.TemplateVersions, func(ttv telemetry.TemplateVersion) bool {
+			if ttv.ID != taskTV.ID {
+				return false
+			}
+			return assert.NotNil(t, ttv.HasAITask) && assert.True(t, *ttv.HasAITask)
+		}))
+		require.True(t, slices.ContainsFunc(snapshot.WorkspaceBuilds, func(twb telemetry.WorkspaceBuild) bool {
+			if twb.ID != taskWB.ID {
+				return false
+			}
+			return assert.NotNil(t, twb.HasAITask) && assert.True(t, *twb.HasAITask)
+		}))
 
 		tvs := snapshot.TemplateVersions
 		sort.Slice(tvs, func(i, j int) bool {
@@ -403,7 +463,6 @@ func TestTelemetryItem(t *testing.T) {
 
 func TestPrebuiltWorkspacesTelemetry(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitMedium)
 	db, _ := dbtestutil.NewDB(t)
 
 	cases := []struct {
@@ -435,6 +494,7 @@ func TestPrebuiltWorkspacesTelemetry(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
 
 			deployment, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
 				opts.Database = tc.storeFn(db)

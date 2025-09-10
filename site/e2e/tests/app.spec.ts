@@ -21,7 +21,7 @@ test("app", async ({ context, page }) => {
 	const appContent = "Hello World";
 	const token = randomUUID();
 	const srv = http
-		.createServer((req, res) => {
+		.createServer((_req, res) => {
 			res.writeHead(200, { "Content-Type": "text/plain" });
 			res.end(appContent);
 		})

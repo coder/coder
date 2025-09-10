@@ -3,7 +3,11 @@ import {
 	MenuSkeleton,
 	type UseFilterResult,
 } from "components/Filter/Filter";
-import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
+import {
+	DEFAULT_USER_FILTER_WIDTH,
+	type UserFilterMenu,
+	UserMenu,
+} from "components/Filter/UserFilter";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	type OrganizationsFilterMenu,
@@ -96,7 +100,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	organizationsMenu,
 }) => {
 	const { entitlements, showOrganizations } = useDashboard();
-	const width = showOrganizations ? 175 : undefined;
+	const width = showOrganizations ? DEFAULT_USER_FILTER_WIDTH : undefined;
 	const presets = entitlements.features.advanced_template_scheduling.enabled
 		? PRESETS_WITH_DORMANT
 		: PRESET_FILTERS;

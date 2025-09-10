@@ -2,9 +2,9 @@ import { useTheme } from "@emotion/react";
 import LocationOnOutlined from "@mui/icons-material/LocationOnOutlined";
 import Button from "@mui/material/Button";
 import type {
+	HealthcheckReport,
 	HealthMessage,
 	HealthSeverity,
-	HealthcheckReport,
 	NetcheckReport,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
