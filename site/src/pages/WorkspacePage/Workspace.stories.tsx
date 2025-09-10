@@ -9,6 +9,7 @@ import type { ProvisionerJobLog } from "api/typesGenerated";
 import { action } from "storybook/actions";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { Workspace } from "./Workspace";
+import { defaultPermissions } from "./WorkspaceNotifications/WorkspaceNotifications.stories";
 
 // Helper function to create timestamps easily - Copied from AppStatuses.stories.tsx
 const createTimestamp = (
@@ -346,6 +347,23 @@ export const Stopping: Story = {
 	args: {
 		...Running.args,
 		workspace: Mocks.MockStoppingWorkspace,
+	},
+};
+
+export const Unhealthy: Story = {
+	args: {
+		...Running.args,
+		workspace: Mocks.MockUnhealthyWorkspace,
+	},
+};
+
+export const UnhealthyWithoutUpdatePermission: Story = {
+	args: {
+		...Unhealthy.args,
+		permissions: {
+			...defaultPermissions,
+			updateWorkspace: false,
+		},
 	},
 };
 

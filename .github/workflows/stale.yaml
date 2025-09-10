@@ -23,7 +23,7 @@ jobs:
           egress-policy: audit
 
       - name: stale
-        uses: actions/stale@5bef64f19d7facfb25b37b414482c7164d639639 # v9.1.0
+        uses: actions/stale@3a9db7e6a41a89f618792c92c0e97cc736e1b13f # v10.0.0
         with:
           stale-issue-label: "stale"
           stale-pr-label: "stale"
@@ -44,7 +44,7 @@ jobs:
           # Start with the oldest issues, always.
           ascending: true
       - name: "Close old issues labeled likely-no"
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -101,7 +101,9 @@ jobs:
           egress-policy: audit
 
       - name: Checkout repository
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
       - name: Run delete-old-branches-action
         uses: beatlabs/delete-old-branches-action@4eeeb8740ff8b3cb310296ddd6b43c3387734588 # v0.0.11
         with:

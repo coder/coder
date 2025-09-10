@@ -361,6 +361,38 @@ CREATE TYPE workspace_transition AS ENUM (
     'delete'
 );
 
+CREATE FUNCTION aggregate_usage_event() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- Check for supported event types and throw error for unknown types
+    IF NEW.event_type NOT IN ('dc_managed_agents_v1') THEN
+        RAISE EXCEPTION 'Unhandled usage event type in aggregate_usage_event: %', NEW.event_type;
+    END IF;
+
+    INSERT INTO usage_events_daily (day, event_type, usage_data)
+    VALUES (
+        -- Extract the date from the created_at timestamp, always using UTC for
+        -- consistency
+        date_trunc('day', NEW.created_at AT TIME ZONE 'UTC')::date,
+        NEW.event_type,
+        NEW.event_data
+    )
+    ON CONFLICT (day, event_type) DO UPDATE SET
+        usage_data = CASE
+            -- Handle simple counter events by summing the count
+            WHEN NEW.event_type IN ('dc_managed_agents_v1') THEN
+                jsonb_build_object(
+                    'count',
+                    COALESCE((usage_events_daily.usage_data->>'count')::bigint, 0) +
+                    COALESCE((NEW.event_data->>'count')::bigint, 0)
+                )
+        END;
+
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION check_workspace_agent_name_unique() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1015,7 +1047,8 @@ CREATE TABLE users (
     hashed_one_time_passcode bytea,
     one_time_passcode_expires_at timestamp with time zone,
     is_system boolean DEFAULT false NOT NULL,
-    CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL))))
+    CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL)))),
+    CONSTRAINT users_username_min_length CHECK ((length(username) >= 1))
 );
 
 COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
@@ -1691,7 +1724,8 @@ CREATE TABLE template_versions (
     message character varying(1048576) DEFAULT ''::character varying NOT NULL,
     archived boolean DEFAULT false NOT NULL,
     source_example_id text,
-    has_ai_task boolean
+    has_ai_task boolean,
+    has_external_agent boolean
 );
 
 COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';
@@ -1722,6 +1756,7 @@ CREATE VIEW template_version_with_user AS
     template_versions.archived,
     template_versions.source_example_id,
     template_versions.has_ai_task,
+    template_versions.has_external_agent,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name
@@ -1831,6 +1866,41 @@ CREATE VIEW template_with_names AS
      LEFT JOIN organizations ON ((templates.organization_id = organizations.id)));
 
 COMMENT ON VIEW template_with_names IS 'Joins in the display name information such as username, avatar, and organization name.';
+
+CREATE TABLE usage_events (
+    id text NOT NULL,
+    event_type text NOT NULL,
+    event_data jsonb NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    publish_started_at timestamp with time zone,
+    published_at timestamp with time zone,
+    failure_message text,
+    CONSTRAINT usage_event_type_check CHECK ((event_type = 'dc_managed_agents_v1'::text))
+);
+
+COMMENT ON TABLE usage_events IS 'usage_events contains usage data that is collected from the product and potentially shipped to the usage collector service.';
+
+COMMENT ON COLUMN usage_events.id IS 'For "discrete" event types, this is a random UUID. For "heartbeat" event types, this is a combination of the event type and a truncated timestamp.';
+
+COMMENT ON COLUMN usage_events.event_type IS 'The usage event type with version. "dc" means "discrete" (e.g. a single event, for counters), "hb" means "heartbeat" (e.g. a recurring event that contains a total count of usage generated from the database, for gauges).';
+
+COMMENT ON COLUMN usage_events.event_data IS 'Event payload. Determined by the matching usage struct for this event type.';
+
+COMMENT ON COLUMN usage_events.publish_started_at IS 'Set to a timestamp while the event is being published by a Coder replica to the usage collector service. Used to avoid duplicate publishes by multiple replicas. Timestamps older than 1 hour are considered expired.';
+
+COMMENT ON COLUMN usage_events.published_at IS 'Set to a timestamp when the event is successfully (or permanently unsuccessfully) published to the usage collector service. If set, the event should never be attempted to be published again.';
+
+COMMENT ON COLUMN usage_events.failure_message IS 'Set to an error message when the event is temporarily or permanently unsuccessfully published to the usage collector service.';
+
+CREATE TABLE usage_events_daily (
+    day date NOT NULL,
+    event_type text NOT NULL,
+    usage_data jsonb NOT NULL
+);
+
+COMMENT ON TABLE usage_events_daily IS 'usage_events_daily is a daily rollup of usage events. It stores the total usage for each event type by day.';
+
+COMMENT ON COLUMN usage_events_daily.day IS 'The date of the summed usage events, always in UTC.';
 
 CREATE TABLE user_configs (
     user_id uuid NOT NULL,
@@ -2239,6 +2309,7 @@ CREATE TABLE workspace_builds (
     template_version_preset_id uuid,
     has_ai_task boolean,
     ai_task_sidebar_app_id uuid,
+    has_external_agent boolean,
     CONSTRAINT workspace_builds_ai_task_sidebar_app_id_required CHECK (((((has_ai_task IS NULL) OR (has_ai_task = false)) AND (ai_task_sidebar_app_id IS NULL)) OR ((has_ai_task = true) AND (ai_task_sidebar_app_id IS NOT NULL)))),
     CONSTRAINT workspace_builds_deadline_below_max_deadline CHECK ((((deadline <> '0001-01-01 00:00:00+00'::timestamp with time zone) AND (deadline <= max_deadline)) OR (max_deadline = '0001-01-01 00:00:00+00'::timestamp with time zone)))
 );
@@ -2261,6 +2332,7 @@ CREATE VIEW workspace_build_with_user AS
     workspace_builds.template_version_preset_id,
     workspace_builds.has_ai_task,
     workspace_builds.ai_task_sidebar_app_id,
+    workspace_builds.has_external_agent,
     COALESCE(visible_users.avatar_url, ''::text) AS initiator_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS initiator_by_username,
     COALESCE(visible_users.name, ''::text) AS initiator_by_name
@@ -2681,6 +2753,12 @@ ALTER TABLE ONLY template_versions
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY usage_events_daily
+    ADD CONSTRAINT usage_events_daily_pkey PRIMARY KEY (day, event_type);
+
+ALTER TABLE ONLY usage_events
+    ADD CONSTRAINT usage_events_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY user_configs
     ADD CONSTRAINT user_configs_pkey PRIMARY KEY (user_id, key);
 
@@ -2783,6 +2861,10 @@ ALTER TABLE ONLY workspace_resources
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 
+CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
+
+COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
+
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
@@ -2849,6 +2931,8 @@ CREATE INDEX idx_template_versions_has_ai_task ON template_versions USING btree 
 
 CREATE UNIQUE INDEX idx_unique_preset_name ON template_version_presets USING btree (name, template_version_id);
 
+CREATE INDEX idx_usage_events_select_for_publishing ON usage_events USING btree (published_at, publish_started_at, created_at);
+
 CREATE INDEX idx_user_deleted_deleted_at ON user_deleted USING btree (deleted_at);
 
 CREATE INDEX idx_user_status_changes_changed_at ON user_status_changes USING btree (changed_at);
@@ -2859,6 +2943,8 @@ CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (de
 
 CREATE INDEX idx_workspace_app_statuses_workspace_id_created_at ON workspace_app_statuses USING btree (workspace_id, created_at DESC);
 
+CREATE INDEX idx_workspace_builds_initiator_id ON workspace_builds USING btree (initiator_id);
+
 CREATE UNIQUE INDEX notification_messages_dedupe_hash_idx ON notification_messages USING btree (dedupe_hash);
 
 CREATE UNIQUE INDEX organizations_single_default_org ON organizations USING btree (is_default) WHERE (is_default = true);
@@ -2866,6 +2952,10 @@ CREATE UNIQUE INDEX organizations_single_default_org ON organizations USING btre
 CREATE INDEX provisioner_job_logs_id_job_id_idx ON provisioner_job_logs USING btree (job_id, id);
 
 CREATE INDEX provisioner_jobs_started_at_idx ON provisioner_jobs USING btree (started_at) WHERE (started_at IS NULL);
+
+CREATE INDEX provisioner_jobs_worker_id_organization_id_completed_at_idx ON provisioner_jobs USING btree (worker_id, organization_id, completed_at DESC);
+
+COMMENT ON INDEX provisioner_jobs_worker_id_organization_id_completed_at_idx IS 'Support index for finding the latest completed jobs for a worker (and organization), nulls first so that active jobs have priority; targets: GetProvisionerDaemonsWithStatusByOrganization';
 
 CREATE UNIQUE INDEX provisioner_keys_organization_id_name_idx ON provisioner_keys USING btree (organization_id, lower((name)::text));
 
@@ -2998,6 +3088,8 @@ CREATE TRIGGER tailnet_notify_coordinator_heartbeat AFTER INSERT OR UPDATE ON ta
 CREATE TRIGGER tailnet_notify_peer_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_peers FOR EACH ROW EXECUTE FUNCTION tailnet_notify_peer_change();
 
 CREATE TRIGGER tailnet_notify_tunnel_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_tunnels FOR EACH ROW EXECUTE FUNCTION tailnet_notify_tunnel_change();
+
+CREATE TRIGGER trigger_aggregate_usage_event AFTER INSERT ON usage_events FOR EACH ROW EXECUTE FUNCTION aggregate_usage_event();
 
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 

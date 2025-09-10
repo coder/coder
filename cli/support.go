@@ -251,7 +251,7 @@ func summarizeBundle(inv *serpent.Invocation, bun *support.Bundle) {
 
 	clientNetcheckSummary := bun.Network.Netcheck.Summarize("Client netcheck:", docsURL)
 	if len(clientNetcheckSummary) > 0 {
-		cliui.Warn(inv.Stdout, "Networking issues detected:", deployHealthSummary...)
+		cliui.Warn(inv.Stdout, "Networking issues detected:", clientNetcheckSummary...)
 	}
 }
 

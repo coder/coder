@@ -5,10 +5,11 @@ import { cn } from "utils/cn";
 
 interface SidebarProps {
 	children?: ReactNode;
+	className?: string;
 }
 
-export const Sidebar: FC<SidebarProps> = ({ children }) => {
-	return <nav className="w-60 flex-shrink-0">{children}</nav>;
+export const Sidebar: FC<SidebarProps> = ({ className, children }) => {
+	return <nav className={cn("w-60 flex-shrink-0", className)}>{children}</nav>;
 };
 
 interface SidebarHeaderProps {
@@ -106,7 +107,7 @@ export const SidebarNavItem: FC<SidebarNavItemProps> = ({
 			}
 		>
 			<Stack alignItems="center" spacing={1.5} direction="row">
-				<Icon css={{ width: 16, height: 16 }} />
+				<Icon className="size-4" />
 				{children}
 			</Stack>
 		</NavLink>

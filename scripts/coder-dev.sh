@@ -8,6 +8,11 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 # shellcheck disable=SC1091,SC1090
 source "${SCRIPT_DIR}/lib.sh"
 
+# Ensure that extant environment variables do not override
+# the config dir we use to override auth for dev.coder.com.
+unset CODER_SESSION_TOKEN
+unset CODER_URL
+
 GOOS="$(go env GOOS)"
 GOARCH="$(go env GOARCH)"
 CODER_AGENT_URL="${CODER_AGENT_URL:-}"

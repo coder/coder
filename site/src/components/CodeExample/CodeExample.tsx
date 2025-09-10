@@ -1,11 +1,26 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import type { FC } from "react";
+import { Button } from "components/Button/Button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { type FC, useState } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { CopyButton } from "../CopyButton/CopyButton";
 
 interface CodeExampleProps {
 	code: string;
+	/** Defaulting to true to be on the safe side; you should have to opt out of the secure option, not remember to opt in */
 	secret?: boolean;
+	/** Redact parts of the code if the user doesn't want to obfuscate the whole code */
+	redactPattern?: RegExp;
+	/** Replacement text for redacted content */
+	redactReplacement?: string;
+	/** Show a button to reveal the redacted parts of the code */
+	showRevealButton?: boolean;
 	className?: string;
 }
 
@@ -15,11 +30,28 @@ interface CodeExampleProps {
 export const CodeExample: FC<CodeExampleProps> = ({
 	code,
 	className,
-
-	// Defaulting to true to be on the safe side; you should have to opt out of
-	// the secure option, not remember to opt in
 	secret = true,
+	redactPattern,
+	redactReplacement = "********",
+	showRevealButton,
 }) => {
+	const [showFullValue, setShowFullValue] = useState(false);
+
+	const displayValue = secret
+		? obfuscateText(code)
+		: redactPattern && !showFullValue
+			? code.replace(redactPattern, redactReplacement)
+			: code;
+
+	const showButtonLabel = showFullValue
+		? "Hide sensitive data"
+		: "Show sensitive data";
+	const icon = showFullValue ? (
+		<EyeOffIcon className="h-4 w-4" />
+	) : (
+		<EyeIcon className="h-4 w-4" />
+	);
+
 	return (
 		<div css={styles.container} className={className}>
 			<code css={[styles.code, secret && styles.secret]}>
@@ -33,17 +65,36 @@ export const CodeExample: FC<CodeExampleProps> = ({
 						 * 2. Even with it turned on and supported, the plaintext is still
 						 *    readily available in the HTML itself
 						 */}
-						<span aria-hidden>{obfuscateText(code)}</span>
+						<span aria-hidden>{displayValue}</span>
 						<span className="sr-only">
 							Encrypted text. Please access via the copy button.
 						</span>
 					</>
 				) : (
-					code
+					displayValue
 				)}
 			</code>
 
-			<CopyButton text={code} label="Copy code" />
+			<div className="flex items-center gap-1">
+				{showRevealButton && redactPattern && !secret && (
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									size="icon"
+									variant="subtle"
+									onClick={() => setShowFullValue(!showFullValue)}
+								>
+									{icon}
+									<span className="sr-only">{showButtonLabel}</span>
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>{showButtonLabel}</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				)}
+				<CopyButton text={code} label="Copy code" />
+			</div>
 		</div>
 	);
 };

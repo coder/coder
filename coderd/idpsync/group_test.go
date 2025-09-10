@@ -44,8 +44,7 @@ func TestParseGroupClaims(t *testing.T) {
 		require.False(t, params.SyncEntitled)
 	})
 
-	// AllowList has no effect in AGPL
-	t.Run("AllowList", func(t *testing.T) {
+	t.Run("NotInAllowList", func(t *testing.T) {
 		t.Parallel()
 
 		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
@@ -59,9 +58,39 @@ func TestParseGroupClaims(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		params, err := s.ParseGroupClaims(ctx, jwt.MapClaims{})
+		// Invalid group
+		_, err := s.ParseGroupClaims(ctx, jwt.MapClaims{
+			"groups": []string{"bar"},
+		})
+		require.NotNil(t, err)
+		require.Equal(t, 403, err.Code)
+
+		// No groups
+		_, err = s.ParseGroupClaims(ctx, jwt.MapClaims{})
+		require.NotNil(t, err)
+		require.Equal(t, 403, err.Code)
+	})
+
+	t.Run("InAllowList", func(t *testing.T) {
+		t.Parallel()
+
+		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
+			runtimeconfig.NewManager(),
+			idpsync.DeploymentSyncSettings{
+				GroupField: "groups",
+				GroupAllowList: map[string]struct{}{
+					"foo": {},
+				},
+			})
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		claims := jwt.MapClaims{
+			"groups": []string{"foo", "bar"},
+		}
+		params, err := s.ParseGroupClaims(ctx, claims)
 		require.Nil(t, err)
-		require.False(t, params.SyncEntitled)
+		require.Equal(t, claims, params.MergedClaims)
 	})
 }
 
@@ -328,7 +357,6 @@ func TestGroupSyncTable(t *testing.T) {
 			},
 		}
 
-		//nolint:gocritic // testing
 		defOrg, err := db.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
 		require.NoError(t, err)
 		SetupOrganization(t, s, db, user, defOrg.ID, def)
@@ -527,7 +555,6 @@ func TestApplyGroupDifference(t *testing.T) {
 			db, _ := dbtestutil.NewDB(t)
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			//nolint:gocritic // testing
 			ctx = dbauthz.AsSystemRestricted(ctx)
 
 			org := dbgen.Organization(t, db, database.Organization{})

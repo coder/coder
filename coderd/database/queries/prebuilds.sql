@@ -230,7 +230,7 @@ HAVING COUNT(*) = @hard_limit::bigint;
 SELECT
 	t.name as template_name,
 	tvp.name as preset_name,
-		o.name as organization_name,
+	o.name as organization_name,
 	COUNT(*) as created_count,
 	COUNT(*) FILTER (WHERE pj.job_status = 'failed'::provisioner_job_status) as failed_count,
 	COUNT(*) FILTER (
@@ -245,3 +245,30 @@ INNER JOIN organizations o ON o.id = w.organization_id
 WHERE NOT t.deleted AND wpb.build_number = 1
 GROUP BY t.name, tvp.name, o.name
 ORDER BY t.name, tvp.name, o.name;
+
+-- name: FindMatchingPresetID :one
+-- FindMatchingPresetID finds a preset ID that is the largest exact subset of the provided parameters.
+-- It returns the preset ID if a match is found, or NULL if no match is found.
+-- The query finds presets where all preset parameters are present in the provided parameters,
+-- and returns the preset with the most parameters (largest subset).
+WITH provided_params AS (
+	SELECT
+		unnest(@parameter_names::text[]) AS name,
+		unnest(@parameter_values::text[]) AS value
+),
+preset_matches AS (
+	SELECT
+		tvp.id AS template_version_preset_id,
+		COALESCE(COUNT(tvpp.name), 0) AS total_preset_params,
+		COALESCE(COUNT(pp.name), 0) AS matching_params
+	FROM template_version_presets tvp
+	LEFT JOIN template_version_preset_parameters tvpp ON tvpp.template_version_preset_id = tvp.id
+	LEFT JOIN provided_params pp ON pp.name = tvpp.name AND pp.value = tvpp.value
+	WHERE tvp.template_version_id = @template_version_id
+	GROUP BY tvp.id
+)
+SELECT pm.template_version_preset_id
+FROM preset_matches pm
+WHERE pm.total_preset_params = pm.matching_params  -- All preset parameters must match
+ORDER BY pm.total_preset_params DESC               -- Return the preset with the most parameters
+LIMIT 1;

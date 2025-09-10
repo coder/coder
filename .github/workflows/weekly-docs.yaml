@@ -26,7 +26,9 @@ jobs:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
 
       - name: Check Markdown links
         uses: umbrelladocs/action-linkspector@874d01cae9fd488e3077b08952093235bd626977 # v1.3.7
@@ -41,7 +43,10 @@ jobs:
       - name: Send Slack notification
         if: failure() && github.event_name == 'schedule'
         run: |
-          curl -X POST -H 'Content-type: application/json' -d '{"msg":"Broken links found in the documentation. Please check the logs at ${{ env.LOGS_URL }}"}' ${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}
+          curl \
+            -X POST \
+            -H 'Content-type: application/json' \
+            -d '{"msg":"Broken links found in the documentation. Please check the logs at '"${LOGS_URL}"'"}' "${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}"
           echo "Sent Slack notification"
         env:
           LOGS_URL: https://github.com/coder/coder/actions/runs/${{ github.run_id }}

@@ -21,6 +21,7 @@
  */
 import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
 import type dayjs from "dayjs";
+import type { Task } from "modules/tasks/tasks";
 import userAgentParser from "ua-parser-js";
 import { delay } from "../utils/delay";
 import { OneWayWebSocket } from "../utils/OneWayWebSocket";
@@ -420,6 +421,12 @@ export type GetProvisionerDaemonsParams = {
 	// Stringified JSON Object
 	tags?: string;
 	limit?: number;
+	// Include offline provisioner daemons?
+	offline?: boolean;
+};
+
+export type TasksFilter = {
+	username?: string;
 };
 
 /**
@@ -1187,9 +1194,9 @@ class ApiMethods {
 	};
 
 	getWorkspaces = async (
-		options: TypesGen.WorkspacesRequest,
+		req: TypesGen.WorkspacesRequest,
 	): Promise<TypesGen.WorkspacesResponse> => {
-		const url = getURLWithSearchParams("/api/v2/workspaces", options);
+		const url = getURLWithSearchParams("/api/v2/workspaces", req);
 		const response = await this.axios.get<TypesGen.WorkspacesResponse>(url);
 		return response.data;
 	};
@@ -2022,6 +2029,16 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getWorkspaceAgentCredentials = async (
+		workspaceID: string,
+		agentName: string,
+	): Promise<TypesGen.ExternalAgentCredentials> => {
+		const response = await this.axios.get(
+			`/api/v2/workspaces/${workspaceID}/external-agent/${agentName}/credentials`,
+		);
+		return response.data;
+	};
+
 	upsertWorkspaceAgentSharedPort = async (
 		workspaceID: string,
 		req: TypesGen.UpsertWorkspaceAgentPortShareRequest,
@@ -2669,13 +2686,37 @@ class ExperimentalApiMethods {
 	createTask = async (
 		user: string,
 		req: TypesGen.CreateTaskRequest,
-	): Promise<TypesGen.Workspace> => {
-		const response = await this.axios.post<TypesGen.Workspace>(
+	): Promise<TypesGen.Task> => {
+		const response = await this.axios.post<TypesGen.Task>(
 			`/api/experimental/tasks/${user}`,
 			req,
 		);
 
 		return response.data;
+	};
+
+	getTasks = async (filter: TasksFilter): Promise<Task[]> => {
+		const queryExpressions = ["has-ai-task:true"];
+
+		if (filter.username) {
+			queryExpressions.push(`owner:${filter.username}`);
+		}
+
+		const res = await API.getWorkspaces({
+			q: queryExpressions.join(" "),
+		});
+		// Exclude prebuild workspaces as they are not user-facing.
+		const workspaces = res.workspaces.filter(
+			(workspace) => !workspace.is_prebuild,
+		);
+		const prompts = await API.experimental.getAITasksPrompts(
+			workspaces.map((workspace) => workspace.latest_build.id),
+		);
+
+		return workspaces.map((workspace) => ({
+			workspace,
+			prompt: prompts.prompts[workspace.latest_build.id],
+		}));
 	};
 }
 

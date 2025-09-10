@@ -462,6 +462,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "username": "string"
   },
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "job": {
     "available_workers": [
@@ -561,6 +562,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "username": "string"
   },
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "job": {
     "available_workers": [
@@ -684,6 +686,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "username": "string"
   },
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "job": {
     "available_workers": [
@@ -952,7 +955,7 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get template metadata by ID
+## Get template settings by ID
 
 ### Code samples
 
@@ -1083,24 +1086,64 @@ curl -X DELETE http://coder-server:8080/api/v2/templates/{template} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Update template metadata by ID
+## Update template settings by ID
 
 ### Code samples
 
 ```shell
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
+  -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
 `PATCH /templates/{template}`
 
+> Body parameter
+
+```json
+{
+  "activity_bump_ms": 0,
+  "allow_user_autostart": true,
+  "allow_user_autostop": true,
+  "allow_user_cancel_workspace_jobs": true,
+  "autostart_requirement": {
+    "days_of_week": [
+      "monday"
+    ]
+  },
+  "autostop_requirement": {
+    "days_of_week": [
+      "monday"
+    ],
+    "weeks": 0
+  },
+  "cors_behavior": "simple",
+  "default_ttl_ms": 0,
+  "deprecation_message": "string",
+  "description": "string",
+  "disable_everyone_group_access": true,
+  "display_name": "string",
+  "failure_ttl_ms": 0,
+  "icon": "string",
+  "max_port_share_level": "owner",
+  "name": "string",
+  "require_active_version": true,
+  "time_til_dormant_autodelete_ms": 0,
+  "time_til_dormant_ms": 0,
+  "update_workspace_dormant_at": true,
+  "update_workspace_last_used_at": true,
+  "use_classic_parameter_flow": true
+}
+```
+
 ### Parameters
 
-| Name       | In   | Type         | Required | Description |
-|------------|------|--------------|----------|-------------|
-| `template` | path | string(uuid) | true     | Template ID |
+| Name       | In   | Type                                                                 | Required | Description                     |
+|------------|------|----------------------------------------------------------------------|----------|---------------------------------|
+| `template` | path | string(uuid)                                                         | true     | Template ID                     |
+| `body`     | body | [codersdk.UpdateTemplateMeta](schemas.md#codersdkupdatetemplatemeta) | true     | Patch template settings request |
 
 ### Example responses
 
@@ -1250,6 +1293,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "username": "string"
     },
+    "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "job": {
       "available_workers": [
@@ -1327,6 +1371,7 @@ Status Code **200**
 | `»» avatar_url`             | string(uri)                                                                  | false    |              |                                                                                                                                                                     |
 | `»» id`                     | string(uuid)                                                                 | true     |              |                                                                                                                                                                     |
 | `»» username`               | string                                                                       | true     |              |                                                                                                                                                                     |
+| `» has_external_agent`      | boolean                                                                      | false    |              |                                                                                                                                                                     |
 | `» id`                      | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `» job`                     | [codersdk.ProvisionerJob](schemas.md#codersdkprovisionerjob)                 | false    |              |                                                                                                                                                                     |
 | `»» available_workers`      | array                                                                        | false    |              |                                                                                                                                                                     |
@@ -1531,6 +1576,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "username": "string"
     },
+    "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "job": {
       "available_workers": [
@@ -1608,6 +1654,7 @@ Status Code **200**
 | `»» avatar_url`             | string(uri)                                                                  | false    |              |                                                                                                                                                                     |
 | `»» id`                     | string(uuid)                                                                 | true     |              |                                                                                                                                                                     |
 | `»» username`               | string                                                                       | true     |              |                                                                                                                                                                     |
+| `» has_external_agent`      | boolean                                                                      | false    |              |                                                                                                                                                                     |
 | `» id`                      | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `» job`                     | [codersdk.ProvisionerJob](schemas.md#codersdkprovisionerjob)                 | false    |              |                                                                                                                                                                     |
 | `»» available_workers`      | array                                                                        | false    |              |                                                                                                                                                                     |
@@ -1702,6 +1749,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "username": "string"
   },
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "job": {
     "available_workers": [
@@ -1810,6 +1858,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "username": "string"
   },
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "job": {
     "available_workers": [

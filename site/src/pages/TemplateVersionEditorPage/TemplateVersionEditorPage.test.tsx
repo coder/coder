@@ -104,6 +104,9 @@ const buildTemplateVersion = async (
 	});
 	await user.click(buildButton);
 	await within(topbar).findByText("Success");
+	await screen.findByText(
+		`Template version "${templateVersion.name}" built successfully.`,
+	);
 };
 
 test("Use custom name, message and set it as active when publishing", async () => {

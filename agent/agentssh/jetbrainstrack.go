@@ -53,7 +53,7 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, reportConne
 
 	// If this is not JetBrains, then we do not need to do anything special.  We
 	// attempt to match on something that appears unique to JetBrains software.
-	if !strings.Contains(strings.ToLower(cmdline), strings.ToLower(MagicProcessCmdlineJetBrains)) {
+	if !isJetbrainsProcess(cmdline) {
 		return newChannel
 	}
 
@@ -103,4 +103,19 @@ type ChannelOnClose struct {
 func (c *ChannelOnClose) Close() error {
 	c.once.Do(c.done)
 	return c.Channel.Close()
+}
+
+func isJetbrainsProcess(cmdline string) bool {
+	opts := []string{
+		MagicProcessCmdlineJetBrains,
+		MagicProcessCmdlineToolbox,
+		MagicProcessCmdlineGateway,
+	}
+
+	for _, opt := range opts {
+		if strings.Contains(strings.ToLower(cmdline), strings.ToLower(opt)) {
+			return true
+		}
+	}
+	return false
 }

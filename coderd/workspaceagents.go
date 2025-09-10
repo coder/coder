@@ -817,12 +817,13 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 	var (
 		ctx            = r.Context()
 		workspaceAgent = httpmw.WorkspaceAgentParam(r)
+		logger         = api.Logger.Named("agent_container_watcher").With(slog.F("agent_id", workspaceAgent.ID))
 	)
 
 	// If the agent is unreachable, the request will hang. Assume that if we
 	// don't get a response after 30s that the agent is unreachable.
-	dialCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
+	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer dialCancel()
 	apiAgent, err := db2sdk.WorkspaceAgent(
 		api.DERPMap(),
 		*api.TailnetCoordinator.Load(),
@@ -857,8 +858,7 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 	}
 	defer release()
 
-	watcherLogger := api.Logger.Named("agent_container_watcher").With(slog.F("agent_id", workspaceAgent.ID))
-	containersCh, closer, err := agentConn.WatchContainers(ctx, watcherLogger)
+	containersCh, closer, err := agentConn.WatchContainers(ctx, logger)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error watching agent's containers.",
@@ -877,6 +877,9 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
 	// Here we close the websocket for reading, so that the websocket library will handle pings and
 	// close frames.
 	_ = conn.CloseRead(context.Background())
@@ -884,7 +887,7 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close()
 
-	go httpapi.Heartbeat(ctx, conn)
+	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
 
 	encoder := json.NewEncoder(wsNetConn)
 
@@ -896,7 +899,11 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 		case <-ctx.Done():
 			return
 
-		case containers := <-containersCh:
+		case containers, ok := <-containersCh:
+			if !ok {
+				return
+			}
+
 			if err := encoder.Encode(containers); err != nil {
 				api.Logger.Error(ctx, "encode containers", slog.Error(err))
 				return

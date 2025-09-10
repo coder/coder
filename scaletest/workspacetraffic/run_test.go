@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"runtime"
 	"slices"
 	"strings"
@@ -313,9 +314,7 @@ func TestRun(t *testing.T) {
 			readMetrics  = &testMetrics{}
 			writeMetrics = &testMetrics{}
 		)
-		client := &codersdk.Client{
-			HTTPClient: &http.Client{},
-		}
+		client := codersdk.New(&url.URL{})
 		runner := workspacetraffic.NewRunner(client, workspacetraffic.Config{
 			BytesPerTick: int64(bytesPerTick),
 			TickInterval: tickInterval,

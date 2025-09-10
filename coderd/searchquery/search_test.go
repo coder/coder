@@ -252,6 +252,36 @@ func TestSearchWorkspace(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name:  "HasExternalAgentTrue",
+			Query: "has_external_agent:true",
+			Expected: database.GetWorkspacesParams{
+				HasExternalAgent: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasExternalAgentFalse",
+			Query: "has_external_agent:false",
+			Expected: database.GetWorkspacesParams{
+				HasExternalAgent: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasExternalAgentMissing",
+			Query: "",
+			Expected: database.GetWorkspacesParams{
+				HasExternalAgent: sql.NullBool{
+					Bool:  false,
+					Valid: false,
+				},
+			},
+		},
 
 		// Failures
 		{
@@ -656,7 +686,7 @@ func TestSearchTemplates(t *testing.T) {
 			Name:  "OnlyName",
 			Query: "foobar",
 			Expected: database.GetTemplatesWithFilterParams{
-				FuzzyName: "foobar",
+				FuzzyDisplayName: "foobar",
 			},
 		},
 		{
@@ -690,11 +720,78 @@ func TestSearchTemplates(t *testing.T) {
 			},
 		},
 		{
+			Name:  "HasExternalAgent",
+			Query: "has_external_agent:true",
+			Expected: database.GetTemplatesWithFilterParams{
+				HasExternalAgent: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasExternalAgentFalse",
+			Query: "has_external_agent:false",
+			Expected: database.GetTemplatesWithFilterParams{
+				HasExternalAgent: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasExternalAgentMissing",
+			Query: "",
+			Expected: database.GetTemplatesWithFilterParams{
+				HasExternalAgent: sql.NullBool{
+					Bool:  false,
+					Valid: false,
+				},
+			},
+		},
+		{
 			Name:  "MyTemplates",
 			Query: "author:me",
 			Expected: database.GetTemplatesWithFilterParams{
 				AuthorUsername: "",
 				AuthorID:       userID,
+			},
+		},
+		{
+			Name:  "SearchOnDisplayName",
+			Query: "test name",
+			Expected: database.GetTemplatesWithFilterParams{
+				FuzzyDisplayName: "test name",
+			},
+		},
+		{
+			Name:  "NameField",
+			Query: "name:testname",
+			Expected: database.GetTemplatesWithFilterParams{
+				FuzzyName: "testname",
+			},
+		},
+		{
+			Name:  "QuotedValue",
+			Query: `name:"test name"`,
+			Expected: database.GetTemplatesWithFilterParams{
+				FuzzyName: "test name",
+			},
+		},
+		{
+			Name:  "MultipleTerms",
+			Query: `foo bar exact_name:"test display name"`,
+			Expected: database.GetTemplatesWithFilterParams{
+				ExactName:        "test display name",
+				FuzzyDisplayName: "foo bar",
+			},
+		},
+		{
+			Name:  "FieldAndSpaces",
+			Query: "deprecated:false test template",
+			Expected: database.GetTemplatesWithFilterParams{
+				Deprecated:       sql.NullBool{Bool: false, Valid: true},
+				FuzzyDisplayName: "test template",
 			},
 		},
 	}

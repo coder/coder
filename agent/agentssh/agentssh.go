@@ -46,6 +46,8 @@ const (
 	// MagicProcessCmdlineJetBrains is a string in a process's command line that
 	// uniquely identifies it as JetBrains software.
 	MagicProcessCmdlineJetBrains = "idea.vendor.name=JetBrains"
+	MagicProcessCmdlineToolbox   = "com.jetbrains.toolbox"
+	MagicProcessCmdlineGateway   = "remote-dev-server"
 
 	// BlockedFileTransferErrorCode indicates that SSH server restricted the raw command from performing
 	// the file transfer.
