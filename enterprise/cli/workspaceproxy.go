@@ -42,17 +42,19 @@ func (r *RootCmd) workspaceProxy() *serpent.Command {
 
 func (r *RootCmd) regenerateProxyToken() *serpent.Command {
 	formatter := newUpdateProxyResponseFormatter()
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use: "regenerate-token <name|id>",
 		Short: "Regenerate a workspace proxy authentication token. " +
 			"This will invalidate the existing authentication token.",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			formatter.primaryAccessURL = client.URL.String()
 			// This is cheeky, but you can also use a uuid string in
 			// 'DeleteWorkspaceProxyByName' and it will work.
@@ -112,16 +114,18 @@ func (r *RootCmd) patchProxy() *serpent.Command {
 				}),
 		)
 	)
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "edit <name|id>",
 		Short: "Edit a workspace proxy",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			if proxyIcon == "" && displayName == "" && proxyName == "" {
 				_ = inv.Command.HelpHandler(inv)
 				return xerrors.Errorf("specify at least one field to update")
@@ -187,7 +191,6 @@ func (r *RootCmd) patchProxy() *serpent.Command {
 }
 
 func (r *RootCmd) deleteProxy() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "delete <name|id>",
 		Short: "Delete a workspace proxy",
@@ -196,10 +199,13 @@ func (r *RootCmd) deleteProxy() *serpent.Command {
 		},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 
 			wsproxy, err := client.WorkspaceProxyByName(ctx, inv.Args[0])
 			if err != nil {
@@ -244,18 +250,19 @@ func (r *RootCmd) createProxy() *serpent.Command {
 		return nil
 	}
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "create",
 		Short: "Create a workspace proxy",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			formatter.primaryAccessURL = client.URL.String()
-			var err error
 			if proxyName == "" && !noPrompts {
 				proxyName, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Proxy Name:",
@@ -362,17 +369,19 @@ func (r *RootCmd) listProxies() *serpent.Command {
 		}),
 	)
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:     "ls",
 		Aliases: []string{"list"},
 		Short:   "List all workspace proxies",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			proxies, err := client.WorkspaceProxies(ctx)
 			if err != nil {
 				return xerrors.Errorf("list workspace proxies: %w", err)

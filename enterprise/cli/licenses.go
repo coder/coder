@@ -42,16 +42,18 @@ func (r *RootCmd) licenseAdd() *serpent.Command {
 		license  string
 		debug    bool
 	)
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "add [-f file | -l license]",
 		Short: "Add license to Coder deployment",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			var err error
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			switch {
 			case filename != "" && license != "":
 				return xerrors.New("only one of (--file, --license) may be specified")
@@ -137,16 +139,19 @@ func validJWT(s string) error {
 
 func (r *RootCmd) licensesList() *serpent.Command {
 	formatter := cliutil.NewLicenseFormatter()
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:     "list",
 		Short:   "List licenses (including expired)",
 		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			licenses, err := client.Licenses(inv.Context())
 			if err != nil {
 				return err
@@ -170,16 +175,19 @@ func (r *RootCmd) licensesList() *serpent.Command {
 }
 
 func (r *RootCmd) licenseDelete() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:     "delete <id>",
 		Short:   "Delete license by ID",
 		Aliases: []string{"del"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			id, err := strconv.ParseInt(inv.Args[0], 10, 32)
 			if err != nil {
 				return xerrors.Errorf("license ID must be an integer: %s", inv.Args[0])

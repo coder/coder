@@ -51,22 +51,24 @@ func (r *RootCmd) createToken() *serpent.Command {
 		name          string
 		user          string
 	)
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "create",
 		Short: "Create a token",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			userID := codersdk.Me
 			if user != "" {
 				userID = user
 			}
 
 			var parsedLifetime time.Duration
-			var err error
 
 			tokenConfig, err := client.GetTokenConfig(inv.Context(), userID)
 			if err != nil {
@@ -168,16 +170,19 @@ func (r *RootCmd) listTokens() *serpent.Command {
 		)
 	)
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List tokens",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			tokens, err := client.Tokens(inv.Context(), codersdk.Me, codersdk.TokensFilter{
 				IncludeAll: all,
 			})
@@ -222,16 +227,19 @@ func (r *RootCmd) listTokens() *serpent.Command {
 }
 
 func (r *RootCmd) removeToken() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:     "remove <name|id|token>",
 		Aliases: []string{"delete"},
 		Short:   "Delete a token",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			token, err := client.APIKeyByName(inv.Context(), codersdk.Me, inv.Args[0])
 			if err != nil {
 				// If it's a token, we need to extract the ID

@@ -15,7 +15,6 @@ import (
 )
 
 func (r *RootCmd) show() *serpent.Command {
-	client := new(codersdk.Client)
 	var details bool
 	return &serpent.Command{
 		Use:   "show <workspace>",
@@ -30,9 +29,13 @@ func (r *RootCmd) show() *serpent.Command {
 		},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			buildInfo, err := client.BuildInfo(inv.Context())
 			if err != nil {
 				return xerrors.Errorf("get server version: %w", err)

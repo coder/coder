@@ -16,15 +16,15 @@ func (r *RootCmd) templateList() *serpent.Command {
 		cliui.JSONFormat(),
 	)
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:     "list",
 		Short:   "List all the templates available for the organization",
 		Aliases: []string{"ls"},
-		Middleware: serpent.Chain(
-			r.InitClient(client),
-		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			templates, err := client.Templates(inv.Context(), codersdk.TemplateFilter{})
 			if err != nil {
 				return err

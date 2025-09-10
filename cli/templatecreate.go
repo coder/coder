@@ -33,7 +33,6 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 		uploadFlags templateUploadFlags
 		orgContext  = NewOrganizationContext()
 	)
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "create [name]",
 		Short: "DEPRECATED: Create a template from the current directory or as specified by flag",
@@ -43,9 +42,12 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 				"Use `coder templates push` command for creating and updating templates. \n"+
 					"Use `coder templates edit` command for editing template settings. ",
 			),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			isTemplateSchedulingOptionsSet := failureTTL != 0 || dormancyThreshold != 0 || dormancyAutoDeletion != 0
 
 			if isTemplateSchedulingOptionsSet || requireActiveVersion {

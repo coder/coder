@@ -399,7 +399,6 @@ type mcpServer struct {
 
 func (r *RootCmd) mcpServer() *serpent.Command {
 	var (
-		client        = new(codersdk.Client)
 		instructions  string
 		allowedTools  []string
 		appStatusSlug string
@@ -409,6 +408,11 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 	cmd := &serpent.Command{
 		Use: "server",
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.TryInitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			var lastReport taskReport
 			// Create a queue that skips duplicates and preserves summaries.
 			queue := cliutil.NewQueue[taskReport](512).WithPredicate(func(report taskReport) (taskReport, bool) {
@@ -548,9 +552,6 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 			return srv.startServer(ctx, inv, instructions, allowedTools)
 		},
 		Short: "Start the Coder MCP server.",
-		Middleware: serpent.Chain(
-			r.TryInitClient(client),
-		),
 		Options: []serpent.Option{
 			{
 				Name:        "instructions",

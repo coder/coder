@@ -16,7 +16,6 @@ func (r *RootCmd) deleteWorkspace() *serpent.Command {
 		orphan bool
 		prov   buildFlags
 	)
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "delete <workspace>",
@@ -29,9 +28,13 @@ func (r *RootCmd) deleteWorkspace() *serpent.Command {
 		),
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err

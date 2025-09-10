@@ -36,17 +36,19 @@ func (r *RootCmd) sharing() *serpent.Command {
 }
 
 func (r *RootCmd) statusWorkspaceSharing() *serpent.Command {
-	client := new(codersdk.Client)
-
 	cmd := &serpent.Command{
 		Use:     "status <workspace>",
 		Short:   "List all users and groups the given Workspace is shared with.",
 		Aliases: []string{"list"},
 		Middleware: serpent.Chain(
-			r.InitClient(client),
 			serpent.RequireNArgs(1),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("unable to fetch Workspace %s: %w", inv.Args[0], err)
@@ -74,7 +76,6 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 	var (
 		// Username regex taken from codersdk/name.go
 		nameRoleRegex = regexp.MustCompile(`(^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*)+(?::([A-Za-z0-9-]+))?`)
-		client        = new(codersdk.Client)
 		users         []string
 		groups        []string
 	)
@@ -97,10 +98,14 @@ func (r *RootCmd) shareWorkspace(orgContext *OrganizationContext) *serpent.Comma
 			},
 		},
 		Middleware: serpent.Chain(
-			r.InitClient(client),
 			serpent.RequireNArgs(1),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			if len(users) == 0 && len(groups) == 0 {
 				return xerrors.New("at least one user or group must be provided")
 			}

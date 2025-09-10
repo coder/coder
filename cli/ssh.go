@@ -79,15 +79,12 @@ func (r *RootCmd) ssh() *serpent.Command {
 		env                 []string
 		usageApp            string
 		disableAutostart    bool
-		appearanceConfig    codersdk.AppearanceConfig
 		networkInfoDir      string
 		networkInfoInterval time.Duration
 
 		containerName string
 		containerUser string
 	)
-	client := new(codersdk.Client)
-	wsClient := workspacesdk.New(client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "ssh <workspace> [command]",
@@ -111,10 +108,15 @@ func (r *RootCmd) ssh() *serpent.Command {
 					return next(i)
 				}
 			},
-			r.InitClient(client),
-			initAppearance(client, &appearanceConfig),
 		),
 		Handler: func(inv *serpent.Invocation) (retErr error) {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+			appearanceConfig := initAppearance(inv.Context(), client)
+			wsClient := workspacesdk.New(client)
+
 			command := strings.Join(inv.Args[1:], " ")
 
 			// Before dialing the SSH server over TCP, capture Interrupt signals
