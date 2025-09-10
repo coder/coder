@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import Stack from "@mui/material/Stack";
 import { Pill } from "components/Pill/Pill";
 import {
