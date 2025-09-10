@@ -13,6 +13,9 @@ import { FixedSizeList as List } from "react-window";
 import { cn } from "utils/cn";
 import { AGENT_LOG_LINE_HEIGHT, AgentLogLine } from "./AgentLogLine";
 
+// Fallback log used in places where we must always have a valid log source.
+// We need this to support deployments that were made before `coder_script` was
+// created and that haven't restarted their agents yet
 const fallbackLog: WorkspaceAgentLogSource = {
 	created_at: "",
 	display_name: "Logs",
@@ -20,16 +23,6 @@ const fallbackLog: WorkspaceAgentLogSource = {
 	id: "00000000-0000-0000-0000-000000000000",
 	workspace_agent_id: "",
 };
-
-function groupLogSourcesById(
-	sources: readonly WorkspaceAgentLogSource[],
-): Record<string, WorkspaceAgentLogSource> {
-	const sourcesById: Record<string, WorkspaceAgentLogSource> = {};
-	for (const source of sources) {
-		sourcesById[source.id] = source;
-	}
-	return sourcesById;
-}
 
 type AgentLogsProps = Omit<
 	ComponentProps<typeof List>,
@@ -42,11 +35,8 @@ type AgentLogsProps = Omit<
 
 export const AgentLogs = forwardRef<List, AgentLogsProps>(
 	({ logs, sources, overflowed, ...listProps }, ref) => {
-		// getLogSource must always returns a valid log source. We need this to
-		// support deployments that were made before `coder_script` was created
-		// and that haven't updated to a newer Coder version yet
-		const logSourceByID = groupLogSourcesById(sources);
-		const getLogSource = (id: string) => logSourceByID[id] || fallbackLog;
+		const logSourceById = Object.fromEntries(sources.map((s) => [s.id, s]));
+		const getLogSource = (id: string) => logSourceById[id] || fallbackLog;
 
 		return (
 			<div className="flex flex-col bg-surface-secondary">
