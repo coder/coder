@@ -2216,8 +2216,8 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		groupIDs = append(groupIDs, id)
 	}
 
-	// `GetGroups` returns all groups in the org if `GroupIds` is empty so we check
-	// the length before making the DB call.
+	// `GetGroups` returns all groups if `GroupIds` is empty so we check the length
+	// before making the DB call.
 	dbGroups := make([]database.GetGroupsRow, 0)
 	if len(groupIDs) > 0 {
 		// For context see https://github.com/coder/coder/pull/19375
