@@ -39,7 +39,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 		const getLogSource = (id: string) => logSourceById[id] || fallbackLog;
 
 		return (
-			<div className="flex flex-col bg-surface-secondary">
+			<div className="bg-surface-secondary relative">
 				<List
 					{...listProps}
 					ref={ref}
@@ -50,6 +50,9 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 					// top from startupLogs
 					className={cn(
 						"pt-4 [&>div]:relative bg-surface-secondary",
+						// Add extra padding so that overflow indicator doesn't
+						// fully cover up lines of text
+						overflowed && "pb-10",
 						className,
 					)}
 				>
@@ -147,13 +150,13 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 				{overflowed && (
 					<TooltipProvider delayDuration={100}>
 						<Tooltip>
-							<TooltipTrigger
-								asChild
-								className="max-w-fit pt-4 px-4 self-center"
-							>
-								<span>
-									<Badge variant="warning">Logs overflowed</Badge>
-								</span>
+							<TooltipTrigger asChild>
+								<Badge
+									asChild
+									className="max-w-fit py-1.5 px-3 absolute bottom-3 left-1/2 -translate-x-1/2"
+								>
+									<span>Logs overflowed</span>
+								</Badge>
 							</TooltipTrigger>
 							<TooltipContent
 								asChild
@@ -162,7 +165,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 								<p>
 									Startup logs exceeded the max size of{" "}
 									<span className="tracking-wide font-mono">1MB</span>, and will
-									not continue to be written to the database! Logs will continue
+									not continue to be written to the database. Logs will continue
 									to be written to the{" "}
 									<span className="font-mono bg-surface-tertiary rounded-md px-1.5 py-0.5">
 										/tmp/coder-startup-script.log
