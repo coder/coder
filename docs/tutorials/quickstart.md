@@ -222,18 +222,16 @@ Coder Tasks is an interface that allows you to run and manage coding agents like
 Let's try turning the **Docker Containers** template into a Task template running Claude Code: 
 1. Head to **Templates**
 1. Click into the template, and then click **Source Code** -> **Edit**
-1. Add the following code snippit to the bottom of the terraform. This defines the `coder_ai_task` resource and `coder_parameter`  
+1. Add the following code snippit to the bottom of the terraform. This defines the `coder_ai_task` resource and `coder_parameter`
 ```
-# Claude API Key parameter
-data "coder_parameter" "claude_api_key" {
-  name         = "claude_api_key"
-  display_name = "Claude API Key"
-  description  = "Your Anthropic API key for Claude AI"
-  type         = "string"
-  default      = ""
+# Claude API Key variable (filled in during template build)
+variable "claude_api_key" {
+  type        = string
+  description = "Your Anthropic API key for Claude AI"
+  sensitive   = true
 }
 
-# AI Prompt parameter (must be named exactly 'AI Prompt')
+# AI Prompt parameter
 data "coder_parameter" "ai_prompt" {
   name         = "AI Prompt"
   display_name = "AI Prompt"
@@ -262,7 +260,15 @@ resource "coder_ai_task" "claude-code" {
 }
 
 ```
-1.  
+1. **Build the Template**: Clikc the **Build** button. This validates the Terraform configuration, and ensures there are no syntax errors. This process also runs Coder specific validation to ensure the template meets our requirements. 
+1. **Publish the Template**: Once the build succeeds, click **Publish** in the upper right corner. This makes your updated template available for creating new workspaces. 
+1. **Create a new Workspace**: 
+   1. Navigate back to your workspace dashboard
+   1. Click **Create Workspace** and select your newly updated template
+   1. Add in your Claude API Key. If you do not have one, you can create one in the [Anthropic Console](https://console.anthropic.com/dashboard)
+   1. Click **Create Workspace**
+1. Once your workspace is running, navigate to the **Tasks** tab in the upper left hand corner. Type in a message or ciding request like "Help me write a HelloWorld applicaiton in Python". Clikc **Run Task** to start the task
+1. The task will open VS Code with Claude Code running in the left sidebar. You are now successfully using Coder Tasks with Claude Code!
 
 ## Troubleshooting
 
