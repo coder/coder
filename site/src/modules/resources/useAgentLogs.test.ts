@@ -160,8 +160,8 @@ describe("useAgentLogs", () => {
 		expect(displayError).toHaveBeenCalledTimes(1);
 	});
 
-	// // This is a protection to avoid duplicate logs when the hook goes back to
-	// // being re-enabled
+	// This is a protection to avoid duplicate logs when the hook goes back to
+	// being re-enabled
 	it("Clears logs when hook becomes disabled", async () => {
 		const { hookResult, serverResult, rerender } = mountHook({
 			initialAgentId: MockWorkspaceAgent.id,

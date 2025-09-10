@@ -303,7 +303,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 									width={width}
 									css={styles.startupLogs}
 									onScroll={handleLogScroll}
-									overflowed={true}
+									overflowed={agent.logs_overflowed}
 									logs={agentLogs.map((l) => ({
 										id: l.id,
 										level: l.level,

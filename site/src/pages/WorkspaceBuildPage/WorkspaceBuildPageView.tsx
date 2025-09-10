@@ -310,7 +310,7 @@ const AgentLogsContent: FC<AgentLogsContentProps> = ({ agent }) => {
 	const logs = useAgentLogs({ agentId: agent.id });
 	return (
 		<AgentLogs
-			overflowed={false}
+			overflowed={agent.logs_overflowed}
 			sources={agent.log_sources}
 			height={560}
 			width="100%"
