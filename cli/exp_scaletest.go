@@ -1014,9 +1014,10 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 						return xerrors.Errorf("parse workspace proxy URL: %w", err)
 					}
 
-					webClient = codersdk.New(u)
-					webClient.HTTPClient = client.HTTPClient
-					webClient.SetSessionToken(client.SessionToken())
+					webClient = codersdk.NewClientBuilder(u).
+						HTTPClient(client.HTTPClient).
+						SessionToken(client.SessionToken()).
+						Build()
 
 					appConfig, err = createWorkspaceAppConfig(webClient, appHost.Host, app, ws, agent)
 					if err != nil {
@@ -1250,8 +1251,9 @@ func (r *RootCmd) scaletestDashboard() *serpent.Command {
 					return xerrors.Errorf("create token for user: %w", err)
 				}
 
-				userClient := codersdk.New(client.URL)
-				userClient.SetSessionToken(userTokResp.Key)
+				userClient := codersdk.NewClientBuilder(client.URL).
+					SessionToken(userTokResp.Key).
+					Build()
 
 				config := dashboard.Config{
 					Interval: interval,

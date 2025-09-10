@@ -632,7 +632,7 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewTaggedProvisionerDaemon(t, coderAPI, defaultTestDaemonName, options.ProvisionerDaemonTags, coderd.MemoryProvisionerWithVersionOverride(options.ProvisionerDaemonVersion))
 	}
-	client := codersdk.New(serverURL)
+	client := codersdk.NewClientBuilder(serverURL).Build()
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
@@ -845,8 +845,9 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		require.NoError(t, err)
 	}
 
-	other := codersdk.New(client.URL)
-	other.SetSessionToken(sessionToken)
+	other := codersdk.NewClientBuilder(client.URL).
+		SessionToken(sessionToken).
+		Build()
 	t.Cleanup(func() {
 		other.HTTPClient.CloseIdleConnections()
 	})

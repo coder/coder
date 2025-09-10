@@ -32,9 +32,10 @@ func (api *API) mcpHTTPHandler() http.Handler {
 			})
 			return
 		}
-		authenticatedClient := codersdk.New(api.AccessURL)
 		// Extract the original session token from the request
-		authenticatedClient.SetSessionToken(httpmw.APITokenFromRequest(r))
+		authenticatedClient := codersdk.NewClientBuilder(api.AccessURL).
+			SessionToken(httpmw.APITokenFromRequest(r)).
+			Build()
 
 		toolset := MCPToolset(r.URL.Query().Get("toolset"))
 		// Default to standard toolset if no toolset is specified.

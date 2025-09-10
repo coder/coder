@@ -308,7 +308,7 @@ func TestTaskCreate(t *testing.T) {
 			var (
 				ctx    = testutil.Context(t, testutil.WaitShort)
 				srv    = httptest.NewServer(tt.handler(t, ctx))
-				client = codersdk.New(testutil.MustURL(t, srv.URL))
+				client = codersdk.NewClientBuilder(testutil.MustURL(t, srv.URL)).Build()
 				args   = []string{"exp", "task", "create"}
 				sb     strings.Builder
 				err    error

@@ -184,7 +184,7 @@ func TestExpTaskDelete(t *testing.T) {
 			srv := httptest.NewServer(tc.buildHandler(&counters))
 			t.Cleanup(srv.Close)
 
-			client := codersdk.New(testutil.MustURL(t, srv.URL))
+			client := codersdk.NewClientBuilder(testutil.MustURL(t, srv.URL)).Build()
 
 			args := append([]string{"exp", "task", "delete"}, tc.args...)
 			inv, root := clitest.New(t, args...)
