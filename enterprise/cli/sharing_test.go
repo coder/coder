@@ -59,7 +59,7 @@ func TestSharingShare(t *testing.T) {
 		inv, root := clitest.New(t, "sharing", "share", workspace.Name, "--org", orgOwner.OrganizationID.String(), "--group", group.Name)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
-		out := bytes.NewBuffer(nil)
+		out := new(bytes.Buffer)
 		inv.Stdout = out
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
@@ -117,7 +117,7 @@ func TestSharingShare(t *testing.T) {
 			fmt.Sprintf("--group=%s,%s", wibbleGroup.Name, wobbleGroup.Name))
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
-		out := bytes.NewBuffer(nil)
+		out := new(bytes.Buffer)
 		inv.Stdout = out
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
@@ -164,7 +164,7 @@ func TestSharingShare(t *testing.T) {
 			inv, root := clitest.New(t, "sharing", "share", workspace.Name, "--org", orgOwner.OrganizationID.String(), "--group", fmt.Sprintf("%s:admin", group.Name))
 			clitest.SetupConfig(t, workspaceOwnerClient, root)
 
-			out := bytes.NewBuffer(nil)
+			out := new(bytes.Buffer)
 			inv.Stdout = out
 			err = inv.WithContext(ctx).Run()
 			require.NoError(t, err)
@@ -229,7 +229,7 @@ func TestSharingStatus(t *testing.T) {
 		inv, root := clitest.New(t, "sharing", "status", workspace.Name, "--org", orgOwner.OrganizationID.String())
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
-		out := bytes.NewBuffer(nil)
+		out := new(bytes.Buffer)
 		inv.Stdout = out
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)

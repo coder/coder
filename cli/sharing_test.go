@@ -44,7 +44,7 @@ func TestSharingShare(t *testing.T) {
 		inv, root := clitest.New(t, "sharing", "add", workspace.Name, "--org", orgOwner.OrganizationID.String(), "--user", toShareWithUser.Username)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
-		out := bytes.NewBuffer(nil)
+		out := new(bytes.Buffer)
 		inv.Stdout = out
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
@@ -91,7 +91,7 @@ func TestSharingShare(t *testing.T) {
 		)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
-		out := bytes.NewBuffer(nil)
+		out := new(bytes.Buffer)
 		inv.Stdout = out
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
@@ -142,7 +142,7 @@ func TestSharingShare(t *testing.T) {
 		)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
-		out := bytes.NewBuffer(nil)
+		out := new(bytes.Buffer)
 		inv.Stdout = out
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
@@ -202,7 +202,7 @@ func TestSharingStatus(t *testing.T) {
 		inv, root := clitest.New(t, "sharing", "status", workspace.Name, "--org", orgOwner.OrganizationID.String())
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
-		out := bytes.NewBuffer(nil)
+		out := new(bytes.Buffer)
 		inv.Stdout = out
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
@@ -261,7 +261,7 @@ func TestSharingRemove(t *testing.T) {
 		)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
-		out := bytes.NewBuffer(nil)
+		out := new(bytes.Buffer)
 		inv.Stdout = out
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
@@ -321,7 +321,7 @@ func TestSharingRemove(t *testing.T) {
 		)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
-		out := bytes.NewBuffer(nil)
+		out := new(bytes.Buffer)
 		inv.Stdout = out
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
