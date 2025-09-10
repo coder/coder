@@ -2994,6 +2994,7 @@ type AibridgeToolUsage struct {
 	Tool               string                `db:"tool" json:"tool"`
 	Input              string                `db:"input" json:"input"`
 	Injected           bool                  `db:"injected" json:"injected"`
+	InvocationError    sql.NullString        `db:"invocation_error" json:"invocation_error"`
 	Metadata           pqtype.NullRawMessage `db:"metadata" json:"metadata"`
 	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
 }

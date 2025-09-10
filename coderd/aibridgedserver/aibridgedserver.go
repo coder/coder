@@ -153,6 +153,7 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 		Tool:               in.GetTool(),
 		Input:              in.GetInput(),
 		Injected:           in.GetInjected(),
+		InvocationError:    sql.NullString{String: in.GetInvocationError(), Valid: in.GetInvocationError() != ""},
 		Metadata:           s.marshalMetadata(in.GetMetadata()),
 		CreatedAt:          in.GetCreatedAt().AsTime(),
 	})

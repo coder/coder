@@ -43,8 +43,9 @@ message RecordToolUsageRequest {
   string tool = 4;
   string input = 5;
   bool injected = 6;
-  map<string, google.protobuf.Any> metadata = 7;
-  google.protobuf.Timestamp created_at = 8;
+  optional string invocation_error = 7; // Only injected tools are invoked.
+  map<string, google.protobuf.Any> metadata = 8;
+  google.protobuf.Timestamp created_at = 9;
 }
 message RecordToolUsageResponse {}
 

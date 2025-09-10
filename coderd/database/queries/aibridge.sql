@@ -19,9 +19,9 @@ INSERT INTO aibridge_user_prompts (
 
 -- name: InsertAIBridgeToolUsage :exec
 INSERT INTO aibridge_tool_usages (
-  id, interception_id, provider_response_id, tool, server_url, input, injected, metadata, created_at
+  id, interception_id, provider_response_id, tool, server_url, input, injected, invocation_error, metadata, created_at
 ) VALUES (
-  @id, @interception_id, @provider_response_id, @tool, @server_url, @input, @injected, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
+  @id, @interception_id, @provider_response_id, @tool, @server_url, @input, @injected, @invocation_error, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
 );
 
 -- name: GetAIBridgeInterceptionByID :one

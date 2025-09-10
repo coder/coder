@@ -195,9 +195,9 @@ func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIB
 
 const insertAIBridgeToolUsage = `-- name: InsertAIBridgeToolUsage :exec
 INSERT INTO aibridge_tool_usages (
-  id, interception_id, provider_response_id, tool, server_url, input, injected, metadata, created_at
+  id, interception_id, provider_response_id, tool, server_url, input, injected, invocation_error, metadata, created_at
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, COALESCE($8::jsonb, '{}'::jsonb), $9
+  $1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9::jsonb, '{}'::jsonb), $10
 )
 `
 
@@ -209,6 +209,7 @@ type InsertAIBridgeToolUsageParams struct {
 	ServerUrl          sql.NullString  `db:"server_url" json:"server_url"`
 	Input              string          `db:"input" json:"input"`
 	Injected           bool            `db:"injected" json:"injected"`
+	InvocationError    sql.NullString  `db:"invocation_error" json:"invocation_error"`
 	Metadata           json.RawMessage `db:"metadata" json:"metadata"`
 	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
 }
@@ -222,6 +223,7 @@ func (q *sqlQuerier) InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBr
 		arg.ServerUrl,
 		arg.Input,
 		arg.Injected,
+		arg.InvocationError,
 		arg.Metadata,
 		arg.CreatedAt,
 	)

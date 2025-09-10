@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/coder/coder/v2/aibridged/proto"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 
 	"github.com/coder/aibridge"
 )
@@ -63,15 +64,21 @@ func (t *recorderTranslation) RecordToolUsage(ctx context.Context, req *aibridge
 		return xerrors.Errorf("serialize tool %q args: %w", req.Tool, err)
 	}
 
+	var invErr *string
+	if req.InvocationError != nil {
+		invErr = ptr.Ref(req.InvocationError.Error())
+	}
+
 	_, err = t.client.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
-		InterceptionId: req.InterceptionID,
-		MsgId:          req.MsgID,
-		ServerUrl:      req.ServerURL,
-		Tool:           req.Tool,
-		Input:          string(serialized),
-		Injected:       req.Injected,
-		Metadata:       marshalForProto(req.Metadata),
-		CreatedAt:      timestamppb.New(req.CreatedAt),
+		InterceptionId:  req.InterceptionID,
+		MsgId:           req.MsgID,
+		ServerUrl:       req.ServerURL,
+		Tool:            req.Tool,
+		Input:           string(serialized),
+		Injected:        req.Injected,
+		InvocationError: invErr,
+		Metadata:        marshalForProto(req.Metadata),
+		CreatedAt:       timestamppb.New(req.CreatedAt),
 	})
 	return err
 }

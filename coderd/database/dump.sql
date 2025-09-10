@@ -872,6 +872,7 @@ CREATE TABLE aibridge_tool_usages (
     tool text NOT NULL,
     input text NOT NULL,
     injected boolean DEFAULT false NOT NULL,
+    invocation_error text,
     metadata jsonb,
     created_at timestamp with time zone NOT NULL
 );
@@ -3200,15 +3201,6 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
-
-ALTER TABLE ONLY aibridge_token_usages
-    ADD CONSTRAINT aibridge_token_usages_interception_id_fkey FOREIGN KEY (interception_id) REFERENCES aibridge_interceptions(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY aibridge_tool_usages
-    ADD CONSTRAINT aibridge_tool_usages_interception_id_fkey FOREIGN KEY (interception_id) REFERENCES aibridge_interceptions(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY aibridge_user_prompts
-    ADD CONSTRAINT aibridge_user_prompts_interception_id_fkey FOREIGN KEY (interception_id) REFERENCES aibridge_interceptions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
