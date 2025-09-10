@@ -147,7 +147,10 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 				{overflowed && (
 					<TooltipProvider delayDuration={100}>
 						<Tooltip>
-							<TooltipTrigger asChild className="max-w-fit pt-4 px-4 self-end">
+							<TooltipTrigger
+								asChild
+								className="max-w-fit pt-4 px-4 self-center"
+							>
 								<span>
 									<Badge variant="warning">Logs overflowed</Badge>
 								</span>

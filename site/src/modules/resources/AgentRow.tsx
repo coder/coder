@@ -517,7 +517,7 @@ const styles = {
 	},
 
 	startupLogs: (theme) => ({
-		maxHeight: 256,
+		maxHeight: 420,
 		borderBottom: `1px solid ${theme.palette.divider}`,
 		backgroundColor: theme.palette.background.paper,
 		paddingTop: 16,
