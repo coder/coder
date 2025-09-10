@@ -28,7 +28,7 @@ func (r *RootCmd) notifications() *serpent.Command {
 				Command:     "coder notifications test",
 			},
 			Example{
-				Description: "Send a custom notification to the requesting user. The recipient is always the requesting user as targeting other users or groups isn’t supported yet",
+				Description: "Send a custom notification to the requesting user. Sending notifications targeting other users or groups is currently not supported",
 				Command:     "coder notifications custom \"Custom Title\" \"Custom Message\"",
 			},
 		),

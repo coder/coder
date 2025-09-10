@@ -32,8 +32,8 @@ target settings:
 
      $ coder notifications test
 
-  - Send a custom notification to the requesting user. The recipient is always the
-requesting user as targeting other users or groups isn’t supported yet:
+  - Send a custom notification to the requesting user. Sending notifications
+targeting other users or groups is currently not supported:
 
      $ coder notifications custom "Custom Title" "Custom Message"
 ```
