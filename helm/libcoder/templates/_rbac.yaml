@@ -1,10 +1,11 @@
 {{- define "libcoder.rbac.forNamespace" -}}
-{{- $top := .Top -}}
-{{- $ns := .NS -}}
-{{- $nsPerms := ternary .workspacePerms $top.Values.coder.serviceAccount.workspacePerms (hasKey . "workspacePerms") -}}
-{{- $nsDeploy := ternary .enableDeployments $top.Values.coder.serviceAccount.enableDeployments (hasKey . "enableDeployments") -}}
-{{- $nsExtra := ternary .extraRules $top.Values.coder.serviceAccount.extraRules (hasKey . "extraRules") -}}
-{{- if or $nsPerms (or $nsDeploy $nsExtra) }}
+  {{- $top := .Top -}}
+  {{- $ns := .NS -}}
+  {{- $nsPerms := ternary .workspacePerms $top.Values.coder.serviceAccount.workspacePerms (hasKey . "workspacePerms") -}}
+  {{- $nsDeploy := ternary .enableDeployments $top.Values.coder.serviceAccount.enableDeployments (hasKey . "enableDeployments") -}}
+  {{- $nsExtra := ternary .extraRules $top.Values.coder.serviceAccount.extraRules (hasKey . "extraRules") -}}
+
+  {{- if or $nsPerms (or $nsDeploy $nsExtra) }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -18,11 +19,11 @@ rules:
 {{- if $nsDeploy }}
 {{ include "libcoder.rbac.rules.deployments" $top | trimPrefix "\n" | indent 2 }}
 {{- end }}
-{{- with $nsExtra }}
-  {{- if kindIs "slice" . }}
-{{ toYaml . | trimPrefix "\n" | indent 2 }}
+{{- if $nsExtra }}
+  {{- if kindIs "slice" $nsExtra }}
+{{ toYaml $nsExtra | trimPrefix "\n" | indent 2 }}
   {{- else }}
-{{ toYaml (list .) | trimPrefix "\n" | indent 2 }}
+{{ toYaml (list $nsExtra) | trimPrefix "\n" | indent 2 }}
   {{- end }}
 {{- end }}
 ---
@@ -58,13 +59,23 @@ roleRef:
         "extraRules" $rootExtra -}}
   {{ include "libcoder.rbac.forNamespace" $rootParams }}
 
-  {{- $extra := ($top.Values.coder.serviceAccount.workspaceNamespaces.namespaces | default (list)) -}}
+  {{- $wsnsRaw := get $top.Values.coder.serviceAccount "workspaceNamespaces" -}}
+  {{- $extra := ternary $wsnsRaw ((get (default (dict) $wsnsRaw) "namespaces") | default (list)) (kindIs "slice" $wsnsRaw) -}}
+  {{- $extra := default (list) $extra -}}
+
   {{- range $_, $ns := $extra }}
-    {{- if $ns.name }}
-      {{- $params := dict "Top" $top "NS" $ns.name -}}
-      {{- if hasKey $ns "workspacePerms" }}{{- $_ := set $params "workspacePerms" $ns.workspacePerms }}{{- else }}{{- $_ := set $params "workspacePerms" $rootPerms }}{{- end }}
-      {{- if hasKey $ns "enableDeployments" }}{{- $_ := set $params "enableDeployments" $ns.enableDeployments }}{{- else }}{{- $_ := set $params "enableDeployments" $rootDeploy }}{{- end }}
-      {{- if hasKey $ns "extraRules" }}{{- $_ := set $params "extraRules" $ns.extraRules }}{{- else }}{{- $_ := set $params "extraRules" $rootExtra }}{{- end }}
+    {{- $nsName := ternary $ns.name $ns (kindIs "map" $ns) -}}
+    {{- if $nsName }}
+      {{- $params := dict "Top" $top "NS" $nsName -}}
+      {{- if kindIs "map" $ns }}
+        {{- if hasKey $ns "workspacePerms" }}{{- $_ := set $params "workspacePerms" $ns.workspacePerms }}{{- else }}{{- $_ := set $params "workspacePerms" $rootPerms }}{{- end }}
+        {{- if hasKey $ns "enableDeployments" }}{{- $_ := set $params "enableDeployments" $ns.enableDeployments }}{{- else }}{{- $_ := set $params "enableDeployments" $rootDeploy }}{{- end }}
+        {{- if hasKey $ns "extraRules" }}{{- $_ := set $params "extraRules" $ns.extraRules }}{{- else }}{{- $_ := set $params "extraRules" $rootExtra }}{{- end }}
+      {{- else }}
+        {{- $_ := set $params "workspacePerms" $rootPerms -}}
+        {{- $_ := set $params "enableDeployments" $rootDeploy -}}
+        {{- $_ := set $params "extraRules" $rootExtra -}}
+      {{- end }}
       {{ include "libcoder.rbac.forNamespace" $params }}
     {{- end }}
   {{- end }}
