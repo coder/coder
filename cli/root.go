@@ -529,19 +529,26 @@ func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) 
 		}
 	}
 
-	client := &codersdk.Client{}
-	err = r.configureClient(inv.Context(), client, r.clientURL, inv)
+	// Configure HTTP client with transport wrappers
+	httpClient, err := r.createHTTPClient(inv.Context(), r.clientURL, inv)
 	if err != nil {
 		return nil, err
 	}
-	client.SetSessionToken(r.token)
+
+	// Use ClientBuilder to construct the builder
+	builder := codersdk.NewClientBuilder(r.clientURL).
+		SessionToken(r.token).
+		HTTPClient(httpClient)
+
+	if r.disableDirect {
+		builder.DisableDirectConnections()
+	}
 
 	if r.debugHTTP {
-		client.PlainLogger = os.Stderr
-		client.SetLogBodies(true)
+		builder.PlainLogger(os.Stderr).LogBodies(true)
 	}
-	client.DisableDirectConnections = r.disableDirect
-	return client, nil
+
+	return builder.Build(), nil
 }
 
 // TryInitClient is similar to InitClient but doesn't error when credentials are missing.
@@ -577,19 +584,26 @@ func (r *RootCmd) TryInitClient(inv *serpent.Invocation) (*codersdk.Client, erro
 
 	// Only configure the client if we have a URL
 	if r.clientURL != nil && r.clientURL.String() != "" {
-		client := &codersdk.Client{}
-		err = r.configureClient(inv.Context(), client, r.clientURL, inv)
+		// Configure HTTP client with transport wrappers
+		httpClient, err := r.createHTTPClient(inv.Context(), r.clientURL, inv)
 		if err != nil {
 			return nil, err
 		}
-		client.SetSessionToken(r.token)
+
+		// Use ClientBuilder to construct the builder
+		builder := codersdk.NewClientBuilder(r.clientURL).
+			SessionToken(r.token).
+			HTTPClient(httpClient)
+
+		if r.disableDirect {
+			builder.DisableDirectConnections()
+		}
 
 		if r.debugHTTP {
-			client.PlainLogger = os.Stderr
-			client.SetLogBodies(true)
+			builder.PlainLogger(os.Stderr).LogBodies(true)
 		}
-		client.DisableDirectConnections = r.disableDirect
-		return client, nil
+
+		return builder.Build(), nil
 	}
 
 	// Return a minimal client if no URL is available
@@ -602,17 +616,14 @@ func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*cod
 	return headerTransport(ctx, serverURL, r.header, r.headerCommand)
 }
 
-func (r *RootCmd) configureClient(ctx context.Context, client *codersdk.Client, serverURL *url.URL, inv *serpent.Invocation) error {
-	if client.SessionTokenProvider == nil {
-		client.SessionTokenProvider = codersdk.FixedSessionTokenProvider{}
-	}
+func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*http.Client, error) {
 	transport := http.DefaultTransport
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
 	if !r.noVersionCheck {
 		transport = wrapTransportWithVersionMismatchCheck(transport, inv, buildinfo.Version(), func(ctx context.Context) (codersdk.BuildInfoResponse, error) {
 			// Create a new client without any wrapped transport
 			// otherwise it creates an infinite loop!
-			basicClient := codersdk.New(serverURL)
+			basicClient := codersdk.NewClientBuilder(serverURL).Build()
 			return basicClient.BuildInfo(ctx)
 		})
 	}
@@ -621,23 +632,24 @@ func (r *RootCmd) configureClient(ctx context.Context, client *codersdk.Client, 
 	}
 	headerTransport, err := r.HeaderTransport(ctx, serverURL)
 	if err != nil {
-		return xerrors.Errorf("create header transport: %w", err)
+		return nil, xerrors.Errorf("create header transport: %w", err)
 	}
 	// The header transport has to come last.
 	// codersdk checks for the header transport to get headers
 	// to clone on the DERP client.
 	headerTransport.Transport = transport
-	client.HTTPClient = &http.Client{
+	return &http.Client{
 		Transport: headerTransport,
-	}
-	client.URL = serverURL
-	return nil
+	}, nil
 }
 
 func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*codersdk.Client, error) {
-	var client codersdk.Client
-	err := r.configureClient(ctx, &client, serverURL, inv)
-	return &client, err
+	httpClient, err := r.createHTTPClient(ctx, serverURL, inv)
+	if err != nil {
+		return nil, err
+	}
+	client := codersdk.NewClientBuilder(serverURL).HTTPClient(httpClient)
+	return client.Build(), nil
 }
 
 type AgentAuth struct {

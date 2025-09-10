@@ -79,14 +79,17 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			client := codersdk.New(serverURL)
-			client.SetSessionToken(string(sessionToken))
-
-			// This adds custom headers to the request!
-			err = r.configureClient(ctx, client, serverURL, inv)
+			// Configure HTTP client with transport wrappers
+			httpClient, err := r.createHTTPClient(ctx, serverURL, inv)
 			if err != nil {
-				return xerrors.Errorf("set client: %w", err)
+				return xerrors.Errorf("create HTTP client: %w", err)
 			}
+
+			// Use ClientBuilder to construct the client
+			client := codersdk.NewClientBuilder(serverURL).
+				SessionToken(string(sessionToken)).
+				HTTPClient(httpClient).
+				Build()
 
 			parts := strings.Split(inv.Args[0], "--")
 			if len(parts) < 3 {
