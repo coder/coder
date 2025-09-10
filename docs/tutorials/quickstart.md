@@ -1,17 +1,18 @@
 # Get Started
 
-** Keywords: ** install, setup, get started, quickstart, templates, workspaces, tasks, users
+**Keywords:** install, setup, get started, quickstart, templates, workspaces, tasks, users
 
 Follow the steps in this guide to get your first Coder development environment running in under 10 minutes. This guide covers the essential concepts and walks you through creating your first workspace and running VS Code from it. You can also get Claude Code up and running in the background!
 
 ## What You'll Build
 
 In this quickstart, you'll:
+
 - ✅ Install Coder server
 - ✅ Create a **template** (blueprint for dev environments)
 - ✅ Launch a **workspace** (your actual dev environment)
 - ✅ Connect from your favorite IDE
-- ✅ Optionally setup a **task** running Claude Code 
+- ✅ Optionally setup a **task** running Claude Code
 
 ## Understanding Coder: 30-Second Overview
 
@@ -36,7 +37,7 @@ Before diving in, here are the four concepts that power Coder explained through 
 
 <div class="tabs">
 
-## Linux/macOS
+### Linux/macOS
 
 1. Install Docker:
 
@@ -64,7 +65,7 @@ Before diving in, here are the four concepts that power Coder explained through 
    You might need to log out and back in or restart the machine for changes to
    take effect.
 
-## Windows
+### Windows
 
 If you plan to use the built-in PostgreSQL database, ensure that the
 [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
@@ -76,11 +77,11 @@ is installed.
 
 ## Step 2: Install & Start Coder
 
-The `coder` CLI is all you need to install. It let's you run both the Coder server as well as the client. 
+The `coder` CLI is all you need to install. It let's you run both the Coder server as well as the client.
 
 <div class="tabs">
 
-## Linux/macOS
+### Linux/macOS
 
 1. Install Coder:
 
@@ -98,7 +99,7 @@ The `coder` CLI is all you need to install. It let's you run both the Coder serv
    coder server
    ```
 
-## Windows
+### Windows
 
 If you plan to use the built-in PostgreSQL database, ensure that the
 [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
@@ -132,18 +133,18 @@ terminal. It looks like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`.
 It's one of the first lines of output, so you might have to scroll up to find
 it.
 
-## Step 3: Initial Setup 
+## Step 3: Initial Setup
 
 1. **Create your admin account:**
    - Username: `yourname` (lowercase, no spaces)
    - Email: `your.email@example.com`
    - Password: Choose a strong password
 
-	You can also choose to **Continue with GitHub** instead of creating an admin account. The first user that signs in is automatically granted admin permissions. 
+   You can also choose to **Continue with GitHub** instead of creating an admin account. The first user that signs in is automatically granted admin permissions.
 
    ![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)
 
-## Step 4: Create your First Template and Workspace 
+## Step 4: Create your First Template and Workspace
 
 Templates define what's in your development environment. Let's start simple:
 
@@ -166,9 +167,9 @@ Templates define what's in your development environment. Let's start simple:
 
 ![Create template](../images/screenshots/create-template.png)
 
-5. Click **"Save"**
+1. Click **"Save"**
 
-**What just happened?** You defined a template — a reusable blueprint for dev environments — in your Coder deployment. It’s now stored in your organization’s template list, where you and any teammates in the same org can create workspaces from it. Let’s launch one.
+**What just happened?** You defined a template — a reusable blueprint for dev environments — in your Coder deployment. It's now stored in your organization's template list, where you and any teammates in the same org can create workspaces from it. Let's launch one.
 
 ## Step 5: Launch your Workspace
 
@@ -210,6 +211,7 @@ To clone an existing repository:
 ## Success! You're Coding in Coder
 
 You now have:
+
 - **Coder server** running locally
 - **A template** defining your environment
 - **A workspace** running that environment
@@ -217,13 +219,15 @@ You now have:
 
 ### Get Coder Tasks Running
 
-Coder Tasks is an interface that allows you to run and manage coding agents like Claude Code. Tasks become avaialable when a template has the `coder_ai_task` resource and `coder_parameter` named `AI Prompt` defined in its source code. Subsequently, any existing template can become a Task template by adding in that resource and parameter. 
+Coder Tasks is an interface that allows you to run and manage coding agents like Claude Code. Tasks become avaialable when a template has the `coder_ai_task` resource and `coder_parameter` named `AI Prompt` defined in its source code. Subsequently, any existing template can become a Task template by adding in that resource and parameter.
 
-Let's try turning the **Docker Containers** template into a Task template running Claude Code: 
+Let's try turning the **Docker Containers** template into a Task template running Claude Code:
+
 1. Head to **Templates**
 1. Click into the template, and then click **Source Code** -> **Edit**
 1. Add the following code snippit to the bottom of the terraform. This defines the `coder_ai_task` resource and `coder_parameter`
-```
+
+```hcl
 # Claude API Key variable (filled in during template build)
 variable "claude_api_key" {
   type        = string
@@ -260,13 +264,10 @@ resource "coder_ai_task" "claude-code" {
 }
 
 ```
-1. **Build the Template**: Clikc the **Build** button. This validates the Terraform configuration, and ensures there are no syntax errors. This process also runs Coder specific validation to ensure the template meets our requirements. 
-1. **Publish the Template**: Once the build succeeds, click **Publish** in the upper right corner. This makes your updated template available for creating new workspaces. 
-1. **Create a new Workspace**: 
-   1. Navigate back to your workspace dashboard
-   1. Click **Create Workspace** and select your newly updated template
-   1. Add in your Claude API Key. If you do not have one, you can create one in the [Anthropic Console](https://console.anthropic.com/dashboard)
-   1. Click **Create Workspace**
+
+1. **Build the Template**: Click "Build version". This will process your template updates. After it finishes building successfully:
+1. **Activate the Template**: Click "Promote Version" on the new version to make it the active template version.
+1. **Create a Task**: Click "Create Task".
 1. Once your workspace is running, navigate to the **Tasks** tab in the upper left hand corner. Type in a message or ciding request like "Help me write a HelloWorld applicaiton in Python". Clikc **Run Task** to start the task
 1. The task will open VS Code with Claude Code running in the left sidebar. You are now successfully using Coder Tasks with Claude Code!
 
