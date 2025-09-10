@@ -219,7 +219,7 @@ You now have:
 
 ### What's Next?
 
-Now that you have your own workspace running, you can start exploring more advanced capabilities that Coder offers. 
+Now that you have your own workspace running, you can start exploring more advanced capabilities that Coder offers.
 
 - [Learn more about running Coder Tasks and our recommended Best Practices](https://coder.com/docs/ai-coder/best-practices)
 
@@ -229,7 +229,7 @@ Now that you have your own workspace running, you can start exploring more advan
 
 ### Get Coder Tasks Running
 
-Coder Tasks is an interface that allows you to run and manage coding agents like Claude Code. Tasks become avaialable when a template has the `coder_ai_task` resource and `coder_parameter` named `AI Prompt` defined in its source code. Subsequently, any existing template can become a Task template by adding in that resource and parameter.
+Coder Tasks is an interface that allows you to run and manage coding agents like Claude Code. Tasks become available when a template has the `coder_ai_task` resource and `coder_parameter` named `AI Prompt` defined in its source code. Subsequently, any existing template can become a Task template by adding in that resource and parameter.
 
 Let's try turning the **Docker Containers** template into a Task template running Claude Code:
 
@@ -278,7 +278,7 @@ resource "coder_ai_task" "claude-code" {
 1. **Build the Template**: Click "Build version". This will process your template updates. After it finishes building successfully:
 1. **Activate the Template**: Click "Promote Version" on the new version to make it the active template version.
 1. **Create a Task**: Click "Create Task".
-1. Once your workspace is running, navigate to the **Tasks** tab in the upper left hand corner. Type in a message or ciding request like "Help me write a HelloWorld applicaiton in Python". Clikc **Run Task** to start the task
+1. Once your workspace is running, navigate to the **Tasks** tab in the upper left hand corner. Type in a message or coding request like "Help me write a HelloWorld application in Python". Click **Run Task** to start the task
 1. The task will open VS Code with Claude Code running in the left sidebar. You are now successfully using Coder Tasks with Claude Code!
 
 ## Troubleshooting
