@@ -8875,6 +8875,47 @@ func (q *sqlQuerier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid
 	return i, err
 }
 
+const getProvisionerJobByIDWithLock = `-- name: GetProvisionerJobByIDWithLock :one
+SELECT
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
+FROM
+	provisioner_jobs
+WHERE
+	id = $1
+FOR UPDATE
+`
+
+// Gets a provisioner job by ID with exclusive lock.
+// Blocks until the row is available for update.
+func (q *sqlQuerier) GetProvisionerJobByIDWithLock(ctx context.Context, id uuid.UUID) (ProvisionerJob, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerJobByIDWithLock, id)
+	var i ProvisionerJob
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StartedAt,
+		&i.CanceledAt,
+		&i.CompletedAt,
+		&i.Error,
+		&i.OrganizationID,
+		&i.InitiatorID,
+		&i.Provisioner,
+		&i.StorageMethod,
+		&i.Type,
+		&i.Input,
+		&i.WorkerID,
+		&i.FileID,
+		&i.Tags,
+		&i.ErrorCode,
+		&i.TraceMetadata,
+		&i.JobStatus,
+		&i.LogsLength,
+		&i.LogsOverflowed,
+	)
+	return i, err
+}
+
 const getProvisionerJobTimingsByJobID = `-- name: GetProvisionerJobTimingsByJobID :many
 SELECT job_id, started_at, ended_at, stage, source, action, resource FROM provisioner_job_timings
 WHERE job_id = $1
@@ -12189,23 +12230,41 @@ WHERE
 			LOWER(t.name) = LOWER($3)
 		ELSE true
 	END
-	-- Filter by name, matching on substring
+	-- Filter by exact display name
 	AND CASE
 		WHEN $4 :: text != '' THEN
-			lower(t.name) ILIKE '%' || lower($4) || '%'
+			LOWER(t.display_name) = LOWER($4)
+		ELSE true
+	END
+	-- Filter by name, matching on substring
+	AND CASE
+		WHEN $5 :: text != '' THEN
+			lower(t.name) ILIKE '%' || lower($5) || '%'
+		ELSE true
+	END
+	-- Filter by display_name, matching on substring (fallback to name if display_name is empty)
+	AND CASE
+		WHEN $6 :: text != '' THEN
+			CASE
+				WHEN t.display_name IS NOT NULL AND t.display_name != '' THEN
+					lower(t.display_name) ILIKE '%' || lower($6) || '%'
+				ELSE
+					-- Remove spaces if present since 't.name' cannot have any spaces
+					lower(t.name) ILIKE '%' || REPLACE(lower($6), ' ', '') || '%'
+			END
 		ELSE true
 	END
 	-- Filter by ids
 	AND CASE
-		WHEN array_length($5 :: uuid[], 1) > 0 THEN
-			t.id = ANY($5)
+		WHEN array_length($7 :: uuid[], 1) > 0 THEN
+			t.id = ANY($7)
 		ELSE true
 	END
 	-- Filter by deprecated
 	AND CASE
-		WHEN $6 :: boolean IS NOT NULL THEN
+		WHEN $8 :: boolean IS NOT NULL THEN
 			CASE
-				WHEN $6 :: boolean THEN
+				WHEN $8 :: boolean THEN
 					t.deprecated != ''
 				ELSE
 					t.deprecated = ''
@@ -12214,27 +12273,27 @@ WHERE
 	END
 	-- Filter by has_ai_task in latest version
 	AND CASE
-		WHEN $7 :: boolean IS NOT NULL THEN
-			tv.has_ai_task = $7 :: boolean
+		WHEN $9 :: boolean IS NOT NULL THEN
+			tv.has_ai_task = $9 :: boolean
 		ELSE true
 	END
 	-- Filter by author_id
 	AND CASE
-		  WHEN $8 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			  t.created_by = $8
+		  WHEN $10 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			  t.created_by = $10
 		  ELSE true
 	END
 	-- Filter by author_username
 	AND CASE
-		  WHEN $9 :: text != '' THEN
-			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($9) AND deleted = false)
+		  WHEN $11 :: text != '' THEN
+			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($11) AND deleted = false)
 		  ELSE true
 	END
 
 	-- Filter by has_external_agent in latest version
 	AND CASE
-		WHEN $10 :: boolean IS NOT NULL THEN
-			tv.has_external_agent = $10 :: boolean
+		WHEN $12 :: boolean IS NOT NULL THEN
+			tv.has_external_agent = $12 :: boolean
 		ELSE true
 	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
@@ -12246,7 +12305,9 @@ type GetTemplatesWithFilterParams struct {
 	Deleted          bool         `db:"deleted" json:"deleted"`
 	OrganizationID   uuid.UUID    `db:"organization_id" json:"organization_id"`
 	ExactName        string       `db:"exact_name" json:"exact_name"`
+	ExactDisplayName string       `db:"exact_display_name" json:"exact_display_name"`
 	FuzzyName        string       `db:"fuzzy_name" json:"fuzzy_name"`
+	FuzzyDisplayName string       `db:"fuzzy_display_name" json:"fuzzy_display_name"`
 	IDs              []uuid.UUID  `db:"ids" json:"ids"`
 	Deprecated       sql.NullBool `db:"deprecated" json:"deprecated"`
 	HasAITask        sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
@@ -12260,7 +12321,9 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		arg.Deleted,
 		arg.OrganizationID,
 		arg.ExactName,
+		arg.ExactDisplayName,
 		arg.FuzzyName,
+		arg.FuzzyDisplayName,
 		pq.Array(arg.IDs),
 		arg.Deprecated,
 		arg.HasAITask,

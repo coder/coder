@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"runtime/debug"
+	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -14,7 +16,9 @@ import (
 	"github.com/coder/aisdk-go"
 
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 // Tool name constants to avoid hardcoded strings
@@ -38,6 +42,7 @@ const (
 	ToolNameWorkspaceBash               = "coder_workspace_bash"
 	ToolNameChatGPTSearch               = "search"
 	ToolNameChatGPTFetch                = "fetch"
+	ToolNameWorkspaceReadFile           = "coder_workspace_read_file"
 )
 
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
@@ -205,6 +210,7 @@ var All = []GenericTool{
 	WorkspaceBash.Generic(),
 	ChatGPTSearch.Generic(),
 	ChatGPTFetch.Generic(),
+	WorkspaceReadFile.Generic(),
 }
 
 type ReportTaskArgs struct {
@@ -1359,4 +1365,139 @@ type MinimalTemplate struct {
 	Description     string    `json:"description"`
 	ActiveVersionID uuid.UUID `json:"active_version_id"`
 	ActiveUserCount int       `json:"active_user_count"`
+}
+
+type WorkspaceReadFileArgs struct {
+	Workspace string `json:"workspace"`
+	Path      string `json:"path"`
+	Offset    int64  `json:"offset"`
+	Limit     int64  `json:"limit"`
+}
+
+type WorkspaceReadFileResponse struct {
+	// Content is the base64-encoded bytes from the file.
+	Content  []byte `json:"content"`
+	MimeType string `json:"mimeType"`
+}
+
+const maxFileLimit = 1 << 20 // 1MiB
+
+var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameWorkspaceReadFile,
+		Description: `Read from a file in a workspace.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used.",
+				},
+				"path": map[string]any{
+					"type":        "string",
+					"description": "The absolute path of the file to read in the workspace.",
+				},
+				"offset": map[string]any{
+					"type":        "integer",
+					"description": "A byte offset indicating where in the file to start reading. Defaults to zero. An empty string indicates the end of the file has been reached.",
+				},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "The number of bytes to read. Cannot exceed 1 MiB. Defaults to the full size of the file or 1 MiB, whichever is lower.",
+				},
+			},
+			Required: []string{"path", "workspace"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceReadFileArgs) (WorkspaceReadFileResponse, error) {
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		if err != nil {
+			return WorkspaceReadFileResponse{}, err
+		}
+		defer conn.Close()
+
+		// Ideally we could stream this all the way back, but it looks like the MCP
+		// interfaces only allow returning full responses which means the whole
+		// thing has to be read into memory.  So, add a maximum limit to compensate.
+		limit := args.Limit
+		if limit == 0 {
+			limit = maxFileLimit
+		} else if limit > maxFileLimit {
+			return WorkspaceReadFileResponse{}, xerrors.Errorf("limit must be %d or less, got %d", maxFileLimit, limit)
+		}
+
+		reader, mimeType, err := conn.ReadFile(ctx, args.Path, args.Offset, limit)
+		if err != nil {
+			return WorkspaceReadFileResponse{}, err
+		}
+		defer reader.Close()
+
+		bs, err := io.ReadAll(reader)
+		if err != nil {
+			return WorkspaceReadFileResponse{}, xerrors.Errorf("read response body: %w", err)
+		}
+
+		return WorkspaceReadFileResponse{Content: bs, MimeType: mimeType}, nil
+	},
+}
+
+// NormalizeWorkspaceInput converts workspace name input to standard format.
+// Handles the following input formats:
+//   - workspace                    → workspace
+//   - workspace.agent              → workspace.agent
+//   - owner/workspace              → owner/workspace
+//   - owner--workspace             → owner/workspace
+//   - owner/workspace.agent        → owner/workspace.agent
+//   - owner--workspace.agent       → owner/workspace.agent
+//   - agent.workspace.owner        → owner/workspace.agent (Coder Connect format)
+func NormalizeWorkspaceInput(input string) string {
+	// Handle the special Coder Connect format: agent.workspace.owner
+	// This format uses only dots and has exactly 3 parts
+	if strings.Count(input, ".") == 2 && !strings.Contains(input, "/") && !strings.Contains(input, "--") {
+		parts := strings.Split(input, ".")
+		if len(parts) == 3 {
+			// Convert agent.workspace.owner → owner/workspace.agent
+			return fmt.Sprintf("%s/%s.%s", parts[2], parts[1], parts[0])
+		}
+	}
+
+	// Convert -- separator to / separator for consistency
+	normalized := strings.ReplaceAll(input, "--", "/")
+
+	return normalized
+}
+
+// newAgentConn returns a connection to the agent specified by the workspace,
+// which must be in the format [owner/]workspace[.agent].
+func newAgentConn(ctx context.Context, client *codersdk.Client, workspace string) (workspacesdk.AgentConn, error) {
+	workspaceName := NormalizeWorkspaceInput(workspace)
+	_, workspaceAgent, err := findWorkspaceAndAgent(ctx, client, workspaceName)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to find workspace: %w", err)
+	}
+
+	// Wait for agent to be ready.
+	if err := cliui.Agent(ctx, io.Discard, workspaceAgent.ID, cliui.AgentOptions{
+		FetchInterval: 0,
+		Fetch:         client.WorkspaceAgent,
+		FetchLogs:     client.WorkspaceAgentLogsAfter,
+		Wait:          true, // Always wait for startup scripts
+	}); err != nil {
+		return nil, xerrors.Errorf("agent not ready: %w", err)
+	}
+
+	wsClient := workspacesdk.New(client)
+
+	conn, err := wsClient.DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
+		BlockEndpoints: false,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("failed to dial agent: %w", err)
+	}
+
+	if !conn.AwaitReachable(ctx) {
+		conn.Close()
+		return nil, xerrors.New("agent connection not reachable")
+	}
+	return conn, nil
 }

@@ -481,6 +481,7 @@ export interface CreateTaskRequest {
 	readonly template_version_id: string;
 	readonly template_version_preset_id?: string;
 	readonly prompt: string;
+	readonly name?: string;
 }
 
 // From codersdk/organizations.go
