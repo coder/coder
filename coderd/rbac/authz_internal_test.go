@@ -1110,6 +1110,57 @@ func TestAuthorizeScope(t *testing.T) {
 			{resource: ResourceOrganization.WithID(defOrg)},
 		}),
 	)
+
+	// Test setting a scope on the org and the user level
+	// This is a bit of a contrived example that would not exist in practice.
+	// It combines a specific organization scope with a user scope to verify
+	// that both are applied.
+	// The test uses the `Owner` role, so by default the user can do everything.
+	user = Subject{
+		ID: "me",
+		Roles: Roles{
+			must(RoleByName(RoleOwner())),
+			// TODO: There is a __bug__ in the policy.rego. If the user is not a
+			//  member of the organization, the org_scope fails. This happens because
+			//  the org_allow_set uses "org_members".
+			//  This is odd behavior, as without this membership role, the test for
+			//  the workspace fails. Maybe scopes should just assume the user
+			//  is a member.
+			must(RoleByName(ScopedRoleOrgMember(defOrg))),
+		},
+		Scope: Scope{
+			Role: Role{
+				Identifier: RoleIdentifier{
+					Name:           "org-and-user-scope",
+					OrganizationID: defOrg,
+				},
+				DisplayName: "OrgAndUserScope",
+				Site:        nil,
+				Org: map[string][]Permission{
+					defOrg.String(): Permissions(map[string][]policy.Action{
+						ResourceWorkspace.Type: {policy.ActionRead},
+					}),
+				},
+				User: Permissions(map[string][]policy.Action{
+					ResourceUser.Type: {policy.ActionRead},
+				}),
+			},
+			AllowIDList: []string{policy.WildcardSymbol},
+		},
+	}
+
+	testAuthorize(t, "OrgAndUserScope", user,
+		// Allowed by scope:
+		[]authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), allow: true, actions: []policy.Action{policy.ActionRead}},
+			{resource: ResourceUser.WithOwner(user.ID), allow: true, actions: []policy.Action{policy.ActionRead}},
+		},
+		// Not allowed by scope:
+		[]authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), allow: false, actions: []policy.Action{policy.ActionCreate}},
+			{resource: ResourceUser.WithOwner(user.ID), allow: false, actions: []policy.Action{policy.ActionUpdate}},
+		},
+	)
 }
 
 // cases applies a given function to all test cases. This makes generalities easier to create.

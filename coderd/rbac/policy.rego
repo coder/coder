@@ -106,6 +106,13 @@ site_allow(roles) := num if {
 # -------------------
 
 # org_members is the list of organizations the actor is apart of.
+# TODO: Should there be an org_members for the scope too? Without it,
+#  the membership is determined by the user's roles, not their scope permissions.
+#  So if an owner (who is not an org member) has an org scope, that org scope
+#  will fail to return '1'. Since we assume all non members return '-1' for org
+#  level permissions.
+#  Adding a second org_members set might affect the partial evaluation.
+#  This is being left until org scopes are used.
 org_members := {orgID |
 	input.subject.roles[_].org[orgID]
 }
@@ -116,7 +123,7 @@ default org := 0
 org := org_allow(input.subject.roles)
 
 default scope_org := 0
-scope_org := org_allow([input.scope])
+scope_org := org_allow([input.subject.scope])
 
 # org_allow_set is a helper function that iterates over all orgs that the actor
 # is a member of. For each organization it sets the numerical allow value
@@ -221,7 +228,7 @@ default user := 0
 user := user_allow(input.subject.roles)
 
 default scope_user := 0
-scope_user := user_allow([input.scope])
+scope_user := user_allow([input.subject.scope])
 
 user_allow(roles) := num if {
 	input.object.owner != ""

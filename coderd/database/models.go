@@ -3539,6 +3539,26 @@ type TailnetTunnel struct {
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 }
 
+type Task struct {
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	OrganizationID     uuid.UUID       `db:"organization_id" json:"organization_id"`
+	OwnerID            uuid.UUID       `db:"owner_id" json:"owner_id"`
+	Name               string          `db:"name" json:"name"`
+	WorkspaceID        uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID  uuid.UUID       `db:"template_version_id" json:"template_version_id"`
+	TemplateParameters json.RawMessage `db:"template_parameters" json:"template_parameters"`
+	Prompt             string          `db:"prompt" json:"prompt"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+	DeletedAt          sql.NullTime    `db:"deleted_at" json:"deleted_at"`
+}
+
+type TaskWorkspaceApp struct {
+	TaskID           uuid.UUID `db:"task_id" json:"task_id"`
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	WorkspaceAppID   uuid.UUID `db:"workspace_app_id" json:"workspace_app_id"`
+}
+
 type TelemetryItem struct {
 	Key       string    `db:"key" json:"key"`
 	Value     string    `db:"value" json:"value"`
