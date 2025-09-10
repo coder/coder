@@ -139,15 +139,14 @@ type TransformCallback<T> = (
 type ReactSubscriptionHandshake = Readonly<{
 	componentId: string;
 	targetRefreshIntervalMs: number;
-	onStateUpdate: () => void;
 	transform: TransformCallback<unknown>;
+	onReactStateSync: () => void;
 }>;
 
 // All properties in this type are mutable on purpose
 type TransformationEntry = {
 	unsubscribe: () => void;
 	cachedTransformation: unknown;
-	lastUpdateSource: "mount" | "rerender" | "subscriptionInit" | "notification";
 };
 
 /**
@@ -161,12 +160,7 @@ type TransformationEntry = {
 class ReactTimeSync {
 	static readonly #stalenessThresholdMs = 250;
 
-	// Just need to update subscribeToTransformations to account for the entry
-	// source property (and remove redundant computations), and the initial
-	// implementation should be good to go
-	#fixMe = undefined;
-
-	// Each string is a globally-unique ID that identifies a specific React
+	// Each string key is a globally-unique ID that identifies a specific React
 	// component instance (i.e., two React Fiber entries made from the same
 	// function component should have different IDs)
 	readonly #entries: Map<string, TransformationEntry>;
@@ -200,13 +194,31 @@ class ReactTimeSync {
 			return noOp;
 		}
 
-		const { componentId, targetRefreshIntervalMs, onStateUpdate, transform } =
-			rsh;
+		const {
+			componentId,
+			targetRefreshIntervalMs,
+			onReactStateSync,
+			transform,
+		} = rsh;
 
-		const prevEntry = this.#entries.get(componentId);
-		if (prevEntry !== undefined) {
-			prevEntry.unsubscribe();
-			this.#entries.delete(componentId);
+		/**
+		 * This if statement is handling two situations:
+		 * 1. The activeEntry already exists because it was pre-seeded with data
+		 *    (in which case, the existing transformation is safe to reuse)
+		 * 2. An unsubscribe didn't trigger before setting up a new subscription
+		 *    for the same component instance. This should be impossible, but
+		 *    better to be defensive
+		 */
+		let activeEntry = this.#entries.get(componentId);
+		if (activeEntry !== undefined) {
+			activeEntry.unsubscribe();
+			activeEntry.unsubscribe = noOp;
+		} else {
+			activeEntry = {
+				unsubscribe: noOp,
+				cachedTransformation: transform(this.getDateSnapshot()),
+			};
+			this.#entries.set(componentId, activeEntry);
 		}
 
 		const unsubscribeFromRootSync = this.#timeSync.subscribe({
@@ -223,8 +235,7 @@ class ReactTimeSync {
 
 				if (oldState !== merged) {
 					entry.cachedTransformation = merged;
-					entry.lastUpdateSource = "notification";
-					onStateUpdate();
+					onReactStateSync();
 				}
 			},
 		});
@@ -233,25 +244,22 @@ class ReactTimeSync {
 			unsubscribeFromRootSync();
 			this.#entries.delete(componentId);
 		};
+		activeEntry.unsubscribe = unsubscribe;
 
-		// While each component should already invalidate the Date on mount,
-		// we still need to take care of the case where a subscription got torn
-		// down and re-added because a target interval changed in a render
-		let latestSyncState = this.#timeSync.getStateSnapshot();
+		// Regardless of how the subscription happened, update all other
+		// subscribers to get them in sync with the newest state
 		const shouldInvalidateDate =
-			newReadonlyDate().getTime() - latestSyncState.getTime() >
+			newReadonlyDate().getTime() -
+				this.#timeSync.getStateSnapshot().getTime() >
 			ReactTimeSync.#stalenessThresholdMs;
 		if (shouldInvalidateDate) {
-			latestSyncState = this.#timeSync.invalidateStateSnapshot({
-				notificationBehavior: "onChange",
+			void this.#timeSync.invalidateStateSnapshot({
+				// This is normally a little risky, but because of how the
+				// onUpdate callback above is defined, dispatching a
+				// subscription update doesn't always trigger a re-render
+				notificationBehavior: "always",
 			});
 		}
-
-		this.#entries.set(componentId, {
-			unsubscribe,
-			lastUpdateSource: "subscriptionInit",
-			cachedTransformation: transform(latestSyncState),
-		});
 
 		return unsubscribe;
 	}
@@ -263,12 +271,11 @@ class ReactTimeSync {
 
 		// If we're invalidating the transformation before a subscription has
 		// been set up, then we almost definitely need to pre-seed the class
-		// with data. We want to avoid redundant transformations, when we don't
-		// know in advance how expensive transformations can get
+		// with data. We want to avoid callingredundant transformations since we
+		// don't know in advance how expensive transformations can get
 		const entry = this.#entries.get(componentId);
 		if (entry === undefined) {
 			this.#entries.set(componentId, {
-				lastUpdateSource: "mount",
 				unsubscribe: noOp,
 				cachedTransformation: newValue,
 			});
@@ -281,9 +288,6 @@ class ReactTimeSync {
 		// wrong, having an extra merge step removes some potential risks
 		const merged = structuralMerge(entry.cachedTransformation, newValue);
 		entry.cachedTransformation = merged;
-		if (merged !== newValue) {
-			entry.lastUpdateSource = "rerender";
-		}
 	}
 
 	// Always safe to call inside a render
@@ -310,13 +314,13 @@ class ReactTimeSync {
 		});
 	}
 
-	onProviderMount(): undefined | (() => void) {
+	onProviderMount(): () => void {
 		if (!this.#isProviderMounted) {
-			return undefined;
+			return noOp;
 		}
 
 		// Periodially invalidate the state, so that even if all subscribers
-		// have really high refresh intervals, when a new component gets
+		// have really slow refresh intervals, when a new component gets
 		// mounted, it will be guaranteed to have "fresh-ish" data.
 		this.#invalidationIntervalId = setTimeout(() => {
 			this.#timeSync.invalidateStateSnapshot({
@@ -545,7 +549,7 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 				componentId: hookId,
 				targetRefreshIntervalMs: targetIntervalMs,
 				transform: externalTransform,
-				onStateUpdate: notifyReact,
+				onReactStateSync: notifyReact,
 			});
 		},
 		[reactTs, hookId, externalTransform, targetIntervalMs],
