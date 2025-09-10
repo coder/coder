@@ -139,7 +139,7 @@ it.
    - Email: `your.email@example.com`
    - Password: Choose a strong password
 
-	You can also choose to **Continue with GitHub** instead of creating an admin account
+	You can also choose to **Continue with GitHub** instead of creating an admin account. The first user that signs in is automatically granted admin permissions. 
 
    ![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)
 
@@ -217,35 +217,52 @@ You now have:
 
 ### Get Coder Tasks Running
 
-tbd @david
+Coder Tasks is an interface that allows you to run and manage coding agents like Claude Code. Tasks become avaialable when a template has the `coder_ai_task` resource and `coder_parameter` named `AI Prompt` defined in its source code. Subsequently, any existing template can become a Task template by adding in that resource and parameter. 
 
-Coder Tasks is an interface that allows you to run and manage code agents like Claude Code. We define a task by modifying an existing template, and adding a `coder_ai_task` resource and `coder_parameter` named `AI Prompt`. In doing this, you can make any template a Task template by adding in that resource and parameter. 
-
-Let's try turning the existing **Docker Containers** template into a Task template: 
+Let's try turning the **Docker Containers** template into a Task template running Claude Code: 
 1. Head to **Templates**
-2.  by adding in the following at the botton modifying the template 
-
+1. Click into the template, and then click **Source Code** -> **Edit**
+1. Add the following code snippit to the bottom of the terraform. This defines the `coder_ai_task` resource and `coder_parameter`  
 ```
+# Claude API Key parameter
+data "coder_parameter" "claude_api_key" {
+  name         = "claude_api_key"
+  display_name = "Claude API Key"
+  description  = "Your Anthropic API key for Claude AI"
+  type         = "string"
+  default      = ""
+}
+
+# AI Prompt parameter (must be named exactly 'AI Prompt')
 data "coder_parameter" "ai_prompt" {
-    name = "AI Prompt"
-    type = "string"
+  name         = "AI Prompt"
+  display_name = "AI Prompt"
+  description  = "Optional AI prompt to customize behavior"
+  type         = "string"
+  default      = ""
 }
 
-# Multiple coder_ai_tasks can be defined in a template
+# Claude app
+resource "coder_app" "claude-code" {
+  agent_id     = coder_agent.main.id
+  slug         = "claude"
+  display_name = "Claude"
+  url          = "https://claude.ai"
+  icon         = "https://claude.ai/favicon.ico"
+  external     = true
+}
+
+# Claude AI task
 resource "coder_ai_task" "claude-code" {
-    # At most one coder ai task can be instantiated during a workspace build.
-    # Coder fails the build if it would instantiate more than 1.
-    count = data.coder_parameter.ai_prompt.value != "" ? 1 : 0
-
-    sidebar_app {
-        # which app to display in the sidebar on the task page
-        id = coder_app.claude-code.id
-    }
+  count = data.coder_parameter.ai_prompt.value != "" ? 1 : 0
+  
+  sidebar_app {
+    id = coder_app.claude-code.id
+  }
 }
+
 ```
-
-
-1. 
+1.  
 
 ## Troubleshooting
 
