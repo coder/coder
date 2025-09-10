@@ -178,7 +178,10 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 			}
 			return xerrors.Errorf("fetch deployment stats: %w", err)
 		}
-		d.Stats = &stats
+		// Only include stats if they’re not null
+		if stats.TotalUsers > 0 || stats.TotalWorkspaces > 0 || stats.TotalTemplates > 0 {
+			d.Stats = &stats
+		}
 		return nil
 	})
 
