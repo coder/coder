@@ -1,3 +1,20 @@
+-- Create new enum with 'custom' value
+CREATE TYPE new_notification_template_kind AS ENUM (
+    'system',
+    'custom'
+);
+
+-- Update the notification_templates table to use new enum
+ALTER TABLE notification_templates
+	ALTER COLUMN kind DROP DEFAULT,
+	ALTER COLUMN kind TYPE new_notification_template_kind USING (kind::text::new_notification_template_kind),
+    ALTER COLUMN kind SET DEFAULT 'system'::new_notification_template_kind;
+
+-- Drop old enum and rename new one
+DROP TYPE notification_template_kind;
+ALTER TYPE new_notification_template_kind RENAME TO notification_template_kind;
+
+-- Insert new Custom Notification template with 'custom' kind
 INSERT INTO notification_templates (
 	id,
 	name,
@@ -16,6 +33,6 @@ INSERT INTO notification_templates (
     '[]',
     'Custom Events',
     NULL,
-	'system'::notification_template_kind,
+	'custom'::notification_template_kind,
 	true
 );

@@ -3,6 +3,7 @@ package coderd
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -125,20 +126,14 @@ func (api *API) putNotificationsSettings(rw http.ResponseWriter, r *http.Request
 	httpapi.Write(r.Context(), rw, http.StatusOK, settings)
 }
 
-// @Summary Get system notification templates
-// @ID get-system-notification-templates
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Notifications
-// @Success 200 {array} codersdk.NotificationTemplate
-// @Router /notifications/templates/system [get]
-func (api *API) systemNotificationTemplates(rw http.ResponseWriter, r *http.Request) {
+// notificationTemplatesByKind gets the notification templates by kind
+func (api *API) notificationTemplatesByKind(rw http.ResponseWriter, r *http.Request, kind database.NotificationTemplateKind) {
 	ctx := r.Context()
 
-	templates, err := api.Database.GetNotificationTemplatesByKind(ctx, database.NotificationTemplateKindSystem)
+	templates, err := api.Database.GetNotificationTemplatesByKind(ctx, kind)
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to retrieve system notifications templates.",
+			Message: fmt.Sprintf("Failed to retrieve '%s' notifications templates.", kind),
 			Detail:  err.Error(),
 		})
 		return
@@ -146,6 +141,30 @@ func (api *API) systemNotificationTemplates(rw http.ResponseWriter, r *http.Requ
 
 	out := convertNotificationTemplates(templates)
 	httpapi.Write(r.Context(), rw, http.StatusOK, out)
+}
+
+// @Summary Get system notification templates
+// @ID get-system-notification-templates
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Notifications
+// @Success 200 {array} codersdk.NotificationTemplate
+// @Failure 500 {object} codersdk.Response "Failed to retrieve 'system' notifications template"
+// @Router /notifications/templates/system [get]
+func (api *API) systemNotificationTemplates(rw http.ResponseWriter, r *http.Request) {
+	api.notificationTemplatesByKind(rw, r, database.NotificationTemplateKindSystem)
+}
+
+// @Summary Get custom notification templates
+// @ID get-custom-notification-templates
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Notifications
+// @Success 200 {array} codersdk.NotificationTemplate
+// @Failure 500 {object} codersdk.Response "Failed to retrieve 'custom' notifications template"
+// @Router /notifications/templates/custom [get]
+func (api *API) customNotificationTemplates(rw http.ResponseWriter, r *http.Request) {
+	api.notificationTemplatesByKind(rw, r, database.NotificationTemplateKindCustom)
 }
 
 // @Summary Get notification dispatch methods

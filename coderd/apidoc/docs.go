@@ -1980,6 +1980,40 @@ const docTemplate = `{
                 }
             }
         },
+        "/notifications/templates/custom": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Get custom notification templates",
+                "operationId": "get-custom-notification-templates",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.NotificationTemplate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to retrieve 'custom' notifications template",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/notifications/templates/system": {
             "get": {
                 "security": [
@@ -2003,6 +2037,12 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/codersdk.NotificationTemplate"
                             }
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to retrieve 'system' notifications template",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 }
