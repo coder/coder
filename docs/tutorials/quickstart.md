@@ -217,6 +217,16 @@ You now have:
 - **A workspace** running that environment
 - **IDE access** to code remotely
 
+### What's Next?
+
+Now that you have your own workspace running, you can start exploring more advanced capabilities that Coder offers. 
+
+- [Learn more about running Coder Tasks and our recommended Best Practices](https://coder.com/docs/ai-coder/best-practices)
+
+- [Read about managing Workspaces for your team](https://coder.com/docs/user-guides/workspace-management)
+
+- [Read about implementing monitoring tools for your Coder Deployment](https://coder.com/docs/admin/monitoring)
+
 ### Get Coder Tasks Running
 
 Coder Tasks is an interface that allows you to run and manage coding agents like Claude Code. Tasks become avaialable when a template has the `coder_ai_task` resource and `coder_parameter` named `AI Prompt` defined in its source code. Subsequently, any existing template can become a Task template by adding in that resource and parameter.
