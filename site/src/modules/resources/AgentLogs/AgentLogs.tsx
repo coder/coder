@@ -26,7 +26,7 @@ const fallbackLog: WorkspaceAgentLogSource = {
 
 type AgentLogsProps = Omit<
 	ComponentProps<typeof List>,
-	"children" | "itemSize" | "itemCount" | "itemKey"
+	"children" | "itemSize" | "itemCount" | "itemKey" | "className"
 > & {
 	logs: readonly Line[];
 	sources: readonly WorkspaceAgentLogSource[];
@@ -75,7 +75,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 					className="pt-4 [&>div]:relative bg-surface-secondary"
 					itemCount={logs.length}
 					itemSize={AGENT_LOG_LINE_HEIGHT}
-					itemKey={(index) => logs[index].id || 0}
+					itemKey={(index) => logs[index]?.id || index}
 				>
 					{({ index, style }) => {
 						const log = logs[index];
@@ -124,7 +124,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 							icon = (
 								<div className="size-3.5 mr-2 flex justify-center relative shrink-0">
 									<div
-										// dashed-line class comes from LogLine
+										// dashed-line class comes from AgentLogLine component
 										className={cn(
 											"dashed-line w-0.5 rounded-[2px] bg-surface-tertiary h-full",
 											doesNextLineHaveDifferentSource && "h-1/2",
@@ -172,9 +172,8 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 	},
 );
 
-// These colors were picked at random. Feel free
-// to add more, adjust, or change! Users will not
-// depend on these colors.
+// These colors were picked at random. Feel free to add more, adjust, or change!
+// Users will not depend on these colors.
 const scriptDisplayColors: readonly string[] = [
 	"#85A3B2",
 	"#A37EB2",
