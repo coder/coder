@@ -185,18 +185,6 @@ class ReactTimeSync {
 		this.#timeSync = new TimeSync({ initialDate, isSnapshot });
 	}
 
-	#shouldInvalidateDate(): boolean {
-		if (!this.#isProviderMounted) {
-			return false;
-		}
-
-		const snap = this.#timeSync.getStateSnapshot();
-		return (
-			newReadonlyDate().getTime() - snap.getTime() >
-			ReactTimeSync.#stalenessThresholdMs
-		);
-	}
-
 	// Only safe to call inside a render with useSyncExternalStore
 	getDateSnapshot(): Date {
 		return this.#timeSync.getStateSnapshot();
@@ -244,13 +232,14 @@ class ReactTimeSync {
 		// While each component should already invalidate the Date on mount,
 		// we still need to take care of the case where a subscription got torn
 		// down and re-added because a target interval changed in a render
-		let latestSyncState: Date;
-		if (this.#shouldInvalidateDate()) {
+		let latestSyncState = this.#timeSync.getStateSnapshot();
+		const shouldInvalidateDate =
+			newReadonlyDate().getTime() - latestSyncState.getTime() >
+			ReactTimeSync.#stalenessThresholdMs;
+		if (shouldInvalidateDate) {
 			latestSyncState = this.#timeSync.invalidateStateSnapshot({
 				notificationBehavior: "onChange",
 			});
-		} else {
-			latestSyncState = this.#timeSync.getStateSnapshot();
 		}
 
 		const unsubscribe = (): void => {
