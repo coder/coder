@@ -1,7 +1,6 @@
 import { useTheme } from "@emotion/react";
 import CircularProgress from "@mui/material/CircularProgress";
 import Tooltip from "@mui/material/Tooltip";
-import { visuallyHidden } from "@mui/utils";
 import { Abbr } from "components/Abbr/Abbr";
 import { CircleHelpIcon } from "lucide-react";
 import type { FC } from "react";
@@ -34,18 +33,17 @@ export const Latency: FC<LatencyProps> = ({
 		const notAvailableText = "Latency not available";
 		return (
 			<Tooltip title={notAvailableText}>
-				<>
-					<span css={{ ...visuallyHidden }}>{notAvailableText}</span>
-
-					<CircleHelpIcon className="ml-auto size-icon-sm" style={{ color }} />
-				</>
+				<span className="ml-auto">
+					<span className="sr-only">{notAvailableText}</span>
+					<CircleHelpIcon className="size-icon-sm" style={{ color }} />
+				</span>
 			</Tooltip>
 		);
 	}
 
 	return (
 		<div className="ml-auto text-sm" style={{ color }}>
-			<span css={{ ...visuallyHidden }}>Latency: </span>
+			<span className="sr-only">Latency: </span>
 			{latency.toFixed(0)}
 			<Abbr title="milliseconds">ms</Abbr>
 		</div>
