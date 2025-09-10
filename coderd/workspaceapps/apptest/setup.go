@@ -137,8 +137,7 @@ type Details struct {
 //
 // The client is authenticated as the first user by default.
 func (d *Details) AppClient(t *testing.T) *codersdk.Client {
-	client := codersdk.New(d.PathAppBaseURL)
-	client.SetSessionToken(d.SDKClient.SessionToken())
+	client := codersdk.New(d.PathAppBaseURL, codersdk.WithSessionToken(d.SDKClient.SessionToken()))
 	forceURLTransport(t, client)
 	client.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse

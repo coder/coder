@@ -845,8 +845,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		require.NoError(t, err)
 	}
 
-	other := codersdk.New(client.URL)
-	other.SetSessionToken(sessionToken)
+	other := codersdk.New(client.URL, codersdk.WithSessionToken(sessionToken))
 	t.Cleanup(func() {
 		other.HTTPClient.CloseIdleConnections()
 	})

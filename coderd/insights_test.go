@@ -1467,8 +1467,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 				TokenName: "no-password-user-token",
 			})
 			require.NoError(t, err)
-			userClient := codersdk.New(client.URL)
-			userClient.SetSessionToken(token.Key)
+			userClient := codersdk.New(client.URL, codersdk.WithSessionToken(token.Key))
 
 			coderUser, err := userClient.User(context.Background(), user.id.String())
 			require.NoError(t, err)
