@@ -50,7 +50,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 					// top from startupLogs
 					className={cn(
 						"pt-4 [&>div]:relative bg-surface-secondary",
-						// Add extra padding so that overflow indicator doesn't
+						// Add extra padding so that overflow indicator can't
 						// fully cover up lines of text
 						overflowed && "pb-10",
 						className,
