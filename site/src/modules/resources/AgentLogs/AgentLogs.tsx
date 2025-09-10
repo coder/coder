@@ -26,7 +26,7 @@ const fallbackLog: WorkspaceAgentLogSource = {
 
 type AgentLogsProps = Omit<
 	ComponentProps<typeof List>,
-	"children" | "itemSize" | "itemCount" | "itemKey" | "className"
+	"children" | "itemSize" | "itemCount" | "itemKey"
 > & {
 	logs: readonly Line[];
 	sources: readonly WorkspaceAgentLogSource[];
@@ -34,48 +34,24 @@ type AgentLogsProps = Omit<
 };
 
 export const AgentLogs = forwardRef<List, AgentLogsProps>(
-	({ logs, sources, overflowed, ...listProps }, ref) => {
+	({ logs, sources, overflowed, className, ...listProps }, ref) => {
 		const logSourceById = Object.fromEntries(sources.map((s) => [s.id, s]));
 		const getLogSource = (id: string) => logSourceById[id] || fallbackLog;
 
 		return (
 			<div className="flex flex-col bg-surface-secondary">
-				{overflowed && (
-					<TooltipProvider delayDuration={100}>
-						<Tooltip>
-							<TooltipTrigger asChild className="max-w-fit pt-4 px-4">
-								<span>
-									<Badge variant="warning">Logs overflowed</Badge>
-								</span>
-							</TooltipTrigger>
-							<TooltipContent
-								asChild
-								className="w-full text-sm text-blue-500 text-content-secondary bg-surface-primary max-w-prose leading-relaxed m-0 p-4"
-							>
-								<p>
-									Startup logs exceeded the max size of{" "}
-									<span className="tracking-wide font-mono">1MB</span>, and will
-									not continue to be written to the database! Logs will continue
-									to be written to the{" "}
-									<span className="font-mono bg-surface-tertiary rounded-md px-1.5 py-0.5">
-										/tmp/coder-startup-script.log
-									</span>{" "}
-									file in the workspace.
-								</p>
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-				)}
-
 				<List
 					{...listProps}
 					ref={ref}
-					// We need the div selector to be able to apply the padding
-					// top from startupLogs
-					className="pt-4 [&>div]:relative bg-surface-secondary"
 					itemCount={logs.length}
 					itemSize={AGENT_LOG_LINE_HEIGHT}
 					itemKey={(index) => logs[index]?.id || index}
+					// We need the div selector to be able to apply the padding
+					// top from startupLogs
+					className={cn(
+						"pt-4 [&>div]:relative bg-surface-secondary",
+						className,
+					)}
 				>
 					{({ index, style }) => {
 						const log = logs[index];
@@ -167,6 +143,33 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 						);
 					}}
 				</List>
+
+				{overflowed && (
+					<TooltipProvider delayDuration={100}>
+						<Tooltip>
+							<TooltipTrigger asChild className="max-w-fit pt-4 px-4 self-end">
+								<span>
+									<Badge variant="warning">Logs overflowed</Badge>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent
+								asChild
+								className="w-full text-sm text-content-secondary bg-surface-primary max-w-prose leading-relaxed m-0 p-4"
+							>
+								<p>
+									Startup logs exceeded the max size of{" "}
+									<span className="tracking-wide font-mono">1MB</span>, and will
+									not continue to be written to the database! Logs will continue
+									to be written to the{" "}
+									<span className="font-mono bg-surface-tertiary rounded-md px-1.5 py-0.5">
+										/tmp/coder-startup-script.log
+									</span>{" "}
+									file in the workspace.
+								</p>
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				)}
 			</div>
 		);
 	},

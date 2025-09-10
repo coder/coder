@@ -24,6 +24,7 @@ export const Default: Story = {};
 
 export const Overflowed: Story = {
 	args: {
+		className: "max-h-[300px]",
 		overflowed: true,
 	},
 };
