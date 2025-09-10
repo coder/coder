@@ -17,7 +17,7 @@ func TestJail(t *testing.T) {
 	t.Run("Basic Usage", func(t *testing.T) {
 		t.Parallel()
 
-		// coder jail requires root privileges to run
+		// coder jail requires root privileges to run.
 		if os.Getgid() != 0 {
 			t.Skip("skipped jail test because it requires root")
 		}
@@ -34,7 +34,7 @@ func TestJail(t *testing.T) {
 			close(done)
 		}()
 
-		pty.ExpectMatch("hello")
+		pty.ExpectMatch("foo")
 
 		cancelFunc()
 		<-done
