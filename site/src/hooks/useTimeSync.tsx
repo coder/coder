@@ -229,6 +229,11 @@ class ReactTimeSync {
 			},
 		});
 
+		const unsubscribe = (): void => {
+			unsubscribeFromRootSync();
+			this.#entries.delete(componentId);
+		};
+
 		// While each component should already invalidate the Date on mount,
 		// we still need to take care of the case where a subscription got torn
 		// down and re-added because a target interval changed in a render
@@ -241,11 +246,6 @@ class ReactTimeSync {
 				notificationBehavior: "onChange",
 			});
 		}
-
-		const unsubscribe = (): void => {
-			unsubscribeFromRootSync();
-			this.#entries.delete(componentId);
-		};
 
 		this.#entries.set(componentId, {
 			unsubscribe,
