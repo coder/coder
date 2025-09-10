@@ -233,7 +233,8 @@ func (x *drpcRecorder_RecordToolUsageStream) SendAndClose(m *RecordToolUsageResp
 type DRPCMCPConfiguratorClient interface {
 	DRPCConn() drpc.Conn
 
-	RetrieveMCPServerConfigs(ctx context.Context, in *RetrieveMCPServerConfigsRequest) (*RetrieveMCPServerConfigsResponse, error)
+	GetMCPServerConfigs(ctx context.Context, in *GetMCPServerConfigsRequest) (*GetMCPServerConfigsResponse, error)
+	GetMCPServerAccessTokensBatch(ctx context.Context, in *GetMCPServerAccessTokensBatchRequest) (*GetMCPServerAccessTokensBatchResponse, error)
 }
 
 type drpcMCPConfiguratorClient struct {
@@ -246,9 +247,18 @@ func NewDRPCMCPConfiguratorClient(cc drpc.Conn) DRPCMCPConfiguratorClient {
 
 func (c *drpcMCPConfiguratorClient) DRPCConn() drpc.Conn { return c.cc }
 
-func (c *drpcMCPConfiguratorClient) RetrieveMCPServerConfigs(ctx context.Context, in *RetrieveMCPServerConfigsRequest) (*RetrieveMCPServerConfigsResponse, error) {
-	out := new(RetrieveMCPServerConfigsResponse)
-	err := c.cc.Invoke(ctx, "/proto.MCPConfigurator/RetrieveMCPServerConfigs", drpcEncoding_File_aibridged_proto_aibridged_proto{}, in, out)
+func (c *drpcMCPConfiguratorClient) GetMCPServerConfigs(ctx context.Context, in *GetMCPServerConfigsRequest) (*GetMCPServerConfigsResponse, error) {
+	out := new(GetMCPServerConfigsResponse)
+	err := c.cc.Invoke(ctx, "/proto.MCPConfigurator/GetMCPServerConfigs", drpcEncoding_File_aibridged_proto_aibridged_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *drpcMCPConfiguratorClient) GetMCPServerAccessTokensBatch(ctx context.Context, in *GetMCPServerAccessTokensBatchRequest) (*GetMCPServerAccessTokensBatchResponse, error) {
+	out := new(GetMCPServerAccessTokensBatchResponse)
+	err := c.cc.Invoke(ctx, "/proto.MCPConfigurator/GetMCPServerAccessTokensBatch", drpcEncoding_File_aibridged_proto_aibridged_proto{}, in, out)
 	if err != nil {
 		return nil, err
 	}
@@ -256,30 +266,44 @@ func (c *drpcMCPConfiguratorClient) RetrieveMCPServerConfigs(ctx context.Context
 }
 
 type DRPCMCPConfiguratorServer interface {
-	RetrieveMCPServerConfigs(context.Context, *RetrieveMCPServerConfigsRequest) (*RetrieveMCPServerConfigsResponse, error)
+	GetMCPServerConfigs(context.Context, *GetMCPServerConfigsRequest) (*GetMCPServerConfigsResponse, error)
+	GetMCPServerAccessTokensBatch(context.Context, *GetMCPServerAccessTokensBatchRequest) (*GetMCPServerAccessTokensBatchResponse, error)
 }
 
 type DRPCMCPConfiguratorUnimplementedServer struct{}
 
-func (s *DRPCMCPConfiguratorUnimplementedServer) RetrieveMCPServerConfigs(context.Context, *RetrieveMCPServerConfigsRequest) (*RetrieveMCPServerConfigsResponse, error) {
+func (s *DRPCMCPConfiguratorUnimplementedServer) GetMCPServerConfigs(context.Context, *GetMCPServerConfigsRequest) (*GetMCPServerConfigsResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
+func (s *DRPCMCPConfiguratorUnimplementedServer) GetMCPServerAccessTokensBatch(context.Context, *GetMCPServerAccessTokensBatchRequest) (*GetMCPServerAccessTokensBatchResponse, error) {
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
 type DRPCMCPConfiguratorDescription struct{}
 
-func (DRPCMCPConfiguratorDescription) NumMethods() int { return 1 }
+func (DRPCMCPConfiguratorDescription) NumMethods() int { return 2 }
 
 func (DRPCMCPConfiguratorDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
 	case 0:
-		return "/proto.MCPConfigurator/RetrieveMCPServerConfigs", drpcEncoding_File_aibridged_proto_aibridged_proto{},
+		return "/proto.MCPConfigurator/GetMCPServerConfigs", drpcEncoding_File_aibridged_proto_aibridged_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCMCPConfiguratorServer).
-					RetrieveMCPServerConfigs(
+					GetMCPServerConfigs(
 						ctx,
-						in1.(*RetrieveMCPServerConfigsRequest),
+						in1.(*GetMCPServerConfigsRequest),
 					)
-			}, DRPCMCPConfiguratorServer.RetrieveMCPServerConfigs, true
+			}, DRPCMCPConfiguratorServer.GetMCPServerConfigs, true
+	case 1:
+		return "/proto.MCPConfigurator/GetMCPServerAccessTokensBatch", drpcEncoding_File_aibridged_proto_aibridged_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCMCPConfiguratorServer).
+					GetMCPServerAccessTokensBatch(
+						ctx,
+						in1.(*GetMCPServerAccessTokensBatchRequest),
+					)
+			}, DRPCMCPConfiguratorServer.GetMCPServerAccessTokensBatch, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -289,16 +313,32 @@ func DRPCRegisterMCPConfigurator(mux drpc.Mux, impl DRPCMCPConfiguratorServer) e
 	return mux.Register(impl, DRPCMCPConfiguratorDescription{})
 }
 
-type DRPCMCPConfigurator_RetrieveMCPServerConfigsStream interface {
+type DRPCMCPConfigurator_GetMCPServerConfigsStream interface {
 	drpc.Stream
-	SendAndClose(*RetrieveMCPServerConfigsResponse) error
+	SendAndClose(*GetMCPServerConfigsResponse) error
 }
 
-type drpcMCPConfigurator_RetrieveMCPServerConfigsStream struct {
+type drpcMCPConfigurator_GetMCPServerConfigsStream struct {
 	drpc.Stream
 }
 
-func (x *drpcMCPConfigurator_RetrieveMCPServerConfigsStream) SendAndClose(m *RetrieveMCPServerConfigsResponse) error {
+func (x *drpcMCPConfigurator_GetMCPServerConfigsStream) SendAndClose(m *GetMCPServerConfigsResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_aibridged_proto_aibridged_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCMCPConfigurator_GetMCPServerAccessTokensBatchStream interface {
+	drpc.Stream
+	SendAndClose(*GetMCPServerAccessTokensBatchResponse) error
+}
+
+type drpcMCPConfigurator_GetMCPServerAccessTokensBatchStream struct {
+	drpc.Stream
+}
+
+func (x *drpcMCPConfigurator_GetMCPServerAccessTokensBatchStream) SendAndClose(m *GetMCPServerAccessTokensBatchResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_aibridged_proto_aibridged_proto{}); err != nil {
 		return err
 	}

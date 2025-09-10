@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS aibridge_interceptions (
     id UUID PRIMARY KEY,
-    initiator_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    initiator_id uuid NOT NULL,
     provider TEXT NOT NULL,
     model TEXT NOT NULL,
     started_at TIMESTAMP WITH TIME ZONE NOT NULL

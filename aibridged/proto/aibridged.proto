@@ -58,25 +58,39 @@ service Recorder {
   rpc RecordToolUsage(RecordToolUsageRequest) returns (RecordToolUsageResponse);
 }
 
-message RetrieveMCPServerConfigsRequest {
-  string user_id = 1; // UUID.
+message GetMCPServerConfigsRequest {
+  string user_id = 1; // UUID. // Not used yet, will be necessary for later RBAC purposes.
 }
 
-message RetrieveMCPServerConfigsResponse {
-  MCPServerConfig coderMCPConfig = 1;
-  repeated MCPServerConfig externalAuthMCPConfigs = 2;
+message GetMCPServerConfigsResponse {
+  MCPServerConfig coder_mcp_config = 1;
+  repeated MCPServerConfig external_auth_mcp_configs = 2;
 }
 
 message MCPServerConfig {
-  string name = 1;
+  string id = 1; // Maps to the ID of the External Auth; this ID is unique.
   string url = 2;
-  string access_token = 3;
+}
+
+message GetMCPServerAccessTokensBatchRequest {
+  string user_id = 1; // UUID.
+  repeated string mcp_server_config_ids = 2;
+}
+
+// GetMCPServerAccessTokensBatchResponse returns a map for resulting tokens or errors, indexed
+// by server ID.
+message GetMCPServerAccessTokensBatchResponse{
+  map<string, string> access_tokens = 1;
+  map<string, string> errors = 2;
 }
 
 // MCPConfigurator is responsible for retrieving any relevant data required for configuring MCP clients
 // against remote servers.
 service MCPConfigurator {
-  // RetrieveMCPServerConfigs will retrieve MCP server configurations. This may involve validating or
-  // refreshing existing access tokens synchronously.
-  rpc RetrieveMCPServerConfigs(RetrieveMCPServerConfigsRequest) returns (RetrieveMCPServerConfigsResponse);
+  // GetMCPServerConfigs will retrieve MCP server configurations.
+  rpc GetMCPServerConfigs(GetMCPServerConfigsRequest) returns (GetMCPServerConfigsResponse);
+  // GetMCPServerAccessTokensBatch will retrieve an access token for a given list of MCP servers, which may involve
+  // acquiring, validating, or refreshing tokens synchronously. The server should make every effort to
+  // parallelise this work. If a valid access token cannot be returned, an error will be provided.
+  rpc GetMCPServerAccessTokensBatch(GetMCPServerAccessTokensBatchRequest) returns (GetMCPServerAccessTokensBatchResponse);
 }

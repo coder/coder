@@ -3178,9 +3178,6 @@ COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'U
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
 
-ALTER TABLE ONLY aibridge_interceptions
-    ADD CONSTRAINT aibridge_interceptions_initiator_id_fkey FOREIGN KEY (initiator_id) REFERENCES users(id) ON DELETE CASCADE;
-
 ALTER TABLE ONLY aibridge_token_usages
     ADD CONSTRAINT aibridge_token_usages_interception_id_fkey FOREIGN KEY (interception_id) REFERENCES aibridge_interceptions(id) ON DELETE CASCADE;
 

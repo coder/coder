@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	bridgeCacheTTL = time.Hour // TODO: configurable.
-	cacheCost      = 1         // We can't know the actual size in bytes of the value (it'll change over time).
+	bridgeCacheTTL = time.Minute * 15 // TODO: configurable.
+	cacheCost      = 1                // We can't know the actual size in bytes of the value (it'll change over time).
 )
 
 // pooler describes a pool of *aibridge.RequestBridge instances from which instances can be retrieved.
@@ -126,15 +126,13 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn fu
 			return nil, xerrors.Errorf("acquire client: %w", err)
 		}
 
-		// TODO: timeout?
-		mcpSrvCfgs, err := client.RetrieveMCPServerConfigs(ctx, &proto.RetrieveMCPServerConfigsRequest{
-			UserId: req.InitiatorID.String(),
-		})
+		proxiers, err := p.setupMCPServerProxiers(ctx, client, req)
 		if err != nil {
+			// Log but don't fail; request can proceed without MCP server proxiers.
 			p.logger.Error(ctx, "failed to retrieve MCP server configs", slog.Error(err))
 		}
 
-		mcpProxyMgr := mcp.NewServerProxyManager(p.setupMCPServerProxiers(ctx, mcpSrvCfgs, req.SessionKey))
+		mcpProxyMgr := mcp.NewServerProxyManager(proxiers)
 		bridge, err = aibridge.NewRequestBridge(ctx, p.providers, p.logger, recorder, mcpProxyMgr)
 		if err != nil {
 			return nil, xerrors.Errorf("create new request bridge: %w", err)
@@ -150,46 +148,103 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn fu
 	return instance, err
 }
 
-func (p *CachedBridgePool) setupMCPServerProxiers(ctx context.Context, mcpSrvCfgs *proto.RetrieveMCPServerConfigsResponse, sessionKey string) []mcp.ServerProxier {
-	if mcpSrvCfgs == nil {
-		return nil
+func (p *CachedBridgePool) setupMCPServerProxiers(ctx context.Context, client DRPCClient, req Request) ([]mcp.ServerProxier, error) {
+	// TODO: timeout?
+	// Fetch MCP server configs.
+	mcpSrvCfgs, err := client.GetMCPServerConfigs(ctx, &proto.GetMCPServerConfigsRequest{
+		UserId: req.InitiatorID.String(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get MCP server configs: %w", err)
 	}
 
-	// TODO: support other transports besides Streamable HTTP.
+	if len(mcpSrvCfgs.GetExternalAuthMcpConfigs()) == 0 {
+		return nil, nil
+	}
 
-	proxiers := make([]mcp.ServerProxier, 0, len(mcpSrvCfgs.ExternalAuthMCPConfigs)+1) // Extra one for Coder MCP server.
+	serverIDs := make([]string, 0, len(mcpSrvCfgs.GetExternalAuthMcpConfigs()))
+	for _, cfg := range mcpSrvCfgs.GetExternalAuthMcpConfigs() {
+		serverIDs = append(serverIDs, cfg.GetId())
+	}
 
-	mcpSrvCfgs.CoderMCPConfig.AccessToken = sessionKey // TODO: document special case.
-
-	coderMCPProxy, err := p.newStreamableHTTPServerProxy(ctx, mcpSrvCfgs.CoderMCPConfig)
+	// Request a batch of access tokens, one per given server ID.
+	resp, err := client.GetMCPServerAccessTokensBatch(ctx, &proto.GetMCPServerAccessTokensBatchRequest{
+		UserId:             req.InitiatorID.String(),
+		McpServerConfigIds: serverIDs,
+	})
 	if err != nil {
-		p.logger.Warn(ctx, "failed to create MCP server proxy", slog.F("mcp_server", mcpSrvCfgs.CoderMCPConfig.Name), slog.Error(err))
+		p.logger.Warn(ctx, "failed to retrieve access token(s)", slog.F("server_ids", serverIDs), slog.Error(err))
+	}
+
+	proxiers := make([]mcp.ServerProxier, 0, len(mcpSrvCfgs.GetExternalAuthMcpConfigs())+1) // Extra one for Coder MCP server.
+
+	// Setup the Coder MCP server proxy.
+	coderMCPProxy, err := p.newStreamableHTTPServerProxy(ctx, mcpSrvCfgs.GetCoderMcpConfig(), req.SessionKey) // The session key is used to auth against our internal MCP server.
+	if err != nil {
+		p.logger.Warn(ctx, "failed to create MCP server proxy", slog.F("mcp_server_id", mcpSrvCfgs.GetCoderMcpConfig().GetId()), slog.Error(err))
 	} else {
 		proxiers = append(proxiers, coderMCPProxy)
 	}
 
-	// TODO: setup concurrently.
-	for _, cfg := range mcpSrvCfgs.ExternalAuthMCPConfigs {
-		proxy, err := p.newStreamableHTTPServerProxy(ctx, cfg)
-		if err != nil {
-			p.logger.Warn(ctx, "failed to create MCP server proxy", slog.F("mcp_server", cfg.Name), slog.Error(err))
-		} else {
+	// Concurrently setup server proxies for all External Auth-configured MCP servers.
+	var (
+		wg         sync.WaitGroup
+		proxiersMu sync.Mutex
+	)
+	for _, cfg := range mcpSrvCfgs.GetExternalAuthMcpConfigs() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			if err, ok := resp.GetErrors()[cfg.GetId()]; ok {
+				p.logger.Warn(ctx, "failed to get access token", slog.F("mcp_server_id", cfg.GetId()), slog.F("error", err))
+				return
+			}
+
+			token, ok := resp.GetAccessTokens()[cfg.GetId()]
+			if !ok {
+				p.logger.Warn(ctx, "no token found", slog.F("mcp_server_id", cfg.GetId()))
+				return
+			}
+
+			proxy, err := p.newStreamableHTTPServerProxy(ctx, cfg, token)
+			if err != nil {
+				p.logger.Warn(ctx, "failed to create MCP server proxy", slog.F("mcp_server_id", cfg.GetId()), slog.Error(err))
+				return
+			}
+
+			proxiersMu.Lock()
 			proxiers = append(proxiers, proxy)
-		}
+			proxiersMu.Unlock()
+		}()
 	}
 
-	return proxiers
+	wg.Wait()
+
+	return proxiers, nil
 }
 
-func (p *CachedBridgePool) newStreamableHTTPServerProxy(ctx context.Context, cfg *proto.MCPServerConfig) (mcp.ServerProxier, error) {
+// newStreamableHTTPServerProxy creates an MCP server capable of proxying requests using the Streamable HTTP transport.
+//
+// TODO: support SSE transport.
+func (p *CachedBridgePool) newStreamableHTTPServerProxy(ctx context.Context, cfg *proto.MCPServerConfig, accessToken string) (mcp.ServerProxier, error) {
+	// TODO: future improvement:
+	//
+	// The access token provided here may expire at any time, or the connection to the MCP server could be severed.
+	// Instead of passing through an access token directly, rather provide an interface through which to retrieve
+	// an access token imperatively. In the event of a tool call failing, we could Ping() the MCP server to establish
+	// whether the connection is still active. If not, this indicates that the access token is probably expired/revoked.
+	// (It could also mean the server has a problem, which we should account for.)
+	// The proxy could then use its interface to retrieve a new access token and re-establish a connection.
+	// For now though, the short TTL of this cache should mostly mask this problem.
 	srv, err := mcp.NewStreamableHTTPServerProxy(
-		cfg.Name,
-		cfg.Url,
+		cfg.GetId(),
+		cfg.GetUrl(),
 		// See https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization#token-requirements.
 		map[string]string{
-			"Authorization": fmt.Sprintf("Bearer %s", cfg.AccessToken),
+			"Authorization": fmt.Sprintf("Bearer %s", accessToken),
 		},
-		p.logger.Named(fmt.Sprintf("mcp-bridge-%s", cfg.Name)))
+		p.logger.Named(fmt.Sprintf("mcp-server-proxy-%s", cfg.GetId())))
 
 	if err != nil {
 		return nil, xerrors.Errorf("create streamable HTTP MCP server proxy: %w", err)
