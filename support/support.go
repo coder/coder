@@ -104,6 +104,11 @@ type Deps struct {
 	WorkspacesTotalCap int
 }
 
+// ctxKeyWorkspacesCap is used to plumb the workspace cap into DeploymentInfo
+// without changing its signature. This follows Go's context value pattern
+// for request-scoped configuration.
+type ctxKeyWorkspacesCap struct{}
+
 func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) Deployment {
 	// Note: each goroutine assigns to a different struct field, hence no mutex.
 	var (
@@ -215,7 +220,11 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 			all    []codersdk.Workspace
 			count  int
 		)
-		// Determine total cap via logger-attached context? We cannot access Deps here; cap enforced in Run via context.
+		// Early-exit cap (plumbed via context from Run; <=0 means no cap).
+		capTotal := 0
+		if v, ok := ctx.Value(ctxKeyWorkspacesCap{}).(int); ok {
+			capTotal = v
+		}
 		for {
 			resp, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{Offset: offset, Limit: limit})
 			if err != nil {
@@ -234,22 +243,30 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 				ws := &resp.Workspaces[i]
 				for _, res := range ws.LatestBuild.Resources {
 					for _, agt := range res.Agents {
+						// safe to call even if map is nil (range in sanitizeEnv would be empty)
 						sanitizeEnv(agt.EnvironmentVariables)
 					}
 				}
 			}
 			all = append(all, resp.Workspaces...)
 			count = resp.Count
+			// Stop early once we've reached the cap; trim any overflow from the last page.
+			if capTotal > 0 && len(all) >= capTotal {
+				if len(all) > capTotal {
+					all = all[:capTotal]
+				}
+				break
+			}
 			if offset+len(resp.Workspaces) >= count || len(resp.Workspaces) == 0 {
 				break
 			}
 			offset += len(resp.Workspaces)
-			// Safety cap enforced in Run
 		}
 		if d.Workspaces != nil {
 			// Replace with aggregated list
 			d.Workspaces.Workspaces = all
-			d.Workspaces.Count = len(all)
+			// Preserve server-reported total so Run() can log accurate truncation.
+			d.Workspaces.Count = count
 		}
 		return nil
 	})
@@ -605,23 +622,29 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 		}
 	}
 
-	// Enforce workspaces total cap by wrapping the client with a counting reader via context.
 	totalCap := d.WorkspacesTotalCap
-	// no special-casing for 0
+	// Make the cap available to DeploymentInfo without changing its signature.
+	ctx = context.WithValue(ctx, ctxKeyWorkspacesCap{}, totalCap)
 
 	var eg errgroup.Group
 	eg.Go(func() error {
 		di := DeploymentInfo(ctx, d.Client, d.Log)
 
-		if di.Workspaces != nil && totalCap > 0 && len(di.Workspaces.Workspaces) > totalCap {
-			di.Workspaces.Workspaces = di.Workspaces.Workspaces[:totalCap]
-			di.Workspaces.Count = len(di.Workspaces.Workspaces)
-			d.Log.Warn(
-				ctx,
-				"workspace list truncated",
-				slog.F("cap", totalCap),
-				slog.F("original_total", len(di.Workspaces.Workspaces)),
-			)
+		if di.Workspaces != nil && totalCap > 0 {
+			origTotal := di.Workspaces.Count // server-reported total
+
+			// Ensure at most 'totalCap' are returned (covers non-early-exit path).
+			if len(di.Workspaces.Workspaces) > totalCap {
+				di.Workspaces.Workspaces = di.Workspaces.Workspaces[:totalCap]
+			}
+			// If we returned fewer than the original total, log a truncation.
+			if origTotal > len(di.Workspaces.Workspaces) {
+				di.Workspaces.Count = len(di.Workspaces.Workspaces)
+				d.Log.Warn(ctx, "workspace list truncated",
+					slog.F("cap", totalCap),
+					slog.F("original_total", origTotal),
+				)
+			}
 		}
 		b.Deployment = di
 		return nil
