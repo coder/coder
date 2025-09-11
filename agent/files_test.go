@@ -305,7 +305,7 @@ func TestWriteFile(t *testing.T) {
 			error:   "\"path\" is required",
 		},
 		{
-			name:    "RelativePath",
+			name:    "RelativePathDotSlash",
 			path:    "./relative",
 			errCode: http.StatusBadRequest,
 			error:   "file path must be absolute",
