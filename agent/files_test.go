@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"testing"
 
@@ -134,7 +135,7 @@ func TestReadFile(t *testing.T) {
 			error:   "\"path\" is required",
 		},
 		{
-			name:    "RelativePath",
+			name:    "RelativePathDotSlash",
 			path:    "./relative",
 			errCode: http.StatusBadRequest,
 			error:   "file path must be absolute",
@@ -291,6 +292,11 @@ func TestWriteFile(t *testing.T) {
 	err = afero.WriteFile(fs, filePath, []byte("content"), 0o644)
 	require.NoError(t, err)
 
+	notDirErr := "not a directory"
+	if runtime.GOOS == "windows" {
+		notDirErr = "cannot find the path"
+	}
+
 	tests := []struct {
 		name    string
 		path    string
@@ -331,7 +337,7 @@ func TestWriteFile(t *testing.T) {
 			name:    "IsNotDir",
 			path:    filepath.Join(filePath, "file2"),
 			errCode: http.StatusBadRequest,
-			error:   "not a directory",
+			error:   notDirErr,
 		},
 		{
 			name:    "NoPermissionsFile",
