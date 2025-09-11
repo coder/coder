@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/serpent"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
