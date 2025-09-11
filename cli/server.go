@@ -62,8 +62,6 @@ import (
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
 
-	"github.com/coder/coder/v2/aibridged"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -1101,17 +1099,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}()
 
-			// Built in aibridge daemons.
-			if vals.AI.BridgeConfig.Enabled {
-				// NOTE: this shares the same context as the HTTP API server because it gets wired into it.
-				// See coderd/aibridge.go.
-				srv, err := newAIBridgeServer(shutdownConnsCtx, coderAPI)
-				if err != nil {
-					return xerrors.Errorf("create aibridged: %w", err)
-				}
-				coderAPI.AIBridgeServer = srv
-			}
-
 			// Updates the systemd status from activating to activated.
 			_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
 			if err != nil {
@@ -1165,19 +1152,20 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				cliui.Errorf(inv.Stderr, "Notify systemd failed: %s", err)
 			}
 
-			// Stop accepting new connections to AI Bridge without interrupting in-flight requests.
+			// Stop accepting new connections to aibridged.
 			//
-			// We have to shut down AI Bridge server before the API server, because AI Bridge server is wired into
-			// API server and therefore share a context.
-			if coderAPI.AIBridgeServer != nil {
+			// When running as an in-memory daemon, the HTTP handler is wired into the
+			// coderd API and therefore is subject to its context. Calling shutdown on
+			// aibridged will not affect in-flight requests but those will be closed once
+			// the API server is shutdown below.
+			if current := coderAPI.AIBridgeServer.Load(); current != nil {
 				r.Verbosef(inv, "Shutting down aibridge daemon...")
 
-				// Give in-flight requests 5 seconds to complete before shutting down.
-				err = shutdownWithTimeout(coderAPI.AIBridgeServer.Shutdown, 5*time.Second)
+				err = shutdownWithTimeout((*current).Shutdown, 5*time.Second)
 				if err != nil {
 					cliui.Errorf(inv.Stderr, "Shutdown aibridge daemon failed: %s\n", err)
 				} else {
-					_ = coderAPI.AIBridgeServer.Close()
+					_ = (*current).Close()
 					r.Verbosef(inv, "Gracefully shut down aibridge daemon")
 				}
 			}
@@ -1186,7 +1174,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// in-flight requests, give in-flight requests 5 seconds to
 			// complete.
 			cliui.Info(inv.Stdout, "Shutting down API server..."+"\n")
-			err = shutdownWithTimeout(httpServer.Shutdown, 3*time.Second) // TODO: why do we call shutdownWithTimeout on httpServer.Shutdown *twice*?
+			err = shutdownWithTimeout(httpServer.Shutdown, 3*time.Second)
 			if err != nil {
 				cliui.Errorf(inv.Stderr, "API server shutdown took longer than 3s: %s\n", err)
 			} else {
@@ -1347,20 +1335,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	)
 
 	return serverCmd
-}
-
-func newAIBridgeServer(ctx context.Context, coderAPI *coderd.API) (*aibridged.Server, error) {
-	pool, err := aibridged.NewCachedBridgePool(coderAPI.DeploymentValues.AI.BridgeConfig, 100, coderAPI.Logger.Named("aibridge-pool")) // TODO: configurable size.
-	if err != nil {
-		return nil, xerrors.Errorf("create aibridge pool: %w", err)
-	}
-	daemon, err := aibridged.New(func(dialCtx context.Context) (aibridged.DRPCClient, error) {
-		return coderAPI.CreateInMemoryAIBridgeDaemon(dialCtx)
-	}, pool, coderAPI.Logger.Named("aibridged"))
-	if err != nil {
-		return nil, xerrors.Errorf("create aibridge daemon: %w", err)
-	}
-	return daemon, nil
 }
 
 // templateHelpers builds a set of functions which can be called in templates.

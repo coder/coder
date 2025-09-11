@@ -97,3 +97,16 @@ service MCPConfigurator {
   // parallelise this work. If a valid access token cannot be returned, an error will be provided.
   rpc GetMCPServerAccessTokensBatch(GetMCPServerAccessTokensBatchRequest) returns (GetMCPServerAccessTokensBatchResponse);
 }
+
+message AuthenticateKeyRequest {
+  string key = 1;
+}
+
+message AuthenticateKeyResponse {
+  string owner_id = 1;
+}
+
+service Authenticator {
+  // TODO: rename?
+  rpc AuthenticateKey(AuthenticateKeyRequest) returns (AuthenticateKeyResponse);
+}

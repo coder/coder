@@ -9,33 +9,24 @@ import (
 	"time"
 
 	"golang.org/x/xerrors"
-	"storj.io/drpc"
 
 	"cdr.dev/slog"
 	"github.com/coder/retry"
 
-	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
+
+	"github.com/coder/aibridge"
 )
 
-// DRPCServer is the union of various service interfaces the server must support.
-type DRPCServer interface {
-	proto.DRPCRecorderServer
-	proto.DRPCMCPConfiguratorServer
+type Handler interface {
+	http.Handler
+
+	Shutdown(context.Context) error
+	Close() error
 }
 
-// DRPCClient is the union of various service interfaces the client must support.
-type DRPCClient interface {
-	proto.DRPCRecorderClient
-	proto.DRPCMCPConfiguratorClient
-}
-
-var _ DRPCClient = &Client{}
-
-type Dialer func(ctx context.Context) (DRPCClient, error)
-
-// Server is the implementation which fulfills the proto.DRPCRecorderServer (TODO: add others) interface.
-// It is responsible for communication with the // TODO: ???
+// Server is the implementation which fulfills the DRPCServer interface.
+// It is responsible for communication with the
 type Server struct {
 	clientDialer Dialer
 	clientCh     chan DRPCClient
@@ -63,16 +54,21 @@ type Server struct {
 	shuttingDownCh chan struct{}
 }
 
-func New(rpcDialer Dialer, requestBridgePool pooler, logger slog.Logger) (*Server, error) {
+func New(rpcDialer Dialer, cfg aibridge.Config, logger slog.Logger) (*Server, error) {
 	if rpcDialer == nil {
 		return nil, xerrors.Errorf("nil rpcDialer given")
+	}
+
+	pool, err := NewCachedBridgePool(cfg, logger.Named("aibridge-pool")) // TODO: configurable size.
+	if err != nil {
+		return nil, xerrors.Errorf("create aibridge pool: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	daemon := &Server{
 		logger:            logger,
 		clientDialer:      rpcDialer,
-		requestBridgePool: requestBridgePool,
+		requestBridgePool: pool,
 		clientCh:          make(chan DRPCClient),
 		closeContext:      ctx,
 		closeCancel:       cancel,
@@ -231,13 +227,20 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return err
 }
 
-type Client struct {
-	Conn drpc.Conn
+var DefaultHandler Handler = &NoopHandler{}
 
-	proto.DRPCRecorderClient
-	proto.DRPCMCPConfiguratorClient
+var _ Handler = &NoopHandler{}
+
+type NoopHandler struct{}
+
+func (*NoopHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+	http.Error(w, "no aibridged server", http.StatusBadGateway)
 }
 
-func (c *Client) DRPCConn() drpc.Conn {
-	return c.Conn
+func (*NoopHandler) Shutdown(context.Context) error {
+	return nil
+}
+
+func (*NoopHandler) Close() error {
+	return nil
 }

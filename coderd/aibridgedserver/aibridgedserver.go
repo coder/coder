@@ -15,14 +15,16 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/v2/aibridged"
 	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/httpmw"
 )
 
-var _ aibridged.DRPCServer = &Server{}
+var _ proto.DRPCRecorderServer = &Server{}
+var _ proto.DRPCMCPConfiguratorServer = &Server{}
+var _ proto.DRPCAuthenticatorServer = &Server{}
 
 type store interface {
 	// Recorder-related queries.
@@ -33,6 +35,9 @@ type store interface {
 
 	// MCPConfigurator-related queries.
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error)
+
+	// Authenticator-related queries.
+	GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error)
 }
 
 type Server struct {
@@ -285,4 +290,25 @@ func (s *Server) GetMCPServerAccessTokensBatch(ctx context.Context, in *proto.Ge
 		AccessTokens: tokens,
 		Errors:       tokenErrs,
 	}, errs
+}
+
+// AuthenticateKey authenticates a given session/API key and returns the user ID to which it belongs.
+func (s *Server) AuthenticateKey(ctx context.Context, in *proto.AuthenticateKeyRequest) (*proto.AuthenticateKeyResponse, error) {
+	//nolint:gocritic // AIBridged has specific authz rules.
+	ctx = dbauthz.AsAIBridged(ctx)
+
+	id, _, err := httpmw.SplitAPIToken(in.GetKey())
+	if err != nil {
+		return nil, xerrors.Errorf("split API token: %w", err)
+	}
+
+	key, err := s.store.GetAPIKeyByID(ctx, id)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to retrieve API key by id", slog.F("id", id), slog.Error(err))
+		return nil, xerrors.Errorf("get key by id: %w", err)
+	}
+
+	return &proto.AuthenticateKeyResponse{
+		OwnerId: key.UserID.String(),
+	}, nil
 }

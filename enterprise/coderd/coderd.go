@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/aibridged"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
@@ -61,6 +62,8 @@ import (
 	"github.com/coder/coder/v2/enterprise/tailnet"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	agpltailnet "github.com/coder/coder/v2/tailnet"
+
+	"github.com/coder/aibridge"
 )
 
 // New constructs an Enterprise coderd API instance.
@@ -615,6 +618,20 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	err = api.PrometheusRegistry.Register(api.licenseMetricsCollector)
 	if err != nil {
 		return nil, xerrors.Errorf("unable to register license metrics collector")
+	}
+
+	// In-memory aibridge daemons.
+	// TODO: license entitlement.
+	if api.DeploymentValues.AI.BridgeConfig.Enabled {
+		if api.AGPL.Experiments.Enabled(codersdk.ExperimentAIBridge) {
+			srv, err := newAIBridgeServer(api.AGPL)
+			if err != nil {
+				return nil, xerrors.Errorf("create aibridged: %w", err)
+			}
+			api.AGPL.AIBridgeServer.Store(&srv)
+		} else {
+			api.Logger.Error(ctx, fmt.Sprintf("aibridge enabled but experiment %q not enabled", codersdk.ExperimentAIBridge))
+		}
 	}
 
 	err = api.updateEntitlements(ctx)
@@ -1274,4 +1291,32 @@ func (api *API) setupPrebuilds(featureEnabled bool) (agplprebuilds.Reconciliatio
 	reconciler := prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.AGPL.FileCache, api.DeploymentValues.Prebuilds,
 		api.Logger.Named("prebuilds"), quartz.NewReal(), api.PrometheusRegistry, api.NotificationsEnqueuer, api.AGPL.BuildUsageChecker)
 	return reconciler, prebuilds.NewEnterpriseClaimer(api.Database)
+}
+
+func newAIBridgeServer(coderAPI *coderd.API) (aibridged.Handler, error) {
+	srv, err := aibridged.New(
+		func(dialCtx context.Context) (aibridged.DRPCClient, error) {
+			return coderAPI.CreateInMemoryAIBridgeDaemon(dialCtx)
+		},
+		convertAIBridgeDeploymentValues(coderAPI.DeploymentValues.AI.BridgeConfig),
+		coderAPI.Logger.Named("aibridged"),
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("create aibridge daemon: %w", err)
+	}
+	return srv, nil
+}
+
+func convertAIBridgeDeploymentValues(vals codersdk.AIBridgeConfig) aibridge.Config {
+	return aibridge.Config{
+		OpenAI: aibridge.ProviderConfig{
+			BaseURL: vals.OpenAI.BaseURL.String(),
+			Key:     vals.OpenAI.Key.String(),
+		},
+		Anthropic: aibridge.ProviderConfig{
+			BaseURL: vals.Anthropic.BaseURL.String(),
+			Key:     vals.Anthropic.Key.String(),
+		},
+		CacheSize: 100, // TODO: configurable.
+	}
 }

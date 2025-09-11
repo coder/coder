@@ -636,6 +636,7 @@ func New(options *Options) *API {
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	api.PrebuildsClaimer.Store(&prebuilds.DefaultClaimer)
 	api.PrebuildsReconciler.Store(&prebuilds.DefaultReconciler)
+	api.AIBridgeServer.Store(&aibridged.DefaultHandler) // TODO: close.
 	buildInfo := codersdk.BuildInfoResponse{
 		ExternalURL:           buildinfo.ExternalURL(),
 		Version:               buildinfo.Version(),
@@ -1011,28 +1012,40 @@ func New(options *Options) *API {
 
 	// Experimental routes are not guaranteed to be stable and may change at any time.
 	r.Route("/api/experimental", func(r chi.Router) {
-		r.Use(apiKeyMiddleware)
-		r.Route("/aitasks", func(r chi.Router) {
-			r.Get("/prompts", api.aiTasksPrompts)
-		})
-		r.Route("/tasks", func(r chi.Router) {
-			r.Use(apiRateLimiter)
+		r.Group(func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Route("/aitasks", func(r chi.Router) {
+				r.Get("/prompts", api.aiTasksPrompts)
+			})
+			r.Route("/tasks", func(r chi.Router) {
+				r.Use(apiRateLimiter)
 
-			r.Get("/", api.tasksList)
+				r.Get("/", api.tasksList)
 
-			r.Route("/{user}", func(r chi.Router) {
-				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
-				r.Get("/{id}", api.taskGet)
-				r.Delete("/{id}", api.taskDelete)
-				r.Post("/", api.tasksCreate)
+				r.Route("/{user}", func(r chi.Router) {
+					r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+					r.Get("/{id}", api.taskGet)
+					r.Delete("/{id}", api.taskDelete)
+					r.Post("/", api.tasksCreate)
+				})
+			})
+			r.Route("/mcp", func(r chi.Router) {
+				r.Use(
+					httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP),
+				)
+				// MCP HTTP transport endpoint with mandatory authentication
+				r.Mount("/http", api.mcpHTTPHandler())
 			})
 		})
-		r.Route("/mcp", func(r chi.Router) {
-			r.Use(
-				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP),
-			)
-			// MCP HTTP transport endpoint with mandatory authentication
-			r.Mount("/http", api.mcpHTTPHandler())
+
+		// aibridge does not use any middlewares.
+		r.Group(func(r chi.Router) {
+			r.Use(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentAIBridge))
+			r.Route("/aibridge", func(r chi.Router) {
+				r.HandleFunc("/*", func(w http.ResponseWriter, r *http.Request) {
+					http.StripPrefix("/api/experimental/aibridge", *api.AIBridgeServer.Load()).ServeHTTP(w, r)
+				})
+			})
 		})
 	})
 
@@ -1593,14 +1606,6 @@ func New(options *Options) *API {
 		r.Route("/init-script", func(r chi.Router) {
 			r.Get("/{os}/{arch}", api.initScript)
 		})
-		r.Route("/aibridge", func(r chi.Router) {
-			r.Use(
-				httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentAIBridge),
-				aibridged.AuthMiddleware(api.Database, api.Logger),
-			)
-			r.HandleFunc("/openai/*", api.bridgeAIRequest)
-			r.HandleFunc("/anthropic/*", api.bridgeAIRequest)
-		})
 	})
 
 	if options.SwaggerEndpoint {
@@ -1762,7 +1767,7 @@ type API struct {
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
 
-	AIBridgeServer *aibridged.Server
+	AIBridgeServer atomic.Pointer[aibridged.Handler]
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -2024,6 +2029,10 @@ func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context) (client ai
 	if err != nil {
 		return nil, xerrors.Errorf("register MCP configurator service: %w", err)
 	}
+	err = aibridgedproto.DRPCRegisterAuthenticator(mux, srv)
+	if err != nil {
+		return nil, xerrors.Errorf("register authenticator service: %w", err)
+	}
 	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
 			Manager: drpcsdk.DefaultDRPCOptions(nil),
@@ -2057,6 +2066,7 @@ func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context) (client ai
 		Conn:                      clientSession,
 		DRPCRecorderClient:        aibridgedproto.NewDRPCRecorderClient(clientSession),
 		DRPCMCPConfiguratorClient: aibridgedproto.NewDRPCMCPConfiguratorClient(clientSession),
+		DRPCAuthenticatorClient:   aibridgedproto.NewDRPCAuthenticatorClient(clientSession),
 	}, nil
 }
 

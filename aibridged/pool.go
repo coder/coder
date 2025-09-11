@@ -13,7 +13,6 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/aibridged/proto"
-	"github.com/coder/coder/v2/codersdk"
 
 	"github.com/coder/aibridge"
 	"github.com/coder/aibridge/mcp"
@@ -42,12 +41,12 @@ type CachedBridgePool struct {
 	shuttingDownCh chan struct{}
 }
 
-func NewCachedBridgePool(cfg codersdk.AIBridgeConfig, instances int64, logger slog.Logger) (*CachedBridgePool, error) {
+func NewCachedBridgePool(cfg aibridge.Config, logger slog.Logger) (*CachedBridgePool, error) {
 	cache, err := ristretto.NewCache(&ristretto.Config[string, *aibridge.RequestBridge]{
 		// TODO: the cost seems to actually take into account the size of the object in bytes...? Stop at breakpoint and see.
-		NumCounters: instances * 10,        // Docs suggest setting this 10x number of keys.
-		MaxCost:     instances * cacheCost, // Up to n instances.
-		BufferItems: 64,                    // Sticking with recommendation from docs.
+		NumCounters: cfg.CacheSize * 10,        // Docs suggest setting this 10x number of keys.
+		MaxCost:     cfg.CacheSize * cacheCost, // Up to n instances.
+		BufferItems: 64,                        // Sticking with recommendation from docs.
 		OnEvict: func(item *ristretto.Item[*aibridge.RequestBridge]) {
 			if item == nil || item.Value == nil {
 				return
@@ -67,8 +66,8 @@ func NewCachedBridgePool(cfg codersdk.AIBridgeConfig, instances int64, logger sl
 	return &CachedBridgePool{
 		cache: cache,
 		providers: []aibridge.Provider{
-			aibridge.NewOpenAIProvider(cfg.OpenAI.BaseURL.String(), cfg.OpenAI.Key.String()),
-			aibridge.NewAnthropicProvider(cfg.Anthropic.BaseURL.String(), cfg.Anthropic.Key.String()),
+			aibridge.NewOpenAIProvider(cfg.OpenAI),
+			aibridge.NewAnthropicProvider(cfg.Anthropic),
 		},
 		logger: logger,
 

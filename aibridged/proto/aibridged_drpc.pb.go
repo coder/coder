@@ -344,3 +344,78 @@ func (x *drpcMCPConfigurator_GetMCPServerAccessTokensBatchStream) SendAndClose(m
 	}
 	return x.CloseSend()
 }
+
+type DRPCAuthenticatorClient interface {
+	DRPCConn() drpc.Conn
+
+	AuthenticateKey(ctx context.Context, in *AuthenticateKeyRequest) (*AuthenticateKeyResponse, error)
+}
+
+type drpcAuthenticatorClient struct {
+	cc drpc.Conn
+}
+
+func NewDRPCAuthenticatorClient(cc drpc.Conn) DRPCAuthenticatorClient {
+	return &drpcAuthenticatorClient{cc}
+}
+
+func (c *drpcAuthenticatorClient) DRPCConn() drpc.Conn { return c.cc }
+
+func (c *drpcAuthenticatorClient) AuthenticateKey(ctx context.Context, in *AuthenticateKeyRequest) (*AuthenticateKeyResponse, error) {
+	out := new(AuthenticateKeyResponse)
+	err := c.cc.Invoke(ctx, "/proto.Authenticator/AuthenticateKey", drpcEncoding_File_aibridged_proto_aibridged_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+type DRPCAuthenticatorServer interface {
+	AuthenticateKey(context.Context, *AuthenticateKeyRequest) (*AuthenticateKeyResponse, error)
+}
+
+type DRPCAuthenticatorUnimplementedServer struct{}
+
+func (s *DRPCAuthenticatorUnimplementedServer) AuthenticateKey(context.Context, *AuthenticateKeyRequest) (*AuthenticateKeyResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
+type DRPCAuthenticatorDescription struct{}
+
+func (DRPCAuthenticatorDescription) NumMethods() int { return 1 }
+
+func (DRPCAuthenticatorDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
+	switch n {
+	case 0:
+		return "/proto.Authenticator/AuthenticateKey", drpcEncoding_File_aibridged_proto_aibridged_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAuthenticatorServer).
+					AuthenticateKey(
+						ctx,
+						in1.(*AuthenticateKeyRequest),
+					)
+			}, DRPCAuthenticatorServer.AuthenticateKey, true
+	default:
+		return "", nil, nil, nil, false
+	}
+}
+
+func DRPCRegisterAuthenticator(mux drpc.Mux, impl DRPCAuthenticatorServer) error {
+	return mux.Register(impl, DRPCAuthenticatorDescription{})
+}
+
+type DRPCAuthenticator_AuthenticateKeyStream interface {
+	drpc.Stream
+	SendAndClose(*AuthenticateKeyResponse) error
+}
+
+type drpcAuthenticator_AuthenticateKeyStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAuthenticator_AuthenticateKeyStream) SendAndClose(m *AuthenticateKeyResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_aibridged_proto_aibridged_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
