@@ -162,7 +162,6 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			}
 
 			// Resolve template by name if provided (captures active version)
-			// No --org flag: support "org/template" or search memberships.
 			// Fallback: if canonical name lookup fails, match DisplayName (case-insensitive).
 			if templateName != "" {
 				id, err := resolveTemplateID(inv.Context(), client, templateName)
@@ -367,7 +366,7 @@ func summarizeBundle(inv *serpent.Invocation, bun *support.Bundle) {
 
 	clientNetcheckSummary := bun.Network.Netcheck.Summarize("Client netcheck:", docsURL)
 	if len(clientNetcheckSummary) > 0 {
-		cliui.Warn(inv.Stdout, "Networking issues detected:", clientNetcheckSummary...)
+		cliui.Warn(inv.Stdout, "Networking issues detected:", deployHealthSummary...)
 	}
 }
 
