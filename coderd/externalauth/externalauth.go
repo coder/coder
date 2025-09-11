@@ -84,6 +84,14 @@ type Config struct {
 	// MCPURL is the endpoint that clients must use to communicate with the associated
 	// MCP server.
 	MCPURL string
+	// MCPToolAllowlistPattern is a [regexp.Regexp] to match tools which are explicitly allowed to be
+	// injected into Coder AI Bridge upstream requests.
+	// In the case of conflicts, [MCPToolDenylistPattern] overrides items evaluated by this list.
+	MCPToolAllowlistPattern *regexp.Regexp
+	// MCPToolAllowlistPattern is a [regexp.Regexp] to match tools which are explicitly NOT allowed to be
+	// injected into Coder AI Bridge upstream requests.
+	// In the case of conflicts, items evaluated by this list override [MCPToolAllowlistPattern].
+	MCPToolDenylistPattern *regexp.Regexp
 }
 
 // GenerateTokenExtra generates the extra token data to store in the database.
@@ -611,6 +619,21 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 			instrumented = instrument.NewGithub(entry.ID, oauthConfig)
 		}
 
+		var mcpToolAllow *regexp.Regexp
+		var mcpToolDeny *regexp.Regexp
+		if entry.MCPToolAllowlist != "" {
+			mcpToolAllow, err = regexp.Compile(entry.MCPToolAllowlist)
+			if err != nil {
+				return nil, xerrors.Errorf("compile MCP tool allowlist for external auth provider %q: %w", entry.ID, entry.MCPToolAllowlist)
+			}
+		}
+		if entry.MCPToolDenylist != "" {
+			mcpToolDeny, err = regexp.Compile(entry.MCPToolDenylist)
+			if err != nil {
+				return nil, xerrors.Errorf("compile MCP tool denylist for external auth provider %q: %w", entry.ID, entry.MCPToolDenylist)
+			}
+		}
+
 		cfg := &Config{
 			InstrumentedOAuth2Config: instrumented,
 			ID:                       entry.ID,
@@ -624,6 +647,8 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 			DisplayIcon:              entry.DisplayIcon,
 			ExtraTokenKeys:           entry.ExtraTokenKeys,
 			MCPURL:                   entry.MCPURL,
+			MCPToolAllowlistPattern:  mcpToolAllow,
+			MCPToolDenylistPattern:   mcpToolDeny,
 		}
 
 		if entry.DeviceFlow {

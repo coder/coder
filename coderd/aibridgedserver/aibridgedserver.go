@@ -184,9 +184,19 @@ func (s *Server) marshalMetadata(in map[string]*anypb.Any) []byte {
 func (s *Server) GetMCPServerConfigs(ctx context.Context, _ *proto.GetMCPServerConfigsRequest) (*proto.GetMCPServerConfigsResponse, error) {
 	cfgs := make([]*proto.MCPServerConfig, 0, len(s.externalAuthConfigs))
 	for _, eac := range s.externalAuthConfigs {
+		var allowlist, denylist string
+		if eac.MCPToolAllowlistPattern != nil {
+			allowlist = eac.MCPToolAllowlistPattern.String()
+		}
+		if eac.MCPToolDenylistPattern != nil {
+			denylist = eac.MCPToolDenylistPattern.String()
+		}
+
 		cfgs = append(cfgs, &proto.MCPServerConfig{
-			Id:  eac.ID,
-			Url: eac.MCPURL,
+			Id:            eac.ID,
+			Url:           eac.MCPURL,
+			ToolAllowlist: allowlist,
+			ToolDenylist:  denylist,
 		})
 	}
 

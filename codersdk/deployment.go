@@ -738,6 +738,8 @@ type ExternalAuthConfig struct {
 	DeviceFlow          bool     `json:"device_flow" yaml:"device_flow"`
 	DeviceCodeURL       string   `json:"device_code_url" yaml:"device_code_url"`
 	MCPURL              string   `json:"mcp_url" yaml:"mcp_url"`
+	MCPToolAllowlist    string   `json:"mcp_tool_allowlist" yaml:"mcp_tool_allowlist"`
+	MCPToolDenylist     string   `json:"mcp_tool_denylist" yaml:"mcp_tool_denylist"`
 	// Regex allows API requesters to match an auth config by
 	// a string (e.g. coder.com) instead of by it's type.
 	//

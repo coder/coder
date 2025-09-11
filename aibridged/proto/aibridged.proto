@@ -71,6 +71,8 @@ message GetMCPServerConfigsResponse {
 message MCPServerConfig {
   string id = 1; // Maps to the ID of the External Auth; this ID is unique.
   string url = 2;
+  string tool_allowlist = 3;
+  string tool_denylist = 4;
 }
 
 message GetMCPServerAccessTokensBatchRequest {

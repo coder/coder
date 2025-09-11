@@ -24,6 +24,8 @@ const meta: Meta<typeof ExternalAuthSettingsPageView> = {
 					display_icon: "",
 					display_name: "GitHub",
 					mcp_url: "",
+					mcp_tool_allowlist: "",
+					mcp_tool_denylist: "",
 				},
 			],
 		},

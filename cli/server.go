@@ -2763,6 +2763,10 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 			provider.DisplayIcon = v.Value
 		case "MCP_URL":
 			provider.MCPURL = v.Value
+		case "MCP_TOOL_ALLOWLIST":
+			provider.MCPToolAllowlist = v.Value
+		case "MCP_TOOL_DENYLIST":
+			provider.MCPToolDenylist = v.Value
 		}
 		providers[providerNum] = provider
 	}

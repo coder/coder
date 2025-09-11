@@ -254,6 +254,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "display_icon": "string",
           "display_name": "string",
           "id": "string",
+          "mcp_tool_allowlist": "string",
+          "mcp_tool_denylist": "string",
           "mcp_url": "string",
           "no_refresh": true,
           "regex": "string",

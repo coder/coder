@@ -1005,6 +1005,8 @@ export interface ExternalAuthConfig {
 	readonly device_flow: boolean;
 	readonly device_code_url: string;
 	readonly mcp_url: string;
+	readonly mcp_tool_allowlist: string;
+	readonly mcp_tool_denylist: string;
 	readonly regex: string;
 	readonly display_name: string;
 	readonly display_icon: string;

@@ -2325,6 +2325,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "display_icon": "string",
           "display_name": "string",
           "id": "string",
+          "mcp_tool_allowlist": "string",
+          "mcp_tool_denylist": "string",
           "mcp_url": "string",
           "no_refresh": true,
           "regex": "string",
@@ -2826,6 +2828,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "display_icon": "string",
         "display_name": "string",
         "id": "string",
+        "mcp_tool_allowlist": "string",
+        "mcp_tool_denylist": "string",
         "mcp_url": "string",
         "no_refresh": true,
         "regex": "string",
@@ -3529,6 +3533,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "display_icon": "string",
   "display_name": "string",
   "id": "string",
+  "mcp_tool_allowlist": "string",
+  "mcp_tool_denylist": "string",
   "mcp_url": "string",
   "no_refresh": true,
   "regex": "string",
@@ -3554,6 +3560,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `display_icon`          | string  | false    |              | Display icon is a URL to an icon to display in the UI.                                  |
 | `display_name`          | string  | false    |              | Display name is shown in the UI to identify the auth config.                            |
 | `id`                    | string  | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided. |
+| `mcp_tool_allowlist`    | string  | false    |              |                                                                                         |
+| `mcp_tool_denylist`     | string  | false    |              |                                                                                         |
 | `mcp_url`               | string  | false    |              |                                                                                         |
 | `no_refresh`            | boolean | false    |              |                                                                                         |
 |`regex`|string|false||Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type.
@@ -12811,6 +12819,8 @@ None
       "display_icon": "string",
       "display_name": "string",
       "id": "string",
+      "mcp_tool_allowlist": "string",
+      "mcp_tool_denylist": "string",
       "mcp_url": "string",
       "no_refresh": true,
       "regex": "string",

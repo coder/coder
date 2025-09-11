@@ -3,6 +3,7 @@ package aibridged
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sync"
 	"time"
 
@@ -228,6 +229,23 @@ func (p *CachedBridgePool) setupMCPServerProxiers(ctx context.Context, client DR
 //
 // TODO: support SSE transport.
 func (p *CachedBridgePool) newStreamableHTTPServerProxy(ctx context.Context, cfg *proto.MCPServerConfig, accessToken string) (mcp.ServerProxier, error) {
+	var (
+		allowlist, denylist *regexp.Regexp
+		err                 error
+	)
+	if cfg.GetToolAllowlist() != "" {
+		allowlist, err = regexp.Compile(cfg.GetToolAllowlist())
+		if err != nil {
+			return nil, xerrors.Errorf("compile MCP tool allowlist: %w", err)
+		}
+	}
+	if cfg.GetToolDenylist() != "" {
+		denylist, err = regexp.Compile(cfg.GetToolDenylist())
+		if err != nil {
+			return nil, xerrors.Errorf("compile MCP tool denylist: %w", err)
+		}
+	}
+
 	// TODO: future improvement:
 	//
 	// The access token provided here may expire at any time, or the connection to the MCP server could be severed.
@@ -238,13 +256,16 @@ func (p *CachedBridgePool) newStreamableHTTPServerProxy(ctx context.Context, cfg
 	// The proxy could then use its interface to retrieve a new access token and re-establish a connection.
 	// For now though, the short TTL of this cache should mostly mask this problem.
 	srv, err := mcp.NewStreamableHTTPServerProxy(
+		p.logger.Named(fmt.Sprintf("mcp-server-proxy-%s", cfg.GetId())),
 		cfg.GetId(),
 		cfg.GetUrl(),
 		// See https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization#token-requirements.
 		map[string]string{
 			"Authorization": fmt.Sprintf("Bearer %s", accessToken),
 		},
-		p.logger.Named(fmt.Sprintf("mcp-server-proxy-%s", cfg.GetId())))
+		allowlist,
+		denylist,
+	)
 
 	if err != nil {
 		return nil, xerrors.Errorf("create streamable HTTP MCP server proxy: %w", err)

@@ -13166,6 +13166,12 @@ const docTemplate = `{
                     "description": "ID is a unique identifier for the auth config.\nIt defaults to ` + "`" + `type` + "`" + ` when not provided.",
                     "type": "string"
                 },
+                "mcp_tool_allowlist": {
+                    "type": "string"
+                },
+                "mcp_tool_denylist": {
+                    "type": "string"
+                },
                 "mcp_url": {
                     "type": "string"
                 },
