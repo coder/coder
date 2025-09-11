@@ -367,7 +367,7 @@ func (api *API) postCustomNotification(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Validate request: require `content` and at least one non-empty `title` or `message`.
+	// Validate request: require `content` and non-empty `title` and `message`
 	if err := req.Validate(); err != nil {
 		api.Logger.Error(ctx, "send custom notification: validation failed", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

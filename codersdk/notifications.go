@@ -302,18 +302,20 @@ func (c CustomNotificationRequest) Validate() error {
 	if c.Content == nil {
 		return xerrors.Errorf("content is required")
 	}
-	if strings.TrimSpace(c.Content.Title) == "" &&
-		strings.TrimSpace(c.Content.Message) == "" {
-		return xerrors.Errorf("provide a non-empty 'content.title' or 'content.message'")
-	}
+	return c.Content.Validate()
+}
 
-	if len(c.Content.Title) > maxCustomNotificationTitleLen {
+func (c CustomNotificationContent) Validate() error {
+	if strings.TrimSpace(c.Title) == "" ||
+		strings.TrimSpace(c.Message) == "" {
+		return xerrors.Errorf("provide a non-empty 'content.title' and 'content.message'")
+	}
+	if len(c.Title) > maxCustomNotificationTitleLen {
 		return xerrors.Errorf("'content.title' must be less than %d characters", maxCustomNotificationTitleLen)
 	}
-	if len(c.Content.Message) > maxCustomNotificationMessageLen {
+	if len(c.Message) > maxCustomNotificationMessageLen {
 		return xerrors.Errorf("'content.message' must be less than %d characters", maxCustomNotificationMessageLen)
 	}
-
 	return nil
 }
 
