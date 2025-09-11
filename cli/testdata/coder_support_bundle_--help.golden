@@ -14,6 +14,11 @@ OPTIONS:
           File path for writing the generated support bundle. Defaults to
           coder-support-$(date +%s).zip.
 
+      --template string, $CODER_SUPPORT_BUNDLE_TEMPLATE
+          Template name to include in the support bundle. Use
+          org_name/template_name if template name is reused across multiple
+          organizations.
+
       --url-override string, $CODER_SUPPORT_BUNDLE_URL_OVERRIDE
           Override the URL to your Coder deployment. This may be useful, for
           example, if you need to troubleshoot a specific Coder replica.

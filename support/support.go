@@ -30,12 +30,13 @@ import (
 // Even though we do attempt to sanitize data, it may still contain
 // sensitive information and should thus be treated as secret.
 type Bundle struct {
-	Deployment Deployment `json:"deployment"`
-	Network    Network    `json:"network"`
-	Workspace  Workspace  `json:"workspace"`
-	Agent      Agent      `json:"agent"`
-	Logs       []string   `json:"logs"`
-	CLILogs    []byte     `json:"cli_logs"`
+	Deployment    Deployment   `json:"deployment"`
+	Network       Network      `json:"network"`
+	Workspace     Workspace    `json:"workspace"`
+	Agent         Agent        `json:"agent"`
+	Logs          []string     `json:"logs"`
+	CLILogs       []byte       `json:"cli_logs"`
+	NamedTemplate TemplateDump `json:"named_template"`
 }
 
 type Deployment struct {
@@ -87,6 +88,12 @@ type Agent struct {
 	StartupLogs         []codersdk.WorkspaceAgentLog                   `json:"startup_logs"`
 }
 
+type TemplateDump struct {
+	Template           codersdk.Template        `json:"template"`
+	TemplateVersion    codersdk.TemplateVersion `json:"template_version"`
+	TemplateFileBase64 string                   `json:"template_file_base64"`
+}
+
 // Deps is a set of dependencies for discovering information
 type Deps struct {
 	// Source from which to obtain information.
@@ -102,6 +109,8 @@ type Deps struct {
 	// > 0  => cap at this number (default flag value should be 1000 via CLI).
 	// <= 0 => no cap (fetch/keep all available workspaces).
 	WorkspacesTotalCap int
+	// TemplateID optionally specifies a template to capture (active version).
+	TemplateID uuid.UUID
 }
 
 // ctxKeyWorkspacesCap is used to plumb the workspace cap into DeploymentInfo
@@ -662,6 +671,46 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 	eg.Go(func() error {
 		ai := AgentInfo(ctx, d.Client, d.Log, d.AgentID)
 		b.Agent = ai
+		return nil
+	})
+
+	// Optional: capture a template's active version and file if TemplateID is set.
+	eg.Go(func() error {
+		if d.TemplateID == uuid.Nil {
+			return nil
+		}
+		var td TemplateDump
+		tpl, err := d.Client.Template(ctx, d.TemplateID)
+		if err != nil {
+			d.Log.Error(ctx, "fetch template", slog.Error(err), slog.F("template_id", d.TemplateID))
+			return nil
+		}
+		td.Template = tpl
+		if tpl.ActiveVersionID == uuid.Nil {
+			d.Log.Error(ctx, "template has nil active version id", slog.F("template_id", tpl.ID))
+			b.NamedTemplate = td
+			return nil
+		}
+		tv, err := d.Client.TemplateVersion(ctx, tpl.ActiveVersionID)
+		if err != nil {
+			d.Log.Error(ctx, "fetch active template version", slog.Error(err), slog.F("active_version_id", tpl.ActiveVersionID))
+			b.NamedTemplate = td
+			return nil
+		}
+		td.TemplateVersion = tv
+		if tv.Job.FileID == uuid.Nil {
+			d.Log.Error(ctx, "template file id is nil", slog.F("template_version_id", tv.ID))
+			b.NamedTemplate = td
+			return nil
+		}
+		raw, ctype, err := d.Client.DownloadWithFormat(ctx, tv.Job.FileID, codersdk.FormatZip)
+		if err != nil || ctype != codersdk.ContentTypeZip {
+			d.Log.Error(ctx, "download template file", slog.Error(err), slog.F("content_type", ctype))
+			b.NamedTemplate = td
+			return nil
+		}
+		td.TemplateFileBase64 = base64.StdEncoding.EncodeToString(raw)
+		b.NamedTemplate = td
 		return nil
 	})
 
