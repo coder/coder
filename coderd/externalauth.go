@@ -85,8 +85,9 @@ func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
 // @ID delete-external-auth-user-link-by-id
 // @Security CoderSessionToken
 // @Tags Git
-// @Success 200
+// @Produce json
 // @Param externalauth path string true "Git Provider ID" format(string)
+// @Success 200
 // @Router /external-auth/{externalauth} [delete]
 func (api *API) deleteExternalAuthByID(w http.ResponseWriter, r *http.Request) {
 	config := httpmw.ExternalAuthParam(r)
@@ -128,11 +129,11 @@ func (api *API) deleteExternalAuthByID(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := config.RevokeToken(ctx, link)
 	if err != nil || !ok {
-		httpapi.Write(ctx, w, http.StatusOK, "Successfully deleted external auth link, access token has NOT been revoked from the oauth2 provider.")
+		httpapi.Write(ctx, w, http.StatusOK, codersdk.DeleteExternalAuthByIDResponse{TokenRevocationSuccessful: false})
 		return
 	}
 
-	httpapi.Write(ctx, w, http.StatusOK, "Successfully deleted external auth link and revoked token from the oauth2 provider")
+	httpapi.Write(ctx, w, http.StatusOK, codersdk.DeleteExternalAuthByIDResponse{TokenRevocationSuccessful: true})
 }
 
 // @Summary Post external auth device by ID

@@ -822,6 +822,7 @@
 						"CoderSessionToken": []
 					}
 				],
+				"produces": ["application/json"],
 				"tags": ["Git"],
 				"summary": "Delete external auth user link by ID",
 				"operationId": "delete-external-auth-user-link-by-id",

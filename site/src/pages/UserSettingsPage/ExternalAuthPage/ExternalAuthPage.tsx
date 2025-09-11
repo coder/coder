@@ -11,11 +11,14 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Section } from "../Section";
 import { ExternalAuthPageView } from "./ExternalAuthPageView";
 
-const RevokeMessage = "This action will try to revoke the access token from oauth2 provider."
+const TryRevokeInfo = "This action will try to revoke the access token from oauth2 provider."
         + "Auth link will be removed regardlles if token revocation succedess.";
-const NoRevokMessage = "This action will not revoke the access token from the oauth2 provider."
+const NoRevokeInfo = "This action will not revoke the access token from the oauth2 provider."
         + " It only removes the link on this side. To fully revoke access, you must"
         + " do so on the oauth2 provider's side.";
+
+const RevokeSuccess = "Successfully deleted external auth link and revoked token from the oauth2 provider."
+const RevokeFailed = "Successfully deleted external auth link. Token has NOT been revoked from the oauth2 provider."
 
 const ExternalAuthPage: FC = () => {
 	const queryClient = useQueryClient();
@@ -61,7 +64,7 @@ const ExternalAuthPage: FC = () => {
 				key={appToUnlink}
 				title="Unlink Application"
 				verb="Unlinking"
-				info= {appSupportsRevoke ? RevokeMessage : NoRevokMessage}
+				info= {appSupportsRevoke ? TryRevokeInfo : NoRevokeInfo}
 				label="Name of the application to unlink"
 				isOpen={appToUnlink !== undefined}
 				confirmLoading={unlinkAppMutation.isPending}
@@ -78,7 +81,7 @@ const ExternalAuthPage: FC = () => {
 						// this tells our child components to refetch their data
 						// as at least 1 provider was unlinked.
 						setUnlinked(unlinked + 1);
-						displaySuccess(unlinkResp);
+						displaySuccess(unlinkResp.TokenRevocationSuccessful ? RevokeSuccess : RevokeFailed);
 					} catch (e) {
 						displayError(getErrorMessage(e, "Error unlinking application."));
 					}

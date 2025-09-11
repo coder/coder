@@ -73,6 +73,12 @@ type ListUserExternalAuthResponse struct {
 	Links []ExternalAuthLink `json:"links"`
 }
 
+type DeleteExternalAuthByIDResponse struct {
+	// TokenRevocationSuccessful set to true if
+	// token revocation in provider was succesfful
+	TokenRevocationSuccessful bool
+}
+
 // ExternalAuthLink is a link between a user and an external auth provider.
 // It excludes information that requires a token to access, so can be statically
 // built from the database and configs.
