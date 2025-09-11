@@ -2196,6 +2196,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `allow_path_app_sharing`           | boolean | false    |              |             |
 | `allow_path_app_site_owner_access` | boolean | false    |              |             |
 
+## codersdk.DeleteExternalAuthByIDResponse
+
+```json
+{
+  "token_revocation_error": "string",
+  "token_revoked": true
+}
+```
+
+### Properties
+
+| Name                     | Type    | Required | Restrictions | Description                                                                    |
+|--------------------------|---------|----------|--------------|--------------------------------------------------------------------------------|
+| `token_revocation_error` | string  | false    |              |                                                                                |
+| `token_revoked`          | boolean | false    |              | Token revoked set to true if token revocation was attempted and was succesfful |
+
 ## codersdk.DeleteWebpushSubscription
 
 ```json
@@ -2360,6 +2376,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "id": "string",
           "no_refresh": true,
           "regex": "string",
+          "revoke_url": "string",
           "scopes": [
             "string"
           ],
@@ -2861,6 +2878,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "id": "string",
         "no_refresh": true,
         "regex": "string",
+        "revoke_url": "string",
         "scopes": [
           "string"
         ],
@@ -3503,6 +3521,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "id": 0
     }
   ],
+  "supports_revocation": true,
   "user": {
     "avatar_url": "string",
     "id": 0,
@@ -3515,15 +3534,16 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name              | Type                                                                                  | Required | Restrictions | Description                                                             |
-|-------------------|---------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
-| `app_install_url` | string                                                                                | false    |              | App install URL is the URL to install the app.                          |
-| `app_installable` | boolean                                                                               | false    |              | App installable is true if the request for app installs was successful. |
-| `authenticated`   | boolean                                                                               | false    |              |                                                                         |
-| `device`          | boolean                                                                               | false    |              |                                                                         |
-| `display_name`    | string                                                                                | false    |              |                                                                         |
-| `installations`   | array of [codersdk.ExternalAuthAppInstallation](#codersdkexternalauthappinstallation) | false    |              | Installations are the installations that the user has access to.        |
-| `user`            | [codersdk.ExternalAuthUser](#codersdkexternalauthuser)                                | false    |              | User is the user that authenticated with the provider.                  |
+| Name                  | Type                                                                                  | Required | Restrictions | Description                                                             |
+|-----------------------|---------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
+| `app_install_url`     | string                                                                                | false    |              | App install URL is the URL to install the app.                          |
+| `app_installable`     | boolean                                                                               | false    |              | App installable is true if the request for app installs was successful. |
+| `authenticated`       | boolean                                                                               | false    |              |                                                                         |
+| `device`              | boolean                                                                               | false    |              |                                                                         |
+| `display_name`        | string                                                                                | false    |              |                                                                         |
+| `installations`       | array of [codersdk.ExternalAuthAppInstallation](#codersdkexternalauthappinstallation) | false    |              | Installations are the installations that the user has access to.        |
+| `supports_revocation` | boolean                                                                               | false    |              |                                                                         |
+| `user`                | [codersdk.ExternalAuthUser](#codersdkexternalauthuser)                                | false    |              | User is the user that authenticated with the provider.                  |
 
 ## codersdk.ExternalAuthAppInstallation
 
@@ -3564,6 +3584,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "id": "string",
   "no_refresh": true,
   "regex": "string",
+  "revoke_url": "string",
   "scopes": [
     "string"
   ],
@@ -3589,6 +3610,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `no_refresh`            | boolean | false    |              |                                                                                         |
 |`regex`|string|false||Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type.
 Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the Coder server to match against the Regex.|
+|`revoke_url`|string|false|||
 |`scopes`|array of string|false|||
 |`token_url`|string|false|||
 |`type`|string|false||Type is the type of external auth config.|
@@ -12852,6 +12874,7 @@ None
       "id": "string",
       "no_refresh": true,
       "regex": "string",
+      "revoke_url": "string",
       "scopes": [
         "string"
       ],
