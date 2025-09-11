@@ -558,14 +558,20 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 
 	// Dependency array elements listed for correctness, but the only value that
 	// can change on re-renders (which React guarantees) is the target interval
-	const subscribe = useCallback<ReactSubscriptionCallback>(() => {
-		return reactTs.subscribe({
-			componentId: hookId,
-			targetRefreshIntervalMs: targetIntervalMs,
-			transform: externalTransform,
-			onReactStateSync: ejectedNotifyRef.current,
-		});
-	}, [reactTs, hookId, externalTransform, targetIntervalMs]);
+	const subscribe = useCallback<ReactSubscriptionCallback>(
+		(notifyReact) => {
+			return reactTs.subscribe({
+				componentId: hookId,
+				targetRefreshIntervalMs: targetIntervalMs,
+				transform: externalTransform,
+				onReactStateSync: () => {
+					notifyReact();
+					ejectedNotifyRef.current();
+				},
+			});
+		},
+		[reactTs, hookId, externalTransform, targetIntervalMs],
+	);
 
 	// We already have the actual state value at this point, so we just need to
 	// wire up useSyncExternalStore to satisfy the hook API and give ourselves
