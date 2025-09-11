@@ -435,29 +435,47 @@ func TestEditFile(t *testing.T) {
 			error:   "file path must be absolute",
 		},
 		{
-			name:    "NonExistent",
-			path:    filepath.Join(tmpdir, "does-not-exist"),
-			errCode: http.StatusNotFound,
-			error:   "file does not exist",
-		},
-		{
-			name:    "IsDir",
-			path:    dirPath,
-			errCode: http.StatusBadRequest,
-			error:   "not a file",
-		},
-		{
-			name:    "NoPermissions",
-			path:    noPermsFilePath,
-			errCode: http.StatusForbidden,
-			error:   "permission denied",
-		},
-		{
 			name:     "NoEdits",
 			path:     filepath.Join(tmpdir, "no-edits"),
 			contents: "foo bar",
 			errCode:  http.StatusBadRequest,
 			error:    "must specify at least one edit",
+		},
+		{
+			name: "NonExistent",
+			path: filepath.Join(tmpdir, "does-not-exist"),
+			edits: []workspacesdk.FileEdit{
+				{
+					Search:  "foo",
+					Replace: "bar",
+				},
+			},
+			errCode: http.StatusNotFound,
+			error:   "file does not exist",
+		},
+		{
+			name: "IsDir",
+			path: dirPath,
+			edits: []workspacesdk.FileEdit{
+				{
+					Search:  "foo",
+					Replace: "bar",
+				},
+			},
+			errCode: http.StatusBadRequest,
+			error:   "not a file",
+		},
+		{
+			name: "NoPermissions",
+			path: noPermsFilePath,
+			edits: []workspacesdk.FileEdit{
+				{
+					Search:  "foo",
+					Replace: "bar",
+				},
+			},
+			errCode: http.StatusForbidden,
+			error:   "permission denied",
 		},
 		{
 			name:     "FailRename",

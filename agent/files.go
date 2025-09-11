@@ -208,6 +208,10 @@ func (a *agent) editFile(path string, edits []workspacesdk.FileEdit) (int, error
 		return http.StatusBadRequest, xerrors.Errorf("file path must be absolute: %q", path)
 	}
 
+	if len(edits) == 0 {
+		return http.StatusBadRequest, xerrors.New("must specify at least one edit")
+	}
+
 	f, err := a.filesystem.Open(path)
 	if err != nil {
 		status := http.StatusInternalServerError
@@ -228,10 +232,6 @@ func (a *agent) editFile(path string, edits []workspacesdk.FileEdit) (int, error
 
 	if stat.IsDir() {
 		return http.StatusBadRequest, xerrors.Errorf("open %s: not a file", path)
-	}
-
-	if len(edits) == 0 {
-		return http.StatusBadRequest, xerrors.New("must specify at least one edit")
 	}
 
 	transforms := make([]transform.Transformer, len(edits))
