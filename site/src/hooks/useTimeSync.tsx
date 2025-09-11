@@ -503,14 +503,17 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	 * handled in the render.
 	 */
 	const ejectedNotifyRef = useRef<() => void>(noOp);
-	const dummySubscribe = useCallback<ReactSubscriptionCallback>(
+	const delegatedSubscribe = useCallback<ReactSubscriptionCallback>(
 		(notifyReact) => {
 			ejectedNotifyRef.current = notifyReact;
 			return () => {};
 		},
 		[],
 	);
-	const cachedTransformation = useSyncExternalStore(dummySubscribe, getSnap);
+	const cachedTransformation = useSyncExternalStore(
+		delegatedSubscribe,
+		getSnap,
+	);
 
 	// There's some trade-offs with this memo (notably, if the consumer passes
 	// in an inline transform callback, the memo result will be invalidated on
