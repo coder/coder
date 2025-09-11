@@ -663,7 +663,7 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 			return xerrors.New("user is not allowed to cancel workspace builds")
 		}
 
-		job, err := db.GetProvisionerJobByIDForUpdate(ctx, workspaceBuild.JobID)
+		job, err := db.GetProvisionerJobByIDWithLock(ctx, workspaceBuild.JobID)
 		if err != nil {
 			code = http.StatusInternalServerError
 			resp.Message = "Internal error fetching provisioner job."

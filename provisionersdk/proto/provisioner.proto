@@ -270,6 +270,7 @@ message App {
   AppOpenIn open_in = 12;
   string group = 13;
   string id = 14; // If nil, new UUID will be generated.
+  string tooltip = 15;
 }
 
 // Healthcheck represents configuration for checking for app readiness.

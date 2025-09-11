@@ -36,13 +36,13 @@ func (r *RootCmd) taskList() *serpent.Command {
 		statusFilter string
 		all          bool
 		user         string
+		quiet        bool
 
 		client    = new(codersdk.Client)
 		formatter = cliui.NewOutputFormatter(
 			cliui.TableFormat(
 				[]taskListRow{},
 				[]string{
-					"id",
 					"name",
 					"status",
 					"state",
@@ -98,6 +98,14 @@ func (r *RootCmd) taskList() *serpent.Command {
 				Default:     "",
 				Value:       serpent.StringOf(&user),
 			},
+			{
+				Name:          "quiet",
+				Description:   "Only display task IDs.",
+				Flag:          "quiet",
+				FlagShorthand: "q",
+				Default:       "false",
+				Value:         serpent.BoolOf(&quiet),
+			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
@@ -114,6 +122,14 @@ func (r *RootCmd) taskList() *serpent.Command {
 			})
 			if err != nil {
 				return xerrors.Errorf("list tasks: %w", err)
+			}
+
+			if quiet {
+				for _, task := range tasks {
+					_, _ = fmt.Fprintln(inv.Stdout, task.ID.String())
+				}
+
+				return nil
 			}
 
 			// If no rows and not JSON, show a friendly message.

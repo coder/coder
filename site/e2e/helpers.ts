@@ -625,6 +625,7 @@ const createTemplateVersionTar = async (
 								subdomain: false,
 								url: "",
 								group: "",
+								tooltip: "",
 								...app,
 							} as App;
 						});
