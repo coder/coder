@@ -27,7 +27,6 @@ The following applications have issues or don't work without wildcard access URL
 > [!TIP]
 > For complete setup instructions, see [Wildcard Access URL Configuration](../setup/index.md#wildcard-access-url) in the main setup guide.
 
-
 ```bash
 export CODER_WILDCARD_ACCESS_URL="*.coder.example.com"
 coder server
