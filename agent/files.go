@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
+	"syscall"
 
 	"golang.org/x/xerrors"
 
@@ -139,7 +139,7 @@ func (a *agent) writeFile(ctx context.Context, r *http.Request, path string) (HT
 		switch {
 		case errors.Is(err, os.ErrPermission):
 			status = http.StatusForbidden
-		case strings.Contains(err.Error(), "not a directory"):
+		case errors.Is(err, syscall.ENOTDIR):
 			status = http.StatusBadRequest
 		}
 		return status, err
@@ -151,8 +151,7 @@ func (a *agent) writeFile(ctx context.Context, r *http.Request, path string) (HT
 		switch {
 		case errors.Is(err, os.ErrPermission):
 			status = http.StatusForbidden
-		case strings.Contains(err.Error(), "is a directory") ||
-			strings.Contains(err.Error(), "not a directory"):
+		case errors.Is(err, syscall.EISDIR):
 			status = http.StatusBadRequest
 		}
 		return status, err

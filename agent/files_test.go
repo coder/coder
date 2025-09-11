@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -48,11 +48,19 @@ func (fs *testFs) Create(name string) (afero.File, error) {
 	// lets you nest them underneath files, somehow.
 	stat, err := fs.Fs.Stat(name)
 	if err == nil && stat.IsDir() {
-		return nil, xerrors.New("is a directory")
+		return nil, &os.PathError{
+			Op:   "open",
+			Path: name,
+			Err:  syscall.EISDIR,
+		}
 	}
 	stat, err = fs.Fs.Stat(filepath.Dir(name))
 	if err == nil && !stat.IsDir() {
-		return nil, xerrors.New("not a directory")
+		return nil, &os.PathError{
+			Op:   "open",
+			Path: name,
+			Err:  syscall.ENOTDIR,
+		}
 	}
 	return fs.Fs.Create(name)
 }
@@ -65,11 +73,19 @@ func (fs *testFs) MkdirAll(name string, mode os.FileMode) error {
 	// lets you nest them underneath files somehow.
 	stat, err := fs.Fs.Stat(filepath.Dir(name))
 	if err == nil && !stat.IsDir() {
-		return xerrors.New("not a directory")
+		return &os.PathError{
+			Op:   "mkdir",
+			Path: name,
+			Err:  syscall.ENOTDIR,
+		}
 	}
 	stat, err = fs.Fs.Stat(name)
 	if err == nil && !stat.IsDir() {
-		return xerrors.New("not a directory")
+		return &os.PathError{
+			Op:   "mkdir",
+			Path: name,
+			Err:  syscall.ENOTDIR,
+		}
 	}
 	return fs.Fs.MkdirAll(name, mode)
 }
