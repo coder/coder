@@ -165,93 +165,11 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			// No --org flag: support "org/template" or search memberships.
 			// Fallback: if canonical name lookup fails, match DisplayName (case-insensitive).
 			if templateName != "" {
-				ctx := inv.Context()
-				orgPart := ""
-				namePart := templateName
-				if slash := strings.IndexByte(templateName, '/'); slash > 0 && slash < len(templateName)-1 {
-					orgPart = templateName[:slash]
-					namePart = templateName[slash+1:]
+				id, err := resolveTemplateID(inv.Context(), client, templateName)
+				if err != nil {
+					return err
 				}
-
-				// Resolve within a specific org (by name or display name).
-				resolveInOrg := func(orgID uuid.UUID) (codersdk.Template, bool, error) {
-					// Try canonical name first.
-					if t, err := client.TemplateByName(ctx, orgID, namePart); err == nil {
-						return t, true, nil
-					}
-					// Fallback: list and match by Name or DisplayName (case-insensitive).
-					tpls, err := client.TemplatesByOrganization(ctx, orgID)
-					if err != nil {
-						// Treat errors as not-found in this org to keep UX simple.
-						return codersdk.Template{}, false, nil
-					}
-					for _, t := range tpls {
-						if strings.EqualFold(t.Name, namePart) || strings.EqualFold(t.DisplayName, namePart) {
-							return t, true, nil
-						}
-					}
-					return codersdk.Template{}, false, nil
-				}
-
-				var tpl codersdk.Template
-				if orgPart != "" {
-					org, selErr := client.OrganizationByName(ctx, orgPart)
-					if selErr != nil {
-						return xerrors.Errorf("get organization %q: %w", orgPart, selErr)
-					}
-					if t, found, err := resolveInOrg(org.ID); err != nil {
-						return err
-					} else if found {
-						tpl = t
-					} else {
-						return xerrors.Errorf("template %q not found in organization %q", namePart, orgPart)
-					}
-				} else {
-					orgs, listErr := client.OrganizationsByUser(ctx, codersdk.Me)
-					if listErr != nil {
-						return xerrors.Errorf("get organizations: %w", listErr)
-					}
-					if len(orgs) == 1 {
-						if t, found, err := resolveInOrg(orgs[0].ID); err != nil {
-							return err
-						} else if found {
-							tpl = t
-						} else {
-							return xerrors.Errorf("template %q not found in your organization", namePart)
-						}
-					} else {
-						{
-							var (
-								foundTpl  codersdk.Template
-								foundOrgs []string
-							)
-							for _, org := range orgs {
-								if t, found, err := resolveInOrg(org.ID); err == nil && found {
-									if len(foundOrgs) == 0 {
-										foundTpl = t
-									}
-									foundOrgs = append(foundOrgs, org.Name)
-								}
-							}
-
-							switch len(foundOrgs) {
-							case 0:
-								return xerrors.Errorf("template %q not found in your organizations", namePart)
-							case 1:
-								tpl = foundTpl
-							default:
-								return xerrors.Errorf(
-									"template %q found in multiple organizations (%s); use --template \"<org_name/%s>\" to target desired template.",
-									namePart,
-									strings.Join(foundOrgs, ", "),
-									namePart,
-								)
-							}
-						}
-					}
-				}
-				cliLog.Debug(ctx, "found template", slog.F("template_name", tpl.Name), slog.F("template_id", tpl.ID))
-				templateID = tpl.ID
+				templateID = id
 			}
 
 			if outputPath == "" {
@@ -345,6 +263,90 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 	}
 
 	return cmd
+}
+
+// Resolve a template to its ID, supporting:
+// - org/name form
+// - slug or display name match (case-insensitive) across all memberships
+func resolveTemplateID(ctx context.Context, client *codersdk.Client, templateArg string) (uuid.UUID, error) {
+	orgPart := ""
+	namePart := templateArg
+	if slash := strings.IndexByte(templateArg, '/'); slash > 0 && slash < len(templateArg)-1 {
+		orgPart = templateArg[:slash]
+		namePart = templateArg[slash+1:]
+	}
+
+	resolveInOrg := func(orgID uuid.UUID) (codersdk.Template, bool, error) {
+		if t, err := client.TemplateByName(ctx, orgID, namePart); err == nil {
+			return t, true, nil
+		}
+		tpls, err := client.TemplatesByOrganization(ctx, orgID)
+		if err != nil {
+			return codersdk.Template{}, false, nil
+		}
+		for _, t := range tpls {
+			if strings.EqualFold(t.Name, namePart) || strings.EqualFold(t.DisplayName, namePart) {
+				return t, true, nil
+			}
+		}
+		return codersdk.Template{}, false, nil
+	}
+
+	if orgPart != "" {
+		org, err := client.OrganizationByName(ctx, orgPart)
+		if err != nil {
+			return uuid.Nil, xerrors.Errorf("get organization %q: %w", orgPart, err)
+		}
+		t, found, err := resolveInOrg(org.ID)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		if !found {
+			return uuid.Nil, xerrors.Errorf("template %q not found in organization %q", namePart, orgPart)
+		}
+		return t.ID, nil
+	}
+
+	orgs, err := client.OrganizationsByUser(ctx, codersdk.Me)
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("get organizations: %w", err)
+	}
+	if len(orgs) == 1 {
+		t, found, err := resolveInOrg(orgs[0].ID)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		if !found {
+			return uuid.Nil, xerrors.Errorf("template %q not found in your organization", namePart)
+		}
+		return t.ID, nil
+	}
+
+	var (
+		foundTpl  codersdk.Template
+		foundOrgs []string
+	)
+	for _, org := range orgs {
+		if t, found, err := resolveInOrg(org.ID); err == nil && found {
+			if len(foundOrgs) == 0 {
+				foundTpl = t
+			}
+			foundOrgs = append(foundOrgs, org.Name)
+		}
+	}
+	switch len(foundOrgs) {
+	case 0:
+		return uuid.Nil, xerrors.Errorf("template %q not found in your organizations", namePart)
+	case 1:
+		return foundTpl.ID, nil
+	default:
+		return uuid.Nil, xerrors.Errorf(
+			"template %q found in multiple organizations (%s); use --template \"<org_name/%s>\" to target desired template.",
+			namePart,
+			strings.Join(foundOrgs, ", "),
+			namePart,
+		)
+	}
 }
 
 // summarizeBundle makes a best-effort attempt to write a short summary
