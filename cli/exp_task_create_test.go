@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/serpent"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
@@ -17,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/serpent"
 )
 
 func TestTaskCreate(t *testing.T) {
@@ -339,15 +339,15 @@ func TestTaskCreateHelp(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	
+
 	inv, _ := clitest.New(t, "exp", "task", "create", "--help")
 	var sb strings.Builder
 	inv.Stdout = &sb
 	inv.Stderr = &sb
-	
+
 	err := inv.WithContext(ctx).Run()
 	assert.NoError(t, err)
-	
+
 	output := sb.String()
 	// Verify that the examples are present in the help output
 	assert.Contains(t, output, "Create a task with all flags specified")
