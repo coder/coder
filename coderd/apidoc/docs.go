@@ -13059,6 +13059,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.ExternalAuthAppInstallation"
                     }
                 },
+                "supports_revocation": {
+                    "type": "boolean"
+                },
                 "user": {
                     "description": "User is the user that authenticated with the provider.",
                     "allOf": [

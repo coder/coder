@@ -2687,6 +2687,8 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 			provider.AuthURL = v.Value
 		case "TOKEN_URL":
 			provider.TokenURL = v.Value
+		case "REVOKE_URL":
+			provider.RevokeURL = v.Value
 		case "VALIDATE_URL":
 			provider.ValidateURL = v.Value
 		case "REGEX":

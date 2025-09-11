@@ -49,9 +49,10 @@ const (
 )
 
 type ExternalAuth struct {
-	Authenticated bool   `json:"authenticated"`
-	Device        bool   `json:"device"`
-	DisplayName   string `json:"display_name"`
+	Authenticated      bool   `json:"authenticated"`
+	Device             bool   `json:"device"`
+	DisplayName        string `json:"display_name"`
+	SupportsRevocation bool   `json:"supports_revocation"`
 
 	// User is the user that authenticated with the provider.
 	User *ExternalAuthUser `json:"user"`
@@ -87,13 +88,14 @@ type ExternalAuthLink struct {
 
 // ExternalAuthLinkProvider are the static details of a provider.
 type ExternalAuthLinkProvider struct {
-	ID            string `json:"id"`
-	Type          string `json:"type"`
-	Device        bool   `json:"device"`
-	DisplayName   string `json:"display_name"`
-	DisplayIcon   string `json:"display_icon"`
-	AllowRefresh  bool   `json:"allow_refresh"`
-	AllowValidate bool   `json:"allow_validate"`
+	ID                 string `json:"id"`
+	Type               string `json:"type"`
+	Device             bool   `json:"device"`
+	DisplayName        string `json:"display_name"`
+	DisplayIcon        string `json:"display_icon"`
+	AllowRefresh       bool   `json:"allow_refresh"`
+	AllowValidate      bool   `json:"allow_validate"`
+	SupportsRevocation bool   `json:"supports_revocation"`
 }
 
 type ExternalAuthAppInstallation struct {

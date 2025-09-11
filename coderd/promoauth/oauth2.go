@@ -19,6 +19,7 @@ const (
 	SourceTokenSource      Oauth2Source = "TokenSource"
 	SourceAppInstallations Oauth2Source = "AppInstallations"
 	SourceAuthorizeDevice  Oauth2Source = "AuthorizeDevice"
+	SourceRevoke           Oauth2Source = "Revoke"
 
 	SourceGitAPIAuthUser        Oauth2Source = "GitAPIAuthUser"
 	SourceGitAPIListEmails      Oauth2Source = "GitAPIListEmails"

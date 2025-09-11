@@ -93,12 +93,29 @@ func (api *API) deleteExternalAuthByID(w http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	ctx := r.Context()
 
-	err := api.Database.DeleteExternalAuthLink(ctx, database.DeleteExternalAuthLinkParams{
+	link, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
+		ProviderID: config.ID,
+		UserID:     apiKey.UserID,
+	})
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.ResourceNotFound(w)
+			return
+		}
+		httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get external auth link during deletion.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	err = api.Database.DeleteExternalAuthLink(ctx, database.DeleteExternalAuthLinkParams{
 		ProviderID: config.ID,
 		UserID:     apiKey.UserID,
 	})
 	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.ResourceNotFound(w)
 			return
 		}
@@ -109,7 +126,13 @@ func (api *API) deleteExternalAuthByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, w, http.StatusOK, "OK")
+	ok, err := config.RevokeToken(ctx, link)
+	if err != nil || !ok {
+		httpapi.Write(ctx, w, http.StatusOK, "Successfully deleted external auth link, access token has NOT been revoked from the oauth2 provider.")
+		return
+	}
+
+	httpapi.Write(ctx, w, http.StatusOK, "Successfully deleted external auth link and revoked token from the oauth2 provider")
 }
 
 // @Summary Post external auth device by ID
@@ -394,13 +417,14 @@ func ExternalAuthConfigs(auths []*externalauth.Config) []codersdk.ExternalAuthLi
 
 func ExternalAuthConfig(cfg *externalauth.Config) codersdk.ExternalAuthLinkProvider {
 	return codersdk.ExternalAuthLinkProvider{
-		ID:            cfg.ID,
-		Type:          cfg.Type,
-		Device:        cfg.DeviceAuth != nil,
-		DisplayName:   cfg.DisplayName,
-		DisplayIcon:   cfg.DisplayIcon,
-		AllowRefresh:  !cfg.NoRefresh,
-		AllowValidate: cfg.ValidateURL != "",
+		ID:                 cfg.ID,
+		Type:               cfg.Type,
+		Device:             cfg.DeviceAuth != nil,
+		DisplayName:        cfg.DisplayName,
+		DisplayIcon:        cfg.DisplayIcon,
+		AllowRefresh:       !cfg.NoRefresh,
+		AllowValidate:      cfg.ValidateURL != "",
+		SupportsRevocation: cfg.RevokeURL != "",
 	}
 }
 
