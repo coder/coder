@@ -67,7 +67,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 					selectFilterSearch && "w-full",
 					"max-w-[320px]",
 				])}
-				css={{
+				style={{
 					minWidth: width,
 				}}
 			>
