@@ -352,9 +352,9 @@ func TestTaskCreateHelp(t *testing.T) {
 	output := sb.String()
 	// Verify that the examples are present in the help output
 	assert.Contains(t, output, "Create a task with all flags specified")
-	assert.Contains(t, output, "coder exp task create --input \"Refactor CLI auth to use OAuth flow\"")
+	assert.Contains(t, output, "coder exp task create \"Refactor CLI auth to use OAuth flow\"")
 	assert.Contains(t, output, "--template coder --org coder")
 	assert.Contains(t, output, "Create a task with a preset")
-	assert.Contains(t, output, "coder exp task create --input \"Add new API endpoint\"")
+	assert.Contains(t, output, "coder exp task create \"Add new API endpoint\"")
 	assert.Contains(t, output, "--preset backend")
 }

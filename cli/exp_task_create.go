@@ -32,11 +32,11 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 		Long: FormatExamples(
 			Example{
 				Description: "Create a task with all flags specified",
-				Command:     "coder exp task create --input \"Refactor CLI auth to use OAuth flow\" --template coder --org coder",
+				Command:     "coder exp task create \"Refactor CLI auth to use OAuth flow\" --template coder --org coder",
 			},
 			Example{
 				Description: "Create a task with a preset",
-				Command:     "coder exp task create --input \"Add new API endpoint\" --template coder --preset backend",
+				Command:     "coder exp task create \"Add new API endpoint\" --template coder --preset backend",
 			},
 		),
 		Middleware: serpent.Chain(
