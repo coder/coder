@@ -150,7 +150,8 @@ CREATE TYPE notification_method AS ENUM (
 );
 
 CREATE TYPE notification_template_kind AS ENUM (
-    'system'
+    'system',
+    'custom'
 );
 
 CREATE TYPE parameter_destination_scheme AS ENUM (
