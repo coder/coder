@@ -428,7 +428,7 @@ func (c *Config) tokenRevocationRequestRFC7009(ctx context.Context, link databas
 func (c *Config) tokenRevocationRequestGitHub(ctx context.Context, link database.ExternalAuthLink) (*http.Request, error) {
 	// GitHub doesn't follow RFC spec, GitHub specific request is needed
 	// https://docs.github.com/en/rest/apps/oauth-applications?apiVersion=2022-11-28#delete-an-app-authorization
-	body := fmt.Sprintf("{\"access_token\":\"%s\"}", link.OAuthAccessToken)
+	body := fmt.Sprintf("{\"access_token\":%q}", link.OAuthAccessToken)
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.RevokeURL, strings.NewReader(body))
 	if err != nil {
 		return nil, err

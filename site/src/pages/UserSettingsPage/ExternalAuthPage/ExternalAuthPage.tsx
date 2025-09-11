@@ -12,7 +12,7 @@ import { Section } from "../Section";
 import { ExternalAuthPageView } from "./ExternalAuthPageView";
 
 const TryRevokeInfo = "This action will try to revoke the access token from oauth2 provider."
-        + "Auth link will be removed regardlles if token revocation succedess.";
+        + "Auth link will be removed regardless if token revocation succedess.";
 const NoRevokeInfo = "This action will not revoke the access token from the oauth2 provider."
         + " It only removes the link on this side. To fully revoke access, you must"
         + " do so on the oauth2 provider's side.";
