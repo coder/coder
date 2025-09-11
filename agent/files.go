@@ -190,7 +190,7 @@ func (a *agent) HandleEditFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status, err := a.editFile(path, edits.Edits)
+	status, err := a.editFile(r.Context(), path, edits.Edits)
 	if err != nil {
 		httpapi.Write(ctx, rw, status, codersdk.Response{
 			Message: err.Error(),
@@ -203,7 +203,7 @@ func (a *agent) HandleEditFile(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (a *agent) editFile(path string, edits []workspacesdk.FileEdit) (int, error) {
+func (a *agent) editFile(ctx context.Context, path string, edits []workspacesdk.FileEdit) (int, error) {
 	if !filepath.IsAbs(path) {
 		return http.StatusBadRequest, xerrors.Errorf("file path must be absolute: %q", path)
 	}
@@ -247,6 +247,9 @@ func (a *agent) editFile(path string, edits []workspacesdk.FileEdit) (int, error
 
 	_, err = io.Copy(tmpfile, replace.Chain(f, transforms...))
 	if err != nil {
+		if rerr := a.filesystem.Remove(tmpfile.Name()); rerr != nil {
+			a.logger.Warn(ctx, "unable to clean up temp file", slog.Error(rerr))
+		}
 		return http.StatusInternalServerError, xerrors.Errorf("edit %s: %w", path, err)
 	}
 
