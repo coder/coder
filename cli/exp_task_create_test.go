@@ -334,3 +334,26 @@ func TestTaskCreate(t *testing.T) {
 		})
 	}
 }
+
+func TestTaskCreateHelp(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	
+	inv, _ := clitest.New(t, "exp", "task", "create", "--help")
+	var sb strings.Builder
+	inv.Stdout = &sb
+	inv.Stderr = &sb
+	
+	err := inv.WithContext(ctx).Run()
+	assert.NoError(t, err)
+	
+	output := sb.String()
+	// Verify that the examples are present in the help output
+	assert.Contains(t, output, "Create a task with all flags specified")
+	assert.Contains(t, output, "coder exp task create --input \"Refactor CLI auth to use OAuth flow\"")
+	assert.Contains(t, output, "--template coder --org coder")
+	assert.Contains(t, output, "Create a task with a preset")
+	assert.Contains(t, output, "coder exp task create --input \"Add new API endpoint\"")
+	assert.Contains(t, output, "--preset backend")
+}
