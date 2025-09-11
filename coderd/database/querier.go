@@ -331,6 +331,7 @@ type sqlcQuerier interface {
 	GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]TailnetPeer, error)
 	GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerBindingsRow, error)
 	GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerIDsRow, error)
+	GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error)
 	GetTelemetryItem(ctx context.Context, key string) (TelemetryItem, error)
 	GetTelemetryItems(ctx context.Context) ([]TelemetryItem, error)
 	// GetTemplateAppInsights returns the aggregate usage of each app in a given
@@ -550,6 +551,8 @@ type sqlcQuerier interface {
 	InsertProvisionerJobTimings(ctx context.Context, arg InsertProvisionerJobTimingsParams) ([]ProvisionerJobTiming, error)
 	InsertProvisionerKey(ctx context.Context, arg InsertProvisionerKeyParams) (ProvisionerKey, error)
 	InsertReplica(ctx context.Context, arg InsertReplicaParams) (Replica, error)
+	InsertTask(ctx context.Context, arg InsertTaskParams) (TaskTable, error)
+	InsertTaskWorkspaceApp(ctx context.Context, arg InsertTaskWorkspaceAppParams) (TaskWorkspaceApp, error)
 	InsertTelemetryItemIfNotExists(ctx context.Context, arg InsertTelemetryItemIfNotExistsParams) error
 	InsertTemplate(ctx context.Context, arg InsertTemplateParams) error
 	InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) error

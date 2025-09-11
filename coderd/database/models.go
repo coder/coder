@@ -2870,6 +2870,76 @@ func AllTailnetStatusValues() []TailnetStatus {
 	}
 }
 
+type TaskStatus string
+
+const (
+	TaskStatusPending      TaskStatus = "pending"
+	TaskStatusInitializing TaskStatus = "initializing"
+	TaskStatusActive       TaskStatus = "active"
+	TaskStatusPaused       TaskStatus = "paused"
+	TaskStatusUnknown      TaskStatus = "unknown"
+	TaskStatusError        TaskStatus = "error"
+)
+
+func (e *TaskStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TaskStatus(s)
+	case string:
+		*e = TaskStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TaskStatus: %T", src)
+	}
+	return nil
+}
+
+type NullTaskStatus struct {
+	TaskStatus TaskStatus `json:"task_status"`
+	Valid      bool       `json:"valid"` // Valid is true if TaskStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTaskStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.TaskStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TaskStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTaskStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TaskStatus), nil
+}
+
+func (e TaskStatus) Valid() bool {
+	switch e {
+	case TaskStatusPending,
+		TaskStatusInitializing,
+		TaskStatusActive,
+		TaskStatusPaused,
+		TaskStatusUnknown,
+		TaskStatusError:
+		return true
+	}
+	return false
+}
+
+func AllTaskStatusValues() []TaskStatus {
+	return []TaskStatus{
+		TaskStatusPending,
+		TaskStatusInitializing,
+		TaskStatusActive,
+		TaskStatusPaused,
+		TaskStatusUnknown,
+		TaskStatusError,
+	}
+}
+
 // Defines the users status: active, dormant, or suspended.
 type UserStatus string
 
@@ -4112,6 +4182,20 @@ type TailnetTunnel struct {
 }
 
 type Task struct {
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	OrganizationID     uuid.UUID       `db:"organization_id" json:"organization_id"`
+	OwnerID            uuid.UUID       `db:"owner_id" json:"owner_id"`
+	Name               string          `db:"name" json:"name"`
+	WorkspaceID        uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID  uuid.UUID       `db:"template_version_id" json:"template_version_id"`
+	TemplateParameters json.RawMessage `db:"template_parameters" json:"template_parameters"`
+	Prompt             string          `db:"prompt" json:"prompt"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+	DeletedAt          sql.NullTime    `db:"deleted_at" json:"deleted_at"`
+	Status             TaskStatus      `db:"status" json:"status"`
+}
+
+type TaskTable struct {
 	ID                 uuid.UUID       `db:"id" json:"id"`
 	OrganizationID     uuid.UUID       `db:"organization_id" json:"organization_id"`
 	OwnerID            uuid.UUID       `db:"owner_id" json:"owner_id"`

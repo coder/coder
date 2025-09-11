@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/taskname"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -1549,6 +1550,38 @@ func AIBridgeToolUsage(t testing.TB, db database.Store, seed database.InsertAIBr
 	})
 	require.NoError(t, err, "insert aibridge tool usage")
 	return toolUsage
+}
+
+func Task(t testing.TB, db database.Store, orig database.TaskTable) database.TaskTable {
+	t.Helper()
+
+	parameters := orig.TemplateParameters
+	if parameters == nil {
+		parameters = json.RawMessage([]byte("{}"))
+	}
+
+	task, err := db.InsertTask(genCtx, database.InsertTaskParams{
+		OrganizationID:     orig.OrganizationID,
+		OwnerID:            orig.OwnerID,
+		Name:               takeFirst(orig.Name, taskname.GenerateFallback()),
+		WorkspaceID:        orig.WorkspaceID,
+		TemplateVersionID:  orig.TemplateVersionID,
+		TemplateParameters: parameters,
+		Prompt:             orig.Prompt,
+		CreatedAt:          takeFirst(orig.CreatedAt, dbtime.Now()),
+	})
+	require.NoError(t, err, "failed to insert task")
+
+	return task
+}
+
+func TaskWorkspaceApp(t testing.TB, db database.Store, orig database.TaskWorkspaceApp) database.TaskWorkspaceApp {
+	t.Helper()
+
+	app, err := db.InsertTaskWorkspaceApp(genCtx, database.InsertTaskWorkspaceAppParams(orig))
+	require.NoError(t, err, "failed to insert task workspace app")
+
+	return app
 }
 
 func provisionerJobTiming(t testing.TB, db database.Store, seed database.ProvisionerJobTiming) database.ProvisionerJobTiming {
