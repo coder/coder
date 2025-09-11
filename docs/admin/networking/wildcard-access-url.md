@@ -14,7 +14,6 @@ Wildcard access URLs unlock Coder's full potential for modern development workfl
 
 The following applications have issues or don't work without wildcard access URLs:
 
-- **KasmVNC**: Cannot function with path-based access
 - **Vite dev server**: Hot module replacement and asset serving issues with path-based routing
 - **React dev server**: Similar issues with hot reloading and absolute path references
 - **Next.js development server**: Asset serving and routing conflicts with path-based access
@@ -24,6 +23,10 @@ The following applications have issues or don't work without wildcard access URL
 ## Configuration
 
 `CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](port-forwarding.md#dashboard) via the dashboard or running [coder_apps](../templates/index.md) on an absolute path. Set this to a wildcard subdomain that resolves to Coder (e.g. `*.coder.example.com`).
+
+> [!TIP]
+> For complete setup instructions, see [Wildcard Access URL Configuration](../setup/index.md#wildcard-access-url) in the main setup guide.
+
 
 ```bash
 export CODER_WILDCARD_ACCESS_URL="*.coder.example.com"
