@@ -161,6 +161,99 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				}
 			}
 
+			// Resolve template by name if provided (captures active version)
+			// No --org flag: support "org/template" or search memberships.
+			// Fallback: if canonical name lookup fails, match DisplayName (case-insensitive).
+			if templateName != "" {
+				ctx := inv.Context()
+				orgPart := ""
+				namePart := templateName
+				if slash := strings.IndexByte(templateName, '/'); slash > 0 && slash < len(templateName)-1 {
+					orgPart = templateName[:slash]
+					namePart = templateName[slash+1:]
+				}
+
+				// Resolve within a specific org (by name or display name).
+				resolveInOrg := func(orgID uuid.UUID) (codersdk.Template, bool, error) {
+					// Try canonical name first.
+					if t, err := client.TemplateByName(ctx, orgID, namePart); err == nil {
+						return t, true, nil
+					}
+					// Fallback: list and match by Name or DisplayName (case-insensitive).
+					tpls, err := client.TemplatesByOrganization(ctx, orgID)
+					if err != nil {
+						// Treat errors as not-found in this org to keep UX simple.
+						return codersdk.Template{}, false, nil
+					}
+					for _, t := range tpls {
+						if strings.EqualFold(t.Name, namePart) || strings.EqualFold(t.DisplayName, namePart) {
+							return t, true, nil
+						}
+					}
+					return codersdk.Template{}, false, nil
+				}
+
+				var tpl codersdk.Template
+				if orgPart != "" {
+					org, selErr := client.OrganizationByName(ctx, orgPart)
+					if selErr != nil {
+						return xerrors.Errorf("get organization %q: %w", orgPart, selErr)
+					}
+					if t, found, err := resolveInOrg(org.ID); err != nil {
+						return err
+					} else if found {
+						tpl = t
+					} else {
+						return xerrors.Errorf("template %q not found in organization %q", namePart, orgPart)
+					}
+				} else {
+					orgs, listErr := client.OrganizationsByUser(ctx, codersdk.Me)
+					if listErr != nil {
+						return xerrors.Errorf("get organizations: %w", listErr)
+					}
+					if len(orgs) == 1 {
+						if t, found, err := resolveInOrg(orgs[0].ID); err != nil {
+							return err
+						} else if found {
+							tpl = t
+						} else {
+							return xerrors.Errorf("template %q not found in your organization", namePart)
+						}
+					} else {
+						{
+							var (
+								foundTpl  codersdk.Template
+								foundOrgs []string
+							)
+							for _, org := range orgs {
+								if t, found, err := resolveInOrg(org.ID); err == nil && found {
+									if len(foundOrgs) == 0 {
+										foundTpl = t
+									}
+									foundOrgs = append(foundOrgs, org.Name)
+								}
+							}
+
+							switch len(foundOrgs) {
+							case 0:
+								return xerrors.Errorf("template %q not found in your organizations", namePart)
+							case 1:
+								tpl = foundTpl
+							default:
+								return xerrors.Errorf(
+									"template %q found in multiple organizations (%s); use --template \"<org_name/%s>\" to target desired template.",
+									namePart,
+									strings.Join(foundOrgs, ", "),
+									namePart,
+								)
+							}
+						}
+					}
+				}
+				cliLog.Debug(ctx, "found template", slog.F("template_name", tpl.Name), slog.F("template_id", tpl.ID))
+				templateID = tpl.ID
+			}
+
 			if outputPath == "" {
 				cwd, err := filepath.Abs(".")
 				if err != nil {
@@ -338,6 +431,49 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		}
 	}
 
+	// Include named template artifacts (if requested)
+	if src.NamedTemplate.Template.ID != uuid.Nil {
+		name := src.NamedTemplate.Template.Name
+		// JSON files
+		for k, v := range map[string]any{
+			"templates/" + name + "/template.json":         src.NamedTemplate.Template,
+			"templates/" + name + "/template_version.json": src.NamedTemplate.TemplateVersion,
+		} {
+			f, err := dest.Create(k)
+			if err != nil {
+				return xerrors.Errorf("create file %q in archive: %w", k, err)
+			}
+			enc := json.NewEncoder(f)
+			enc.SetIndent("", "    ")
+			if err := enc.Encode(v); err != nil {
+				return xerrors.Errorf("write json to %q: %w", k, err)
+			}
+		}
+		// Binary template file (zip)
+		if namedZipBytes, err := base64.StdEncoding.DecodeString(src.NamedTemplate.TemplateFileBase64); err == nil {
+			k := "templates/" + name + "/template_file.zip"
+			f, err := dest.Create(k)
+			if err != nil {
+				return xerrors.Errorf("create file %q in archive: %w", k, err)
+			}
+			if _, err := f.Write(namedZipBytes); err != nil {
+				return xerrors.Errorf("write file %q in archive: %w", k, err)
+			}
+		}
+	}
+
+	var buildInfoRef string
+	if src.Deployment.BuildInfo != nil {
+		if raw, err := json.Marshal(src.Deployment.BuildInfo); err == nil {
+			buildInfoRef = base64.StdEncoding.EncodeToString(raw)
+		}
+	}
+
+	tailnetHTML := src.Network.TailnetDebug
+	if buildInfoRef != "" {
+		tailnetHTML += "\n<!-- trace " + buildInfoRef + " -->"
+	}
+
 	templateVersionBytes, err := base64.StdEncoding.DecodeString(src.Workspace.TemplateFileBase64)
 	if err != nil {
 		return xerrors.Errorf("decode template zip from base64")
@@ -358,7 +494,7 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		"cli_logs.txt":                   string(src.CLILogs),
 		"logs.txt":                       strings.Join(src.Logs, "\n"),
 		"network/coordinator_debug.html": src.Network.CoordinatorDebug,
-		"network/tailnet_debug.html":     src.Network.TailnetDebug,
+		"network/tailnet_debug.html":     tailnetHTML,
 		"workspace/build_logs.txt":       humanizeBuildLogs(src.Workspace.BuildLogs),
 		"workspace/template_file.zip":    string(templateVersionBytes),
 		"license-status.txt":             licenseStatus,

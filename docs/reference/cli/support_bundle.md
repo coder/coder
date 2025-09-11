@@ -51,3 +51,12 @@ Override the URL to your Coder deployment. This may be useful, for example, if y
 | Environment | <code>$CODER_SUPPORT_BUNDLE_WORKSPACES_TOTAL_CAP</code> |
 
 Maximum number of workspaces to include in the support bundle. Set to 0 or negative value to disable the cap. Defaults to 1000.
+
+### --template
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_SUPPORT_BUNDLE_TEMPLATE</code> |
+
+Template name to include in the support bundle. Use org_name/template_name if template name is reused across multiple organizations.
