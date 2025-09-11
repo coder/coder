@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -132,7 +133,7 @@ func (api *API) notificationTemplatesByKind(rw http.ResponseWriter, r *http.Requ
 	templates, err := api.Database.GetNotificationTemplatesByKind(ctx, kind)
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
-			Message: fmt.Sprintf("Failed to retrieve '%s' notifications templates.", kind),
+			Message: fmt.Sprintf("Failed to retrieve %q notifications templates.", kind),
 			Detail:  err.Error(),
 		})
 		return
@@ -386,7 +387,7 @@ func (api *API) postCustomNotification(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	if user.IsSystemUser() {
+	if user.IsSystem {
 		api.Logger.Error(ctx, "send custom notification: system user is not allowed",
 			slog.F("id", user.ID.String()), slog.F("name", user.Name))
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
@@ -407,12 +408,12 @@ func (api *API) postCustomNotification(rw http.ResponseWriter, r *http.Request) 
 		},
 		map[string]any{
 			// Current dedupe is done via an hash of (template, user, method, payload, targets, day).
-			// We intentionally include a timestamp to bypass the per-day dedupe so the caller can
-			// resend identical content to themselves multiple times in one day.
-			// TODO(ssncferreira): When we support sending custom notifications to multiple users/roles,
+			// Include a minute-bucketed timestamp to bypass per-day dedupe for self-sends,
+			// letting the caller resend identical content the same day (but not more than
+			// once per minute).
+			// TODO(ssncferreira): When custom notifications can target multiple users/roles,
 			//   enforce proper deduplication across recipients to reduce noise and prevent spam.
-			//   See https://github.com/coder/coder/issues/19768
-			"dedupe_bypass_ts": api.Clock.Now().UTC(),
+			"dedupe_bypass_ts": api.Clock.Now().UTC().Truncate(time.Minute),
 		},
 		user.ID.String(),
 	); err != nil {

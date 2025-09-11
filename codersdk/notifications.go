@@ -293,6 +293,11 @@ type CustomNotificationRequest struct {
 	//   See: https://github.com/coder/coder/issues/19768
 }
 
+const (
+	maxCustomNotificationTitleLen   = 120
+	maxCustomNotificationMessageLen = 2000
+)
+
 func (c CustomNotificationRequest) Validate() error {
 	if c.Content == nil {
 		return xerrors.Errorf("content is required")
@@ -301,6 +306,14 @@ func (c CustomNotificationRequest) Validate() error {
 		strings.TrimSpace(c.Content.Message) == "" {
 		return xerrors.Errorf("provide a non-empty 'content.title' or 'content.message'")
 	}
+
+	if len(c.Content.Title) > maxCustomNotificationTitleLen {
+		return xerrors.Errorf("'content.title' must be less than %d characters", maxCustomNotificationTitleLen)
+	}
+	if len(c.Content.Message) > maxCustomNotificationMessageLen {
+		return xerrors.Errorf("'content.message' must be less than %d characters", maxCustomNotificationMessageLen)
+	}
+
 	return nil
 }
 

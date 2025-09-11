@@ -376,10 +376,6 @@ func (u User) RBACObject() rbac.Object {
 	return rbac.ResourceUserObject(u.ID)
 }
 
-func (u User) IsSystemUser() bool {
-	return u.IsSystem
-}
-
 func (u GetUsersRow) RBACObject() rbac.Object {
 	return rbac.ResourceUserObject(u.ID)
 }

@@ -4140,6 +4140,12 @@ export const annotationSecretKey = "secret";
 // From codersdk/insights.go
 export const insightsTimeLayout = "2006-01-02T15:04:05Z07:00";
 
+// From codersdk/notifications.go
+export const maxCustomNotificationMessageLen = 2000;
+
+// From codersdk/notifications.go
+export const maxCustomNotificationTitleLen = 120;
+
 // From healthsdk/interfaces.go
 export const safeMTU = 1378;
 
