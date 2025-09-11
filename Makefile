@@ -636,6 +636,7 @@ GEN_FILES := \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	vpn/vpn.pb.go \
+	coderd/database/dbtestutil/broker/broker.pb.go \
 	$(DB_GEN_FILES) \
 	$(SITE_GEN_FILES) \
 	coderd/rbac/object_gen.go \
@@ -683,6 +684,7 @@ gen/mark-fresh:
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
 		vpn/vpn.pb.go \
+		coderd/database/dbtestutil/broker/broker.pb.go \
 		coderd/database/dump.sql \
 		$(DB_GEN_FILES) \
 		site/src/api/typesGenerated.ts \
@@ -800,6 +802,14 @@ vpn/vpn.pb.go: vpn/vpn.proto
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		./vpn/vpn.proto
+
+coderd/database/dbtestutil/broker/broker.pb.go: coderd/database/dbtestutil/broker/broker.proto
+	protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+        --go-drpc_opt=paths=source_relative \
+		./coderd/database/dbtestutil/broker/broker.proto
 
 site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
 	# -C sets the directory for the go run command
