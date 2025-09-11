@@ -6,7 +6,7 @@ Wildcard access URLs unlock Coder's full potential for modern development workfl
 
 ### Key benefits
 
-- **Enables port access**: Each application gets a unique subdomain with port support (e.g. `8080--main--myworkspace--john.coder.example.com`)
+- **Enables port access**: Each application gets a unique subdomain with [port support](https://coder.com/docs/user-guides/workspace-access/port-forwarding#dashboard) (e.g. `8080--main--myworkspace--john.coder.example.com`).
 - **Enhanced security**: Applications run in isolated subdomains with separate browser security contexts and prevents access to the Coder API from malicious JavaScript
 - **Better compatibility**: Most applications are designed to work at the root of a hostname rather than at a subpath, making subdomain access more reliable
 
