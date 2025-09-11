@@ -2842,6 +2842,10 @@ func (q *querier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) 
 	return q.db.GetTailnetTunnelPeerIDs(ctx, srcID)
 }
 
+func (*querier) GetTaskByID(_ context.Context, _ uuid.UUID) (database.Task, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.TelemetryItem{}, err
@@ -4065,6 +4069,14 @@ func (q *querier) InsertReplica(ctx context.Context, arg database.InsertReplicaP
 		return database.Replica{}, err
 	}
 	return q.db.InsertReplica(ctx, arg)
+}
+
+func (*querier) InsertTask(_ context.Context, _ database.InsertTaskParams) (database.TaskTable, error) {
+	panic("not implemented")
+}
+
+func (*querier) InsertTaskWorkspaceApp(_ context.Context, _ database.InsertTaskWorkspaceAppParams) (database.TaskWorkspaceApp, error) {
+	panic("not implemented")
 }
 
 func (q *querier) InsertTelemetryItemIfNotExists(ctx context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {

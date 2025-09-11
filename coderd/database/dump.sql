@@ -425,6 +425,15 @@ CREATE TYPE tailnet_status AS ENUM (
     'lost'
 );
 
+CREATE TYPE task_status AS ENUM (
+    'pending',
+    'initializing',
+    'active',
+    'paused',
+    'unknown',
+    'error'
+);
+
 CREATE TYPE user_status AS ENUM (
     'active',
     'suspended',
@@ -1761,6 +1770,175 @@ CREATE TABLE tasks (
     deleted_at timestamp with time zone
 );
 
+CREATE TABLE workspace_agents (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    name character varying(64) NOT NULL,
+    first_connected_at timestamp with time zone,
+    last_connected_at timestamp with time zone,
+    disconnected_at timestamp with time zone,
+    resource_id uuid NOT NULL,
+    auth_token uuid NOT NULL,
+    auth_instance_id character varying,
+    architecture character varying(64) NOT NULL,
+    environment_variables jsonb,
+    operating_system character varying(64) NOT NULL,
+    instance_metadata jsonb,
+    resource_metadata jsonb,
+    directory character varying(4096) DEFAULT ''::character varying NOT NULL,
+    version text DEFAULT ''::text NOT NULL,
+    last_connected_replica_id uuid,
+    connection_timeout_seconds integer DEFAULT 0 NOT NULL,
+    troubleshooting_url text DEFAULT ''::text NOT NULL,
+    motd_file text DEFAULT ''::text NOT NULL,
+    lifecycle_state workspace_agent_lifecycle_state DEFAULT 'created'::workspace_agent_lifecycle_state NOT NULL,
+    expanded_directory character varying(4096) DEFAULT ''::character varying NOT NULL,
+    logs_length integer DEFAULT 0 NOT NULL,
+    logs_overflowed boolean DEFAULT false NOT NULL,
+    started_at timestamp with time zone,
+    ready_at timestamp with time zone,
+    subsystems workspace_agent_subsystem[] DEFAULT '{}'::workspace_agent_subsystem[],
+    display_apps display_app[] DEFAULT '{vscode,vscode_insiders,web_terminal,ssh_helper,port_forwarding_helper}'::display_app[],
+    api_version text DEFAULT ''::text NOT NULL,
+    display_order integer DEFAULT 0 NOT NULL,
+    parent_id uuid,
+    api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
+    CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
+);
+
+COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
+
+COMMENT ON COLUMN workspace_agents.connection_timeout_seconds IS 'Connection timeout in seconds, 0 means disabled.';
+
+COMMENT ON COLUMN workspace_agents.troubleshooting_url IS 'URL for troubleshooting the agent.';
+
+COMMENT ON COLUMN workspace_agents.motd_file IS 'Path to file inside workspace containing the message of the day (MOTD) to show to the user when logging in via SSH.';
+
+COMMENT ON COLUMN workspace_agents.lifecycle_state IS 'The current lifecycle state reported by the workspace agent.';
+
+COMMENT ON COLUMN workspace_agents.expanded_directory IS 'The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder';
+
+COMMENT ON COLUMN workspace_agents.logs_length IS 'Total length of startup logs';
+
+COMMENT ON COLUMN workspace_agents.logs_overflowed IS 'Whether the startup logs overflowed in length';
+
+COMMENT ON COLUMN workspace_agents.started_at IS 'The time the agent entered the starting lifecycle state';
+
+COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the ready or start_error lifecycle state';
+
+COMMENT ON COLUMN workspace_agents.display_order IS 'Specifies the order in which to display agents in user interfaces.';
+
+COMMENT ON COLUMN workspace_agents.api_key_scope IS 'Defines the scope of the API key associated with the agent. ''all'' allows access to everything, ''no_user_data'' restricts it to exclude user data.';
+
+COMMENT ON COLUMN workspace_agents.deleted IS 'Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.';
+
+CREATE TABLE workspace_apps (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    agent_id uuid NOT NULL,
+    display_name character varying(64) NOT NULL,
+    icon character varying(256) NOT NULL,
+    command character varying(65534),
+    url character varying(65534),
+    healthcheck_url text DEFAULT ''::text NOT NULL,
+    healthcheck_interval integer DEFAULT 0 NOT NULL,
+    healthcheck_threshold integer DEFAULT 0 NOT NULL,
+    health workspace_app_health DEFAULT 'disabled'::workspace_app_health NOT NULL,
+    subdomain boolean DEFAULT false NOT NULL,
+    sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
+    slug text NOT NULL,
+    external boolean DEFAULT false NOT NULL,
+    display_order integer DEFAULT 0 NOT NULL,
+    hidden boolean DEFAULT false NOT NULL,
+    open_in workspace_app_open_in DEFAULT 'slim-window'::workspace_app_open_in NOT NULL,
+    display_group text,
+    tooltip character varying(2048) DEFAULT ''::character varying NOT NULL
+);
+
+COMMENT ON COLUMN workspace_apps.display_order IS 'Specifies the order in which to display agent app in user interfaces.';
+
+COMMENT ON COLUMN workspace_apps.hidden IS 'Determines if the app is not shown in user interfaces.';
+
+COMMENT ON COLUMN workspace_apps.tooltip IS 'Markdown text that is displayed when hovering over workspace apps.';
+
+CREATE TABLE workspace_builds (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    workspace_id uuid NOT NULL,
+    template_version_id uuid NOT NULL,
+    build_number integer NOT NULL,
+    transition workspace_transition NOT NULL,
+    initiator_id uuid NOT NULL,
+    provisioner_state bytea,
+    job_id uuid NOT NULL,
+    deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    reason build_reason DEFAULT 'initiator'::build_reason NOT NULL,
+    daily_cost integer DEFAULT 0 NOT NULL,
+    max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    template_version_preset_id uuid,
+    has_ai_task boolean,
+    ai_task_sidebar_app_id uuid,
+    has_external_agent boolean,
+    CONSTRAINT workspace_builds_ai_task_sidebar_app_id_required CHECK (((((has_ai_task IS NULL) OR (has_ai_task = false)) AND (ai_task_sidebar_app_id IS NULL)) OR ((has_ai_task = true) AND (ai_task_sidebar_app_id IS NOT NULL)))),
+    CONSTRAINT workspace_builds_deadline_below_max_deadline CHECK ((((deadline <> '0001-01-01 00:00:00+00'::timestamp with time zone) AND (deadline <= max_deadline)) OR (max_deadline = '0001-01-01 00:00:00+00'::timestamp with time zone)))
+);
+
+CREATE VIEW tasks_with_status AS
+ SELECT tasks.id,
+    tasks.organization_id,
+    tasks.owner_id,
+    tasks.name,
+    tasks.workspace_id,
+    tasks.template_version_id,
+    tasks.template_parameters,
+    tasks.prompt,
+    tasks.created_at,
+    tasks.deleted_at,
+        CASE
+            WHEN ((tasks.workspace_id IS NULL) OR (latest_build.job_status IS NULL)) THEN 'pending'::task_status
+            WHEN (latest_build.job_status = 'failed'::provisioner_job_status) THEN 'error'::task_status
+            WHEN ((latest_build.transition = ANY (ARRAY['stop'::workspace_transition, 'delete'::workspace_transition])) AND (latest_build.job_status = 'succeeded'::provisioner_job_status)) THEN 'paused'::task_status
+            WHEN ((latest_build.transition = 'start'::workspace_transition) AND (latest_build.job_status = 'pending'::provisioner_job_status)) THEN 'initializing'::task_status
+            WHEN ((latest_build.transition = 'start'::workspace_transition) AND (latest_build.job_status = ANY (ARRAY['running'::provisioner_job_status, 'succeeded'::provisioner_job_status]))) THEN
+            CASE
+                WHEN agents_status."none" THEN 'initializing'::task_status
+                WHEN agents_status.connecting THEN 'initializing'::task_status
+                WHEN agents_status.connected THEN
+                CASE
+                    WHEN apps_status.any_unhealthy THEN 'error'::task_status
+                    WHEN apps_status.any_initializing THEN 'initializing'::task_status
+                    WHEN apps_status.all_healthy_or_disabled THEN 'active'::task_status
+                    ELSE 'unknown'::task_status
+                END
+                ELSE 'unknown'::task_status
+            END
+            ELSE 'unknown'::task_status
+        END AS status
+   FROM (((tasks
+     LEFT JOIN ( SELECT DISTINCT ON (workspace_build.workspace_id) workspace_build.workspace_id,
+            workspace_build.transition,
+            provisioner_job.job_status
+           FROM (workspace_builds workspace_build
+             JOIN provisioner_jobs provisioner_job ON ((provisioner_job.id = workspace_build.job_id)))
+          ORDER BY workspace_build.workspace_id, workspace_build.build_number DESC) latest_build ON ((latest_build.workspace_id = tasks.workspace_id)))
+     CROSS JOIN LATERAL ( SELECT (count(*) = 0) AS "none",
+            bool_or((workspace_agent.lifecycle_state = ANY (ARRAY['created'::workspace_agent_lifecycle_state, 'starting'::workspace_agent_lifecycle_state]))) AS connecting,
+            bool_and((workspace_agent.lifecycle_state = 'ready'::workspace_agent_lifecycle_state)) AS connected
+           FROM (task_workspace_apps task_app
+             JOIN workspace_agents workspace_agent ON ((workspace_agent.id = task_app.workspace_agent_id)))
+          WHERE ((task_app.task_id = tasks.id) AND (workspace_agent.deleted = false))) agents_status)
+     CROSS JOIN LATERAL ( SELECT bool_or((workspace_app.health = 'unhealthy'::workspace_app_health)) AS any_unhealthy,
+            bool_or((workspace_app.health = 'initializing'::workspace_app_health)) AS any_initializing,
+            bool_and((workspace_app.health = ANY (ARRAY['healthy'::workspace_app_health, 'disabled'::workspace_app_health]))) AS all_healthy_or_disabled
+           FROM (task_workspace_apps task_app
+             JOIN workspace_apps workspace_app ON ((workspace_app.id = task_app.workspace_app_id)))
+          WHERE (task_app.task_id = tasks.id)) apps_status)
+  WHERE (tasks.deleted_at IS NULL);
+
 CREATE TABLE telemetry_items (
     key text NOT NULL,
     value text NOT NULL,
@@ -2324,71 +2502,6 @@ CREATE TABLE workspace_agent_volume_resource_monitors (
     debounced_until timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
 
-CREATE TABLE workspace_agents (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    name character varying(64) NOT NULL,
-    first_connected_at timestamp with time zone,
-    last_connected_at timestamp with time zone,
-    disconnected_at timestamp with time zone,
-    resource_id uuid NOT NULL,
-    auth_token uuid NOT NULL,
-    auth_instance_id character varying,
-    architecture character varying(64) NOT NULL,
-    environment_variables jsonb,
-    operating_system character varying(64) NOT NULL,
-    instance_metadata jsonb,
-    resource_metadata jsonb,
-    directory character varying(4096) DEFAULT ''::character varying NOT NULL,
-    version text DEFAULT ''::text NOT NULL,
-    last_connected_replica_id uuid,
-    connection_timeout_seconds integer DEFAULT 0 NOT NULL,
-    troubleshooting_url text DEFAULT ''::text NOT NULL,
-    motd_file text DEFAULT ''::text NOT NULL,
-    lifecycle_state workspace_agent_lifecycle_state DEFAULT 'created'::workspace_agent_lifecycle_state NOT NULL,
-    expanded_directory character varying(4096) DEFAULT ''::character varying NOT NULL,
-    logs_length integer DEFAULT 0 NOT NULL,
-    logs_overflowed boolean DEFAULT false NOT NULL,
-    started_at timestamp with time zone,
-    ready_at timestamp with time zone,
-    subsystems workspace_agent_subsystem[] DEFAULT '{}'::workspace_agent_subsystem[],
-    display_apps display_app[] DEFAULT '{vscode,vscode_insiders,web_terminal,ssh_helper,port_forwarding_helper}'::display_app[],
-    api_version text DEFAULT ''::text NOT NULL,
-    display_order integer DEFAULT 0 NOT NULL,
-    parent_id uuid,
-    api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
-    CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
-);
-
-COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
-
-COMMENT ON COLUMN workspace_agents.connection_timeout_seconds IS 'Connection timeout in seconds, 0 means disabled.';
-
-COMMENT ON COLUMN workspace_agents.troubleshooting_url IS 'URL for troubleshooting the agent.';
-
-COMMENT ON COLUMN workspace_agents.motd_file IS 'Path to file inside workspace containing the message of the day (MOTD) to show to the user when logging in via SSH.';
-
-COMMENT ON COLUMN workspace_agents.lifecycle_state IS 'The current lifecycle state reported by the workspace agent.';
-
-COMMENT ON COLUMN workspace_agents.expanded_directory IS 'The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder';
-
-COMMENT ON COLUMN workspace_agents.logs_length IS 'Total length of startup logs';
-
-COMMENT ON COLUMN workspace_agents.logs_overflowed IS 'Whether the startup logs overflowed in length';
-
-COMMENT ON COLUMN workspace_agents.started_at IS 'The time the agent entered the starting lifecycle state';
-
-COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the ready or start_error lifecycle state';
-
-COMMENT ON COLUMN workspace_agents.display_order IS 'Specifies the order in which to display agents in user interfaces.';
-
-COMMENT ON COLUMN workspace_agents.api_key_scope IS 'Defines the scope of the API key associated with the agent. ''all'' allows access to everything, ''no_user_data'' restricts it to exclude user data.';
-
-COMMENT ON COLUMN workspace_agents.deleted IS 'Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.';
-
 CREATE UNLOGGED TABLE workspace_app_audit_sessions (
     agent_id uuid NOT NULL,
     app_id uuid NOT NULL,
@@ -2477,35 +2590,6 @@ CREATE TABLE workspace_app_statuses (
     uri text
 );
 
-CREATE TABLE workspace_apps (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    agent_id uuid NOT NULL,
-    display_name character varying(64) NOT NULL,
-    icon character varying(256) NOT NULL,
-    command character varying(65534),
-    url character varying(65534),
-    healthcheck_url text DEFAULT ''::text NOT NULL,
-    healthcheck_interval integer DEFAULT 0 NOT NULL,
-    healthcheck_threshold integer DEFAULT 0 NOT NULL,
-    health workspace_app_health DEFAULT 'disabled'::workspace_app_health NOT NULL,
-    subdomain boolean DEFAULT false NOT NULL,
-    sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
-    slug text NOT NULL,
-    external boolean DEFAULT false NOT NULL,
-    display_order integer DEFAULT 0 NOT NULL,
-    hidden boolean DEFAULT false NOT NULL,
-    open_in workspace_app_open_in DEFAULT 'slim-window'::workspace_app_open_in NOT NULL,
-    display_group text,
-    tooltip character varying(2048) DEFAULT ''::character varying NOT NULL
-);
-
-COMMENT ON COLUMN workspace_apps.display_order IS 'Specifies the order in which to display agent app in user interfaces.';
-
-COMMENT ON COLUMN workspace_apps.hidden IS 'Determines if the app is not shown in user interfaces.';
-
-COMMENT ON COLUMN workspace_apps.tooltip IS 'Markdown text that is displayed when hovering over workspace apps.';
-
 CREATE TABLE workspace_build_parameters (
     workspace_build_id uuid NOT NULL,
     name text NOT NULL,
@@ -2515,29 +2599,6 @@ CREATE TABLE workspace_build_parameters (
 COMMENT ON COLUMN workspace_build_parameters.name IS 'Parameter name';
 
 COMMENT ON COLUMN workspace_build_parameters.value IS 'Parameter value';
-
-CREATE TABLE workspace_builds (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    workspace_id uuid NOT NULL,
-    template_version_id uuid NOT NULL,
-    build_number integer NOT NULL,
-    transition workspace_transition NOT NULL,
-    initiator_id uuid NOT NULL,
-    provisioner_state bytea,
-    job_id uuid NOT NULL,
-    deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    reason build_reason DEFAULT 'initiator'::build_reason NOT NULL,
-    daily_cost integer DEFAULT 0 NOT NULL,
-    max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    template_version_preset_id uuid,
-    has_ai_task boolean,
-    ai_task_sidebar_app_id uuid,
-    has_external_agent boolean,
-    CONSTRAINT workspace_builds_ai_task_sidebar_app_id_required CHECK (((((has_ai_task IS NULL) OR (has_ai_task = false)) AND (ai_task_sidebar_app_id IS NULL)) OR ((has_ai_task = true) AND (ai_task_sidebar_app_id IS NOT NULL)))),
-    CONSTRAINT workspace_builds_deadline_below_max_deadline CHECK ((((deadline <> '0001-01-01 00:00:00+00'::timestamp with time zone) AND (deadline <= max_deadline)) OR (max_deadline = '0001-01-01 00:00:00+00'::timestamp with time zone)))
-);
 
 CREATE VIEW workspace_build_with_user AS
  SELECT workspace_builds.id,

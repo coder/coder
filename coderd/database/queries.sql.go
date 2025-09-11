@@ -12046,6 +12046,107 @@ func (q *sqlQuerier) UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetT
 	return i, err
 }
 
+const getTaskByID = `-- name: GetTaskByID :one
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status FROM tasks_with_status WHERE id = $1
+`
+
+func (q *sqlQuerier) GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error) {
+	row := q.db.QueryRowContext(ctx, getTaskByID, id)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+		&i.Status,
+	)
+	return i, err
+}
+
+const insertTask = `-- name: InsertTask :one
+INSERT INTO tasks
+	(id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at)
+VALUES
+	(gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at
+`
+
+type InsertTaskParams struct {
+	OrganizationID     uuid.UUID       `db:"organization_id" json:"organization_id"`
+	OwnerID            uuid.UUID       `db:"owner_id" json:"owner_id"`
+	Name               string          `db:"name" json:"name"`
+	WorkspaceID        uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID  uuid.UUID       `db:"template_version_id" json:"template_version_id"`
+	TemplateParameters json.RawMessage `db:"template_parameters" json:"template_parameters"`
+	Prompt             string          `db:"prompt" json:"prompt"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertTask(ctx context.Context, arg InsertTaskParams) (TaskTable, error) {
+	row := q.db.QueryRowContext(ctx, insertTask,
+		arg.OrganizationID,
+		arg.OwnerID,
+		arg.Name,
+		arg.WorkspaceID,
+		arg.TemplateVersionID,
+		arg.TemplateParameters,
+		arg.Prompt,
+		arg.CreatedAt,
+	)
+	var i TaskTable
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const insertTaskWorkspaceApp = `-- name: InsertTaskWorkspaceApp :one
+INSERT INTO task_workspace_apps
+	(task_id, workspace_build_id, workspace_agent_id, workspace_app_id)
+VALUES
+	($1, $2, $3, $4)
+RETURNING task_id, workspace_build_id, workspace_agent_id, workspace_app_id
+`
+
+type InsertTaskWorkspaceAppParams struct {
+	TaskID           uuid.UUID `db:"task_id" json:"task_id"`
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	WorkspaceAppID   uuid.UUID `db:"workspace_app_id" json:"workspace_app_id"`
+}
+
+func (q *sqlQuerier) InsertTaskWorkspaceApp(ctx context.Context, arg InsertTaskWorkspaceAppParams) (TaskWorkspaceApp, error) {
+	row := q.db.QueryRowContext(ctx, insertTaskWorkspaceApp,
+		arg.TaskID,
+		arg.WorkspaceBuildID,
+		arg.WorkspaceAgentID,
+		arg.WorkspaceAppID,
+	)
+	var i TaskWorkspaceApp
+	err := row.Scan(
+		&i.TaskID,
+		&i.WorkspaceBuildID,
+		&i.WorkspaceAgentID,
+		&i.WorkspaceAppID,
+	)
+	return i, err
+}
+
 const getTelemetryItem = `-- name: GetTelemetryItem :one
 SELECT key, value, created_at, updated_at FROM telemetry_items WHERE key = $1
 `
