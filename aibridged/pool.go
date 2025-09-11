@@ -134,6 +134,10 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn fu
 		}
 
 		mcpProxyMgr := mcp.NewServerProxyManager(proxiers)
+		if err := mcpProxyMgr.Init(ctx); err != nil {
+			p.logger.Warn(ctx, "failed to initialize MCP server proxier(s)", slog.Error(err))
+		}
+
 		bridge, err = aibridge.NewRequestBridge(ctx, p.providers, p.logger, recorder, mcpProxyMgr)
 		if err != nil {
 			return nil, xerrors.Errorf("create new request bridge: %w", err)
@@ -149,8 +153,9 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn fu
 	return instance, err
 }
 
-func (p *CachedBridgePool) setupMCPServerProxiers(ctx context.Context, client DRPCClient, req Request) ([]mcp.ServerProxier, error) {
+func (p *CachedBridgePool) setupMCPServerProxiers(ctx context.Context, client DRPCClient, req Request) (map[string]mcp.ServerProxier, error) {
 	// TODO: timeout?
+
 	// Fetch MCP server configs.
 	mcpSrvCfgs, err := client.GetMCPServerConfigs(ctx, &proto.GetMCPServerConfigsRequest{
 		UserId: req.InitiatorID.String(),
@@ -159,8 +164,18 @@ func (p *CachedBridgePool) setupMCPServerProxiers(ctx context.Context, client DR
 		return nil, xerrors.Errorf("get MCP server configs: %w", err)
 	}
 
+	proxiers := make(map[string]mcp.ServerProxier, len(mcpSrvCfgs.GetExternalAuthMcpConfigs())+1) // Extra one for Coder MCP server.
+
+	// Setup the Coder MCP server proxy.
+	coderMCPProxy, err := p.newStreamableHTTPServerProxy(ctx, mcpSrvCfgs.GetCoderMcpConfig(), req.SessionKey) // The session key is used to auth against our internal MCP server.
+	if err != nil {
+		p.logger.Warn(ctx, "failed to create MCP server proxy", slog.F("mcp_server_id", mcpSrvCfgs.GetCoderMcpConfig().GetId()), slog.Error(err))
+	} else {
+		proxiers["coder"] = coderMCPProxy
+	}
+
 	if len(mcpSrvCfgs.GetExternalAuthMcpConfigs()) == 0 {
-		return nil, nil
+		return proxiers, nil
 	}
 
 	serverIDs := make([]string, 0, len(mcpSrvCfgs.GetExternalAuthMcpConfigs()))
@@ -177,51 +192,26 @@ func (p *CachedBridgePool) setupMCPServerProxiers(ctx context.Context, client DR
 		p.logger.Warn(ctx, "failed to retrieve access token(s)", slog.F("server_ids", serverIDs), slog.Error(err))
 	}
 
-	proxiers := make([]mcp.ServerProxier, 0, len(mcpSrvCfgs.GetExternalAuthMcpConfigs())+1) // Extra one for Coder MCP server.
-
-	// Setup the Coder MCP server proxy.
-	coderMCPProxy, err := p.newStreamableHTTPServerProxy(ctx, mcpSrvCfgs.GetCoderMcpConfig(), req.SessionKey) // The session key is used to auth against our internal MCP server.
-	if err != nil {
-		p.logger.Warn(ctx, "failed to create MCP server proxy", slog.F("mcp_server_id", mcpSrvCfgs.GetCoderMcpConfig().GetId()), slog.Error(err))
-	} else {
-		proxiers = append(proxiers, coderMCPProxy)
-	}
-
-	// Concurrently setup server proxies for all External Auth-configured MCP servers.
-	var (
-		wg         sync.WaitGroup
-		proxiersMu sync.Mutex
-	)
 	for _, cfg := range mcpSrvCfgs.GetExternalAuthMcpConfigs() {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		if err, ok := resp.GetErrors()[cfg.GetId()]; ok {
+			p.logger.Warn(ctx, "failed to get access token", slog.F("mcp_server_id", cfg.GetId()), slog.F("error", err))
+			continue
+		}
 
-			if err, ok := resp.GetErrors()[cfg.GetId()]; ok {
-				p.logger.Warn(ctx, "failed to get access token", slog.F("mcp_server_id", cfg.GetId()), slog.F("error", err))
-				return
-			}
+		token, ok := resp.GetAccessTokens()[cfg.GetId()]
+		if !ok {
+			p.logger.Warn(ctx, "no token found", slog.F("mcp_server_id", cfg.GetId()))
+			continue
+		}
 
-			token, ok := resp.GetAccessTokens()[cfg.GetId()]
-			if !ok {
-				p.logger.Warn(ctx, "no token found", slog.F("mcp_server_id", cfg.GetId()))
-				return
-			}
+		proxy, err := p.newStreamableHTTPServerProxy(ctx, cfg, token)
+		if err != nil {
+			p.logger.Warn(ctx, "failed to create MCP server proxy", slog.F("mcp_server_id", cfg.GetId()), slog.Error(err))
+			continue
+		}
 
-			proxy, err := p.newStreamableHTTPServerProxy(ctx, cfg, token)
-			if err != nil {
-				p.logger.Warn(ctx, "failed to create MCP server proxy", slog.F("mcp_server_id", cfg.GetId()), slog.Error(err))
-				return
-			}
-
-			proxiersMu.Lock()
-			proxiers = append(proxiers, proxy)
-			proxiersMu.Unlock()
-		}()
+		proxiers[cfg.Id] = proxy
 	}
-
-	wg.Wait()
-
 	return proxiers, nil
 }
 
@@ -269,11 +259,6 @@ func (p *CachedBridgePool) newStreamableHTTPServerProxy(ctx context.Context, cfg
 
 	if err != nil {
 		return nil, xerrors.Errorf("create streamable HTTP MCP server proxy: %w", err)
-	}
-
-	err = srv.Init(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to initialize streamable HTTP MCP server proxy: %w", err)
 	}
 
 	return srv, nil
