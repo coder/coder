@@ -17,7 +17,7 @@ USAGE:
   server.
   
   Consult the API documentation for more information -
-  https://coder.com/docs/reference/api,
+  https://coder.com/docs/reference/api.
 
 ———
 Run `coder --help` for a list of global options.

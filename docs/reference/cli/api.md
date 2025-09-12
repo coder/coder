@@ -21,6 +21,6 @@ This will perform a GET request to /api/v2/workspacebuilds/my-build/logs on the 
   coder api users/me
 This will perform a GET request to /api/v2/users/me on the connected Coder server.
 
-Consult the API documentation for more information - https://coder.com/docs/reference/api,
+Consult the API documentation for more information - https://coder.com/docs/reference/api.
 
 ```
