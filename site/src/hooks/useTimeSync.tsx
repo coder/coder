@@ -1,13 +1,15 @@
 import {
 	createContext,
 	type FC,
-	type PropsWithChildren,
+	type ReactNode,
 	useCallback,
 	useContext,
 	useId,
 	useInsertionEffect,
 	useLayoutEffect,
 	useMemo,
+	useReducer,
+	useRef,
 	useState,
 	useSyncExternalStore,
 } from "react";
@@ -353,9 +355,10 @@ function useReactTimeSync(): ReactTimeSync {
 	return reactTs;
 }
 
-type TimeSyncProviderProps = PropsWithChildren<{
+type TimeSyncProviderProps = Readonly<{
 	initialDate?: InitialDate;
 	isSnapshot?: boolean;
+	children?: ReactNode;
 }>;
 
 export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
@@ -501,18 +504,13 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// the external system needs to use the function
 	const externalTransform = useEffectEvent(activeTransform);
 
-	// Dependency array elements listed for correctness, but the only value that
-	// can change on re-renders (which React guarantees) is the target interval
-	const subscribe = useCallback<ReactSubscriptionCallback>(
+	const ejectedNotifyRef = useRef<() => void>(noOp);
+	const subscribeWithEjection = useCallback<ReactSubscriptionCallback>(
 		(notifyReact) => {
-			return reactTs.subscribe({
-				componentId: hookId,
-				targetRefreshIntervalMs: targetIntervalMs,
-				transform: externalTransform,
-				onReactStateSync: notifyReact,
-			});
+			ejectedNotifyRef.current = notifyReact;
+			return noOp;
 		},
-		[reactTs, hookId, externalTransform, targetIntervalMs],
+		[],
 	);
 
 	/**
@@ -528,7 +526,10 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	 * change, which is why both callbacks are memoized. We don't want
 	 * subscriptions torn down and rebuilt each render.
 	 */
-	const cachedTransformation = useSyncExternalStore(subscribe, getSnap);
+	const cachedTransformation = useSyncExternalStore(
+		subscribeWithEjection,
+		getSnap,
+	);
 
 	// There's some trade-offs with this memo (notably, if the consumer passes
 	// in an inline transform callback, the memo result will be invalidated on
@@ -558,6 +559,8 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 		[cachedTransformation, newTransformation],
 	);
 
+	const [, forceRerender] = useReducer((v) => !v, false);
+
 	// Because this is a layout effect, it's guaranteed to fire before the
 	// subscription logic, even though the subscription was registered first.
 	// This lets us cut back on redoing computations that were already handled
@@ -575,6 +578,14 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	 * Might have to do some voodoo with ref ejection and possibly a
 	 * forceRerender function
 	 */
+	useLayoutEffect(() => {
+		return reactTs.subscribe({
+			componentId: hookId,
+			targetRefreshIntervalMs: targetIntervalMs,
+			transform: externalTransform,
+			onReactStateSync: () => ejectedNotifyRef.current(),
+		});
+	}, [reactTs, hookId, externalTransform, targetIntervalMs]);
 
 	// And because the mounting logic is able to notify all consumers, we also
 	// want to make sure that it fires before paint in case we need to correct
