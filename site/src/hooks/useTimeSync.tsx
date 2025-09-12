@@ -566,7 +566,19 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 		reactTs.updateComponentState(hookId, merged);
 	}, [reactTs, hookId, merged]);
 
-	// And
+	/**
+	 * @todo I need to figure out a way to fiddle with the subscription logic
+	 * for useSyncExternalStore so that:
+	 * 1. The subscription gets set up here, between the two layout effects
+	 * 2. The subscription can get "promoted" to layout effect priority
+	 *
+	 * Might have to do some voodoo with ref ejection and possibly a
+	 * forceRerender function
+	 */
+
+	// And because the mounting logic is able to notify all consumers, we also
+	// want to make sure that it fires before paint in case we need to correct
+	// any other subscribers
 	useLayoutEffect(() => {
 		reactTs.onComponentMount();
 	}, [reactTs]);
