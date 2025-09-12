@@ -383,7 +383,7 @@ export const WorkspaceStartFailure: Story = {
 		await userEvent.click(startButton);
 
 		await waitFor(async () => {
-			const errorMessage = await canvas.findByText("Failed to start workspace");
+			const errorMessage = await canvas.findByText("Some unexpected error");
 			expect(errorMessage).toBeInTheDocument();
 		});
 	},
