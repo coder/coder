@@ -62,6 +62,231 @@ var (
 	workspaceNameRe         = regexp.MustCompile(`[/.]+|--`)
 )
 
+type sshLoggingConfig struct {
+	logDirPath string
+	useStdio   bool
+	logger     slog.Logger
+	wg         *sync.WaitGroup
+}
+
+func (r *RootCmd) setupSSHLogging(config sshLoggingConfig) (slog.Logger, error) {
+	nonce, err := cryptorand.StringCharset(cryptorand.Lower, 5)
+	if err != nil {
+		return config.logger, xerrors.Errorf("generate nonce: %w", err)
+	}
+	logFileBaseName := fmt.Sprintf(
+		"coder-ssh-%s-%s",
+		// The time portion makes it easier to find the right
+		// log file.
+		time.Now().Format("20060102-150405"),
+		// The nonce prevents collisions, as SSH invocations
+		// frequently happen in parallel.
+		nonce,
+	)
+	if config.useStdio {
+		// The VS Code extension obtains the PID of the SSH process to
+		// find the log file associated with a SSH session.
+		//
+		// We get the parent PID because it's assumed `ssh` is calling this
+		// command via the ProxyCommand SSH option.
+		logFileBaseName += fmt.Sprintf("-%d", os.Getppid())
+	}
+	logFileBaseName += ".log"
+
+	logFilePath := filepath.Join(config.logDirPath, logFileBaseName)
+	logFile, err := os.OpenFile(
+		logFilePath,
+		os.O_CREATE|os.O_APPEND|os.O_WRONLY|os.O_EXCL,
+		0o600,
+	)
+	if err != nil {
+		return config.logger, xerrors.Errorf("error opening %s for logging: %w", config.logDirPath, err)
+	}
+	dc := cliutil.DiscardAfterClose(logFile)
+	go func() {
+		config.wg.Wait()
+		_ = dc.Close()
+	}()
+
+	logger := config.logger.AppendSinks(sloghuman.Sink(dc))
+	if r.verbose {
+		logger = logger.Leveled(slog.LevelDebug)
+	}
+	return logger, nil
+}
+
+type remoteForwardConfig struct {
+	remoteForwards []string
+	useStdio       bool
+}
+
+func validateRemoteForwards(config remoteForwardConfig) error {
+	for _, remoteForward := range config.remoteForwards {
+		isValid := validateRemoteForward(remoteForward)
+		if !isValid {
+			return xerrors.Errorf(`invalid format of remote-forward, expected: remote_port:local_address:local_port`)
+		}
+		if isValid && config.useStdio {
+			return xerrors.Errorf(`remote-forward can't be enabled in the stdio mode`)
+		}
+	}
+	return nil
+}
+
+func parseEnvironmentVariables(env []string) ([][2]string, error) {
+	var parsedEnv [][2]string
+	for _, e := range env {
+		k, v, ok := strings.Cut(e, "=")
+		if !ok {
+			return nil, xerrors.Errorf("invalid environment variable setting %q", e)
+		}
+		parsedEnv = append(parsedEnv, [2]string{k, v})
+	}
+	return parsedEnv, nil
+}
+
+func setupImmortalSSHStream(ctx context.Context, client *codersdk.Client, workspaceAgent codersdk.WorkspaceAgent, logger slog.Logger, immortalFallback bool, conn workspacesdk.AgentConn) (net.Conn, *immortalStreamClient, *uuid.UUID, error) {
+	// Use shared helper to manage immortal creation/fallback
+	res, err := DialImmortalOrFallback(ctx, conn, client, workspaceAgent.ID, logger, ImmortalDialOptions{
+		Enabled:    true,
+		Fallback:   immortalFallback,
+		TargetPort: 1,
+	}, func(c context.Context) (net.Conn, error) {
+		return conn.SSH(c)
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return res.Conn, res.StreamClient, res.StreamID, nil
+}
+
+func setupImmortalSSHClient(ctx context.Context, client *codersdk.Client, workspaceAgent codersdk.WorkspaceAgent, logger slog.Logger, immortalFallback bool, conn workspacesdk.AgentConn) (*gossh.Client, *immortalStreamClient, *uuid.UUID, error) {
+	// Use shared helper; always perform SSH handshake on the returned net.Conn
+	res, err := DialImmortalOrFallback(ctx, conn, client, workspaceAgent.ID, logger, ImmortalDialOptions{
+		Enabled:    true,
+		Fallback:   immortalFallback,
+		TargetPort: 1,
+	}, func(c context.Context) (net.Conn, error) {
+		return conn.DialContext(c, "tcp", "127.0.0.1:22")
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	rawConn := res.Conn
+	sshConn, chans, reqs, err := gossh.NewClientConn(rawConn, "localhost:22", &gossh.ClientConfig{
+		HostKeyCallback: gossh.InsecureIgnoreHostKey(), //nolint:gosec
+		Timeout:         30 * time.Second,
+	})
+	if err != nil {
+		_ = rawConn.Close()
+		// If we created an immortal stream, best-effort cleanup
+		if res.StreamClient != nil && res.StreamID != nil && !isNetworkError(err) {
+			_ = res.StreamClient.deleteStream(ctx, *res.StreamID)
+		}
+		return nil, nil, nil, xerrors.Errorf("ssh handshake over connection: %w", err)
+	}
+
+	sshClient := gossh.NewClient(sshConn, chans, reqs)
+	return sshClient, res.StreamClient, res.StreamID, nil
+}
+
+type stdioSSHConfig struct {
+	ctx                 context.Context
+	inv                 *serpent.Invocation
+	conn                workspacesdk.AgentConn
+	client              *codersdk.Client
+	workspace           codersdk.Workspace
+	workspaceAgent      codersdk.WorkspaceAgent
+	logger              slog.Logger
+	immortal            bool
+	immortalFallback    bool
+	stdioReader         io.Reader
+	stdioWriter         io.Writer
+	networkInfoDir      string
+	networkInfoInterval time.Duration
+	stack               *closerStack
+	wg                  *sync.WaitGroup
+}
+
+func (*RootCmd) handleStdioSSH(cfg stdioSSHConfig) error {
+	var rawSSH net.Conn
+	var immortalStreamClient *immortalStreamClient
+	var streamID *uuid.UUID
+
+	if cfg.immortal {
+		// Use immortal stream for SSH connection
+		var err error
+		rawSSH, immortalStreamClient, streamID, err = setupImmortalSSHStream(cfg.ctx, cfg.client, cfg.workspaceAgent, cfg.logger, cfg.immortalFallback, cfg.conn)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Use regular SSH connection
+		var err error
+		rawSSH, err = cfg.conn.SSH(cfg.ctx)
+		if err != nil {
+			return xerrors.Errorf("connect SSH: %w", err)
+		}
+	}
+
+	var copier io.Closer
+
+	if tcpConn, ok := rawSSH.(*gonet.TCPConn); ok {
+		// Use specialized raw SSH copier for regular TCP connections
+		rawCopier := newRawSSHCopier(cfg.logger, tcpConn, cfg.stdioReader, cfg.stdioWriter)
+		copier = rawCopier
+		// Start copying in the background for rawSSHCopier
+		go rawCopier.copy(cfg.wg)
+	} else {
+		// Use generic copier for immortal stream connections
+		genericCopier := newGenericSSHCopier(cfg.logger, rawSSH, cfg.stdioReader, cfg.stdioWriter)
+		copier = genericCopier
+		// Start copying in the background for genericSSHCopier
+		go genericCopier.copy(cfg.wg)
+	}
+
+	if err := cfg.stack.push("rawSSHCopier", copier); err != nil {
+		return err
+	}
+
+	var errCh <-chan error
+	if cfg.networkInfoDir != "" {
+		var err error
+		errCh, err = setStatsCallback(cfg.ctx, cfg.conn, cfg.logger, cfg.networkInfoDir, cfg.networkInfoInterval)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Set up signal-based cleanup for immortal stream
+	// Only delete on explicit user termination (SIGINT, SIGTERM), not network errors
+	if immortalStreamClient != nil && streamID != nil {
+		// Create a signal-only context for cleanup
+		signalCtx, signalStop := cfg.inv.SignalNotifyContext(context.Background(), StopSignals...)
+		defer signalStop()
+
+		go func() {
+			<-signalCtx.Done()
+			// User sent termination signal - clean up the stream
+			_ = immortalStreamClient.deleteStream(context.Background(), *streamID)
+		}()
+	}
+
+	cfg.wg.Add(1)
+	go func() {
+		defer cfg.wg.Done()
+		watchAndClose(cfg.ctx, func() error {
+			// Don't delete immortal stream here - let signal handler do it
+			cfg.stack.close(xerrors.New("watchAndClose"))
+			return nil
+		}, cfg.logger, cfg.client, cfg.workspace, errCh)
+	}()
+	// The copying is already started in the background above
+	cfg.wg.Wait()
+	return nil
+}
+
 func (r *RootCmd) ssh() *serpent.Command {
 	var (
 		stdio               bool
@@ -85,6 +310,10 @@ func (r *RootCmd) ssh() *serpent.Command {
 
 		containerName string
 		containerUser string
+
+		// Immortal streams flags
+		immortal         bool
+		immortalFallback bool // Default to false for SSH
 	)
 	client := new(codersdk.Client)
 	wsClient := workspacesdk.New(client)
@@ -157,72 +386,31 @@ func (r *RootCmd) ssh() *serpent.Command {
 			defer wg.Done()
 
 			if logDirPath != "" {
-				nonce, err := cryptorand.StringCharset(cryptorand.Lower, 5)
+				var err error
+				logger, err = r.setupSSHLogging(sshLoggingConfig{
+					logDirPath: logDirPath,
+					useStdio:   stdio,
+					logger:     logger,
+					wg:         &wg,
+				})
 				if err != nil {
-					return xerrors.Errorf("generate nonce: %w", err)
+					return err
 				}
-				logFileBaseName := fmt.Sprintf(
-					"coder-ssh-%s-%s",
-					// The time portion makes it easier to find the right
-					// log file.
-					time.Now().Format("20060102-150405"),
-					// The nonce prevents collisions, as SSH invocations
-					// frequently happen in parallel.
-					nonce,
-				)
-				if stdio {
-					// The VS Code extension obtains the PID of the SSH process to
-					// find the log file associated with a SSH session.
-					//
-					// We get the parent PID because it's assumed `ssh` is calling this
-					// command via the ProxyCommand SSH option.
-					logFileBaseName += fmt.Sprintf("-%d", os.Getppid())
-				}
-				logFileBaseName += ".log"
-
-				logFilePath := filepath.Join(logDirPath, logFileBaseName)
-				logFile, err := os.OpenFile(
-					logFilePath,
-					os.O_CREATE|os.O_APPEND|os.O_WRONLY|os.O_EXCL,
-					0o600,
-				)
-				if err != nil {
-					return xerrors.Errorf("error opening %s for logging: %w", logDirPath, err)
-				}
-				dc := cliutil.DiscardAfterClose(logFile)
-				go func() {
-					wg.Wait()
-					_ = dc.Close()
-				}()
-
-				logger = logger.AppendSinks(sloghuman.Sink(dc))
-				if r.verbose {
-					logger = logger.Leveled(slog.LevelDebug)
-				}
-
-				// log HTTP requests
 				client.SetLogger(logger)
 			}
 			stack := newCloserStack(ctx, logger, quartz.NewReal())
 			defer stack.close(nil)
 
-			for _, remoteForward := range remoteForwards {
-				isValid := validateRemoteForward(remoteForward)
-				if !isValid {
-					return xerrors.Errorf(`invalid format of remote-forward, expected: remote_port:local_address:local_port`)
-				}
-				if isValid && stdio {
-					return xerrors.Errorf(`remote-forward can't be enabled in the stdio mode`)
-				}
+			if err := validateRemoteForwards(remoteForwardConfig{
+				remoteForwards: remoteForwards,
+				useStdio:       stdio,
+			}); err != nil {
+				return err
 			}
 
-			var parsedEnv [][2]string
-			for _, e := range env {
-				k, v, ok := strings.Cut(e, "=")
-				if !ok {
-					return xerrors.Errorf("invalid environment variable setting %q", e)
-				}
-				parsedEnv = append(parsedEnv, [2]string{k, v})
+			parsedEnv, err := parseEnvironmentVariables(env)
+			if err != nil {
+				return err
 			}
 
 			cliConfig := codersdk.SSHConfigResponse{
@@ -387,39 +575,43 @@ func (r *RootCmd) ssh() *serpent.Command {
 			}
 
 			if stdio {
-				rawSSH, err := conn.SSH(ctx)
+				return r.handleStdioSSH(stdioSSHConfig{
+					ctx:                 ctx,
+					inv:                 inv,
+					conn:                conn,
+					client:              client,
+					workspace:           workspace,
+					workspaceAgent:      workspaceAgent,
+					logger:              logger,
+					immortal:            immortal,
+					immortalFallback:    immortalFallback,
+					stdioReader:         stdioReader,
+					stdioWriter:         stdioWriter,
+					networkInfoDir:      networkInfoDir,
+					networkInfoInterval: networkInfoInterval,
+					stack:               stack,
+					wg:                  &wg,
+				})
+			}
+
+			var sshClient *gossh.Client
+			var immortalStreamClient *immortalStreamClient
+			var streamID *uuid.UUID
+
+			if immortal {
+				// Use immortal stream for SSH connection
+				sshClient, immortalStreamClient, streamID, err = setupImmortalSSHClient(ctx, client, workspaceAgent, logger, immortalFallback, conn)
 				if err != nil {
-					return xerrors.Errorf("connect SSH: %w", err)
-				}
-				copier := newRawSSHCopier(logger, rawSSH, stdioReader, stdioWriter)
-				if err = stack.push("rawSSHCopier", copier); err != nil {
 					return err
 				}
-
-				var errCh <-chan error
-				if networkInfoDir != "" {
-					errCh, err = setStatsCallback(ctx, conn, logger, networkInfoDir, networkInfoInterval)
-					if err != nil {
-						return err
-					}
+			} else {
+				// Use regular SSH connection
+				sshClient, err = conn.SSHClient(ctx)
+				if err != nil {
+					return xerrors.Errorf("ssh client: %w", err)
 				}
-
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					watchAndClose(ctx, func() error {
-						stack.close(xerrors.New("watchAndClose"))
-						return nil
-					}, logger, client, workspace, errCh)
-				}()
-				copier.copy(&wg)
-				return nil
 			}
 
-			sshClient, err := conn.SSHClient(ctx)
-			if err != nil {
-				return xerrors.Errorf("ssh client: %w", err)
-			}
 			if err = stack.push("ssh client", sshClient); err != nil {
 				return err
 			}
@@ -440,12 +632,27 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			}
 
+			// Set up signal-based cleanup for immortal stream
+			// Only delete on explicit user termination (SIGINT, SIGTERM), not network errors
+			if immortalStreamClient != nil && streamID != nil {
+				// Create a signal-only context for cleanup
+				signalCtx, signalStop := inv.SignalNotifyContext(context.Background(), StopSignals...)
+				defer signalStop()
+
+				go func() {
+					<-signalCtx.Done()
+					// User sent termination signal - clean up the stream
+					_ = immortalStreamClient.deleteStream(context.Background(), *streamID)
+				}()
+			}
+
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				watchAndClose(
 					ctx,
 					func() error {
+						// Don't delete immortal stream here - let signal handler do it
 						stack.close(xerrors.New("watchAndClose"))
 						return nil
 					},
@@ -728,9 +935,46 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Value:       serpent.BoolOf(&forceNewTunnel),
 			Hidden:      true,
 		},
+		{
+			Flag:        "immortal",
+			Description: "Use immortal streams for SSH connection, providing automatic reconnection when interrupted.",
+			Value:       serpent.BoolOf(&immortal),
+			Hidden:      true,
+		},
+		{
+			Flag:        "immortal-fallback",
+			Description: "If immortal streams are unavailable due to connection limits, fall back to regular TCP connection.",
+			Value:       serpent.BoolOf(&immortalFallback),
+			Hidden:      true,
+		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
 	}
 	return cmd
+}
+
+// isNetworkError checks if an error is a temporary network error
+func isNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := err.Error()
+	networkErrors := []string{
+		"connection refused",
+		"network is unreachable",
+		"connection reset",
+		"broken pipe",
+		"timeout",
+		"no route to host",
+	}
+
+	for _, netErr := range networkErrors {
+		if strings.Contains(errStr, netErr) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // findWorkspaceAndAgentByHostname parses the hostname from the commandline and finds the workspace and agent it
@@ -1274,6 +1518,44 @@ type rawSSHCopier struct {
 
 func newRawSSHCopier(logger slog.Logger, conn *gonet.TCPConn, r io.Reader, w io.Writer) *rawSSHCopier {
 	return &rawSSHCopier{conn: conn, logger: logger, r: r, w: w, done: make(chan struct{})}
+}
+
+// genericSSHCopier is similar to rawSSHCopier but works with any net.Conn (e.g., immortal streams)
+type genericSSHCopier struct {
+	conn   net.Conn
+	logger slog.Logger
+	r      io.Reader
+	w      io.Writer
+	done   chan struct{}
+}
+
+func newGenericSSHCopier(logger slog.Logger, conn net.Conn, r io.Reader, w io.Writer) *genericSSHCopier {
+	return &genericSSHCopier{conn: conn, logger: logger, r: r, w: w, done: make(chan struct{})}
+}
+
+func (c *genericSSHCopier) copy(_ *sync.WaitGroup) {
+	defer close(c.done)
+
+	// Copy stdin to connection
+	go func() {
+		defer c.conn.Close()
+		_, err := io.Copy(c.conn, c.r)
+		if err != nil {
+			c.logger.Debug(context.Background(), "error copying stdin to connection", slog.Error(err))
+		}
+	}()
+
+	// Copy connection to stdout
+	_, err := io.Copy(c.w, c.conn)
+	if err != nil {
+		c.logger.Debug(context.Background(), "error copying connection to stdout", slog.Error(err))
+	}
+}
+
+func (c *genericSSHCopier) Close() error {
+	_ = c.conn.Close()
+	<-c.done
+	return nil
 }
 
 func (c *rawSSHCopier) copy(wg *sync.WaitGroup) {
