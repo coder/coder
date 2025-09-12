@@ -509,6 +509,19 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 		[reactTs, hookId, externalTransform, targetIntervalMs],
 	);
 
+	/**
+	 * Important bits of context that the React docs don't cover:
+	 *
+	 * useSyncExternalStore has two distinct phases when it mounts:
+	 * 1. The state getter runs first in the render itself, and is called twice
+	 *    to guarantee that the snapshot is stable.
+	 * 2. Once the render completes, the subscription fires at useEffect
+	 *    priority (meaning that layout effects can out-race it)
+	 *
+	 * Also, both functions will re-run every time their function references
+	 * change, which is why both callbacks are memoized. We don't want
+	 * subscriptions torn down and rebuilt each render.
+	 */
 	const cachedTransformation = useSyncExternalStore(subscribe, getSnap);
 
 	// There's some trade-offs with this memo (notably, if the consumer passes
