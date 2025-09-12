@@ -479,7 +479,7 @@ require (
 	github.com/brianvoe/gofakeit/v7 v7.5.1
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
 	github.com/coder/aisdk-go v0.0.9
-	github.com/coder/jail v1.0.1-0.20250911203532-70677f27857e
+	github.com/coder/jail v1.0.1-0.20250912153404-1e687be21fb5
 	github.com/coder/preview v1.0.4
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-git/go-git/v5 v5.16.2
