@@ -2955,6 +2955,46 @@ func AllWorkspaceTransitionValues() []WorkspaceTransition {
 	}
 }
 
+type AIBridgeInterception struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	InitiatorID uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	Provider    string    `db:"provider" json:"provider"`
+	Model       string    `db:"model" json:"model"`
+	StartedAt   time.Time `db:"started_at" json:"started_at"`
+}
+
+type AIBridgeTokenUsage struct {
+	ID                 uuid.UUID             `db:"id" json:"id"`
+	InterceptionID     uuid.UUID             `db:"interception_id" json:"interception_id"`
+	ProviderResponseID string                `db:"provider_response_id" json:"provider_response_id"`
+	InputTokens        int64                 `db:"input_tokens" json:"input_tokens"`
+	OutputTokens       int64                 `db:"output_tokens" json:"output_tokens"`
+	Metadata           pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
+}
+
+type AIBridgeToolUsage struct {
+	ID                 uuid.UUID             `db:"id" json:"id"`
+	InterceptionID     uuid.UUID             `db:"interception_id" json:"interception_id"`
+	ProviderResponseID string                `db:"provider_response_id" json:"provider_response_id"`
+	ServerUrl          sql.NullString        `db:"server_url" json:"server_url"`
+	Tool               string                `db:"tool" json:"tool"`
+	Input              string                `db:"input" json:"input"`
+	Injected           bool                  `db:"injected" json:"injected"`
+	InvocationError    sql.NullString        `db:"invocation_error" json:"invocation_error"`
+	Metadata           pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
+}
+
+type AIBridgeUserPrompt struct {
+	ID                 uuid.UUID             `db:"id" json:"id"`
+	InterceptionID     uuid.UUID             `db:"interception_id" json:"interception_id"`
+	ProviderResponseID string                `db:"provider_response_id" json:"provider_response_id"`
+	Prompt             string                `db:"prompt" json:"prompt"`
+	Metadata           pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
+}
+
 type APIKey struct {
 	ID string `db:"id" json:"id"`
 	// hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.

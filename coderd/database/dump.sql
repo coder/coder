@@ -847,6 +847,46 @@ BEGIN
 END;
 $$;
 
+CREATE TABLE aibridge_interceptions (
+    id uuid NOT NULL,
+    initiator_id uuid NOT NULL,
+    provider text NOT NULL,
+    model text NOT NULL,
+    started_at timestamp with time zone NOT NULL
+);
+
+CREATE TABLE aibridge_token_usages (
+    id uuid NOT NULL,
+    interception_id uuid NOT NULL,
+    provider_response_id text NOT NULL,
+    input_tokens bigint NOT NULL,
+    output_tokens bigint NOT NULL,
+    metadata jsonb,
+    created_at timestamp with time zone NOT NULL
+);
+
+CREATE TABLE aibridge_tool_usages (
+    id uuid NOT NULL,
+    interception_id uuid NOT NULL,
+    provider_response_id text NOT NULL,
+    server_url text,
+    tool text NOT NULL,
+    input text NOT NULL,
+    injected boolean DEFAULT false NOT NULL,
+    invocation_error text,
+    metadata jsonb,
+    created_at timestamp with time zone NOT NULL
+);
+
+CREATE TABLE aibridge_user_prompts (
+    id uuid NOT NULL,
+    interception_id uuid NOT NULL,
+    provider_response_id text NOT NULL,
+    prompt text NOT NULL,
+    metadata jsonb,
+    created_at timestamp with time zone NOT NULL
+);
+
 CREATE TABLE api_keys (
     id text NOT NULL,
     hashed_secret bytea NOT NULL,
@@ -2597,6 +2637,18 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY aibridge_interceptions
+    ADD CONSTRAINT aibridge_interceptions_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY aibridge_token_usages
+    ADD CONSTRAINT aibridge_token_usages_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY aibridge_tool_usages
+    ADD CONSTRAINT aibridge_tool_usages_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY aibridge_user_prompts
+    ADD CONSTRAINT aibridge_user_prompts_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_pkey PRIMARY KEY (id);
 
@@ -2895,6 +2947,20 @@ COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys querie
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
+
+CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions USING btree (initiator_id);
+
+CREATE INDEX idx_aibridge_token_usages_interception_id ON aibridge_token_usages USING btree (interception_id);
+
+CREATE INDEX idx_aibridge_token_usages_provider_response_id ON aibridge_token_usages USING btree (provider_response_id);
+
+CREATE INDEX idx_aibridge_tool_usages_interception_id ON aibridge_tool_usages USING btree (interception_id);
+
+CREATE INDEX idx_aibridge_tool_usagesprovider_response_id ON aibridge_tool_usages USING btree (provider_response_id);
+
+CREATE INDEX idx_aibridge_user_prompts_interception_id ON aibridge_user_prompts USING btree (interception_id);
+
+CREATE INDEX idx_aibridge_user_prompts_provider_response_id ON aibridge_user_prompts USING btree (provider_response_id);
 
 CREATE UNIQUE INDEX idx_api_key_name ON api_keys USING btree (user_id, token_name) WHERE (login_type = 'token'::login_type);
 
