@@ -164,7 +164,7 @@ Templates define what's in your development environment. Let's start simple:
    | **Kubernetes (Deployment)**         | Cloud-native teams, scalable workspaces                 | Pod-based workspaces, Kubernetes orchestration         |
    | **AWS EC2 (Linux)**                 | Teams needing full VMs, AWS-native infrastructure       | Full EC2 instances with AWS integration                |
 
-3. Click **"Use template"** on **Docker Containers**
+3. Click **"Use template"** on **Docker Containers**. Note: running this template requires Docker to be running in the background, so make sure Docker is running! 
 
 4. **Name your template:**
    - Name: `quickstart`
