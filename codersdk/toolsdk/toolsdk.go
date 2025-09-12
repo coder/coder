@@ -42,6 +42,7 @@ const (
 	ToolNameWorkspaceBash               = "coder_workspace_bash"
 	ToolNameChatGPTSearch               = "search"
 	ToolNameChatGPTFetch                = "fetch"
+	ToolNameWorkspaceLS                 = "coder_workspace_ls"
 	ToolNameWorkspaceReadFile           = "coder_workspace_read_file"
 	ToolNameWorkspaceWriteFile          = "coder_workspace_write_file"
 	ToolNameWorkspaceEditFile           = "coder_workspace_edit_file"
@@ -213,6 +214,7 @@ var All = []GenericTool{
 	WorkspaceBash.Generic(),
 	ChatGPTSearch.Generic(),
 	ChatGPTFetch.Generic(),
+	WorkspaceLS.Generic(),
 	WorkspaceReadFile.Generic(),
 	WorkspaceWriteFile.Generic(),
 	WorkspaceEditFile.Generic(),
@@ -1371,6 +1373,62 @@ type MinimalTemplate struct {
 	Description     string    `json:"description"`
 	ActiveVersionID uuid.UUID `json:"active_version_id"`
 	ActiveUserCount int       `json:"active_user_count"`
+}
+
+type WorkspaceLSArgs struct {
+	Workspace string `json:"workspace"`
+	Path      string `json:"path"`
+}
+
+type WorkspaceLSFile struct {
+	Path  string `json:"path"`
+	IsDir bool   `json:"is_dir"`
+}
+
+type WorkspaceLSResponse struct {
+	Contents []WorkspaceLSFile `json:"contents"`
+}
+
+var WorkspaceLS = Tool[WorkspaceLSArgs, WorkspaceLSResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameWorkspaceLS,
+		Description: `List directories in a workspace.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used.",
+				},
+				"path": map[string]any{
+					"type":        "string",
+					"description": "The absolute path of the directory in the workspace to list.",
+				},
+			},
+			Required: []string{"path", "workspace"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceLSArgs) (WorkspaceLSResponse, error) {
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		if err != nil {
+			return WorkspaceLSResponse{}, err
+		}
+		defer conn.Close()
+
+		res, err := conn.LS(ctx, args.Path, workspacesdk.LSRequest{})
+		if err != nil {
+			return WorkspaceLSResponse{}, err
+		}
+
+		contents := make([]WorkspaceLSFile, len(res.Contents))
+		for i, f := range res.Contents {
+			contents[i] = WorkspaceLSFile{
+				Path:  f.AbsolutePathString,
+				IsDir: f.IsDir,
+			}
+		}
+		return WorkspaceLSResponse{Contents: contents}, nil
+	},
 }
 
 type WorkspaceReadFileArgs struct {
