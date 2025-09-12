@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -578,6 +579,107 @@ func TestTools(t *testing.T) {
 		b, err := afero.ReadFile(fs, "/test/some/path")
 		require.NoError(t, err)
 		require.Equal(t, []byte("content"), b)
+	})
+
+	t.Run("WorkspaceEditFile", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		fs := afero.NewMemMapFs()
+		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
+			opts.Filesystem = fs
+		})
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		tmpdir := os.TempDir()
+		filePath := filepath.Join(tmpdir, "edit")
+		err = afero.WriteFile(fs, filePath, []byte("foo bar"), 0o644)
+		require.NoError(t, err)
+
+		_, err = testTool(t, toolsdk.WorkspaceEditFile, tb, toolsdk.WorkspaceEditFileArgs{
+			Workspace: workspace.Name,
+			Path:      filePath,
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "must specify at least one edit")
+
+		_, err = testTool(t, toolsdk.WorkspaceEditFile, tb, toolsdk.WorkspaceEditFileArgs{
+			Workspace: workspace.Name,
+			Path:      filePath,
+			Edits: []workspacesdk.FileEdit{
+				{
+					Search:  "foo",
+					Replace: "bar",
+				},
+			},
+		})
+		require.NoError(t, err)
+		b, err := afero.ReadFile(fs, filePath)
+		require.NoError(t, err)
+		require.Equal(t, "bar bar", string(b))
+	})
+
+	t.Run("WorkspaceEditFiles", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		fs := afero.NewMemMapFs()
+		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
+			opts.Filesystem = fs
+		})
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		tmpdir := os.TempDir()
+		filePath1 := filepath.Join(tmpdir, "edit1")
+		err = afero.WriteFile(fs, filePath1, []byte("foo1 bar1"), 0o644)
+		require.NoError(t, err)
+
+		filePath2 := filepath.Join(tmpdir, "edit2")
+		err = afero.WriteFile(fs, filePath2, []byte("foo2 bar2"), 0o644)
+		require.NoError(t, err)
+
+		_, err = testTool(t, toolsdk.WorkspaceEditFiles, tb, toolsdk.WorkspaceEditFilesArgs{
+			Workspace: workspace.Name,
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "must specify at least one file")
+
+		_, err = testTool(t, toolsdk.WorkspaceEditFiles, tb, toolsdk.WorkspaceEditFilesArgs{
+			Workspace: workspace.Name,
+			Files: []workspacesdk.FileEdits{
+				{
+					Path: filePath1,
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo1",
+							Replace: "bar1",
+						},
+					},
+				},
+				{
+					Path: filePath2,
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo2",
+							Replace: "bar2",
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		b, err := afero.ReadFile(fs, filePath1)
+		require.NoError(t, err)
+		require.Equal(t, "bar1 bar1", string(b))
+
+		b, err = afero.ReadFile(fs, filePath2)
+		require.NoError(t, err)
+		require.Equal(t, "bar2 bar2", string(b))
 	})
 }
 

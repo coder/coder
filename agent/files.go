@@ -12,11 +12,15 @@ import (
 	"strconv"
 	"syscall"
 
+	"github.com/icholy/replace"
+	"github.com/spf13/afero"
+	"golang.org/x/text/transform"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 type HTTPResponseCode = int
@@ -161,6 +165,108 @@ func (a *agent) writeFile(ctx context.Context, r *http.Request, path string) (HT
 	_, err = io.Copy(f, r.Body)
 	if err != nil && !errors.Is(err, io.EOF) && ctx.Err() == nil {
 		a.logger.Error(ctx, "workspace agent write file", slog.Error(err))
+	}
+
+	return 0, nil
+}
+
+func (a *agent) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req workspacesdk.FileEditRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if len(req.Files) == 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "must specify at least one file",
+		})
+		return
+	}
+
+	var combinedErr error
+	status := http.StatusOK
+	for _, edit := range req.Files {
+		s, err := a.editFile(r.Context(), edit.Path, edit.Edits)
+		// Keep the highest response status, so 500 will be preferred over 400, etc.
+		if s > status {
+			status = s
+		}
+		if err != nil {
+			combinedErr = errors.Join(combinedErr, err)
+		}
+	}
+
+	if combinedErr != nil {
+		httpapi.Write(ctx, rw, status, codersdk.Response{
+			Message: combinedErr.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
+		Message: "Successfully edited file(s)",
+	})
+}
+
+func (a *agent) editFile(ctx context.Context, path string, edits []workspacesdk.FileEdit) (int, error) {
+	if path == "" {
+		return http.StatusBadRequest, xerrors.New("\"path\" is required")
+	}
+
+	if !filepath.IsAbs(path) {
+		return http.StatusBadRequest, xerrors.Errorf("file path must be absolute: %q", path)
+	}
+
+	if len(edits) == 0 {
+		return http.StatusBadRequest, xerrors.New("must specify at least one edit")
+	}
+
+	f, err := a.filesystem.Open(path)
+	if err != nil {
+		status := http.StatusInternalServerError
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			status = http.StatusNotFound
+		case errors.Is(err, os.ErrPermission):
+			status = http.StatusForbidden
+		}
+		return status, err
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	if stat.IsDir() {
+		return http.StatusBadRequest, xerrors.Errorf("open %s: not a file", path)
+	}
+
+	transforms := make([]transform.Transformer, len(edits))
+	for i, edit := range edits {
+		transforms[i] = replace.String(edit.Search, edit.Replace)
+	}
+
+	tmpfile, err := afero.TempFile(a.filesystem, "", filepath.Base(path))
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	defer tmpfile.Close()
+
+	_, err = io.Copy(tmpfile, replace.Chain(f, transforms...))
+	if err != nil {
+		if rerr := a.filesystem.Remove(tmpfile.Name()); rerr != nil {
+			a.logger.Warn(ctx, "unable to clean up temp file", slog.Error(rerr))
+		}
+		return http.StatusInternalServerError, xerrors.Errorf("edit %s: %w", path, err)
+	}
+
+	err = a.filesystem.Rename(tmpfile.Name(), path)
+	if err != nil {
+		return http.StatusInternalServerError, err
 	}
 
 	return 0, nil

@@ -1,6 +1,7 @@
 package workspacesdk
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -62,6 +63,7 @@ type AgentConn interface {
 	RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error)
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
+	EditFiles(ctx context.Context, edits FileEditRequest) error
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
 	SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error)
@@ -523,15 +525,70 @@ func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader
 	return nil
 }
 
+type FileEdit struct {
+	Search  string `json:"search"`
+	Replace string `json:"replace"`
+}
+
+type FileEdits struct {
+	Path  string     `json:"path"`
+	Edits []FileEdit `json:"edits"`
+}
+
+type FileEditRequest struct {
+	Files []FileEdits `json:"files"`
+}
+
+// EditFiles performs search and replace edits on one or more files.
+func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/edit-files", edits)
+	if err != nil {
+		return xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+
+	var m codersdk.Response
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		return xerrors.Errorf("decode response body: %w", err)
+	}
+	return nil
+}
+
 // apiRequest makes a request to the workspace agent's HTTP API server.
-func (c *agentConn) apiRequest(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
+func (c *agentConn) apiRequest(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
 	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
 	url := fmt.Sprintf("http://%s%s", host, path)
 
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	var r io.Reader
+	if body != nil {
+		switch data := body.(type) {
+		case io.Reader:
+			r = data
+		case []byte:
+			r = bytes.NewReader(data)
+		default:
+			// Assume JSON in all other cases.
+			buf := bytes.NewBuffer(nil)
+			enc := json.NewEncoder(buf)
+			enc.SetEscapeHTML(false)
+			err := enc.Encode(body)
+			if err != nil {
+				return nil, xerrors.Errorf("encode body: %w", err)
+			}
+			r = buf
+		}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, r)
 	if err != nil {
 		return nil, xerrors.Errorf("new http api request to %q: %w", url, err)
 	}
