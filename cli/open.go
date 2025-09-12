@@ -72,7 +72,7 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 			// need to wait for the agent to start.
 			workspaceQuery := inv.Args[0]
 			autostart := true
-			workspace, workspaceAgent, otherWorkspaceAgents, err := getWorkspaceAndAgent(ctx, inv, client, autostart, workspaceQuery)
+			workspace, workspaceAgent, otherWorkspaceAgents, err := GetWorkspaceAndAgent(ctx, inv, client, autostart, workspaceQuery)
 			if err != nil {
 				return xerrors.Errorf("get workspace and agent: %w", err)
 			}
@@ -316,7 +316,7 @@ func (r *RootCmd) openApp() *serpent.Command {
 			}
 
 			workspaceName := inv.Args[0]
-			ws, agt, _, err := getWorkspaceAndAgent(ctx, inv, client, false, workspaceName)
+			ws, agt, _, err := GetWorkspaceAndAgent(ctx, inv, client, false, workspaceName)
 			if err != nil {
 				var sdkErr *codersdk.Error
 				if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {

@@ -289,6 +289,15 @@ var (
 		Type: "template",
 	}
 
+	// ResourceUsageEvent
+	// Valid Actions
+	//  - "ActionCreate" :: create a usage event
+	//  - "ActionRead" :: read usage events
+	//  - "ActionUpdate" :: update usage events
+	ResourceUsageEvent = Object{
+		Type: "usage_event",
+	}
+
 	// ResourceUser
 	// Valid Actions
 	//  - "ActionCreate" :: create a new user
@@ -299,6 +308,16 @@ var (
 	//  - "ActionUpdatePersonal" :: update personal data
 	ResourceUser = Object{
 		Type: "user",
+	}
+
+	// ResourceUserSecret
+	// Valid Actions
+	//  - "ActionCreate" :: create a user secret
+	//  - "ActionDelete" :: delete a user secret
+	//  - "ActionRead" :: read user secret metadata and value
+	//  - "ActionUpdate" :: update user secret metadata and value
+	ResourceUserSecret = Object{
+		Type: "user_secret",
 	}
 
 	// ResourceWebpushSubscription
@@ -402,7 +421,9 @@ func AllResources() []Objecter {
 		ResourceSystem,
 		ResourceTailnetCoordinator,
 		ResourceTemplate,
+		ResourceUsageEvent,
 		ResourceUser,
+		ResourceUserSecret,
 		ResourceWebpushSubscription,
 		ResourceWorkspace,
 		ResourceWorkspaceAgentDevcontainers,

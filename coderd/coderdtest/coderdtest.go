@@ -55,6 +55,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/archive"
 	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/quartz"
 
@@ -183,6 +184,8 @@ type Options struct {
 	OIDCConvertKeyCache                cryptokeys.SigningKeycache
 	Clock                              quartz.Clock
 	TelemetryReporter                  telemetry.Reporter
+
+	ProvisionerdServerMetrics *provisionerdserver.Metrics
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -386,6 +389,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.NotificationsEnqueuer,
 		experiments,
 	).WithStatsChannel(options.AutobuildStats)
+
 	lifecycleExecutor.Run()
 
 	jobReaperTicker := time.NewTicker(options.DeploymentValues.JobReaperDetectorInterval.Value())
@@ -469,7 +473,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
-	serverURL.Host = fmt.Sprintf("localhost:%d", tcpAddr.Port)
+	serverURL.Host = fmt.Sprintf("127.0.0.1:%d", tcpAddr.Port)
 
 	derpPort, err := strconv.Atoi(serverURL.Port())
 	require.NoError(t, err)
@@ -602,6 +606,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			Clock:                              options.Clock,
 			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
 			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
+			ProvisionerdServerMetrics:          options.ProvisionerdServerMetrics,
 		}
 }
 
@@ -1092,9 +1097,17 @@ func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, buil
 	require.Eventually(t, func() bool {
 		var err error
 		workspaceBuild, err = client.WorkspaceBuild(ctx, build)
-		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
+		if err != nil {
+			t.Logf("failed to get workspace build %s: %v", build, err)
+			return false
+		}
+		if workspaceBuild.Job.CompletedAt == nil {
+			t.Logf("workspace build job %s still running (status: %s)", build, workspaceBuild.Job.Status)
+			return false
+		}
+		return true
 	}, testutil.WaitMedium, testutil.IntervalMedium)
-	t.Logf("got workspace build job %s", build)
+	t.Logf("got workspace build job %s (status: %s)", build, workspaceBuild.Job.Status)
 	return workspaceBuild
 }
 
@@ -1576,7 +1589,7 @@ func (nopcloser) Close() error { return nil }
 // SDKError coerces err into an SDK error.
 func SDKError(t testing.TB, err error) *codersdk.Error {
 	var cerr *codersdk.Error
-	require.True(t, errors.As(err, &cerr))
+	require.True(t, errors.As(err, &cerr), "should be SDK error, got %w", err)
 	return cerr
 }
 
@@ -1589,4 +1602,141 @@ func DeploymentValues(t testing.TB, mut ...func(*codersdk.DeploymentValues)) *co
 		fn(cfg)
 	}
 	return cfg
+}
+
+// GetProvisionerForTags returns the first valid provisioner for a workspace + template tags.
+func GetProvisionerForTags(tx database.Store, curTime time.Time, orgID uuid.UUID, tags map[string]string) (database.ProvisionerDaemon, error) {
+	if tags == nil {
+		tags = map[string]string{}
+	}
+	queryParams := database.GetProvisionerDaemonsByOrganizationParams{
+		OrganizationID: orgID,
+		WantTags:       tags,
+	}
+
+	// nolint: gocritic // The user (in this case, the user/context for autostart builds) may not have the full
+	// permissions to read provisioner daemons, but we need to check if there's any for the job prior to the
+	// execution of the job via autostart to fix: https://github.com/coder/coder/issues/17941
+	provisionerDaemons, err := tx.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(context.Background()), queryParams)
+	if err != nil {
+		return database.ProvisionerDaemon{}, xerrors.Errorf("get provisioner daemons: %w", err)
+	}
+
+	// Check if any provisioners are active (not stale)
+	for _, pd := range provisionerDaemons {
+		if pd.LastSeenAt.Valid {
+			age := curTime.Sub(pd.LastSeenAt.Time)
+			if age <= provisionerdserver.StaleInterval {
+				return pd, nil
+			}
+		}
+	}
+	return database.ProvisionerDaemon{}, xerrors.New("no available provisioners found")
+}
+
+func ctxWithProvisionerPermissions(ctx context.Context) context.Context {
+	// Use system restricted context which has permissions to update provisioner daemons
+	//nolint: gocritic // We need system context to modify this.
+	return dbauthz.AsSystemRestricted(ctx)
+}
+
+// UpdateProvisionerLastSeenAt updates the provisioner daemon's LastSeenAt timestamp
+// to the specified time to prevent it from appearing stale during autobuild operations
+func UpdateProvisionerLastSeenAt(t *testing.T, db database.Store, id uuid.UUID, tickTime time.Time) {
+	t.Helper()
+	ctx := ctxWithProvisionerPermissions(context.Background())
+	t.Logf("Updating provisioner %s LastSeenAt to %v", id, tickTime)
+	err := db.UpdateProvisionerDaemonLastSeenAt(ctx, database.UpdateProvisionerDaemonLastSeenAtParams{
+		ID:         id,
+		LastSeenAt: sql.NullTime{Time: tickTime, Valid: true},
+	})
+	require.NoError(t, err)
+	t.Logf("Successfully updated provisioner LastSeenAt")
+}
+
+func MustWaitForAnyProvisioner(t *testing.T, db database.Store) {
+	t.Helper()
+	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitShort))
+	// testutil.Eventually(t, func)
+	testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+		daemons, err := db.GetProvisionerDaemons(ctx)
+		return err == nil && len(daemons) > 0
+	}, testutil.IntervalFast, "no provisioner daemons found")
+}
+
+// MustWaitForProvisionersUnavailable waits for provisioners to become unavailable for a specific workspace
+func MustWaitForProvisionersUnavailable(t *testing.T, db database.Store, workspace codersdk.Workspace, tags map[string]string, checkTime time.Time) {
+	t.Helper()
+	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitMedium))
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+		// Use the same logic as hasValidProvisioner but expect false
+		provisionerDaemons, err := db.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
+			OrganizationID: workspace.OrganizationID,
+			WantTags:       tags,
+		})
+		if err != nil {
+			return false
+		}
+
+		// Check if NO provisioners are active (all are stale or gone)
+		for _, pd := range provisionerDaemons {
+			if pd.LastSeenAt.Valid {
+				age := checkTime.Sub(pd.LastSeenAt.Time)
+				if age <= provisionerdserver.StaleInterval {
+					return false // Found an active provisioner, keep waiting
+				}
+			}
+		}
+		return true // No active provisioners found
+	}, testutil.IntervalFast, "there are still provisioners available for workspace, expected none")
+}
+
+// MustWaitForProvisionersAvailable waits for provisioners to be available for a specific workspace.
+func MustWaitForProvisionersAvailable(t *testing.T, db database.Store, workspace codersdk.Workspace, ts time.Time) uuid.UUID {
+	t.Helper()
+	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitLong))
+	id := uuid.UUID{}
+	// Get the workspace from the database
+	testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+		ws, err := db.GetWorkspaceByID(ctx, workspace.ID)
+		if err != nil {
+			return false
+		}
+
+		// Get the latest build
+		latestBuild, err := db.GetWorkspaceBuildByID(ctx, workspace.LatestBuild.ID)
+		if err != nil {
+			return false
+		}
+
+		// Get the template version job
+		templateVersionJob, err := db.GetProvisionerJobByID(ctx, latestBuild.JobID)
+		if err != nil {
+			return false
+		}
+
+		// Check if provisioners are available using the same logic as hasAvailableProvisioners
+		provisionerDaemons, err := db.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
+			OrganizationID: ws.OrganizationID,
+			WantTags:       templateVersionJob.Tags,
+		})
+		if err != nil {
+			return false
+		}
+
+		// Check if any provisioners are active (not stale)
+		for _, pd := range provisionerDaemons {
+			if pd.LastSeenAt.Valid {
+				age := ts.Sub(pd.LastSeenAt.Time)
+				if age <= provisionerdserver.StaleInterval {
+					id = pd.ID
+					return true // Found an active provisioner
+				}
+			}
+		}
+		return false // No active provisioners found
+	}, testutil.IntervalFast, "no active provisioners available for workspace, expected at least one (non-stale)")
+
+	return id
 }

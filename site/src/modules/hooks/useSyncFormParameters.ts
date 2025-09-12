@@ -1,7 +1,6 @@
 import type * as TypesGen from "api/typesGenerated";
-import { useEffect, useRef } from "react";
-
 import type { PreviewParameter } from "api/typesGenerated";
+import { useEffect, useRef } from "react";
 
 type UseSyncFormParametersProps = {
 	parameters: readonly PreviewParameter[];

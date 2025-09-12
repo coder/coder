@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, screen, userEvent, waitFor } from "storybook/test";
 import { InfoTooltip } from "./InfoTooltip";
 
 const meta = {
@@ -16,13 +16,13 @@ export default meta;
 type Story = StoryObj<typeof InfoTooltip>;
 
 export const Example: Story = {
-	play: async ({ canvasElement, step }) => {
-		const screen = within(canvasElement);
-
+	play: async ({ step }) => {
 		await step("activate hover trigger", async () => {
 			await userEvent.hover(screen.getByRole("button"));
 			await waitFor(() =>
-				expect(screen.getByText(meta.args.message)).toBeInTheDocument(),
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
+					meta.args.message,
+				),
 			);
 		});
 	},
@@ -33,13 +33,13 @@ export const Notice = {
 		type: "notice",
 		message: "Unfortunately, there's a radio connected to my brain",
 	},
-	play: async ({ canvasElement, step }) => {
-		const screen = within(canvasElement);
-
+	play: async ({ step }) => {
 		await step("activate hover trigger", async () => {
 			await userEvent.hover(screen.getByRole("button"));
 			await waitFor(() =>
-				expect(screen.getByText(Notice.args.message)).toBeInTheDocument(),
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
+					Notice.args.message,
+				),
 			);
 		});
 	},
@@ -50,13 +50,13 @@ export const Warning = {
 		type: "warning",
 		message: "Unfortunately, there's a radio connected to my brain",
 	},
-	play: async ({ canvasElement, step }) => {
-		const screen = within(canvasElement);
-
+	play: async ({ step }) => {
 		await step("activate hover trigger", async () => {
 			await userEvent.hover(screen.getByRole("button"));
 			await waitFor(() =>
-				expect(screen.getByText(Warning.args.message)).toBeInTheDocument(),
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
+					Warning.args.message,
+				),
 			);
 		});
 	},

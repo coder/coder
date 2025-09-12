@@ -223,6 +223,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 		Valid: values.Has("outdated"),
 	}
 	filter.HasAITask = parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task")
+	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 
 	type paramMatch struct {
@@ -263,12 +264,12 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	return filter, parser.Errors
 }
 
-func Templates(ctx context.Context, db database.Store, query string) (database.GetTemplatesWithFilterParams, []codersdk.ValidationError) {
+func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query string) (database.GetTemplatesWithFilterParams, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
-		// Default to the template name
-		values.Add("name", term)
+		// Default to the display name
+		values.Add("display_name", term)
 		return nil
 	})
 	if len(errors) > 0 {
@@ -277,13 +278,23 @@ func Templates(ctx context.Context, db database.Store, query string) (database.G
 
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetTemplatesWithFilterParams{
-		Deleted:        parser.Boolean(values, false, "deleted"),
-		ExactName:      parser.String(values, "", "exact_name"),
-		FuzzyName:      parser.String(values, "", "name"),
-		IDs:            parser.UUIDs(values, []uuid.UUID{}, "ids"),
-		Deprecated:     parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
-		OrganizationID: parseOrganization(ctx, db, parser, values, "organization"),
-		HasAITask:      parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
+		Deleted:          parser.Boolean(values, false, "deleted"),
+		OrganizationID:   parseOrganization(ctx, db, parser, values, "organization"),
+		ExactName:        parser.String(values, "", "exact_name"),
+		ExactDisplayName: parser.String(values, "", "exact_display_name"),
+		FuzzyName:        parser.String(values, "", "name"),
+		FuzzyDisplayName: parser.String(values, "", "display_name"),
+		IDs:              parser.UUIDs(values, []uuid.UUID{}, "ids"),
+		Deprecated:       parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
+		HasAITask:        parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
+		AuthorID:         parser.UUID(values, uuid.Nil, "author_id"),
+		AuthorUsername:   parser.String(values, "", "author"),
+		HasExternalAgent: parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent"),
+	}
+
+	if filter.AuthorUsername == codersdk.Me {
+		filter.AuthorID = actorID
+		filter.AuthorUsername = ""
 	}
 
 	parser.ErrorExcessParams(values)
@@ -296,7 +307,8 @@ func searchTerms(query string, defaultKey func(term string, values url.Values) e
 	// Because we do this in 2 passes, we want to maintain quotes on the first
 	// pass. Further splitting occurs on the second pass and quotes will be
 	// dropped.
-	elements := splitQueryParameterByDelimiter(query, ' ', true)
+	tokens := splitQueryParameterByDelimiter(query, ' ', true)
+	elements := processTokens(tokens)
 	for _, element := range elements {
 		if strings.HasPrefix(element, ":") || strings.HasSuffix(element, ":") {
 			return nil, []codersdk.ValidationError{
@@ -375,4 +387,25 @@ func splitQueryParameterByDelimiter(query string, delimiter rune, maintainQuotes
 	}
 
 	return parts
+}
+
+// processTokens takes the split tokens and groups them based on a delimiter (':').
+// Tokens without a delimiter present are joined to support searching with spaces.
+//
+//	Example Input: ['deprecated:false', 'test', 'template']
+//	Example Output: ['deprecated:false', 'test template']
+func processTokens(tokens []string) []string {
+	var results []string
+	var nonFieldTerms []string
+	for _, token := range tokens {
+		if strings.Contains(token, string(':')) {
+			results = append(results, token)
+		} else {
+			nonFieldTerms = append(nonFieldTerms, token)
+		}
+	}
+	if len(nonFieldTerms) > 0 {
+		results = append(results, strings.Join(nonFieldTerms, " "))
+	}
+	return results
 }

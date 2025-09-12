@@ -339,6 +339,7 @@ func TestTemplatePush(t *testing.T) {
 		inv, root := clitest.New(t, "templates", "push",
 			"--test.provisioner", string(database.ProvisionerTypeEcho),
 			"--test.workdir", source,
+			"--force-tty",
 		)
 		clitest.SetupConfig(t, templateAdmin, root)
 		pty := ptytest.New(t).Attach(inv)
@@ -509,6 +510,7 @@ func TestTemplatePush(t *testing.T) {
 								default = "1"
 							}
 							data "coder_parameter" "b" {
+								name = "b"
 								type = string
 								default = "2"
 							}
@@ -1073,6 +1075,45 @@ func TestTemplatePush(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, templateName, template.Name)
 			require.NotEqual(t, uuid.Nil, template.ActiveVersionID)
+		})
+
+		t.Run("NoStdinWithCurrentDirectory", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+			source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+				Parse:          echo.ParseComplete,
+				ProvisionApply: echo.ApplyComplete,
+			})
+
+			inv, root := clitest.New(t, "templates", "push", template.Name,
+				"--directory", ".",
+				"--test.provisioner", string(database.ProvisionerTypeEcho),
+				"--test.workdir", source,
+				"--name", "example",
+				"--yes")
+			clitest.SetupConfig(t, templateAdmin, root)
+
+			inv.Stdin = strings.NewReader("invalid tar content that would cause failure")
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+			defer cancel()
+
+			err := inv.WithContext(ctx).Run()
+			require.NoError(t, err, "Should succeed without reading from stdin")
+
+			templateVersions, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
+				TemplateID: template.ID,
+			})
+			require.NoError(t, err)
+			require.Len(t, templateVersions, 2)
+			require.Equal(t, "example", templateVersions[1].Name)
 		})
 	})
 }

@@ -7,7 +7,6 @@ tailnet/proto/ @spikecurtis @johnstcn
 vpn/vpn.proto @spikecurtis @johnstcn
 vpn/version.go @spikecurtis @johnstcn
 
-
 # This caching code is particularly tricky, and one must be very careful when
 # altering it.
 coderd/files/ @aslilac
@@ -17,3 +16,26 @@ coderd/rbac/ @Emyrk
 
 # Mainly dependent on coder/guts, which is maintained by @Emyrk
 scripts/apitypings/ @Emyrk
+scripts/gensite/ @aslilac
+
+site/ @aslilac @Parkreiner
+site/src/hooks/ @Parkreiner
+# These rules intentionally do not specify any owners. More specific rules
+# override less specific rules, so these files are "ignored" by the site/ rule.
+site/e2e/google/protobuf/timestampGenerated.ts
+site/e2e/provisionerGenerated.ts
+site/src/api/countriesGenerated.ts
+site/src/api/rbacresourcesGenerated.ts
+site/src/api/typesGenerated.ts
+site/src/testHelpers/entities.ts
+site/CLAUDE.md
+
+# The blood and guts of the autostop algorithm, which is quite complex and
+# requires elite ball knowledge of most of the scheduling code to make changes
+# without inadvertently affecting other parts of the codebase.
+coderd/schedule/autostop.go @deansheather @DanielleMaywood
+
+# Usage tracking code requires intimate knowledge of Tallyman and Metronome, as
+# well as guidance from revenue.
+coderd/usage/ @deansheather @spikecurtis
+enterprise/coderd/usage/ @deansheather @spikecurtis

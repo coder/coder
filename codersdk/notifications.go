@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -270,6 +271,56 @@ func (c *Client) PostTestWebpushMessage(ctx context.Context) error {
 		Title: "It's working!",
 		Body:  "You've subscribed to push notifications.",
 	})
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+type CustomNotificationContent struct {
+	Title   string `json:"title"`
+	Message string `json:"message"`
+}
+
+type CustomNotificationRequest struct {
+	Content *CustomNotificationContent `json:"content"`
+	// TODO(ssncferreira): Add target (user_ids, roles) to support multi-user and role-based delivery.
+	//   See: https://github.com/coder/coder/issues/19768
+}
+
+const (
+	maxCustomNotificationTitleLen   = 120
+	maxCustomNotificationMessageLen = 2000
+)
+
+func (c CustomNotificationRequest) Validate() error {
+	if c.Content == nil {
+		return xerrors.Errorf("content is required")
+	}
+	return c.Content.Validate()
+}
+
+func (c CustomNotificationContent) Validate() error {
+	if strings.TrimSpace(c.Title) == "" ||
+		strings.TrimSpace(c.Message) == "" {
+		return xerrors.Errorf("provide a non-empty 'content.title' and 'content.message'")
+	}
+	if len(c.Title) > maxCustomNotificationTitleLen {
+		return xerrors.Errorf("'content.title' must be less than %d characters", maxCustomNotificationTitleLen)
+	}
+	if len(c.Message) > maxCustomNotificationMessageLen {
+		return xerrors.Errorf("'content.message' must be less than %d characters", maxCustomNotificationMessageLen)
+	}
+	return nil
+}
+
+func (c *Client) PostCustomNotification(ctx context.Context, req CustomNotificationRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/notifications/custom", req)
 	if err != nil {
 		return err
 	}

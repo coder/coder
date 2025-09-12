@@ -19,6 +19,27 @@ func TestInt63(t *testing.T) {
 	}
 }
 
+func TestInt63n(t *testing.T) {
+	t.Parallel()
+
+	for i := 0; i < 20; i++ {
+		v, err := cryptorand.Int63n(100)
+		require.NoError(t, err, "unexpected error from Int63n")
+		t.Logf("value: %v <- random?", v)
+		require.GreaterOrEqual(t, v, int64(0), "values must be positive")
+		require.Less(t, v, int64(100), "values must be less than 100")
+	}
+
+	// Ensure Int63n works for int larger than 32 bits
+	_, err := cryptorand.Int63n(1 << 35)
+	require.NoError(t, err, "expected Int63n to work for 64-bit int")
+
+	// Expect a panic if max is negative
+	require.PanicsWithValue(t, "invalid argument to Int63n", func() {
+		cryptorand.Int63n(0)
+	})
+}
+
 func TestIntn(t *testing.T) {
 	t.Parallel()
 

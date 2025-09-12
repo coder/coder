@@ -27,8 +27,9 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
-import { CopyIcon, DownloadIcon } from "lucide-react";
 import {
+	CopyIcon,
+	DownloadIcon,
 	EllipsisVertical,
 	PlusIcon,
 	SettingsIcon,
@@ -38,7 +39,7 @@ import { linkToTemplate, useLinks } from "modules/navigation";
 import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router";
 import { TemplateStats } from "./TemplateStats";
 import { useDeletionDialogState } from "./useDeletionDialogState";
 

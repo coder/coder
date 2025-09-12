@@ -45,7 +45,7 @@ func DERPIsEmbedded(cfg *derpAndSTUNCfg) {
 }
 
 // RunDERPAndSTUN creates a DERP mapping for tests.
-func RunDERPAndSTUN(t *testing.T, opts ...DERPAndStunOption) (*tailcfg.DERPMap, *derp.Server) {
+func RunDERPAndSTUN(t testing.TB, opts ...DERPAndStunOption) (*tailcfg.DERPMap, *derp.Server) {
 	cfg := new(derpAndSTUNCfg)
 	for _, o := range opts {
 		o(cfg)

@@ -3582,10 +3582,10 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/acl \
 
 ### Parameters
 
-| Name       | In   | Type                                                               | Required | Description             |
-|------------|------|--------------------------------------------------------------------|----------|-------------------------|
-| `template` | path | string(uuid)                                                       | true     | Template ID             |
-| `body`     | body | [codersdk.UpdateTemplateACL](schemas.md#codersdkupdatetemplateacl) | true     | Update template request |
+| Name       | In   | Type                                                               | Required | Description                 |
+|------------|------|--------------------------------------------------------------------|----------|-----------------------------|
+| `template` | path | string(uuid)                                                       | true     | Template ID                 |
+| `body`     | body | [codersdk.UpdateTemplateACL](schemas.md#codersdkupdatetemplateacl) | true     | Update template ACL request |
 
 ### Example responses
 
@@ -4252,5 +4252,44 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} 
 | Status | Meaning                                                 | Description | Schema                                                       |
 |--------|---------------------------------------------------------|-------------|--------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceProxy](schemas.md#codersdkworkspaceproxy) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get workspace external agent credentials
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/external-agent/{agent}/credentials \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaces/{workspace}/external-agent/{agent}/credentials`
+
+### Parameters
+
+| Name        | In   | Type         | Required | Description  |
+|-------------|------|--------------|----------|--------------|
+| `workspace` | path | string(uuid) | true     | Workspace ID |
+| `agent`     | path | string       | true     | Agent name   |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "agent_token": "string",
+  "command": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                           |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ExternalAgentCredentials](schemas.md#codersdkexternalagentcredentials) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

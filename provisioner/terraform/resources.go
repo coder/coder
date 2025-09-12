@@ -114,6 +114,7 @@ type agentAppAttributes struct {
 	Group       string                     `mapstructure:"group"`
 	Hidden      bool                       `mapstructure:"hidden"`
 	OpenIn      string                     `mapstructure:"open_in"`
+	Tooltip     string                     `mapstructure:"tooltip"`
 }
 
 type agentEnvAttributes struct {
@@ -165,6 +166,7 @@ type State struct {
 	ExternalAuthProviders []*proto.ExternalAuthProviderResource
 	AITasks               []*proto.AITask
 	HasAITasks            bool
+	HasExternalAgents     bool
 }
 
 var ErrInvalidTerraformAddr = xerrors.New("invalid terraform address")
@@ -181,6 +183,20 @@ func hasAITaskResources(graph *gographviz.Graph) bool {
 			// The first condition is for the case where the resource is in the root module.
 			// The second condition is for the case where the resource is in a child module.
 			if strings.HasPrefix(labelValue, "coder_ai_task.") || strings.Contains(labelValue, ".coder_ai_task.") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasExternalAgentResources(graph *gographviz.Graph) bool {
+	for _, node := range graph.Nodes.Lookup {
+		if label, exists := node.Attrs["label"]; exists {
+			labelValue := strings.Trim(label, `"`)
+			// The first condition is for the case where the resource is in the root module.
+			// The second condition is for the case where the resource is in a child module.
+			if strings.HasPrefix(labelValue, "coder_external_agent.") || strings.Contains(labelValue, ".coder_external_agent.") {
 				return true
 			}
 		}
@@ -574,6 +590,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 						Group:        attrs.Group,
 						Hidden:       attrs.Hidden,
 						OpenIn:       openIn,
+						Tooltip:      attrs.Tooltip,
 					})
 				}
 			}
@@ -965,7 +982,9 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				ExpirationPolicy: expirationPolicy,
 				Scheduling:       scheduling,
 			},
-			Default: preset.Default,
+			Default:     preset.Default,
+			Description: preset.Description,
+			Icon:        preset.Icon,
 		}
 
 		if slice.Contains(duplicatedPresetNames, preset.Name) {
@@ -1063,6 +1082,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		ExternalAuthProviders: externalAuthProviders,
 		HasAITasks:            hasAITasks,
 		AITasks:               aiTasks,
+		HasExternalAgents:     hasExternalAgentResources(graph),
 	}, nil
 }
 
@@ -1250,7 +1270,8 @@ func findResourcesInGraph(graph *gographviz.Graph, tfResourcesByLabel map[string
 				continue
 			}
 			// Don't associate Coder resources with other Coder resources!
-			if strings.HasPrefix(resource.Type, "coder_") {
+			// Except for coder_external_agent, which is a special case.
+			if strings.HasPrefix(resource.Type, "coder_") && resource.Type != "coder_external_agent" {
 				continue
 			}
 			graphResources = append(graphResources, &graphResource{

@@ -18,8 +18,8 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipText,
-	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
@@ -215,7 +215,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 					)}
 					<div className="flex flex-col gap-7">
 						<div className="flex flex-row pt-8 gap-2 justify-between items-start">
-							<div className="grid items-center gap-1">
+							<div className="grid items-center gap-1 w-72">
 								<Label className="text-sm" htmlFor={`${id}-idp-org-name`}>
 									IdP organization name
 								</Label>
@@ -459,7 +459,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 const AssignDefaultOrgHelpTooltip: FC = () => {
 	return (
 		<HelpTooltip>
-			<HelpTooltipTrigger />
+			<HelpTooltipIconTrigger />
 			<HelpTooltipContent>
 				<HelpTooltipText>
 					Disabling will remove all users from the default organization if a

@@ -1,4 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import {
 	MockBuildInfo,
 	MockProvisioner,
@@ -6,6 +5,7 @@ import {
 	MockUserProvisioner,
 	mockApiError,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { OrganizationProvisionersPageView } from "./OrganizationProvisionersPageView";
 
 const meta: Meta<typeof OrganizationProvisionersPageView> = {
@@ -23,9 +23,14 @@ const meta: Meta<typeof OrganizationProvisionersPageView> = {
 				...MockProvisionerWithTags,
 				version: "0.0.0",
 			},
+			{
+				...MockUserProvisioner,
+				status: "offline",
+			},
 		],
 		filter: {
 			ids: "",
+			offline: true,
 		},
 	},
 };
@@ -69,6 +74,17 @@ export const FilterByID: Story = {
 		provisioners: [MockProvisioner],
 		filter: {
 			ids: MockProvisioner.id,
+			offline: true,
+		},
+	},
+};
+
+export const FilterByOffline: Story = {
+	args: {
+		provisioners: [MockProvisioner],
+		filter: {
+			ids: "",
+			offline: false,
 		},
 	},
 };

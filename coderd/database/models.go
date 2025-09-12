@@ -559,6 +559,64 @@ func AllConnectionTypeValues() []ConnectionType {
 	}
 }
 
+type CorsBehavior string
+
+const (
+	CorsBehaviorSimple   CorsBehavior = "simple"
+	CorsBehaviorPassthru CorsBehavior = "passthru"
+)
+
+func (e *CorsBehavior) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CorsBehavior(s)
+	case string:
+		*e = CorsBehavior(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CorsBehavior: %T", src)
+	}
+	return nil
+}
+
+type NullCorsBehavior struct {
+	CorsBehavior CorsBehavior `json:"cors_behavior"`
+	Valid        bool         `json:"valid"` // Valid is true if CorsBehavior is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCorsBehavior) Scan(value interface{}) error {
+	if value == nil {
+		ns.CorsBehavior, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CorsBehavior.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCorsBehavior) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CorsBehavior), nil
+}
+
+func (e CorsBehavior) Valid() bool {
+	switch e {
+	case CorsBehaviorSimple,
+		CorsBehaviorPassthru:
+		return true
+	}
+	return false
+}
+
+func AllCorsBehaviorValues() []CorsBehavior {
+	return []CorsBehavior{
+		CorsBehaviorSimple,
+		CorsBehaviorPassthru,
+	}
+}
+
 type CryptoKeyFeature string
 
 const (
@@ -1143,6 +1201,7 @@ type NotificationTemplateKind string
 
 const (
 	NotificationTemplateKindSystem NotificationTemplateKind = "system"
+	NotificationTemplateKindCustom NotificationTemplateKind = "custom"
 )
 
 func (e *NotificationTemplateKind) Scan(src interface{}) error {
@@ -1182,7 +1241,8 @@ func (ns NullNotificationTemplateKind) Value() (driver.Value, error) {
 
 func (e NotificationTemplateKind) Valid() bool {
 	switch e {
-	case NotificationTemplateKindSystem:
+	case NotificationTemplateKindSystem,
+		NotificationTemplateKindCustom:
 		return true
 	}
 	return false
@@ -1191,6 +1251,7 @@ func (e NotificationTemplateKind) Valid() bool {
 func AllNotificationTemplateKindValues() []NotificationTemplateKind {
 	return []NotificationTemplateKind{
 		NotificationTemplateKindSystem,
+		NotificationTemplateKindCustom,
 	}
 }
 
@@ -3007,6 +3068,8 @@ type ExternalAuthLink struct {
 	// The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted
 	OAuthRefreshTokenKeyID sql.NullString        `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 	OAuthExtra             pqtype.NullRawMessage `db:"oauth_extra" json:"oauth_extra"`
+	// This error means the refresh token is invalid. Cached so we can avoid calling the external provider again for the same error.
+	OauthRefreshFailureReason string `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
 }
 
 type File struct {
@@ -3326,6 +3389,10 @@ type ProvisionerJob struct {
 	TraceMetadata  pqtype.NullRawMessage    `db:"trace_metadata" json:"trace_metadata"`
 	// Computed column to track the status of the job.
 	JobStatus ProvisionerJobStatus `db:"job_status" json:"job_status"`
+	// Total length of provisioner logs
+	LogsLength int32 `db:"logs_length" json:"logs_length"`
+	// Whether the provisioner logs overflowed in length
+	LogsOverflowed bool `db:"logs_overflowed" json:"logs_overflowed"`
 }
 
 type ProvisionerJobLog struct {
@@ -3436,6 +3503,26 @@ type TailnetTunnel struct {
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 }
 
+type Task struct {
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	OrganizationID     uuid.UUID       `db:"organization_id" json:"organization_id"`
+	OwnerID            uuid.UUID       `db:"owner_id" json:"owner_id"`
+	Name               string          `db:"name" json:"name"`
+	WorkspaceID        uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID  uuid.UUID       `db:"template_version_id" json:"template_version_id"`
+	TemplateParameters json.RawMessage `db:"template_parameters" json:"template_parameters"`
+	Prompt             string          `db:"prompt" json:"prompt"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+	DeletedAt          sql.NullTime    `db:"deleted_at" json:"deleted_at"`
+}
+
+type TaskWorkspaceApp struct {
+	TaskID           uuid.UUID `db:"task_id" json:"task_id"`
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	WorkspaceAppID   uuid.UUID `db:"workspace_app_id" json:"workspace_app_id"`
+}
+
 type TelemetryItem struct {
 	Key       string    `db:"key" json:"key"`
 	Value     string    `db:"value" json:"value"`
@@ -3474,6 +3561,7 @@ type Template struct {
 	ActivityBump                  int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	UseClassicParameterFlow       bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
+	CorsBehavior                  CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
@@ -3521,7 +3609,8 @@ type TemplateTable struct {
 	ActivityBump        int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	// Determines whether to default to the dynamic parameter creation flow for this template or continue using the legacy classic parameter creation flow.This is a template wide setting, the template admin can revert to the classic flow if there are any issues. An escape hatch is required, as workspace creation is a core workflow and cannot break. This column will be removed when the dynamic parameter creation flow is stable.
-	UseClassicParameterFlow bool `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
+	UseClassicParameterFlow bool         `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
+	CorsBehavior            CorsBehavior `db:"cors_behavior" json:"cors_behavior"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.
@@ -3568,6 +3657,7 @@ type TemplateVersion struct {
 	Archived              bool            `db:"archived" json:"archived"`
 	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
 	HasAITask             sql.NullBool    `db:"has_ai_task" json:"has_ai_task"`
+	HasExternalAgent      sql.NullBool    `db:"has_external_agent" json:"has_external_agent"`
 	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName         string          `db:"created_by_name" json:"created_by_name"`
@@ -3621,6 +3711,10 @@ type TemplateVersionPreset struct {
 	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
 	SchedulingTimezone  string         `db:"scheduling_timezone" json:"scheduling_timezone"`
 	IsDefault           bool           `db:"is_default" json:"is_default"`
+	// Short text describing the preset (max 128 characters).
+	Description string `db:"description" json:"description"`
+	// URL or path to an icon representing the preset (max 256 characters).
+	Icon string `db:"icon" json:"icon"`
 }
 
 type TemplateVersionPresetParameter struct {
@@ -3650,10 +3744,11 @@ type TemplateVersionTable struct {
 	// IDs of External auth providers for a specific template version
 	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
 	// Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.
-	Message         string         `db:"message" json:"message"`
-	Archived        bool           `db:"archived" json:"archived"`
-	SourceExampleID sql.NullString `db:"source_example_id" json:"source_example_id"`
-	HasAITask       sql.NullBool   `db:"has_ai_task" json:"has_ai_task"`
+	Message          string         `db:"message" json:"message"`
+	Archived         bool           `db:"archived" json:"archived"`
+	SourceExampleID  sql.NullString `db:"source_example_id" json:"source_example_id"`
+	HasAITask        sql.NullBool   `db:"has_ai_task" json:"has_ai_task"`
+	HasExternalAgent sql.NullBool   `db:"has_external_agent" json:"has_external_agent"`
 }
 
 type TemplateVersionTerraformValue struct {
@@ -3687,6 +3782,31 @@ type TemplateVersionWorkspaceTag struct {
 	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
 	Key               string    `db:"key" json:"key"`
 	Value             string    `db:"value" json:"value"`
+}
+
+// usage_events contains usage data that is collected from the product and potentially shipped to the usage collector service.
+type UsageEvent struct {
+	// For "discrete" event types, this is a random UUID. For "heartbeat" event types, this is a combination of the event type and a truncated timestamp.
+	ID string `db:"id" json:"id"`
+	// The usage event type with version. "dc" means "discrete" (e.g. a single event, for counters), "hb" means "heartbeat" (e.g. a recurring event that contains a total count of usage generated from the database, for gauges).
+	EventType string `db:"event_type" json:"event_type"`
+	// Event payload. Determined by the matching usage struct for this event type.
+	EventData json.RawMessage `db:"event_data" json:"event_data"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	// Set to a timestamp while the event is being published by a Coder replica to the usage collector service. Used to avoid duplicate publishes by multiple replicas. Timestamps older than 1 hour are considered expired.
+	PublishStartedAt sql.NullTime `db:"publish_started_at" json:"publish_started_at"`
+	// Set to a timestamp when the event is successfully (or permanently unsuccessfully) published to the usage collector service. If set, the event should never be attempted to be published again.
+	PublishedAt sql.NullTime `db:"published_at" json:"published_at"`
+	// Set to an error message when the event is temporarily or permanently unsuccessfully published to the usage collector service.
+	FailureMessage sql.NullString `db:"failure_message" json:"failure_message"`
+}
+
+// usage_events_daily is a daily rollup of usage events. It stores the total usage for each event type by day.
+type UsageEventsDaily struct {
+	// The date of the summed usage events, always in UTC.
+	Day       time.Time       `db:"day" json:"day"`
+	EventType string          `db:"event_type" json:"event_type"`
+	UsageData json.RawMessage `db:"usage_data" json:"usage_data"`
 }
 
 type User struct {
@@ -3744,6 +3864,18 @@ type UserLink struct {
 	Claims UserLinkClaims `db:"claims" json:"claims"`
 }
 
+type UserSecret struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	Value       string    `db:"value" json:"value"`
+	EnvName     string    `db:"env_name" json:"env_name"`
+	FilePath    string    `db:"file_path" json:"file_path"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+}
+
 // Tracks the history of user status changes
 type UserStatusChange struct {
 	ID        uuid.UUID  `db:"id" json:"id"`
@@ -3787,6 +3919,8 @@ type Workspace struct {
 	AutomaticUpdates        AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
 	Favorite                bool             `db:"favorite" json:"favorite"`
 	NextStartAt             sql.NullTime     `db:"next_start_at" json:"next_start_at"`
+	GroupACL                WorkspaceACL     `db:"group_acl" json:"group_acl"`
+	UserACL                 WorkspaceACL     `db:"user_acl" json:"user_acl"`
 	OwnerAvatarUrl          string           `db:"owner_avatar_url" json:"owner_avatar_url"`
 	OwnerUsername           string           `db:"owner_username" json:"owner_username"`
 	OwnerName               string           `db:"owner_name" json:"owner_name"`
@@ -3993,6 +4127,8 @@ type WorkspaceApp struct {
 	Hidden       bool               `db:"hidden" json:"hidden"`
 	OpenIn       WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
 	DisplayGroup sql.NullString     `db:"display_group" json:"display_group"`
+	// Markdown text that is displayed when hovering over workspace apps.
+	Tooltip string `db:"tooltip" json:"tooltip"`
 }
 
 // Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.
@@ -4072,6 +4208,7 @@ type WorkspaceBuild struct {
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 	HasAITask               sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
 	AITaskSidebarAppID      uuid.NullUUID       `db:"ai_task_sidebar_app_id" json:"ai_task_sidebar_app_id"`
+	HasExternalAgent        sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
 	InitiatorByAvatarUrl    string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
 	InitiatorByUsername     string              `db:"initiator_by_username" json:"initiator_by_username"`
 	InitiatorByName         string              `db:"initiator_by_name" json:"initiator_by_name"`
@@ -4103,6 +4240,7 @@ type WorkspaceBuildTable struct {
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 	HasAITask               sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
 	AITaskSidebarAppID      uuid.NullUUID       `db:"ai_task_sidebar_app_id" json:"ai_task_sidebar_app_id"`
+	HasExternalAgent        sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
 }
 
 type WorkspaceLatestBuild struct {
@@ -4208,4 +4346,6 @@ type WorkspaceTable struct {
 	// Favorite is true if the workspace owner has favorited the workspace.
 	Favorite    bool         `db:"favorite" json:"favorite"`
 	NextStartAt sql.NullTime `db:"next_start_at" json:"next_start_at"`
+	GroupACL    WorkspaceACL `db:"group_acl" json:"group_acl"`
+	UserACL     WorkspaceACL `db:"user_acl" json:"user_acl"`
 }

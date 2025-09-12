@@ -44,9 +44,18 @@ import "github.com/coder/coder/v2/apiversion"
 //     -> `has_ai_tasks` in `CompleteJob.TemplateImport`
 //     -> `has_ai_tasks` and `ai_tasks` in `PlanComplete`
 //     -> new message types `AITaskSidebarApp` and `AITask`
+//
+// API v1.8:
+//   - Add new fields `description` and `icon` to `Preset`.
+//
+// API v1.9:
+//   - Added new field named 'has_external_agent' in 'CompleteJob.TemplateImport'
+//
+// API v1.10:
+//   - Added new field `tooltip` in `App`
 const (
 	CurrentMajor = 1
-	CurrentMinor = 7
+	CurrentMinor = 10
 )
 
 // CurrentVersion is the current provisionerd API version.

@@ -22,7 +22,7 @@ import type { FC } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
@@ -226,7 +226,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 									<br />
 									<Link
 										href={docs(
-											"/admin/templates/extending-templates/parameters#enable-dynamic-parameters-early-access",
+											"/admin/templates/extending-templates/dynamic-parameters",
 										)}
 									>
 										View docs
@@ -261,7 +261,9 @@ const WorkspaceParametersPageExperimental: FC = () => {
 					message="This workspace has no parameters"
 					cta={
 						<Link
-							href={docs("/admin/templates/extending-templates/parameters")}
+							href={docs(
+								"/admin/templates/extending-templates/dynamic-parameters",
+							)}
 						>
 							Learn more about parameters
 						</Link>

@@ -76,6 +76,12 @@
 							"description": "Security vulnerability disclosure policy",
 							"path": "./about/contributing/SECURITY.md",
 							"icon_path": "./images/icons/lock.svg"
+						},
+						{
+							"title": "AI Contribution Guidelines",
+							"description": "Guidelines for AI-generated contributions.",
+							"path": "./about/contributing/AI_CONTRIBUTING.md",
+							"icon_path": "./images/icons/ai_intelligence.svg"
 						}
 					]
 				}
@@ -148,9 +154,9 @@
 					]
 				},
 				{
-					"title": "Offline Deployments",
-					"description": "Run Coder in offline / air-gapped environments",
-					"path": "./install/offline.md",
+					"title": "Air-gapped Deployments",
+					"description": "Run Coder in air-gapped / disconnected / offline environments",
+					"path": "./install/airgap.md",
 					"icon_path": "./images/icons/lan.svg"
 				},
 				{
@@ -250,6 +256,11 @@
 							"title": "Web IDEs and Coder Apps",
 							"description": "Access your workspace with IDEs in the browser",
 							"path": "./user-guides/workspace-access/web-ides.md"
+						},
+						{
+							"title": "code-server",
+							"description": "Access your workspace with code-server",
+							"path": "./user-guides/workspace-access/code-server.md"
 						},
 						{
 							"title": "Zed",
@@ -412,6 +423,11 @@
 							"path": "./admin/users/oidc-auth/index.md",
 							"children": [
 								{
+									"title": "Google",
+									"description": "Configure Google as an OIDC provider",
+									"path": "./admin/users/oidc-auth/google.md"
+								},
+								{
 									"title": "Configure OIDC refresh tokens",
 									"description": "How to configure OIDC refresh tokens",
 									"path": "./admin/users/oidc-auth/refresh-tokens.md"
@@ -521,6 +537,12 @@
 									"title": "Workspace Scheduling",
 									"description": "Learn how to control how workspaces are started and stopped",
 									"path": "./admin/templates/managing-templates/schedule.md"
+								},
+								{
+									"title": "External Workspaces",
+									"description": "Learn how to manage external workspaces",
+									"path": "./admin/templates/managing-templates/external-workspaces.md",
+									"state": ["premium", "early access"]
 								}
 							]
 						},
@@ -542,8 +564,7 @@
 								{
 									"title": "Dynamic Parameters",
 									"description": "Conditional, identity-aware parameter syntax for advanced users.",
-									"path": "./admin/templates/extending-templates/dynamic-parameters.md",
-									"state": ["beta"]
+									"path": "./admin/templates/extending-templates/dynamic-parameters.md"
 								},
 								{
 									"title": "Prebuilt workspaces",
@@ -695,11 +716,6 @@
 							"path": "./admin/integrations/jfrog-artifactory.md"
 						},
 						{
-							"title": "JFrog Xray",
-							"description": "Integrate Coder with JFrog Xray",
-							"path": "./admin/integrations/jfrog-xray.md"
-						},
-						{
 							"title": "Island Secure Browser",
 							"description": "Integrate Coder with Island's Secure Browser",
 							"path": "./admin/integrations/island.md"
@@ -710,14 +726,19 @@
 							"path": "./admin/integrations/platformx.md"
 						},
 						{
-							"title": "DX",
-							"description": "Tag Coder Users with DX",
+							"title": "DX Data Cloud",
+							"description": "Tag Coder Users with DX Data Cloud",
 							"path": "./admin/integrations/dx-data-cloud.md"
 						},
 						{
 							"title": "Hashicorp Vault",
 							"description": "Integrate Coder with Hashicorp Vault",
 							"path": "./admin/integrations/vault.md"
+						},
+						{
+							"title": "OAuth2 Provider",
+							"description": "Use Coder as an OAuth2 provider",
+							"path": "./admin/integrations/oauth2-provider.md"
 						}
 					]
 				},
@@ -950,11 +971,6 @@
 					"path": "./install/kubernetes/kubernetes-azure-app-gateway.md"
 				},
 				{
-					"title": "Scanning Workspaces with JFrog Xray",
-					"description": "Integrate Coder with JFrog Xray",
-					"path": "./admin/integrations/jfrog-xray.md"
-				},
-				{
 					"title": "Cloning Git Repositories",
 					"description": "Learn how to clone Git repositories in Coder",
 					"path": "./tutorials/cloning-git-repositories.md"
@@ -1173,6 +1189,26 @@
 							"path": "reference/cli/external-auth_access-token.md"
 						},
 						{
+							"title": "external-workspaces",
+							"description": "Create or manage external workspaces",
+							"path": "reference/cli/external-workspaces.md"
+						},
+						{
+							"title": "external-workspaces agent-instructions",
+							"description": "Get the instructions for an external agent",
+							"path": "reference/cli/external-workspaces_agent-instructions.md"
+						},
+						{
+							"title": "external-workspaces create",
+							"description": "Create a new external workspace",
+							"path": "reference/cli/external-workspaces_create.md"
+						},
+						{
+							"title": "external-workspaces list",
+							"description": "List external workspaces",
+							"path": "reference/cli/external-workspaces_list.md"
+						},
+						{
 							"title": "favorite",
 							"description": "Add a workspace to your favorites",
 							"path": "reference/cli/favorite.md"
@@ -1255,6 +1291,11 @@
 							"title": "notifications",
 							"description": "Manage Coder notifications",
 							"path": "reference/cli/notifications.md"
+						},
+						{
+							"title": "notifications custom",
+							"description": "Send a custom notification",
+							"path": "reference/cli/notifications_custom.md"
 						},
 						{
 							"title": "notifications pause",
@@ -1655,6 +1696,16 @@
 							"title": "templates list",
 							"description": "List all the templates available for the organization",
 							"path": "reference/cli/templates_list.md"
+						},
+						{
+							"title": "templates presets",
+							"description": "Manage presets of the specified template",
+							"path": "reference/cli/templates_presets.md"
+						},
+						{
+							"title": "templates presets list",
+							"description": "List all presets of the specified template. Defaults to the active template version.",
+							"path": "reference/cli/templates_presets_list.md"
 						},
 						{
 							"title": "templates pull",

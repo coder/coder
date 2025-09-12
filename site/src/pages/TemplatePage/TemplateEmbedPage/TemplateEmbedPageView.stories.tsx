@@ -1,4 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import {
 	MockTemplate,
 	MockTemplateVersionParameter1,
@@ -6,6 +5,8 @@ import {
 	MockTemplateVersionParameter3,
 	MockTemplateVersionParameter4,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { screen, userEvent } from "storybook/test";
 import { TemplateEmbedPageView } from "./TemplateEmbedPage";
 
 const meta: Meta<typeof TemplateEmbedPageView> = {
@@ -33,5 +34,17 @@ export const WithParameters: Story = {
 			MockTemplateVersionParameter3,
 			MockTemplateVersionParameter4,
 		],
+	},
+};
+
+export const WrongWorkspaceName: Story = {
+	args: {
+		templateParameters: [MockTemplateVersionParameter1],
+	},
+	play: async () => {
+		const workspaceName = await screen.findByRole("textbox", {
+			name: "Workspace name",
+		});
+		await userEvent.type(workspaceName, "b@d");
 	},
 };

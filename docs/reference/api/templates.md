@@ -57,6 +57,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
         "p95": 146
       }
     },
+    "cors_behavior": "simple",
     "created_at": "2019-08-24T14:15:22Z",
     "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
     "created_by_name": "string",
@@ -113,6 +114,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`»» [any property]`|[codersdk.TransitionStats](schemas.md#codersdktransitionstats)|false|||
 |`»»» p50`|integer|false|||
 |`»»» p95`|integer|false|||
+|`» cors_behavior`|[codersdk.CORSBehavior](schemas.md#codersdkcorsbehavior)|false|||
 |`» created_at`|string(date-time)|false|||
 |`» created_by_id`|string(uuid)|false|||
 |`» created_by_name`|string|false|||
@@ -141,6 +143,8 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 | Property               | Value           |
 |------------------------|-----------------|
+| `cors_behavior`        | `simple`        |
+| `cors_behavior`        | `passthru`      |
 | `max_port_share_level` | `owner`         |
 | `max_port_share_level` | `authenticated` |
 | `max_port_share_level` | `organization`  |
@@ -182,6 +186,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
     ],
     "weeks": 0
   },
+  "cors_behavior": "simple",
   "default_ttl_ms": 0,
   "delete_ttl_ms": 0,
   "description": "string",
@@ -238,6 +243,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
       "p95": 146
     }
   },
+  "cors_behavior": "simple",
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
@@ -387,6 +393,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
       "p95": 146
     }
   },
+  "cors_behavior": "simple",
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
@@ -455,6 +462,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "username": "string"
   },
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "job": {
     "available_workers": [
@@ -472,6 +480,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
+    "logs_overflowed": true,
     "metadata": {
       "template_display_name": "string",
       "template_icon": "string",
@@ -553,6 +562,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "username": "string"
   },
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "job": {
     "available_workers": [
@@ -570,6 +580,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
+    "logs_overflowed": true,
     "metadata": {
       "template_display_name": "string",
       "template_icon": "string",
@@ -675,6 +686,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "username": "string"
   },
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "job": {
     "available_workers": [
@@ -692,6 +704,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
+    "logs_overflowed": true,
     "metadata": {
       "template_display_name": "string",
       "template_icon": "string",
@@ -790,6 +803,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
         "p95": 146
       }
     },
+    "cors_behavior": "simple",
     "created_at": "2019-08-24T14:15:22Z",
     "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
     "created_by_name": "string",
@@ -846,6 +860,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`»» [any property]`|[codersdk.TransitionStats](schemas.md#codersdktransitionstats)|false|||
 |`»»» p50`|integer|false|||
 |`»»» p95`|integer|false|||
+|`» cors_behavior`|[codersdk.CORSBehavior](schemas.md#codersdkcorsbehavior)|false|||
 |`» created_at`|string(date-time)|false|||
 |`» created_by_id`|string(uuid)|false|||
 |`» created_by_name`|string|false|||
@@ -874,6 +889,8 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 | Property               | Value           |
 |------------------------|-----------------|
+| `cors_behavior`        | `simple`        |
+| `cors_behavior`        | `passthru`      |
 | `max_port_share_level` | `owner`         |
 | `max_port_share_level` | `authenticated` |
 | `max_port_share_level` | `organization`  |
@@ -938,7 +955,7 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get template metadata by ID
+## Get template settings by ID
 
 ### Code samples
 
@@ -990,6 +1007,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
       "p95": 146
     }
   },
+  "cors_behavior": "simple",
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
@@ -1068,24 +1086,64 @@ curl -X DELETE http://coder-server:8080/api/v2/templates/{template} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Update template metadata by ID
+## Update template settings by ID
 
 ### Code samples
 
 ```shell
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
+  -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
 `PATCH /templates/{template}`
 
+> Body parameter
+
+```json
+{
+  "activity_bump_ms": 0,
+  "allow_user_autostart": true,
+  "allow_user_autostop": true,
+  "allow_user_cancel_workspace_jobs": true,
+  "autostart_requirement": {
+    "days_of_week": [
+      "monday"
+    ]
+  },
+  "autostop_requirement": {
+    "days_of_week": [
+      "monday"
+    ],
+    "weeks": 0
+  },
+  "cors_behavior": "simple",
+  "default_ttl_ms": 0,
+  "deprecation_message": "string",
+  "description": "string",
+  "disable_everyone_group_access": true,
+  "display_name": "string",
+  "failure_ttl_ms": 0,
+  "icon": "string",
+  "max_port_share_level": "owner",
+  "name": "string",
+  "require_active_version": true,
+  "time_til_dormant_autodelete_ms": 0,
+  "time_til_dormant_ms": 0,
+  "update_workspace_dormant_at": true,
+  "update_workspace_last_used_at": true,
+  "use_classic_parameter_flow": true
+}
+```
+
 ### Parameters
 
-| Name       | In   | Type         | Required | Description |
-|------------|------|--------------|----------|-------------|
-| `template` | path | string(uuid) | true     | Template ID |
+| Name       | In   | Type                                                                 | Required | Description                     |
+|------------|------|----------------------------------------------------------------------|----------|---------------------------------|
+| `template` | path | string(uuid)                                                         | true     | Template ID                     |
+| `body`     | body | [codersdk.UpdateTemplateMeta](schemas.md#codersdkupdatetemplatemeta) | true     | Patch template settings request |
 
 ### Example responses
 
@@ -1120,6 +1178,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
       "p95": 146
     }
   },
+  "cors_behavior": "simple",
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
@@ -1234,6 +1293,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "username": "string"
     },
+    "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "job": {
       "available_workers": [
@@ -1251,6 +1311,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
       },
+      "logs_overflowed": true,
       "metadata": {
         "template_display_name": "string",
         "template_icon": "string",
@@ -1310,6 +1371,7 @@ Status Code **200**
 | `»» avatar_url`             | string(uri)                                                                  | false    |              |                                                                                                                                                                     |
 | `»» id`                     | string(uuid)                                                                 | true     |              |                                                                                                                                                                     |
 | `»» username`               | string                                                                       | true     |              |                                                                                                                                                                     |
+| `» has_external_agent`      | boolean                                                                      | false    |              |                                                                                                                                                                     |
 | `» id`                      | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `» job`                     | [codersdk.ProvisionerJob](schemas.md#codersdkprovisionerjob)                 | false    |              |                                                                                                                                                                     |
 | `»» available_workers`      | array                                                                        | false    |              |                                                                                                                                                                     |
@@ -1324,6 +1386,7 @@ Status Code **200**
 | `»»» error`                 | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»»» template_version_id`   | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `»»» workspace_build_id`    | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» logs_overflowed`        | boolean                                                                      | false    |              |                                                                                                                                                                     |
 | `»» metadata`               | [codersdk.ProvisionerJobMetadata](schemas.md#codersdkprovisionerjobmetadata) | false    |              |                                                                                                                                                                     |
 | `»»» template_display_name` | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»»» template_icon`         | string                                                                       | false    |              |                                                                                                                                                                     |
@@ -1513,6 +1576,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "username": "string"
     },
+    "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "job": {
       "available_workers": [
@@ -1530,6 +1594,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
       },
+      "logs_overflowed": true,
       "metadata": {
         "template_display_name": "string",
         "template_icon": "string",
@@ -1589,6 +1654,7 @@ Status Code **200**
 | `»» avatar_url`             | string(uri)                                                                  | false    |              |                                                                                                                                                                     |
 | `»» id`                     | string(uuid)                                                                 | true     |              |                                                                                                                                                                     |
 | `»» username`               | string                                                                       | true     |              |                                                                                                                                                                     |
+| `» has_external_agent`      | boolean                                                                      | false    |              |                                                                                                                                                                     |
 | `» id`                      | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `» job`                     | [codersdk.ProvisionerJob](schemas.md#codersdkprovisionerjob)                 | false    |              |                                                                                                                                                                     |
 | `»» available_workers`      | array                                                                        | false    |              |                                                                                                                                                                     |
@@ -1603,6 +1669,7 @@ Status Code **200**
 | `»»» error`                 | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»»» template_version_id`   | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `»»» workspace_build_id`    | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» logs_overflowed`        | boolean                                                                      | false    |              |                                                                                                                                                                     |
 | `»» metadata`               | [codersdk.ProvisionerJobMetadata](schemas.md#codersdkprovisionerjobmetadata) | false    |              |                                                                                                                                                                     |
 | `»»» template_display_name` | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»»» template_icon`         | string                                                                       | false    |              |                                                                                                                                                                     |
@@ -1682,6 +1749,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "username": "string"
   },
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "job": {
     "available_workers": [
@@ -1699,6 +1767,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
+    "logs_overflowed": true,
     "metadata": {
       "template_display_name": "string",
       "template_icon": "string",
@@ -1789,6 +1858,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "username": "string"
   },
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "job": {
     "available_workers": [
@@ -1806,6 +1876,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
+    "logs_overflowed": true,
     "metadata": {
       "template_display_name": "string",
       "template_icon": "string",
@@ -2003,6 +2074,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
   },
+  "logs_overflowed": true,
   "metadata": {
     "template_display_name": "string",
     "template_icon": "string",
@@ -2076,6 +2148,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
   },
+  "logs_overflowed": true,
   "metadata": {
     "template_display_name": "string",
     "template_icon": "string",
@@ -2331,6 +2404,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
             ],
             "subdomain": true,
             "subdomain_name": "string",
+            "tooltip": "string",
             "url": "string"
           }
         ],
@@ -2474,6 +2548,7 @@ Status Code **200**
 | `»»»» workspace_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» subdomain`                 | boolean                                                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
 | `»»» subdomain_name`            | string                                                                                                 | false    |              | Subdomain name is the application domain exposed on the `coder server`.                                                                                                                                                                        |
+| `»»» tooltip`                   | string                                                                                                 | false    |              | Tooltip is an optional markdown supported field that is displayed when hovering over workspace apps in the UI.                                                                                                                                 |
 | `»»» url`                       | string                                                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
 | `»» architecture`               | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» connection_timeout_seconds` | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -2914,6 +2989,9 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
 [
   {
     "default": true,
+    "description": "string",
+    "desiredPrebuildInstances": 0,
+    "icon": "string",
     "id": "string",
     "name": "string",
     "parameters": [
@@ -2936,15 +3014,18 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
 
 Status Code **200**
 
-| Name           | Type    | Required | Restrictions | Description |
-|----------------|---------|----------|--------------|-------------|
-| `[array item]` | array   | false    |              |             |
-| `» default`    | boolean | false    |              |             |
-| `» id`         | string  | false    |              |             |
-| `» name`       | string  | false    |              |             |
-| `» parameters` | array   | false    |              |             |
-| `»» name`      | string  | false    |              |             |
-| `»» value`     | string  | false    |              |             |
+| Name                         | Type    | Required | Restrictions | Description |
+|------------------------------|---------|----------|--------------|-------------|
+| `[array item]`               | array   | false    |              |             |
+| `» default`                  | boolean | false    |              |             |
+| `» description`              | string  | false    |              |             |
+| `» desiredPrebuildInstances` | integer | false    |              |             |
+| `» icon`                     | string  | false    |              |             |
+| `» id`                       | string  | false    |              |             |
+| `» name`                     | string  | false    |              |             |
+| `» parameters`               | array   | false    |              |             |
+| `»» name`                    | string  | false    |              |             |
+| `»» value`                   | string  | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3011,6 +3092,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
             ],
             "subdomain": true,
             "subdomain_name": "string",
+            "tooltip": "string",
             "url": "string"
           }
         ],
@@ -3154,6 +3236,7 @@ Status Code **200**
 | `»»»» workspace_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» subdomain`                 | boolean                                                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
 | `»»» subdomain_name`            | string                                                                                                 | false    |              | Subdomain name is the application domain exposed on the `coder server`.                                                                                                                                                                        |
+| `»»» tooltip`                   | string                                                                                                 | false    |              | Tooltip is an optional markdown supported field that is displayed when hovering over workspace apps in the UI.                                                                                                                                 |
 | `»»» url`                       | string                                                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
 | `»» architecture`               | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» connection_timeout_seconds` | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |

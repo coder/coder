@@ -1,7 +1,3 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
-import { getWorkspaceResolveAutostartQueryKey } from "api/queries/workspaceQuota";
-import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import {
 	MockOutdatedWorkspace,
 	MockTemplate,
@@ -10,9 +6,13 @@ import {
 	MockWorkspace,
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { getWorkspaceResolveAutostartQueryKey } from "api/queries/workspaceQuota";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { WorkspaceNotifications } from "./WorkspaceNotifications";
 
-const defaultPermissions: WorkspacePermissions = {
+export const defaultPermissions: WorkspacePermissions = {
 	readWorkspace: true,
 	updateWorkspaceVersion: true,
 	updateWorkspace: true,

@@ -14,6 +14,7 @@ import {
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
+import { ClassicParameterFlowDeprecationWarning } from "modules/workspaces/ClassicParameterFlowDeprecationWarning/ClassicParameterFlowDeprecationWarning";
 import type { FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import {
@@ -33,6 +34,7 @@ interface WorkspaceParameterFormProps {
 	autofillParams: AutofillBuildParameter[];
 	isSubmitting: boolean;
 	canChangeVersions: boolean;
+	templatePermissions: { canUpdateTemplate: boolean } | undefined;
 	error: unknown;
 	onCancel: () => void;
 	onSubmit: (values: WorkspaceParametersFormValues) => void;
@@ -46,6 +48,7 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
 	autofillParams,
 	error,
 	canChangeVersions,
+	templatePermissions,
 	isSubmitting,
 }) => {
 	const form = useFormik<WorkspaceParametersFormValues>({
@@ -81,12 +84,15 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
 	return (
 		<>
 			{disabled && (
-				<Alert severity="warning" css={{ marginBottom: 48 }}>
+				<Alert severity="warning">
 					The template for this workspace requires automatic updates. Update the
 					workspace to edit parameters.
 				</Alert>
 			)}
-
+			<ClassicParameterFlowDeprecationWarning
+				templateSettingsLink={`/templates/${workspace.organization_name}/${workspace.template_name}/settings`}
+				isEnabled={templatePermissions?.canUpdateTemplate ?? false}
+			/>
 			<HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
 				{hasNonEphemeralParameters && (
 					<FormSection

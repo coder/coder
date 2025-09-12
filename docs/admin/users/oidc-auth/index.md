@@ -27,7 +27,7 @@ claims from the ID token and the claims obtained from hitting the upstream
 provider's `userinfo` endpoint, and use the resulting data as a basis for
 creating a new user or looking up an existing user.
 
-To troubleshoot claims, set `CODER_VERBOSE=true` and follow the logs while
+To troubleshoot claims, set `CODER_LOG_FILTER=".*got oidc claims.*"` and follow the logs while
 signing in via OIDC as a new user. Coder will log the claim fields returned by
 the upstream identity provider in a message containing the string
 `got oidc claims`, as well as the user info returned.

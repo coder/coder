@@ -431,9 +431,9 @@ func TestWorkspace(t *testing.T) {
 
 		// Test Utility variables
 		templateVersionParameters := []*proto.RichParameter{
-			{Name: "param1", Type: "string", Required: false},
-			{Name: "param2", Type: "string", Required: false},
-			{Name: "param3", Type: "string", Required: false},
+			{Name: "param1", Type: "string", Required: false, DefaultValue: "default1"},
+			{Name: "param2", Type: "string", Required: false, DefaultValue: "default2"},
+			{Name: "param3", Type: "string", Required: false, DefaultValue: "default3"},
 		}
 		presetParameters := []*proto.PresetParameter{
 			{Name: "param1", Value: "value1"},
@@ -1427,7 +1427,6 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	t.Parallel()
 
 	// For this test, we do not care about permissions.
-	// nolint:gocritic // unit testing
 	ctx := dbauthz.AsSystemRestricted(context.Background())
 	db, pubsub := dbtestutil.NewDB(t)
 	client := coderdtest.New(t, &coderdtest.Options{
@@ -1800,6 +1799,7 @@ func TestWorkspaceFilter(t *testing.T) {
 	for _, c := range testCases {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
 			workspaces, err := client.Workspaces(ctx, c.Filter)
 			require.NoError(t, err, "fetch workspaces")
 
@@ -2214,15 +2214,12 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		after := coderdtest.CreateWorkspace(t, client, template.ID)
 		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, after.LatestBuild.ID)
 
-		//nolint:gocritic // Unit testing context
 		err := api.Database.UpdateWorkspaceLastUsedAt(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceLastUsedAtParams{
 			ID:         before.ID,
 			LastUsedAt: now.UTC().Add(time.Hour * -1),
 		})
 		require.NoError(t, err)
 
-		// Unit testing context
-		//nolint:gocritic // Unit testing context
 		err = api.Database.UpdateWorkspaceLastUsedAt(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceLastUsedAtParams{
 			ID:         after.ID,
 			LastUsedAt: now.UTC().Add(time.Hour * 1),
@@ -2678,8 +2675,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		// ensure test invariant: new workspaces have no autostart schedule.
 		require.Empty(t, workspace.AutostartSchedule, "expected newly-minted workspace to have no autostart schedule")
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
 			Schedule: ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * 1-5"),
@@ -2698,8 +2694,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			}
 		)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateWorkspaceAutostart(ctx, wsid, req)
 		require.IsType(t, err, &codersdk.Error{}, "expected codersdk.Error")
@@ -2895,6 +2890,56 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 				testCase.afterUpdate(t, deadlineBefore, deadlineAfter)
 			})
 		}
+	})
+
+	t.Run("RemoveAutostopWithRunningWorkspaceWithMaxDeadline", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx         = testutil.Context(t, testutil.WaitLong)
+			client, db  = coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user        = coderdtest.CreateFirstUser(t, client)
+			version     = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_           = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			template    = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			deadline    = 8 * time.Hour
+			maxDeadline = 10 * time.Hour
+			workspace   = coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+				cwr.TTLMillis = ptr.Ref(deadline.Milliseconds())
+			})
+			build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		)
+
+		// This is a hack, but the max_deadline isn't precisely configurable
+		// without a lot of unnecessary hassle.
+		dbBuild, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), build.ID)
+		require.NoError(t, err)
+		dbJob, err := db.GetProvisionerJobByID(dbauthz.AsSystemRestricted(ctx), dbBuild.JobID)
+		require.NoError(t, err)
+		require.True(t, dbJob.CompletedAt.Valid)
+		initialDeadline := dbJob.CompletedAt.Time.Add(deadline)
+		expectedMaxDeadline := dbJob.CompletedAt.Time.Add(maxDeadline)
+		err = db.UpdateWorkspaceBuildDeadlineByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildDeadlineByIDParams{
+			ID:          build.ID,
+			Deadline:    initialDeadline,
+			MaxDeadline: expectedMaxDeadline,
+			UpdatedAt:   dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		// Remove autostop.
+		err = client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
+			TTLMillis: nil,
+		})
+		require.NoError(t, err)
+
+		// Expect that the deadline is set to the max_deadline.
+		build, err = client.WorkspaceBuild(ctx, build.ID)
+		require.NoError(t, err)
+		require.True(t, build.Deadline.Valid)
+		require.WithinDuration(t, build.Deadline.Time, expectedMaxDeadline, time.Second)
+		require.True(t, build.MaxDeadline.Valid)
+		require.WithinDuration(t, build.MaxDeadline.Time, expectedMaxDeadline, time.Second)
 	})
 
 	t.Run("CustomAutostopDisabledByTemplate", func(t *testing.T) {
@@ -3842,7 +3887,9 @@ func TestWorkspaceWithEphemeralRichParameters(t *testing.T) {
 		}},
 	})
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+		request.UseClassicParameterFlow = ptr.Ref(true) // TODO: Remove this when dynamic parameters handles this case
+	})
 
 	// Create workspace with default values
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
@@ -4456,14 +4503,12 @@ func TestOIDCRemoved(t *testing.T) {
 	user, userData := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.ScopedRoleOrgAdmin(first.OrganizationID))
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
-	//nolint:gocritic // unit test
 	_, err := db.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
 		NewLoginType: database.LoginTypeOIDC,
 		UserID:       userData.ID,
 	})
 	require.NoError(t, err)
 
-	//nolint:gocritic // unit test
 	_, err = db.InsertUserLink(dbauthz.AsSystemRestricted(ctx), database.InsertUserLinkParams{
 		UserID:                 userData.ID,
 		LoginType:              database.LoginTypeOIDC,
@@ -4552,7 +4597,6 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 		})
 
 		if aiTaskPrompt != nil {
-			//nolint:gocritic // unit test
 			err := db.InsertWorkspaceBuildParameters(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceBuildParametersParams{
 				WorkspaceBuildID: build.ID,
 				Name:             []string{provider.TaskPromptParameterName},
@@ -4755,9 +4799,399 @@ func TestMultipleAITasksDisallowed(t *testing.T) {
 	ws := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
-	//nolint: gocritic // testing
 	ctx := dbauthz.AsSystemRestricted(t.Context())
 	pj, err := db.GetProvisionerJobByID(ctx, ws.LatestBuild.Job.ID)
 	require.NoError(t, err)
 	require.Contains(t, pj.Error.String, "only one 'coder_ai_task' resource can be provisioned per template")
+}
+
+func TestUpdateWorkspaceACL(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+		adminClient := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			DeploymentValues:         dv,
+		})
+		adminUser := coderdtest.CreateFirstUser(t, adminClient)
+		orgID := adminUser.OrganizationID
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		_, friend := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+
+		tv := coderdtest.CreateTemplateVersion(t, adminClient, orgID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, tv.ID)
+		template := coderdtest.CreateTemplate(t, adminClient, orgID, tv.ID)
+
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := client.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				friend.ID.String(): codersdk.WorkspaceRoleAdmin,
+			},
+		})
+		require.NoError(t, err)
+
+		workspaceACL, err := client.WorkspaceACL(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Len(t, workspaceACL.Users, 1)
+		require.Equal(t, workspaceACL.Users[0].ID, friend.ID)
+		require.Equal(t, workspaceACL.Users[0].Role, codersdk.WorkspaceRoleAdmin)
+	})
+
+	t.Run("UnknownUserID", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+		adminClient := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			DeploymentValues:         dv,
+		})
+		adminUser := coderdtest.CreateFirstUser(t, adminClient)
+		orgID := adminUser.OrganizationID
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+
+		tv := coderdtest.CreateTemplateVersion(t, adminClient, orgID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, tv.ID)
+		template := coderdtest.CreateTemplate(t, adminClient, orgID, tv.ID)
+
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := client.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				uuid.NewString(): codersdk.WorkspaceRoleAdmin,
+			},
+		})
+		require.Error(t, err)
+		cerr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Len(t, cerr.Validations, 1)
+		require.Equal(t, cerr.Validations[0].Field, "user_roles")
+	})
+
+	t.Run("DeletedUser", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+		adminClient := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			DeploymentValues:         dv,
+		})
+		adminUser := coderdtest.CreateFirstUser(t, adminClient)
+		orgID := adminUser.OrganizationID
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		_, mike := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+
+		tv := coderdtest.CreateTemplateVersion(t, adminClient, orgID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, tv.ID)
+		template := coderdtest.CreateTemplate(t, adminClient, orgID, tv.ID)
+
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := adminClient.DeleteUser(ctx, mike.ID)
+		require.NoError(t, err)
+		err = client.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				mike.ID.String(): codersdk.WorkspaceRoleAdmin,
+			},
+		})
+		require.Error(t, err)
+		cerr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Len(t, cerr.Validations, 1)
+		require.Equal(t, cerr.Validations[0].Field, "user_roles")
+	})
+}
+
+func TestWorkspaceCreateWithImplicitPreset(t *testing.T) {
+	t.Parallel()
+
+	// Helper function to create template with presets
+	createTemplateWithPresets := func(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, presets []*proto.Preset) (codersdk.Template, codersdk.TemplateVersion) {
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{
+				{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Presets: presets,
+						},
+					},
+				},
+			},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		return template, version
+	}
+
+	// Helper function to create workspace and verify preset usage
+	createWorkspaceAndVerifyPreset := func(t *testing.T, client *codersdk.Client, template codersdk.Template, expectedPresetID *uuid.UUID, params []codersdk.WorkspaceBuildParameter) codersdk.Workspace {
+		wsName := testutil.GetRandomNameHyphenated(t)
+		var ws codersdk.Workspace
+		if len(params) > 0 {
+			ws = coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+				cwr.Name = wsName
+				cwr.RichParameterValues = params
+			})
+		} else {
+			ws = coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+				cwr.Name = wsName
+			})
+		}
+		require.Equal(t, wsName, ws.Name)
+
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		// Verify the preset was used if expected
+		if expectedPresetID != nil {
+			require.NotNil(t, ws.LatestBuild.TemplateVersionPresetID)
+			require.Equal(t, *expectedPresetID, *ws.LatestBuild.TemplateVersionPresetID)
+		} else {
+			require.Nil(t, ws.LatestBuild.TemplateVersionPresetID)
+		}
+
+		return ws
+	}
+
+	t.Run("NoPresets", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create template with no presets
+		template, _ := createTemplateWithPresets(t, client, user, []*proto.Preset{})
+
+		// Test workspace creation with no parameters
+		createWorkspaceAndVerifyPreset(t, client, template, nil, nil)
+
+		// Test workspace creation with parameters (should still work, no preset matching)
+		createWorkspaceAndVerifyPreset(t, client, template, nil, []codersdk.WorkspaceBuildParameter{
+			{Name: "param1", Value: "value1"},
+		})
+	})
+
+	t.Run("SinglePresetNoParameters", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create template with single preset that has no parameters
+		preset := &proto.Preset{
+			Name:        "empty-preset",
+			Description: "A preset with no parameters",
+			Parameters:  []*proto.PresetParameter{},
+		}
+		template, version := createTemplateWithPresets(t, client, user, []*proto.Preset{preset})
+
+		// Get the preset ID from the database
+		ctx := context.Background()
+		presets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, presets, 1)
+		presetID := presets[0].ID
+
+		// Test workspace creation with no parameters - should match the preset
+		createWorkspaceAndVerifyPreset(t, client, template, &presetID, nil)
+
+		// Test workspace creation with parameters - should not match the preset
+		createWorkspaceAndVerifyPreset(t, client, template, &presetID, []codersdk.WorkspaceBuildParameter{
+			{Name: "param1", Value: "value1"},
+		})
+	})
+
+	t.Run("SinglePresetWithParameters", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create template with single preset that has parameters
+		preset := &proto.Preset{
+			Name:        "param-preset",
+			Description: "A preset with parameters",
+			Parameters: []*proto.PresetParameter{
+				{Name: "param1", Value: "value1"},
+				{Name: "param2", Value: "value2"},
+			},
+		}
+		template, version := createTemplateWithPresets(t, client, user, []*proto.Preset{preset})
+
+		// Get the preset ID from the database
+		ctx := context.Background()
+		presets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, presets, 1)
+		presetID := presets[0].ID
+
+		// Test workspace creation with no parameters - should not match the preset
+		createWorkspaceAndVerifyPreset(t, client, template, nil, nil)
+
+		// Test workspace creation with exact matching parameters - should match the preset
+		createWorkspaceAndVerifyPreset(t, client, template, &presetID, []codersdk.WorkspaceBuildParameter{
+			{Name: "param1", Value: "value1"},
+			{Name: "param2", Value: "value2"},
+		})
+
+		// Test workspace creation with partial matching parameters - should not match the preset
+		createWorkspaceAndVerifyPreset(t, client, template, nil, []codersdk.WorkspaceBuildParameter{
+			{Name: "param1", Value: "value1"},
+		})
+
+		// Test workspace creation with different parameter values - should not match the preset
+		createWorkspaceAndVerifyPreset(t, client, template, nil, []codersdk.WorkspaceBuildParameter{
+			{Name: "param1", Value: "value1"},
+			{Name: "param2", Value: "different"},
+		})
+
+		// Test workspace creation with extra parameters - should match the preset
+		createWorkspaceAndVerifyPreset(t, client, template, &presetID, []codersdk.WorkspaceBuildParameter{
+			{Name: "param1", Value: "value1"},
+			{Name: "param2", Value: "value2"},
+			{Name: "param3", Value: "value3"},
+		})
+	})
+
+	t.Run("MultiplePresets", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create template with multiple presets
+		preset1 := &proto.Preset{
+			Name:        "empty-preset",
+			Description: "A preset with no parameters",
+			Parameters:  []*proto.PresetParameter{},
+		}
+		preset2 := &proto.Preset{
+			Name:        "single-param-preset",
+			Description: "A preset with one parameter",
+			Parameters: []*proto.PresetParameter{
+				{Name: "param1", Value: "value1"},
+			},
+		}
+		preset3 := &proto.Preset{
+			Name:        "multi-param-preset",
+			Description: "A preset with multiple parameters",
+			Parameters: []*proto.PresetParameter{
+				{Name: "param1", Value: "value1"},
+				{Name: "param2", Value: "value2"},
+			},
+		}
+		template, version := createTemplateWithPresets(t, client, user, []*proto.Preset{preset1, preset2, preset3})
+
+		// Get the preset IDs from the database
+		ctx := context.Background()
+		presets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, presets, 3)
+
+		// Sort presets by name to get consistent ordering
+		var emptyPresetID, singleParamPresetID, multiParamPresetID uuid.UUID
+		for _, p := range presets {
+			switch p.Name {
+			case "empty-preset":
+				emptyPresetID = p.ID
+			case "single-param-preset":
+				singleParamPresetID = p.ID
+			case "multi-param-preset":
+				multiParamPresetID = p.ID
+			}
+		}
+
+		// Test workspace creation with no parameters - should match empty preset
+		createWorkspaceAndVerifyPreset(t, client, template, &emptyPresetID, nil)
+
+		// Test workspace creation with single parameter - should match single param preset
+		createWorkspaceAndVerifyPreset(t, client, template, &singleParamPresetID, []codersdk.WorkspaceBuildParameter{
+			{Name: "param1", Value: "value1"},
+		})
+
+		// Test workspace creation with multiple parameters - should match multi param preset
+		createWorkspaceAndVerifyPreset(t, client, template, &multiParamPresetID, []codersdk.WorkspaceBuildParameter{
+			{Name: "param1", Value: "value1"},
+			{Name: "param2", Value: "value2"},
+		})
+
+		// Test workspace creation with non-matching parameters - should not match any preset
+		createWorkspaceAndVerifyPreset(t, client, template, &emptyPresetID, []codersdk.WorkspaceBuildParameter{
+			{Name: "param1", Value: "different"},
+		})
+	})
+
+	t.Run("PresetSpecifiedExplicitly", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create template with multiple presets
+		preset1 := &proto.Preset{
+			Name:        "preset1",
+			Description: "First preset",
+			Parameters: []*proto.PresetParameter{
+				{Name: "param1", Value: "value1"},
+			},
+		}
+		preset2 := &proto.Preset{
+			Name:        "preset2",
+			Description: "Second preset",
+			Parameters: []*proto.PresetParameter{
+				{Name: "param1", Value: "value2"},
+			},
+		}
+		template, version := createTemplateWithPresets(t, client, user, []*proto.Preset{preset1, preset2})
+
+		// Get the preset IDs from the database
+		ctx := context.Background()
+		presets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, presets, 2)
+
+		var preset1ID, preset2ID uuid.UUID
+		for _, p := range presets {
+			switch p.Name {
+			case "preset1":
+				preset1ID = p.ID
+			case "preset2":
+				preset2ID = p.ID
+			}
+		}
+
+		// Test workspace creation with preset1 specified explicitly - should use preset1 regardless of parameters
+		ws := coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.TemplateVersionPresetID = preset1ID
+			cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{Name: "param1", Value: "value2"}, // This would normally match preset2
+			}
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+		require.NotNil(t, ws.LatestBuild.TemplateVersionPresetID)
+		require.Equal(t, preset1ID, *ws.LatestBuild.TemplateVersionPresetID)
+
+		// Test workspace creation with preset2 specified explicitly - should use preset2 regardless of parameters
+		ws2 := coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.TemplateVersionPresetID = preset2ID
+			cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{Name: "param1", Value: "value1"}, // This would normally match preset1
+			}
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws2.LatestBuild.ID)
+		require.NotNil(t, ws2.LatestBuild.TemplateVersionPresetID)
+		require.Equal(t, preset2ID, *ws2.LatestBuild.TemplateVersionPresetID)
+	})
 }

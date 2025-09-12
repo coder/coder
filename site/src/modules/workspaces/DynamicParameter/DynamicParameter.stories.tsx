@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { MockPreviewParameter } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { DynamicParameter } from "./DynamicParameter";
 
 const meta: Meta<typeof DynamicParameter> = {

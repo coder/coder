@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -183,20 +184,24 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 	}, nil
 }
 
+func MinimalUser(user database.User) codersdk.MinimalUser {
+	return codersdk.MinimalUser{
+		ID:        user.ID,
+		Username:  user.Username,
+		AvatarURL: user.AvatarURL,
+	}
+}
+
 func ReducedUser(user database.User) codersdk.ReducedUser {
 	return codersdk.ReducedUser{
-		MinimalUser: codersdk.MinimalUser{
-			ID:        user.ID,
-			Username:  user.Username,
-			AvatarURL: user.AvatarURL,
-		},
-		Email:      user.Email,
-		Name:       user.Name,
-		CreatedAt:  user.CreatedAt,
-		UpdatedAt:  user.UpdatedAt,
-		LastSeenAt: user.LastSeenAt,
-		Status:     codersdk.UserStatus(user.Status),
-		LoginType:  codersdk.LoginType(user.LoginType),
+		MinimalUser: MinimalUser(user),
+		Email:       user.Email,
+		Name:        user.Name,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+		LastSeenAt:  user.LastSeenAt,
+		Status:      codersdk.UserStatus(user.Status),
+		LoginType:   codersdk.LoginType(user.LoginType),
 	}
 }
 
@@ -577,6 +582,7 @@ func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus
 			Group:    dbApp.DisplayGroup.String,
 			Hidden:   dbApp.Hidden,
 			OpenIn:   codersdk.WorkspaceAppOpenIn(dbApp.OpenIn),
+			Tooltip:  dbApp.Tooltip,
 			Statuses: WorkspaceAppStatuses(statuses),
 		})
 	}
@@ -777,6 +783,29 @@ func TemplateRoleActions(role codersdk.TemplateRole) []policy.Action {
 		return []policy.Action{policy.WildcardSymbol}
 	case codersdk.TemplateRoleUse:
 		return []policy.Action{policy.ActionRead, policy.ActionUse}
+	}
+	return []policy.Action{}
+}
+
+func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
+	switch role {
+	case codersdk.WorkspaceRoleAdmin:
+		return slice.Omit(
+			// Small note: This intentionally includes "create" because it's sort of
+			// double purposed as "can edit ACL". That's maybe a bit "incorrect", but
+			// it's what templates do already and we're copying that implementation.
+			rbac.ResourceWorkspace.AvailableActions(),
+			// Don't let anyone delete something they can't recreate.
+			policy.ActionDelete,
+		)
+	case codersdk.WorkspaceRoleUse:
+		return []policy.Action{
+			policy.ActionApplicationConnect,
+			policy.ActionRead,
+			policy.ActionSSH,
+			policy.ActionWorkspaceStart,
+			policy.ActionWorkspaceStop,
+		}
 	}
 	return []policy.Action{}
 }

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import net from "node:net";
 import path from "node:path";
 import { Duplex } from "node:stream";
-import { type BrowserContext, type Page, expect, test } from "@playwright/test";
+import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { API } from "api/api";
 import type {
 	UpdateTemplateMeta,
@@ -29,8 +29,8 @@ import { expectUrl } from "./expectUrl";
 import {
 	Agent,
 	type App,
-	AppSharingLevel,
 	type ApplyComplete,
+	AppSharingLevel,
 	type ExternalAuthProviderResource,
 	type ParseComplete,
 	type PlanComplete,
@@ -126,6 +126,10 @@ export const createWorkspace = async (
 
 	const name = randomName();
 	await page.getByLabel("name").fill(name);
+
+	if (buildParameters.length > 0) {
+		await page.waitForSelector("form", { state: "visible" });
+	}
 
 	await fillParameters(page, richParameters, buildParameters);
 
@@ -621,6 +625,7 @@ const createTemplateVersionTar = async (
 								subdomain: false,
 								url: "",
 								group: "",
+								tooltip: "",
 								...app,
 							} as App;
 						});
@@ -898,28 +903,29 @@ const fillParameters = async (
 			);
 		}
 
-		const parameterLabel = await page.waitForSelector(
-			`[data-testid='parameter-field-${richParameter.name}']`,
-			{ state: "visible" },
+		// Use modern locator approach instead of waitForSelector
+		const parameterLabel = page.getByTestId(
+			`parameter-field-${richParameter.name}`,
 		);
+		await expect(parameterLabel).toBeVisible();
 
 		if (richParameter.type === "bool") {
-			const parameterField = await parameterLabel.waitForSelector(
-				`[data-testid='parameter-field-bool'] .MuiRadio-root input[value='${buildParameter.value}']`,
-			);
+			const parameterField = parameterLabel
+				.getByTestId("parameter-field-bool")
+				.locator(`.MuiRadio-root input[value='${buildParameter.value}']`);
 			await parameterField.click();
 		} else if (richParameter.options.length > 0) {
-			const parameterField = await parameterLabel.waitForSelector(
-				`[data-testid='parameter-field-options'] .MuiRadio-root input[value='${buildParameter.value}']`,
-			);
+			const parameterField = parameterLabel
+				.getByTestId("parameter-field-options")
+				.locator(`.MuiRadio-root input[value='${buildParameter.value}']`);
 			await parameterField.click();
 		} else if (richParameter.type === "list(string)") {
 			throw new Error("not implemented yet"); // FIXME
 		} else {
 			// text or number
-			const parameterField = await parameterLabel.waitForSelector(
-				"[data-testid='parameter-field-text'] input",
-			);
+			const parameterField = parameterLabel
+				.getByTestId("parameter-field-text")
+				.locator("input");
 			await parameterField.fill(buildParameter.value);
 		}
 	}
@@ -1203,3 +1209,48 @@ export async function addUserToOrganization(
 	}
 	await page.mouse.click(10, 10); // close the popover by clicking outside of it
 }
+
+/**
+ * disableDynamicParameters navigates to the template settings page and disables
+ * dynamic parameters by unchecking the "Enable dynamic parameters" checkbox.
+ */
+export const disableDynamicParameters = async (
+	page: Page,
+	templateName: string,
+	orgName = defaultOrganizationName,
+) => {
+	await page.goto(`/templates/${orgName}/${templateName}/settings`, {
+		waitUntil: "domcontentloaded",
+	});
+
+	await page.waitForSelector("form", { state: "visible" });
+
+	// Find and uncheck the "Enable dynamic parameters" checkbox
+	const dynamicParamsCheckbox = page.getByRole("checkbox", {
+		name: /Enable dynamic parameters for workspace creation/,
+	});
+
+	await dynamicParamsCheckbox.waitFor({ state: "visible" });
+
+	// If the checkbox is checked, uncheck it
+	if (await dynamicParamsCheckbox.isChecked()) {
+		await dynamicParamsCheckbox.click();
+	}
+
+	// Save the changes
+	const saveButton = page.getByRole("button", { name: /save/i });
+	await saveButton.waitFor({ state: "visible" });
+	await saveButton.click();
+
+	// Wait for the success message or page to update
+	await page
+		.locator("[role='alert']:has-text('Template updated successfully')")
+		.first()
+		.waitFor({
+			state: "visible",
+			timeout: 15000,
+		});
+
+	// Additional wait to ensure the changes are persisted
+	await page.waitForTimeout(500);
+};

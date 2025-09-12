@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { MockUserOwner } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { UserAutocomplete } from "./UserAutocomplete";
 
 const meta: Meta<typeof UserAutocomplete> = {

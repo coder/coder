@@ -1,0 +1,56 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder external-workspaces create [flags] [workspace]
+
+  Create a new external workspace
+
+    - Create a workspace for another user (if you have permission):
+  
+       $ coder create <username>/<workspace_name>
+
+OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
+      --automatic-updates string, $CODER_WORKSPACE_AUTOMATIC_UPDATES (default: never)
+          Specify automatic updates setting for the workspace (accepts 'always'
+          or 'never').
+
+      --copy-parameters-from string, $CODER_WORKSPACE_COPY_PARAMETERS_FROM
+          Specify the source workspace name to copy parameters from.
+
+      --parameter string-array, $CODER_RICH_PARAMETER
+          Rich parameter value in the format "name=value".
+
+      --parameter-default string-array, $CODER_RICH_PARAMETER_DEFAULT
+          Rich parameter default values in the format "name=value".
+
+      --preset string, $CODER_PRESET_NAME
+          Specify the name of a template version preset. Use 'none' to
+          explicitly indicate that no preset should be used.
+
+      --rich-parameter-file string, $CODER_RICH_PARAMETER_FILE
+          Specify a file path with values for rich parameters defined in the
+          template. The file should be in YAML format, containing key-value
+          pairs for the parameters.
+
+      --start-at string, $CODER_WORKSPACE_START_AT
+          Specify the workspace autostart schedule. Check coder schedule start
+          --help for the syntax.
+
+      --stop-after duration, $CODER_WORKSPACE_STOP_AFTER
+          Specify a duration after which the workspace should shut down (e.g.
+          8h).
+
+  -t, --template string, $CODER_TEMPLATE_NAME
+          Specify a template name.
+
+      --template-version string, $CODER_TEMPLATE_VERSION
+          Specify a template version name.
+
+  -y, --yes bool
+          Bypass prompts.
+
+———
+Run `coder --help` for a list of global options.

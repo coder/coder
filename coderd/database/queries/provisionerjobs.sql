@@ -55,6 +55,17 @@ WHERE
 FOR UPDATE
 SKIP LOCKED;
 
+-- name: GetProvisionerJobByIDWithLock :one
+-- Gets a provisioner job by ID with exclusive lock.
+-- Blocks until the row is available for update.
+SELECT
+	*
+FROM
+	provisioner_jobs
+WHERE
+	id = $1
+FOR UPDATE;
+
 -- name: GetProvisionerJobsByIDs :many
 SELECT
 	*
@@ -247,10 +258,11 @@ INSERT INTO
 		"type",
 		"input",
 		tags,
-		trace_metadata
+		trace_metadata,
+		logs_overflowed
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
 
 -- name: UpdateProvisionerJobByID :exec
 UPDATE

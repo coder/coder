@@ -1,13 +1,13 @@
 import { GlobalErrorBoundary } from "components/ErrorBoundary/GlobalErrorBoundary";
 import { TemplateRedirectController } from "pages/TemplatePage/TemplateRedirectController";
-import { Suspense, lazy } from "react";
+import { lazy, Suspense } from "react";
 import {
+	createBrowserRouter,
+	createRoutesFromChildren,
 	Navigate,
 	Outlet,
 	Route,
-	createBrowserRouter,
-	createRoutesFromChildren,
-} from "react-router-dom";
+} from "react-router";
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
@@ -84,6 +84,12 @@ const WorkspaceParametersExperimentRouter = lazy(
 	() =>
 		import(
 			"./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersExperimentRouter"
+		),
+);
+const WorkspaceSharingPage = lazy(
+	() =>
+		import(
+			"./pages/WorkspaceSettingsPage/WorkspaceSharingPage/WorkspaceSharingPage"
 		),
 );
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"));
@@ -547,6 +553,7 @@ export const router = createBrowserRouter(
 								element={<WorkspaceParametersExperimentRouter />}
 							/>
 							<Route path="schedule" element={<WorkspaceSchedulePage />} />
+							<Route path="sharing" element={<WorkspaceSharingPage />} />
 						</Route>
 					</Route>
 

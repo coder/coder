@@ -552,6 +552,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 			Valid:      true,
 			RawMessage: metadataRaw,
 		},
+		LogsOverflowed: false,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1471,7 +1472,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	var dynamicTemplate bool
+	dynamicTemplate := true // Default to using dynamic templates
 	if req.TemplateID != uuid.Nil {
 		tpl, err := api.Database.GetTemplateByID(ctx, req.TemplateID)
 		if httpapi.Is404Error(err) {
@@ -1646,6 +1647,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 				Valid:      true,
 				RawMessage: traceMetadataRaw,
 			},
+			LogsOverflowed: false,
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1822,6 +1824,14 @@ func (api *API) dynamicTemplateVersionTags(ctx context.Context, rw http.Response
 		return nil, false
 	}
 
+	// Fails early if presets are invalid to prevent downstream workspace creation errors
+	presetErr := dynamicparameters.CheckPresets(output, nil)
+	if presetErr != nil {
+		code, resp := presetErr.Response()
+		httpapi.Write(ctx, rw, code, resp)
+		return nil, false
+	}
+
 	return output.WorkspaceTags.Tags(), true
 }
 
@@ -1953,6 +1963,7 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		Archived:            version.Archived,
 		Warnings:            warnings,
 		MatchedProvisioners: matchedProvisioners,
+		HasExternalAgent:    version.HasExternalAgent.Bool,
 	}
 }
 

@@ -4,18 +4,18 @@ import type { SlimRole } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { CollapsibleSummary } from "components/CollapsibleSummary/CollapsibleSummary";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipText,
-	HelpTooltipTitle,
-	HelpTooltipTrigger,
-} from "components/HelpTooltip/HelpTooltip";
-import { EditSquare } from "components/Icons/EditSquare";
-import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
+import {
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipIconTrigger,
+	HelpTooltipText,
+	HelpTooltipTitle,
+} from "components/HelpTooltip/HelpTooltip";
+import { EditSquare } from "components/Icons/EditSquare";
 import { UserIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 
@@ -75,13 +75,33 @@ interface EditRolesButtonProps {
 	userLoginType?: string;
 }
 
-export const EditRolesButton: FC<EditRolesButtonProps> = ({
+export const EditRolesButton: FC<EditRolesButtonProps> = (props) => {
+	const { userLoginType, oidcRoleSync } = props;
+	const canSetRoles =
+		userLoginType !== "oidc" || (userLoginType === "oidc" && !oidcRoleSync);
+
+	if (!canSetRoles) {
+		return (
+			<HelpTooltip>
+				<HelpTooltipIconTrigger size="small" />
+				<HelpTooltipContent>
+					<HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
+					<HelpTooltipText>
+						Roles for this user are controlled by the OIDC identity provider.
+					</HelpTooltipText>
+				</HelpTooltipContent>
+			</HelpTooltip>
+		);
+	}
+
+	return <EnabledEditRolesButton {...props} />;
+};
+
+const EnabledEditRolesButton: FC<EditRolesButtonProps> = ({
 	roles,
 	selectedRoleNames,
 	onChange,
 	isLoading,
-	userLoginType,
-	oidcRoleSync,
 }) => {
 	const handleChange = (roleName: string) => {
 		if (selectedRoleNames.has(roleName)) {
@@ -93,23 +113,6 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 		onChange([...selectedRoleNames, roleName]);
 	};
 	const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
-
-	const canSetRoles =
-		userLoginType !== "oidc" || (userLoginType === "oidc" && !oidcRoleSync);
-
-	if (!canSetRoles) {
-		return (
-			<HelpTooltip>
-				<HelpTooltipTrigger size="small" />
-				<HelpTooltipContent>
-					<HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
-					<HelpTooltipText>
-						Roles for this user are controlled by the OIDC identity provider.
-					</HelpTooltipText>
-				</HelpTooltipContent>
-			</HelpTooltip>
-		);
-	}
 
 	const filteredRoles = roles.filter(
 		(role) => role.name !== "organization-workspace-creation-ban",

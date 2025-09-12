@@ -70,7 +70,6 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
@@ -137,7 +136,6 @@ func TestSMTPDispatch(t *testing.T) {
 
 	// SETUP
 
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
@@ -203,7 +201,6 @@ func TestWebhookDispatch(t *testing.T) {
 
 	// SETUP
 
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
@@ -287,7 +284,6 @@ func TestBackpressure(t *testing.T) {
 
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitShort))
 
 	const method = database.NotificationMethodWebhook
@@ -416,7 +412,6 @@ func TestRetries(t *testing.T) {
 	}
 
 	const maxAttempts = 3
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
@@ -516,7 +511,6 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
@@ -536,7 +530,6 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 
 	noopInterceptor := newNoopStoreSyncer(store)
 
-	// nolint:gocritic // Unit test.
 	mgrCtx, cancelManagerCtx := context.WithCancel(dbauthz.AsNotifier(context.Background()))
 	t.Cleanup(cancelManagerCtx)
 
@@ -645,7 +638,6 @@ func TestNotifierPaused(t *testing.T) {
 
 	// Setup.
 
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
@@ -1266,6 +1258,20 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				Data: map[string]any{},
 			},
 		},
+		{
+			name: "TemplateCustomNotification",
+			id:   notifications.TemplateCustomNotification,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"custom_title":   "Custom Title",
+					"custom_message": "Custom Message",
+				},
+				Data: map[string]any{},
+			},
+		},
 	}
 
 	// We must have a test case for every notification_template. This is enforced below:
@@ -1323,7 +1329,6 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					return &db, &api.Logger, &user
 				}()
 
-				// nolint:gocritic // Unit test.
 				ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 
 				_, pubsub := dbtestutil.NewDB(t)
@@ -1406,13 +1411,11 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				// as appearance changes are enterprise features and we do not want to mix those
 				// can't use the api
 				if tc.appName != "" {
-					// nolint:gocritic // Unit test.
 					err = (*db).UpsertApplicationName(dbauthz.AsSystemRestricted(ctx), "Custom Application")
 					require.NoError(t, err)
 				}
 
 				if tc.logoURL != "" {
-					// nolint:gocritic // Unit test.
 					err = (*db).UpsertLogoURL(dbauthz.AsSystemRestricted(ctx), "https://custom.application/logo.png")
 					require.NoError(t, err)
 				}
@@ -1510,7 +1513,6 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				}()
 
 				_, pubsub := dbtestutil.NewDB(t)
-				// nolint:gocritic // Unit test.
 				ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 
 				// Spin up the mock webhook server
@@ -1650,7 +1652,6 @@ func TestDisabledByDefaultBeforeEnqueue(t *testing.T) {
 		t.Skip("This test requires postgres; it is testing business-logic implemented in the database")
 	}
 
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
@@ -1676,7 +1677,6 @@ func TestDisabledBeforeEnqueue(t *testing.T) {
 		t.Skip("This test requires postgres; it is testing business-logic implemented in the database")
 	}
 
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
@@ -1712,7 +1712,6 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 		t.Skip("This test requires postgres; it is testing business-logic implemented in the database")
 	}
 
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
@@ -1769,7 +1768,6 @@ func TestCustomNotificationMethod(t *testing.T) {
 		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
@@ -1873,7 +1871,6 @@ func TestNotificationsTemplates(t *testing.T) {
 		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	api := coderdtest.New(t, createOpts(t))
 
@@ -1910,7 +1907,6 @@ func TestNotificationDuplicates(t *testing.T) {
 		t.Skip("This test requires postgres; it is testing the dedupe hash trigger in the database")
 	}
 
-	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
@@ -2007,7 +2003,6 @@ func TestNotificationTargetMatrix(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// nolint:gocritic // Unit test.
 			ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 			store, pubsub := dbtestutil.NewDB(t)
 			logger := testutil.Logger(t)
@@ -2051,7 +2046,6 @@ func TestNotificationOneTimePasswordDeliveryTargets(t *testing.T) {
 	t.Run("Inbox", func(t *testing.T) {
 		t.Parallel()
 
-		// nolint:gocritic // Unit test.
 		ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 		store, _ := dbtestutil.NewDB(t)
 		logger := testutil.Logger(t)
@@ -2076,7 +2070,6 @@ func TestNotificationOneTimePasswordDeliveryTargets(t *testing.T) {
 	t.Run("SMTP", func(t *testing.T) {
 		t.Parallel()
 
-		// nolint:gocritic // Unit test.
 		ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 		store, _ := dbtestutil.NewDB(t)
 		logger := testutil.Logger(t)
@@ -2100,7 +2093,6 @@ func TestNotificationOneTimePasswordDeliveryTargets(t *testing.T) {
 	t.Run("Webhook", func(t *testing.T) {
 		t.Parallel()
 
-		// nolint:gocritic // Unit test.
 		ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 		store, _ := dbtestutil.NewDB(t)
 		logger := testutil.Logger(t)

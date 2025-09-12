@@ -1,14 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { AppProviders } from "App";
-import * as apiModule from "api/api";
-import { templateVersionVariablesKey } from "api/queries/templates";
-import type { TemplateVersion } from "api/typesGenerated";
-import { RequireAuth } from "contexts/auth/RequireAuth";
-import WS from "jest-websocket-mock";
-import { http, HttpResponse } from "msw";
-import { QueryClient } from "react-query";
-import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import {
 	MockTemplate,
 	MockTemplateVersion,
@@ -22,6 +12,16 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
+import * as apiModule from "api/api";
+import { templateVersionVariablesKey } from "api/queries/templates";
+import type { TemplateVersion } from "api/typesGenerated";
+import { RequireAuth } from "contexts/auth/RequireAuth";
+import WS from "jest-websocket-mock";
+import { HttpResponse, http } from "msw";
+import { QueryClient } from "react-query";
+import { createMemoryRouter, RouterProvider } from "react-router";
 import type { FileTree } from "utils/filetree";
 import type { MonacoEditorProps } from "./MonacoEditor";
 import { Language } from "./PublishTemplateVersionDialog";
@@ -104,6 +104,9 @@ const buildTemplateVersion = async (
 	});
 	await user.click(buildButton);
 	await within(topbar).findByText("Success");
+	await screen.findByText(
+		`Template version "${templateVersion.name}" built successfully.`,
+	);
 };
 
 test("Use custom name, message and set it as active when publishing", async () => {

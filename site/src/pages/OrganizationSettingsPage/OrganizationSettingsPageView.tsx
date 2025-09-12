@@ -68,7 +68,7 @@ export const OrganizationSettingsPageView: FC<
 	const [isDeleting, setIsDeleting] = useState(false);
 
 	return (
-		<div>
+		<div className="w-full max-w-screen-2xl pb-10">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Settings</SettingsHeaderTitle>
 			</SettingsHeader>
