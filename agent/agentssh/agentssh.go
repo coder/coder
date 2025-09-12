@@ -917,9 +917,23 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 
 	// OpenSSH executes all commands with the users current shell.
 	// We replicate that behavior for IDE support.
+	//
+	// On Windows, the correct caller flag depends on the shell:
+	//  - cmd.exe           -> /c
+	//  - powershell/pwsh  -> -Command
+	//  - other shells (e.g. bash.exe from Git Bash) -> -c
 	caller := "-c"
 	if runtime.GOOS == "windows" {
-		caller = "/c"
+		base := strings.ToLower(filepath.Base(shell))
+		switch {
+		case base == "cmd.exe":
+			caller = "/c"
+		case strings.Contains(base, "powershell") || base == "pwsh.exe":
+			caller = "-Command"
+		default:
+			// Fall back to POSIX-style -c for shells like bash.exe/sh.exe on Windows
+			caller = "-c"
+		}
 	}
 	name := shell
 	args := []string{caller, script}
