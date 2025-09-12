@@ -20,6 +20,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/aibridged"
+	aibridgedproto "github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/prebuilds"
@@ -43,6 +45,9 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
+
+	"github.com/coder/coder/v2/coderd/aibridgedserver"
+	"github.com/coder/coder/v2/provisionerd/proto"
 
 	"cdr.dev/slog"
 	"github.com/coder/quartz"
@@ -95,7 +100,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
-	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
@@ -632,6 +636,7 @@ func New(options *Options) *API {
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	api.PrebuildsClaimer.Store(&prebuilds.DefaultClaimer)
 	api.PrebuildsReconciler.Store(&prebuilds.DefaultReconciler)
+	api.AIBridgeDaemon.Store(&aibridged.DefaultServer)
 	buildInfo := codersdk.BuildInfoResponse{
 		ExternalURL:           buildinfo.ExternalURL(),
 		Version:               buildinfo.Version(),
@@ -1766,6 +1771,8 @@ type API struct {
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
+
+	AIBridgeDaemon atomic.Pointer[aibridged.Server]
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -1822,6 +1829,10 @@ func (api *API) Close() error {
 		ctx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop before shutdown"))
 		defer giveUp()
 		(*current).Stop(ctx, nil)
+	}
+
+	if current := api.AIBridgeDaemon.Load(); current != nil {
+		_ = (*current).Close()
 	}
 
 	return nil
@@ -1995,6 +2006,76 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	}()
 
 	return proto.NewDRPCProvisionerDaemonClient(clientSession), nil
+}
+
+func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context) (client aibridged.DRPCClient, err error) {
+	// TODO(dannyk): implement options.
+	// TODO(dannyk): implement tracing.
+	// TODO(dannyk): implement API versioning.
+
+	clientSession, serverSession := drpcsdk.MemTransportPipe()
+	defer func() {
+		if err != nil {
+			_ = clientSession.Close()
+			_ = serverSession.Close()
+		}
+	}()
+
+	mux := drpcmux.New()
+	api.Logger.Debug(dialCtx, "starting in-memory aibridge daemon")
+	logger := api.Logger.Named("inmem-aibridged")
+	srv, err := aibridgedserver.NewServer(api.ctx, api.Database, logger,
+		api.DeploymentValues.AccessURL.String(), api.ExternalAuthConfigs)
+	if err != nil {
+		return nil, err
+	}
+	err = aibridgedproto.DRPCRegisterRecorder(mux, srv)
+	if err != nil {
+		return nil, xerrors.Errorf("register recorder service: %w", err)
+	}
+	err = aibridgedproto.DRPCRegisterMCPConfigurator(mux, srv)
+	if err != nil {
+		return nil, xerrors.Errorf("register MCP configurator service: %w", err)
+	}
+	err = aibridgedproto.DRPCRegisterAuthenticator(mux, srv)
+	if err != nil {
+		return nil, xerrors.Errorf("register authenticator service: %w", err)
+	}
+	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
+		drpcserver.Options{
+			Manager: drpcsdk.DefaultDRPCOptions(nil),
+			Log: func(err error) {
+				if xerrors.Is(err, io.EOF) {
+					return
+				}
+				logger.Debug(dialCtx, "drpc server error", slog.Error(err))
+			},
+		},
+	)
+	// in-mem pipes aren't technically "websockets" but they have the same properties as far as the
+	// API is concerned: they are long-lived connections that we need to close before completing
+	// shutdown of the API.
+	api.WebsocketWaitMutex.Lock()
+	api.WebsocketWaitGroup.Add(1)
+	api.WebsocketWaitMutex.Unlock()
+	go func() {
+		defer api.WebsocketWaitGroup.Done()
+		// Here we pass the background context, since we want the server to keep serving until the
+		// client hangs up. The aibridged is local, in-mem, so there isn't a danger of losing contact with it and
+		// having a dead connection we don't know the status of.
+		err := server.Serve(context.Background(), serverSession)
+		logger.Info(dialCtx, "aibridge daemon disconnected", slog.Error(err))
+		// Close the sessions, so we don't leak goroutines serving them.
+		_ = clientSession.Close()
+		_ = serverSession.Close()
+	}()
+
+	return &aibridged.Client{
+		Conn:                      clientSession,
+		DRPCRecorderClient:        aibridgedproto.NewDRPCRecorderClient(clientSession),
+		DRPCMCPConfiguratorClient: aibridgedproto.NewDRPCMCPConfiguratorClient(clientSession),
+		DRPCAuthenticatorClient:   aibridgedproto.NewDRPCAuthenticatorClient(clientSession),
+	}, nil
 }
 
 func (api *API) DERPMap() *tailcfg.DERPMap {
