@@ -3,7 +3,9 @@ package coderd
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -124,20 +126,14 @@ func (api *API) putNotificationsSettings(rw http.ResponseWriter, r *http.Request
 	httpapi.Write(r.Context(), rw, http.StatusOK, settings)
 }
 
-// @Summary Get system notification templates
-// @ID get-system-notification-templates
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Notifications
-// @Success 200 {array} codersdk.NotificationTemplate
-// @Router /notifications/templates/system [get]
-func (api *API) systemNotificationTemplates(rw http.ResponseWriter, r *http.Request) {
+// notificationTemplatesByKind gets the notification templates by kind
+func (api *API) notificationTemplatesByKind(rw http.ResponseWriter, r *http.Request, kind database.NotificationTemplateKind) {
 	ctx := r.Context()
 
-	templates, err := api.Database.GetNotificationTemplatesByKind(ctx, database.NotificationTemplateKindSystem)
+	templates, err := api.Database.GetNotificationTemplatesByKind(ctx, kind)
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to retrieve system notifications templates.",
+			Message: fmt.Sprintf("Failed to retrieve %q notifications templates.", kind),
 			Detail:  err.Error(),
 		})
 		return
@@ -145,6 +141,30 @@ func (api *API) systemNotificationTemplates(rw http.ResponseWriter, r *http.Requ
 
 	out := convertNotificationTemplates(templates)
 	httpapi.Write(r.Context(), rw, http.StatusOK, out)
+}
+
+// @Summary Get system notification templates
+// @ID get-system-notification-templates
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Notifications
+// @Success 200 {array} codersdk.NotificationTemplate
+// @Failure 500 {object} codersdk.Response "Failed to retrieve 'system' notifications template"
+// @Router /notifications/templates/system [get]
+func (api *API) systemNotificationTemplates(rw http.ResponseWriter, r *http.Request) {
+	api.notificationTemplatesByKind(rw, r, database.NotificationTemplateKindSystem)
+}
+
+// @Summary Get custom notification templates
+// @ID get-custom-notification-templates
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Notifications
+// @Success 200 {array} codersdk.NotificationTemplate
+// @Failure 500 {object} codersdk.Response "Failed to retrieve 'custom' notifications template"
+// @Router /notifications/templates/custom [get]
+func (api *API) customNotificationTemplates(rw http.ResponseWriter, r *http.Request) {
+	api.notificationTemplatesByKind(rw, r, database.NotificationTemplateKindCustom)
 }
 
 // @Summary Get notification dispatch methods
@@ -321,6 +341,91 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 
 	out := convertNotificationPreferences(userPrefs)
 	httpapi.Write(ctx, rw, http.StatusOK, out)
+}
+
+// @Summary Send a custom notification
+// @ID send-a-custom-notification
+// @Security CoderSessionToken
+// @Tags Notifications
+// @Accept json
+// @Produce json
+// @Param request body codersdk.CustomNotificationRequest true "Provide a non-empty title or message"
+// @Success 204 "No Content"
+// @Failure 400 {object} codersdk.Response "Invalid request body"
+// @Failure 403 {object} codersdk.Response "System users cannot send custom notifications"
+// @Failure 500 {object} codersdk.Response "Failed to send custom notification"
+// @Router /notifications/custom [post]
+func (api *API) postCustomNotification(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	// Parse request
+	var req codersdk.CustomNotificationRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Validate request: require `content` and non-empty `title` and `message`
+	if err := req.Validate(); err != nil {
+		api.Logger.Error(ctx, "send custom notification: validation failed", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid request body",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Block system users from sending custom notifications
+	user, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	if err != nil {
+		api.Logger.Error(ctx, "send custom notification", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to send custom notification",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if user.IsSystem {
+		api.Logger.Error(ctx, "send custom notification: system user is not allowed",
+			slog.F("id", user.ID.String()), slog.F("name", user.Name))
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Forbidden",
+			Detail:  "System users cannot send custom notifications.",
+		})
+		return
+	}
+
+	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
+		//nolint:gocritic // We need to be notifier to send the notification.
+		dbauthz.AsNotifier(ctx),
+		user.ID,
+		notifications.TemplateCustomNotification,
+		map[string]string{
+			"custom_title":   req.Content.Title,
+			"custom_message": req.Content.Message,
+		},
+		map[string]any{
+			// Current dedupe is done via an hash of (template, user, method, payload, targets, day).
+			// Include a minute-bucketed timestamp to bypass per-day dedupe for self-sends,
+			// letting the caller resend identical content the same day (but not more than
+			// once per minute).
+			// TODO(ssncferreira): When custom notifications can target multiple users/roles,
+			//   enforce proper deduplication across recipients to reduce noise and prevent spam.
+			"dedupe_bypass_ts": api.Clock.Now().UTC().Truncate(time.Minute),
+		},
+		user.ID.String(),
+	); err != nil {
+		api.Logger.Error(ctx, "send custom notification", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to send custom notification",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 func convertNotificationTemplates(in []database.NotificationTemplate) (out []codersdk.NotificationTemplate) {

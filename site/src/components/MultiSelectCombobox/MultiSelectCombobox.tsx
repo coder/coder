@@ -706,3 +706,5 @@ export const MultiSelectCombobox = forwardRef<
 		);
 	},
 );
+
+MultiSelectCombobox.displayName = "MultiSelectCombobox";

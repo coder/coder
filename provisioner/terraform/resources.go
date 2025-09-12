@@ -114,6 +114,7 @@ type agentAppAttributes struct {
 	Group       string                     `mapstructure:"group"`
 	Hidden      bool                       `mapstructure:"hidden"`
 	OpenIn      string                     `mapstructure:"open_in"`
+	Tooltip     string                     `mapstructure:"tooltip"`
 }
 
 type agentEnvAttributes struct {
@@ -589,6 +590,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 						Group:        attrs.Group,
 						Hidden:       attrs.Hidden,
 						OpenIn:       openIn,
+						Tooltip:      attrs.Tooltip,
 					})
 				}
 			}
