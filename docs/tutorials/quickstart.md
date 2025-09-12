@@ -199,6 +199,8 @@ Coder workspace.
 After VS Code loads the remote environment, you can select **Open Folder** to
 explore directories in the Docker container or work on something new.
 
+![Changing directories in VS Code](../images/screenshots/change-directory-vscode.png)
+
 To clone an existing repository:
 
 1. Select **Clone Repository** and enter the repository URL.
