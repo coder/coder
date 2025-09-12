@@ -28,7 +28,7 @@ a cooking analogy:
 | **Tasks**      | AI-powered coding agents that run inside a workspace                                 | Smart kitchen appliance that help you cook |
 | **Users**      | A developer who launches the workspace from a template and does their work inside it | The people eating the meal                 |
 
-**Putting it Together:** Coder separates who _defines_ environments from who _uses_ them. Admins create and manage Templates, the recipes, while developers use those Templates to launch Workspaces, the meals. Inside those Workspaces, developers can also run Tasks, the smart kitchen appliance, to help speed up day-to-day work. 
+**Putting it Together:** Coder separates who _defines_ environments from who _uses_ them. Admins create and manage Templates, the recipes, while developers use those Templates to launch Workspaces, the meals. Inside those Workspaces, developers can also run Tasks, the smart kitchen appliance, to help speed up day-to-day work.
 
 ## Prerequisites
 
@@ -160,7 +160,7 @@ Templates define what's in your development environment. Let's start simple:
    | **Kubernetes (Deployment)**         | Cloud-native teams, scalable workspaces                 | Pod-based workspaces, Kubernetes orchestration         |
    | **AWS EC2 (Linux)**                 | Teams needing full VMs, AWS-native infrastructure       | Full EC2 instances with AWS integration                |
 
-3. Click **"Use template"** on **Docker Containers**. Note: running this template requires Docker to be running in the background, so make sure Docker is running! 
+3. Click **"Use template"** on **Docker Containers**. Note: running this template requires Docker to be running in the background, so make sure Docker is running!
 
 4. **Name your template:**
    - Name: `quickstart`
@@ -241,16 +241,16 @@ advanced capabilities that Coder offers.
 Coder Tasks is an interface that allows you to run and manage coding agents like
 Claude Code within a given Workspace. Tasks become available when the Template for a Workspace has the `coder_ai_task` resource and `coder_parameter` named `AI Prompt` defined in its source code.
 In other words, any existing template can become a Task template by adding in that
-resource and parameter. 
+resource and parameter.
 
-Coder maintains the [Tasks on Docker](https://registry.coder.com/templates/coder-labs/tasks-docker?_gl=1*19yewmn*_gcl_au*MTc0MzUwMTQ2NC4xNzU2MzA3MDkxLjk3NTM3MjgyNy4xNzU3Njg2NDY2LjE3NTc2ODc0Mzc.*_ga*NzUxMDI1NjIxLjE3NTYzMDcwOTE.*_ga_FTQQJCDWDM*czE3NTc3MDg4MDkkbzQ1JGcxJHQxNzU3NzA4ODE4JGo1MSRsMCRoMA..) template which has Anthropic's Claude Code agent built in with a sample application. Let's try using this template by pulling it from Coder's Registry of public templates, and pushing it to your local server:  
+Coder maintains the [Tasks on Docker](https://registry.coder.com/templates/coder-labs/tasks-docker?_gl=1*19yewmn*_gcl_au*MTc0MzUwMTQ2NC4xNzU2MzA3MDkxLjk3NTM3MjgyNy4xNzU3Njg2NDY2LjE3NTc2ODc0Mzc.*_ga*NzUxMDI1NjIxLjE3NTYzMDcwOTE.*_ga_FTQQJCDWDM*czE3NTc3MDg4MDkkbzQ1JGcxJHQxNzU3NzA4ODE4JGo1MSRsMCRoMA..) template which has Anthropic's Claude Code agent built in with a sample application. Let's try using this template by pulling it from Coder's Registry of public templates, and pushing it to your local server:
 
 1. In the upper right hand corner, click **Use this template**
 1. Open a terminal on your machine
 1. Ensure your CLI is authenticated with your Coder deployment by [logging in](https://coder.com/docs/reference/cli/login)
 1. Create an [API Key with Anthropic](https://console.anthropic.com/)
-1. Head to the [Tasks on Docker](https://registry.coder.com/templates/coder-labs/tasks-docker?_gl=1*19yewmn*_gcl_au*MTc0MzUwMTQ2NC4xNzU2MzA3MDkxLjk3NTM3MjgyNy4xNzU3Njg2NDY2LjE3NTc2ODc0Mzc.*_ga*NzUxMDI1NjIxLjE3NTYzMDcwOTE.*_ga_FTQQJCDWDM*czE3NTc3MDg4MDkkbzQ1JGcxJHQxNzU3NzA4ODE4JGo1MSRsMCRoMA..) template 
-1. Clone the Coder Registry repo to your local machine 
+1. Head to the [Tasks on Docker](https://registry.coder.com/templates/coder-labs/tasks-docker?_gl=1*19yewmn*_gcl_au*MTc0MzUwMTQ2NC4xNzU2MzA3MDkxLjk3NTM3MjgyNy4xNzU3Njg2NDY2LjE3NTc2ODc0Mzc.*_ga*NzUxMDI1NjIxLjE3NTYzMDcwOTE.*_ga_FTQQJCDWDM*czE3NTc3MDg4MDkkbzQ1JGcxJHQxNzU3NzA4ODE4JGo1MSRsMCRoMA..) template
+1. Clone the Coder Registry repo to your local machine
 
 ```hcl
 git clone https://github.com/coder/registry.git
@@ -273,7 +273,7 @@ coder template push tasks-docker -d . --variable anthropic_api_key="your-api-key
    1. Click **New workspace** and choose **tasks-docker**
    1. Fill in the Workspace name. Add in an AI Prompt for Claude Code like "Make the background yellow". Click **Create workspace**
 1. **See Tasks in action**
-   1. Once your workspace is running, click **View tasks** with your workspace. This will bring you to the Tasks view where you can see Claude Code (left panel), preview the sample application, and interact with the code in code-server. You might need to wait for Claude Code to finish changing the background color of the application. 
+   1. Once your workspace is running, click **View tasks** with your workspace. This will bring you to the Tasks view where you can see Claude Code (left panel), preview the sample application, and interact with the code in code-server. You might need to wait for Claude Code to finish changing the background color of the application.
    ![Tasks changing background color of demo application](../images/screenshots/quickstart-tasks-background-change.png)
    1. Navigate to the **Tasks** tab in the upper left hand corner
    1. Try typing in a new request to Claude Code: "make the background red"
