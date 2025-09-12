@@ -149,6 +149,17 @@ func TestAgent_Stats_SSH(t *testing.T) {
 			err = session.Shell()
 			require.NoError(t, err)
 
+			// Nudge traffic so Rx/Tx bytes are non-zero in the same stats window.
+			// Without writing anything, the shell may idle and stats samples can
+			// report session_count_ssh without non-zero byte counts, which makes
+			// the combined predicate below flaky.
+			// Related: https://github.com/coder/internal/issues/505
+			if runtime.GOOS == "windows" {
+				_, _ = io.WriteString(stdin, "echo test\r\n")
+			} else {
+				_, _ = io.WriteString(stdin, "echo test\n")
+			}
+
 			var s *proto.Stats
 			require.Eventuallyf(t, func() bool {
 				var ok bool
