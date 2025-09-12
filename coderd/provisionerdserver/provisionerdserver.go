@@ -2925,6 +2925,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				DisplayGroup: displayGroup,
 				Hidden:       app.Hidden,
 				OpenIn:       openIn,
+				Tooltip:      app.Tooltip,
 			})
 			if err != nil {
 				return xerrors.Errorf("upsert app: %w", err)

@@ -61,6 +61,7 @@ type AgentConn interface {
 	ReconnectingPTY(ctx context.Context, id uuid.UUID, height uint16, width uint16, command string, initOpts ...AgentReconnectingPTYInitOption) (net.Conn, error)
 	RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error)
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
+	WriteFile(ctx context.Context, path string, reader io.Reader) error
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
 	SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error)
@@ -499,6 +500,27 @@ func (c *agentConn) ReadFile(ctx context.Context, path string, offset, limit int
 	}
 
 	return res.Body, mimeType, nil
+}
+
+// WriteFile writes to a file in the workspace.
+func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	res, err := c.apiRequest(ctx, http.MethodPost, fmt.Sprintf("/api/v0/write-file?path=%s", path), reader)
+	if err != nil {
+		return xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+
+	var m codersdk.Response
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		return xerrors.Errorf("decode response body: %w", err)
+	}
+	return nil
 }
 
 // apiRequest makes a request to the workspace agent's HTTP API server.

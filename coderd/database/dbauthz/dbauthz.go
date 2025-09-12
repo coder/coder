@@ -2335,8 +2335,8 @@ func (q *querier) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID)
 }
 
 func (q *querier) GetNotificationTemplatesByKind(ctx context.Context, kind database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
-	// Anyone can read the system notification templates.
-	if kind == database.NotificationTemplateKindSystem {
+	// Anyone can read the 'system' and 'custom' notification templates.
+	if kind == database.NotificationTemplateKindSystem || kind == database.NotificationTemplateKindCustom {
 		return q.db.GetNotificationTemplatesByKind(ctx, kind)
 	}
 

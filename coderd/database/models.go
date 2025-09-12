@@ -1201,6 +1201,7 @@ type NotificationTemplateKind string
 
 const (
 	NotificationTemplateKindSystem NotificationTemplateKind = "system"
+	NotificationTemplateKindCustom NotificationTemplateKind = "custom"
 )
 
 func (e *NotificationTemplateKind) Scan(src interface{}) error {
@@ -1240,7 +1241,8 @@ func (ns NullNotificationTemplateKind) Value() (driver.Value, error) {
 
 func (e NotificationTemplateKind) Valid() bool {
 	switch e {
-	case NotificationTemplateKindSystem:
+	case NotificationTemplateKindSystem,
+		NotificationTemplateKindCustom:
 		return true
 	}
 	return false
@@ -1249,6 +1251,7 @@ func (e NotificationTemplateKind) Valid() bool {
 func AllNotificationTemplateKindValues() []NotificationTemplateKind {
 	return []NotificationTemplateKind{
 		NotificationTemplateKindSystem,
+		NotificationTemplateKindCustom,
 	}
 }
 
@@ -4164,6 +4167,8 @@ type WorkspaceApp struct {
 	Hidden       bool               `db:"hidden" json:"hidden"`
 	OpenIn       WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
 	DisplayGroup sql.NullString     `db:"display_group" json:"display_group"`
+	// Markdown text that is displayed when hovering over workspace apps.
+	Tooltip string `db:"tooltip" json:"tooltip"`
 }
 
 // Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.

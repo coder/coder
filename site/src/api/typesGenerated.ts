@@ -653,6 +653,17 @@ export const CryptoKeyFeatures: CryptoKeyFeature[] = [
 	"workspace_apps_token",
 ];
 
+// From codersdk/notifications.go
+export interface CustomNotificationContent {
+	readonly title: string;
+	readonly message: string;
+}
+
+// From codersdk/notifications.go
+export interface CustomNotificationRequest {
+	readonly content: CustomNotificationContent | null;
+}
+
 // From codersdk/roles.go
 export interface CustomRoleRequest {
 	readonly name: string;
@@ -3880,6 +3891,7 @@ export interface WorkspaceApp {
 	readonly group?: string;
 	readonly hidden: boolean;
 	readonly open_in: WorkspaceAppOpenIn;
+	readonly tooltip?: string;
 	readonly statuses: readonly WorkspaceAppStatus[];
 }
 
@@ -4159,6 +4171,12 @@ export const annotationSecretKey = "secret";
 
 // From codersdk/insights.go
 export const insightsTimeLayout = "2006-01-02T15:04:05Z07:00";
+
+// From codersdk/notifications.go
+export const maxCustomNotificationMessageLen = 2000;
+
+// From codersdk/notifications.go
+export const maxCustomNotificationTitleLen = 120;
 
 // From healthsdk/interfaces.go
 export const safeMTU = 1378;

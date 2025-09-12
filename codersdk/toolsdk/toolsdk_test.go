@@ -555,6 +555,30 @@ func TestTools(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("WorkspaceWriteFile", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		fs := afero.NewMemMapFs()
+		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
+			opts.Filesystem = fs
+		})
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		_, err = testTool(t, toolsdk.WorkspaceWriteFile, tb, toolsdk.WorkspaceWriteFileArgs{
+			Workspace: workspace.Name,
+			Path:      "/test/some/path",
+			Content:   []byte("content"),
+		})
+		require.NoError(t, err)
+
+		b, err := afero.ReadFile(fs, "/test/some/path")
+		require.NoError(t, err)
+		require.Equal(t, []byte("content"), b)
+	})
 }
 
 // TestedTools keeps track of which tools have been tested.

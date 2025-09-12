@@ -387,3 +387,17 @@ func (mr *MockAgentConnMockRecorder) WatchContainers(ctx, logger any) *gomock.Ca
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchContainers", reflect.TypeOf((*MockAgentConn)(nil).WatchContainers), ctx, logger)
 }
+
+// WriteFile mocks base method.
+func (m *MockAgentConn) WriteFile(ctx context.Context, path string, reader io.Reader) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteFile", ctx, path, reader)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteFile indicates an expected call of WriteFile.
+func (mr *MockAgentConnMockRecorder) WriteFile(ctx, path, reader any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteFile", reflect.TypeOf((*MockAgentConn)(nil).WriteFile), ctx, path, reader)
+}
