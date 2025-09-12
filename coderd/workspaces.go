@@ -2356,6 +2356,53 @@ type workspaceData struct {
 	allowRenames bool
 }
 
+// @Summary Completely clears the workspace's user and group ACLs.
+// @ID completely-clears-the-workspaces-user-and-group-acls
+// @Security CoderSessionToken
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Success 204
+// @Router /workspaces/{workspace}/acl [delete]
+func (api *API) deleteWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx                 = r.Context()
+		workspace           = httpmw.WorkspaceParam(r)
+		auditor             = api.Auditor.Load()
+		aReq, commitAuditor = audit.InitRequest[database.WorkspaceTable](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: workspace.OrganizationID,
+		})
+	)
+
+	defer commitAuditor()
+	aReq.Old = workspace.WorkspaceTable()
+
+	err := api.Database.InTx(func(tx database.Store) error {
+		err := tx.DeleteWorkspaceACLByID(ctx, workspace.ID)
+		if err != nil {
+			return xerrors.Errorf("delete workspace by ID: %w", err)
+		}
+
+		workspace, err = tx.GetWorkspaceByID(ctx, workspace.ID)
+		if err != nil {
+			return xerrors.Errorf("get updated workspace by ID: %w", err)
+		}
+
+		return nil
+	}, nil)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	aReq.New = workspace.WorkspaceTable()
+
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
 // workspacesData only returns the data the caller can access. If the caller
 // does not have the correct perms to read a given template, the template will
 // not be returned.
