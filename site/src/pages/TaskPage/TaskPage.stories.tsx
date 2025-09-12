@@ -371,10 +371,7 @@ export const WorkspaceStartFailure: Story = {
 		});
 
 		spyOn(API, "startWorkspace").mockRejectedValue(
-			mockApiError({
-				message: "Failed to start workspace",
-				detail: "Insufficient resources available. Please try again later.",
-			}),
+			new Error("Some unexpected error"),
 		);
 	},
 	play: async ({ canvasElement }) => {

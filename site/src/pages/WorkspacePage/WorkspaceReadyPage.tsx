@@ -63,7 +63,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	}>({ open: false });
 
 	const handleError = (error: unknown) => {
-		if (isApiError(error) && error.code === "ERR_BAD_REQUEST") {
+		if (isApiError(error)) {
 			setWorkspaceErrorDialog({
 				open: true,
 				error: error,
