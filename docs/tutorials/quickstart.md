@@ -1,8 +1,5 @@
 # Get Started
 
-**Keywords:** install, setup, get started, quickstart, templates, workspaces,
-tasks, users
-
 Follow the steps in this guide to get your first Coder development environment
 running in under 10 minutes. This guide covers the essential concepts and walks
 you through creating your first workspace and running VS Code from it. You can
