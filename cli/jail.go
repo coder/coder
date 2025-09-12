@@ -40,6 +40,7 @@ Examples:
 				Value:       serpent.StringOf(&config.LogLevel),
 			},
 		},
+		Hidden: true,
 		Handler: func(inv *serpent.Invocation) error {
 			return jailcli.Run(inv.Context(), config, inv.Args)
 		},
