@@ -4,8 +4,8 @@ import {
 	type PropsWithChildren,
 	useCallback,
 	useContext,
-	useEffect,
 	useId,
+	useInsertionEffect,
 	useLayoutEffect,
 	useMemo,
 	useState,
@@ -367,7 +367,13 @@ export const TimeSyncProvider: FC<TimeSyncProviderProps> = ({
 		return new ReactTimeSync({ initialDate, isSnapshot });
 	});
 
-	useEffect(() => {
+	// This is a super, super niche use case, but we need to make ensure the
+	// effect for setting up the provider mounts before the effects in the
+	// individual hook consumers. Because the hooks use useLayoutEffect, which
+	// already has higher priority than useEffect, and because effects always
+	// fire from the bottom up in the UI tree, the only option is to use the one
+	// effect type that has faster firing priority than useLayoutEffect
+	useInsertionEffect(() => {
 		return readonlyReactTs.onProviderMount();
 	}, [readonlyReactTs]);
 
@@ -560,10 +566,8 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 		reactTs.updateComponentState(hookId, merged);
 	}, [reactTs, hookId, merged]);
 
-	// We want to make sure that this mounting logic fires after the initial
-	// transform update to minimize the risks of React being over-notified
-	// of state updates
-	useEffect(() => {
+	// And
+	useLayoutEffect(() => {
 		reactTs.onComponentMount();
 	}, [reactTs]);
 
