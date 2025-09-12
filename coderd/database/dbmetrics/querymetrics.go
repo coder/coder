@@ -1965,6 +1965,13 @@ func (m queryMetricsStore) GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx conte
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceAgentsByWorkspaceIDAndBuildNumber(ctx context.Context, arg database.GetWorkspaceAgentsByWorkspaceIDAndBuildNumberParams) ([]database.WorkspaceAgent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentsByWorkspaceIDAndBuildNumber(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentsByWorkspaceIDAndBuildNumber").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceAgent, error) {
 	start := time.Now()
 	agents, err := m.s.GetWorkspaceAgentsCreatedAfter(ctx, createdAt)
@@ -2249,6 +2256,20 @@ func (m queryMetricsStore) InsertAIBridgeUserPrompt(ctx context.Context, arg dat
 	start := time.Now()
 	r0, r1 := m.s.InsertAIBridgeUserPrompt(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertAIBridgeUserPrompt").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspacesForAgentMetrics(ctx context.Context, deleted bool) ([]database.GetWorkspacesForAgentMetricsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspacesForAgentMetrics(ctx, deleted)
+	m.queryLatencies.WithLabelValues("GetWorkspacesForAgentMetrics").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspacesForWorkspaceMetrics(ctx context.Context, deleted bool) ([]database.GetWorkspacesForWorkspaceMetricsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspacesForWorkspaceMetrics(ctx, deleted)
+	m.queryLatencies.WithLabelValues("GetWorkspacesForWorkspaceMetrics").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

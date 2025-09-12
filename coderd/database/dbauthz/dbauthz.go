@@ -3545,6 +3545,13 @@ func (q *querier) GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx context.Contex
 	return q.db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx, arg)
 }
 
+func (q *querier) GetWorkspaceAgentsByWorkspaceIDAndBuildNumber(ctx context.Context, arg database.GetWorkspaceAgentsByWorkspaceIDAndBuildNumberParams) ([]database.WorkspaceAgent, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentsByWorkspaceIDAndBuildNumber(ctx, arg)
+}
+
 func (q *querier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceAgent, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -3883,6 +3890,20 @@ func (q *querier) InsertAIBridgeUserPrompt(ctx context.Context, arg database.Ins
 		return database.AIBridgeUserPrompt{}, err
 	}
 	return q.db.InsertAIBridgeUserPrompt(ctx, arg)
+}
+
+func (q *querier) GetWorkspacesForAgentMetrics(ctx context.Context, deleted bool) ([]database.GetWorkspacesForAgentMetricsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspacesForAgentMetrics(ctx, deleted)
+}
+
+func (q *querier) GetWorkspacesForWorkspaceMetrics(ctx context.Context, deleted bool) ([]database.GetWorkspacesForWorkspaceMetricsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspacesForWorkspaceMetrics(ctx, deleted)
 }
 
 func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
