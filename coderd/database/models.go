@@ -1201,6 +1201,7 @@ type NotificationTemplateKind string
 
 const (
 	NotificationTemplateKindSystem NotificationTemplateKind = "system"
+	NotificationTemplateKindCustom NotificationTemplateKind = "custom"
 )
 
 func (e *NotificationTemplateKind) Scan(src interface{}) error {
@@ -1240,7 +1241,8 @@ func (ns NullNotificationTemplateKind) Value() (driver.Value, error) {
 
 func (e NotificationTemplateKind) Valid() bool {
 	switch e {
-	case NotificationTemplateKindSystem:
+	case NotificationTemplateKindSystem,
+		NotificationTemplateKindCustom:
 		return true
 	}
 	return false
@@ -1249,6 +1251,7 @@ func (e NotificationTemplateKind) Valid() bool {
 func AllNotificationTemplateKindValues() []NotificationTemplateKind {
 	return []NotificationTemplateKind{
 		NotificationTemplateKindSystem,
+		NotificationTemplateKindCustom,
 	}
 }
 

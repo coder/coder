@@ -1589,7 +1589,7 @@ func (nopcloser) Close() error { return nil }
 // SDKError coerces err into an SDK error.
 func SDKError(t testing.TB, err error) *codersdk.Error {
 	var cerr *codersdk.Error
-	require.True(t, errors.As(err, &cerr))
+	require.True(t, errors.As(err, &cerr), "should be SDK error, got %w", err)
 	return cerr
 }
 

@@ -43,6 +43,7 @@ const (
 	ToolNameChatGPTSearch               = "search"
 	ToolNameChatGPTFetch                = "fetch"
 	ToolNameWorkspaceReadFile           = "coder_workspace_read_file"
+	ToolNameWorkspaceWriteFile          = "coder_workspace_write_file"
 )
 
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
@@ -211,6 +212,7 @@ var All = []GenericTool{
 	ChatGPTSearch.Generic(),
 	ChatGPTFetch.Generic(),
 	WorkspaceReadFile.Generic(),
+	WorkspaceWriteFile.Generic(),
 }
 
 type ReportTaskArgs struct {
@@ -1438,6 +1440,54 @@ var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 		}
 
 		return WorkspaceReadFileResponse{Content: bs, MimeType: mimeType}, nil
+	},
+}
+
+type WorkspaceWriteFileArgs struct {
+	Workspace string `json:"workspace"`
+	Path      string `json:"path"`
+	Content   []byte `json:"content"`
+}
+
+var WorkspaceWriteFile = Tool[WorkspaceWriteFileArgs, codersdk.Response]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameWorkspaceWriteFile,
+		Description: `Write a file in a workspace.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used.",
+				},
+				"path": map[string]any{
+					"type":        "string",
+					"description": "The absolute path of the file to write in the workspace.",
+				},
+				"content": map[string]any{
+					"type":        "string",
+					"description": "The base64-encoded bytes to write to the file.",
+				},
+			},
+			Required: []string{"path", "workspace", "content"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceWriteFileArgs) (codersdk.Response, error) {
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		if err != nil {
+			return codersdk.Response{}, err
+		}
+		defer conn.Close()
+
+		reader := bytes.NewReader(args.Content)
+		err = conn.WriteFile(ctx, args.Path, reader)
+		if err != nil {
+			return codersdk.Response{}, err
+		}
+
+		return codersdk.Response{
+			Message: "File written successfully.",
+		}, nil
 	},
 }
 

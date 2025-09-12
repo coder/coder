@@ -1288,6 +1288,11 @@
 							"path": "reference/cli/notifications.md"
 						},
 						{
+							"title": "notifications custom",
+							"description": "Send a custom notification",
+							"path": "reference/cli/notifications_custom.md"
+						},
+						{
 							"title": "notifications pause",
 							"description": "Pause notifications",
 							"path": "reference/cli/notifications_pause.md"
