@@ -636,7 +636,7 @@ func New(options *Options) *API {
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	api.PrebuildsClaimer.Store(&prebuilds.DefaultClaimer)
 	api.PrebuildsReconciler.Store(&prebuilds.DefaultReconciler)
-	api.AIBridgeServer.Store(&aibridged.DefaultHandler) // TODO: close.
+	api.AIBridgeDaemon.Store(&aibridged.DefaultServer)
 	buildInfo := codersdk.BuildInfoResponse{
 		ExternalURL:           buildinfo.ExternalURL(),
 		Version:               buildinfo.Version(),
@@ -1043,7 +1043,7 @@ func New(options *Options) *API {
 			r.Use(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentAIBridge))
 			r.Route("/aibridge", func(r chi.Router) {
 				r.HandleFunc("/*", func(w http.ResponseWriter, r *http.Request) {
-					http.StripPrefix("/api/experimental/aibridge", *api.AIBridgeServer.Load()).ServeHTTP(w, r)
+					http.StripPrefix("/api/experimental/aibridge", *api.AIBridgeDaemon.Load()).ServeHTTP(w, r)
 				})
 			})
 		})
@@ -1767,7 +1767,7 @@ type API struct {
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
 
-	AIBridgeServer atomic.Pointer[aibridged.Handler]
+	AIBridgeDaemon atomic.Pointer[aibridged.Server]
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -1824,6 +1824,10 @@ func (api *API) Close() error {
 		ctx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop before shutdown"))
 		defer giveUp()
 		(*current).Stop(ctx, nil)
+	}
+
+	if current := api.AIBridgeDaemon.Load(); current != nil {
+		_ = (*current).Close()
 	}
 
 	return nil
@@ -2002,6 +2006,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context) (client aibridged.DRPCClient, err error) {
 	// TODO(dannyk): implement options.
 	// TODO(dannyk): implement tracing.
+	// TODO(dannyk): implement API versioning.
 
 	clientSession, serverSession := drpcsdk.MemTransportPipe()
 	defer func() {
@@ -2011,10 +2016,8 @@ func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context) (client ai
 		}
 	}()
 
-	// TODO(dannyk): implement API versioning.
-
 	mux := drpcmux.New()
-	api.Logger.Debug(dialCtx, "starting in-memory AI bridge daemon")
+	api.Logger.Debug(dialCtx, "starting in-memory aibridge daemon")
 	logger := api.Logger.Named("inmem-aibridged")
 	srv, err := aibridgedserver.NewServer(api.ctx, api.Database, logger,
 		api.DeploymentValues.AccessURL.String(), api.ExternalAuthConfigs)
@@ -2056,8 +2059,8 @@ func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context) (client ai
 		// client hangs up. The aibridged is local, in-mem, so there isn't a danger of losing contact with it and
 		// having a dead connection we don't know the status of.
 		err := server.Serve(context.Background(), serverSession)
-		logger.Info(dialCtx, "AI bridge daemon disconnected", slog.Error(err))
-		// close the sessions, so we don't leak goroutines serving them.
+		logger.Info(dialCtx, "aibridge daemon disconnected", slog.Error(err))
+		// Close the sessions, so we don't leak goroutines serving them.
 		_ = clientSession.Close()
 		_ = serverSession.Close()
 	}()

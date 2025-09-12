@@ -107,6 +107,5 @@ message AuthenticateKeyResponse {
 }
 
 service Authenticator {
-  // TODO: rename?
   rpc AuthenticateKey(AuthenticateKeyRequest) returns (AuthenticateKeyResponse);
 }

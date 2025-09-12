@@ -628,7 +628,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			if err != nil {
 				return nil, xerrors.Errorf("create aibridged: %w", err)
 			}
-			api.AGPL.AIBridgeServer.Store(&srv)
+			api.AGPL.AIBridgeDaemon.Store(&srv)
 		} else {
 			api.Logger.Error(ctx, fmt.Sprintf("aibridge enabled but experiment %q not enabled", codersdk.ExperimentAIBridge))
 		}
@@ -1293,7 +1293,7 @@ func (api *API) setupPrebuilds(featureEnabled bool) (agplprebuilds.Reconciliatio
 	return reconciler, prebuilds.NewEnterpriseClaimer(api.Database)
 }
 
-func newAIBridgeServer(coderAPI *coderd.API) (aibridged.Handler, error) {
+func newAIBridgeServer(coderAPI *coderd.API) (aibridged.Server, error) {
 	srv, err := aibridged.New(
 		func(dialCtx context.Context) (aibridged.DRPCClient, error) {
 			return coderAPI.CreateInMemoryAIBridgeDaemon(dialCtx)

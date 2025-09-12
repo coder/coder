@@ -22,9 +22,11 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 )
 
-var _ proto.DRPCRecorderServer = &Server{}
-var _ proto.DRPCMCPConfiguratorServer = &Server{}
-var _ proto.DRPCAuthenticatorServer = &Server{}
+var (
+	_ proto.DRPCRecorderServer        = &Server{}
+	_ proto.DRPCMCPConfiguratorServer = &Server{}
+	_ proto.DRPCAuthenticatorServer   = &Server{}
+)
 
 type store interface {
 	// Recorder-related queries.
@@ -186,7 +188,7 @@ func (s *Server) marshalMetadata(in map[string]*anypb.Any) []byte {
 	return out
 }
 
-func (s *Server) GetMCPServerConfigs(ctx context.Context, _ *proto.GetMCPServerConfigsRequest) (*proto.GetMCPServerConfigsResponse, error) {
+func (s *Server) GetMCPServerConfigs(context.Context, *proto.GetMCPServerConfigsRequest) (*proto.GetMCPServerConfigsResponse, error) {
 	cfgs := make([]*proto.MCPServerConfig, 0, len(s.externalAuthConfigs))
 	for _, eac := range s.externalAuthConfigs {
 		var allowlist, denylist string
@@ -221,7 +223,7 @@ func (s *Server) getCoderMCPServerConfig() *proto.MCPServerConfig {
 
 func (s *Server) GetMCPServerAccessTokensBatch(ctx context.Context, in *proto.GetMCPServerAccessTokensBatchRequest) (*proto.GetMCPServerAccessTokensBatchResponse, error) {
 	if len(in.GetMcpServerConfigIds()) == 0 {
-		return nil, nil
+		return &proto.GetMCPServerAccessTokensBatchResponse{}, nil
 	}
 
 	id, err := uuid.Parse(in.GetUserId())
@@ -237,7 +239,7 @@ func (s *Server) GetMCPServerAccessTokensBatch(ctx context.Context, in *proto.Ge
 	}
 
 	if len(links) == 0 {
-		return nil, nil
+		return &proto.GetMCPServerAccessTokensBatchResponse{}, nil
 	}
 
 	var (

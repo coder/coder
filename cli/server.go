@@ -1156,17 +1156,17 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			//
 			// When running as an in-memory daemon, the HTTP handler is wired into the
 			// coderd API and therefore is subject to its context. Calling shutdown on
-			// aibridged will not affect in-flight requests but those will be closed once
+			// aibridged will NOT affect in-flight requests but those will be closed once
 			// the API server is shutdown below.
-			if current := coderAPI.AIBridgeServer.Load(); current != nil {
-				r.Verbosef(inv, "Shutting down aibridge daemon...")
+			if current := coderAPI.AIBridgeDaemon.Load(); current != nil {
+				cliui.Info(inv.Stdout, "Shutting down aibridge daemon...\n")
 
 				err = shutdownWithTimeout((*current).Shutdown, 5*time.Second)
 				if err != nil {
-					cliui.Errorf(inv.Stderr, "Shutdown aibridge daemon failed: %s\n", err)
+					cliui.Errorf(inv.Stderr, "Graceful shutdown of aibridge daemon failed: %s\n", err)
 				} else {
 					_ = (*current).Close()
-					r.Verbosef(inv, "Gracefully shut down aibridge daemon")
+					cliui.Info(inv.Stdout, "Gracefully shut down aibridge daemon\n")
 				}
 			}
 

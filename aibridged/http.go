@@ -11,13 +11,13 @@ import (
 	"github.com/coder/coder/v2/aibridged/proto"
 )
 
-var _ http.Handler = &Server{}
+var _ http.Handler = &server{}
 
 // bridgeAIRequest handles requests destined for an upstream AI provider; aibridged intercepts these requests
 // and applies a governance layer.
 //
 // See also: aibridged/middleware.go.
-func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+func (s *server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	logger := s.logger.With(slog.F("path", r.URL.Path))
@@ -58,7 +58,6 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		InitiatorID: id,
 		// RequestID:   httpmw.RequestID(r), // TODO: ?
 	})
-
 	if err != nil {
 		logger.Error(ctx, "failed to handle request", slog.Error(err))
 		http.Error(rw, "failed to handle request", http.StatusInternalServerError)

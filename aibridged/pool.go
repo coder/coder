@@ -107,12 +107,10 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn fu
 		// TODO: remove.
 		p.logger.Debug(ctx, "reusing existing bridge", slog.F("ptr", fmt.Sprintf("%p", bridge)))
 
-		// Set key again to refresh its TTL.
-		//
-		// It's possible that two calls can race here, but since they'll both be setting the same value and
-		// approximately the same TTL, we don't really care. We could debounce this to prevent unnecessary writes
-		// but it'll likely never be an issue.
-		p.cache.SetWithTTL(req.InitiatorID.String(), bridge, cacheCost, bridgeCacheTTL)
+		// TODO: future improvement:
+		// Once we can detect token expiry against an MCP server, we no longer need to let these instances
+		// after the original TTL; we can extend the TTL on each Acquire() call.
+		// For now, we need to let the instance expiry to keep the MCP connections fresh.
 
 		return bridge, nil
 	}
@@ -166,7 +164,7 @@ func (p *CachedBridgePool) setupMCPServerProxiers(ctx context.Context, client DR
 	proxiers := make(map[string]mcp.ServerProxier, len(mcpSrvCfgs.GetExternalAuthMcpConfigs())+1) // Extra one for Coder MCP server.
 
 	// Setup the Coder MCP server proxy.
-	coderMCPProxy, err := p.newStreamableHTTPServerProxy(ctx, mcpSrvCfgs.GetCoderMcpConfig(), req.SessionKey) // The session key is used to auth against our internal MCP server.
+	coderMCPProxy, err := p.newStreamableHTTPServerProxy(mcpSrvCfgs.GetCoderMcpConfig(), req.SessionKey) // The session key is used to auth against our internal MCP server.
 	if err != nil {
 		p.logger.Warn(ctx, "failed to create MCP server proxy", slog.F("mcp_server_id", mcpSrvCfgs.GetCoderMcpConfig().GetId()), slog.Error(err))
 	} else {
@@ -199,11 +197,11 @@ func (p *CachedBridgePool) setupMCPServerProxiers(ctx context.Context, client DR
 
 		token, ok := resp.GetAccessTokens()[cfg.GetId()]
 		if !ok {
-			p.logger.Warn(ctx, "no token found", slog.F("mcp_server_id", cfg.GetId()))
+			p.logger.Warn(ctx, "no access token found", slog.F("mcp_server_id", cfg.GetId()))
 			continue
 		}
 
-		proxy, err := p.newStreamableHTTPServerProxy(ctx, cfg, token)
+		proxy, err := p.newStreamableHTTPServerProxy(cfg, token)
 		if err != nil {
 			p.logger.Warn(ctx, "failed to create MCP server proxy", slog.F("mcp_server_id", cfg.GetId()), slog.Error(err))
 			continue
@@ -217,7 +215,7 @@ func (p *CachedBridgePool) setupMCPServerProxiers(ctx context.Context, client DR
 // newStreamableHTTPServerProxy creates an MCP server capable of proxying requests using the Streamable HTTP transport.
 //
 // TODO: support SSE transport.
-func (p *CachedBridgePool) newStreamableHTTPServerProxy(ctx context.Context, cfg *proto.MCPServerConfig, accessToken string) (mcp.ServerProxier, error) {
+func (p *CachedBridgePool) newStreamableHTTPServerProxy(cfg *proto.MCPServerConfig, accessToken string) (mcp.ServerProxier, error) {
 	var (
 		allowlist, denylist *regexp.Regexp
 		err                 error
@@ -255,7 +253,6 @@ func (p *CachedBridgePool) newStreamableHTTPServerProxy(ctx context.Context, cfg
 		allowlist,
 		denylist,
 	)
-
 	if err != nil {
 		return nil, xerrors.Errorf("create streamable HTTP MCP server proxy: %w", err)
 	}

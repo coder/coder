@@ -18,16 +18,16 @@ import (
 	"github.com/coder/aibridge"
 )
 
-type Handler interface {
+type Server interface {
 	http.Handler
 
 	Shutdown(context.Context) error
 	Close() error
 }
 
-// Server is the implementation which fulfills the DRPCServer interface.
+// server is the implementation which fulfills the DRPCServer interface.
 // It is responsible for communication with the
-type Server struct {
+type server struct {
 	clientDialer Dialer
 	clientCh     chan DRPCClient
 
@@ -54,7 +54,7 @@ type Server struct {
 	shuttingDownCh chan struct{}
 }
 
-func New(rpcDialer Dialer, cfg aibridge.Config, logger slog.Logger) (*Server, error) {
+func New(rpcDialer Dialer, cfg aibridge.Config, logger slog.Logger) (Server, error) {
 	if rpcDialer == nil {
 		return nil, xerrors.Errorf("nil rpcDialer given")
 	}
@@ -65,7 +65,7 @@ func New(rpcDialer Dialer, cfg aibridge.Config, logger slog.Logger) (*Server, er
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	daemon := &Server{
+	daemon := &server{
 		logger:            logger,
 		clientDialer:      rpcDialer,
 		requestBridgePool: pool,
@@ -83,7 +83,7 @@ func New(rpcDialer Dialer, cfg aibridge.Config, logger slog.Logger) (*Server, er
 }
 
 // Connect establishes a connection to coderd.
-func (s *Server) connect() {
+func (s *server) connect() {
 	defer s.logger.Debug(s.closeContext, "connect loop exited")
 	defer s.wg.Done()
 	logConnect := s.logger.With(slog.F("context", "aibridged.server")).Debug
@@ -138,7 +138,7 @@ connectLoop:
 	}
 }
 
-func (s *Server) Client() (DRPCClient, error) {
+func (s *server) Client() (DRPCClient, error) {
 	select {
 	case <-s.closeContext.Done():
 		return nil, xerrors.New("context closed")
@@ -151,7 +151,7 @@ func (s *Server) Client() (DRPCClient, error) {
 }
 
 // GetRequestHandler retrieves a (possibly reused) *aibridge.RequestBridge from the pool, for the given user.
-func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handler, error) {
+func (s *server) GetRequestHandler(ctx context.Context, req Request) (http.Handler, error) {
 	if s.requestBridgePool == nil {
 		return nil, xerrors.New("nil requestBridgePool")
 	}
@@ -165,7 +165,7 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 }
 
 // isClosed returns whether the API is closed or not.
-func (s *Server) isClosed() bool {
+func (s *server) isClosed() bool {
 	select {
 	case <-s.closeContext.Done():
 		return true
@@ -175,7 +175,7 @@ func (s *Server) isClosed() bool {
 }
 
 // closeWithError closes aibridged once; subsequent calls will return the error err.
-func (s *Server) closeWithError(err error) error {
+func (s *server) closeWithError(err error) error {
 	s.closing.Store(true)
 	s.closeOnce.Do(func() {
 		s.closeCancel()
@@ -189,7 +189,7 @@ func (s *Server) closeWithError(err error) error {
 }
 
 // Close ends the aibridge daemon.
-func (s *Server) Close() error {
+func (s *server) Close() error {
 	if s == nil {
 		return nil
 	}
@@ -199,7 +199,7 @@ func (s *Server) Close() error {
 }
 
 // Shutdown waits for all exiting in-flight requests to complete, or the context to expire, whichever comes first.
-func (s *Server) Shutdown(ctx context.Context) error {
+func (s *server) Shutdown(ctx context.Context) error {
 	if s == nil {
 		return nil
 	}
@@ -227,20 +227,20 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return err
 }
 
-var DefaultHandler Handler = &NoopHandler{}
+var DefaultServer Server = &NoopServer{}
 
-var _ Handler = &NoopHandler{}
+var _ Server = &NoopServer{}
 
-type NoopHandler struct{}
+type NoopServer struct{}
 
-func (*NoopHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+func (*NoopServer) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	http.Error(w, "no aibridged server", http.StatusBadGateway)
 }
 
-func (*NoopHandler) Shutdown(context.Context) error {
+func (*NoopServer) Shutdown(context.Context) error {
 	return nil
 }
 
-func (*NoopHandler) Close() error {
+func (*NoopServer) Close() error {
 	return nil
 }
