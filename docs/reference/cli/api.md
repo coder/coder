@@ -6,7 +6,7 @@ Make requests to the Coder API
 ## Usage
 
 ```console
-coder api <api-path>
+coder api [flags] <api-path>
 ```
 
 ## Description
@@ -24,3 +24,15 @@ This will perform a GET request to /api/v2/users/me on the connected Coder serve
 Consult the API documentation for more information - https://coder.com/docs/reference/api.
 
 ```
+
+## Options
+
+### --color
+
+|             |                                  |
+|-------------|----------------------------------|
+| Type        | <code>auto\|always\|never</code> |
+| Environment | <code>$CODER_COLOR</code>        |
+| Default     | <code>auto</code>                |
+
+Output colorization: auto, always, never.

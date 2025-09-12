@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/mattn/go-isatty"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/jsoncolor"
@@ -15,25 +14,20 @@ import (
 )
 
 // api returns a CLI command that performs an authenticated GET request to the given API path.
-// isTerminal determines if the output is a terminal.
-func isTerminal(inv *serpent.Invocation) bool {
-	f, ok := inv.Stdout.(*os.File)
-	return ok && isatty.IsTerminal(f.Fd())
-}
 
 // processJSONResponse handles formatting and displaying JSON data
 func processJSONResponse(inv *serpent.Invocation, data []byte) error {
 	// Get color mode from flags
 	colorModeStr, _ := inv.ParsedFlags().GetString("color")
 	colorMode := jsoncolor.StringToColorMode(colorModeStr)
-	
+
 	// Use our improved colorization function
 	err := jsoncolor.WriteColorized(inv.Stdout, data, "  ", colorMode)
 	if err != nil {
 		// If the color output fails for any reason, try to write the raw data
 		_, _ = inv.Stdout.Write(data)
 	}
-	
+
 	// Add newline at the end
 	_, _ = inv.Stdout.Write([]byte("\n"))
 	return nil
@@ -70,18 +64,18 @@ Consult the API documentation for more information - https://coder.com/docs/refe
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			apiPath := inv.Args[0]
-			
+
 			// Special case for testing: if the path is a local file, read it directly
 			if strings.HasSuffix(apiPath, ".json") && (strings.HasPrefix(apiPath, "./") || strings.HasPrefix(apiPath, "/")) {
 				data, err := os.ReadFile(apiPath)
 				if err != nil {
 					return xerrors.Errorf("failed to read file: %w", err)
 				}
-				
+
 				// Process the JSON data directly
 				return processJSONResponse(inv, data)
 			}
-			
+
 			// Normal API request path
 			if !strings.HasPrefix(apiPath, "/") {
 				apiPath = "/api/v2/" + apiPath
@@ -103,7 +97,7 @@ Consult the API documentation for more information - https://coder.com/docs/refe
 				if err != nil {
 					return xerrors.Errorf("failed to read response: %w", err)
 				}
-				
+
 				// Process the JSON response
 				return processJSONResponse(inv, data)
 			}
