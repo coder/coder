@@ -111,6 +111,154 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
+const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
+SELECT id, initiator_id, provider, model, started_at FROM aibridge_interceptions WHERE id = $1::uuid
+LIMIT 1
+`
+
+func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (AIBridgeInterception, error) {
+	row := q.db.QueryRowContext(ctx, getAIBridgeInterceptionByID, id)
+	var i AIBridgeInterception
+	err := row.Scan(
+		&i.ID,
+		&i.InitiatorID,
+		&i.Provider,
+		&i.Model,
+		&i.StartedAt,
+	)
+	return i, err
+}
+
+const insertAIBridgeInterception = `-- name: InsertAIBridgeInterception :one
+INSERT INTO aibridge_interceptions (id, initiator_id, provider, model, started_at)
+VALUES ($1::uuid, $2::uuid, $3, $4, $5)
+RETURNING id, initiator_id, provider, model, started_at
+`
+
+type InsertAIBridgeInterceptionParams struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	InitiatorID uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	Provider    string    `db:"provider" json:"provider"`
+	Model       string    `db:"model" json:"model"`
+	StartedAt   time.Time `db:"started_at" json:"started_at"`
+}
+
+func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error) {
+	row := q.db.QueryRowContext(ctx, insertAIBridgeInterception,
+		arg.ID,
+		arg.InitiatorID,
+		arg.Provider,
+		arg.Model,
+		arg.StartedAt,
+	)
+	var i AIBridgeInterception
+	err := row.Scan(
+		&i.ID,
+		&i.InitiatorID,
+		&i.Provider,
+		&i.Model,
+		&i.StartedAt,
+	)
+	return i, err
+}
+
+const insertAIBridgeTokenUsage = `-- name: InsertAIBridgeTokenUsage :exec
+INSERT INTO aibridge_token_usages (
+  id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at
+) VALUES (
+  $1, $2, $3, $4, $5, COALESCE($6::jsonb, '{}'::jsonb), $7
+)
+`
+
+type InsertAIBridgeTokenUsageParams struct {
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	InterceptionID     uuid.UUID       `db:"interception_id" json:"interception_id"`
+	ProviderResponseID string          `db:"provider_response_id" json:"provider_response_id"`
+	InputTokens        int64           `db:"input_tokens" json:"input_tokens"`
+	OutputTokens       int64           `db:"output_tokens" json:"output_tokens"`
+	Metadata           json.RawMessage `db:"metadata" json:"metadata"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) error {
+	_, err := q.db.ExecContext(ctx, insertAIBridgeTokenUsage,
+		arg.ID,
+		arg.InterceptionID,
+		arg.ProviderResponseID,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.Metadata,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const insertAIBridgeToolUsage = `-- name: InsertAIBridgeToolUsage :exec
+INSERT INTO aibridge_tool_usages (
+  id, interception_id, provider_response_id, tool, server_url, input, injected, invocation_error, metadata, created_at
+) VALUES (
+  $1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9::jsonb, '{}'::jsonb), $10
+)
+`
+
+type InsertAIBridgeToolUsageParams struct {
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	InterceptionID     uuid.UUID       `db:"interception_id" json:"interception_id"`
+	ProviderResponseID string          `db:"provider_response_id" json:"provider_response_id"`
+	Tool               string          `db:"tool" json:"tool"`
+	ServerUrl          sql.NullString  `db:"server_url" json:"server_url"`
+	Input              string          `db:"input" json:"input"`
+	Injected           bool            `db:"injected" json:"injected"`
+	InvocationError    sql.NullString  `db:"invocation_error" json:"invocation_error"`
+	Metadata           json.RawMessage `db:"metadata" json:"metadata"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBridgeToolUsageParams) error {
+	_, err := q.db.ExecContext(ctx, insertAIBridgeToolUsage,
+		arg.ID,
+		arg.InterceptionID,
+		arg.ProviderResponseID,
+		arg.Tool,
+		arg.ServerUrl,
+		arg.Input,
+		arg.Injected,
+		arg.InvocationError,
+		arg.Metadata,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const insertAIBridgeUserPrompt = `-- name: InsertAIBridgeUserPrompt :exec
+INSERT INTO aibridge_user_prompts (
+  id, interception_id, provider_response_id, prompt, metadata, created_at
+) VALUES (
+  $1, $2, $3, $4, COALESCE($5::jsonb, '{}'::jsonb), $6
+)
+`
+
+type InsertAIBridgeUserPromptParams struct {
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	InterceptionID     uuid.UUID       `db:"interception_id" json:"interception_id"`
+	ProviderResponseID string          `db:"provider_response_id" json:"provider_response_id"`
+	Prompt             string          `db:"prompt" json:"prompt"`
+	Metadata           json.RawMessage `db:"metadata" json:"metadata"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIBridgeUserPromptParams) error {
+	_, err := q.db.ExecContext(ctx, insertAIBridgeUserPrompt,
+		arg.ID,
+		arg.InterceptionID,
+		arg.ProviderResponseID,
+		arg.Prompt,
+		arg.Metadata,
+		arg.CreatedAt,
+	)
+	return err
+}
+
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
 DELETE FROM
 	api_keys

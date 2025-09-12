@@ -2415,6 +2415,7 @@ export const RBACActions: RBACAction[] = [
 
 // From codersdk/rbacresources_gen.go
 export type RBACResource =
+	| "aibridge_interception"
 	| "api_key"
 	| "assign_org_role"
 	| "assign_role"
@@ -2457,6 +2458,7 @@ export type RBACResource =
 	| "workspace_proxy";
 
 export const RBACResources: RBACResource[] = [
+	"aibridge_interception",
 	"api_key",
 	"assign_org_role",
 	"assign_role",
