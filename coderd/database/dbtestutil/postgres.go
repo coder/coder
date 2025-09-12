@@ -21,8 +21,8 @@ import (
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database/dbtestutil/broker"
 	"github.com/coder/coder/v2/coderd/database/migrations"
-	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/retry"
 )
 
@@ -52,6 +52,7 @@ var (
 		"connection refused",          // nothing is listening on the port
 		"No connection could be made", // Windows variant of the above
 	}
+	defaultBrokerClientSingleton = &broker.Singleton{}
 )
 
 // initDefaultConnection initializes the default postgres connection parameters.
@@ -173,6 +174,7 @@ type TBSubset interface {
 // Otherwise, it will start a new postgres container.
 func Open(t TBSubset, opts ...OpenOption) (string, error) {
 	t.Helper()
+	t.Logf("%s dbtestutil: Open new database", time.Now().Format(time.StampMilli))
 
 	connectionParamsInitOnce.Do(func() {
 		errDefaultConnectionParamsInit = initDefaultConnection(t)
@@ -193,40 +195,29 @@ func Open(t TBSubset, opts ...OpenOption) (string, error) {
 		port     = defaultConnectionParams.Port
 	)
 
-	// Use a time-based prefix to make it easier to find the database
-	// when debugging.
-	now := time.Now().Format("test_2006_01_02_15_04_05")
-	dbSuffix, err := cryptorand.StringCharset(cryptorand.Lower, 10)
-	if err != nil {
-		return "", xerrors.Errorf("generate db suffix: %w", err)
-	}
-	dbName := now + "_" + dbSuffix
-
 	// if empty createDatabaseFromTemplate will create a new template db
 	templateDBName := os.Getenv("DB_FROM")
 	if openOptions.DBFrom != nil {
 		templateDBName = *openOptions.DBFrom
 	}
-	if err = createDatabaseFromTemplate(t, defaultConnectionParams, dbName, templateDBName); err != nil {
+	dbName, err := createDatabaseFromTemplate(t, defaultConnectionParams, templateDBName)
+	if err != nil {
 		return "", xerrors.Errorf("create database: %w", err)
 	}
 
+	// initialize outside the function so that the singleton keeps the client around
+	brokerClient, err := defaultBrokerClientSingleton.Get(t)
+	if err != nil {
+		return "", xerrors.Errorf("get broker client: %w", err)
+	}
 	t.Cleanup(func() {
-		cleanupDbURL := defaultConnectionParams.DSN()
-		cleanupConn, err := sql.Open("postgres", cleanupDbURL)
+		resp, err := brokerClient.Discard(context.Background(), &broker.DiscardRequest{
+			DbName: dbName,
+		})
 		if err != nil {
-			t.Logf("cleanup database %q: failed to connect to postgres: %s\n", dbName, err.Error())
-			return
-		}
-		defer func() {
-			if err := cleanupConn.Close(); err != nil {
-				t.Logf("cleanup database %q: failed to close connection: %s\n", dbName, err.Error())
-			}
-		}()
-		_, err = cleanupConn.Exec("DROP DATABASE " + dbName + ";")
-		if err != nil {
-			t.Logf("failed to clean up database %q: %s\n", dbName, err.Error())
-			return
+			t.Logf("discard database: %s", err)
+		} else if resp.Status.Code != broker.Status_OK {
+			t.Logf("discard database: (%s) %s", resp.Status.Code.String(), resp.Status.Message)
 		}
 	})
 
@@ -249,9 +240,67 @@ func Open(t TBSubset, opts ...OpenOption) (string, error) {
 // If templateDBName is empty, it will create a new template database based on
 // the current migrations, and name it "tpl_<migrations_hash>". Or if it's
 // already been created, it will use that.
-func createDatabaseFromTemplate(t TBSubset, connParams ConnectionParams, newDBName string, templateDBName string) error {
+func createDatabaseFromTemplate(t TBSubset, connParams ConnectionParams, templateDBName string) (string, error) {
 	t.Helper()
+	// If this takes longer than 20s, we are in big trouble since many tests time out after 10s. So bail out here to
+	// make it more clear what the root cause is.
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
 
+	emptyTemplateDBName := templateDBName == ""
+	if emptyTemplateDBName {
+		templateDBName = fmt.Sprintf("tpl_%s", migrations.GetMigrationsHash()[:32])
+	}
+	tplDbDoesNotExistOccurred := false
+
+	brokerClient, err := defaultBrokerClientSingleton.Get(t)
+	if err != nil {
+		return "", xerrors.Errorf("get broker client: %w", err)
+	}
+	t.Logf("%s dbtestutil: got brokerClient", time.Now().Format(time.StampMilli))
+	queryResp, err := brokerClient.Query(ctx, &broker.QueryRequest{
+		DbName: templateDBName,
+	})
+	t.Logf("%s dbtestutil: queried template database", time.Now().Format(time.StampMilli))
+	if err != nil {
+		return "", xerrors.Errorf("query template database: %w", err)
+	}
+	if queryResp.Status.Code == broker.Status_ERR_DB_NOT_FOUND {
+		tplDbDoesNotExistOccurred = true
+	} else if queryResp.Status.Code != broker.Status_OK {
+		return "", xerrors.Errorf(
+			"query template database: (%s) %s", queryResp.Status.Code.String(), queryResp.Status.Message)
+	}
+	if tplDbDoesNotExistOccurred && !emptyTemplateDBName {
+		return "", xerrors.Errorf(`template database '%s' does not exist`, templateDBName)
+	}
+	if tplDbDoesNotExistOccurred {
+		// We need to create the templateDatabase because one was not explicitly passed to us
+		err = createTemplateDatabase(t, connParams, templateDBName)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	t.Logf("%s dbtestutil: cloning database from template", time.Now().Format(time.StampMilli))
+	cloneResp, err := brokerClient.Clone(ctx, &broker.CloneRequest{
+		TemplateDbName: templateDBName,
+	})
+	if err != nil {
+		return "", xerrors.Errorf("clone template database: %w", err)
+	}
+	if cloneResp.Status.Code != broker.Status_OK {
+		return "", xerrors.Errorf("clone template database: (%s) %s",
+			cloneResp.Status.Code.String(), cloneResp.Status.Message)
+	}
+	t.Logf("%s dbtestutil: clone complete", time.Now().Format(time.StampMilli))
+	return cloneResp.DbName, nil
+}
+
+func createTemplateDatabase(t TBSubset, connParams ConnectionParams, templateDBName string) error {
+	// We need to do this directly, and not thru the broker because we want to be 100% sure the migrations we apply
+	// match *this test binary*, which might get compiled at a different time than the broker.
+	t.Logf("%s dbtestutil: creating template database", time.Now().Format(time.StampMilli))
 	dbURL := connParams.DSN()
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -263,26 +312,6 @@ func createDatabaseFromTemplate(t TBSubset, connParams ConnectionParams, newDBNa
 		}
 	}()
 
-	emptyTemplateDBName := templateDBName == ""
-	if emptyTemplateDBName {
-		templateDBName = fmt.Sprintf("tpl_%s", migrations.GetMigrationsHash()[:32])
-	}
-	_, err = db.Exec("CREATE DATABASE " + newDBName + " WITH TEMPLATE " + templateDBName)
-	if err == nil {
-		// Template database already exists and we successfully created the new database.
-		return nil
-	}
-	tplDbDoesNotExistOccurred := strings.Contains(err.Error(), "template database") && strings.Contains(err.Error(), "does not exist")
-	if (tplDbDoesNotExistOccurred && !emptyTemplateDBName) || !tplDbDoesNotExistOccurred {
-		// First and case: user passed a templateDBName that doesn't exist.
-		// Second and case: some other error.
-		return xerrors.Errorf("create db with template: %w", err)
-	}
-	if !emptyTemplateDBName {
-		// sanity check
-		panic("templateDBName is not empty. there's a bug in the code above")
-	}
-	// The templateDBName is empty, so we need to create the template database.
 	// We will use a tx to obtain a lock, so another test or process doesn't race with us.
 	tx, err := db.BeginTx(context.Background(), nil)
 	if err != nil {
@@ -350,14 +379,6 @@ func createDatabaseFromTemplate(t TBSubset, connParams ConnectionParams, newDBNa
 		if _, err := db.Exec("ALTER DATABASE " + tmpTemplateDBName + " RENAME TO " + templateDBName); err != nil {
 			return xerrors.Errorf("rename tmp template db: %w", err)
 		}
-	}
-
-	// Try to create the database again now that a template exists.
-	if _, err = db.Exec("CREATE DATABASE " + newDBName + " WITH TEMPLATE " + templateDBName); err != nil {
-		return xerrors.Errorf("create db with template after migrations: %w", err)
-	}
-	if err = tx.Commit(); err != nil {
-		return xerrors.Errorf("commit tx: %w", err)
 	}
 	return nil
 }
