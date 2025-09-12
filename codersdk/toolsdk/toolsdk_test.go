@@ -620,6 +620,67 @@ func TestTools(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "bar bar", string(b))
 	})
+
+	t.Run("WorkspaceEditFiles", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		fs := afero.NewMemMapFs()
+		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
+			opts.Filesystem = fs
+		})
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+		tb, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		tmpdir := os.TempDir()
+		filePath1 := filepath.Join(tmpdir, "edit1")
+		err = afero.WriteFile(fs, filePath1, []byte("foo1 bar1"), 0o644)
+		require.NoError(t, err)
+
+		filePath2 := filepath.Join(tmpdir, "edit2")
+		err = afero.WriteFile(fs, filePath2, []byte("foo2 bar2"), 0o644)
+		require.NoError(t, err)
+
+		_, err = testTool(t, toolsdk.WorkspaceEditFiles, tb, toolsdk.WorkspaceEditFilesArgs{
+			Workspace: workspace.Name,
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "must specify at least one file")
+
+		_, err = testTool(t, toolsdk.WorkspaceEditFiles, tb, toolsdk.WorkspaceEditFilesArgs{
+			Workspace: workspace.Name,
+			Files: []workspacesdk.FileEdits{
+				{
+					Path: filePath1,
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo1",
+							Replace: "bar1",
+						},
+					},
+				},
+				{
+					Path: filePath2,
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo2",
+							Replace: "bar2",
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		b, err := afero.ReadFile(fs, filePath1)
+		require.NoError(t, err)
+		require.Equal(t, "bar1 bar1", string(b))
+
+		b, err = afero.ReadFile(fs, filePath2)
+		require.NoError(t, err)
+		require.Equal(t, "bar2 bar2", string(b))
+	})
 }
 
 // TestedTools keeps track of which tools have been tested.

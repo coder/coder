@@ -45,6 +45,7 @@ const (
 	ToolNameWorkspaceReadFile           = "coder_workspace_read_file"
 	ToolNameWorkspaceWriteFile          = "coder_workspace_write_file"
 	ToolNameWorkspaceEditFile           = "coder_workspace_edit_file"
+	ToolNameWorkspaceEditFiles          = "coder_workspace_edit_files"
 )
 
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
@@ -215,6 +216,7 @@ var All = []GenericTool{
 	WorkspaceReadFile.Generic(),
 	WorkspaceWriteFile.Generic(),
 	WorkspaceEditFile.Generic(),
+	WorkspaceEditFiles.Generic(),
 }
 
 type ReportTaskArgs struct {
@@ -1559,6 +1561,80 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
 
 		return codersdk.Response{
 			Message: "File edited successfully.",
+		}, nil
+	},
+}
+
+type WorkspaceEditFilesArgs struct {
+	Workspace string                   `json:"workspace"`
+	Files     []workspacesdk.FileEdits `json:"files"`
+}
+
+var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameWorkspaceEditFiles,
+		Description: `Edit one or more files in a workspace.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used.",
+				},
+				"files": map[string]any{
+					"type":        "array",
+					"description": "An array of files to edit.",
+					"items": []any{
+						map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"path": map[string]any{
+									"type":        "string",
+									"description": "The absolute path of the file to write in the workspace.",
+								},
+								"edits": map[string]any{
+									"type":        "array",
+									"description": "An array of edit operations.",
+									"items": []any{
+										map[string]any{
+											"type": "object",
+											"properties": map[string]any{
+												"search": map[string]any{
+													"type":        "string",
+													"description": "The old string to replace.",
+												},
+												"replace": map[string]any{
+													"type":        "string",
+													"description": "The new string that replaces the old string.",
+												},
+											},
+											"required": []string{"search", "replace"},
+										},
+									},
+								},
+								"required": []string{"path", "edits"},
+							},
+						},
+					},
+				},
+			},
+			Required: []string{"workspace", "files"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFilesArgs) (codersdk.Response, error) {
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		if err != nil {
+			return codersdk.Response{}, err
+		}
+		defer conn.Close()
+
+		err = conn.EditFiles(ctx, workspacesdk.FileEditRequest{Files: args.Files})
+		if err != nil {
+			return codersdk.Response{}, err
+		}
+
+		return codersdk.Response{
+			Message: "File(s) edited successfully.",
 		}, nil
 	},
 }
