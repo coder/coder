@@ -15,6 +15,15 @@ var (
 		Type: "*",
 	}
 
+	// ResourceAibridgeInterception
+	// Valid Actions
+	//  - "ActionCreate" :: create aibridge interceptions & related records
+	//  - "ActionRead" :: read aibridge interceptions & related records
+	//  - "ActionUpdate" :: update aibridge interceptions & related records
+	ResourceAibridgeInterception = Object{
+		Type: "aibridge_interception",
+	}
+
 	// ResourceApiKey
 	// Valid Actions
 	//  - "ActionCreate" :: create an api key
@@ -391,6 +400,7 @@ var (
 func AllResources() []Objecter {
 	return []Objecter{
 		ResourceWildcard,
+		ResourceAibridgeInterception,
 		ResourceApiKey,
 		ResourceAssignOrgRole,
 		ResourceAssignRole,

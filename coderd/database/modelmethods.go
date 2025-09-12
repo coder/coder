@@ -636,3 +636,7 @@ func (m WorkspaceAgentVolumeResourceMonitor) Debounce(
 func (s UserSecret) RBACObject() rbac.Object {
 	return rbac.ResourceUserSecret.WithID(s.ID).WithOwner(s.UserID.String())
 }
+
+func (s AIBridgeInterception) RBACObject() rbac.Object {
+	return rbac.ResourceAibridgeInterception.WithOwner(s.InitiatorID.String())
+}

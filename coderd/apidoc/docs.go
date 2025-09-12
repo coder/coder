@@ -15974,6 +15974,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "*",
+                "aibridge_interception",
                 "api_key",
                 "assign_org_role",
                 "assign_role",
@@ -16016,6 +16017,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ResourceWildcard",
+                "ResourceAibridgeInterception",
                 "ResourceApiKey",
                 "ResourceAssignOrgRole",
                 "ResourceAssignRole",
