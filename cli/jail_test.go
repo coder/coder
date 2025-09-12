@@ -21,8 +21,8 @@ func TestJailSubcommand(t *testing.T) {
 	defer cancelFunc()
 	done := make(chan any)
 	go func() {
-		errC := inv.WithContext(ctx).Run()
-		assert.NoError(t, errC)
+		err := inv.WithContext(ctx).Run()
+		assert.NoError(t, err)
 		close(done)
 	}()
 
