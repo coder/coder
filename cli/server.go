@@ -1152,6 +1152,24 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				cliui.Errorf(inv.Stderr, "Notify systemd failed: %s", err)
 			}
 
+			// Stop accepting new connections to aibridged.
+			//
+			// When running as an in-memory daemon, the HTTP handler is wired into the
+			// coderd API and therefore is subject to its context. Calling shutdown on
+			// aibridged will NOT affect in-flight requests but those will be closed once
+			// the API server is shutdown below.
+			if current := coderAPI.AIBridgeDaemon.Load(); current != nil {
+				cliui.Info(inv.Stdout, "Shutting down aibridge daemon...\n")
+
+				err = shutdownWithTimeout((*current).Shutdown, 5*time.Second)
+				if err != nil {
+					cliui.Errorf(inv.Stderr, "Graceful shutdown of aibridge daemon failed: %s\n", err)
+				} else {
+					_ = (*current).Close()
+					cliui.Info(inv.Stdout, "Gracefully shut down aibridge daemon\n")
+				}
+			}
+
 			// Stop accepting new connections without interrupting
 			// in-flight requests, give in-flight requests 5 seconds to
 			// complete.
