@@ -93,7 +93,13 @@ func convertConnectionLogs(dblogs []database.GetConnectionLogsOffsetRow) []coder
 }
 
 func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.ConnectionLog {
-	ip, _ := netip.AddrFromSlice(dblog.ConnectionLog.Ip.IPNet.IP)
+	var ip *netip.Addr
+	if dblog.ConnectionLog.Ip.Valid {
+		parsedIP, ok := netip.AddrFromSlice(dblog.ConnectionLog.Ip.IPNet.IP)
+		if ok {
+			ip = &parsedIP
+		}
+	}
 
 	var user *codersdk.User
 	if dblog.ConnectionLog.UserID.Valid {
