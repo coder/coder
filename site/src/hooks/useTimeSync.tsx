@@ -6,8 +6,8 @@ import {
 	useContext,
 	useEffect,
 	useId,
+	useLayoutEffect,
 	useMemo,
-	useRef,
 	useState,
 	useSyncExternalStore,
 } from "react";
@@ -489,31 +489,27 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 		[reactTs, hookId],
 	);
 
-	/**
-	 * This is a hack to wedge a delay between the two distinct phases of
-	 * useSyncExternalStore so that we can set up effects to fire between them.
-	 * This is *very* wacky, but technically follows all of the React rules, so
-	 * it should be 100% safe for the React compiler to optimize.
-	 *
-	 * By default, the state getter fires when the component mounts, and then
-	 * the subscription gets set up after the render finishes, at useEffect
-	 * speed. If both were coupled to the same hook call, all other effects
-	 * would have no choice but to fire after the subscription, which would
-	 * force us to do a lot of duplicate computations for logic that was already
-	 * handled in the render.
-	 */
-	const ejectedNotifyRef = useRef<() => void>(noOp);
-	const delegatedSubscribe = useCallback<ReactSubscriptionCallback>(
+	// Because of how React lifecycles work, this effect event callback should
+	// never be called from inside render logic. While called in a re-render, it
+	// will *always* give you stale date, but it will be correct by the time
+	// the external system needs to use the function
+	const externalTransform = useEffectEvent(activeTransform);
+
+	// Dependency array elements listed for correctness, but the only value that
+	// can change on re-renders (which React guarantees) is the target interval
+	const subscribe = useCallback<ReactSubscriptionCallback>(
 		(notifyReact) => {
-			ejectedNotifyRef.current = notifyReact;
-			return () => {};
+			return reactTs.subscribe({
+				componentId: hookId,
+				targetRefreshIntervalMs: targetIntervalMs,
+				transform: externalTransform,
+				onReactStateSync: notifyReact,
+			});
 		},
-		[],
+		[reactTs, hookId, externalTransform, targetIntervalMs],
 	);
-	const cachedTransformation = useSyncExternalStore(
-		delegatedSubscribe,
-		getSnap,
-	);
+
+	const cachedTransformation = useSyncExternalStore(subscribe, getSnap);
 
 	// There's some trade-offs with this memo (notably, if the consumer passes
 	// in an inline transform callback, the memo result will be invalidated on
@@ -543,7 +539,11 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 		[cachedTransformation, newTransformation],
 	);
 
-	useEffect(() => {
+	// Because this is a layout effect, it's guaranteed to fire before the
+	// subscription logic, even though the subscription was registered first.
+	// This lets us cut back on redoing computations that were already handled
+	// in the render
+	useLayoutEffect(() => {
 		reactTs.updateComponentState(hookId, merged);
 	}, [reactTs, hookId, merged]);
 
@@ -553,28 +553,6 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	useEffect(() => {
 		reactTs.onComponentMount();
 	}, [reactTs]);
-
-	// Because of how React lifecycles work, this effect event callback should
-	// never be called from inside render logic. It will *always* give you
-	// stale data after the very first render.
-	const externalTransform = useEffectEvent(activeTransform);
-
-	// Dependency array elements listed for correctness, but the only value that
-	// can change on re-renders (which React guarantees) is the target interval
-	const subscribe = useCallback<ReactSubscriptionCallback>(
-		(notifyReact) => {
-			return reactTs.subscribe({
-				componentId: hookId,
-				targetRefreshIntervalMs: targetIntervalMs,
-				transform: externalTransform,
-				onReactStateSync: () => {
-					notifyReact();
-					ejectedNotifyRef.current();
-				},
-			});
-		},
-		[reactTs, hookId, externalTransform, targetIntervalMs],
-	);
 
 	// We already have the actual state value at this point, so we just need to
 	// wire up useSyncExternalStore to satisfy the hook API and give ourselves
