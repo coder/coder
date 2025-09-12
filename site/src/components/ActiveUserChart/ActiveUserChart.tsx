@@ -7,9 +7,9 @@ import {
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import type { FC } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
@@ -116,7 +116,7 @@ export const ActiveUsersTitle: FC<ActiveUsersTitleProps> = ({ interval }) => {
 		<div className="flex items-center gap-2">
 			{interval === "day" ? "Daily" : "Weekly"} Active Users
 			<HelpTooltip>
-				<HelpTooltipTrigger size="small" />
+				<HelpTooltipIconTrigger size="small" />
 				<HelpTooltipContent>
 					<HelpTooltipTitle>How do we calculate active users?</HelpTooltipTitle>
 					<HelpTooltipText>

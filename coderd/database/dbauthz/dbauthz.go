@@ -2281,8 +2281,8 @@ func (q *querier) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID)
 }
 
 func (q *querier) GetNotificationTemplatesByKind(ctx context.Context, kind database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
-	// Anyone can read the system notification templates.
-	if kind == database.NotificationTemplateKindSystem {
+	// Anyone can read the 'system' and 'custom' notification templates.
+	if kind == database.NotificationTemplateKindSystem || kind == database.NotificationTemplateKindCustom {
 		return q.db.GetNotificationTemplatesByKind(ctx, kind)
 	}
 
@@ -2607,6 +2607,18 @@ func (q *querier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UU
 		return database.ProvisionerJob{}, err
 	}
 
+	return job, nil
+}
+
+func (q *querier) GetProvisionerJobByIDWithLock(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+	job, err := q.db.GetProvisionerJobByIDWithLock(ctx, id)
+	if err != nil {
+		return database.ProvisionerJob{}, err
+	}
+
+	if err := q.authorizeProvisionerJob(ctx, job); err != nil {
+		return database.ProvisionerJob{}, err
+	}
 	return job, nil
 }
 
