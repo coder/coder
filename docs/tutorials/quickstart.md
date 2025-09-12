@@ -81,8 +81,7 @@ is installed.
 
 ## Step 2: Install & Start Coder
 
-The `coder` CLI is all you need to install. It let's you run both the Coder
-server as well as the client.
+Install the `coder` CLI to get started:
 
 <div class="tabs">
 
