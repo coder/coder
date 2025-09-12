@@ -11,14 +11,19 @@ import {
 	MockWorkspaceResource,
 	mockApiError,
 } from "testHelpers/entities";
-import { withProxyProvider, withWebSocket } from "testHelpers/storybook";
+import {
+	withGlobalSnackbar,
+	withProxyProvider,
+	withWebSocket,
+} from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { API } from "api/api";
 import type {
 	Workspace,
 	WorkspaceApp,
 	WorkspaceResource,
 } from "api/typesGenerated";
-import { expect, spyOn, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import TaskPage, { data, WorkspaceDoesNotHaveAITaskError } from "./TaskPage";
 
 const meta: Meta<typeof TaskPage> = {
@@ -348,6 +353,77 @@ export const ActivePreview: Story = {
 					display_name: "Preview",
 				},
 			]),
+		});
+	},
+};
+
+export const WorkspaceStartFailure: Story = {
+	decorators: [withGlobalSnackbar],
+	beforeEach: () => {
+		spyOn(data, "fetchTask").mockResolvedValue({
+			prompt: "Create competitors page",
+			workspace: MockStoppedWorkspace,
+		});
+
+		spyOn(API, "getWorkspaceParameters").mockResolvedValue({
+			templateVersionRichParameters: [],
+			buildParameters: [],
+		});
+
+		spyOn(API, "startWorkspace").mockRejectedValue(
+			mockApiError({
+				message: "Failed to start workspace",
+				detail: "Insufficient resources available. Please try again later.",
+			}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const startButton = await canvas.findByText("Start workspace");
+		expect(startButton).toBeInTheDocument();
+
+		await userEvent.click(startButton);
+
+		await waitFor(async () => {
+			const errorMessage = await canvas.findByText("Failed to start workspace");
+			expect(errorMessage).toBeInTheDocument();
+		});
+	},
+};
+
+export const WorkspaceStartFailureWithDialog: Story = {
+	beforeEach: () => {
+		spyOn(data, "fetchTask").mockResolvedValue({
+			prompt: "Create competitors page",
+			workspace: MockStoppedWorkspace,
+		});
+
+		spyOn(API, "getWorkspaceParameters").mockResolvedValue({
+			templateVersionRichParameters: [],
+			buildParameters: [],
+		});
+
+		spyOn(API, "startWorkspace").mockRejectedValue({
+			...mockApiError({
+				message: "Bad Request",
+				detail: "Invalid build parameters provided",
+			}),
+			code: "ERR_BAD_REQUEST",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const startButton = await canvas.findByText("Start workspace");
+		expect(startButton).toBeInTheDocument();
+
+		await userEvent.click(startButton);
+
+		await waitFor(async () => {
+			const body = within(canvasElement.ownerDocument.body);
+			const dialogTitle = await body.findByText("Error building workspace");
+			expect(dialogTitle).toBeInTheDocument();
 		});
 	},
 };
