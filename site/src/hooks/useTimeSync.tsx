@@ -182,8 +182,13 @@ class ReactTimeSync {
 		this.#timeSync = new TimeSync({ initialDate, isSnapshot });
 	}
 
-	// Only safe to call inside a render with useSyncExternalStore
+	// Only safe to call inside a render that is bound to useSyncExternalStore
+	// in some way
 	getDateSnapshot(): Date {
+		// Since this function is used to break the React rules slightly, we
+		// need to opt this function out of being compiled by the React Compiler
+		// to make sure it doesn't compile the function the wrong way
+		"use no memo";
 		return this.#timeSync.getStateSnapshot();
 	}
 
@@ -504,6 +509,14 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// the external system needs to use the function
 	const externalTransform = useEffectEvent(activeTransform);
 
+	// This is a hack to deal with some of the timing issues when dealing with
+	// useSyncExternalStore. The subscription logic fires at useEffect priority,
+	// which (1) is too slow since we have layout effects, and (2) even if the
+	// subscription fired at layout effect speed, we actually need to delay when
+	// it gets set up so that other layout effects can fire first. This is
+	// *very* wacky, but satisfies all the React rules, and avoids a bunch of
+	// chicken-and-the-egg problems when dealing with React lifecycles and state
+	// sometimes not being defined
 	const ejectedNotifyRef = useRef<() => void>(noOp);
 	const subscribeWithEjection = useCallback<ReactSubscriptionCallback>(
 		(notifyReact) => {
@@ -537,11 +550,6 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// option of memoizing expensive transformations at the render level without
 	// polluting the hook's API with super-fragile dependency array logic
 	const newTransformation = useMemo(() => {
-		// Since we're breaking the rules slightly below, we need to opt this
-		// function out of being compiled by the React Compiler to make sure it
-		// doesn't compile the function the wrong way
-		"use no memo";
-
 		// This state getter is technically breaking the React rules, because
 		// we're getting a mutable value while in a render without binding it to
 		// state. But it's "pure enough", and the useSyncExternalStore logic for
@@ -559,7 +567,10 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 		[cachedTransformation, newTransformation],
 	);
 
-	const [, forceRerender] = useReducer((v) => !v, false);
+	const [, forceRerender] = useReducer((dummyState) => !dummyState, false);
+	useLayoutEffect(() => {
+		reactTs.seedInitialStateSyncCallback(hookId, forceRerender);
+	}, [reactTs, hookId]);
 
 	// Because this is a layout effect, it's guaranteed to fire before the
 	// subscription logic, even though the subscription was registered first.
@@ -569,15 +580,8 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 		reactTs.updateComponentState(hookId, merged);
 	}, [reactTs, hookId, merged]);
 
-	/**
-	 * @todo I need to figure out a way to fiddle with the subscription logic
-	 * for useSyncExternalStore so that:
-	 * 1. The subscription gets set up here, between the two layout effects
-	 * 2. The subscription can get "promoted" to layout effect priority
-	 *
-	 * Might have to do some voodoo with ref ejection and possibly a
-	 * forceRerender function
-	 */
+	// There's a lot of dependencies here, but the only cue for invalidating the
+	// subscription should be the target interval changing
 	useLayoutEffect(() => {
 		return reactTs.subscribe({
 			componentId: hookId,
@@ -587,9 +591,10 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 		});
 	}, [reactTs, hookId, externalTransform, targetIntervalMs]);
 
-	// And because the mounting logic is able to notify all consumers, we also
-	// want to make sure that it fires before paint in case we need to correct
-	// any other subscribers
+	// This is the one case where we're using useLayoutEffect for its intended
+	// purpose. Because the mounting logic is able to trigger state updates, we
+	// need to fire them before paint to make sure that we don't get screen
+	// flickering when refreshing the subscribers
 	useLayoutEffect(() => {
 		reactTs.onComponentMount();
 	}, [reactTs]);
