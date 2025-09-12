@@ -3,6 +3,7 @@ package agent_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -386,7 +387,7 @@ func TestWriteFile(t *testing.T) {
 	}
 }
 
-func TestEditFile(t *testing.T) {
+func TestEditFiles(t *testing.T) {
 	t.Parallel()
 
 	tmpdir := os.TempDir()
@@ -396,7 +397,11 @@ func TestEditFile(t *testing.T) {
 	conn, _, _, fs, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, opts *agent.Options) {
 		opts.Filesystem = newTestFs(opts.Filesystem, func(call, file string) error {
 			if file == noPermsFilePath {
-				return os.ErrPermission
+				return &os.PathError{
+					Op:   call,
+					Path: file,
+					Err:  os.ErrPermission,
+				}
 			} else if file == failRenameFilePath && call == "rename" {
 				return xerrors.New("rename failed")
 			}
@@ -410,125 +415,277 @@ func TestEditFile(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		path     string
-		contents string
-		edits    []workspacesdk.FileEdit
-		expected string
+		contents map[string]string
+		edits    []workspacesdk.FileEdits
+		expected map[string]string
 		errCode  int
-		error    string
+		errors   []string
 	}{
+		{
+			name:    "NoFiles",
+			errCode: http.StatusBadRequest,
+			errors:  []string{"must specify at least one file"},
+		},
 		{
 			name:    "NoPath",
 			errCode: http.StatusBadRequest,
-			error:   "\"path\" is required",
+			edits: []workspacesdk.FileEdits{
+				{
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo",
+							Replace: "bar",
+						},
+					},
+				},
+			},
+			errors: []string{"\"path\" is required"},
 		},
 		{
-			name:    "RelativePath",
-			path:    "./relative",
+			name: "RelativePathDotSlash",
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: "./relative",
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo",
+							Replace: "bar",
+						},
+					},
+				},
+			},
 			errCode: http.StatusBadRequest,
-			error:   "file path must be absolute",
+			errors:  []string{"file path must be absolute"},
 		},
 		{
-			name:    "RelativePath",
-			path:    "also-relative",
+			name: "RelativePath",
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: "also-relative",
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo",
+							Replace: "bar",
+						},
+					},
+				},
+			},
 			errCode: http.StatusBadRequest,
-			error:   "file path must be absolute",
+			errors:  []string{"file path must be absolute"},
 		},
 		{
-			name:     "NoEdits",
-			path:     filepath.Join(tmpdir, "no-edits"),
-			contents: "foo bar",
-			errCode:  http.StatusBadRequest,
-			error:    "must specify at least one edit",
+			name: "NoEdits",
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "no-edits"),
+				},
+			},
+			errCode: http.StatusBadRequest,
+			errors:  []string{"must specify at least one edit"},
 		},
 		{
 			name: "NonExistent",
-			path: filepath.Join(tmpdir, "does-not-exist"),
-			edits: []workspacesdk.FileEdit{
+			edits: []workspacesdk.FileEdits{
 				{
-					Search:  "foo",
-					Replace: "bar",
+					Path: filepath.Join(tmpdir, "does-not-exist"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo",
+							Replace: "bar",
+						},
+					},
 				},
 			},
 			errCode: http.StatusNotFound,
-			error:   "file does not exist",
+			errors:  []string{"file does not exist"},
 		},
 		{
 			name: "IsDir",
-			path: dirPath,
-			edits: []workspacesdk.FileEdit{
+			edits: []workspacesdk.FileEdits{
 				{
-					Search:  "foo",
-					Replace: "bar",
+					Path: dirPath,
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo",
+							Replace: "bar",
+						},
+					},
 				},
 			},
 			errCode: http.StatusBadRequest,
-			error:   "not a file",
+			errors:  []string{"not a file"},
 		},
 		{
 			name: "NoPermissions",
-			path: noPermsFilePath,
-			edits: []workspacesdk.FileEdit{
+			edits: []workspacesdk.FileEdits{
 				{
-					Search:  "foo",
-					Replace: "bar",
+					Path: noPermsFilePath,
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo",
+							Replace: "bar",
+						},
+					},
 				},
 			},
 			errCode: http.StatusForbidden,
-			error:   "permission denied",
+			errors:  []string{"permission denied"},
 		},
 		{
 			name:     "FailRename",
-			path:     failRenameFilePath,
-			contents: "foo bar",
-			edits: []workspacesdk.FileEdit{
+			contents: map[string]string{failRenameFilePath: "foo bar"},
+			edits: []workspacesdk.FileEdits{
 				{
-					Search:  "foo",
-					Replace: "bar",
+					Path: failRenameFilePath,
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo",
+							Replace: "bar",
+						},
+					},
 				},
 			},
 			errCode: http.StatusInternalServerError,
-			error:   "rename failed",
+			errors:  []string{"rename failed"},
 		},
 		{
 			name:     "Edit1",
-			path:     filepath.Join(tmpdir, "edit1"),
-			contents: "foo bar",
-			edits: []workspacesdk.FileEdit{
+			contents: map[string]string{filepath.Join(tmpdir, "edit1"): "foo bar"},
+			edits: []workspacesdk.FileEdits{
 				{
-					Search:  "foo",
-					Replace: "bar",
+					Path: filepath.Join(tmpdir, "edit1"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo",
+							Replace: "bar",
+						},
+					},
 				},
 			},
-			expected: "bar bar",
+			expected: map[string]string{filepath.Join(tmpdir, "edit1"): "bar bar"},
 		},
 		{
 			name:     "EditEdit", // Edits affect previous edits.
-			path:     filepath.Join(tmpdir, "edit-edit"),
-			contents: "foo bar",
-			edits: []workspacesdk.FileEdit{
+			contents: map[string]string{filepath.Join(tmpdir, "edit-edit"): "foo bar"},
+			edits: []workspacesdk.FileEdits{
 				{
-					Search:  "foo",
-					Replace: "bar",
-				},
-				{
-					Search:  "bar",
-					Replace: "qux",
+					Path: filepath.Join(tmpdir, "edit-edit"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo",
+							Replace: "bar",
+						},
+						{
+							Search:  "bar",
+							Replace: "qux",
+						},
+					},
 				},
 			},
-			expected: "qux qux",
+			expected: map[string]string{filepath.Join(tmpdir, "edit-edit"): "qux qux"},
 		},
 		{
 			name:     "Multiline",
-			path:     filepath.Join(tmpdir, "multiline"),
-			contents: "foo\nbar\nbaz\nqux",
-			edits: []workspacesdk.FileEdit{
+			contents: map[string]string{filepath.Join(tmpdir, "multiline"): "foo\nbar\nbaz\nqux"},
+			edits: []workspacesdk.FileEdits{
 				{
-					Search:  "bar\nbaz",
-					Replace: "frob",
+					Path: filepath.Join(tmpdir, "multiline"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "bar\nbaz",
+							Replace: "frob",
+						},
+					},
 				},
 			},
-			expected: "foo\nfrob\nqux",
+			expected: map[string]string{filepath.Join(tmpdir, "multiline"): "foo\nfrob\nqux"},
+		},
+		{
+			name: "Multifile",
+			contents: map[string]string{
+				filepath.Join(tmpdir, "file1"): "file 1",
+				filepath.Join(tmpdir, "file2"): "file 2",
+				filepath.Join(tmpdir, "file3"): "file 3",
+			},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "file1"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "file",
+							Replace: "edited1",
+						},
+					},
+				},
+				{
+					Path: filepath.Join(tmpdir, "file2"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "file",
+							Replace: "edited2",
+						},
+					},
+				},
+				{
+					Path: filepath.Join(tmpdir, "file3"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "file",
+							Replace: "edited3",
+						},
+					},
+				},
+			},
+			expected: map[string]string{
+				filepath.Join(tmpdir, "file1"): "edited1 1",
+				filepath.Join(tmpdir, "file2"): "edited2 2",
+				filepath.Join(tmpdir, "file3"): "edited3 3",
+			},
+		},
+		{
+			name: "MultiError",
+			contents: map[string]string{
+				filepath.Join(tmpdir, "file8"): "file 8",
+			},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: noPermsFilePath,
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "file",
+							Replace: "edited7",
+						},
+					},
+				},
+				{
+					Path: filepath.Join(tmpdir, "file8"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "file",
+							Replace: "edited8",
+						},
+					},
+				},
+				{
+					Path: filepath.Join(tmpdir, "file9"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "file",
+							Replace: "edited9",
+						},
+					},
+				},
+			},
+			expected: map[string]string{
+				filepath.Join(tmpdir, "file8"): "edited8 8",
+			},
+			// Higher status codes will override lower ones, so in this case the 404
+			// takes priority over the 403.
+			errCode: http.StatusNotFound,
+			errors: []string{
+				fmt.Sprintf("%s: permission denied", noPermsFilePath),
+				"file9: file does not exist",
+			},
 		},
 	}
 
@@ -539,22 +696,26 @@ func TestEditFile(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			if tt.contents != "" {
-				err := afero.WriteFile(fs, tt.path, []byte(tt.contents), 0o644)
+			for path, content := range tt.contents {
+				err := afero.WriteFile(fs, path, []byte(content), 0o644)
 				require.NoError(t, err)
 			}
 
-			err := conn.EditFile(ctx, tt.path, workspacesdk.FileEditRequest{Edits: tt.edits})
+			err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{Files: tt.edits})
 			if tt.errCode != 0 {
 				require.Error(t, err)
 				cerr := coderdtest.SDKError(t, err)
-				require.Contains(t, cerr.Error(), tt.error)
+				for _, error := range tt.errors {
+					require.Contains(t, cerr.Error(), error)
+				}
 				require.Equal(t, tt.errCode, cerr.StatusCode())
 			} else {
 				require.NoError(t, err)
-				b, err := afero.ReadFile(fs, tt.path)
+			}
+			for path, expect := range tt.expected {
+				b, err := afero.ReadFile(fs, path)
 				require.NoError(t, err)
-				require.Equal(t, tt.expected, string(b))
+				require.Equal(t, expect, string(b))
 			}
 		})
 	}

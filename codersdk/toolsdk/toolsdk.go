@@ -1545,7 +1545,14 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
 		}
 		defer conn.Close()
 
-		err = conn.EditFile(ctx, args.Path, workspacesdk.FileEditRequest{Edits: args.Edits})
+		err = conn.EditFiles(ctx, workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{
+				{
+					Path:  args.Path,
+					Edits: args.Edits,
+				},
+			},
+		})
 		if err != nil {
 			return codersdk.Response{}, err
 		}

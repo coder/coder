@@ -170,40 +170,51 @@ func (a *agent) writeFile(ctx context.Context, r *http.Request, path string) (HT
 	return 0, nil
 }
 
-func (a *agent) HandleEditFile(rw http.ResponseWriter, r *http.Request) {
+func (a *agent) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	query := r.URL.Query()
-	parser := httpapi.NewQueryParamParser().RequiredNotEmpty("path")
-	path := parser.String(query, "", "path")
-	parser.ErrorExcessParams(query)
-	if len(parser.Errors) > 0 {
+	var req workspacesdk.FileEditRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if len(req.Files) == 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Query parameters have invalid values.",
-			Validations: parser.Errors,
+			Message: "must specify at least one file",
 		})
 		return
 	}
 
-	var edits workspacesdk.FileEditRequest
-	if !httpapi.Read(ctx, rw, r, &edits) {
-		return
+	var combinedErr error
+	status := http.StatusOK
+	for _, edit := range req.Files {
+		s, err := a.editFile(r.Context(), edit.Path, edit.Edits)
+		// Keep the highest response status, so 500 will be preferred over 400, etc.
+		if s > status {
+			status = s
+		}
+		if err != nil {
+			combinedErr = errors.Join(combinedErr, err)
+		}
 	}
 
-	status, err := a.editFile(r.Context(), path, edits.Edits)
-	if err != nil {
+	if combinedErr != nil {
 		httpapi.Write(ctx, rw, status, codersdk.Response{
-			Message: err.Error(),
+			Message: combinedErr.Error(),
 		})
 		return
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
-		Message: fmt.Sprintf("Successfully edited %q", path),
+		Message: "Successfully edited file(s)",
 	})
 }
 
 func (a *agent) editFile(ctx context.Context, path string, edits []workspacesdk.FileEdit) (int, error) {
+	if path == "" {
+		return http.StatusBadRequest, xerrors.New("\"path\" is required")
+	}
+
 	if !filepath.IsAbs(path) {
 		return http.StatusBadRequest, xerrors.Errorf("file path must be absolute: %q", path)
 	}
