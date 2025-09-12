@@ -567,10 +567,5 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 		reactTs.onComponentMount();
 	}, [reactTs]);
 
-	// We already have the actual state value at this point, so we just need to
-	// wire up useSyncExternalStore to satisfy the hook API and give ourselves
-	// state-binding guarantees
-	void useSyncExternalStore(subscribe, getSnap);
-
 	return merged;
 }
