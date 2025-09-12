@@ -1124,6 +1124,11 @@
 					"icon_path": "./images/icons/terminal.svg",
 					"children": [
 						{
+							"title": "api",
+							"description": "Make requests to the Coder API",
+							"path": "reference/cli/api.md"
+						},
+						{
 							"title": "autoupdate",
 							"description": "Toggle auto-update policy for a workspace",
 							"path": "reference/cli/autoupdate.md"

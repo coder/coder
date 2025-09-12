@@ -12,17 +12,22 @@ import (
 	"github.com/coder/serpent"
 )
 
-// read returns a CLI command that performs an authenticated GET request to the given API path.
-func (r *RootCmd) read() *serpent.Command {
+// api returns a CLI command that performs an authenticated GET request to the given API path.
+func (r *RootCmd) api() *serpent.Command {
 	client := new(codersdk.Client)
 	return &serpent.Command{
-		Use:   "read <api-path>",
-		Short: "Read an authenticated API endpoint using your current Coder CLI token",
-		Long: `Read an authenticated API endpoint using your current Coder CLI token.
+		Use:   "api <api-path>",
+		Short: "Make requests to the Coder API",
+		Long: `Make an authenticated API request using your current Coder CLI token.
 
-Example:
-  coder read workspacebuilds/my-build/logs
+Examples:
+  coder api workspacebuilds/my-build/logs
 This will perform a GET request to /api/v2/workspacebuilds/my-build/logs on the connected Coder server.
+
+  coder api users/me
+This will perform a GET request to /api/v2/users/me on the connected Coder server.
+
+Consult the API documentation for more information - https://coder.com/docs/reference/api,
 `,
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),

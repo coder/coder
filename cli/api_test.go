@@ -10,13 +10,17 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 )
 
-func TestReadCommand(t *testing.T) {
+func TestAPICommand(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 
-	inv, root := clitest.New(t, "read", "users/me")
-	clitest.SetupConfig(t, client, root)
+	// Create a regular user for testing instead of using the admin/owner
+	reg, regUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+	inv, root := clitest.New(t, "api", "users/me")
+	// Use the regular user for authentication instead of owner
+	clitest.SetupConfig(t, reg, root)
 
 	var sb strings.Builder
 	inv.Stdout = &sb
@@ -24,18 +28,22 @@ func TestReadCommand(t *testing.T) {
 	err := inv.Run()
 	require.NoError(t, err)
 	output := sb.String()
-	require.Contains(t, output, user.UserID.String())
+	require.Contains(t, output, regUser.ID.String())
 	// Check for pretty-printed JSON (indented)
 	require.Contains(t, output, "  \"") // at least one indented JSON key
 }
 
-func TestReadCommand_NonJSON(t *testing.T) {
+func TestAPICommand_NonJSON(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
+	user := coderdtest.CreateFirstUser(t, client)
 
-	inv, root := clitest.New(t, "read", "/healthz")
-	clitest.SetupConfig(t, client, root)
+	// Create a regular user for testing instead of using the admin/owner
+	reg, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+	inv, root := clitest.New(t, "api", "/healthz")
+	// Use the regular user for authentication instead of owner
+	clitest.SetupConfig(t, reg, root)
 
 	var sb strings.Builder
 	inv.Stdout = &sb

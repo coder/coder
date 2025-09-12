@@ -34,6 +34,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>organizations</code>](./organizations.md)   | Organization related commands                                                                                                |
 | [<code>port-forward</code>](./port-forward.md)     | Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R".                        |
 | [<code>publickey</code>](./publickey.md)           | Output your Coder public key used for Git operations                                                                         |
+| [<code>api</code>](./api.md)                       | Make requests to the Coder API                                                                                               |
 | [<code>reset-password</code>](./reset-password.md) | Directly connect to the database to reset a user's password                                                                  |
 | [<code>state</code>](./state.md)                   | Manually manage Terraform state to fix broken workspaces                                                                     |
 | [<code>templates</code>](./templates.md)           | Manage templates                                                                                                             |
