@@ -12,7 +12,7 @@ Wildcard access URLs unlock Coder's full potential for modern development workfl
 
 ### Applications that require subdomain access
 
-The following applications have issues or don't work without wildcard access URLs:
+The following tools require wildcard access URLs:
 
 - **Vite dev server**: Hot module replacement and asset serving issues with path-based routing
 - **React dev server**: Similar issues with hot reloading and absolute path references
