@@ -245,24 +245,29 @@ resource and parameter.
 
 Coder maintains the [Tasks on Docker](https://registry.coder.com/templates/coder-labs/tasks-docker?_gl=1*19yewmn*_gcl_au*MTc0MzUwMTQ2NC4xNzU2MzA3MDkxLjk3NTM3MjgyNy4xNzU3Njg2NDY2LjE3NTc2ODc0Mzc.*_ga*NzUxMDI1NjIxLjE3NTYzMDcwOTE.*_ga_FTQQJCDWDM*czE3NTc3MDg4MDkkbzQ1JGcxJHQxNzU3NzA4ODE4JGo1MSRsMCRoMA..) template which has Anthropic's Claude Code agent built in with a sample application. Let's try using this template by pulling it from Coder's Registry of public templates, and pushing it to your local server:  
 
-1. **Push the Template to your Coder Deployment**: 
-   1. In the upper right hand corner, click **Use this template**
-   1. Open a terminal on your machine
-   1. Ensure your CLI is authenticated with your Coder deployment by [logging in](https://coder.com/docs/reference/cli/login)
-   1. Create an [API Key with Anthropic](https://console.anthropic.com/)
-   1. Head to the [Tasks on Docker](https://registry.coder.com/templates/coder-labs/tasks-docker?_gl=1*19yewmn*_gcl_au*MTc0MzUwMTQ2NC4xNzU2MzA3MDkxLjk3NTM3MjgyNy4xNzU3Njg2NDY2LjE3NTc2ODc0Mzc.*_ga*NzUxMDI1NjIxLjE3NTYzMDcwOTE.*_ga_FTQQJCDWDM*czE3NTc3MDg4MDkkbzQ1JGcxJHQxNzU3NzA4ODE4JGo1MSRsMCRoMA..) template 
-   1. Clone the Coder Registry repo to your local machine 
-   ```hcl
-   git clone https://github.com/coder/registry.git
-   ```
-   1. Switch to the template directory
-   ```hcl
-   cd registry/registry/coder-labs/templates/tasks-docker
-   ```
-   1. Push the template to your Coder deployment. Note: this command differs from the registry since we're defining the Anthropic API Key as an environment variable
-   ```hcl
-   coder template push tasks-docker -d . --variable anthropic_api_key="your-api-key"
-   ```
+1. In the upper right hand corner, click **Use this template**
+1. Open a terminal on your machine
+1. Ensure your CLI is authenticated with your Coder deployment by [logging in](https://coder.com/docs/reference/cli/login)
+1. Create an [API Key with Anthropic](https://console.anthropic.com/)
+1. Head to the [Tasks on Docker](https://registry.coder.com/templates/coder-labs/tasks-docker?_gl=1*19yewmn*_gcl_au*MTc0MzUwMTQ2NC4xNzU2MzA3MDkxLjk3NTM3MjgyNy4xNzU3Njg2NDY2LjE3NTc2ODc0Mzc.*_ga*NzUxMDI1NjIxLjE3NTYzMDcwOTE.*_ga_FTQQJCDWDM*czE3NTc3MDg4MDkkbzQ1JGcxJHQxNzU3NzA4ODE4JGo1MSRsMCRoMA..) template 
+1. Clone the Coder Registry repo to your local machine 
+
+```hcl
+git clone https://github.com/coder/registry.git
+```
+
+1. Switch to the template directory
+
+```hcl
+cd registry/registry/coder-labs/templates/tasks-docker
+```
+
+1. Push the template to your Coder deployment. Note: this command differs from the registry since we're defining the Anthropic API Key as an environment variable
+
+```hcl
+coder template push tasks-docker -d . --variable anthropic_api_key="your-api-key"
+```
+
 1. **Create the new Workspace**
    1. In your Coder Deployment, click **Workspaces** in the upper left hand corner
    1. Click **New workspace** and choose **tasks-docker**
