@@ -3,6 +3,6 @@ package aibridged
 import "github.com/google/uuid"
 
 type Request struct {
-	SessionKey             string
-	InitiatorID, RequestID uuid.UUID
+	SessionKey  string
+	InitiatorID uuid.UUID
 }

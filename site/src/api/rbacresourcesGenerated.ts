@@ -9,9 +9,9 @@ export const RBACResourceActions: Partial<
 	Record<RBACResource, Partial<Record<RBACAction, string>>>
 > = {
 	aibridge_interception: {
-		create: "create aibridge interceptionss & related records",
-		read: "read aibridge interceptionss & related records",
-		update: "update aibridge interceptionss & related records",
+		create: "create aibridge interceptions & related records",
+		read: "read aibridge interceptions & related records",
+		update: "update aibridge interceptions & related records",
 	},
 	api_key: {
 		create: "create an api key",

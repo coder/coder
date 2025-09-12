@@ -13046,10 +13046,10 @@ const docTemplate = `{
                 "oauth2",
                 "mcp-server-http",
                 "workspace-sharing",
-                "ai-bridge"
+                "aibridge"
             ],
             "x-enum-comments": {
-                "ExperimentAIBridge": "Enables AI Bridge functionality.",
+                "ExperimentAIBridge": "Enables AIBridge functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",

@@ -164,6 +164,9 @@ sql:
           latest_build_has_ai_task: LatestBuildHasAITask
           cors_behavior: CorsBehavior
           aibridge_interception: AIBridgeInterception
+          aibridge_tool_usage: AIBridgeToolUsage
+          aibridge_token_usage: AIBridgeTokenUsage
+          aibridge_user_prompt: AIBridgeUserPrompt
 rules:
   - name: do-not-use-public-schema-in-queries
     message: "do not use public schema in queries"

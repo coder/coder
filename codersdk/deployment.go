@@ -1163,8 +1163,8 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:   "inbox",
 		}
 		deploymentGroupAIBridge = serpent.Group{
-			Name: "AI Bridge",
-			YAML: "ai_bridge",
+			Name: "AIBridge",
+			YAML: "aibridge",
 		}
 	)
 
@@ -3217,12 +3217,12 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "hideAITasks",
 		},
 
-		// AI Bridge Options
+		// AIBridge Options
 		{
-			Name:        "AI Bridge Enabled",
-			Description: "Whether to start an in-memory aibridged instance ('ai-bridge' experiment must be enabled, too).",
-			Flag:        "ai-bridge-enabled",
-			Env:         "CODER_AI_BRIDGE_ENABLED",
+			Name:        "AIBridge Enabled",
+			Description: "Whether to start an in-memory aibridged instance ('aibridge' experiment must be enabled, too).",
+			Flag:        "aibridge-enabled",
+			Env:         "CODER_AIBRIDGE_ENABLED",
 			Value:       &c.AI.BridgeConfig.Enabled,
 			Default:     "true",
 			Group:       &deploymentGroupAIBridge,
@@ -3230,10 +3230,10 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:      false,
 		},
 		{
-			Name:        "AI Bridge OpenAI Base URL",
-			Description: "TODO.",
-			Flag:        "ai-bridge-openai-base-url",
-			Env:         "CODER_AI_BRIDGE_OPENAI_BASE_URL",
+			Name:        "AIBridge OpenAI Base URL",
+			Description: "The base URL of the OpenAI API.",
+			Flag:        "aibridge-openai-base-url",
+			Env:         "CODER_AIBRIDGE_OPENAI_BASE_URL",
 			Value:       &c.AI.BridgeConfig.OpenAI.BaseURL,
 			Default:     "https://api.openai.com/v1/",
 			Group:       &deploymentGroupAIBridge,
@@ -3241,10 +3241,10 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:      true,
 		},
 		{
-			Name:        "AI Bridge OpenAI Key",
-			Description: "TODO.",
-			Flag:        "ai-bridge-openai-key",
-			Env:         "CODER_AI_BRIDGE_OPENAI_KEY",
+			Name:        "AIBridge OpenAI Key",
+			Description: "The key to authenticate against the OpenAI API.",
+			Flag:        "aibridge-openai-key",
+			Env:         "CODER_AIBRIDGE_OPENAI_KEY",
 			Value:       &c.AI.BridgeConfig.OpenAI.Key,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
@@ -3252,10 +3252,10 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:      true,
 		},
 		{
-			Name:        "AI Bridge Anthropic Base URL",
-			Description: "TODO.",
-			Flag:        "ai-bridge-anthropic-base-url",
-			Env:         "CODER_AI_BRIDGE_ANTHROPIC_BASE_URL",
+			Name:        "AIBridge Anthropic Base URL",
+			Description: "The base URL of the Anthropic API.",
+			Flag:        "aibridge-anthropic-base-url",
+			Env:         "CODER_AIBRIDGE_ANTHROPIC_BASE_URL",
 			Value:       &c.AI.BridgeConfig.Anthropic.BaseURL,
 			Default:     "https://api.anthropic.com/",
 			Group:       &deploymentGroupAIBridge,
@@ -3263,10 +3263,10 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:      true,
 		},
 		{
-			Name:        "AI Bridge Anthropic KEY",
-			Description: "TODO.",
-			Flag:        "ai-bridge-anthropic-key",
-			Env:         "CODER_AI_BRIDGE_ANTHROPIC_KEY",
+			Name:        "AIBridge Anthropic KEY",
+			Description: "The key to authenticate against the Anthropic API.",
+			Flag:        "aibridge-anthropic-key",
+			Env:         "CODER_AIBRIDGE_ANTHROPIC_KEY",
 			Value:       &c.AI.BridgeConfig.Anthropic.Key,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
@@ -3521,7 +3521,7 @@ const (
 	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
-	ExperimentAIBridge           Experiment = "ai-bridge"            // Enables AI Bridge functionality.
+	ExperimentAIBridge           Experiment = "aibridge"             // Enables AIBridge functionality.
 )
 
 func (e Experiment) DisplayName() string {

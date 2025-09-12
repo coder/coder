@@ -17,9 +17,9 @@ var (
 
 	// ResourceAibridgeInterception
 	// Valid Actions
-	//  - "ActionCreate" :: create aibridge interceptionss & related records
-	//  - "ActionRead" :: read aibridge interceptionss & related records
-	//  - "ActionUpdate" :: update aibridge interceptionss & related records
+	//  - "ActionCreate" :: create aibridge interceptions & related records
+	//  - "ActionRead" :: read aibridge interceptions & related records
+	//  - "ActionUpdate" :: update aibridge interceptions & related records
 	ResourceAibridgeInterception = Object{
 		Type: "aibridge_interception",
 	}

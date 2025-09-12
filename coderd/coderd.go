@@ -1038,7 +1038,10 @@ func New(options *Options) *API {
 			})
 		})
 
-		// aibridge does not use any middlewares.
+		// aibridged cannot rely on coderd middleware; the handler needs to work whether
+		// running as an in-memory daemon or a separate process. Typical middleware like
+		// apiKeyMiddleware will be replicated within aibridged, validating the key via
+		// a dRPC call.
 		r.Group(func(r chi.Router) {
 			r.Use(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentAIBridge))
 			r.Route("/aibridge", func(r chi.Router) {

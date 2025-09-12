@@ -15,8 +15,6 @@ var _ http.Handler = &server{}
 
 // bridgeAIRequest handles requests destined for an upstream AI provider; aibridged intercepts these requests
 // and applies a governance layer.
-//
-// See also: aibridged/middleware.go.
 func (s *server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -56,7 +54,6 @@ func (s *server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	handler, err := s.GetRequestHandler(ctx, Request{
 		SessionKey:  key,
 		InitiatorID: id,
-		// RequestID:   httpmw.RequestID(r), // TODO: ?
 	})
 	if err != nil {
 		logger.Error(ctx, "failed to handle request", slog.Error(err))
@@ -65,4 +62,29 @@ func (s *server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	handler.ServeHTTP(rw, r)
+}
+
+// extractAuthToken extracts authorization token from HTTP request using multiple sources.
+// These sources represent the different ways clients authenticate against AI providers.
+// It checks the Authorization header (Bearer token) and X-Api-Key header.
+// If neither are present, an empty string is returned.
+func extractAuthToken(r *http.Request) string {
+	// 1. Check Authorization header for Bearer token.
+	authHeader := r.Header.Get("Authorization")
+	if authHeader != "" {
+		segs := strings.Split(authHeader, " ")
+		if len(segs) > 1 {
+			if strings.ToLower(segs[0]) == "bearer" {
+				return strings.Join(segs[1:], "")
+			}
+		}
+	}
+
+	// 2. Check X-Api-Key header.
+	apiKeyHeader := r.Header.Get("X-Api-Key")
+	if apiKeyHeader != "" {
+		return apiKeyHeader
+	}
+
+	return ""
 }

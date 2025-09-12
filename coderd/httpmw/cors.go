@@ -50,29 +50,19 @@ func Cors(allowAll bool, origins ...string) func(next http.Handler) http.Handler
 	permissiveCors := cors.Handler(cors.Options{
 		AllowedOrigins: []string{"*"},
 		AllowedMethods: []string{
-			http.MethodHead,
 			http.MethodGet,
 			http.MethodPost,
 			http.MethodDelete,
 			http.MethodOptions,
 		},
 		AllowedHeaders: []string{
-			"Accept",
 			"Content-Type",
+			"Accept",
 			"Authorization",
-			"X-Api-Key",
-			"X-Requested-With",
-			"Last-Event-ID",
-			// MCP headers
+			"x-api-key",
 			"Mcp-Session-Id",
 			"MCP-Protocol-Version",
-			// Provider-specific headers
-			"OpenAI-Organization",
-			"OpenAI-Beta",
-			"Anthropic-Version",
-			"Anthropic-Beta",
-			"anthropic-version",
-			"anthropic-beta",
+			"Last-Event-ID",
 		},
 		ExposedHeaders: []string{
 			"Content-Type",
@@ -87,11 +77,10 @@ func Cors(allowAll bool, origins ...string) func(next http.Handler) http.Handler
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Use permissive CORS for OAuth2, MCP, well-known, and AI bridge endpoints
+			// Use permissive CORS for OAuth2, MCP, and well-known endpoints
 			if strings.HasPrefix(r.URL.Path, "/oauth2/") ||
 				strings.HasPrefix(r.URL.Path, "/api/experimental/mcp/") ||
-				strings.HasPrefix(r.URL.Path, "/.well-known/oauth-") ||
-				strings.HasPrefix(r.URL.Path, "/api/v2/aibridge") {
+				strings.HasPrefix(r.URL.Path, "/.well-known/oauth-") {
 				permissiveCors(next).ServeHTTP(w, r)
 				return
 			}
