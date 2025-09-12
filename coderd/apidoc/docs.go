@@ -13162,7 +13162,7 @@ const docTemplate = `{
                 "aibridge"
             ],
             "x-enum-comments": {
-                "ExperimentAIBridge": "Enables AIBridge functionality.",
+                "ExperimentAIBridge": "Enables AI Bridge functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",

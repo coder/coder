@@ -3521,7 +3521,7 @@ const (
 	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
-	ExperimentAIBridge           Experiment = "aibridge"             // Enables AIBridge functionality.
+	ExperimentAIBridge           Experiment = "aibridge"             // Enables AI Bridge functionality.
 )
 
 func (e Experiment) DisplayName() string {
