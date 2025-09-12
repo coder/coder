@@ -25,7 +25,7 @@ a cooking analogy:
 | **You**        | The engineer/developer/builder working                                               | The head chef cooking the meal              |
 | **Templates**  | A Terraform blueprint that defines your dev environment (OS, tools, resources)       | Recipe for a meal                           |
 | **Workspaces** | The actual running environment created from the template                             | The cooked meal                             |
-| **Tasks**      | AI-powered coding agents that run inside a workspace                                 | Smart kitchen appliance that help you cook |
+| **Tasks**      | AI-powered coding agents that run inside a workspace                                 | Smart kitchen appliance that help you cook  |
 | **Users**      | A developer who launches the workspace from a template and does their work inside it | The people eating the meal                  |
 
 **Putting it Together:** Coder separates who _defines_ environments from who _uses_ them. Admins create and manage Templates, the recipes, while developers use those Templates to launch Workspaces, the meals. Inside those Workspaces, developers can also run Tasks, the smart kitchen appliance, to help speed up day-to-day work. 
