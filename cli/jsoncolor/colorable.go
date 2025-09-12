@@ -45,6 +45,11 @@ func ShouldUseColor(mode ColorMode, w io.Writer) bool {
 		return false
 	default:
 		// Auto mode - first check environment variables
+		// NO_COLOR takes precedence over everything else
+		if os.Getenv("NO_COLOR") != "" {
+			return false
+		}
+		
 		if os.Getenv("FORCE_COLOR") != "" && os.Getenv("FORCE_COLOR") != "0" {
 			return true
 		}
@@ -53,25 +58,13 @@ func ShouldUseColor(mode ColorMode, w io.Writer) bool {
 			return true
 		}
 		
+		if os.Getenv("CODER_COLOR") == "never" {
+			return false
+		}
+		
 		if f, ok := w.(*os.File); ok {
 			if isatty.IsTerminal(f.Fd()) || isatty.IsCygwinTerminal(f.Fd()) {
-				// Check if NO_COLOR is set (industry standard to disable color)
-				if os.Getenv("NO_COLOR") != "" {
-					return false
-				}
-				
-				// Check if FORCE_COLOR is set (industry standard to enable color)
-				if forceColor := os.Getenv("FORCE_COLOR"); forceColor != "" {
-					if forceColor == "0" {
-						return false
-					}
-					return true
-				}
-				
-				// Check specific Coder color environment variable
-				if coderColor := os.Getenv("CODER_COLOR"); coderColor != "" {
-					return coderColor == "always"
-				}
+				// We've already checked all environment variables at the top level
 				
 				// Terminal detected and no environment overrides - use color
 				return true
