@@ -41,7 +41,7 @@ Examples:
 			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
-			return jailcli.Run(config, inv.Args)
+			return jailcli.Run(inv.Context(), config, inv.Args)
 		},
 	}
 }
