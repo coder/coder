@@ -351,7 +351,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 					Go back
 				</button>
 			</div>
-			<div className="flex flex-col flex-1 min-h-0 gap-6 max-w-screen-md mx-auto">
+			<div className="flex flex-col flex-1 min-h-0 gap-6 max-w-(--breakpoint-md) mx-auto">
 				<header className="flex flex-col items-start gap-3 mt-10">
 					<div className="flex items-center gap-2 justify-between w-full">
 						<span className="flex items-center gap-2">

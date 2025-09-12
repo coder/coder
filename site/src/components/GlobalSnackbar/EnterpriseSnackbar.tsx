@@ -54,8 +54,8 @@ export const EnterpriseSnackbar: FC<EnterpriseSnackbarProps> = ({
 			ContentProps={{
 				...ContentProps,
 				className: cn(
-					"rounded-lg bg-surface-secondary text-content-primary shadow",
-					"py-2 pl-6 pr-4 items-[inherit] border-0 border-l-[4px]",
+					"rounded-lg bg-surface-secondary text-content-primary shadow-sm",
+					"py-2 pl-6 pr-4 items-[inherit] border-0 border-l-4",
 					variantColor(variant),
 				),
 			}}

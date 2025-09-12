@@ -18,13 +18,13 @@ import { getExternalImageStylesFromUrl } from "theme/externalImages";
 import { cn } from "utils/cn";
 
 const avatarVariants = cva(
-	"relative flex shrink-0 overflow-hidden rounded border border-solid bg-surface-secondary text-content-secondary",
+	"relative flex shrink-0 overflow-hidden rounded border border-solid border-border bg-surface-secondary text-content-secondary",
 	{
 		variants: {
 			size: {
-				lg: "size-[--avatar-lg] rounded-[6px] text-sm font-medium",
-				md: "size-[--avatar-default] text-2xs",
-				sm: "size-[--avatar-sm] text-[8px]",
+				lg: "size-(--avatar-lg) rounded-[6px] text-sm font-medium",
+				md: "size-(--avatar-default) text-2xs",
+				sm: "size-(--avatar-sm) text-[8px]",
 			},
 			variant: {
 				default: null,

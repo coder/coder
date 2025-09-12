@@ -76,7 +76,7 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 								)}/workspace`}
 								className="w-[320px] p-4 rounded-md border border-solid border-surface-quaternary text-left flex gap-4 no-underline text-inherit hover:bg-surface-grey"
 							>
-								<div className="flex-shrink-0 pt-1">
+								<div className="shrink-0 pt-1">
 									<Avatar variant="icon" src={t.icon} fallback={t.name} />
 								</div>
 

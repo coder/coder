@@ -123,7 +123,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 								</Stack>
 
 								<Stack direction="row" alignItems="center">
-									<StatusPill isHttpCode={true} code={auditLog.status_code} />
+									<StatusPill isHttpCode code={auditLog.status_code} />
 
 									{/* With multi-org, there is not enough space so show
                       everything in a tooltip. */}
@@ -233,7 +233,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 					</Stack>
 
 					{shouldDisplayDiff ? (
-						<div> {<DropdownArrow close={isDiffOpen} />}</div>
+						<DropdownArrow close={isDiffOpen} />
 					) : (
 						<div css={styles.columnWithoutDiff} />
 					)}

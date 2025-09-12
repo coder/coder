@@ -58,14 +58,14 @@ export const ChartContainer = React.forwardRef<
 					"[&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50",
 					"[&_.recharts-curve.recharts-tooltip-cursor]:stroke-border",
 					"[&_.recharts-dot[stroke='#fff']]:stroke-transparent",
-					"[&_.recharts-layer]:outline-none",
+					"[&_.recharts-layer]:outline-hidden",
 					"[&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border",
 					"[&_.recharts-radial-bar-background-sector]:fill-muted",
 					"[&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted",
 					"[&_.recharts-reference-line_[stroke='#ccc']]:stroke-border",
 					"[&_.recharts-sector[stroke='#fff']]:stroke-transparent",
-					"[&_.recharts-sector]:outline-none",
-					"[&_.recharts-surface]:outline-none",
+					"[&_.recharts-sector]:outline-hidden",
+					"[&_.recharts-surface]:outline-hidden",
 					"[&_.recharts-text]:fill-content-secondary [&_.recharts-text]:font-medium",
 					"[&_.recharts-cartesian-axis-line]:stroke-[hsl(var(--border-default))]",
 					className,
@@ -194,7 +194,7 @@ export const ChartTooltipContent = React.forwardRef<
 			<div
 				ref={ref}
 				className={cn(
-					"grid min-w-[8rem] items-start gap-1 rounded-lg border border-solid border-border bg-surface-primary px-3 py-2 text-xs shadow-xl",
+					"grid min-w-32 items-start gap-1 rounded-lg border border-solid border-border bg-surface-primary px-3 py-2 text-xs shadow-xl",
 					className,
 				)}
 			>
@@ -223,7 +223,7 @@ export const ChartTooltipContent = React.forwardRef<
 											!hideIndicator && (
 												<div
 													className={cn(
-														"shrink-0 rounded-[2px] border-[--color-border] bg-[--color-bg]",
+														"shrink-0 rounded-[2px] border-border bg-(--color-bg)",
 														{
 															"h-2.5 w-2.5": indicator === "dot",
 															"w-1": indicator === "line",

@@ -17,14 +17,14 @@ const badgeVariants = cva(
 		variants: {
 			variant: {
 				default:
-					"border-transparent bg-surface-secondary text-content-secondary shadow",
+					"border-transparent bg-surface-secondary text-content-secondary shadow-sm",
 				warning:
-					"border border-solid border-border-warning bg-surface-orange text-content-warning shadow",
+					"border border-solid border-border-warning bg-surface-orange text-content-warning shadow-sm",
 				destructive:
-					"border border-solid border-border-destructive bg-surface-red text-highlight-red shadow",
+					"border border-solid border-border-destructive bg-surface-red text-highlight-red shadow-sm",
 				green:
-					"border border-solid border-surface-green bg-surface-green text-highlight-green shadow",
-				info: "border border-solid border-surface-sky bg-surface-sky text-highlight-sky shadow",
+					"border border-solid border-surface-green bg-surface-green text-highlight-green shadow-sm",
+				info: "border border-solid border-surface-sky bg-surface-sky text-highlight-sky shadow-sm",
 			},
 			size: {
 				xs: "text-2xs font-regular h-5 [&_svg]:hidden rounded px-1.5",
@@ -37,7 +37,7 @@ const badgeVariants = cva(
 			},
 			hover: {
 				false: null,
-				true: "no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
+				true: "no-underline focus:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 			},
 		},
 		compoundVariants: [

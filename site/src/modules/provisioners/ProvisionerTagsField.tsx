@@ -146,7 +146,7 @@ const NewTagControl: FC<NewTagControlProps> = ({ onAdd }) => {
 				/>
 
 				<Button
-					className="flex-shrink-0"
+					className="shrink-0"
 					size="icon"
 					type="button"
 					onClick={addNewTag}
