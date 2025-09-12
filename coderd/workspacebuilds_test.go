@@ -624,7 +624,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		require.Eventually(t, func() bool {
 			var err error
 			build, err = userClient.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
-			return assert.NoError(t, err) && build.Job.Status == codersdk.ProvisionerJobRunning
+			return err == nil && build.Job.Status == codersdk.ProvisionerJobRunning
 		}, testutil.WaitShort, testutil.IntervalFast)
 		err := userClient.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
 		var apiErr *codersdk.Error
@@ -715,7 +715,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		require.Eventually(t, func() bool {
 			var err error
 			build, err = client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
-			return assert.NoError(t, err) && build.Job.Status == codersdk.ProvisionerJobRunning
+			return err == nil && build.Job.Status == codersdk.ProvisionerJobRunning
 		}, testutil.WaitShort, testutil.IntervalFast)
 
 		// When: a cancel request is made with expect_state=pending
@@ -725,7 +725,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 			})
 			// Then: the request should fail with 412.
 			var apiErr *codersdk.Error
-			return assert.Error(t, err) && assert.ErrorAs(t, err, &apiErr) && apiErr.StatusCode() == http.StatusPreconditionFailed
+			return err != nil && errors.As(err, &apiErr) && apiErr.StatusCode() == http.StatusPreconditionFailed
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 
