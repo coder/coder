@@ -797,6 +797,35 @@ func (c *Conn) forwardTCP(src, dst netip.AddrPort) (handler func(net.Conn), opts
 	}, opts, true
 }
 
+// DialInternalTCP attempts to connect to an in-process tailnet listener for the given
+// TCP destination port by using a net.Pipe and the internal forwardTCP handler.
+//
+// It returns (conn, true, nil) if an internal listener is present and the
+// connection was delivered to it. If no internal listener exists for the port,
+// it returns (nil, false, nil). If an unexpected error occurs while attempting
+// to wire up the connection, an error is returned.
+func (c *Conn) DialInternalTCP(_ context.Context, dstPort uint16) net.Conn {
+	// Fast-path: if the tailnet connection is closed, report no internal listener.
+	select {
+	case <-c.closed:
+		return nil
+	default:
+	}
+
+	// forwardTCP only inspects the destination port to route to a listener.
+	// Use an unspecified address for logging context.
+	unspec := netip.AddrFrom16([16]byte{})
+	handler, _, ok := c.forwardTCP(netip.AddrPortFrom(unspec, 0), netip.AddrPortFrom(unspec, dstPort))
+	if !ok || handler == nil {
+		return nil
+	}
+
+	server, client := net.Pipe()
+	// Deliver the server end to the listener asynchronously.
+	go handler(server)
+	return client
+}
+
 // SetConnStatsCallback sets a callback to be called after maxPeriod or
 // maxConns, whichever comes first. Multiple calls overwrites the callback.
 func (c *Conn) SetConnStatsCallback(maxPeriod time.Duration, maxConns int, dump func(start, end time.Time, virtual, physical map[netlogtype.Connection]netlogtype.Counts)) {

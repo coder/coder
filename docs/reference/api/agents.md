@@ -1031,6 +1031,148 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/coo
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get workspace agent immortal streams
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/immortal-streams \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/{workspaceagent}/immortal-streams`
+
+### Parameters
+
+| Name             | In   | Type         | Required | Description        |
+|------------------|------|--------------|----------|--------------------|
+| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_connection_at": "2019-08-24T14:15:22Z",
+    "last_disconnection_at": "2019-08-24T14:15:22Z",
+    "name": "string",
+    "tcp_port": 0
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                |
+|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ImmortalStream](schemas.md#codersdkimmortalstream) |
+
+<h3 id="get-workspace-agent-immortal-streams-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                      | Type              | Required | Restrictions | Description |
+|---------------------------|-------------------|----------|--------------|-------------|
+| `[array item]`            | array             | false    |              |             |
+| `» created_at`            | string(date-time) | false    |              |             |
+| `» id`                    | string(uuid)      | false    |              |             |
+| `» last_connection_at`    | string(date-time) | false    |              |             |
+| `» last_disconnection_at` | string(date-time) | false    |              |             |
+| `» name`                  | string            | false    |              |             |
+| `» tcp_port`              | integer           | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create workspace agent immortal stream
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/immortal-streams \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /workspaceagents/{workspaceagent}/immortal-streams`
+
+> Body parameter
+
+```json
+{
+  "tcp_port": 0
+}
+```
+
+### Parameters
+
+| Name             | In   | Type                                                                                   | Required | Description                    |
+|------------------|------|----------------------------------------------------------------------------------------|----------|--------------------------------|
+| `workspaceagent` | path | string(uuid)                                                                           | true     | Workspace agent ID             |
+| `body`           | body | [codersdk.CreateImmortalStreamRequest](schemas.md#codersdkcreateimmortalstreamrequest) | true     | Create immortal stream request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_connection_at": "2019-08-24T14:15:22Z",
+  "last_disconnection_at": "2019-08-24T14:15:22Z",
+  "name": "string",
+  "tcp_port": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                       |
+|--------|--------------------------------------------------------------|-------------|--------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.ImmortalStream](schemas.md#codersdkimmortalstream) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete workspace agent immortal stream
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/immortal-streams/{immortalstream} \
+  -H 'Accept: */*' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /workspaceagents/{workspaceagent}/immortal-streams/{immortalstream}`
+
+### Parameters
+
+| Name             | In   | Type         | Required | Description        |
+|------------------|------|--------------|----------|--------------------|
+| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
+| `immortalstream` | path | string(uuid) | true     | Immortal stream ID |
+
+### Example responses
+
+> 200 Response
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get listening ports for workspace agent
 
 ### Code samples

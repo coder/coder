@@ -1437,6 +1437,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `name`            | string  | true     |              |             |
 | `quota_allowance` | integer | false    |              |             |
 
+## codersdk.CreateImmortalStreamRequest
+
+```json
+{
+  "tcp_port": 0
+}
+```
+
+### Properties
+
+| Name       | Type    | Required | Restrictions | Description |
+|------------|---------|----------|--------------|-------------|
+| `tcp_port` | integer | false    |              |             |
+
 ## codersdk.CreateOrganizationRequest
 
 ```json
@@ -3904,6 +3918,30 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |----------------------|---------|----------|--------------|-------------|
 | `refresh`            | integer | false    |              |             |
 | `threshold_database` | integer | false    |              |             |
+
+## codersdk.ImmortalStream
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_connection_at": "2019-08-24T14:15:22Z",
+  "last_disconnection_at": "2019-08-24T14:15:22Z",
+  "name": "string",
+  "tcp_port": 0
+}
+```
+
+### Properties
+
+| Name                    | Type    | Required | Restrictions | Description |
+|-------------------------|---------|----------|--------------|-------------|
+| `created_at`            | string  | false    |              |             |
+| `id`                    | string  | false    |              |             |
+| `last_connection_at`    | string  | false    |              |             |
+| `last_disconnection_at` | string  | false    |              |             |
+| `name`                  | string  | false    |              |             |
+| `tcp_port`              | integer | false    |              |             |
 
 ## codersdk.InboxNotification
 

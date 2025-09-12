@@ -202,6 +202,17 @@ func (bp *BackedPipe) Connected() bool {
 	return bp.state == connected && bp.reader.Connected() && bp.writer.Connected()
 }
 
+// ReaderSequenceNum returns the total bytes read by the BackedReader.
+// This can be used by protocols to communicate acknowledgment to peers.
+func (bp *BackedPipe) ReaderSequenceNum() uint64 {
+	bp.mu.RLock()
+	defer bp.mu.RUnlock()
+	if bp.reader == nil {
+		return 0
+	}
+	return bp.reader.SequenceNum()
+}
+
 // reconnectLocked handles the reconnection logic. Must be called with write lock held.
 func (bp *BackedPipe) reconnectLocked() error {
 	if bp.state == reconnecting {
