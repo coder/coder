@@ -225,6 +225,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	filter.HasAITask = parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task")
 	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
+	filter.Shared = parser.NullableBoolean(values, sql.NullBool{}, "shared")
 
 	type paramMatch struct {
 		name  string
