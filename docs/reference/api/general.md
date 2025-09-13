@@ -241,6 +241,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "display_icon": "string",
           "display_name": "string",
           "id": "string",
+          "issuer_url": "string",
           "no_refresh": true,
           "regex": "string",
           "scopes": [
@@ -248,6 +249,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           ],
           "token_url": "string",
           "type": "string",
+          "use_dynamic_client_registration": true,
           "validate_url": "string"
         }
       ]

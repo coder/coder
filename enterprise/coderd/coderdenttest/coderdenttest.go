@@ -103,6 +103,21 @@ func NewWithAPI(t *testing.T, options *Options) (
 	}
 	require.False(t, options.DontAddFirstUser && !options.DontAddLicense, "DontAddFirstUser requires DontAddLicense")
 	setHandler, cancelFunc, serverURL, oop := coderdtest.NewOptions(t, options.Options)
+
+	// This gets handled in enterprise/cli/server.go, so we also need to handle
+	// it here.
+	if len(options.ExternalTokenEncryption) > 0 {
+		keyDigests := make([]string, len(options.ExternalTokenEncryption))
+		for i, cipher := range options.ExternalTokenEncryption {
+			keyDigests[i] = cipher.HexDigest()
+		}
+		options.Logger.Info(context.Background(), "database encryption enabled", slog.F("keys", keyDigests))
+
+		cryptDB, err := dbcrypt.New(context.Background(), options.Database, options.ExternalTokenEncryption...)
+		require.NoError(t, err)
+		oop.Database = cryptDB
+	}
+
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
 		RBAC:                       true,
 		ConnectionLogging:          options.ConnectionLogging,
@@ -119,7 +134,6 @@ func NewWithAPI(t *testing.T, options *Options) (
 		ProxyHealthInterval:        options.ProxyHealthInterval,
 		DefaultQuietHoursSchedule:  oop.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value(),
 		ProvisionerDaemonPSK:       options.ProvisionerDaemonPSK,
-		ExternalTokenEncryption:    options.ExternalTokenEncryption,
 	})
 	require.NoError(t, err)
 	setHandler(coderAPI.AGPL.RootHandler)

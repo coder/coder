@@ -43,6 +43,9 @@ type Config struct {
 	ID string
 	// Type is the type of provider.
 	Type string
+	// IsDynamic is true if the provider is registered using dynamic client
+	// registration.
+	IsDynamic bool
 	// DeviceAuth is set if the provider uses the device flow.
 	DeviceAuth *DeviceAuth
 	// DisplayName is the name of the provider to display to the user.
@@ -611,6 +614,7 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 		cfg := &Config{
 			InstrumentedOAuth2Config: instrumented,
 			ID:                       entry.ID,
+			IsDynamic:                entry.UseDynamicClientRegistration,
 			Regex:                    regex,
 			Type:                     entry.Type,
 			NoRefresh:                entry.NoRefresh,

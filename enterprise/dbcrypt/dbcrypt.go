@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"slices"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -12,9 +13,13 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// testValue is the value that is stored in dbcrypt_keys.test.
-// This is used to determine if the key is valid.
-const testValue = "coder"
+const (
+	WrapName = "dbcrypt.dbCrypt"
+
+	// testValue is the value that is stored in dbcrypt_keys.test.
+	// This is used to determine if the key is valid.
+	testValue = "coder"
+)
 
 var (
 	b64encode = base64.StdEncoding.EncodeToString
@@ -33,6 +38,13 @@ func (e *DecryptFailedError) Error() string {
 // New creates a database.Store wrapper that encrypts/decrypts values
 // stored at rest in the database.
 func New(ctx context.Context, db database.Store, ciphers ...Cipher) (database.Store, error) {
+	// If the underlying db store is already a dbCrypt, return an error. Other
+	// wrappers return the existing store as-is, but in dbcrypt we do not want
+	// this to ever happen, as the two stores could have different keys.
+	if slices.Contains(db.Wrappers(), WrapName) {
+		return nil, xerrors.Errorf("database already wrapped with dbcrypt")
+	}
+
 	cm := make(map[string]Cipher)
 	for _, c := range ciphers {
 		cm[c.HexDigest()] = c
@@ -58,6 +70,10 @@ type dbCrypt struct {
 	// ciphers is a map of cipher digests to ciphers.
 	ciphers map[string]Cipher
 	database.Store
+}
+
+func (db *dbCrypt) Wrappers() []string {
+	return append(db.Store.Wrappers(), WrapName)
 }
 
 func (db *dbCrypt) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
@@ -274,6 +290,33 @@ func (db *dbCrypt) UpdateExternalAuthLinkRefreshToken(ctx context.Context, param
 	}
 
 	return db.Store.UpdateExternalAuthLinkRefreshToken(ctx, params)
+}
+
+func (db *dbCrypt) InsertExternalAuthDcrClient(ctx context.Context, params database.InsertExternalAuthDcrClientParams) (database.ExternalAuthDcrClient, error) {
+	if err := db.encryptField(&params.ClientSecret, &params.ClientSecretKeyID); err != nil {
+		return database.ExternalAuthDcrClient{}, err
+	}
+	dbClient, err := db.Store.InsertExternalAuthDcrClient(ctx, params)
+	if err != nil {
+		return database.ExternalAuthDcrClient{}, err
+	}
+	if err := db.decryptField(&dbClient.ClientSecret, dbClient.ClientSecretKeyID); err != nil {
+		return database.ExternalAuthDcrClient{}, err
+	}
+	return dbClient, nil
+}
+
+func (db *dbCrypt) ListExternalAuthDcrClients(ctx context.Context) ([]database.ExternalAuthDcrClient, error) {
+	dbClients, err := db.Store.ListExternalAuthDcrClients(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range dbClients {
+		if err := db.decryptField(&dbClients[i].ClientSecret, dbClients[i].ClientSecretKeyID); err != nil {
+			return nil, xerrors.Errorf("decrypt external auth dcr client %q: %w", dbClients[i].ProviderID, err)
+		}
+	}
+	return dbClients, nil
 }
 
 func (db *dbCrypt) GetCryptoKeys(ctx context.Context) ([]database.CryptoKey, error) {
