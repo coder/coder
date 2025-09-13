@@ -216,6 +216,7 @@ export const MultiSelectCombobox = forwardRef<
 		const [onScrollbar, setOnScrollbar] = useState(false);
 		const [isLoading, setIsLoading] = useState(false);
 		const dropdownRef = useRef<HTMLDivElement>(null);
+		const listRef = useRef<HTMLDivElement>(null);
 
 		const [selected, setSelected] = useState<Option[]>(
 			arrayDefaultOptions ?? [],
@@ -363,6 +364,15 @@ export const MultiSelectCombobox = forwardRef<
 
 			void exec();
 		}, [debouncedSearchTerm, groupBy, open, triggerSearchOnFocus, onSearch]);
+
+		// Scroll dropdown into view on open
+		useEffect(() => {
+			if (!open || !listRef.current) {
+				return;
+			}
+
+			listRef.current.scrollIntoView({ behavior: "smooth" });
+		}, [open]);
 
 		const CreatableItem = () => {
 			if (!creatable) {
@@ -603,7 +613,7 @@ export const MultiSelectCombobox = forwardRef<
 						</div>
 					</div>
 				</div>
-				<div className="relative">
+				<div className="relative" ref={listRef}>
 					{open && (
 						<CommandList
 							className={`absolute top-1 z-10 w-full rounded-md
