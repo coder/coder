@@ -106,6 +106,7 @@ var loggableMimeTypes = map[string]struct{}{
 }
 
 // New creates a Coder client for the provided URL.
+// Deprecated: Use the ClientBuilder to create a client.
 func New(serverURL *url.URL) *Client {
 	return &Client{
 		URL:                  serverURL,
@@ -129,15 +130,18 @@ type Client struct {
 
 	// PlainLogger may be set to log HTTP traffic in a human-readable form.
 	// It uses the LogBodies option.
+	// Deprecated: Use the ClientBuilder to set this.
 	PlainLogger io.Writer
 
 	// Trace can be enabled to propagate tracing spans to the Coder API.
 	// This is useful for tracking a request end-to-end.
+	// Deprecated: Use the ClientBuilder to set this.
 	Trace bool
 
 	// DisableDirectConnections forces any connections to workspaces to go
 	// through DERP, regardless of the BlockEndpoints setting on each
 	// connection.
+	// Deprecated: Use the ClientBuilder to set this.
 	DisableDirectConnections bool
 }
 
@@ -149,6 +153,7 @@ func (c *Client) Logger() slog.Logger {
 }
 
 // SetLogger sets the logger for the client.
+// Deprecated: Use the ClientBuilder to set this.
 func (c *Client) SetLogger(logger slog.Logger) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -163,6 +168,7 @@ func (c *Client) LogBodies() bool {
 }
 
 // SetLogBodies sets whether to log request and response bodies.
+// Deprecated: Use the ClientBuilder to set this.
 func (c *Client) SetLogBodies(logBodies bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -177,16 +183,11 @@ func (c *Client) SessionToken() string {
 }
 
 // SetSessionToken sets a fixed token for the client.
-// Deprecated: Create a new client instead of changing the token after creation.
+// Deprecated: Build a new client using the ClientBuilder instead of changing the token after creation.
 func (c *Client) SetSessionToken(token string) {
-	c.SetSessionTokenProvider(FixedSessionTokenProvider{SessionToken: token})
-}
-
-// SetSessionTokenProvider sets the session token provider for the client.
-func (c *Client) SetSessionTokenProvider(provider SessionTokenProvider) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.SessionTokenProvider = provider
+	c.SessionTokenProvider = FixedSessionTokenProvider{SessionToken: token}
 }
 
 func prefixLines(prefix, s []byte) []byte {

@@ -46,9 +46,9 @@ var ExternalLogSourceID = uuid.MustParse("3b579bf4-1ed8-4b99-87a8-e9a1e3410410")
 type SessionTokenSetup func(client *codersdk.Client) RefreshableSessionTokenProvider
 
 func New(serverURL *url.URL, setup SessionTokenSetup) *Client {
-	c := codersdk.New(serverURL)
-	provider := setup(c)
-	c.SessionTokenProvider = provider
+	b := codersdk.NewClientBuilder(serverURL)
+	provider := setup(b.DangerouslyGetUnbuiltClient())
+	c := b.SessionTokenProvider(provider).Build()
 	return &Client{
 		SDK:                             c,
 		RefreshableSessionTokenProvider: provider,
