@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
@@ -27,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestOAuth2ProviderApps(t *testing.T) {
@@ -1182,6 +1184,71 @@ func TestOAuth2ProviderCrossResourceAudienceValidation(t *testing.T) {
 
 	// TODO: Enhance this test when we have better cross-deployment testing setup
 	// For now, this verifies the basic token flow works correctly
+}
+
+// TestOAuth2RefreshExpiryOutlivesAccess verifies that refresh token expiry is
+// greater than the provisioned access token (API key) expiry per configuration.
+func TestOAuth2RefreshExpiryOutlivesAccess(t *testing.T) {
+	t.Parallel()
+
+	// Set explicit lifetimes to make comparison deterministic.
+	db, pubsub := dbtestutil.NewDB(t)
+	dv := coderdtest.DeploymentValues(t, func(d *codersdk.DeploymentValues) {
+		d.Sessions.DefaultDuration = serpent.Duration(1 * time.Hour)
+		d.Sessions.RefreshDefaultDuration = serpent.Duration(48 * time.Hour)
+	})
+	ownerClient := coderdtest.New(t, &coderdtest.Options{
+		Database:         db,
+		Pubsub:           pubsub,
+		DeploymentValues: dv,
+	})
+	_ = coderdtest.CreateFirstUser(t, ownerClient)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Create app and secret
+	// Keep suffix short to satisfy name validation (<=32 chars, alnum + hyphens).
+	apps := generateApps(ctx, t, ownerClient, "ref-exp")
+	//nolint:gocritic // Owner permission required for app secret creation
+	secret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
+	require.NoError(t, err)
+
+	cfg := &oauth2.Config{
+		ClientID:     apps.Default.ID.String(),
+		ClientSecret: secret.ClientSecretFull,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:       apps.Default.Endpoints.Authorization,
+			DeviceAuthURL: apps.Default.Endpoints.DeviceAuth,
+			TokenURL:      apps.Default.Endpoints.Token,
+			AuthStyle:     oauth2.AuthStyleInParams,
+		},
+		RedirectURL: apps.Default.CallbackURL,
+		Scopes:      []string{},
+	}
+
+	// Authorization and token exchange
+	code, err := authorizationFlow(ctx, ownerClient, cfg)
+	require.NoError(t, err)
+	tok, err := cfg.Exchange(ctx, code)
+	require.NoError(t, err)
+	require.NotEmpty(t, tok.AccessToken)
+	require.NotEmpty(t, tok.RefreshToken)
+
+	// Parse refresh token prefix (coder_<prefix>_<secret>)
+	parts := strings.Split(tok.RefreshToken, "_")
+	require.Len(t, parts, 3)
+	prefix := parts[1]
+
+	// Look up refresh token row and associated API key
+	dbToken, err := db.GetOAuth2ProviderAppTokenByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(prefix))
+	require.NoError(t, err)
+	apiKey, err := db.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), dbToken.APIKeyID)
+	require.NoError(t, err)
+
+	// Assert refresh token expiry is strictly after access token expiry
+	require.Truef(t, dbToken.ExpiresAt.After(apiKey.ExpiresAt),
+		"expected refresh expiry %s to be after access expiry %s",
+		dbToken.ExpiresAt, apiKey.ExpiresAt,
+	)
 }
 
 // customTokenExchange performs a custom OAuth2 token exchange with support for resource parameter

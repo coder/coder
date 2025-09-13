@@ -16424,6 +16424,10 @@ const docTemplate = `{
                 },
                 "max_token_lifetime": {
                     "type": "integer"
+                },
+                "refresh_default_duration": {
+                    "description": "RefreshDefaultDuration is the default lifetime for OAuth2 refresh tokens.\nThis should generally be longer than access token lifetimes to allow\nrefreshing after access token expiry.",
+                    "type": "integer"
                 }
             }
         },

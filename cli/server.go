@@ -350,6 +350,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("access-url must include a scheme (e.g. 'http://' or 'https://)")
 			}
 
+			// Cross-field configuration validation after initial parsing.
+			if err := vals.Validate(); err != nil {
+				return err
+			}
+
 			// Disable rate limits if the `--dangerous-disable-rate-limits` flag
 			// was specified.
 			loginRateLimit := 60
