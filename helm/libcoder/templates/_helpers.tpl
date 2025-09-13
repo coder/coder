@@ -198,3 +198,45 @@ Usage:
         {{- tpl (.value | toYaml) .context }}
     {{- end }}
 {{- end -}}
+
+{{- define "libcoder.rbac.rules.basic" -}}
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+{{- end }}
+
+{{- define "libcoder.rbac.rules.deployments" -}}
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+{{- end }}
+
