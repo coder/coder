@@ -3,33 +3,34 @@ import FormHelperText, {
 } from "@mui/material/FormHelperText";
 import { Stack } from "components/Stack/Stack";
 import type { ComponentProps, FC } from "react";
+import { cn } from "utils/cn";
 
 /**
  * Use these components as the label in FormControlLabel when implementing radio
  * buttons, checkboxes, or switches to ensure proper styling.
  */
 
-export const StackLabel: FC<ComponentProps<typeof Stack>> = (props) => {
+export const StackLabel: FC<ComponentProps<typeof Stack>> = ({
+	className,
+	...delegatedProps
+}) => {
 	return (
 		<Stack
 			spacing={0.5}
-			css={{ paddingLeft: 12, fontWeight: 500 }}
-			{...props}
+			className={cn("pl-3 font-medium", className)}
+			{...delegatedProps}
 		/>
 	);
 };
 
-export const StackLabelHelperText: FC<FormHelperTextProps> = (props) => {
+export const StackLabelHelperText: FC<FormHelperTextProps> = ({
+	className,
+	...delegatedProps
+}) => {
 	return (
 		<FormHelperText
-			css={(theme) => ({
-				marginTop: 0,
-
-				"& strong": {
-					color: theme.palette.text.primary,
-				},
-			})}
-			{...props}
+			className={cn("mt-0 [&_strong]:text-content-primary", className)}
+			{...delegatedProps}
 		/>
 	);
 };

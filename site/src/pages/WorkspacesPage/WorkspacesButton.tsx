@@ -10,7 +10,7 @@ import {
 import { Loader } from "components/Loader/Loader";
 import { MenuSearch } from "components/Menu/MenuSearch";
 import { OverflowY } from "components/OverflowY/OverflowY";
-import { SearchEmpty, searchStyles } from "components/Search/Search";
+import { SearchEmpty } from "components/Search/Search";
 import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, type ReactNode, useState } from "react";
@@ -63,7 +63,11 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 			<PopoverContent
 				horizontal="right"
 				css={{
-					".MuiPaper-root": searchStyles.content,
+					".MuiPaper-root": {
+						width: 320,
+						padding: 0,
+						borderRadius: 4,
+					},
 				}}
 			>
 				<MenuSearch
