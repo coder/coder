@@ -10,9 +10,9 @@ import {
 	SelectMenuTrigger,
 } from "components/SelectMenu/SelectMenu";
 import { type FC, type ReactNode, useState } from "react";
+import { cn } from "utils/cn";
 
 const BASE_WIDTH = 200;
-const POPOVER_WIDTH = 320;
 
 export type SelectFilterOption = {
 	startIcon?: ReactNode;
@@ -60,15 +60,15 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 				</SelectMenuButton>
 			</SelectMenuTrigger>
 			<SelectMenuContent
-				horizontal="right"
-				css={{
-					"& .MuiPaper-root": {
-						// When including selectFilterSearch, we aim for the width to be as
-						// wide as possible.
-						width: selectFilterSearch ? "100%" : undefined,
-						maxWidth: POPOVER_WIDTH,
-						minWidth: width,
-					},
+				align="end"
+				className={cn([
+					// When including selectFilterSearch, we aim for the width to be as
+					// wide as possible.
+					selectFilterSearch && "w-full",
+					"max-w-[320px]",
+				])}
+				style={{
+					minWidth: width,
 				}}
 			>
 				{selectFilterSearch}

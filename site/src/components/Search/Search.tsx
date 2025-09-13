@@ -104,14 +104,3 @@ const SearchEmptyStyles = {
 		paddingBottom: 8,
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
-
-/**
- * Reusable styles for consumers of the base components
- */
-export const searchStyles = {
-	content: {
-		width: 320,
-		padding: 0,
-		borderRadius: 4,
-	},
-} satisfies Record<string, Interpolation<Theme>>;
