@@ -6653,6 +6653,415 @@ func TestGetLatestWorkspaceBuildsByWorkspaceIDs(t *testing.T) {
 	}
 }
 
+func TestTasksWithStatusView(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+
+	createProvisionerJob := func(t *testing.T, buildStatus database.ProvisionerJobStatus) database.ProvisionerJob {
+		t.Helper()
+
+		var jobParams database.ProvisionerJob
+
+		switch buildStatus {
+		case database.ProvisionerJobStatusPending:
+			jobParams = database.ProvisionerJob{
+				OrganizationID: org.ID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				InitiatorID:    user.ID,
+			}
+		case database.ProvisionerJobStatusRunning:
+			jobParams = database.ProvisionerJob{
+				OrganizationID: org.ID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				InitiatorID:    user.ID,
+				StartedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
+			}
+		case database.ProvisionerJobStatusFailed:
+			jobParams = database.ProvisionerJob{
+				OrganizationID: org.ID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				InitiatorID:    user.ID,
+				StartedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
+				CompletedAt:    sql.NullTime{Valid: true, Time: dbtime.Now()},
+				Error:          sql.NullString{Valid: true, String: "job failed"},
+			}
+		case database.ProvisionerJobStatusSucceeded:
+			jobParams = database.ProvisionerJob{
+				OrganizationID: org.ID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				InitiatorID:    user.ID,
+				StartedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
+				CompletedAt:    sql.NullTime{Valid: true, Time: dbtime.Now()},
+			}
+		default:
+			t.Errorf("invalid build status: %v", buildStatus)
+		}
+
+		return dbgen.ProvisionerJob(t, db, nil, jobParams)
+	}
+
+	createTask := func(
+		t *testing.T,
+		buildStatus database.ProvisionerJobStatus,
+		buildTransition database.WorkspaceTransition,
+		agentState database.WorkspaceAgentLifecycleState,
+		appHealths []database.WorkspaceAppHealth,
+	) database.TaskTable {
+		t.Helper()
+
+		var (
+			workspaceID      uuid.NullUUID
+			workspaceAgentID uuid.UUID
+			workspaceBuildID uuid.UUID
+			apps             []database.WorkspaceApp
+		)
+
+		template := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+
+		if buildStatus != "" {
+			job := createProvisionerJob(t, buildStatus)
+
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+				OrganizationID: org.ID,
+				TemplateID:     template.ID,
+				OwnerID:        user.ID,
+			})
+			workspaceID = uuid.NullUUID{Valid: true, UUID: workspace.ID}
+
+			workspaceBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				WorkspaceID:       workspace.ID,
+				TemplateVersionID: templateVersion.ID,
+				BuildNumber:       1,
+				Transition:        buildTransition,
+				InitiatorID:       user.ID,
+				JobID:             job.ID,
+			})
+			workspaceBuildID = workspaceBuild.ID
+
+			resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+				JobID: job.ID,
+			})
+
+			if agentState != "" {
+				agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+					ResourceID: resource.ID,
+				})
+				workspaceAgentID = agent.ID
+
+				err := db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+					ID:             agent.ID,
+					LifecycleState: agentState,
+				})
+				require.NoError(t, err)
+
+				for i, health := range appHealths {
+					app := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
+						AgentID:     workspaceAgentID,
+						Slug:        fmt.Sprintf("test-app-%d", i),
+						DisplayName: fmt.Sprintf("Test App %d", i+1),
+						Health:      health,
+					})
+					apps = append(apps, app)
+				}
+			}
+		}
+
+		task := dbgen.Task(t, db, database.TaskTable{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			Name:              "test-task",
+			WorkspaceID:       workspaceID,
+			TemplateVersionID: templateVersion.ID,
+			Prompt:            "Test prompt",
+		})
+
+		if workspaceAgentID != uuid.Nil {
+			for _, app := range apps {
+				_, err := db.InsertTaskWorkspaceApp(ctx, database.InsertTaskWorkspaceAppParams{
+					TaskID:           task.ID,
+					WorkspaceBuildID: workspaceBuildID,
+					WorkspaceAgentID: workspaceAgentID,
+					WorkspaceAppID:   app.ID,
+				})
+				require.NoError(t, err)
+			}
+		}
+
+		return task
+	}
+
+	tests := []struct {
+		name            string
+		buildStatus     database.ProvisionerJobStatus
+		buildTransition database.WorkspaceTransition
+		agentState      database.WorkspaceAgentLifecycleState
+		appHealths      []database.WorkspaceAppHealth
+		expectedStatus  database.TaskStatus
+		description     string
+	}{
+		{
+			name:           "NoWorkspace",
+			expectedStatus: "pending",
+			description:    "Task with no workspace assigned",
+		},
+		{
+			name:            "FailedBuild",
+			buildStatus:     database.ProvisionerJobStatusFailed,
+			buildTransition: database.WorkspaceTransitionStart,
+			expectedStatus:  database.TaskStatusError,
+			description:     "Latest workspace build failed",
+		},
+		{
+			name:            "StoppedWorkspace",
+			buildStatus:     database.ProvisionerJobStatusSucceeded,
+			buildTransition: database.WorkspaceTransitionStop,
+			expectedStatus:  database.TaskStatusPaused,
+			description:     "Workspace is stopped",
+		},
+		{
+			name:            "DeletedWorkspace",
+			buildStatus:     database.ProvisionerJobStatusSucceeded,
+			buildTransition: database.WorkspaceTransitionDelete,
+			expectedStatus:  database.TaskStatusPaused,
+			description:     "Workspace is deleted",
+		},
+		{
+			name:            "PendingStart",
+			buildStatus:     database.ProvisionerJobStatusPending,
+			buildTransition: database.WorkspaceTransitionStart,
+			expectedStatus:  database.TaskStatusInitializing,
+			description:     "Workspace build is starting (pending)",
+		},
+		{
+			name:            "RunningStart",
+			buildStatus:     database.ProvisionerJobStatusRunning,
+			buildTransition: database.WorkspaceTransitionStart,
+			expectedStatus:  database.TaskStatusInitializing,
+			description:     "Workspace build is starting (running)",
+		},
+		{
+			name:            "StartingAgent",
+			buildStatus:     database.ProvisionerJobStatusSucceeded,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateStarting,
+			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
+			expectedStatus:  database.TaskStatusInitializing,
+			description:     "Workspace is running but agent is starting",
+		},
+		{
+			name:            "CreatedAgent",
+			buildStatus:     database.ProvisionerJobStatusSucceeded,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateCreated,
+			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
+			expectedStatus:  database.TaskStatusInitializing,
+			description:     "Workspace is running but agent is created",
+		},
+		{
+			name:            "ReadyAgentInitializingApp",
+			buildStatus:     database.ProvisionerJobStatusSucceeded,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateReady,
+			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
+			expectedStatus:  database.TaskStatusInitializing,
+			description:     "Agent is ready but app is initializing",
+		},
+		{
+			name:            "ReadyAgentHealthyApp",
+			buildStatus:     database.ProvisionerJobStatusSucceeded,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateReady,
+			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy},
+			expectedStatus:  database.TaskStatusActive,
+			description:     "Agent is ready and app is healthy",
+		},
+		{
+			name:            "ReadyAgentDisabledApp",
+			buildStatus:     database.ProvisionerJobStatusSucceeded,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateReady,
+			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthDisabled},
+			expectedStatus:  database.TaskStatusActive,
+			description:     "Agent is ready and app health checking is disabled",
+		},
+		{
+			name:            "ReadyAgentUnhealthyApp",
+			buildStatus:     database.ProvisionerJobStatusSucceeded,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateReady,
+			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthUnhealthy},
+			expectedStatus:  database.TaskStatusError,
+			description:     "Agent is ready but app is unhealthy",
+		},
+		{
+			name:            "AgentStartTimeout",
+			buildStatus:     database.ProvisionerJobStatusSucceeded,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateStartTimeout,
+			expectedStatus:  database.TaskStatusUnknown,
+			description:     "Agent start timed out",
+		},
+		{
+			name:            "AgentStartError",
+			buildStatus:     database.ProvisionerJobStatusSucceeded,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateStartError,
+			expectedStatus:  database.TaskStatusUnknown,
+			description:     "Agent failed to start",
+		},
+		{
+			name:            "AgentShuttingDown",
+			buildStatus:     database.ProvisionerJobStatusSucceeded,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateShuttingDown,
+			expectedStatus:  database.TaskStatusUnknown,
+			description:     "Agent is shutting down",
+		},
+		{
+			name:            "AgentOff",
+			buildStatus:     database.ProvisionerJobStatusSucceeded,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateOff,
+			expectedStatus:  database.TaskStatusUnknown,
+			description:     "Agent is off",
+		},
+		{
+			name:            "MultipleAppsAllHealthy",
+			buildStatus:     database.ProvisionerJobStatusSucceeded,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateReady,
+			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy, database.WorkspaceAppHealthHealthy, database.WorkspaceAppHealthHealthy},
+			expectedStatus:  database.TaskStatusActive,
+			description:     "Agent is ready and all apps are healthy",
+		},
+		{
+			name:            "MultipleAppsOneUnhealthy",
+			buildStatus:     database.ProvisionerJobStatusSucceeded,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateReady,
+			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy, database.WorkspaceAppHealthUnhealthy, database.WorkspaceAppHealthHealthy},
+			expectedStatus:  database.TaskStatusError,
+			description:     "Agent is ready but one app is unhealthy",
+		},
+		{
+			name:            "MultipleAppsOneInitializing",
+			buildStatus:     database.ProvisionerJobStatusSucceeded,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateReady,
+			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy, database.WorkspaceAppHealthInitializing, database.WorkspaceAppHealthHealthy},
+			expectedStatus:  database.TaskStatusInitializing,
+			description:     "Agent is ready but one app is initializing",
+		},
+		{
+			name:            "MultipleAppsHealthyAndDisabled",
+			buildStatus:     database.ProvisionerJobStatusSucceeded,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateReady,
+			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy, database.WorkspaceAppHealthDisabled, database.WorkspaceAppHealthHealthy},
+			expectedStatus:  database.TaskStatusActive,
+			description:     "Agent is ready with mix of healthy and disabled apps",
+		},
+		{
+			name:            "MultipleAppsAllDisabled",
+			buildStatus:     database.ProvisionerJobStatusSucceeded,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateReady,
+			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthDisabled, database.WorkspaceAppHealthDisabled},
+			expectedStatus:  database.TaskStatusActive,
+			description:     "Agent is ready with all apps disabled",
+		},
+		{
+			name:            "MultipleAppsInitializingAndUnhealthy",
+			buildStatus:     database.ProvisionerJobStatusSucceeded,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateReady,
+			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing, database.WorkspaceAppHealthUnhealthy},
+			expectedStatus:  database.TaskStatusError,
+			description:     "Agent is ready but has initializing and unhealthy apps - unhealthy takes precedence",
+		},
+		{
+			name:            "RunningJobReadyAgentHealthyApp",
+			buildStatus:     database.ProvisionerJobStatusRunning,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateReady,
+			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy},
+			expectedStatus:  database.TaskStatusActive,
+			description:     "Running job with ready agent and healthy app should be active",
+		},
+		{
+			name:            "RunningJobReadyAgentInitializingApp",
+			buildStatus:     database.ProvisionerJobStatusRunning,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateReady,
+			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
+			expectedStatus:  database.TaskStatusInitializing,
+			description:     "Running job with ready agent but initializing app should be initializing",
+		},
+		{
+			name:            "RunningJobReadyAgentUnhealthyApp",
+			buildStatus:     database.ProvisionerJobStatusRunning,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateReady,
+			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthUnhealthy},
+			expectedStatus:  database.TaskStatusError,
+			description:     "Running job with ready agent but unhealthy app should be error",
+		},
+		{
+			name:            "RunningJobConnectingAgent",
+			buildStatus:     database.ProvisionerJobStatusRunning,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateStarting,
+			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
+			expectedStatus:  database.TaskStatusInitializing,
+			description:     "Running job with connecting agent should be initializing",
+		},
+		{
+			name:            "RunningJobReadyAgentDisabledApp",
+			buildStatus:     database.ProvisionerJobStatusRunning,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateReady,
+			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthDisabled},
+			expectedStatus:  database.TaskStatusActive,
+			description:     "Running job with ready agent and disabled app health checking should be active",
+		},
+		{
+			name:            "RunningJobReadyAgentMultipleHealthyApps",
+			buildStatus:     database.ProvisionerJobStatusRunning,
+			buildTransition: database.WorkspaceTransitionStart,
+			agentState:      database.WorkspaceAgentLifecycleStateReady,
+			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy, database.WorkspaceAppHealthHealthy},
+			expectedStatus:  database.TaskStatusActive,
+			description:     "Running job with ready agent and multiple healthy apps should be active",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			task := createTask(t, tt.buildStatus, tt.buildTransition, tt.agentState, tt.appHealths)
+
+			got, err := db.GetTaskByID(ctx, task.ID)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.expectedStatus, got.Status, "unexpected status for test case: %s", tt.description)
+		})
+	}
+}
+
 func TestUsageEventsTrigger(t *testing.T) {
 	t.Parallel()
 
