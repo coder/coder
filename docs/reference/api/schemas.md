@@ -3395,6 +3395,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "id": 0
     }
   ],
+  "supports_revocation": true,
   "user": {
     "avatar_url": "string",
     "id": 0,
@@ -3407,15 +3408,16 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name              | Type                                                                                  | Required | Restrictions | Description                                                             |
-|-------------------|---------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
-| `app_install_url` | string                                                                                | false    |              | App install URL is the URL to install the app.                          |
-| `app_installable` | boolean                                                                               | false    |              | App installable is true if the request for app installs was successful. |
-| `authenticated`   | boolean                                                                               | false    |              |                                                                         |
-| `device`          | boolean                                                                               | false    |              |                                                                         |
-| `display_name`    | string                                                                                | false    |              |                                                                         |
-| `installations`   | array of [codersdk.ExternalAuthAppInstallation](#codersdkexternalauthappinstallation) | false    |              | Installations are the installations that the user has access to.        |
-| `user`            | [codersdk.ExternalAuthUser](#codersdkexternalauthuser)                                | false    |              | User is the user that authenticated with the provider.                  |
+| Name                  | Type                                                                                  | Required | Restrictions | Description                                                             |
+|-----------------------|---------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
+| `app_install_url`     | string                                                                                | false    |              | App install URL is the URL to install the app.                          |
+| `app_installable`     | boolean                                                                               | false    |              | App installable is true if the request for app installs was successful. |
+| `authenticated`       | boolean                                                                               | false    |              |                                                                         |
+| `device`              | boolean                                                                               | false    |              |                                                                         |
+| `display_name`        | string                                                                                | false    |              |                                                                         |
+| `installations`       | array of [codersdk.ExternalAuthAppInstallation](#codersdkexternalauthappinstallation) | false    |              | Installations are the installations that the user has access to.        |
+| `supports_revocation` | boolean                                                                               | false    |              |                                                                         |
+| `user`                | [codersdk.ExternalAuthUser](#codersdkexternalauthuser)                                | false    |              | User is the user that authenticated with the provider.                  |
 
 ## codersdk.ExternalAuthAppInstallation
 

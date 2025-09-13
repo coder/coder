@@ -751,6 +751,11 @@ export interface DatabaseReport extends BaseReport {
 	readonly threshold_ms: number;
 }
 
+// From codersdk/externalauth.go
+export interface DeleteExternalAuthByIDResponse {
+	readonly TokenRevocationSuccessful: boolean;
+}
+
 // From codersdk/notifications.go
 export interface DeleteWebpushSubscription {
 	readonly endpoint: string;
@@ -961,6 +966,7 @@ export interface ExternalAuth {
 	readonly authenticated: boolean;
 	readonly device: boolean;
 	readonly display_name: string;
+	readonly supports_revocation: boolean;
 	readonly user: ExternalAuthUser | null;
 	readonly app_installable: boolean;
 	readonly installations: readonly ExternalAuthAppInstallation[];
@@ -1027,6 +1033,7 @@ export interface ExternalAuthLinkProvider {
 	readonly display_icon: string;
 	readonly allow_refresh: boolean;
 	readonly allow_validate: boolean;
+	readonly supports_revocation: boolean;
 }
 
 // From codersdk/externalauth.go

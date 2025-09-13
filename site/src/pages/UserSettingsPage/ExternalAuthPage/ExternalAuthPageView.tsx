@@ -37,7 +37,7 @@ type ExternalAuthPageViewProps = {
 	getAuthsError?: unknown;
 	unlinked: number;
 	auths?: ListUserExternalAuthResponse;
-	onUnlinkExternalAuth: (provider: string) => void;
+	onUnlinkExternalAuth: (provider: string, supports_revocation: boolean) => void;
 	onValidateExternalAuth: (provider: string) => void;
 };
 
@@ -83,7 +83,7 @@ export const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 								unlinked={unlinked}
 								link={auths.links.find((l) => l.provider_id === app.id)}
 								onUnlinkExternalAuth={() => {
-									onUnlinkExternalAuth(app.id);
+									onUnlinkExternalAuth(app.id, app.supports_revocation);
 								}}
 								onValidateExternalAuth={() => {
 									onValidateExternalAuth(app.id);

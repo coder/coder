@@ -960,6 +960,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "Git"
                 ],
@@ -13198,6 +13201,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ExternalAuthAppInstallation"
                     }
+                },
+                "supports_revocation": {
+                    "type": "boolean"
                 },
                 "user": {
                     "description": "User is the user that authenticated with the provider.",

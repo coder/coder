@@ -822,6 +822,7 @@
 						"CoderSessionToken": []
 					}
 				],
+				"produces": ["application/json"],
 				"tags": ["Git"],
 				"summary": "Delete external auth user link by ID",
 				"operationId": "delete-external-auth-user-link-by-id",
@@ -11834,6 +11835,9 @@
 					"items": {
 						"$ref": "#/definitions/codersdk.ExternalAuthAppInstallation"
 					}
+				},
+				"supports_revocation": {
+					"type": "boolean"
 				},
 				"user": {
 					"description": "User is the user that authenticated with the provider.",

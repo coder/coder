@@ -4437,6 +4437,7 @@ export const MockGithubExternalProvider: TypesGen.ExternalAuthLinkProvider = {
 	display_name: "GitHub",
 	allow_refresh: true,
 	allow_validate: true,
+	supports_revocation: false,
 };
 
 export const MockGithubAuthLink: TypesGen.ExternalAuthLink = {
