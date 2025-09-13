@@ -351,7 +351,7 @@ export interface ConnectionLog {
 	readonly workspace_id: string;
 	readonly workspace_name: string;
 	readonly agent_name: string;
-	readonly ip: string;
+	readonly ip?: string;
 	readonly type: ConnectionType;
 	readonly web_info?: ConnectionLogWebInfo;
 	readonly ssh_info?: ConnectionLogSSHInfo;

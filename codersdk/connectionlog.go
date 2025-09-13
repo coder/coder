@@ -20,7 +20,7 @@ type ConnectionLog struct {
 	WorkspaceID            uuid.UUID           `json:"workspace_id" format:"uuid"`
 	WorkspaceName          string              `json:"workspace_name"`
 	AgentName              string              `json:"agent_name"`
-	IP                     netip.Addr          `json:"ip"`
+	IP                     *netip.Addr         `json:"ip,omitempty"`
 	Type                   ConnectionType      `json:"type"`
 
 	// WebInfo is only set when `type` is one of:

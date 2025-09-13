@@ -39,7 +39,7 @@ func (p *TokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *ht
 	}
 	issueReq.AppRequest = appReq
 
-	resp, ok := p.Client.IssueSignedAppTokenHTML(ctx, rw, issueReq)
+	resp, ok := p.Client.IssueSignedAppTokenHTML(ctx, rw, issueReq, r.RemoteAddr)
 	if !ok {
 		return nil, "", false
 	}

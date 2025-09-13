@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"database/sql"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -610,13 +613,18 @@ func TestProxyRegisterDeregister(t *testing.T) {
 func TestIssueSignedAppToken(t *testing.T) {
 	t.Parallel()
 
+	connectionLogger := connectionlog.NewFake()
+
 	client, user := coderdenttest.New(t, &coderdenttest.Options{
+		ConnectionLogging: true,
 		Options: &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
+			ConnectionLogger:         connectionLogger,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureWorkspaceProxy: 1,
+				codersdk.FeatureConnectionLog:  1,
 			},
 		},
 	})
@@ -653,7 +661,7 @@ func TestIssueSignedAppToken(t *testing.T) {
 			// Invalid request.
 			AppRequest:   workspaceapps.Request{},
 			SessionToken: client.SessionToken(),
-		})
+		}, "127.0.0.1")
 		require.Error(t, err)
 	})
 
@@ -669,18 +677,38 @@ func TestIssueSignedAppToken(t *testing.T) {
 		t.Parallel()
 		proxyClient := wsproxysdk.New(client.URL, proxyRes.ProxyToken)
 
+		fakeClientIP := "13.37.13.37"
+		parsedFakeClientIP := pqtype.Inet{
+			Valid: true, IPNet: net.IPNet{
+				IP:   net.ParseIP(fakeClientIP),
+				Mask: net.CIDRMask(32, 32),
+			},
+		}
+
 		ctx := testutil.Context(t, testutil.WaitLong)
-		_, err := proxyClient.IssueSignedAppToken(ctx, goodRequest)
+		_, err := proxyClient.IssueSignedAppToken(ctx, goodRequest, fakeClientIP)
 		require.NoError(t, err)
+
+		require.True(t, connectionLogger.Contains(t, database.UpsertConnectionLogParams{
+			Ip: parsedFakeClientIP,
+		}))
 	})
 
 	t.Run("OKHTML", func(t *testing.T) {
 		t.Parallel()
 		proxyClient := wsproxysdk.New(client.URL, proxyRes.ProxyToken)
 
+		fakeClientIP := "192.168.1.100"
+		parsedFakeClientIP := pqtype.Inet{
+			Valid: true, IPNet: net.IPNet{
+				IP:   net.ParseIP(fakeClientIP),
+				Mask: net.CIDRMask(32, 32),
+			},
+		}
+
 		rw := httptest.NewRecorder()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		_, ok := proxyClient.IssueSignedAppTokenHTML(ctx, rw, goodRequest)
+		_, ok := proxyClient.IssueSignedAppTokenHTML(ctx, rw, goodRequest, fakeClientIP)
 		if !assert.True(t, ok, "expected true") {
 			resp := rw.Result()
 			defer resp.Body.Close()
@@ -688,22 +716,31 @@ func TestIssueSignedAppToken(t *testing.T) {
 			require.NoError(t, err)
 			t.Log(string(dump))
 		}
+
+		require.True(t, connectionLogger.Contains(t, database.UpsertConnectionLogParams{
+			Ip: parsedFakeClientIP,
+		}))
 	})
 }
 
 func TestReconnectingPTYSignedToken(t *testing.T) {
 	t.Parallel()
 
+	connectionLogger := connectionlog.NewFake()
+
 	db, pubsub := dbtestutil.NewDB(t)
 	client, closer, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		ConnectionLogging: true,
 		Options: &coderdtest.Options{
 			Database:                 db,
 			Pubsub:                   pubsub,
 			IncludeProvisionerDaemon: true,
+			ConnectionLogger:         connectionLogger,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureWorkspaceProxy: 1,
+				codersdk.FeatureConnectionLog:  1,
 			},
 		},
 	})
@@ -887,6 +924,15 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 
 		// The token is validated in the apptest suite, so we don't need to
 		// validate it here.
+
+		require.True(t, connectionLogger.Contains(t, database.UpsertConnectionLogParams{
+			Ip: pqtype.Inet{
+				Valid: true, IPNet: net.IPNet{
+					IP:   net.ParseIP("127.0.0.1"),
+					Mask: net.CIDRMask(32, 32),
+				},
+			},
+		}))
 	})
 }
 
