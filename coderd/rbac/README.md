@@ -169,7 +169,7 @@ This command answers the question: “Is the user allowed?”
 ### Partial Evaluation
 
 ```bash
-opa eval --partial --format=pretty 'data.authz.allow' -d policy.rego --unknowns input.object.owner --unknowns input.object.org_owner --unknowns input.object.acl_user_list --unknowns input.object.acl_group_list -i input.json
+opa eval --partial --format=pretty 'data.authz.allow' -d policy.rego --unknowns input.object.id --unknowns input.object.owner --unknowns input.object.org_owner --unknowns input.object.acl_user_list --unknowns input.object.acl_group_list -i input.json
 ```
 
 This command performs a partial evaluation of the policy, specifying a set of unknown input parameters.

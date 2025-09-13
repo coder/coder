@@ -246,18 +246,39 @@ user_allow(roles) := num if {
 	num := number(allow)
 }
 
-# Scope allow_list is a list of resource IDs explicitly allowed by the scope.
-# If the list is '*', then all resources are allowed.
+# Scope allow_list is a list of resource (Type, ID) tuples explicitly allowed by the scope.
+# If the list contains `(*,*)`, then all resources are allowed.
 scope_allow_list if {
-	"*" in input.subject.scope.allow_list
+	input.subject.scope.allow_list[_] == {"type": "*", "id": "*"}
 }
 
+# This is a shortcut if the allow_list contains (type, *), then allow all IDs of that type.
+scope_allow_list if {
+	input.subject.scope.allow_list[_] == {"type": input.object.type, "id": "*"}
+}
+
+# A comprehension that iterates over the allow_list and checks if the
+# (object.type, object.id) is in the allowed ids.
 scope_allow_list if {
 	# If the wildcard is listed in the allow_list, we do not care about the
 	# object.id. This line is included to prevent partial compilations from
 	# ever needing to include the object.id.
-	not "*" in input.subject.scope.allow_list
-	input.object.id in input.subject.scope.allow_list
+	not {"type": "*", "id": "*"} in input.subject.scope.allow_list
+	# This is equivalent to the above line, as `type` is known at partial query time.
+	not {"type": input.object.type, "id": "*"} in input.subject.scope.allow_list
+
+	# allows_ids is the set of all ids allowed for the given object.type
+	allowed_ids := {allowed_id |
+  		# Iterate over all allow list elements
+  		ele := input.subject.scope.allow_list[_]
+  		ele.type in [input.object.type, "*"]
+      allowed_id := ele.id
+  }
+
+  # Return if the object.id is in the allowed ids
+  # This rule is evaluated at the end so the partial query can use the object.id
+  # against this precomputed set of allowed ids.
+  input.object.id in allowed_ids
 }
 
 # -------------------
