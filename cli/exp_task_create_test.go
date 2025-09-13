@@ -12,12 +12,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/serpent"
 )
 
 func TestTaskCreate(t *testing.T) {
@@ -333,4 +334,27 @@ func TestTaskCreate(t *testing.T) {
 			assert.Contains(t, sb.String(), tt.expectOutput)
 		})
 	}
+}
+
+func TestTaskCreateHelp(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	inv, _ := clitest.New(t, "exp", "task", "create", "--help")
+	var sb strings.Builder
+	inv.Stdout = &sb
+	inv.Stderr = &sb
+
+	err := inv.WithContext(ctx).Run()
+	assert.NoError(t, err)
+
+	output := sb.String()
+	// Verify that the examples are present in the help output
+	assert.Contains(t, output, "Create a task with all flags specified")
+	assert.Contains(t, output, "coder exp task create \"Refactor CLI auth to use OAuth flow\"")
+	assert.Contains(t, output, "--template coder --org coder")
+	assert.Contains(t, output, "Create a task with a preset")
+	assert.Contains(t, output, "coder exp task create \"Add new API endpoint\"")
+	assert.Contains(t, output, "--preset backend")
 }
