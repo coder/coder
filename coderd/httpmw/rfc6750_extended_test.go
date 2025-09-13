@@ -20,6 +20,8 @@ import (
 )
 
 // TestOAuth2BearerTokenSecurityBoundaries tests RFC 6750 security boundaries
+//
+//nolint:tparallel,paralleltest // Subtests share a DB; run sequentially to avoid Windows DB cleanup flake.
 func TestOAuth2BearerTokenSecurityBoundaries(t *testing.T) {
 	t.Parallel()
 
@@ -41,8 +43,6 @@ func TestOAuth2BearerTokenSecurityBoundaries(t *testing.T) {
 	})
 
 	t.Run("TokenIsolation", func(t *testing.T) {
-		t.Parallel()
-
 		// Create middleware
 		middleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB: db,
@@ -78,8 +78,6 @@ func TestOAuth2BearerTokenSecurityBoundaries(t *testing.T) {
 	})
 
 	t.Run("CrossTokenAttempts", func(t *testing.T) {
-		t.Parallel()
-
 		middleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB: db,
 		})
@@ -101,8 +99,6 @@ func TestOAuth2BearerTokenSecurityBoundaries(t *testing.T) {
 	})
 
 	t.Run("TimingAttackResistance", func(t *testing.T) {
-		t.Parallel()
-
 		middleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB: db,
 		})
@@ -150,6 +146,8 @@ func TestOAuth2BearerTokenSecurityBoundaries(t *testing.T) {
 }
 
 // TestOAuth2BearerTokenMalformedHeaders tests handling of malformed Bearer headers per RFC 6750
+//
+//nolint:tparallel,paralleltest // Subtests share a DB; run sequentially to avoid Windows DB cleanup flake.
 func TestOAuth2BearerTokenMalformedHeaders(t *testing.T) {
 	t.Parallel()
 
@@ -215,8 +213,6 @@ func TestOAuth2BearerTokenMalformedHeaders(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
 			req := httptest.NewRequest("GET", "/test", nil)
 			req.Header.Set("Authorization", test.authHeader)
 			rec := httptest.NewRecorder()
@@ -234,6 +230,8 @@ func TestOAuth2BearerTokenMalformedHeaders(t *testing.T) {
 }
 
 // TestOAuth2BearerTokenPrecedence tests token extraction precedence per RFC 6750
+//
+//nolint:tparallel,paralleltest // Subtests share a DB; run sequentially to avoid Windows DB cleanup flake.
 func TestOAuth2BearerTokenPrecedence(t *testing.T) {
 	t.Parallel()
 
@@ -257,8 +255,6 @@ func TestOAuth2BearerTokenPrecedence(t *testing.T) {
 	}))
 
 	t.Run("CookieTakesPrecedenceOverBearer", func(t *testing.T) {
-		t.Parallel()
-
 		req := httptest.NewRequest("GET", "/test", nil)
 		// Set both cookie and Bearer header - cookie should take precedence
 		req.AddCookie(&http.Cookie{
@@ -274,8 +270,6 @@ func TestOAuth2BearerTokenPrecedence(t *testing.T) {
 	})
 
 	t.Run("QueryParameterTakesPrecedenceOverBearer", func(t *testing.T) {
-		t.Parallel()
-
 		// Set both query parameter and Bearer header - query should take precedence
 		u, _ := url.Parse("/test")
 		q := u.Query()
@@ -292,8 +286,6 @@ func TestOAuth2BearerTokenPrecedence(t *testing.T) {
 	})
 
 	t.Run("BearerHeaderFallback", func(t *testing.T) {
-		t.Parallel()
-
 		// Only set Bearer header - should be used as fallback
 		req := httptest.NewRequest("GET", "/test", nil)
 		req.Header.Set("Authorization", "Bearer "+validToken)
@@ -305,8 +297,6 @@ func TestOAuth2BearerTokenPrecedence(t *testing.T) {
 	})
 
 	t.Run("AccessTokenQueryParameterFallback", func(t *testing.T) {
-		t.Parallel()
-
 		// Only set access_token query parameter - should be used as fallback
 		u, _ := url.Parse("/test")
 		q := u.Query()
@@ -322,8 +312,6 @@ func TestOAuth2BearerTokenPrecedence(t *testing.T) {
 	})
 
 	t.Run("MultipleAuthMethodsShouldNotConflict", func(t *testing.T) {
-		t.Parallel()
-
 		// RFC 6750 says clients shouldn't send tokens in multiple ways,
 		// but if they do, we should handle it gracefully by using precedence
 		u, _ := url.Parse("/test")
@@ -348,6 +336,8 @@ func TestOAuth2BearerTokenPrecedence(t *testing.T) {
 }
 
 // TestOAuth2WWWAuthenticateCompliance tests WWW-Authenticate header compliance with RFC 6750
+//
+//nolint:tparallel,paralleltest // Subtests share a DB; run sequentially to avoid Windows DB cleanup flake.
 func TestOAuth2WWWAuthenticateCompliance(t *testing.T) {
 	t.Parallel()
 
@@ -363,8 +353,6 @@ func TestOAuth2WWWAuthenticateCompliance(t *testing.T) {
 	}))
 
 	t.Run("UnauthorizedResponse", func(t *testing.T) {
-		t.Parallel()
-
 		req := httptest.NewRequest("GET", "/test", nil)
 		req.Header.Set("Authorization", "Bearer invalid-token")
 		rec := httptest.NewRecorder()
@@ -383,8 +371,6 @@ func TestOAuth2WWWAuthenticateCompliance(t *testing.T) {
 	})
 
 	t.Run("ExpiredTokenResponse", func(t *testing.T) {
-		t.Parallel()
-
 		// Create an expired API key
 		_, expiredToken := dbgen.APIKey(t, db, database.APIKey{
 			UserID:    user.ID,
@@ -406,8 +392,6 @@ func TestOAuth2WWWAuthenticateCompliance(t *testing.T) {
 	})
 
 	t.Run("InsufficientScopeResponse", func(t *testing.T) {
-		t.Parallel()
-
 		// For this test, we'll test with an invalid token to trigger the middleware's
 		// error handling which does set WWW-Authenticate headers for 403 responses
 		// In practice, insufficient scope errors would be handled by RBAC middleware

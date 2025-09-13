@@ -19,6 +19,8 @@ import (
 
 // TestRFC6750BearerTokenAuthentication tests that RFC 6750 bearer tokens work correctly
 // for authentication, including both Authorization header and access_token query parameter methods.
+//
+//nolint:tparallel,paralleltest // Subtests share a DB; run sequentially to avoid Windows DB cleanup flake.
 func TestRFC6750BearerTokenAuthentication(t *testing.T) {
 	t.Parallel()
 
@@ -44,8 +46,6 @@ func TestRFC6750BearerTokenAuthentication(t *testing.T) {
 	})
 
 	t.Run("AuthorizationBearerHeader", func(t *testing.T) {
-		t.Parallel()
-
 		req := httptest.NewRequest("GET", "/test", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 
@@ -57,8 +57,6 @@ func TestRFC6750BearerTokenAuthentication(t *testing.T) {
 	})
 
 	t.Run("AccessTokenQueryParameter", func(t *testing.T) {
-		t.Parallel()
-
 		req := httptest.NewRequest("GET", "/test?access_token="+url.QueryEscape(token), nil)
 
 		rw := httptest.NewRecorder()
@@ -69,8 +67,6 @@ func TestRFC6750BearerTokenAuthentication(t *testing.T) {
 	})
 
 	t.Run("BearerTokenPriorityAfterCustomMethods", func(t *testing.T) {
-		t.Parallel()
-
 		// Create a different token for custom header
 		customKey, customToken := dbgen.APIKey(t, db, database.APIKey{
 			UserID:    user.ID,
@@ -98,8 +94,6 @@ func TestRFC6750BearerTokenAuthentication(t *testing.T) {
 	})
 
 	t.Run("InvalidBearerToken", func(t *testing.T) {
-		t.Parallel()
-
 		req := httptest.NewRequest("GET", "/test", nil)
 		req.Header.Set("Authorization", "Bearer invalid-token")
 
@@ -118,8 +112,6 @@ func TestRFC6750BearerTokenAuthentication(t *testing.T) {
 	})
 
 	t.Run("ExpiredBearerToken", func(t *testing.T) {
-		t.Parallel()
-
 		// Create an expired token
 		_, expiredToken := dbgen.APIKey(t, db, database.APIKey{
 			UserID:    user.ID,
@@ -144,8 +136,6 @@ func TestRFC6750BearerTokenAuthentication(t *testing.T) {
 	})
 
 	t.Run("MissingBearerToken", func(t *testing.T) {
-		t.Parallel()
-
 		req := httptest.NewRequest("GET", "/test", nil)
 		// No authentication provided
 
