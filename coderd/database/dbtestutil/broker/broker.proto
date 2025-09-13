@@ -1,0 +1,49 @@
+syntax = "proto3";
+option go_package = "github.com/coder/coder/v2/coderd/database/dbtestutil/broker";
+
+package coder.database.dbtestutil.broker;
+
+message Status {
+  enum StatusCode {
+    OK = 0;
+    ERR_TEMPLATE_MISSING = 1;
+    ERR_INTERNAL = 2;
+    ERR_POSTGRES_CONNECTION = 3;
+    ERR_DB_NOT_FOUND = 4;
+    ERR_BAD_DB_NAME = 5;
+  }
+  StatusCode code = 1;
+  string message = 2;
+}
+
+message QueryRequest {
+  string db_name = 1;
+}
+
+message QueryResponse {
+  // right now we just care whether the DB exists, which it does if we get status.code == OK
+  Status status = 1;
+}
+
+message CloneRequest {
+  string template_db_name = 1;
+}
+
+message CloneResponse {
+  Status status = 1;
+  string db_name = 2;
+}
+
+message DiscardRequest {
+  string db_name = 1;
+}
+
+message DiscardResponse {
+  Status status = 1;
+}
+
+service Broker {
+  rpc Query(QueryRequest) returns (QueryResponse);
+  rpc Clone(CloneRequest) returns (CloneResponse);
+  rpc Discard(DiscardRequest) returns (DiscardResponse);
+}
