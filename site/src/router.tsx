@@ -332,6 +332,7 @@ const ProvisionerJobsPage = lazy(
 			"./pages/OrganizationSettingsPage/OrganizationProvisionerJobsPage/OrganizationProvisionerJobsPage"
 		),
 );
+const TasksLayout = lazy(() => import("./pages/TasksLayout/TasksLayout"));
 const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
 const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
 
@@ -597,7 +598,9 @@ export const router = createBrowserRouter(
 				/>
 				<Route path="/cli-auth" element={<CliAuthPage />} />
 				<Route path="/icons" element={<IconsPage />} />
-				<Route path="/tasks/:username/:workspace" element={<TaskPage />} />
+				<Route path="/tasks/:username/:workspace" element={<TasksLayout />}>
+					<Route index element={<TaskPage />} />
+				</Route>
 			</Route>
 		</Route>,
 	),
