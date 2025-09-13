@@ -181,10 +181,8 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	done := make(chan struct{})
 
 	updateWorkspaceMetrics := func() {
-		ws, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
-			Deleted:     false,
-			WithSummary: false,
-		})
+		// Don't count deleted workspaces as part of these metrics.
+		ws, err := db.GetWorkspacesForWorkspaceMetrics(ctx, false)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				workspaceLatestBuildTotals.Reset()
@@ -346,9 +344,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			timer := prometheus.NewTimer(metricsCollectorAgents)
 			derpMap := derpMapFn()
 
-			workspaceRows, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
-				AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
-			})
+			workspaceRows, err := db.GetWorkspacesForAgentMetrics(ctx, false)
 			if err != nil {
 				logger.Error(ctx, "can't get workspace rows", slog.Error(err))
 				goto done
@@ -361,9 +357,11 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 					templateVersionName = "unknown"
 				}
 
-				// username :=
-
-				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
+				agents, err := db.GetWorkspaceAgentsByWorkspaceIDAndBuildNumber(ctx,
+					database.GetWorkspaceAgentsByWorkspaceIDAndBuildNumberParams{
+						WorkspaceID: workspace.ID,
+						BuildNumber: workspace.BuildNumber,
+					})
 				if err != nil {
 					logger.Error(ctx, "can't get workspace agents", slog.F("workspace_id", workspace.ID), slog.Error(err))
 					agentsGauge.WithLabelValues(VectorOperationAdd, 0, workspace.OwnerUsername, workspace.Name, templateName, templateVersionName)
