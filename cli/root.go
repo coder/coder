@@ -96,6 +96,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.organizations(),
 		r.portForward(),
 		r.publickey(),
+		r.api(),
 		r.resetPassword(),
 		r.sharing(),
 		r.state(),
