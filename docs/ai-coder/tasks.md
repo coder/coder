@@ -49,22 +49,43 @@ To import the template and begin configuring it, follow the [documentation in th
 A template becomes a Task template if it defines a `coder_ai_task` resource and a `coder_parameter` named `"AI Prompt"`. Coder analyzes template files during template version import to determine if these requirements are met.
 
 ```hcl
+# Claude API Key parameter
+data "coder_parameter" "claude_api_key" {
+  name         = "claude_api_key"
+  display_name = "Claude API Key"
+  description  = "Your Anthropic API key for Claude AI"
+  type         = "string"
+  default      = ""
+}
+
+# AI Prompt parameter
 data "coder_parameter" "ai_prompt" {
-    name = "AI Prompt"
-    type = "string"
+  name         = "AI Prompt"
+  display_name = "AI Prompt"
+  description  = "Optional AI prompt to customize behavior"
+  type         = "string"
+  default      = ""
 }
 
-# Multiple coder_ai_tasks can be defined in a template
+# Claude app
+resource "coder_app" "claude-code" {
+  agent_id     = coder_agent.main.id
+  slug         = "claude"
+  display_name = "Claude"
+  url          = "https://claude.ai"
+  icon         = "https://claude.ai/favicon.ico"
+  external     = true
+}
+
+# Claude AI task
 resource "coder_ai_task" "claude-code" {
-    # At most one coder ai task can be instantiated during a workspace build.
-    # Coder fails the build if it would instantiate more than 1.
-    count = data.coder_parameter.ai_prompt.value != "" ? 1 : 0
-
-    sidebar_app {
-        # which app to display in the sidebar on the task page
-        id = coder_app.claude-code.id
-    }
+  count = data.coder_parameter.ai_prompt.value != "" ? 1 : 0
+  
+  sidebar_app {
+    id = coder_app.claude-code.id
+  }
 }
+
 ```
 
 > [!NOTE]
