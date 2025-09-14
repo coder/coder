@@ -567,11 +567,6 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 		[cachedTransformation, newTransformation],
 	);
 
-	const [, forceRerender] = useReducer((dummyState) => !dummyState, false);
-	useLayoutEffect(() => {
-		reactTs.seedInitialStateSyncCallback(hookId, forceRerender);
-	}, [reactTs, hookId]);
-
 	// Because this is a layout effect, it's guaranteed to fire before the
 	// subscription logic, even though the subscription was registered first.
 	// This lets us cut back on redoing computations that were already handled
@@ -580,6 +575,16 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 		reactTs.updateComponentState(hookId, merged);
 	}, [reactTs, hookId, merged]);
 
+	// For correctness, because the hook notifies all subscribers of a potential
+	// state change on mount, we need to make sure that the subscription gets set
+	// up with a working state setter callback. This can be used until the
+	// low-priority useSyncExternalStore subscription fires. If all goes well, it
+	// shouldn't ever be needed, but this truly ensures that the various systems
+	// can't get out of sync with each other. We only use this on the mounting
+	// render because the notifyReact callback is better in all ways. It's much
+	// more fine-grained and is associated with the useSyncExternalStore hook
+	const [, forceRerender] = useReducer((dummyState) => !dummyState, false);
+	
 	// There's a lot of dependencies here, but the only cue for invalidating the
 	// subscription should be the target interval changing
 	useLayoutEffect(() => {
@@ -587,14 +592,20 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 			componentId: hookId,
 			targetRefreshIntervalMs: targetIntervalMs,
 			transform: externalTransform,
-			onReactStateSync: () => ejectedNotifyRef.current(),
+			onReactStateSync: () => {
+				if (ejectedNotifyRef.current === noOp) {
+					forceRerender();
+				} else {
+					ejecectedNotifyRef.current();
+				}
+			},
 		});
 	}, [reactTs, hookId, externalTransform, targetIntervalMs]);
 
 	// This is the one case where we're using useLayoutEffect for its intended
 	// purpose. Because the mounting logic is able to trigger state updates, we
 	// need to fire them before paint to make sure that we don't get screen
-	// flickering when refreshing the subscribers
+	// flickering, since this will attempt to refresh all subscribers
 	useLayoutEffect(() => {
 		reactTs.onComponentMount();
 	}, [reactTs]);
