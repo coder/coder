@@ -44,31 +44,22 @@ func ShouldUseColor(mode ColorMode, w io.Writer) bool {
 	case ColorModeNever:
 		return false
 	default:
-		// Auto mode - first check environment variables
-		// NO_COLOR takes precedence over everything else
+		// Auto mode — env vars first (highest precedence wins)
 		if os.Getenv("NO_COLOR") != "" {
 			return false
 		}
-
-		if os.Getenv("FORCE_COLOR") != "" && os.Getenv("FORCE_COLOR") != "0" {
+		if v := os.Getenv("FORCE_COLOR"); v != "" && v != "0" {
 			return true
 		}
-
-		if os.Getenv("CODER_COLOR") == "always" {
+		switch strings.ToLower(os.Getenv("CODER_COLOR")) {
+		case "always":
 			return true
-		}
-
-		if os.Getenv("CODER_COLOR") == "never" {
+		case "never":
 			return false
 		}
-
-		if f, ok := w.(*os.File); ok {
-			if isatty.IsTerminal(f.Fd()) || isatty.IsCygwinTerminal(f.Fd()) {
-				// We've already checked all environment variables at the top level
-
-				// Terminal detected and no environment overrides - use color
-				return true
-			}
+		// Fallback to TTY detection
+		if f, ok := w.(*os.File); ok && (isatty.IsTerminal(f.Fd()) || isatty.IsCygwinTerminal(f.Fd())) {
+			return true
 		}
 		return false
 	}
