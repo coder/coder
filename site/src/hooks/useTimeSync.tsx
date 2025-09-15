@@ -312,7 +312,7 @@ class ReactTimeSync {
 		return latestDate as T;
 	}
 
-	onComponentMount(): void {
+	syncAllSubscribersOnMount(): void {
 		if (!this.#isProviderMounted) {
 			return;
 		}
@@ -544,6 +544,13 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 		getSnap,
 	);
 
+	/**
+	 * @todo Figure out if I could actually update the definition for
+	 * getComponentSnapshot to put the date value on the snapshot itself, but
+	 * just don't notify React when the state changes
+	 */
+	const todo = void "I dunno, try it";
+
 	// There's some trade-offs with this memo (notably, if the consumer passes
 	// in an inline transform callback, the memo result will be invalidated on
 	// every single render). But it's the *only* way to give the consumer the
@@ -576,15 +583,19 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	}, [reactTs, hookId, merged]);
 
 	// For correctness, because the hook notifies all subscribers of a potential
-	// state change on mount, we need to make sure that the subscription gets set
-	// up with a working state setter callback. This can be used until the
-	// low-priority useSyncExternalStore subscription fires. If all goes well, it
-	// shouldn't ever be needed, but this truly ensures that the various systems
-	// can't get out of sync with each other. We only use this on the mounting
-	// render because the notifyReact callback is better in all ways. It's much
-	// more fine-grained and is associated with the useSyncExternalStore hook
-	const [, forceRerender] = useReducer((dummyState) => !dummyState, false);
-	
+	// state change on mount, we need to make sure that the subscription gets
+	// set up with a working state setter callback. This can be used until the
+	// low-priority useSyncExternalStore subscription fires. If all goes well,
+	// it shouldn't ever be needed, but this truly ensures that the various
+	// systems can't get out of sync with each other. We only use this on the
+	// mounting render because the notifyReact callback is better in all ways.
+	// It's much more fine-grained and is actively associated with the state
+	// lifecycles for the useSyncExternalStore hook
+	const [, fallbackStateSync] = useReducer(
+		(dummyForceRerenderState) => !dummyForceRerenderState,
+		false,
+	);
+
 	// There's a lot of dependencies here, but the only cue for invalidating the
 	// subscription should be the target interval changing
 	useLayoutEffect(() => {
@@ -594,9 +605,9 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 			transform: externalTransform,
 			onReactStateSync: () => {
 				if (ejectedNotifyRef.current === noOp) {
-					forceRerender();
+					fallbackStateSync();
 				} else {
-					ejecectedNotifyRef.current();
+					ejectedNotifyRef.current();
 				}
 			},
 		});
@@ -605,9 +616,9 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// This is the one case where we're using useLayoutEffect for its intended
 	// purpose. Because the mounting logic is able to trigger state updates, we
 	// need to fire them before paint to make sure that we don't get screen
-	// flickering, since this will attempt to refresh all subscribers
+	// flickering
 	useLayoutEffect(() => {
-		reactTs.onComponentMount();
+		reactTs.syncAllSubscribersOnMount();
 	}, [reactTs]);
 
 	return merged;
