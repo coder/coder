@@ -269,16 +269,18 @@ Coder maintains the [Tasks on Docker](https://registry.coder.com/templates/coder
     ```
 
 9. **Create the new Workspace**
-   1. In your Coder Deployment, click **Workspaces** in the upper left hand corner
-   1. Click **New workspace** and choose **tasks-docker**
-   1. Fill in the Workspace name. Add in an AI Prompt for Claude Code like "Make the background yellow". Click **Create workspace**
-10. **See Tasks in action**
-   1. Once your workspace is running, click **View tasks** with your workspace. This will bring you to the Tasks view where you can see Claude Code (left panel), preview the sample application, and interact with the code in code-server. You might need to wait for Claude Code to finish changing the background color of the application.
-       ![Tasks changing background color of demo application](../images/screenshots/quickstart-tasks-background-change.png)
-   1. Navigate to the **Tasks** tab in the upper left hand corner
-   1. Try typing in a new request to Claude Code: "make the background red"
-   1. Let's exit out of this specific Task view, so we can see all the running tasks
-   1. You can start a new task by prompting in the "Prompt your AI agent to start a task" box. You can select which template to run this from, so tasks-docker here, and that will spin up a new Workspace
+10. In your Coder Deployment, click **Workspaces** in the upper left hand corner
+11. Click **New workspace** and choose **tasks-docker**
+12. Fill in the Workspace name. Add in an AI Prompt for Claude Code like "Make the background yellow". Click **Create workspace**
+13. **See Tasks in action**
+14. Once your workspace is running, click **View tasks** with your workspace. This will bring you to the Tasks view where you can see Claude Code (left panel), preview the sample application, and interact with the code in code-server. You might need to wait for Claude Code to finish changing the background color of the application.
+
+    ![Tasks changing background color of demo application](../images/screenshots/quickstart-tasks-background-change.png)
+
+15. Navigate to the **Tasks** tab in the upper left hand corner
+16. Try typing in a new request to Claude Code: "make the background red"
+17. Let's exit out of this specific Task view, so we can see all the running tasks
+18. You can start a new task by prompting in the "Prompt your AI agent to start a task" box. You can select which template to run this from, so tasks-docker here, and that will spin up a new Workspace
 
 Congratulation! You now have a Coder Task running. This demo has shown you how to spin up a task, and prompt Claude Code to change parts of your application. Learn more specifics about Coder Tasks [here](https://coder.com/docs/ai-coder/tasks).
 
