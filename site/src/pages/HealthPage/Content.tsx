@@ -1,4 +1,3 @@
-import { css } from "@emotion/css";
 import { useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import type { HealthCode, HealthSeverity } from "api/typesGenerated";
@@ -13,7 +12,7 @@ import {
 	type FC,
 	forwardRef,
 	type HTMLAttributes,
-	type ReactNode,
+	type ReactElement,
 } from "react";
 import { docs } from "utils/docs";
 import { healthyColor } from "./healthyColor";
@@ -157,7 +156,7 @@ export const SectionLabel: FC<HTMLAttributes<HTMLHeadingElement>> = (props) => {
 };
 
 type PillProps = HTMLAttributes<HTMLDivElement> & {
-	icon: ReactNode;
+	icon: ReactElement<HTMLAttributes<HTMLElement>>;
 };
 
 export const Pill = forwardRef<HTMLDivElement, PillProps>((props, ref) => {
@@ -181,7 +180,7 @@ export const Pill = forwardRef<HTMLDivElement, PillProps>((props, ref) => {
 			}}
 			{...divProps}
 		>
-			{cloneElement(icon, { className: css({ width: 14, height: 14 }) })}
+			{cloneElement(icon, { className: "size-[14px]" })}
 			{children}
 		</div>
 	);
