@@ -65,10 +65,10 @@ const DERPPage: FC = () => {
 			</Header>
 
 			<Main>
-				{derp.warnings.map((warning: HealthMessage) => {
+				{derp.warnings.map((warning) => {
 					return (
 						<Alert
-							actions={HealthMessageDocsLink(warning)}
+							actions={<HealthMessageDocsLink {...warning} />}
 							key={warning.code}
 							severity="warning"
 						>
