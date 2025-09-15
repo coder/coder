@@ -1,0 +1,109 @@
+name: AI Triage Automation
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_url:
+        description: 'GitHub Issue URL to process'
+        required: true
+        type: string
+      context_key:
+        description: 'Unique context key (defaults to issue number)'
+        required: false
+        type: string
+      template_name:
+        description: 'Coder template to use for workspace'
+        required: false
+        default: 'ai-workspace'
+        type: string
+
+env:
+  CODER_URL: ${{ secrets.CODER_URL }}
+  CODER_SESSION_TOKEN: ${{ secrets.CODER_SESSION_TOKEN }}
+  TEMPLATE_NAME: ${{ inputs.template_name }}
+
+jobs:
+  triage:
+    name: AI Triage Processing
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Coder CLI
+        uses: coder/setup-coder@latest
+
+      - name: Extract context key from issue URL
+        id: extract-context
+        run: |
+          if [[ -n "${{ inputs.context_key }}" ]]; then
+            echo "context_key=${{ inputs.context_key }}" >> $GITHUB_OUTPUT
+          else
+            # Extract issue number from URL (e.g., https://github.com/owner/repo/issues/123 -> 123)
+            issue_number=$(echo "${{ inputs.issue_url }}" | grep -oE '/issues/([0-9]+)' | grep -oE '[0-9]+')
+            echo "context_key=issue_${issue_number}" >> $GITHUB_OUTPUT
+          fi
+
+          # Generate unique workspace name
+          timestamp=$(date +%s)
+          workspace_name="triage-$(echo "${{ inputs.context_key || 'auto' }}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')-${timestamp}"
+          echo "workspace_name=${workspace_name}" >> $GITHUB_OUTPUT
+
+      - name: Create Coder workspace
+        id: create-workspace
+        env:
+          WORKSPACE_NAME: ${{ steps.extract-context.outputs.workspace_name }}
+        run: |
+          echo "Creating workspace: $WORKSPACE_NAME"
+          ./scripts/traiage.sh create
+          echo "workspace_created=true" >> $GITHUB_OUTPUT
+
+      - name: Prepare AI prompt
+        id: prepare-prompt
+        run: |
+          # Extract issue content and prepare prompt
+          issue_url="${{ inputs.issue_url }}"
+          context_key="${{ steps.extract-context.outputs.context_key }}"
+
+          # Create a prompt that includes the issue URL and context
+          prompt="Process GitHub issue: ${issue_url}. Context key: ${context_key}. Please analyze the issue, understand the requirements, and create appropriate solutions."
+
+          # Escape the prompt for shell usage
+          escaped_prompt=$(printf '%s\n' "$prompt" | sed 's/[\[\](){}.*^$+?|\\]/\\&/g')
+          echo "prompt=${escaped_prompt}" >> $GITHUB_OUTPUT
+
+      - name: Execute AI processing
+        id: ai-process
+        env:
+          WORKSPACE_NAME: ${{ steps.extract-context.outputs.workspace_name }}
+          PROMPT: ${{ steps.prepare-prompt.outputs.prompt }}
+        run: |
+          echo "Sending prompt to AI agent in workspace: $WORKSPACE_NAME"
+          ./scripts/traiage.sh prompt
+
+      - name: Create and upload archive
+        id: create-archive
+        env:
+          WORKSPACE_NAME: ${{ steps.extract-context.outputs.workspace_name }}
+        run: |
+          echo "Creating archive for workspace: $WORKSPACE_NAME"
+          archive_url=$(./scripts/traiage.sh archive)
+          echo "archive_url=${archive_url}" >> $GITHUB_OUTPUT
+
+      - name: Report results
+        run: |
+          echo "## AI Triage Results" >> $GITHUB_STEP_SUMMARY
+          echo "- **Issue URL:** ${{ inputs.issue_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Context Key:** ${{ steps.extract-context.outputs.context_key }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Workspace:** ${{ steps.extract-context.outputs.workspace_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Archive URL:** ${{ steps.create-archive.outputs.archive_url }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Cleanup workspace
+        if: always() && steps.create-workspace.outputs.workspace_created == 'true'
+        env:
+          WORKSPACE_NAME: ${{ steps.extract-context.outputs.workspace_name }}
+        run: |
+          echo "Cleaning up workspace: $WORKSPACE_NAME"
+          ./scripts/traiage.sh delete || true
