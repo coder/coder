@@ -722,6 +722,18 @@ func (c *Client) UpdateWorkspaceACL(ctx context.Context, workspaceID uuid.UUID, 
 	return nil
 }
 
+func (c *Client) DeleteWorkspaceACL(ctx context.Context, workspaceID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/workspaces/%s/acl", workspaceID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // ExternalAgentCredentials contains the credentials needed for an external agent to connect to Coder.
 type ExternalAgentCredentials struct {
 	Command    string `json:"command"`

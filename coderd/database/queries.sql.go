@@ -20141,6 +20141,21 @@ func (q *sqlQuerier) BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg Ba
 	return err
 }
 
+const deleteWorkspaceACLByID = `-- name: DeleteWorkspaceACLByID :exec
+UPDATE
+	workspaces
+SET
+	group_acl = '{}'::json,
+	user_acl = '{}'::json
+WHERE
+	id = $1
+`
+
+func (q *sqlQuerier) DeleteWorkspaceACLByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkspaceACLByID, id)
+	return err
+}
+
 const favoriteWorkspace = `-- name: FavoriteWorkspace :exec
 UPDATE workspaces SET favorite = true WHERE id = $1
 `

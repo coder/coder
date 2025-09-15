@@ -566,6 +566,11 @@ type SessionLifetime struct {
 	// DefaultDuration is only for browser, workspace app and oauth sessions.
 	DefaultDuration serpent.Duration `json:"default_duration" typescript:",notnull"`
 
+	// RefreshDefaultDuration is the default lifetime for OAuth2 refresh tokens.
+	// This should generally be longer than access token lifetimes to allow
+	// refreshing after access token expiry.
+	RefreshDefaultDuration serpent.Duration `json:"refresh_default_duration,omitempty" typescript:",notnull"`
+
 	DefaultTokenDuration serpent.Duration `json:"default_token_lifetime,omitempty" typescript:",notnull"`
 
 	MaximumTokenDuration serpent.Duration `json:"max_token_lifetime,omitempty" typescript:",notnull"`
@@ -2465,6 +2470,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
+			Name:        "Default OAuth Refresh Lifetime",
+			Description: "The default lifetime duration for OAuth2 refresh tokens. This controls how long refresh tokens remain valid after issuance or rotation.",
+			Flag:        "default-oauth-refresh-lifetime",
+			Env:         "CODER_DEFAULT_OAUTH_REFRESH_LIFETIME",
+			Default:     (30 * 24 * time.Hour).String(),
+			Value:       &c.Sessions.RefreshDefaultDuration,
+			YAML:        "defaultOAuthRefreshLifetime",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
 			Name:        "Enable swagger endpoint",
 			Description: "Expose the swagger endpoint via /swagger.",
 			Flag:        "swagger-enable",
@@ -3221,6 +3236,30 @@ type LinkConfig struct {
 	Name   string `json:"name" yaml:"name"`
 	Target string `json:"target" yaml:"target"`
 	Icon   string `json:"icon" yaml:"icon" enums:"bug,chat,docs"`
+}
+
+// Validate checks cross-field constraints for deployment values.
+// It must be called after all values are loaded from flags/env/YAML.
+func (c *DeploymentValues) Validate() error {
+	// For OAuth2, access tokens (API keys) issued via the authorization code/refresh flows
+	// use Sessions.DefaultDuration as their lifetime, while refresh tokens use
+	// Sessions.RefreshDefaultDuration (falling back to DefaultDuration when set to 0).
+	// Enforce that refresh token lifetime is strictly greater than the access token lifetime.
+	access := c.Sessions.DefaultDuration.Value()
+	refresh := c.Sessions.RefreshDefaultDuration.Value()
+
+	// Check if values appear uninitialized
+	if access == 0 {
+		return xerrors.New("developer error: sessions configuration appears uninitialized - ensure all values are loaded before validation")
+	}
+
+	if refresh <= access {
+		return xerrors.Errorf(
+			"default OAuth refresh lifetime (%s) must be strictly greater than session duration (%s); set --default-oauth-refresh-lifetime to a value greater than --session-duration",
+			refresh, access,
+		)
+	}
+	return nil
 }
 
 // DeploymentOptionsWithoutSecrets returns a copy of the OptionSet with secret values omitted.

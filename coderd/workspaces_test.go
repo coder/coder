@@ -4914,6 +4914,79 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 	})
 }
 
+func TestDeleteWorkspaceACL(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
+	t.Run("WorkspaceOwnerCanDelete", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				DeploymentValues: dv,
+			})
+			admin                                = coderdtest.CreateFirstUser(t, client)
+			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+			_, toShareWithUser                   = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+			workspace                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: admin.OrganizationID,
+			}).Do().Workspace
+		)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		err := workspaceOwnerClient.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				toShareWithUser.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		err = workspaceOwnerClient.DeleteWorkspaceACL(ctx, workspace.ID)
+		require.NoError(t, err)
+
+		acl, err := workspaceOwnerClient.WorkspaceACL(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Empty(t, acl.Users)
+	})
+
+	t.Run("SharedUsersCannot", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				DeploymentValues: dv,
+			})
+			admin                                = coderdtest.CreateFirstUser(t, client)
+			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+			sharedUseClient, toShareWithUser     = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+			workspace                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: admin.OrganizationID,
+			}).Do().Workspace
+		)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		err := workspaceOwnerClient.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				toShareWithUser.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		err = sharedUseClient.DeleteWorkspaceACL(ctx, workspace.ID)
+		assert.Error(t, err)
+
+		acl, err := workspaceOwnerClient.WorkspaceACL(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Equal(t, acl.Users[0].ID, toShareWithUser.ID)
+	})
+}
+
 func TestWorkspaceCreateWithImplicitPreset(t *testing.T) {
 	t.Parallel()
 

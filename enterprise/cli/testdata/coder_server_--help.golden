@@ -26,6 +26,10 @@ OPTIONS:
           systemd. This directory is NOT safe to be configured as a shared
           directory across coderd/provisionerd replicas.
 
+      --default-oauth-refresh-lifetime duration, $CODER_DEFAULT_OAUTH_REFRESH_LIFETIME (default: 720h0m0s)
+          The default lifetime duration for OAuth2 refresh tokens. This controls
+          how long refresh tokens remain valid after issuance or rotation.
+
       --default-token-lifetime duration, $CODER_DEFAULT_TOKEN_LIFETIME (default: 168h0m0s)
           The default lifetime duration for API tokens. This value is used when
           creating a token without specifying a duration, such as when

@@ -61,6 +61,8 @@ func (a *agent) apiHandler() http.Handler {
 	r.Get("/api/v0/netcheck", a.HandleNetcheck)
 	r.Post("/api/v0/list-directory", a.HandleLS)
 	r.Get("/api/v0/read-file", a.HandleReadFile)
+	r.Post("/api/v0/write-file", a.HandleWriteFile)
+	r.Post("/api/v0/edit-files", a.HandleEditFiles)
 	r.Get("/debug/logs", a.HandleHTTPDebugLogs)
 	r.Get("/debug/magicsock", a.HandleHTTPDebugMagicsock)
 	r.Get("/debug/magicsock/debug-logging/{state}", a.HandleHTTPMagicsockDebugLoggingState)

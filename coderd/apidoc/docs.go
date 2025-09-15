@@ -1673,6 +1673,60 @@ const docTemplate = `{
                 }
             }
         },
+        "/notifications/custom": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Send a custom notification",
+                "operationId": "send-a-custom-notification",
+                "parameters": [
+                    {
+                        "description": "Provide a non-empty title or message",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CustomNotificationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "System users cannot send custom notifications",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to send custom notification",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/notifications/dispatch-methods": {
             "get": {
                 "security": [
@@ -1926,6 +1980,40 @@ const docTemplate = `{
                 }
             }
         },
+        "/notifications/templates/custom": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Get custom notification templates",
+                "operationId": "get-custom-notification-templates",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.NotificationTemplate"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to retrieve 'custom' notifications template",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/notifications/templates/system": {
             "get": {
                 "security": [
@@ -1949,6 +2037,12 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/codersdk.NotificationTemplate"
                             }
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to retrieve 'system' notifications template",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 }
@@ -10021,6 +10115,33 @@ const docTemplate = `{
                     }
                 }
             },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Completely clears the workspace's user and group ACLs.",
+                "operationId": "completely-clears-the-workspaces-user-and-group-acls",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            },
             "patch": {
                 "security": [
                     {
@@ -12450,6 +12571,25 @@ const docTemplate = `{
                 "CryptoKeyFeatureOIDCConvert",
                 "CryptoKeyFeatureTailnetResume"
             ]
+        },
+        "codersdk.CustomNotificationContent": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.CustomNotificationRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "$ref": "#/definitions/codersdk.CustomNotificationContent"
+                }
+            }
         },
         "codersdk.CustomRoleRequest": {
             "type": "object",
@@ -16283,6 +16423,10 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "max_token_lifetime": {
+                    "type": "integer"
+                },
+                "refresh_default_duration": {
+                    "description": "RefreshDefaultDuration is the default lifetime for OAuth2 refresh tokens.\nThis should generally be longer than access token lifetimes to allow\nrefreshing after access token expiry.",
                     "type": "integer"
                 }
             }

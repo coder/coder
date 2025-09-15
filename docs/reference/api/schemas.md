@@ -1872,6 +1872,39 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `oidc_convert`           |
 | `tailnet_resume`         |
 
+## codersdk.CustomNotificationContent
+
+```json
+{
+  "message": "string",
+  "title": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description |
+|-----------|--------|----------|--------------|-------------|
+| `message` | string | false    |              |             |
+| `title`   | string | false    |              |             |
+
+## codersdk.CustomNotificationRequest
+
+```json
+{
+  "content": {
+    "message": "string",
+    "title": "string"
+  }
+}
+```
+
+### Properties
+
+| Name      | Type                                                                     | Required | Restrictions | Description |
+|-----------|--------------------------------------------------------------------------|----------|--------------|-------------|
+| `content` | [codersdk.CustomNotificationContent](#codersdkcustomnotificationcontent) | false    |              |             |
+
 ## codersdk.CustomRoleRequest
 
 ```json
@@ -2433,7 +2466,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "default_token_lifetime": 0,
       "disable_expiry_refresh": true,
       "max_admin_token_lifetime": 0,
-      "max_token_lifetime": 0
+      "max_token_lifetime": 0,
+      "refresh_default_duration": 0
     },
     "ssh_keygen_algorithm": "string",
     "strict_transport_security": 0,
@@ -2920,7 +2954,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "default_token_lifetime": 0,
     "disable_expiry_refresh": true,
     "max_admin_token_lifetime": 0,
-    "max_token_lifetime": 0
+    "max_token_lifetime": 0,
+    "refresh_default_duration": 0
   },
   "ssh_keygen_algorithm": "string",
   "strict_transport_security": 0,
@@ -6834,19 +6869,21 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "default_token_lifetime": 0,
   "disable_expiry_refresh": true,
   "max_admin_token_lifetime": 0,
-  "max_token_lifetime": 0
+  "max_token_lifetime": 0,
+  "refresh_default_duration": 0
 }
 ```
 
 ### Properties
 
-| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                        |
-|----------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `default_duration`         | integer | false    |              | Default duration is only for browser, workspace app and oauth sessions.                                                                                                            |
-| `default_token_lifetime`   | integer | false    |              |                                                                                                                                                                                    |
-| `disable_expiry_refresh`   | boolean | false    |              | Disable expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key. |
-| `max_admin_token_lifetime` | integer | false    |              |                                                                                                                                                                                    |
-| `max_token_lifetime`       | integer | false    |              |                                                                                                                                                                                    |
+| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                            |
+|----------------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `default_duration`         | integer | false    |              | Default duration is only for browser, workspace app and oauth sessions.                                                                                                                |
+| `default_token_lifetime`   | integer | false    |              |                                                                                                                                                                                        |
+| `disable_expiry_refresh`   | boolean | false    |              | Disable expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key.     |
+| `max_admin_token_lifetime` | integer | false    |              |                                                                                                                                                                                        |
+| `max_token_lifetime`       | integer | false    |              |                                                                                                                                                                                        |
+| `refresh_default_duration` | integer | false    |              | Refresh default duration is the default lifetime for OAuth2 refresh tokens. This should generally be longer than access token lifetimes to allow refreshing after access token expiry. |
 
 ## codersdk.SlimRole
 
