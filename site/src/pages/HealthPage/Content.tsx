@@ -13,7 +13,7 @@ import {
 	type FC,
 	forwardRef,
 	type HTMLAttributes,
-	type ReactElement,
+	type ReactNode,
 } from "react";
 import { docs } from "utils/docs";
 import { healthyColor } from "./healthyColor";
@@ -157,7 +157,7 @@ export const SectionLabel: FC<HTMLAttributes<HTMLHeadingElement>> = (props) => {
 };
 
 type PillProps = HTMLAttributes<HTMLDivElement> & {
-	icon: ReactElement<any>;
+	icon: ReactNode;
 };
 
 export const Pill = forwardRef<HTMLDivElement, PillProps>((props, ref) => {

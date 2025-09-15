@@ -3,7 +3,6 @@ import LocationOnOutlined from "@mui/icons-material/LocationOnOutlined";
 import Button from "@mui/material/Button";
 import type {
 	HealthcheckReport,
-	HealthMessage,
 	HealthSeverity,
 	NetcheckReport,
 } from "api/typesGenerated";

@@ -13,7 +13,7 @@ import {
 	type HTMLProps,
 	isValidElement,
 	memo,
-	type ReactElement,
+	type PropsWithChildren,
 	type ReactNode,
 } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
@@ -251,9 +251,7 @@ function parseChildrenAsAlertContent(
 		return null;
 	}
 
-	const mainParentNode = jsxChildren.find((node): node is ReactElement<any> =>
-		isValidElement(node),
-	);
+	const mainParentNode = jsxChildren.find(isValidElement<PropsWithChildren>);
 	let parentChildren = mainParentNode?.props.children;
 	if (typeof parentChildren === "string") {
 		// Children will only be an array if the parsed text contains other

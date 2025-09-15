@@ -236,7 +236,7 @@ export const waitForLoaderToBeRemoved = async (): Promise<void> => {
 	);
 };
 
-export const renderComponent = (component: React.ReactElement<any>) => {
+export const renderComponent = (component: React.ReactNode) => {
 	return testingLibraryRender(component, {
 		wrapper: ({ children }) => (
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>{children}</ThemeOverride>

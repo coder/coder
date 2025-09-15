@@ -4,7 +4,6 @@ import type {
 	DERPNodeReport,
 	DERPRegionReport,
 	HealthcheckReport,
-	HealthMessage,
 	HealthSeverity,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
