@@ -614,10 +614,15 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	}, [reactTs, hookId, externalTransform, targetIntervalMs]);
 
 	// This is the one case where we're using useLayoutEffect for its intended
-	// purpose. Because the mounting logic is able to trigger state updates, we
-	// need to fire them before paint to make sure that we don't get screen
-	// flickering
+	// purpose, but it's also the reason why we have to worry about effect
+	// firing speed. Because the mounting logic is able to trigger state
+	// updates, we need to fire them before paint to make sure that we don't get
+	// screen flickering
 	useLayoutEffect(() => {
+		/**
+		 * @todo Add logic to make sure that this function only gets called once
+		 * total when multiple components mount at the same time
+		 */
 		reactTs.syncAllSubscribersOnMount();
 	}, [reactTs]);
 
