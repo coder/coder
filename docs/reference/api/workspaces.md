@@ -177,6 +177,7 @@ of the template will be used.
                 ],
                 "subdomain": true,
                 "subdomain_name": "string",
+                "tooltip": "string",
                 "url": "string"
               }
             ],
@@ -466,6 +467,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
                 ],
                 "subdomain": true,
                 "subdomain_name": "string",
+                "tooltip": "string",
                 "url": "string"
               }
             ],
@@ -780,6 +782,7 @@ of the template will be used.
                 ],
                 "subdomain": true,
                 "subdomain_name": "string",
+                "tooltip": "string",
                 "url": "string"
               }
             ],
@@ -1055,6 +1058,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                     "statuses": [],
                     "subdomain": true,
                     "subdomain_name": "string",
+                    "tooltip": "string",
                     "url": "string"
                   }
                 ],
@@ -1345,6 +1349,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
                 ],
                 "subdomain": true,
                 "subdomain_name": "string",
+                "tooltip": "string",
                 "url": "string"
               }
             ],
@@ -1590,6 +1595,32 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
 | Status | Meaning                                                 | Description | Schema                                                   |
 |--------|---------------------------------------------------------|-------------|----------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceACL](schemas.md#codersdkworkspaceacl) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Completely clears the workspace's user and group ACLs
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /workspaces/{workspace}/acl`
+
+### Parameters
+
+| Name        | In   | Type         | Required | Description  |
+|-------------|------|--------------|----------|--------------|
+| `workspace` | path | string(uuid) | true     | Workspace ID |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1867,6 +1898,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
                 ],
                 "subdomain": true,
                 "subdomain_name": "string",
+                "tooltip": "string",
                 "url": "string"
               }
             ],

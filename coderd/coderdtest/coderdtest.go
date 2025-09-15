@@ -1097,9 +1097,17 @@ func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, buil
 	require.Eventually(t, func() bool {
 		var err error
 		workspaceBuild, err = client.WorkspaceBuild(ctx, build)
-		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
+		if err != nil {
+			t.Logf("failed to get workspace build %s: %v", build, err)
+			return false
+		}
+		if workspaceBuild.Job.CompletedAt == nil {
+			t.Logf("workspace build job %s still running (status: %s)", build, workspaceBuild.Job.Status)
+			return false
+		}
+		return true
 	}, testutil.WaitMedium, testutil.IntervalMedium)
-	t.Logf("got workspace build job %s", build)
+	t.Logf("got workspace build job %s (status: %s)", build, workspaceBuild.Job.Status)
 	return workspaceBuild
 }
 
@@ -1581,7 +1589,7 @@ func (nopcloser) Close() error { return nil }
 // SDKError coerces err into an SDK error.
 func SDKError(t testing.TB, err error) *codersdk.Error {
 	var cerr *codersdk.Error
-	require.True(t, errors.As(err, &cerr))
+	require.True(t, errors.As(err, &cerr), "should be SDK error, got %w", err)
 	return cerr
 }
 
