@@ -11,7 +11,7 @@ import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { type FC, useLayoutEffect, useRef } from "react";
+import { type FC, useEffect, useRef } from "react";
 import { navHeight } from "theme/constants";
 
 type BuildLogsDrawerProps = {
@@ -40,12 +40,12 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 	};
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
-	useLayoutEffect(() => {
+	useEffect(() => {
 		scrollToBottom();
 	}, [logs]);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
-	useLayoutEffect(() => {
+	useEffect(() => {
 		if (drawerProps.open) {
 			scrollToBottom();
 		}
@@ -58,6 +58,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 	const matchingProvisioners = templateVersion?.matched_provisioners?.count;
 	const availableProvisioners =
 		templateVersion?.matched_provisioners?.available;
+	const hasLogs = logs && logs.length > 0;
 
 	return (
 		<Drawer anchor="right" {...drawerProps}>
@@ -70,9 +71,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 					</IconButton>
 				</header>
 
-				{}
-
-				{isMissingVariables ? (
+				{isMissingVariables && (
 					<MissingVariablesBanner
 						onFillVariables={() => {
 							variablesSectionRef.current?.scrollIntoView({
@@ -84,20 +83,23 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 							drawerProps.onClose();
 						}}
 					/>
-				) : availableProvisioners && availableProvisioners > 0 && logs ? (
+				)}
+
+				{availableProvisioners === 0 && !hasLogs && (
+					<ProvisionerStatusAlert
+						matchingProvisioners={matchingProvisioners}
+						availableProvisioners={availableProvisioners}
+						tags={templateVersion?.job.tags ?? {}}
+						variant={AlertVariant.Inline}
+					/>
+				)}
+
+				{hasLogs ? (
 					<section ref={logsContainer} css={styles.logs}>
 						<WorkspaceBuildLogs logs={logs} css={{ border: 0 }} />
 					</section>
 				) : (
-					<>
-						<ProvisionerStatusAlert
-							matchingProvisioners={matchingProvisioners}
-							availableProvisioners={availableProvisioners}
-							tags={templateVersion?.job.tags ?? {}}
-							variant={AlertVariant.Inline}
-						/>
-						<Loader />
-					</>
+					<Loader />
 				)}
 			</div>
 		</Drawer>
