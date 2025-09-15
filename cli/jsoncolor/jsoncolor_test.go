@@ -95,7 +95,6 @@ func TestWrite(t *testing.T) {
 			for _, substr := range tt.contains {
 				require.Contains(t, output, substr)
 			}
-
 			for _, substr := range tt.notContains {
 				require.NotContains(t, output, substr)
 			}
@@ -124,16 +123,14 @@ func TestStringToColorMode(t *testing.T) {
 		tt := tt
 		t.Run(tt.input, func(t *testing.T) {
 			t.Parallel()
-
 			result := jsoncolor.StringToColorMode(tt.input)
 			require.Equal(t, tt.expected, result)
 		})
 	}
 }
 
+// nolint:paralleltest // uses t.Setenv; must not run in parallel
 func TestShouldUseColor(t *testing.T) {
-	// NOTE: This test mutates process-wide env vars; keep it serial to avoid flakiness.
-	// Other tests in this file remain parallel-safe.
 	tests := []struct {
 		name       string
 		mode       jsoncolor.ColorMode
@@ -199,8 +196,7 @@ func TestShouldUseColor(t *testing.T) {
 			name: "auto mode with no env vars and non-terminal",
 			mode: jsoncolor.ColorModeAuto,
 			envSetup: func(t *testing.T) {
-				// Baseline clears overrides; writer is a bytes.Buffer (non-tty)
-				baselineEnv(t)
+				baselineEnv(t) // writer is bytes.Buffer (non-tty)
 			},
 			writer:     func() *bytes.Buffer { return &bytes.Buffer{} },
 			wantResult: false,
@@ -219,8 +215,8 @@ func TestShouldUseColor(t *testing.T) {
 
 	for _, tt := range tests {
 		tt := tt
+		// nolint:paralleltest // uses t.Setenv; must not run in parallel
 		t.Run(tt.name, func(t *testing.T) {
-			// Do NOT call t.Parallel() here; this test intentionally runs serially.
 			tt.envSetup(t)
 			w := tt.writer()
 			result := jsoncolor.ShouldUseColor(tt.mode, w)
@@ -229,9 +225,8 @@ func TestShouldUseColor(t *testing.T) {
 	}
 }
 
-// baselineEnv clears the three override env vars for a clean start in each subtest.
-// We use empty strings to represent "unset" consistently across platforms.
 func baselineEnv(t *testing.T) {
+	// Use empty strings to represent "unset" consistently across platforms.
 	t.Setenv("NO_COLOR", "")
 	t.Setenv("FORCE_COLOR", "")
 	t.Setenv("CODER_COLOR", "")
@@ -271,14 +266,11 @@ func TestWriteColorized(t *testing.T) {
 			output := buf.String()
 
 			if tt.expectColor {
-				// Should contain ANSI color codes
 				require.Contains(t, output, "\033[")
 			} else {
-				// Should not contain ANSI color codes
 				require.NotContains(t, output, "\033[")
 			}
 
-			// Should contain the data regardless
 			require.Contains(t, output, "Test")
 			require.Contains(t, output, "true")
 			require.Contains(t, output, "42")
