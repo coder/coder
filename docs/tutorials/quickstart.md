@@ -167,9 +167,9 @@ Templates define what's in your development environment. Let's start simple:
    - Display name: `quickstart doc template`
    - Description: `Provision Docker containers as Coder workspaces`
 
-![Create template](../images/screenshots/create-template.png)
+   ![Create template](../images/screenshots/create-template.png)
 
-1. Click **"Save"**
+5. Click **"Save"**
 
 **What just happened?** You defined a template — a reusable blueprint for dev
 environments — in your Coder deployment. It's now stored in your organization's
