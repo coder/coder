@@ -2,7 +2,6 @@ package jsoncolor_test
 
 import (
 	"bytes"
-	"os"
 	"strings"
 	"testing"
 
@@ -133,57 +132,35 @@ func TestStringToColorMode(t *testing.T) {
 }
 
 func TestShouldUseColor(t *testing.T) {
-	t.Parallel()
-
-	// Save original env and restore after test
-	origNoColor := os.Getenv("NO_COLOR")
-	origForceColor := os.Getenv("FORCE_COLOR")
-	origCoderColor := os.Getenv("CODER_COLOR")
-
-	// Use t.Cleanup instead of defer for proper cleanup with t.Parallel
-	t.Cleanup(func() {
-		if err := os.Setenv("NO_COLOR", origNoColor); err != nil {
-			t.Errorf("Failed to restore environment variable: %v", err)
-		}
-		if err := os.Setenv("FORCE_COLOR", origForceColor); err != nil {
-			t.Errorf("Failed to restore environment variable: %v", err)
-		}
-		if err := os.Setenv("CODER_COLOR", origCoderColor); err != nil {
-			t.Errorf("Failed to restore environment variable: %v", err)
-		}
-	})
-
+	// NOTE: This test mutates process-wide env vars; keep it serial to avoid flakiness.
+	// Other tests in this file remain parallel-safe.
 	tests := []struct {
 		name       string
 		mode       jsoncolor.ColorMode
-		envSetup   func()
+		envSetup   func(t *testing.T)
 		writer     func() *bytes.Buffer
 		wantResult bool
 	}{
 		{
 			name:       "always mode",
 			mode:       jsoncolor.ColorModeAlways,
-			envSetup:   func() {},
+			envSetup:   func(t *testing.T) { baselineEnv(t) },
 			writer:     func() *bytes.Buffer { return &bytes.Buffer{} },
 			wantResult: true,
 		},
 		{
 			name:       "never mode",
 			mode:       jsoncolor.ColorModeNever,
-			envSetup:   func() {},
+			envSetup:   func(t *testing.T) { baselineEnv(t) },
 			writer:     func() *bytes.Buffer { return &bytes.Buffer{} },
 			wantResult: false,
 		},
 		{
 			name: "auto mode with FORCE_COLOR",
 			mode: jsoncolor.ColorModeAuto,
-			envSetup: func() {
-				if err := os.Setenv("FORCE_COLOR", "1"); err != nil {
-					t.Fatalf("Failed to set environment variable: %v", err)
-				}
-				if err := os.Setenv("NO_COLOR", ""); err != nil {
-					t.Fatalf("Failed to set environment variable: %v", err)
-				}
+			envSetup: func(t *testing.T) {
+				baselineEnv(t)
+				t.Setenv("FORCE_COLOR", "1")
 			},
 			writer:     func() *bytes.Buffer { return &bytes.Buffer{} },
 			wantResult: true,
@@ -191,13 +168,9 @@ func TestShouldUseColor(t *testing.T) {
 		{
 			name: "auto mode with NO_COLOR",
 			mode: jsoncolor.ColorModeAuto,
-			envSetup: func() {
-				if err := os.Setenv("NO_COLOR", "1"); err != nil {
-					t.Fatalf("Failed to set environment variable: %v", err)
-				}
-				if err := os.Setenv("FORCE_COLOR", ""); err != nil {
-					t.Fatalf("Failed to set environment variable: %v", err)
-				}
+			envSetup: func(t *testing.T) {
+				baselineEnv(t)
+				t.Setenv("NO_COLOR", "1")
 			},
 			writer:     func() *bytes.Buffer { return &bytes.Buffer{} },
 			wantResult: false,
@@ -205,16 +178,9 @@ func TestShouldUseColor(t *testing.T) {
 		{
 			name: "auto mode with CODER_COLOR=always",
 			mode: jsoncolor.ColorModeAuto,
-			envSetup: func() {
-				if err := os.Setenv("CODER_COLOR", "always"); err != nil {
-					t.Fatalf("Failed to set environment variable: %v", err)
-				}
-				if err := os.Setenv("NO_COLOR", ""); err != nil {
-					t.Fatalf("Failed to set environment variable: %v", err)
-				}
-				if err := os.Setenv("FORCE_COLOR", ""); err != nil {
-					t.Fatalf("Failed to set environment variable: %v", err)
-				}
+			envSetup: func(t *testing.T) {
+				baselineEnv(t)
+				t.Setenv("CODER_COLOR", "always")
 			},
 			writer:     func() *bytes.Buffer { return &bytes.Buffer{} },
 			wantResult: true,
@@ -222,16 +188,9 @@ func TestShouldUseColor(t *testing.T) {
 		{
 			name: "auto mode with CODER_COLOR=never",
 			mode: jsoncolor.ColorModeAuto,
-			envSetup: func() {
-				if err := os.Setenv("CODER_COLOR", "never"); err != nil {
-					t.Fatalf("Failed to set environment variable: %v", err)
-				}
-				if err := os.Setenv("NO_COLOR", ""); err != nil {
-					t.Fatalf("Failed to set environment variable: %v", err)
-				}
-				if err := os.Setenv("FORCE_COLOR", ""); err != nil {
-					t.Fatalf("Failed to set environment variable: %v", err)
-				}
+			envSetup: func(t *testing.T) {
+				baselineEnv(t)
+				t.Setenv("CODER_COLOR", "never")
 			},
 			writer:     func() *bytes.Buffer { return &bytes.Buffer{} },
 			wantResult: false,
@@ -239,16 +198,9 @@ func TestShouldUseColor(t *testing.T) {
 		{
 			name: "auto mode with no env vars and non-terminal",
 			mode: jsoncolor.ColorModeAuto,
-			envSetup: func() {
-				if err := os.Setenv("NO_COLOR", ""); err != nil {
-					t.Fatalf("Failed to set environment variable: %v", err)
-				}
-				if err := os.Setenv("FORCE_COLOR", ""); err != nil {
-					t.Fatalf("Failed to set environment variable: %v", err)
-				}
-				if err := os.Setenv("CODER_COLOR", ""); err != nil {
-					t.Fatalf("Failed to set environment variable: %v", err)
-				}
+			envSetup: func(t *testing.T) {
+				// Baseline clears overrides; writer is a bytes.Buffer (non-tty)
+				baselineEnv(t)
 			},
 			writer:     func() *bytes.Buffer { return &bytes.Buffer{} },
 			wantResult: false,
@@ -256,16 +208,9 @@ func TestShouldUseColor(t *testing.T) {
 		{
 			name: "FORCE_COLOR=0 disables color",
 			mode: jsoncolor.ColorModeAuto,
-			envSetup: func() {
-				if err := os.Setenv("FORCE_COLOR", "0"); err != nil {
-					t.Fatalf("Failed to set environment variable: %v", err)
-				}
-				if err := os.Setenv("NO_COLOR", ""); err != nil {
-					t.Fatalf("Failed to set environment variable: %v", err)
-				}
-				if err := os.Setenv("CODER_COLOR", ""); err != nil {
-					t.Fatalf("Failed to set environment variable: %v", err)
-				}
+			envSetup: func(t *testing.T) {
+				baselineEnv(t)
+				t.Setenv("FORCE_COLOR", "0")
 			},
 			writer:     func() *bytes.Buffer { return &bytes.Buffer{} },
 			wantResult: false,
@@ -275,19 +220,21 @@ func TestShouldUseColor(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Set up environment
-			tt.envSetup()
-
-			// Create writer
+			// Do NOT call t.Parallel() here; this test intentionally runs serially.
+			tt.envSetup(t)
 			w := tt.writer()
-
-			// Test
 			result := jsoncolor.ShouldUseColor(tt.mode, w)
 			require.Equal(t, tt.wantResult, result)
 		})
 	}
+}
+
+// baselineEnv clears the three override env vars for a clean start in each subtest.
+// We use empty strings to represent "unset" consistently across platforms.
+func baselineEnv(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("FORCE_COLOR", "")
+	t.Setenv("CODER_COLOR", "")
 }
 
 func TestWriteColorized(t *testing.T) {
