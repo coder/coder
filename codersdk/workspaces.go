@@ -518,6 +518,8 @@ type WorkspaceFilter struct {
 	Limit int `json:"limit,omitempty" typescript:"-"`
 	// FilterQuery supports a raw filter query string
 	FilterQuery string `json:"q,omitempty"`
+	// Shared is a whether the workspace is shared with any users or groups
+	Shared bool `json:"shared" typescript:"-"`
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
