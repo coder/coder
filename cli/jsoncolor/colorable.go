@@ -35,38 +35,46 @@ func StringToColorMode(s string) ColorMode {
 	}
 }
 
-// ShouldUseColor determines if colors should be used based on
-// the ColorMode, terminal detection, and environment variables
 func ShouldUseColor(mode ColorMode, w io.Writer) bool {
 	switch mode {
 	case ColorModeAlways:
 		return true
 	case ColorModeNever:
 		return false
-	default:
-		// AUTO: envs override, regardless of TTY or platform.
-		if os.Getenv("NO_COLOR") != "" {
-			return false
-		}
-		switch strings.ToLower(os.Getenv("CODER_COLOR")) {
-		case "never":
-			return false
-		case "always":
-			return true
-		}
-		if v, ok := os.LookupEnv("FORCE_COLOR"); ok {
-			if v == "" || v == "0" || strings.EqualFold(v, "false") {
-				return false
-			}
-			return true
-		}
+	}
 
-		// Fallback: TTY check only if writer is an *os.File
-		if f, ok := w.(*os.File); ok && (isatty.IsTerminal(f.Fd()) || isatty.IsCygwinTerminal(f.Fd())) {
-			return true
-		}
+	// 1) NO_COLOR: disable only if value is non-empty (empty means no override)
+	if strings.TrimSpace(os.Getenv("NO_COLOR")) != "" {
 		return false
 	}
+
+	// 2) FORCE_COLOR: enable if value is non-empty and not explicitly off
+	if v := strings.ToLower(strings.TrimSpace(os.Getenv("FORCE_COLOR"))); v != "" {
+		if v == "0" || v == "false" {
+			return false
+		}
+		return true
+	}
+
+	// 3) CODER_COLOR overrides
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("CODER_COLOR"))) {
+	case "never":
+		return false
+	case "always":
+		return true
+	}
+
+	// 4) TERM guard: dumb/empty terminals shouldn't color
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("TERM"))) {
+	case "", "dumb":
+		return false
+	}
+
+	// 5) Fallback: only enable if the writer itself is a TTY
+	if f, ok := w.(*os.File); ok && (isatty.IsTerminal(f.Fd()) || isatty.IsCygwinTerminal(f.Fd())) {
+		return true
+	}
+	return false
 }
 
 // WriteColorized writes colorized JSON to the writer using the given color mode
