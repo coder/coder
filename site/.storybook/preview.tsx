@@ -10,7 +10,12 @@ import { DecoratorHelpers } from "@storybook/addon-themes";
 import isChromatic from "chromatic/isChromatic";
 import { StrictMode } from "react";
 import { HelmetProvider } from "react-helmet-async";
-import { QueryClient, QueryClientProvider } from "react-query";
+import {
+	QueryClient,
+	QueryClientProvider,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
 import "theme/globalFonts";
 import type { Decorator, Loader, Parameters } from "@storybook/react-vite";
@@ -133,3 +138,37 @@ const fontLoader = async () => ({
 
 export const loaders: Loader[] =
 	isChromatic() && document.fonts ? [fontLoader] : [];
+
+const moduleId1 = "jetbrains";
+const moduleId2 = "aws";
+
+function Button() {
+	const query = useQuery({
+		queryKey: ["modules", "metadata", moduleId1],
+		queryFn: async () => {
+			const res = await fetch(`/modules/metadata/${moduleId1}`);
+			return res.json() as unknown as readonly string[];
+		},
+	});
+
+	return (
+		<>
+			{query.status === "pending" && <span>Pending</span>}
+			{query.status === "error" && <span>Error</span>}
+			{query.status === "success" && (
+				<>
+					<span>Success</span>
+					<ul>
+						{query.data.map((value) => (
+							<li key={value}>{value}</li>
+						))}
+					</ul>
+				</>
+			)}
+		</>
+	);
+}
+
+function App() {
+	return <Button />;
+}

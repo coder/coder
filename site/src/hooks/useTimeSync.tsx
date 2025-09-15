@@ -168,8 +168,31 @@ class ReactTimeSync {
 	// function component should have different IDs)
 	readonly #entries: Map<string, TransformationEntry>;
 	readonly #timeSync: TimeSync;
+
 	#isProviderMounted: boolean;
 	#invalidationIntervalId: NodeJS.Timeout | number | undefined;
+
+	/**
+	 * Used to "batch" up multiple calls to this.syncAllSubscribersOnMount after
+	 * a given render phase, and make sure that no matter how many component
+	 * instances are newly mounted, the logic only fires once. This logic is
+	 * deeply dependent on useLayoutEffect's API, which blocks DOM painting
+	 * until all the queued layout effects fire
+	 *
+	 * useAnimationFrame gives us a way to detect when all our layout effects
+	 * have finished processing and have produced new UI on screen.
+	 *
+	 * This pattern for detecting when layout effects fire is normally NOT safe,
+	 * but because all the mounting logic is synchronous, that gives us
+	 * guarantees that when a new animation frame is available, there will be
+	 * no incomplete/in-flight effects. We don't want to throttle calls, because
+	 * rapid enough updates could outpace the throttle threshold, which could
+	 * cause some updates to get dropped
+	 *
+	 * @todo Double-check that cascading layout effects does cause the painting
+	 * to be fully blocked.
+	 */
+	#batchMountUpdateId: number | undefined;
 
 	constructor(options?: Partial<ReactTimeSyncInitOptions>) {
 		const { initialDate: init, isSnapshot } = options ?? {};
@@ -185,10 +208,6 @@ class ReactTimeSync {
 	// Only safe to call inside a render that is bound to useSyncExternalStore
 	// in some way
 	getDateSnapshot(): Date {
-		// Since this function is used to break the React rules slightly, we
-		// need to opt this function out of being compiled by the React Compiler
-		// to make sure it doesn't compile the function the wrong way
-		"use no memo";
 		return this.#timeSync.getStateSnapshot();
 	}
 
@@ -313,9 +332,28 @@ class ReactTimeSync {
 	}
 
 	syncAllSubscribersOnMount(): void {
-		if (!this.#isProviderMounted) {
+		/**
+		 * It's hokey to think about, but this logic *should* still work in the
+		 * event that layout effects cause other useTimeSync consumers to mount.
+		 *
+		 * Even though a layout effect might produce 2+ new render passes
+		 * before paint (each with their own layout effects), React will still
+		 * be in control of the event loop the entire time. There's no way for
+		 * any other TimeSync logic to fire or update state. So while the extra
+		 * mounting components will technically never be able to dispatch their
+		 * own syncs, we can reuse the state produced from the original sync.
+		 *
+		 * @todo Realistically, this should only cause problems for super
+		 * technical, rapidly updating state, but better to hold off on handling
+		 * that use case for now
+		 */
+		if (!this.#isProviderMounted || this.#batchMountUpdateId !== undefined) {
 			return;
 		}
+
+		this.#batchMountUpdateId = requestAnimationFrame(() => {
+			this.#batchMountUpdateId = undefined;
+		});
 
 		void this.#timeSync.invalidateStateSnapshot({
 			notificationBehavior: "onChange",
@@ -343,7 +381,13 @@ class ReactTimeSync {
 			this.#invalidationIntervalId = undefined;
 			this.#timeSync.dispose();
 			this.#entries.clear();
+
+			if (this.#batchMountUpdateId !== undefined) {
+				cancelAnimationFrame(this.#batchMountUpdateId);
+				this.#batchMountUpdateId = undefined;
+			}
 		};
+
 		return cleanup;
 	}
 }
@@ -557,6 +601,11 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// option of memoizing expensive transformations at the render level without
 	// polluting the hook's API with super-fragile dependency array logic
 	const newTransformation = useMemo(() => {
+		// Since this function is used to break the React rules slightly, we
+		// need to opt this function out of being compiled by the React Compiler
+		// to make sure it doesn't compile the function the wrong way
+		"use no memo";
+
 		// This state getter is technically breaking the React rules, because
 		// we're getting a mutable value while in a render without binding it to
 		// state. But it's "pure enough", and the useSyncExternalStore logic for
@@ -619,10 +668,6 @@ export function useTimeSyncState<T = Date>(options: UseTimeSyncOptions<T>): T {
 	// updates, we need to fire them before paint to make sure that we don't get
 	// screen flickering
 	useLayoutEffect(() => {
-		/**
-		 * @todo Add logic to make sure that this function only gets called once
-		 * total when multiple components mount at the same time
-		 */
 		reactTs.syncAllSubscribersOnMount();
 	}, [reactTs]);
 
