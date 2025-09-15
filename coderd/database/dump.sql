@@ -150,7 +150,8 @@ CREATE TYPE notification_method AS ENUM (
 );
 
 CREATE TYPE notification_template_kind AS ENUM (
-    'system'
+    'system',
+    'custom'
 );
 
 CREATE TYPE parameter_destination_scheme AS ENUM (
@@ -890,7 +891,7 @@ CREATE TABLE connection_logs (
     workspace_name text NOT NULL,
     agent_name text NOT NULL,
     type connection_type NOT NULL,
-    ip inet NOT NULL,
+    ip inet,
     code integer,
     user_agent text,
     user_id uuid,
@@ -2294,12 +2295,15 @@ CREATE TABLE workspace_apps (
     display_order integer DEFAULT 0 NOT NULL,
     hidden boolean DEFAULT false NOT NULL,
     open_in workspace_app_open_in DEFAULT 'slim-window'::workspace_app_open_in NOT NULL,
-    display_group text
+    display_group text,
+    tooltip character varying(2048) DEFAULT ''::character varying NOT NULL
 );
 
 COMMENT ON COLUMN workspace_apps.display_order IS 'Specifies the order in which to display agent app in user interfaces.';
 
 COMMENT ON COLUMN workspace_apps.hidden IS 'Determines if the app is not shown in user interfaces.';
+
+COMMENT ON COLUMN workspace_apps.tooltip IS 'Markdown text that is displayed when hovering over workspace apps.';
 
 CREATE TABLE workspace_build_parameters (
     workspace_build_id uuid NOT NULL,

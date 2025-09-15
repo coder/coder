@@ -49,5 +49,6 @@ var (
 
 // Notification-related events.
 var (
-	TemplateTestNotification = uuid.MustParse("c425f63e-716a-4bf4-ae24-78348f706c3f")
+	TemplateTestNotification   = uuid.MustParse("c425f63e-716a-4bf4-ae24-78348f706c3f")
+	TemplateCustomNotification = uuid.MustParse("39b1e189-c857-4b0c-877a-511144c18516")
 )

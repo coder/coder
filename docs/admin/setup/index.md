@@ -38,6 +38,9 @@ coder server
 
 ## Wildcard access URL
 
+> [!TIP]
+> Learn more about the [importance and benefits of wildcard access URLs](../networking/wildcard-access-url.md)
+
 `CODER_WILDCARD_ACCESS_URL` is necessary for
 [port forwarding](../networking/port-forwarding.md#dashboard) via the dashboard
 or running [coder_apps](../templates/index.md) on an absolute path. Set this to

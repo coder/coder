@@ -292,6 +292,57 @@ func must[T any](value T, err error) T {
 	return value
 }
 
+func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
+	t.Parallel()
+
+	mk := func(access, refresh time.Duration) *codersdk.DeploymentValues {
+		dv := &codersdk.DeploymentValues{}
+		dv.Sessions.DefaultDuration = serpent.Duration(access)
+		dv.Sessions.RefreshDefaultDuration = serpent.Duration(refresh)
+		return dv
+	}
+
+	t.Run("EqualDurations_Error", func(t *testing.T) {
+		t.Parallel()
+		dv := mk(1*time.Hour, 1*time.Hour)
+		err := dv.Validate()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "must be strictly greater")
+	})
+
+	t.Run("RefreshShorter_Error", func(t *testing.T) {
+		t.Parallel()
+		dv := mk(2*time.Hour, 1*time.Hour)
+		err := dv.Validate()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "must be strictly greater")
+	})
+
+	t.Run("RefreshZero_Error", func(t *testing.T) {
+		t.Parallel()
+		dv := mk(1*time.Hour, 0)
+		err := dv.Validate()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "must be strictly greater")
+	})
+
+	t.Run("AccessUninitialized_Error", func(t *testing.T) {
+		t.Parallel()
+		// Access duration is zero (uninitialized); refresh is valid.
+		dv := mk(0, 48*time.Hour)
+		err := dv.Validate()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "developer error: sessions configuration appears uninitialized")
+	})
+
+	t.Run("RefreshLonger_OK", func(t *testing.T) {
+		t.Parallel()
+		dv := mk(1*time.Hour, 48*time.Hour)
+		err := dv.Validate()
+		require.NoError(t, err)
+	})
+}
+
 func TestDeploymentValues_DurationFormatNanoseconds(t *testing.T) {
 	t.Parallel()
 
