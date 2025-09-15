@@ -6,7 +6,7 @@ import MenuItem from "@mui/material/MenuItem";
 import { SimpleTreeView, TreeItem } from "@mui/x-tree-view";
 import { DockerIcon } from "components/Icons/DockerIcon";
 import { ChevronRightIcon } from "lucide-react";
-import { type CSSProperties, type ElementType, type FC, useState } from "react";
+import { type CSSProperties, type ElementType, type FC, useState, type JSX } from "react";
 import type { FileTree } from "utils/filetree";
 
 const isFolder = (content?: FileTree | string): content is FileTree =>

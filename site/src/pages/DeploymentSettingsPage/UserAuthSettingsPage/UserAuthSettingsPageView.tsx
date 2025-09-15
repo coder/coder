@@ -14,6 +14,8 @@ import {
 import { docs } from "utils/docs";
 import OptionsTable from "../OptionsTable";
 
+import type { JSX } from "react";
+
 type UserAuthSettingsPageViewProps = {
 	options: SerpentOption[];
 };

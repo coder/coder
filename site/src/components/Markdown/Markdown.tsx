@@ -41,7 +41,7 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 	const { children, className, components = {} } = props;
 
 	return (
-		<ReactMarkdown
+        <ReactMarkdown
 			css={markdownStyles}
 			className={className}
 			remarkPlugins={[gfm]}
@@ -149,9 +149,9 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 				...components,
 			}}
 		>
-			{children}
-		</ReactMarkdown>
-	);
+            {children}
+        </ReactMarkdown>
+    );
 };
 
 interface InlineMarkdownProps {
@@ -251,7 +251,7 @@ function parseChildrenAsAlertContent(
 		return null;
 	}
 
-	const mainParentNode = jsxChildren.find((node): node is ReactElement =>
+	const mainParentNode = jsxChildren.find((node): node is ReactElement<any> =>
 		isValidElement(node),
 	);
 	let parentChildren = mainParentNode?.props.children;

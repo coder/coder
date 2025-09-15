@@ -6,7 +6,7 @@ import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
-import { Children, type FC, useState } from "react";
+import { Children, type FC, useState, type JSX } from "react";
 import { ResourceAvatar } from "./ResourceAvatar";
 import { SensitiveValue } from "./SensitiveValue";
 

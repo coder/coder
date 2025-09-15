@@ -157,7 +157,7 @@ export const SectionLabel: FC<HTMLAttributes<HTMLHeadingElement>> = (props) => {
 };
 
 type PillProps = HTMLAttributes<HTMLDivElement> & {
-	icon: ReactElement;
+	icon: ReactElement<any>;
 };
 
 export const Pill = forwardRef<HTMLDivElement, PillProps>((props, ref) => {

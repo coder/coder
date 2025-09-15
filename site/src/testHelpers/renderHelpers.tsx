@@ -12,7 +12,7 @@ import type { DashboardProvider } from "modules/dashboard/DashboardProvider";
 import OrganizationSettingsLayout from "modules/management/OrganizationSettingsLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
-import type { ReactNode } from "react";
+import type { ReactNode, JSX } from "react";
 import { QueryClient } from "react-query";
 import {
 	createMemoryRouter,
@@ -236,7 +236,7 @@ export const waitForLoaderToBeRemoved = async (): Promise<void> => {
 	);
 };
 
-export const renderComponent = (component: React.ReactElement) => {
+export const renderComponent = (component: React.ReactElement<any>) => {
 	return testingLibraryRender(component, {
 		wrapper: ({ children }) => (
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>{children}</ThemeOverride>

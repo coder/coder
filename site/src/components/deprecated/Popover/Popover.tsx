@@ -21,7 +21,7 @@ import {
 
 type TriggerMode = "hover" | "click";
 
-type TriggerRef = RefObject<HTMLElement>;
+type TriggerRef = RefObject<HTMLElement | null>;
 
 // Have to append ReactNode type to satisfy React's cloneElement function. It
 // has absolutely no bearing on what happens at runtime

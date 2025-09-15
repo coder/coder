@@ -19,7 +19,7 @@ type BuildLogsDrawerProps = {
 	open: boolean;
 	onClose: () => void;
 	templateVersion: TemplateVersion | undefined;
-	variablesSectionRef: React.RefObject<HTMLDivElement>;
+	variablesSectionRef: React.RefObject<HTMLDivElement | null>;
 };
 
 export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
