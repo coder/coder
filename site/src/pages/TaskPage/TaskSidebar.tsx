@@ -101,7 +101,7 @@ export const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
 							is not configured.
 						</div>
 						<Button size="sm" variant="outline" asChild>
-							<RouterLink to={docs("/admin/setup#wildcard-access-url")}>
+							<RouterLink to={docs("/admin/networking/wildcard-access-url")}>
 								<SquareArrowOutUpRightIcon />
 								Learn more about wildcard access URL
 							</RouterLink>
