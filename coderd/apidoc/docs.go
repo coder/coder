@@ -10115,6 +10115,33 @@ const docTemplate = `{
                     }
                 }
             },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Completely clears the workspace's user and group ACLs.",
+                "operationId": "completely-clears-the-workspaces-user-and-group-acls",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            },
             "patch": {
                 "security": [
                     {
@@ -16396,6 +16423,10 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "max_token_lifetime": {
+                    "type": "integer"
+                },
+                "refresh_default_duration": {
+                    "description": "RefreshDefaultDuration is the default lifetime for OAuth2 refresh tokens.\nThis should generally be longer than access token lifetimes to allow\nrefreshing after access token expiry.",
                     "type": "integer"
                 }
             }

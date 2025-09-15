@@ -351,7 +351,7 @@ export interface ConnectionLog {
 	readonly workspace_id: string;
 	readonly workspace_name: string;
 	readonly agent_name: string;
-	readonly ip: string;
+	readonly ip?: string;
 	readonly type: ConnectionType;
 	readonly web_info?: ConnectionLogWebInfo;
 	readonly ssh_info?: ConnectionLogSSHInfo;
@@ -2741,6 +2741,7 @@ export interface SessionCountDeploymentStats {
 export interface SessionLifetime {
 	readonly disable_expiry_refresh?: boolean;
 	readonly default_duration: number;
+	readonly refresh_default_duration?: number;
 	readonly default_token_lifetime?: number;
 	readonly max_token_lifetime?: number;
 	readonly max_admin_token_lifetime?: number;
