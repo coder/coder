@@ -1733,6 +1733,18 @@ func (q *querier) DeleteWebpushSubscriptions(ctx context.Context, ids []uuid.UUI
 	return q.db.DeleteWebpushSubscriptions(ctx, ids)
 }
 
+func (q *querier) DeleteWorkspaceACLByID(ctx context.Context, id uuid.UUID) error {
+	fetch := func(ctx context.Context, id uuid.UUID) (database.WorkspaceTable, error) {
+		w, err := q.db.GetWorkspaceByID(ctx, id)
+		if err != nil {
+			return database.WorkspaceTable{}, err
+		}
+		return w.WorkspaceTable(), nil
+	}
+
+	return fetchAndExec(q.log, q.auth, policy.ActionUpdate, fetch, q.db.DeleteWorkspaceACLByID)(ctx, id)
+}
+
 func (q *querier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
 	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	if err != nil {
@@ -2281,8 +2293,8 @@ func (q *querier) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID)
 }
 
 func (q *querier) GetNotificationTemplatesByKind(ctx context.Context, kind database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
-	// Anyone can read the system notification templates.
-	if kind == database.NotificationTemplateKindSystem {
+	// Anyone can read the 'system' and 'custom' notification templates.
+	if kind == database.NotificationTemplateKindSystem || kind == database.NotificationTemplateKindCustom {
 		return q.db.GetNotificationTemplatesByKind(ctx, kind)
 	}
 
@@ -2607,6 +2619,18 @@ func (q *querier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UU
 		return database.ProvisionerJob{}, err
 	}
 
+	return job, nil
+}
+
+func (q *querier) GetProvisionerJobByIDWithLock(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+	job, err := q.db.GetProvisionerJobByIDWithLock(ctx, id)
+	if err != nil {
+		return database.ProvisionerJob{}, err
+	}
+
+	if err := q.authorizeProvisionerJob(ctx, job); err != nil {
+		return database.ProvisionerJob{}, err
+	}
 	return job, nil
 }
 

@@ -892,6 +892,20 @@ func (mr *MockStoreMockRecorder) DeleteWebpushSubscriptions(ctx, ids any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWebpushSubscriptions", reflect.TypeOf((*MockStore)(nil).DeleteWebpushSubscriptions), ctx, ids)
 }
 
+// DeleteWorkspaceACLByID mocks base method.
+func (m *MockStore) DeleteWorkspaceACLByID(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteWorkspaceACLByID", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteWorkspaceACLByID indicates an expected call of DeleteWorkspaceACLByID.
+func (mr *MockStoreMockRecorder) DeleteWorkspaceACLByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkspaceACLByID", reflect.TypeOf((*MockStore)(nil).DeleteWorkspaceACLByID), ctx, id)
+}
+
 // DeleteWorkspaceAgentPortShare mocks base method.
 func (m *MockStore) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
 	m.ctrl.T.Helper()
@@ -2668,6 +2682,21 @@ func (m *MockStore) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.
 func (mr *MockStoreMockRecorder) GetProvisionerJobByIDForUpdate(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobByIDForUpdate), ctx, id)
+}
+
+// GetProvisionerJobByIDWithLock mocks base method.
+func (m *MockStore) GetProvisionerJobByIDWithLock(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProvisionerJobByIDWithLock", ctx, id)
+	ret0, _ := ret[0].(database.ProvisionerJob)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProvisionerJobByIDWithLock indicates an expected call of GetProvisionerJobByIDWithLock.
+func (mr *MockStoreMockRecorder) GetProvisionerJobByIDWithLock(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobByIDWithLock", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobByIDWithLock), ctx, id)
 }
 
 // GetProvisionerJobTimingsByJobID mocks base method.

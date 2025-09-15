@@ -18,8 +18,8 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipText,
-	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
@@ -459,7 +459,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 const AssignDefaultOrgHelpTooltip: FC = () => {
 	return (
 		<HelpTooltip>
-			<HelpTooltipTrigger />
+			<HelpTooltipIconTrigger />
 			<HelpTooltipContent>
 				<HelpTooltipText>
 					Disabling will remove all users from the default organization if a

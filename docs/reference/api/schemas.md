@@ -1872,6 +1872,39 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `oidc_convert`           |
 | `tailnet_resume`         |
 
+## codersdk.CustomNotificationContent
+
+```json
+{
+  "message": "string",
+  "title": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description |
+|-----------|--------|----------|--------------|-------------|
+| `message` | string | false    |              |             |
+| `title`   | string | false    |              |             |
+
+## codersdk.CustomNotificationRequest
+
+```json
+{
+  "content": {
+    "message": "string",
+    "title": "string"
+  }
+}
+```
+
+### Properties
+
+| Name      | Type                                                                     | Required | Restrictions | Description |
+|-----------|--------------------------------------------------------------------------|----------|--------------|-------------|
+| `content` | [codersdk.CustomNotificationContent](#codersdkcustomnotificationcontent) | false    |              |             |
+
 ## codersdk.CustomRoleRequest
 
 ```json
@@ -2433,7 +2466,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "default_token_lifetime": 0,
       "disable_expiry_refresh": true,
       "max_admin_token_lifetime": 0,
-      "max_token_lifetime": 0
+      "max_token_lifetime": 0,
+      "refresh_default_duration": 0
     },
     "ssh_keygen_algorithm": "string",
     "strict_transport_security": 0,
@@ -2920,7 +2954,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "default_token_lifetime": 0,
     "disable_expiry_refresh": true,
     "max_admin_token_lifetime": 0,
-    "max_token_lifetime": 0
+    "max_token_lifetime": 0,
+    "refresh_default_duration": 0
   },
   "ssh_keygen_algorithm": "string",
   "strict_transport_security": 0,
@@ -6834,19 +6869,21 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "default_token_lifetime": 0,
   "disable_expiry_refresh": true,
   "max_admin_token_lifetime": 0,
-  "max_token_lifetime": 0
+  "max_token_lifetime": 0,
+  "refresh_default_duration": 0
 }
 ```
 
 ### Properties
 
-| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                        |
-|----------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `default_duration`         | integer | false    |              | Default duration is only for browser, workspace app and oauth sessions.                                                                                                            |
-| `default_token_lifetime`   | integer | false    |              |                                                                                                                                                                                    |
-| `disable_expiry_refresh`   | boolean | false    |              | Disable expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key. |
-| `max_admin_token_lifetime` | integer | false    |              |                                                                                                                                                                                    |
-| `max_token_lifetime`       | integer | false    |              |                                                                                                                                                                                    |
+| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                            |
+|----------------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `default_duration`         | integer | false    |              | Default duration is only for browser, workspace app and oauth sessions.                                                                                                                |
+| `default_token_lifetime`   | integer | false    |              |                                                                                                                                                                                        |
+| `disable_expiry_refresh`   | boolean | false    |              | Disable expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key.     |
+| `max_admin_token_lifetime` | integer | false    |              |                                                                                                                                                                                        |
+| `max_token_lifetime`       | integer | false    |              |                                                                                                                                                                                        |
+| `refresh_default_duration` | integer | false    |              | Refresh default duration is the default lifetime for OAuth2 refresh tokens. This should generally be longer than access token lifetimes to allow refreshing after access token expiry. |
 
 ## codersdk.SlimRole
 
@@ -8985,6 +9022,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 ],
                 "subdomain": true,
                 "subdomain_name": "string",
+                "tooltip": "string",
                 "url": "string"
               }
             ],
@@ -9249,6 +9287,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       ],
       "subdomain": true,
       "subdomain_name": "string",
+      "tooltip": "string",
       "url": "string"
     }
   ],
@@ -9917,6 +9956,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   ],
   "subdomain": true,
   "subdomain_name": "string",
+  "tooltip": "string",
   "url": "string"
 }
 ```
@@ -9940,6 +9980,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `statuses`       | array of [codersdk.WorkspaceAppStatus](#codersdkworkspaceappstatus)    | false    |              | Statuses is a list of statuses for the app.                                                                                                                                                                                                    |
 | `subdomain`      | boolean                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
 | `subdomain_name` | string                                                                 | false    |              | Subdomain name is the application domain exposed on the `coder server`.                                                                                                                                                                        |
+| `tooltip`        | string                                                                 | false    |              | Tooltip is an optional markdown supported field that is displayed when hovering over workspace apps in the UI.                                                                                                                                 |
 | `url`            | string                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
 
 #### Enumerated Values
@@ -10148,6 +10189,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               ],
               "subdomain": true,
               "subdomain_name": "string",
+              "tooltip": "string",
               "url": "string"
             }
           ],
@@ -10629,6 +10671,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           ],
           "subdomain": true,
           "subdomain_name": "string",
+          "tooltip": "string",
           "url": "string"
         }
       ],
@@ -10965,6 +11008,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                     "statuses": [],
                     "subdomain": true,
                     "subdomain_name": "string",
+                    "tooltip": "string",
                     "url": "string"
                   }
                 ],

@@ -488,6 +488,13 @@ func (m queryMetricsStore) DeleteWebpushSubscriptions(ctx context.Context, ids [
 	return r0
 }
 
+func (m queryMetricsStore) DeleteWorkspaceACLByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteWorkspaceACLByID(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteWorkspaceACLByID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteWorkspaceAgentPortShare(ctx, arg)
@@ -1269,6 +1276,13 @@ func (m queryMetricsStore) GetProvisionerJobByIDForUpdate(ctx context.Context, i
 	start := time.Now()
 	r0, r1 := m.s.GetProvisionerJobByIDForUpdate(ctx, id)
 	m.queryLatencies.WithLabelValues("GetProvisionerJobByIDForUpdate").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetProvisionerJobByIDWithLock(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetProvisionerJobByIDWithLock(ctx, id)
+	m.queryLatencies.WithLabelValues("GetProvisionerJobByIDWithLock").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
