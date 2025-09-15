@@ -44,20 +44,24 @@ func ShouldUseColor(mode ColorMode, w io.Writer) bool {
 	case ColorModeNever:
 		return false
 	default:
-		// Auto mode — env vars first (highest precedence wins)
+		// AUTO: envs override, regardless of TTY or platform.
 		if os.Getenv("NO_COLOR") != "" {
 			return false
 		}
-		if v := os.Getenv("FORCE_COLOR"); v != "" && v != "0" {
-			return true
-		}
 		switch strings.ToLower(os.Getenv("CODER_COLOR")) {
-		case "always":
-			return true
 		case "never":
 			return false
+		case "always":
+			return true
 		}
-		// Fallback to TTY detection
+		if v, ok := os.LookupEnv("FORCE_COLOR"); ok {
+			if v == "" || v == "0" || strings.EqualFold(v, "false") {
+				return false
+			}
+			return true
+		}
+
+		// Fallback: TTY check only if writer is an *os.File
 		if f, ok := w.(*os.File); ok && (isatty.IsTerminal(f.Fd()) || isatty.IsCygwinTerminal(f.Fd())) {
 			return true
 		}
