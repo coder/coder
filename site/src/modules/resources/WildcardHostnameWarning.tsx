@@ -69,7 +69,7 @@ export const WildcardHostnameWarning: FC<WildcardHostnameWarningProps> = ({
 					)}
 				</div>
 				<div className="pt-2">
-					<Link href={docs("/admin/setup#wildcard-access-url")} target="_blank">
+					<Link href={docs("/admin/networking/wildcard-access-url")} target="_blank">
 						<span className="font-semibold">
 							Learn more about wildcard access URL
 						</span>
