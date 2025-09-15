@@ -891,7 +891,7 @@ CREATE TABLE connection_logs (
     workspace_name text NOT NULL,
     agent_name text NOT NULL,
     type connection_type NOT NULL,
-    ip inet NOT NULL,
+    ip inet,
     code integer,
     user_agent text,
     user_id uuid,
