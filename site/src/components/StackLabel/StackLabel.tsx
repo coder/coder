@@ -12,25 +12,25 @@ import { cn } from "utils/cn";
 
 export const StackLabel: FC<ComponentProps<typeof Stack>> = ({
 	className,
-	...delegatedProps
+	...props
 }) => {
 	return (
 		<Stack
 			spacing={0.5}
 			className={cn("pl-3 font-medium", className)}
-			{...delegatedProps}
+			{...props}
 		/>
 	);
 };
 
 export const StackLabelHelperText: FC<FormHelperTextProps> = ({
 	className,
-	...delegatedProps
+	...props
 }) => {
 	return (
 		<FormHelperText
 			className={cn("mt-0 [&_strong]:text-content-primary", className)}
-			{...delegatedProps}
+			{...props}
 		/>
 	);
 };

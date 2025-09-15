@@ -19,12 +19,12 @@ export const Search: FC<SearchProps> = ({
 	children,
 	$$ref,
 	className,
-	...delegatedProps
+	...props
 }) => {
 	return (
 		<div
 			ref={$$ref}
-			{...delegatedProps}
+			{...props}
 			className={cn(
 				"flex items-center h-10 pl-4 border-0 border-b border-solid border-border",
 				className,

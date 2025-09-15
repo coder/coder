@@ -31,15 +31,12 @@ export const Tabs: FC<TabsProps> = ({ className, active, ...htmlProps }) => {
 
 type TabsListProps = HTMLAttributes<HTMLDivElement>;
 
-export const TabsList: FC<TabsListProps> = ({
-	className,
-	...delegatedProps
-}) => {
+export const TabsList: FC<TabsListProps> = ({ className, ...props }) => {
 	return (
 		<div
 			role="tablist"
 			className={cn("flex items-baseline gap-6", className)}
-			{...delegatedProps}
+			{...props}
 		/>
 	);
 };

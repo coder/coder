@@ -215,7 +215,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 const ScrollArea: FC<HTMLProps<HTMLDivElement>> = ({
 	className,
 	style = {},
-	...delegatedProps
+	...props
 }) => {
 	/**
 	 * @todo 2024-10-03 - Use only CSS to set the height of the content.
@@ -254,7 +254,7 @@ const ScrollArea: FC<HTMLProps<HTMLDivElement>> = ({
 			ref={contentRef}
 			className={cn("overflow-y-auto w-full", className)}
 			style={{ ...style, height }}
-			{...delegatedProps}
+			{...props}
 		/>
 	);
 };

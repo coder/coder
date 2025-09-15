@@ -35,7 +35,7 @@ type SelectMenuButtonProps = ButtonProps & {
 export const SelectMenuButton = forwardRef<
 	HTMLButtonElement,
 	SelectMenuButtonProps
->(({ className, startIcon, children, ...delegatedProps }, ref) => {
+>(({ className, startIcon, children, ...props }, ref) => {
 	return (
 		<Button
 			variant="outline"
@@ -44,7 +44,7 @@ export const SelectMenuButton = forwardRef<
 			// Shrink padding right slightly to account for visual weight of
 			// the chevron
 			className={cn("flex flex-row gap-2 pr-1.5", className)}
-			{...delegatedProps}
+			{...props}
 		>
 			{startIcon}
 			<span className="text-left block overflow-hidden text-ellipsis flex-grow">
