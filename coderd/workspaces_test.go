@@ -1844,7 +1844,7 @@ func TestWorkspaceFilter(t *testing.T) {
 		})
 
 		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Shared: true,
+			Shared: ptr.Ref(true),
 		})
 		require.NoError(t, err, "fetch workspaces")
 		require.Equal(t, 1, workspaces.Count, "expected only one workspace")
@@ -1882,7 +1882,7 @@ func TestWorkspaceFilter(t *testing.T) {
 		})
 
 		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Shared: false,
+			Shared: ptr.Ref(false),
 		})
 		require.NoError(t, err, "fetch workspaces")
 		require.Equal(t, 1, workspaces.Count, "expected only one workspace")
