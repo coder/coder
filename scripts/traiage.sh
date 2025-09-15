@@ -23,7 +23,6 @@ create() {
 		--template "${TEMPLATE_NAME}" \
 		--yes \
 		"${WORKSPACE_NAME}"
-
 	exit 0
 }
 
@@ -33,6 +32,16 @@ prompt() {
 		--url "${CODER_URL}" \
 		--token "${CODER_SESSION_TOKEN}" \
 		ssh "${WORKSPACE_NAME}" -- /bin/bash -lc "echo -n '${PROMPT}' | ~/.local/bin/claude --print --verbose --output-format=stream-json -"
+	exit 0
+}
+
+archive() {
+	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME
+	"${CODER_BIN}" \
+		--url "${CODER_URL}" \
+		--token "${CODER_SESSION_TOKEN}" \
+		ssh "${WORKSPACE_NAME}" -- /bin/bash -lc "coder-create-archive"
+	exit 0
 }
 
 delete() {
@@ -43,7 +52,6 @@ delete() {
 		delete \
 		"${WORKSPACE_NAME}" \
 		--yes
-
 	exit 0
 }
 
@@ -60,6 +68,9 @@ main() {
 			;;
 		prompt)
 			prompt
+			;;
+		archive)
+			archive
 			;;
 		delete)
 			delete
