@@ -1,4 +1,10 @@
-import { Children, type FC, type PropsWithChildren, type ReactNode, type JSX } from "react";
+import {
+	Children,
+	type FC,
+	type JSX,
+	type PropsWithChildren,
+	type ReactNode,
+} from "react";
 
 interface CondProps {
 	condition?: boolean;

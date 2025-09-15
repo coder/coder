@@ -41,7 +41,7 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 	const { children, className, components = {} } = props;
 
 	return (
-        <ReactMarkdown
+		<ReactMarkdown
 			css={markdownStyles}
 			className={className}
 			remarkPlugins={[gfm]}
@@ -149,9 +149,9 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 				...components,
 			}}
 		>
-            {children}
-        </ReactMarkdown>
-    );
+			{children}
+		</ReactMarkdown>
+	);
 };
 
 interface InlineMarkdownProps {

@@ -12,7 +12,7 @@ import type { DashboardProvider } from "modules/dashboard/DashboardProvider";
 import OrganizationSettingsLayout from "modules/management/OrganizationSettingsLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
-import type { ReactNode, JSX } from "react";
+import type { JSX, ReactNode } from "react";
 import { QueryClient } from "react-query";
 import {
 	createMemoryRouter,
