@@ -1576,21 +1576,19 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
 				"edits": map[string]any{
 					"type":        "array",
 					"description": "An array of edit operations.",
-					"items": []any{
-						map[string]any{
-							"type": "object",
-							"properties": map[string]any{
-								"search": map[string]any{
-									"type":        "string",
-									"description": "The old string to replace.",
-								},
-								"replace": map[string]any{
-									"type":        "string",
-									"description": "The new string that replaces the old string.",
-								},
+					"items": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"search": map[string]any{
+								"type":        "string",
+								"description": "The old string to replace.",
 							},
-							"required": []string{"search", "replace"},
+							"replace": map[string]any{
+								"type":        "string",
+								"description": "The new string that replaces the old string.",
+							},
 						},
+						"required": []string{"search", "replace"},
 					},
 				},
 			},
@@ -1641,37 +1639,33 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
 				"files": map[string]any{
 					"type":        "array",
 					"description": "An array of files to edit.",
-					"items": []any{
-						map[string]any{
-							"type": "object",
-							"properties": map[string]any{
-								"path": map[string]any{
-									"type":        "string",
-									"description": "The absolute path of the file to write in the workspace.",
-								},
-								"edits": map[string]any{
-									"type":        "array",
-									"description": "An array of edit operations.",
-									"items": []any{
-										map[string]any{
-											"type": "object",
-											"properties": map[string]any{
-												"search": map[string]any{
-													"type":        "string",
-													"description": "The old string to replace.",
-												},
-												"replace": map[string]any{
-													"type":        "string",
-													"description": "The new string that replaces the old string.",
-												},
-											},
-											"required": []string{"search", "replace"},
+					"items": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"path": map[string]any{
+								"type":        "string",
+								"description": "The absolute path of the file to write in the workspace.",
+							},
+							"edits": map[string]any{
+								"type":        "array",
+								"description": "An array of edit operations.",
+								"items": map[string]any{
+									"type": "object",
+									"properties": map[string]any{
+										"search": map[string]any{
+											"type":        "string",
+											"description": "The old string to replace.",
+										},
+										"replace": map[string]any{
+											"type":        "string",
+											"description": "The new string that replaces the old string.",
 										},
 									},
+									"required": []string{"search", "replace"},
 								},
-								"required": []string{"path", "edits"},
 							},
 						},
+						"required": []string{"path", "edits"},
 					},
 				},
 			},

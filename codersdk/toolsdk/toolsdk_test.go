@@ -615,14 +615,17 @@ func TestTools(t *testing.T) {
 		tb, err := toolsdk.NewDeps(client)
 		require.NoError(t, err)
 
+		tmpdir := os.TempDir()
+		filePath := filepath.Join(tmpdir, "write")
+
 		_, err = testTool(t, toolsdk.WorkspaceWriteFile, tb, toolsdk.WorkspaceWriteFileArgs{
 			Workspace: workspace.Name,
-			Path:      "/test/some/path",
+			Path:      filePath,
 			Content:   []byte("content"),
 		})
 		require.NoError(t, err)
 
-		b, err := afero.ReadFile(fs, "/test/some/path")
+		b, err := afero.ReadFile(fs, filePath)
 		require.NoError(t, err)
 		require.Equal(t, []byte("content"), b)
 	})
