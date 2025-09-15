@@ -177,18 +177,18 @@ func (q *querier) authorizePrebuiltWorkspace(ctx context.Context, action policy.
 
 // authorizeAIBridgeInterceptionUpdate validates that the context's actor matches the initiator of the AIBridgeInterception.
 // This is used by all of the sub-resources which fall under the [ResourceAibridgeInterception] umbrella.
-func (q *querier) authorizeAIBridgeInterceptionUpdate(ctx context.Context, sessID uuid.UUID) error {
+func (q *querier) authorizeAIBridgeInterceptionUpdate(ctx context.Context, interceptionID uuid.UUID) error {
 	act, ok := ActorFromContext(ctx)
 	if !ok {
 		return ErrNoActor
 	}
 
-	sess, err := q.db.GetAIBridgeInterceptionByID(ctx, sessID)
+	inter, err := q.db.GetAIBridgeInterceptionByID(ctx, interceptionID)
 	if err != nil {
-		return xerrors.Errorf("fetch aibridge session %q: %w", sessID, err)
+		return xerrors.Errorf("fetch aibridge interception %q: %w", interceptionID, err)
 	}
 
-	err = q.auth.Authorize(ctx, act, policy.ActionUpdate, sess.RBACObject())
+	err = q.auth.Authorize(ctx, act, policy.ActionUpdate, inter.RBACObject())
 	if err != nil {
 		return logNotAuthorizedError(ctx, q.log, err)
 	}
@@ -3816,7 +3816,7 @@ func (q *querier) InsertAIBridgeInterception(ctx context.Context, arg database.I
 }
 
 func (q *querier) InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) error {
-	// All aibridge_token_usages records belong to the initiator of their associated session.
+	// All aibridge_token_usages records belong to the initiator of their associated interception.
 	if err := q.authorizeAIBridgeInterceptionUpdate(ctx, arg.InterceptionID); err != nil {
 		return err
 	}
@@ -3824,7 +3824,7 @@ func (q *querier) InsertAIBridgeTokenUsage(ctx context.Context, arg database.Ins
 }
 
 func (q *querier) InsertAIBridgeToolUsage(ctx context.Context, arg database.InsertAIBridgeToolUsageParams) error {
-	// All aibridge_tool_usages records belong to the initiator of their associated session.
+	// All aibridge_tool_usages records belong to the initiator of their associated interception.
 	if err := q.authorizeAIBridgeInterceptionUpdate(ctx, arg.InterceptionID); err != nil {
 		return err
 	}
@@ -3832,7 +3832,7 @@ func (q *querier) InsertAIBridgeToolUsage(ctx context.Context, arg database.Inse
 }
 
 func (q *querier) InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) error {
-	// All aibridge_user_prompts records belong to the initiator of their associated session.
+	// All aibridge_user_prompts records belong to the initiator of their associated interception.
 	if err := q.authorizeAIBridgeInterceptionUpdate(ctx, arg.InterceptionID); err != nil {
 		return err
 	}
