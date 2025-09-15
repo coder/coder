@@ -335,6 +335,86 @@
 | `groups` | array of [codersdk.Group](#codersdkgroup)             | false    |              |             |
 | `users`  | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |             |
 
+## codersdk.AIBridgeAnthropicConfig
+
+```json
+{
+  "base_url": "string",
+  "key": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `base_url` | string | false    |              |             |
+| `key`      | string | false    |              |             |
+
+## codersdk.AIBridgeConfig
+
+```json
+{
+  "anthropic": {
+    "base_url": "string",
+    "key": "string"
+  },
+  "enabled": true,
+  "openai": {
+    "base_url": "string",
+    "key": "string"
+  }
+}
+```
+
+### Properties
+
+| Name        | Type                                                                 | Required | Restrictions | Description |
+|-------------|----------------------------------------------------------------------|----------|--------------|-------------|
+| `anthropic` | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |             |
+| `enabled`   | boolean                                                              | false    |              |             |
+| `openai`    | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
+
+## codersdk.AIBridgeOpenAIConfig
+
+```json
+{
+  "base_url": "string",
+  "key": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `base_url` | string | false    |              |             |
+| `key`      | string | false    |              |             |
+
+## codersdk.AIConfig
+
+```json
+{
+  "bridge": {
+    "anthropic": {
+      "base_url": "string",
+      "key": "string"
+    },
+    "enabled": true,
+    "openai": {
+      "base_url": "string",
+      "key": "string"
+    }
+  }
+}
+```
+
+### Properties
+
+| Name     | Type                                               | Required | Restrictions | Description |
+|----------|----------------------------------------------------|----------|--------------|-------------|
+| `bridge` | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig) | false    |              |             |
+
 ## codersdk.APIKey
 
 ```json
@@ -2185,6 +2265,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
+    "ai": {
+      "bridge": {
+        "anthropic": {
+          "base_url": "string",
+          "key": "string"
+        },
+        "enabled": true,
+        "openai": {
+          "base_url": "string",
+          "key": "string"
+        }
+      }
+    },
     "allow_workspace_renames": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
@@ -2673,6 +2766,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "user": {}
   },
   "agent_stat_refresh_interval": 0,
+  "ai": {
+    "bridge": {
+      "anthropic": {
+        "base_url": "string",
+        "key": "string"
+      },
+      "enabled": true,
+      "openai": {
+        "base_url": "string",
+        "key": "string"
+      }
+    }
+  },
   "allow_workspace_renames": true,
   "autobuild_poll_interval": 0,
   "browser_only": true,
@@ -3052,6 +3158,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `address`                            | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Deprecated: Use HTTPAddress or TLS.Address instead.                |
 | `agent_fallback_troubleshooting_url` | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                              | false    |              |                                                                    |
+| `ai`                                 | [codersdk.AIConfig](#codersdkaiconfig)                                                               | false    |              |                                                                    |
 | `allow_workspace_renames`            | boolean                                                                                              | false    |              |                                                                    |
 | `autobuild_poll_interval`            | integer                                                                                              | false    |              |                                                                    |
 | `browser_only`                       | boolean                                                                                              | false    |              |                                                                    |
@@ -3356,6 +3463,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `oauth2`               |
 | `mcp-server-http`      |
 | `workspace-sharing`    |
+| `aibridge`             |
 
 ## codersdk.ExternalAgentCredentials
 

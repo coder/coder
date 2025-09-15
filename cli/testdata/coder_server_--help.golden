@@ -80,6 +80,11 @@ OPTIONS:
           Periodically check for new releases of Coder and inform the owner. The
           check is performed once per day.
 
+AIBRIDGE OPTIONS: 
+      --aibridge-enabled bool, $CODER_AIBRIDGE_ENABLED (default: false)
+          Whether to start an in-memory aibridged instance ("aibridge"
+          experiment must be enabled, too).
+
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
 Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
