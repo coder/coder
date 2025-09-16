@@ -185,12 +185,12 @@ class ReactTimeSync {
 	 * This pattern for detecting when layout effects fire is normally NOT safe,
 	 * but because all the mounting logic is synchronous, that gives us
 	 * guarantees that when a new animation frame is available, there will be
-	 * no incomplete/in-flight effects. We don't want to throttle calls, because
-	 * rapid enough updates could outpace the throttle threshold, which could
-	 * cause some updates to get dropped
+	 * no incomplete/in-flight effects from the hook. We don't want to throttle
+	 * calls, because rapid enough updates could outpace the throttle threshold,
+	 * which could cause some updates to get dropped
 	 *
 	 * @todo Double-check that cascading layout effects does cause the painting
-	 * to be fully blocked.
+	 * to be fully blocked until everything settles down.
 	 */
 	#batchMountUpdateId: number | undefined;
 
@@ -343,9 +343,11 @@ class ReactTimeSync {
 		 * mounting components will technically never be able to dispatch their
 		 * own syncs, we can reuse the state produced from the original sync.
 		 *
-		 * @todo Realistically, this should only cause problems for super
-		 * technical, rapidly updating state, but better to hold off on handling
-		 * that use case for now
+		 * @todo There is a chance that if any given render pass takes an
+		 * especially long time, and we have subscribers that need updates
+		 * faster than every second, reusing an old snapshot across multiple
+		 * cascading layout renders might not be safe. But better to hold off on
+		 * handling that edge case for now
 		 */
 		if (!this.#isProviderMounted || this.#batchMountUpdateId !== undefined) {
 			return;
