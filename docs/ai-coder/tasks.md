@@ -61,6 +61,7 @@ data "coder_parameter" "setup_script" {
   form_type    = "textarea"
   description  = "Script to run before running the agent"
   mutable      = false
+  default      = ""
 }
 
 # The Claude Code module does the automatic task reporting
@@ -84,7 +85,7 @@ module "claude-code" {
 
 variable "anthropic_api_key" {
   type        = string
-  description = "Generate one"
+  description = "Generate one at: https://console.anthropic.com/settings/keys"
   sensitive   = true
 }
 
