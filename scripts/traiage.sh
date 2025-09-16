@@ -29,11 +29,33 @@ create() {
 
 prompt() {
 	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME PROMPT
-	"${CODER_BIN}" \
-		--url "${CODER_URL}" \
-		--token "${CODER_SESSION_TOKEN}" \
-		ssh "${WORKSPACE_NAME}" -- /bin/bash -lc "echo -n '${PROMPT}' | ~/.local/bin/claude --print --verbose --output-format=stream-json -"
-	exit 0
+	username=$(curl \
+		--fail \
+		--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
+		--location \
+		--show-error \
+		--silent \
+		"${CODER_URL}/api/v2/users/me" | jq -r '.username')
+
+	payload="{
+		\"content\": \"${PROMPT}\",
+		\"type\": \"user\"
+	}"
+
+	response=$(curl \
+		--data-raw "${payload}" \
+		--fail \
+		--header "Content-Type: application/json" \
+		--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
+		--location \
+		--request POST \
+		--show-error \
+		--silent \
+		"${CODER_URL}/@${username}/${WORKSPACE_NAME}/apps/agentapi/message" | jq -r '.ok')
+		if [[ "${response}" != "true" ]]; then
+			echo "Failed to send prompt"
+			exit 1
+		fi
 }
 
 archive() {
