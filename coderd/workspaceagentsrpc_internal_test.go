@@ -150,9 +150,14 @@ func TestAgentConnectionMonitor_PingTimeout(t *testing.T) {
 		AnyTimes().
 		Return(database.WorkspaceBuild{ID: build.ID}, nil)
 
-	go uut.monitor(ctx)
+	done := make(chan struct{})
+	go func() {
+		uut.monitor(ctx)
+		close(done)
+	}()
 	fConn.requireEventuallyClosed(t, websocket.StatusGoingAway, "ping timeout")
 	fUpdater.requireEventuallySomeUpdates(t, build.WorkspaceID)
+	_ = testutil.TryReceive(ctx, t, done) // ensure monitor() exits before mDB assertions are checked.
 }
 
 func TestAgentConnectionMonitor_BuildOutdated(t *testing.T) {
