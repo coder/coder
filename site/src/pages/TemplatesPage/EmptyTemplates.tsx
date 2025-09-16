@@ -74,7 +74,11 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 					<Stack alignItems="center" spacing={4}>
 						<div className="flex flex-wrap justify-center gap-4">
 							{featuredExamples.map((example) => (
-								<TemplateExampleCard example={example} key={example.id} />
+								<TemplateExampleCard
+									className="w-80"
+									example={example}
+									key={example.id}
+								/>
 							))}
 						</div>
 

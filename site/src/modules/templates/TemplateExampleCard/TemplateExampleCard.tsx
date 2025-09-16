@@ -22,7 +22,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 		<div
 			{...divProps}
 			className={cn(
-				"w-80 p-6 rounded-md text-left text-inherit flex flex-col border border-border border-solid hover:border-border-hover transition-colors duration-200",
+				"w-full p-6 rounded-md text-left text-inherit flex flex-col border border-border border-solid hover:border-border-hover transition-colors duration-200",
 				className,
 			)}
 		>
