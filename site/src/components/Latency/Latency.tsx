@@ -4,18 +4,21 @@ import Tooltip from "@mui/material/Tooltip";
 import { Abbr } from "components/Abbr/Abbr";
 import { CircleHelpIcon } from "lucide-react";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 import { getLatencyColor } from "utils/latency";
 
 interface LatencyProps {
 	latency?: number;
 	isLoading?: boolean;
-	size?: number;
+	className?: string;
+	iconClassName?: string;
 }
 
 export const Latency: FC<LatencyProps> = ({
 	latency,
 	isLoading,
-	size = 14,
+	className,
+	iconClassName,
 }) => {
 	const theme = useTheme();
 	// Always use the no latency color for loading.
@@ -23,26 +26,28 @@ export const Latency: FC<LatencyProps> = ({
 
 	if (isLoading) {
 		return (
-			<Tooltip title="Loading latency...">
-				<CircularProgress size={size} className="ml-auto" style={{ color }} />
+			<Tooltip title="Loading latency..." className={className}>
+				<CircularProgress
+					className={cn("!size-icon-xs", iconClassName)}
+					style={{ color }}
+				/>
 			</Tooltip>
 		);
 	}
 
 	if (!latency) {
-		const notAvailableText = "Latency not available";
 		return (
-			<Tooltip title={notAvailableText}>
-				<span className="ml-auto">
-					<span className="sr-only">{notAvailableText}</span>
-					<CircleHelpIcon className="size-icon-sm" style={{ color }} />
-				</span>
+			<Tooltip title="Latency not available" className={className}>
+				<CircleHelpIcon
+					className={cn("!size-icon-sm", iconClassName)}
+					style={{ color }}
+				/>
 			</Tooltip>
 		);
 	}
 
 	return (
-		<div className="ml-auto text-sm" style={{ color }}>
+		<div className={cn("text-sm", className)} style={{ color }}>
 			<span className="sr-only">Latency: </span>
 			{latency.toFixed(0)}
 			<Abbr title="milliseconds">ms</Abbr>
