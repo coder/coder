@@ -891,11 +891,11 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "AIBridgeInterceptions",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
-			Resource: rbac.ResourceAibridgeInterception,
+			Resource: rbac.ResourceAibridgeInterception.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {owner},
+				true: {owner, memberMe, orgMemberMe},
 				false: {
-					memberMe, orgMemberMe, otherOrgMember,
+					otherOrgMember,
 					orgAdmin, otherOrgAdmin,
 					orgAuditor, otherOrgAuditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,

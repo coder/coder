@@ -178,19 +178,15 @@ func (q *querier) authorizePrebuiltWorkspace(ctx context.Context, action policy.
 // authorizeAIBridgeInterceptionUpdate validates that the context's actor matches the initiator of the AIBridgeInterception.
 // This is used by all of the sub-resources which fall under the [ResourceAibridgeInterception] umbrella.
 func (q *querier) authorizeAIBridgeInterceptionUpdate(ctx context.Context, interceptionID uuid.UUID) error {
-	act, ok := ActorFromContext(ctx)
-	if !ok {
-		return ErrNoActor
-	}
 
 	inter, err := q.db.GetAIBridgeInterceptionByID(ctx, interceptionID)
 	if err != nil {
 		return xerrors.Errorf("fetch aibridge interception %q: %w", interceptionID, err)
 	}
 
-	err = q.auth.Authorize(ctx, act, policy.ActionUpdate, inter.RBACObject())
+	err = q.authorizeContext(ctx, policy.ActionUpdate, inter.RBACObject())
 	if err != nil {
-		return logNotAuthorizedError(ctx, q.log, err)
+		return err
 	}
 
 	return nil
