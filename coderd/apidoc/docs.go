@@ -13249,6 +13249,10 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.ExternalAuthAppInstallation"
                     }
                 },
+                "is_dynamic": {
+                    "description": "IsDynamic denotes whether the provider's client is registered using\ndynamic client registration.",
+                    "type": "boolean"
+                },
                 "user": {
                     "description": "User is the user that authenticated with the provider.",
                     "allOf": [
@@ -13306,6 +13310,9 @@ const docTemplate = `{
                     "description": "ID is a unique identifier for the auth config.\nIt defaults to ` + "`" + `type` + "`" + ` when not provided.",
                     "type": "string"
                 },
+                "issuer_url": {
+                    "type": "string"
+                },
                 "no_refresh": {
                     "type": "boolean"
                 },
@@ -13325,6 +13332,10 @@ const docTemplate = `{
                 "type": {
                     "description": "Type is the type of external auth config.",
                     "type": "string"
+                },
+                "use_dynamic_client_registration": {
+                    "description": "UseDynamicClientRegistration denotes that the client will be registered\ndynamically using the OAuth2 client registration endpoint. ClientID and\nClientSecret must not be supplied when this is true. IssuerURL must be\nsupplied when this is true.",
+                    "type": "boolean"
                 },
                 "validate_url": {
                     "type": "string"

@@ -68,7 +68,10 @@ func TestReadExternalAuthProvidersFromEnv(t *testing.T) {
 	t.Parallel()
 	t.Run("Valid", func(t *testing.T) {
 		t.Parallel()
-		providers, err := cli.ReadExternalAuthProvidersFromEnv([]string{
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := slogtest.Make(t, nil)
+		providers, err := cli.ReadExternalAuthProvidersFromEnv(ctx, logger, []string{
 			"CODER_EXTERNAL_AUTH_0_ID=1",
 			"CODER_EXTERNAL_AUTH_0_TYPE=gitlab",
 			"CODER_EXTERNAL_AUTH_1_ID=2",
@@ -107,7 +110,9 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 	t.Parallel()
 	t.Run("Empty", func(t *testing.T) {
 		t.Parallel()
-		providers, err := cli.ReadExternalAuthProvidersFromEnv([]string{
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := slogtest.Make(t, nil)
+		providers, err := cli.ReadExternalAuthProvidersFromEnv(ctx, logger, []string{
 			"HOME=/home/frodo",
 		})
 		require.NoError(t, err)
@@ -115,7 +120,9 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 	})
 	t.Run("InvalidKey", func(t *testing.T) {
 		t.Parallel()
-		providers, err := cli.ReadExternalAuthProvidersFromEnv([]string{
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := slogtest.Make(t, nil)
+		providers, err := cli.ReadExternalAuthProvidersFromEnv(ctx, logger, []string{
 			"CODER_GITAUTH_XXX=invalid",
 		})
 		require.Error(t, err, "providers: %+v", providers)
@@ -123,7 +130,9 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 	})
 	t.Run("SkipKey", func(t *testing.T) {
 		t.Parallel()
-		providers, err := cli.ReadExternalAuthProvidersFromEnv([]string{
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := slogtest.Make(t, nil)
+		providers, err := cli.ReadExternalAuthProvidersFromEnv(ctx, logger, []string{
 			"CODER_GITAUTH_0_ID=invalid",
 			"CODER_GITAUTH_2_ID=invalid",
 		})
@@ -132,7 +141,9 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 	})
 	t.Run("Valid", func(t *testing.T) {
 		t.Parallel()
-		providers, err := cli.ReadExternalAuthProvidersFromEnv([]string{
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := slogtest.Make(t, nil)
+		providers, err := cli.ReadExternalAuthProvidersFromEnv(ctx, logger, []string{
 			"CODER_GITAUTH_0_ID=1",
 			"CODER_GITAUTH_0_TYPE=gitlab",
 			"CODER_GITAUTH_1_ID=2",

@@ -2358,6 +2358,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "display_icon": "string",
           "display_name": "string",
           "id": "string",
+          "issuer_url": "string",
           "no_refresh": true,
           "regex": "string",
           "scopes": [
@@ -2365,6 +2366,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           ],
           "token_url": "string",
           "type": "string",
+          "use_dynamic_client_registration": true,
           "validate_url": "string"
         }
       ]
@@ -2859,6 +2861,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "display_icon": "string",
         "display_name": "string",
         "id": "string",
+        "issuer_url": "string",
         "no_refresh": true,
         "regex": "string",
         "scopes": [
@@ -2866,6 +2869,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         ],
         "token_url": "string",
         "type": "string",
+        "use_dynamic_client_registration": true,
         "validate_url": "string"
       }
     ]
@@ -3503,6 +3507,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "id": 0
     }
   ],
+  "is_dynamic": true,
   "user": {
     "avatar_url": "string",
     "id": 0,
@@ -3515,15 +3520,16 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name              | Type                                                                                  | Required | Restrictions | Description                                                             |
-|-------------------|---------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
-| `app_install_url` | string                                                                                | false    |              | App install URL is the URL to install the app.                          |
-| `app_installable` | boolean                                                                               | false    |              | App installable is true if the request for app installs was successful. |
-| `authenticated`   | boolean                                                                               | false    |              |                                                                         |
-| `device`          | boolean                                                                               | false    |              |                                                                         |
-| `display_name`    | string                                                                                | false    |              |                                                                         |
-| `installations`   | array of [codersdk.ExternalAuthAppInstallation](#codersdkexternalauthappinstallation) | false    |              | Installations are the installations that the user has access to.        |
-| `user`            | [codersdk.ExternalAuthUser](#codersdkexternalauthuser)                                | false    |              | User is the user that authenticated with the provider.                  |
+| Name              | Type                                                                                  | Required | Restrictions | Description                                                                                       |
+|-------------------|---------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------|
+| `app_install_url` | string                                                                                | false    |              | App install URL is the URL to install the app.                                                    |
+| `app_installable` | boolean                                                                               | false    |              | App installable is true if the request for app installs was successful.                           |
+| `authenticated`   | boolean                                                                               | false    |              |                                                                                                   |
+| `device`          | boolean                                                                               | false    |              |                                                                                                   |
+| `display_name`    | string                                                                                | false    |              |                                                                                                   |
+| `installations`   | array of [codersdk.ExternalAuthAppInstallation](#codersdkexternalauthappinstallation) | false    |              | Installations are the installations that the user has access to.                                  |
+| `is_dynamic`      | boolean                                                                               | false    |              | Is dynamic denotes whether the provider's client is registered using dynamic client registration. |
+| `user`            | [codersdk.ExternalAuthUser](#codersdkexternalauthuser)                                | false    |              | User is the user that authenticated with the provider.                                            |
 
 ## codersdk.ExternalAuthAppInstallation
 
@@ -3562,6 +3568,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "display_icon": "string",
   "display_name": "string",
   "id": "string",
+  "issuer_url": "string",
   "no_refresh": true,
   "regex": "string",
   "scopes": [
@@ -3569,6 +3576,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   ],
   "token_url": "string",
   "type": "string",
+  "use_dynamic_client_registration": true,
   "validate_url": "string"
 }
 ```
@@ -3586,12 +3594,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `display_icon`          | string  | false    |              | Display icon is a URL to an icon to display in the UI.                                  |
 | `display_name`          | string  | false    |              | Display name is shown in the UI to identify the auth config.                            |
 | `id`                    | string  | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided. |
+| `issuer_url`            | string  | false    |              |                                                                                         |
 | `no_refresh`            | boolean | false    |              |                                                                                         |
 |`regex`|string|false||Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type.
 Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the Coder server to match against the Regex.|
 |`scopes`|array of string|false|||
 |`token_url`|string|false|||
 |`type`|string|false||Type is the type of external auth config.|
+|`use_dynamic_client_registration`|boolean|false||Use dynamic client registration denotes that the client will be registered dynamically using the OAuth2 client registration endpoint. ClientID and ClientSecret must not be supplied when this is true. IssuerURL must be supplied when this is true.|
 |`validate_url`|string|false|||
 
 ## codersdk.ExternalAuthDevice
@@ -12850,6 +12860,7 @@ None
       "display_icon": "string",
       "display_name": "string",
       "id": "string",
+      "issuer_url": "string",
       "no_refresh": true,
       "regex": "string",
       "scopes": [
@@ -12857,6 +12868,7 @@ None
       ],
       "token_url": "string",
       "type": "string",
+      "use_dynamic_client_registration": true,
       "validate_url": "string"
     }
   ]

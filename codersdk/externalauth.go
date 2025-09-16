@@ -49,9 +49,12 @@ const (
 )
 
 type ExternalAuth struct {
-	Authenticated bool   `json:"authenticated"`
-	Device        bool   `json:"device"`
-	DisplayName   string `json:"display_name"`
+	Authenticated bool `json:"authenticated"`
+	// IsDynamic denotes whether the provider's client is registered using
+	// dynamic client registration.
+	IsDynamic   bool   `json:"is_dynamic"`
+	Device      bool   `json:"device"`
+	DisplayName string `json:"display_name"`
 
 	// User is the user that authenticated with the provider.
 	User *ExternalAuthUser `json:"user"`
@@ -87,8 +90,11 @@ type ExternalAuthLink struct {
 
 // ExternalAuthLinkProvider are the static details of a provider.
 type ExternalAuthLinkProvider struct {
-	ID            string `json:"id"`
-	Type          string `json:"type"`
+	ID   string `json:"id"`
+	Type string `json:"type"`
+	// IsDynamic denotes whether the provider's client is registered using
+	// dynamic client registration.
+	IsDynamic     bool   `json:"is_dynamic"`
 	Device        bool   `json:"device"`
 	DisplayName   string `json:"display_name"`
 	DisplayIcon   string `json:"display_icon"`
