@@ -139,6 +139,8 @@ wait() {
 
 archive() {
 	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME
+	echo "Not implemented yet!"
+	exit 0
 	"${CODER_BIN}" \
 		--url "${CODER_URL}" \
 		--token "${CODER_SESSION_TOKEN}" \
