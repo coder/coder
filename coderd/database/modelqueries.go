@@ -276,6 +276,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.HasAITask,
 		arg.HasExternalAgent,
 		arg.Shared,
+		arg.SharedWithUserID,
 		arg.RequesterID,
 		arg.Offset,
 		arg.Limit,
