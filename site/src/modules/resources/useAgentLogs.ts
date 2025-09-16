@@ -66,7 +66,9 @@ export function useAgentLogs(
 			socket.close();
 		});
 
-		return () => socket.close();
+		return () => {
+			socket.close();
+		};
 	}, [agentId, enabled]);
 
 	return logs;
