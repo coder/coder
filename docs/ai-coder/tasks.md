@@ -77,7 +77,7 @@ module "claude-code" {
   claude_code_version = "latest"
   order               = 999
 
-  experiment_post_install_script = data.coder_parameter.setup_script.value
+  # experiment_post_install_script = data.coder_parameter.setup_script.value
 
   # This enables Coder Tasks
   experiment_report_tasks = true
