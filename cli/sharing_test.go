@@ -21,15 +21,14 @@ import (
 func TestSharingShare(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-
 	t.Run("ShareWithUsers_Simple", func(t *testing.T) {
 		t.Parallel()
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: dv,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+				}),
 			})
 			orgOwner                             = coderdtest.CreateFirstUser(t, client)
 			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
@@ -69,7 +68,9 @@ func TestSharingShare(t *testing.T) {
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: dv,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+				}),
 			})
 			orgOwner = coderdtest.CreateFirstUser(t, client)
 
@@ -124,7 +125,9 @@ func TestSharingShare(t *testing.T) {
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: dv,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+				}),
 			})
 			orgOwner                             = coderdtest.CreateFirstUser(t, client)
 			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
@@ -171,15 +174,14 @@ func TestSharingShare(t *testing.T) {
 func TestSharingStatus(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-
 	t.Run("ListSharedUsers", func(t *testing.T) {
 		t.Parallel()
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: dv,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+				}),
 			})
 			orgOwner                             = coderdtest.CreateFirstUser(t, client)
 			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
@@ -220,15 +222,14 @@ func TestSharingStatus(t *testing.T) {
 func TestSharingRemove(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-
 	t.Run("RemoveSharedUser_Simple", func(t *testing.T) {
 		t.Parallel()
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: dv,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+				}),
 			})
 			orgOwner                             = coderdtest.CreateFirstUser(t, client)
 			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
@@ -287,7 +288,9 @@ func TestSharingRemove(t *testing.T) {
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: dv,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+				}),
 			})
 			orgOwner                             = coderdtest.CreateFirstUser(t, client)
 			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))

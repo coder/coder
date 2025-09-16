@@ -174,7 +174,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	}, [triggerPreview]);
 
 	// Automatically switch to the template preview tab when the build succeeds.
-	const previousVersion = useRef<TemplateVersion>();
+	const previousVersion = useRef<TemplateVersion>(undefined);
 	useEffect(() => {
 		if (!previousVersion.current) {
 			previousVersion.current = templateVersion;

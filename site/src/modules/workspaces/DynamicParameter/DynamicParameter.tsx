@@ -266,7 +266,7 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 	const debouncedLocalValue = useDebouncedValue(localValue, 500);
 	const onChangeEvent = useEffectEvent(onChange);
 	// prevDebouncedValueRef is to prevent calling the onChangeEvent on the initial render
-	const prevDebouncedValueRef = useRef<string | undefined>();
+	const prevDebouncedValueRef = useRef<string | undefined>(undefined);
 	const prevValueRef = useRef(value);
 
 	// Necessary for dynamic defaults or fields being set by preset parameters

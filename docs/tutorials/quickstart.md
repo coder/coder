@@ -20,13 +20,13 @@ In this quickstart, you'll:
 Before diving in, here are the core concepts that power Coder explained through
 a cooking analogy:
 
-| Component      | What It Is                                                                           | Real-World Analogy                         |
-|----------------|--------------------------------------------------------------------------------------|--------------------------------------------|
-| **You**        | The engineer/developer/builder working                                               | The head chef cooking the meal             |
-| **Templates**  | A Terraform blueprint that defines your dev environment (OS, tools, resources)       | Recipe for a meal                          |
-| **Workspaces** | The actual running environment created from the template                             | The cooked meal                            |
-| **Tasks**      | AI-powered coding agents that run inside a workspace                                 | Smart kitchen appliance that help you cook |
-| **Users**      | A developer who launches the workspace from a template and does their work inside it | The people eating the meal                 |
+| Component      | What It Is                                                                           | Real-World Analogy                          |
+|----------------|--------------------------------------------------------------------------------------|---------------------------------------------|
+| **You**        | The engineer/developer/builder working                                               | The head chef cooking the meal              |
+| **Templates**  | A Terraform blueprint that defines your dev environment (OS, tools, resources)       | Recipe for a meal                           |
+| **Workspaces** | The actual running environment created from the template                             | The cooked meal                             |
+| **Tasks**      | AI-powered coding agents that run inside a workspace                                 | Smart kitchen appliance that helps you cook |
+| **Users**      | A developer who launches the workspace from a template and does their work inside it | The people eating the meal                  |
 
 **Putting it Together:** Coder separates who _defines_ environments from who _uses_ them. Admins create and manage Templates, the recipes, while developers use those Templates to launch Workspaces, the meals. Inside those Workspaces, developers can also run Tasks, the smart kitchen appliance, to help speed up day-to-day work.
 
@@ -152,7 +152,7 @@ Templates define what's in your development environment. Let's start simple:
 
 1. Click **"Templates"** → **"New Template"**
 
-2. **Choose a starter template:**
+1. **Choose a starter template:**
 
    | Starter                             | Best For                                                | Includes                                               |
    |-------------------------------------|---------------------------------------------------------|--------------------------------------------------------|
@@ -160,16 +160,16 @@ Templates define what's in your development environment. Let's start simple:
    | **Kubernetes (Deployment)**         | Cloud-native teams, scalable workspaces                 | Pod-based workspaces, Kubernetes orchestration         |
    | **AWS EC2 (Linux)**                 | Teams needing full VMs, AWS-native infrastructure       | Full EC2 instances with AWS integration                |
 
-3. Click **"Use template"** on **Docker Containers**. Note: running this template requires Docker to be running in the background, so make sure Docker is running!
+1. Click **"Use template"** on **Docker Containers**. Note: running this template requires Docker to be running in the background, so make sure Docker is running!
 
-4. **Name your template:**
+1. **Name your template:**
    - Name: `quickstart`
    - Display name: `quickstart doc template`
    - Description: `Provision Docker containers as Coder workspaces`
 
-![Create template](../images/screenshots/create-template.png)
-
 1. Click **"Save"**
+
+   ![Create template](../images/screenshots/create-template.png)
 
 **What just happened?** You defined a template — a reusable blueprint for dev
 environments — in your Coder deployment. It's now stored in your organization's
@@ -252,21 +252,21 @@ Coder maintains the [Tasks on Docker](https://registry.coder.com/templates/coder
 1. Head to the [Tasks on Docker](https://registry.coder.com/templates/coder-labs/tasks-docker?_gl=1*19yewmn*_gcl_au*MTc0MzUwMTQ2NC4xNzU2MzA3MDkxLjk3NTM3MjgyNy4xNzU3Njg2NDY2LjE3NTc2ODc0Mzc.*_ga*NzUxMDI1NjIxLjE3NTYzMDcwOTE.*_ga_FTQQJCDWDM*czE3NTc3MDg4MDkkbzQ1JGcxJHQxNzU3NzA4ODE4JGo1MSRsMCRoMA..) template
 1. Clone the Coder Registry repo to your local machine
 
-```hcl
-git clone https://github.com/coder/registry.git
-```
+   ```hcl
+   git clone https://github.com/coder/registry.git
+   ```
 
 1. Switch to the template directory
 
-```hcl
-cd registry/registry/coder-labs/templates/tasks-docker
-```
+   ```hcl
+   cd registry/registry/coder-labs/templates/tasks-docker
+   ```
 
 1. Push the template to your Coder deployment. Note: this command differs from the registry since we're defining the Anthropic API Key as an environment variable
 
-```hcl
-coder template push tasks-docker -d . --variable anthropic_api_key="your-api-key"
-```
+   ```hcl
+   coder template push tasks-docker -d . --variable anthropic_api_key="your-api-key"
+   ```
 
 1. **Create the new Workspace**
    1. In your Coder Deployment, click **Workspaces** in the upper left hand corner
@@ -274,11 +274,12 @@ coder template push tasks-docker -d . --variable anthropic_api_key="your-api-key
    1. Fill in the Workspace name. Add in an AI Prompt for Claude Code like "Make the background yellow". Click **Create workspace**
 1. **See Tasks in action**
    1. Once your workspace is running, click **View tasks** with your workspace. This will bring you to the Tasks view where you can see Claude Code (left panel), preview the sample application, and interact with the code in code-server. You might need to wait for Claude Code to finish changing the background color of the application.
-   ![Tasks changing background color of demo application](../images/screenshots/quickstart-tasks-background-change.png)
    1. Navigate to the **Tasks** tab in the upper left hand corner
    1. Try typing in a new request to Claude Code: "make the background red"
    1. Let's exit out of this specific Task view, so we can see all the running tasks
    1. You can start a new task by prompting in the "Prompt your AI agent to start a task" box. You can select which template to run this from, so tasks-docker here, and that will spin up a new Workspace
+
+   ![Tasks changing background color of demo application](../images/screenshots/quickstart-tasks-background-change.png)
 
 Congratulation! You now have a Coder Task running. This demo has shown you how to spin up a task, and prompt Claude Code to change parts of your application. Learn more specifics about Coder Tasks [here](https://coder.com/docs/ai-coder/tasks).
 

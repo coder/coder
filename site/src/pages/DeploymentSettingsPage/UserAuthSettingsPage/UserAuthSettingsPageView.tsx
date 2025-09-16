@@ -7,6 +7,7 @@ import {
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import type { JSX } from "react";
 import {
 	deploymentGroupHasParent,
 	useDeploymentOptions,

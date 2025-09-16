@@ -282,6 +282,36 @@ func TestSearchWorkspace(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name:  "SharedTrue",
+			Query: "shared:true",
+			Expected: database.GetWorkspacesParams{
+				Shared: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "SharedFalse",
+			Query: "shared:false",
+			Expected: database.GetWorkspacesParams{
+				Shared: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "SharedMissing",
+			Query: "",
+			Expected: database.GetWorkspacesParams{
+				Shared: sql.NullBool{
+					Bool:  false,
+					Valid: false,
+				},
+			},
+		},
 
 		// Failures
 		{

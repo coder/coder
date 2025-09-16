@@ -81,6 +81,19 @@ type Config struct {
 	// AppInstallationsURL is an API endpoint that returns a list of
 	// installations for the user. This is used for GitHub Apps.
 	AppInstallationsURL string
+	// MCPURL is the endpoint that clients must use to communicate with the associated
+	// MCP server.
+	MCPURL string
+	// MCPToolAllowRegex is a [regexp.Regexp] to match tools which are explicitly allowed to be
+	// injected into Coder AI Bridge upstream requests.
+	// In the case of conflicts, [MCPToolDenylistPattern] overrides items evaluated by this list.
+	// This field can be nil if unspecified in the config.
+	MCPToolAllowRegex *regexp.Regexp
+	// MCPToolDenyRegex is a [regexp.Regexp] to match tools which are explicitly NOT allowed to be
+	// injected into Coder AI Bridge upstream requests.
+	// In the case of conflicts, items evaluated by this list override [MCPToolAllowRegex].
+	// This field can be nil if unspecified in the config.
+	MCPToolDenyRegex *regexp.Regexp
 }
 
 // GenerateTokenExtra generates the extra token data to store in the database.
@@ -608,6 +621,21 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 			instrumented = instrument.NewGithub(entry.ID, oauthConfig)
 		}
 
+		var mcpToolAllow *regexp.Regexp
+		var mcpToolDeny *regexp.Regexp
+		if entry.MCPToolAllowRegex != "" {
+			mcpToolAllow, err = regexp.Compile(entry.MCPToolAllowRegex)
+			if err != nil {
+				return nil, xerrors.Errorf("compile MCP tool allow regex for external auth provider %q: %w", entry.ID, entry.MCPToolAllowRegex)
+			}
+		}
+		if entry.MCPToolDenyRegex != "" {
+			mcpToolDeny, err = regexp.Compile(entry.MCPToolDenyRegex)
+			if err != nil {
+				return nil, xerrors.Errorf("compile MCP tool deny regex for external auth provider %q: %w", entry.ID, entry.MCPToolDenyRegex)
+			}
+		}
+
 		cfg := &Config{
 			InstrumentedOAuth2Config: instrumented,
 			ID:                       entry.ID,
@@ -620,6 +648,9 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 			DisplayName:              entry.DisplayName,
 			DisplayIcon:              entry.DisplayIcon,
 			ExtraTokenKeys:           entry.ExtraTokenKeys,
+			MCPURL:                   entry.MCPURL,
+			MCPToolAllowRegex:        mcpToolAllow,
+			MCPToolDenyRegex:         mcpToolDeny,
 		}
 
 		if entry.DeviceFlow {
