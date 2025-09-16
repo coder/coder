@@ -129,6 +129,10 @@ var testCases = []testCase{
 		name:          "pod_securitycontext",
 		expectedError: "",
 	},
+	{
+		name:          "namespace_rbac",
+		expectedError: "",
+	},
 }
 
 type testCase struct {

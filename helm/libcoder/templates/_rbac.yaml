@@ -45,7 +45,7 @@ roleRef:
   {{- end }}
 {{- end -}}
 
-{{- define "libcoder.rbac.tpl" -}}
+{{- define "libcoder.rbac.core" -}}
   {{- $top := . -}}
   {{- $rootPerms := $top.Values.coder.serviceAccount.workspacePerms | default false -}}
   {{- $rootDeploy := $top.Values.coder.serviceAccount.enableDeployments | default false -}}
@@ -79,4 +79,14 @@ roleRef:
       {{ include "libcoder.rbac.forNamespace" $params }}
     {{- end }}
   {{- end }}
+{{- end -}}
+
+{{- define "libcoder.rbac.tpl" -}}
+  {{- if not .Values.coder.serviceAccount.disableCreate -}}
+  {{ include "libcoder.rbac.core" . }}
+  {{- end }}
+{{- end -}}
+
+{{- define "libcoder.namespace.rbac.tpl" -}}
+  {{ include "libcoder.rbac.core" . }}
 {{- end -}}
