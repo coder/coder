@@ -50,7 +50,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 					</IconButton>
 				</header>
 
-				{isMissingVariables && (
+				{isMissingVariables ? (
 					<MissingVariablesBanner
 						onFillVariables={() => {
 							variablesSectionRef.current?.scrollIntoView({
@@ -62,15 +62,17 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 							drawerProps.onClose();
 						}}
 					/>
-				)}
-
-				{(matchingProvisioners === 0 || !hasLogs) && (
-					<ProvisionerStatusAlert
-						matchingProvisioners={matchingProvisioners}
-						availableProvisioners={availableProvisioners}
-						tags={templateVersion?.job.tags ?? {}}
-						variant={AlertVariant.Inline}
-					/>
+				) : (
+					<>
+						{(matchingProvisioners === 0 || !hasLogs) && (
+							<ProvisionerStatusAlert
+								matchingProvisioners={matchingProvisioners}
+								availableProvisioners={availableProvisioners}
+								tags={templateVersion?.job.tags ?? {}}
+								variant={AlertVariant.Inline}
+							/>
+						)}
+					</>
 				)}
 
 				{hasLogs ? (
