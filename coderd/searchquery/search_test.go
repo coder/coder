@@ -312,6 +312,31 @@ func TestSearchWorkspace(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name:  "SharedWithUser",
+			Query: `shared_with_user:3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf`,
+			Setup: func(t *testing.T, db database.Store) {
+				dbgen.User(t, db, database.User{
+					ID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+				})
+			},
+			Expected: database.GetWorkspacesParams{
+				SharedWithUserID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+			},
+		},
+		{
+			Name:  "SharedWithUserByName",
+			Query: `shared_with_user:wibble`,
+			Setup: func(t *testing.T, db database.Store) {
+				dbgen.User(t, db, database.User{
+					ID:       uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+					Username: "wibble",
+				})
+			},
+			Expected: database.GetWorkspacesParams{
+				SharedWithUserID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+			},
+		},
 
 		// Failures
 		{
