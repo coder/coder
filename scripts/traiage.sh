@@ -5,6 +5,7 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 source "${SCRIPT_DIR}/lib.sh"
 
 CODER_BIN=${CODER_BIN:-"$(which coder)"}
+AGENTAPI_SLUG=${AGENTAPI_SLUG:-""}
 
 [[ -n ${VERBOSE:-} ]] && set -x
 set -euo pipefail
@@ -28,7 +29,44 @@ create() {
 }
 
 prompt() {
+	if [[ -z "${AGENTAPI_SLUG}" ]]; then
+		prompt_ssh
+	else
+		prompt_agentapi
+	fi
+}
+
+prompt_ssh() {
 	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME PROMPT
+
+	# For sanity, use OpenSSH with coder config-ssh.
+	OPENSSH_CONFIG_FILE=/tmp/coder-ssh.config
+	"${CODER_BIN}" \
+		config-ssh \
+		--url "${CODER_URL}" \
+		--token "${CODER_SESSION_TOKEN}" \
+		--ssh-config-file="${OPENSSH_CONFIG_FILE}" \
+		--yes
+
+	# Write prompt to a file in the workspace
+	ssh \
+		-F /tmp/coder-ssh.config \
+	"${WORKSPACE_NAME}.coder" \
+		-- \
+		"cat > /tmp/prompt.txt" <<<"${PROMPT}"
+
+	# Execute claude over SSH
+	# Note: use of cat to work around claude-code#7357
+	ssh \
+		-F /tmp/coder-ssh.config \
+		"${WORKSPACE_NAME}.coder" \
+		-- \
+		"cat /tmp/prompt.txt | \"\${HOME}\"/.local/bin/claude --print --verbose --output-format=stream-json"
+		exit 0
+}
+
+prompt_agentapi() {
+	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME AGENTAPI_SLUG PROMPT
 
 	wait
 
@@ -54,7 +92,7 @@ prompt() {
 		--request POST \
 		--show-error \
 		--silent \
-		"${CODER_URL}/@${username}/${WORKSPACE_NAME}/apps/agentapi/message" | jq -r '.ok')
+		"${CODER_URL}/@${username}/${WORKSPACE_NAME}/apps/${AGENTAPI_SLUG}/message" | jq -r '.ok')
 		if [[ "${response}" != "true" ]]; then
 			echo "Failed to send prompt"
 			exit 1
