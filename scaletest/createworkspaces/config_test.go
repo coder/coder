@@ -15,68 +15,6 @@ import (
 	"github.com/coder/coder/v2/scaletest/workspacebuild"
 )
 
-func Test_UserConfig(t *testing.T) {
-	t.Parallel()
-
-	id := uuid.New()
-
-	cases := []struct {
-		name        string
-		config      createworkspaces.UserConfig
-		errContains string
-	}{
-		{
-			name: "OK",
-			config: createworkspaces.UserConfig{
-				OrganizationID: id,
-				Username:       "test",
-				Email:          "test@test.coder.com",
-			},
-		},
-		{
-			name: "NoOrganizationID",
-			config: createworkspaces.UserConfig{
-				OrganizationID: uuid.Nil,
-				Username:       "test",
-				Email:          "test@test.coder.com",
-			},
-			errContains: "organization_id must not be a nil UUID",
-		},
-		{
-			name: "NoUsername",
-			config: createworkspaces.UserConfig{
-				OrganizationID: id,
-				Username:       "",
-				Email:          "test@test.coder.com",
-			},
-			errContains: "username must be set",
-		},
-		{
-			name: "NoEmail",
-			config: createworkspaces.UserConfig{
-				OrganizationID: id,
-				Username:       "test",
-				Email:          "",
-			},
-			errContains: "email must be set",
-		},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			t.Parallel()
-
-			err := c.config.Validate()
-			if c.errContains != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), c.errContains)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
 func Test_Config(t *testing.T) {
 	t.Parallel()
 
