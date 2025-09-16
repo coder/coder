@@ -50,7 +50,7 @@ export const CreateTemplateGalleryPageView: FC<
 						</h2>
 					</div>
 					<div className="flex flex-row flex-wrap gap-8 h-max">
-						<Card variant="outlined" css={{ width: 320, borderRadius: 6 }}>
+						<Card variant="outlined" className="w-80 rounded-md">
 							<CardActionArea
 								component={RouterLink}
 								to="/templates/new"
