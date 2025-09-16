@@ -25,5 +25,4 @@ INSERT INTO aibridge_tool_usages (
 );
 
 -- name: GetAIBridgeInterceptionByID :one
-SELECT * FROM aibridge_interceptions WHERE id = @id::uuid
-LIMIT 1;
+SELECT * FROM aibridge_interceptions WHERE id = @id::uuid;

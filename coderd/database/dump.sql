@@ -855,6 +855,10 @@ CREATE TABLE aibridge_interceptions (
     started_at timestamp with time zone NOT NULL
 );
 
+COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
+
+COMMENT ON COLUMN aibridge_interceptions.initiator_id IS 'Relates to a users record, but FK is elided for performance.';
+
 CREATE TABLE aibridge_token_usages (
     id uuid NOT NULL,
     interception_id uuid NOT NULL,
@@ -864,6 +868,10 @@ CREATE TABLE aibridge_token_usages (
     metadata jsonb,
     created_at timestamp with time zone NOT NULL
 );
+
+COMMENT ON TABLE aibridge_token_usages IS 'Audit log of tokens used by intercepted requests in AI Bridge';
+
+COMMENT ON COLUMN aibridge_token_usages.provider_response_id IS 'The ID for the response in which the tokens were used, produced by the provider.';
 
 CREATE TABLE aibridge_tool_usages (
     id uuid NOT NULL,
@@ -878,6 +886,16 @@ CREATE TABLE aibridge_tool_usages (
     created_at timestamp with time zone NOT NULL
 );
 
+COMMENT ON TABLE aibridge_tool_usages IS 'Audit log of tool calls in intercepted requests in AI Bridge';
+
+COMMENT ON COLUMN aibridge_tool_usages.provider_response_id IS 'The ID for the response in which the tools were used, produced by the provider.';
+
+COMMENT ON COLUMN aibridge_tool_usages.server_url IS 'The name of the MCP server against which this tool was invoked. May be NULL, in which case the tool was defined by the client, not injected.';
+
+COMMENT ON COLUMN aibridge_tool_usages.injected IS 'Whether this tool was injected; i.e. Bridge injected these tools into the request from an MCP server. If false it means a tool was defined by the client and already existed in the request (MCP or built-in).';
+
+COMMENT ON COLUMN aibridge_tool_usages.invocation_error IS 'Only injected tools are invoked.';
+
 CREATE TABLE aibridge_user_prompts (
     id uuid NOT NULL,
     interception_id uuid NOT NULL,
@@ -886,6 +904,10 @@ CREATE TABLE aibridge_user_prompts (
     metadata jsonb,
     created_at timestamp with time zone NOT NULL
 );
+
+COMMENT ON TABLE aibridge_user_prompts IS 'Audit log of prompts used by intercepted requests in AI Bridge';
+
+COMMENT ON COLUMN aibridge_user_prompts.provider_response_id IS 'The ID for the response to the given prompt, produced by the provider.';
 
 CREATE TABLE api_keys (
     id text NOT NULL,
