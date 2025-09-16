@@ -15,7 +15,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 )
@@ -40,7 +39,7 @@ func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 }
 
 // Run implements Runnable.
-func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
+func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -51,11 +50,11 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 
 	req := r.cfg.Request
 	if req.Name == "" {
-		randName, err := cryptorand.HexString(8)
+		randName, err := loadtestutil.GenerateWorkspaceName(id)
 		if err != nil {
 			return xerrors.Errorf("generate random name for workspace: %w", err)
 		}
-		req.Name = "test-" + randName
+		req.Name = randName
 	}
 
 	workspace, err := r.client.CreateWorkspace(ctx, r.cfg.OrganizationID, r.cfg.UserID, req)
