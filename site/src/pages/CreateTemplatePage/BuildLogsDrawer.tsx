@@ -11,7 +11,7 @@ import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { type FC, useEffect, useRef } from "react";
+import { type FC, useLayoutEffect, useRef } from "react";
 import { navHeight } from "theme/constants";
 
 type BuildLogsDrawerProps = {
@@ -32,20 +32,18 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 	const logsContainer = useRef<HTMLDivElement>(null);
 
 	const scrollToBottom = () => {
-		setTimeout(() => {
-			if (logsContainer.current) {
-				logsContainer.current.scrollTop = logsContainer.current.scrollHeight;
-			}
-		}, 0);
+		if (logsContainer.current) {
+			logsContainer.current.scrollTop = logsContainer.current.scrollHeight;
+		}
 	};
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
-	useEffect(() => {
+	useLayoutEffect(() => {
 		scrollToBottom();
 	}, [logs]);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
-	useEffect(() => {
+	useLayoutEffect(() => {
 		if (drawerProps.open) {
 			scrollToBottom();
 		}
@@ -96,7 +94,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 
 				{hasLogs ? (
 					<section ref={logsContainer} css={styles.logs}>
-						<WorkspaceBuildLogs logs={logs} css={{ border: 0 }} />
+						<WorkspaceBuildLogs logs={logs} className="border-0" />
 					</section>
 				) : (
 					<Loader />
