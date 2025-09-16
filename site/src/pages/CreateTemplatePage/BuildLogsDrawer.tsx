@@ -11,7 +11,7 @@ import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { type FC, useLayoutEffect, useRef } from "react";
+import { type FC } from "react";
 import { navHeight } from "theme/constants";
 
 type BuildLogsDrawerProps = {
@@ -29,25 +29,6 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 	...drawerProps
 }) => {
 	const logs = useWatchVersionLogs(templateVersion);
-	const logsContainer = useRef<HTMLDivElement>(null);
-
-	const scrollToBottom = () => {
-		if (logsContainer.current) {
-			logsContainer.current.scrollTop = logsContainer.current.scrollHeight;
-		}
-	};
-
-	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
-	useLayoutEffect(() => {
-		scrollToBottom();
-	}, [logs]);
-
-	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
-	useLayoutEffect(() => {
-		if (drawerProps.open) {
-			scrollToBottom();
-		}
-	}, [drawerProps.open]);
 
 	const isMissingVariables =
 		error instanceof JobError &&
@@ -77,13 +58,13 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 							});
 							const firstVariableInput =
 								variablesSectionRef.current?.querySelector("input");
-							setTimeout(() => firstVariableInput?.focus(), 0);
+							firstVariableInput?.focus();
 							drawerProps.onClose();
 						}}
 					/>
 				)}
 
-				{availableProvisioners === 0 && !hasLogs && (
+				{(matchingProvisioners === 0 || !hasLogs) && (
 					<ProvisionerStatusAlert
 						matchingProvisioners={matchingProvisioners}
 						availableProvisioners={availableProvisioners}
@@ -93,7 +74,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 				)}
 
 				{hasLogs ? (
-					<section ref={logsContainer} css={styles.logs}>
+					<section css={styles.logs}>
 						<WorkspaceBuildLogs logs={logs} className="border-0" />
 					</section>
 				) : (
