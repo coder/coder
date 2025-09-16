@@ -46,46 +46,53 @@ To import the template and begin configuring it, follow the [documentation in th
 
 ### Option 2&rpar; Create or Duplicate Your Own Template
 
-A template becomes a Task template if it defines a `coder_ai_task` resource and a `coder_parameter` named `"AI Prompt"`. Coder analyzes template files during template version import to determine if these requirements are met.
+A template becomes a Task template if it defines a `coder_ai_task` resource and a `coder_parameter` named `"AI Prompt"`. Coder analyzes template files during template version import to determine if these requirements are met. Try adding this terraform block to an existing template where you'll add our Claude Code module. Note: the `coder_ai_task` resource is defined within the [Claude Code Module](https://registry.coder.com/modules/coder/claude-code?tab=readme), so it's not defined within this block. 
 
 ```hcl
-# Claude API Key parameter
-data "coder_parameter" "claude_api_key" {
-  name         = "claude_api_key"
-  display_name = "Claude API Key"
-  description  = "Your Anthropic API key for Claude AI"
-  type         = "string"
-  default      = ""
-}
-
-# AI Prompt parameter
 data "coder_parameter" "ai_prompt" {
-  name         = "AI Prompt"
-  display_name = "AI Prompt"
-  description  = "Optional AI prompt to customize behavior"
+    name = "AI Prompt"
+    type = "string"
+}
+
+data "coder_parameter" "setup_script" {
+  name         = "setup_script"
+  display_name = "Setup Script"
   type         = "string"
-  default      = ""
+  form_type    = "textarea"
+  description  = "Script to run before running the agent"
+  mutable      = false
 }
 
-# Claude app
-resource "coder_app" "claude-code" {
-  agent_id     = coder_agent.main.id
-  slug         = "claude"
-  display_name = "Claude"
-  url          = "https://claude.ai"
-  icon         = "https://claude.ai/favicon.ico"
-  external     = true
+# The Claude Code module does the automatic task reporting
+# Other agent modules: https://registry.coder.com/modules?search=agent
+# Or use a custom agent:  
+module "claude-code" {
+  count               = data.coder_workspace.me.start_count
+  source              = "registry.coder.com/coder/claude-code/coder"
+  version             = "2.2.0"
+  agent_id            = coder_agent.main.id
+  folder              = "/home/coder/projects"
+  install_claude_code = true
+  claude_code_version = "latest"
+  order               = 999
+
+  experiment_post_install_script = data.coder_parameter.setup_script.value
+
+  # This enables Coder Tasks
+  experiment_report_tasks = true
 }
 
-# Claude AI task
-resource "coder_ai_task" "claude-code" {
-  count = data.coder_parameter.ai_prompt.value != "" ? 1 : 0
-  
-  sidebar_app {
-    id = coder_app.claude-code.id
-  }
+variable "anthropic_api_key" {
+  type        = string
+  description = "Generate one"
+  sensitive   = true
 }
 
+resource "coder_env" "anthropic_api_key" {
+  agent_id = coder_agent.main.id
+  name     = "CODER_MCP_CLAUDE_API_KEY"
+  value    = var.anthropic_api_key
+}
 ```
 
 > [!NOTE]
