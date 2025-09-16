@@ -49,6 +49,7 @@ interface WorkspaceBuildLogsProps extends HTMLAttributes<HTMLDivElement> {
 	sticky?: boolean;
 	logs: ProvisionerJobLog[];
 	build?: WorkspaceBuild;
+	disableAutoscroll?: boolean;
 }
 
 export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
@@ -56,6 +57,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 	sticky,
 	logs,
 	build,
+	disableAutoscroll,
 	className,
 	...attrs
 }) => {
@@ -64,7 +66,9 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 	const ref = useRef<HTMLDivElement>(null);
 	useLayoutEffect(() => {
 		logs;
-		ref.current?.scrollIntoView({ block: "end" });
+		if (!disableAutoscroll) {
+			ref.current?.scrollIntoView({ block: "end" });
+		}
 	}, [logs]);
 
 	return (
