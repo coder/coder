@@ -65,11 +65,11 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 
 	const ref = useRef<HTMLDivElement>(null);
 	useLayoutEffect(() => {
-		logs;
-		if (!disableAutoscroll) {
-			ref.current?.scrollIntoView({ block: "end" });
+		if (disableAutoscroll || logs.length === 0) {
+			return;
 		}
-	}, [logs]);
+		ref.current?.scrollIntoView({ block: "end" });
+	}, [logs, disableAutoscroll]);
 
 	return (
 		<div
