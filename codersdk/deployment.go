@@ -3239,7 +3239,7 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "false",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "enabled",
-			Hidden:      false,
+			Hidden:      true,
 		},
 		{
 			Name:        "AIBridge OpenAI Base URL",
