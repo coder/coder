@@ -21,6 +21,7 @@ create() {
 		--token "${CODER_SESSION_TOKEN}" \
 		create \
 		--template "${TEMPLATE_NAME}" \
+		--stop-after 30m \
 		--yes \
 		"${WORKSPACE_NAME}"
 	exit 0
@@ -63,22 +64,22 @@ main() {
 	fi
 
 	case "$1" in
-		create)
-			create
-			;;
-		prompt)
-			prompt
-			;;
-		archive)
-			archive
-			;;
-		delete)
-			delete
-			;;
-		*)
-			echo "Unknown option: $1"
-			usage
-			;;
+	create)
+		create
+		;;
+	prompt)
+		prompt
+		;;
+	archive)
+		archive
+		;;
+	delete)
+		delete
+		;;
+	*)
+		echo "Unknown option: $1"
+		usage
+		;;
 	esac
 }
 
