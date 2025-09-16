@@ -428,7 +428,7 @@ func (c *Client) WorkspaceAgentDeleteImmortalStream(ctx context.Context, agentID
 		return err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
 		return ReadBodyAsError(res)
 	}
 	return nil
