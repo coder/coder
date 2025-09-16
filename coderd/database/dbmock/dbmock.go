@@ -892,6 +892,20 @@ func (mr *MockStoreMockRecorder) DeleteWebpushSubscriptions(ctx, ids any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWebpushSubscriptions", reflect.TypeOf((*MockStore)(nil).DeleteWebpushSubscriptions), ctx, ids)
 }
 
+// DeleteWorkspaceACLByID mocks base method.
+func (m *MockStore) DeleteWorkspaceACLByID(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteWorkspaceACLByID", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteWorkspaceACLByID indicates an expected call of DeleteWorkspaceACLByID.
+func (mr *MockStoreMockRecorder) DeleteWorkspaceACLByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkspaceACLByID", reflect.TypeOf((*MockStore)(nil).DeleteWorkspaceACLByID), ctx, id)
+}
+
 // DeleteWorkspaceAgentPortShare mocks base method.
 func (m *MockStore) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
 	m.ctrl.T.Helper()
@@ -1078,6 +1092,21 @@ func (m *MockStore) FindMatchingPresetID(ctx context.Context, arg database.FindM
 func (mr *MockStoreMockRecorder) FindMatchingPresetID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMatchingPresetID", reflect.TypeOf((*MockStore)(nil).FindMatchingPresetID), ctx, arg)
+}
+
+// GetAIBridgeInterceptionByID mocks base method.
+func (m *MockStore) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIBridgeInterceptionByID", ctx, id)
+	ret0, _ := ret[0].(database.AIBridgeInterception)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIBridgeInterceptionByID indicates an expected call of GetAIBridgeInterceptionByID.
+func (mr *MockStoreMockRecorder) GetAIBridgeInterceptionByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIBridgeInterceptionByID", reflect.TypeOf((*MockStore)(nil).GetAIBridgeInterceptionByID), ctx, id)
 }
 
 // GetAPIKeyByID mocks base method.
@@ -4617,6 +4646,63 @@ func (m *MockStore) InTx(arg0 func(database.Store) error, arg1 *database.TxOptio
 func (mr *MockStoreMockRecorder) InTx(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InTx", reflect.TypeOf((*MockStore)(nil).InTx), arg0, arg1)
+}
+
+// InsertAIBridgeInterception mocks base method.
+func (m *MockStore) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAIBridgeInterception", ctx, arg)
+	ret0, _ := ret[0].(database.AIBridgeInterception)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAIBridgeInterception indicates an expected call of InsertAIBridgeInterception.
+func (mr *MockStoreMockRecorder) InsertAIBridgeInterception(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIBridgeInterception", reflect.TypeOf((*MockStore)(nil).InsertAIBridgeInterception), ctx, arg)
+}
+
+// InsertAIBridgeTokenUsage mocks base method.
+func (m *MockStore) InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAIBridgeTokenUsage", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertAIBridgeTokenUsage indicates an expected call of InsertAIBridgeTokenUsage.
+func (mr *MockStoreMockRecorder) InsertAIBridgeTokenUsage(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIBridgeTokenUsage", reflect.TypeOf((*MockStore)(nil).InsertAIBridgeTokenUsage), ctx, arg)
+}
+
+// InsertAIBridgeToolUsage mocks base method.
+func (m *MockStore) InsertAIBridgeToolUsage(ctx context.Context, arg database.InsertAIBridgeToolUsageParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAIBridgeToolUsage", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertAIBridgeToolUsage indicates an expected call of InsertAIBridgeToolUsage.
+func (mr *MockStoreMockRecorder) InsertAIBridgeToolUsage(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIBridgeToolUsage", reflect.TypeOf((*MockStore)(nil).InsertAIBridgeToolUsage), ctx, arg)
+}
+
+// InsertAIBridgeUserPrompt mocks base method.
+func (m *MockStore) InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAIBridgeUserPrompt", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertAIBridgeUserPrompt indicates an expected call of InsertAIBridgeUserPrompt.
+func (mr *MockStoreMockRecorder) InsertAIBridgeUserPrompt(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIBridgeUserPrompt", reflect.TypeOf((*MockStore)(nil).InsertAIBridgeUserPrompt), ctx, arg)
 }
 
 // InsertAPIKey mocks base method.

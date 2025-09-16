@@ -335,6 +335,86 @@
 | `groups` | array of [codersdk.Group](#codersdkgroup)             | false    |              |             |
 | `users`  | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |             |
 
+## codersdk.AIBridgeAnthropicConfig
+
+```json
+{
+  "base_url": "string",
+  "key": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `base_url` | string | false    |              |             |
+| `key`      | string | false    |              |             |
+
+## codersdk.AIBridgeConfig
+
+```json
+{
+  "anthropic": {
+    "base_url": "string",
+    "key": "string"
+  },
+  "enabled": true,
+  "openai": {
+    "base_url": "string",
+    "key": "string"
+  }
+}
+```
+
+### Properties
+
+| Name        | Type                                                                 | Required | Restrictions | Description |
+|-------------|----------------------------------------------------------------------|----------|--------------|-------------|
+| `anthropic` | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |             |
+| `enabled`   | boolean                                                              | false    |              |             |
+| `openai`    | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
+
+## codersdk.AIBridgeOpenAIConfig
+
+```json
+{
+  "base_url": "string",
+  "key": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `base_url` | string | false    |              |             |
+| `key`      | string | false    |              |             |
+
+## codersdk.AIConfig
+
+```json
+{
+  "bridge": {
+    "anthropic": {
+      "base_url": "string",
+      "key": "string"
+    },
+    "enabled": true,
+    "openai": {
+      "base_url": "string",
+      "key": "string"
+    }
+  }
+}
+```
+
+### Properties
+
+| Name     | Type                                               | Required | Restrictions | Description |
+|----------|----------------------------------------------------|----------|--------------|-------------|
+| `bridge` | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig) | false    |              |             |
+
 ## codersdk.APIKey
 
 ```json
@@ -1872,6 +1952,39 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `oidc_convert`           |
 | `tailnet_resume`         |
 
+## codersdk.CustomNotificationContent
+
+```json
+{
+  "message": "string",
+  "title": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description |
+|-----------|--------|----------|--------------|-------------|
+| `message` | string | false    |              |             |
+| `title`   | string | false    |              |             |
+
+## codersdk.CustomNotificationRequest
+
+```json
+{
+  "content": {
+    "message": "string",
+    "title": "string"
+  }
+}
+```
+
+### Properties
+
+| Name      | Type                                                                     | Required | Restrictions | Description |
+|-----------|--------------------------------------------------------------------------|----------|--------------|-------------|
+| `content` | [codersdk.CustomNotificationContent](#codersdkcustomnotificationcontent) | false    |              |             |
+
 ## codersdk.CustomRoleRequest
 
 ```json
@@ -2152,6 +2265,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
+    "ai": {
+      "bridge": {
+        "anthropic": {
+          "base_url": "string",
+          "key": "string"
+        },
+        "enabled": true,
+        "openai": {
+          "base_url": "string",
+          "key": "string"
+        }
+      }
+    },
     "allow_workspace_renames": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
@@ -2232,6 +2358,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "display_icon": "string",
           "display_name": "string",
           "id": "string",
+          "mcp_tool_allow_regex": "string",
+          "mcp_tool_deny_regex": "string",
+          "mcp_url": "string",
           "no_refresh": true,
           "regex": "string",
           "scopes": [
@@ -2433,7 +2562,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "default_token_lifetime": 0,
       "disable_expiry_refresh": true,
       "max_admin_token_lifetime": 0,
-      "max_token_lifetime": 0
+      "max_token_lifetime": 0,
+      "refresh_default_duration": 0
     },
     "ssh_keygen_algorithm": "string",
     "strict_transport_security": 0,
@@ -2639,6 +2769,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "user": {}
   },
   "agent_stat_refresh_interval": 0,
+  "ai": {
+    "bridge": {
+      "anthropic": {
+        "base_url": "string",
+        "key": "string"
+      },
+      "enabled": true,
+      "openai": {
+        "base_url": "string",
+        "key": "string"
+      }
+    }
+  },
   "allow_workspace_renames": true,
   "autobuild_poll_interval": 0,
   "browser_only": true,
@@ -2719,6 +2862,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "display_icon": "string",
         "display_name": "string",
         "id": "string",
+        "mcp_tool_allow_regex": "string",
+        "mcp_tool_deny_regex": "string",
+        "mcp_url": "string",
         "no_refresh": true,
         "regex": "string",
         "scopes": [
@@ -2920,7 +3066,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "default_token_lifetime": 0,
     "disable_expiry_refresh": true,
     "max_admin_token_lifetime": 0,
-    "max_token_lifetime": 0
+    "max_token_lifetime": 0,
+    "refresh_default_duration": 0
   },
   "ssh_keygen_algorithm": "string",
   "strict_transport_security": 0,
@@ -3017,6 +3164,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `address`                            | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Deprecated: Use HTTPAddress or TLS.Address instead.                |
 | `agent_fallback_troubleshooting_url` | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                              | false    |              |                                                                    |
+| `ai`                                 | [codersdk.AIConfig](#codersdkaiconfig)                                                               | false    |              |                                                                    |
 | `allow_workspace_renames`            | boolean                                                                                              | false    |              |                                                                    |
 | `autobuild_poll_interval`            | integer                                                                                              | false    |              |                                                                    |
 | `browser_only`                       | boolean                                                                                              | false    |              |                                                                    |
@@ -3321,6 +3469,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `oauth2`               |
 | `mcp-server-http`      |
 | `workspace-sharing`    |
+| `aibridge`             |
 
 ## codersdk.ExternalAgentCredentials
 
@@ -3419,6 +3568,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "display_icon": "string",
   "display_name": "string",
   "id": "string",
+  "mcp_tool_allow_regex": "string",
+  "mcp_tool_deny_regex": "string",
+  "mcp_url": "string",
   "no_refresh": true,
   "regex": "string",
   "scopes": [
@@ -3443,6 +3595,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `display_icon`          | string  | false    |              | Display icon is a URL to an icon to display in the UI.                                  |
 | `display_name`          | string  | false    |              | Display name is shown in the UI to identify the auth config.                            |
 | `id`                    | string  | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided. |
+| `mcp_tool_allow_regex`  | string  | false    |              |                                                                                         |
+| `mcp_tool_deny_regex`   | string  | false    |              |                                                                                         |
+| `mcp_url`               | string  | false    |              |                                                                                         |
 | `no_refresh`            | boolean | false    |              |                                                                                         |
 |`regex`|string|false||Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type.
 Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the Coder server to match against the Regex.|
@@ -6364,6 +6519,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | Value                              |
 |------------------------------------|
 | `*`                                |
+| `aibridge_interception`            |
 | `api_key`                          |
 | `assign_org_role`                  |
 | `assign_role`                      |
@@ -6834,19 +6990,21 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "default_token_lifetime": 0,
   "disable_expiry_refresh": true,
   "max_admin_token_lifetime": 0,
-  "max_token_lifetime": 0
+  "max_token_lifetime": 0,
+  "refresh_default_duration": 0
 }
 ```
 
 ### Properties
 
-| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                        |
-|----------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `default_duration`         | integer | false    |              | Default duration is only for browser, workspace app and oauth sessions.                                                                                                            |
-| `default_token_lifetime`   | integer | false    |              |                                                                                                                                                                                    |
-| `disable_expiry_refresh`   | boolean | false    |              | Disable expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key. |
-| `max_admin_token_lifetime` | integer | false    |              |                                                                                                                                                                                    |
-| `max_token_lifetime`       | integer | false    |              |                                                                                                                                                                                    |
+| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                            |
+|----------------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `default_duration`         | integer | false    |              | Default duration is only for browser, workspace app and oauth sessions.                                                                                                                |
+| `default_token_lifetime`   | integer | false    |              |                                                                                                                                                                                        |
+| `disable_expiry_refresh`   | boolean | false    |              | Disable expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key.     |
+| `max_admin_token_lifetime` | integer | false    |              |                                                                                                                                                                                        |
+| `max_token_lifetime`       | integer | false    |              |                                                                                                                                                                                        |
+| `refresh_default_duration` | integer | false    |              | Refresh default duration is the default lifetime for OAuth2 refresh tokens. This should generally be longer than access token lifetimes to allow refreshing after access token expiry. |
 
 ## codersdk.SlimRole
 
@@ -12705,6 +12863,9 @@ None
       "display_icon": "string",
       "display_name": "string",
       "id": "string",
+      "mcp_tool_allow_regex": "string",
+      "mcp_tool_deny_regex": "string",
+      "mcp_url": "string",
       "no_refresh": true,
       "regex": "string",
       "scopes": [

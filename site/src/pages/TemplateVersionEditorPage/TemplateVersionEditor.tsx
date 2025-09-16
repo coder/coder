@@ -37,6 +37,7 @@ import {
 	ProvisionerAlert,
 } from "modules/provisioners/ProvisionerAlert";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
+import { WildcardHostnameWarning } from "modules/resources/WildcardHostnameWarning";
 import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
 import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
 import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
@@ -173,7 +174,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	}, [triggerPreview]);
 
 	// Automatically switch to the template preview tab when the build succeeds.
-	const previousVersion = useRef<TemplateVersion>();
+	const previousVersion = useRef<TemplateVersion>(undefined);
 	useEffect(() => {
 		if (!previousVersion.current) {
 			previousVersion.current = templateVersion;
@@ -203,7 +204,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 		if (logsContentRef.current) {
 			logsContentRef.current.scrollTop = logsContentRef.current.scrollHeight;
 		}
-	}, [buildLogs]);
+	}, [buildLogs, resources]);
 
 	useLeaveSiteWarning(dirty);
 
@@ -629,6 +630,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 											hideTimestamps
 											logs={buildLogs}
 										/>
+									)}
+
+									{resources && (
+										<WildcardHostnameWarning resources={resources} />
 									)}
 								</div>
 							)}

@@ -111,6 +111,153 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
+const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
+SELECT id, initiator_id, provider, model, started_at FROM aibridge_interceptions WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (AIBridgeInterception, error) {
+	row := q.db.QueryRowContext(ctx, getAIBridgeInterceptionByID, id)
+	var i AIBridgeInterception
+	err := row.Scan(
+		&i.ID,
+		&i.InitiatorID,
+		&i.Provider,
+		&i.Model,
+		&i.StartedAt,
+	)
+	return i, err
+}
+
+const insertAIBridgeInterception = `-- name: InsertAIBridgeInterception :one
+INSERT INTO aibridge_interceptions (id, initiator_id, provider, model, started_at)
+VALUES ($1::uuid, $2::uuid, $3, $4, $5)
+RETURNING id, initiator_id, provider, model, started_at
+`
+
+type InsertAIBridgeInterceptionParams struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	InitiatorID uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	Provider    string    `db:"provider" json:"provider"`
+	Model       string    `db:"model" json:"model"`
+	StartedAt   time.Time `db:"started_at" json:"started_at"`
+}
+
+func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error) {
+	row := q.db.QueryRowContext(ctx, insertAIBridgeInterception,
+		arg.ID,
+		arg.InitiatorID,
+		arg.Provider,
+		arg.Model,
+		arg.StartedAt,
+	)
+	var i AIBridgeInterception
+	err := row.Scan(
+		&i.ID,
+		&i.InitiatorID,
+		&i.Provider,
+		&i.Model,
+		&i.StartedAt,
+	)
+	return i, err
+}
+
+const insertAIBridgeTokenUsage = `-- name: InsertAIBridgeTokenUsage :exec
+INSERT INTO aibridge_token_usages (
+  id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at
+) VALUES (
+  $1, $2, $3, $4, $5, COALESCE($6::jsonb, '{}'::jsonb), $7
+)
+`
+
+type InsertAIBridgeTokenUsageParams struct {
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	InterceptionID     uuid.UUID       `db:"interception_id" json:"interception_id"`
+	ProviderResponseID string          `db:"provider_response_id" json:"provider_response_id"`
+	InputTokens        int64           `db:"input_tokens" json:"input_tokens"`
+	OutputTokens       int64           `db:"output_tokens" json:"output_tokens"`
+	Metadata           json.RawMessage `db:"metadata" json:"metadata"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) error {
+	_, err := q.db.ExecContext(ctx, insertAIBridgeTokenUsage,
+		arg.ID,
+		arg.InterceptionID,
+		arg.ProviderResponseID,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.Metadata,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const insertAIBridgeToolUsage = `-- name: InsertAIBridgeToolUsage :exec
+INSERT INTO aibridge_tool_usages (
+  id, interception_id, provider_response_id, tool, server_url, input, injected, invocation_error, metadata, created_at
+) VALUES (
+  $1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9::jsonb, '{}'::jsonb), $10
+)
+`
+
+type InsertAIBridgeToolUsageParams struct {
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	InterceptionID     uuid.UUID       `db:"interception_id" json:"interception_id"`
+	ProviderResponseID string          `db:"provider_response_id" json:"provider_response_id"`
+	Tool               string          `db:"tool" json:"tool"`
+	ServerUrl          sql.NullString  `db:"server_url" json:"server_url"`
+	Input              string          `db:"input" json:"input"`
+	Injected           bool            `db:"injected" json:"injected"`
+	InvocationError    sql.NullString  `db:"invocation_error" json:"invocation_error"`
+	Metadata           json.RawMessage `db:"metadata" json:"metadata"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBridgeToolUsageParams) error {
+	_, err := q.db.ExecContext(ctx, insertAIBridgeToolUsage,
+		arg.ID,
+		arg.InterceptionID,
+		arg.ProviderResponseID,
+		arg.Tool,
+		arg.ServerUrl,
+		arg.Input,
+		arg.Injected,
+		arg.InvocationError,
+		arg.Metadata,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const insertAIBridgeUserPrompt = `-- name: InsertAIBridgeUserPrompt :exec
+INSERT INTO aibridge_user_prompts (
+  id, interception_id, provider_response_id, prompt, metadata, created_at
+) VALUES (
+  $1, $2, $3, $4, COALESCE($5::jsonb, '{}'::jsonb), $6
+)
+`
+
+type InsertAIBridgeUserPromptParams struct {
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	InterceptionID     uuid.UUID       `db:"interception_id" json:"interception_id"`
+	ProviderResponseID string          `db:"provider_response_id" json:"provider_response_id"`
+	Prompt             string          `db:"prompt" json:"prompt"`
+	Metadata           json.RawMessage `db:"metadata" json:"metadata"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIBridgeUserPromptParams) error {
+	_, err := q.db.ExecContext(ctx, insertAIBridgeUserPrompt,
+		arg.ID,
+		arg.InterceptionID,
+		arg.ProviderResponseID,
+		arg.Prompt,
+		arg.Metadata,
+		arg.CreatedAt,
+	)
+	return err
+}
+
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
 DELETE FROM
 	api_keys
@@ -20141,6 +20288,21 @@ func (q *sqlQuerier) BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg Ba
 	return err
 }
 
+const deleteWorkspaceACLByID = `-- name: DeleteWorkspaceACLByID :exec
+UPDATE
+	workspaces
+SET
+	group_acl = '{}'::json,
+	user_acl = '{}'::json
+WHERE
+	id = $1
+`
+
+func (q *sqlQuerier) DeleteWorkspaceACLByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkspaceACLByID, id)
+	return err
+}
+
 const favoriteWorkspace = `-- name: FavoriteWorkspace :exec
 UPDATE workspaces SET favorite = true WHERE id = $1
 `
@@ -20945,6 +21107,13 @@ WHERE
 			latest_build.has_external_agent = $20 :: boolean
 		ELSE true
 	END
+	-- Filter by shared status
+	AND CASE
+		WHEN $21 :: boolean IS NOT NULL THEN
+			(workspaces.user_acl != '{}'::jsonb OR workspaces.group_acl != '{}'::jsonb) = $21 :: boolean
+		ELSE true
+	END
+
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ), filtered_workspaces_order AS (
@@ -20954,7 +21123,7 @@ WHERE
 		filtered_workspaces fw
 	ORDER BY
 		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-		CASE WHEN owner_id = $21 AND favorite THEN 0 ELSE 1 END ASC,
+		CASE WHEN owner_id = $22 AND favorite THEN 0 ELSE 1 END ASC,
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
@@ -20963,11 +21132,11 @@ WHERE
 		LOWER(name) ASC
 	LIMIT
 		CASE
-			WHEN $23 :: integer > 0 THEN
-				$23
+			WHEN $24 :: integer > 0 THEN
+				$24
 		END
 	OFFSET
-		$22
+		$23
 ), filtered_workspaces_order_with_summary AS (
 	SELECT
 		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.next_start_at, fwo.group_acl, fwo.user_acl, fwo.owner_avatar_url, fwo.owner_username, fwo.owner_name, fwo.organization_name, fwo.organization_display_name, fwo.organization_icon, fwo.organization_description, fwo.template_name, fwo.template_display_name, fwo.template_icon, fwo.template_description, fwo.template_version_id, fwo.template_version_name, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status, fwo.latest_build_has_ai_task, fwo.latest_build_has_external_agent
@@ -21017,7 +21186,7 @@ WHERE
 		false, -- latest_build_has_ai_task
 		false -- latest_build_has_external_agent
 	WHERE
-		$24 :: boolean = true
+		$25 :: boolean = true
 ), total_count AS (
 	SELECT
 		count(*) AS count
@@ -21054,6 +21223,7 @@ type GetWorkspacesParams struct {
 	UsingActive                           sql.NullBool `db:"using_active" json:"using_active"`
 	HasAITask                             sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
 	HasExternalAgent                      sql.NullBool `db:"has_external_agent" json:"has_external_agent"`
+	Shared                                sql.NullBool `db:"shared" json:"shared"`
 	RequesterID                           uuid.UUID    `db:"requester_id" json:"requester_id"`
 	Offset                                int32        `db:"offset_" json:"offset_"`
 	Limit                                 int32        `db:"limit_" json:"limit_"`
@@ -21127,6 +21297,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.UsingActive,
 		arg.HasAITask,
 		arg.HasExternalAgent,
+		arg.Shared,
 		arg.RequesterID,
 		arg.Offset,
 		arg.Limit,

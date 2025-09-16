@@ -1201,6 +1201,7 @@ type NotificationTemplateKind string
 
 const (
 	NotificationTemplateKindSystem NotificationTemplateKind = "system"
+	NotificationTemplateKindCustom NotificationTemplateKind = "custom"
 )
 
 func (e *NotificationTemplateKind) Scan(src interface{}) error {
@@ -1240,7 +1241,8 @@ func (ns NullNotificationTemplateKind) Value() (driver.Value, error) {
 
 func (e NotificationTemplateKind) Valid() bool {
 	switch e {
-	case NotificationTemplateKindSystem:
+	case NotificationTemplateKindSystem,
+		NotificationTemplateKindCustom:
 		return true
 	}
 	return false
@@ -1249,6 +1251,7 @@ func (e NotificationTemplateKind) Valid() bool {
 func AllNotificationTemplateKindValues() []NotificationTemplateKind {
 	return []NotificationTemplateKind{
 		NotificationTemplateKindSystem,
+		NotificationTemplateKindCustom,
 	}
 }
 
@@ -2950,6 +2953,57 @@ func AllWorkspaceTransitionValues() []WorkspaceTransition {
 		WorkspaceTransitionStop,
 		WorkspaceTransitionDelete,
 	}
+}
+
+// Audit log of requests intercepted by AI Bridge
+type AIBridgeInterception struct {
+	ID uuid.UUID `db:"id" json:"id"`
+	// Relates to a users record, but FK is elided for performance.
+	InitiatorID uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	Provider    string    `db:"provider" json:"provider"`
+	Model       string    `db:"model" json:"model"`
+	StartedAt   time.Time `db:"started_at" json:"started_at"`
+}
+
+// Audit log of tokens used by intercepted requests in AI Bridge
+type AIBridgeTokenUsage struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	InterceptionID uuid.UUID `db:"interception_id" json:"interception_id"`
+	// The ID for the response in which the tokens were used, produced by the provider.
+	ProviderResponseID string                `db:"provider_response_id" json:"provider_response_id"`
+	InputTokens        int64                 `db:"input_tokens" json:"input_tokens"`
+	OutputTokens       int64                 `db:"output_tokens" json:"output_tokens"`
+	Metadata           pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
+}
+
+// Audit log of tool calls in intercepted requests in AI Bridge
+type AIBridgeToolUsage struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	InterceptionID uuid.UUID `db:"interception_id" json:"interception_id"`
+	// The ID for the response in which the tools were used, produced by the provider.
+	ProviderResponseID string `db:"provider_response_id" json:"provider_response_id"`
+	// The name of the MCP server against which this tool was invoked. May be NULL, in which case the tool was defined by the client, not injected.
+	ServerUrl sql.NullString `db:"server_url" json:"server_url"`
+	Tool      string         `db:"tool" json:"tool"`
+	Input     string         `db:"input" json:"input"`
+	// Whether this tool was injected; i.e. Bridge injected these tools into the request from an MCP server. If false it means a tool was defined by the client and already existed in the request (MCP or built-in).
+	Injected bool `db:"injected" json:"injected"`
+	// Only injected tools are invoked.
+	InvocationError sql.NullString        `db:"invocation_error" json:"invocation_error"`
+	Metadata        pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt       time.Time             `db:"created_at" json:"created_at"`
+}
+
+// Audit log of prompts used by intercepted requests in AI Bridge
+type AIBridgeUserPrompt struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	InterceptionID uuid.UUID `db:"interception_id" json:"interception_id"`
+	// The ID for the response to the given prompt, produced by the provider.
+	ProviderResponseID string                `db:"provider_response_id" json:"provider_response_id"`
+	Prompt             string                `db:"prompt" json:"prompt"`
+	Metadata           pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
 }
 
 type APIKey struct {
