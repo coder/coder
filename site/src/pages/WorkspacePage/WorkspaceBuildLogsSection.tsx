@@ -2,7 +2,7 @@ import { useTheme } from "@emotion/react";
 import type { ProvisionerJobLog } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { type FC } from "react";
+import type { FC } from "react";
 
 interface WorkspaceBuildLogsSectionProps {
 	logs?: ProvisionerJobLog[];
