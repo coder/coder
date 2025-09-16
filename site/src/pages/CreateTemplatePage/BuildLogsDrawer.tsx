@@ -72,15 +72,15 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 								variant={AlertVariant.Inline}
 							/>
 						)}
-					</>
-				)}
 
-				{hasLogs ? (
-					<section css={styles.logs}>
-						<WorkspaceBuildLogs logs={logs} className="border-0" />
-					</section>
-				) : (
-					<Loader />
+						{hasLogs ? (
+							<section css={styles.logs}>
+								<WorkspaceBuildLogs logs={logs} className="border-0" />
+							</section>
+						) : (
+							<Loader />
+						)}
+					</>
 				)}
 			</div>
 		</Drawer>
