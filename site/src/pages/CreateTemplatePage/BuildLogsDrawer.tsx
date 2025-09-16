@@ -11,7 +11,7 @@ import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { type FC } from "react";
+import type { FC } from "react";
 import { navHeight } from "theme/constants";
 
 type BuildLogsDrawerProps = {

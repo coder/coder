@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import type { ProvisionerJobLog, WorkspaceBuild } from "api/typesGenerated";
 import type { Line } from "components/Logs/LogLine";
 import { DEFAULT_LOG_LINE_SIDE_PADDING, Logs } from "components/Logs/Logs";
@@ -10,7 +10,7 @@ import {
 	useLayoutEffect,
 	useRef,
 } from "react";
-import { BODY_FONT_FAMILY, MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { BODY_FONT_FAMILY } from "theme/constants";
 
 const Language = {
 	seconds: "seconds",
@@ -63,6 +63,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 
 	const ref = useRef<HTMLDivElement>(null);
 	useLayoutEffect(() => {
+		logs;
 		ref.current?.scrollIntoView({ block: "end" });
 	}, [logs]);
 
