@@ -1,13 +1,10 @@
 import type { WorkspaceApp } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
 import { Spinner } from "components/Spinner/Spinner";
 import { useProxy } from "contexts/ProxyContext";
-import { SquareArrowOutUpRightIcon } from "lucide-react";
 import type { Task } from "modules/tasks/tasks";
 import type { FC } from "react";
-import { Link as RouterLink } from "react-router";
-import { docs } from "utils/docs";
 import { TaskAppIFrame } from "./TaskAppIframe";
+import { TaskWildcardWarning } from "./TaskWildcardWarning";
 
 type TaskSidebarProps = {
 	task: Task;
@@ -77,37 +74,19 @@ export const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
 
 	return (
 		<aside className="flex flex-col h-full shrink-0 w-full">
-			{sidebarAppStatus === "healthy" &&
-			sidebarApp &&
-			!shouldDisplayWildcardWarning ? (
+			{sidebarAppStatus === "loading" ? (
+				<div className="flex-1 flex flex-col items-center justify-center">
+					<Spinner loading className="mb-4" />
+				</div>
+			) : shouldDisplayWildcardWarning ? (
+				<TaskWildcardWarning />
+			) : sidebarAppStatus === "healthy" && sidebarApp ? (
 				<TaskAppIFrame
 					active
 					key={sidebarApp.id}
 					app={sidebarApp}
 					task={task}
 				/>
-			) : sidebarAppStatus === "loading" ? (
-				<div className="flex-1 flex flex-col items-center justify-center">
-					<Spinner loading className="mb-4" />
-				</div>
-			) : shouldDisplayWildcardWarning ? (
-				<div className="flex-1 flex flex-col items-center justify-center">
-					<h3 className="m-0 font-medium text-content-primary text-base">
-						Error
-					</h3>
-					<div className="text-content-secondary text-sm text-center space-y-3">
-						<div className="px-4">
-							This application is not accessible because the wildcard access URL
-							is not configured.
-						</div>
-						<Button size="sm" variant="outline" asChild>
-							<RouterLink to={docs("/admin/networking/wildcard-access-url")}>
-								<SquareArrowOutUpRightIcon />
-								Learn more about wildcard access URL
-							</RouterLink>
-						</Button>
-					</div>
-				</div>
 			) : (
 				<div className="flex-1 flex flex-col items-center justify-center">
 					<h3 className="m-0 font-medium text-content-primary text-base">
