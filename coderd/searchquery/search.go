@@ -226,6 +226,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 	filter.Shared = parser.NullableBoolean(values, sql.NullBool{}, "shared")
+	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user")
 
 	type paramMatch struct {
 		name  string
@@ -360,6 +361,25 @@ func parseOrganization(ctx context.Context, db database.Store, parser *httpapi.Q
 			return uuid.Nil, xerrors.Errorf("organization %q either does not exist, or you are unauthorized to view it", v)
 		}
 		return organization.ID, nil
+	})
+}
+
+func parseUser(ctx context.Context, db database.Store, parser *httpapi.QueryParamParser, vals url.Values, queryParam string) uuid.UUID {
+	return httpapi.ParseCustom(parser, vals, uuid.Nil, queryParam, func(v string) (uuid.UUID, error) {
+		if v == "" {
+			return uuid.Nil, nil
+		}
+		userID, err := uuid.Parse(v)
+		if err == nil {
+			return userID, nil
+		}
+		user, err := db.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+			Username: v,
+		})
+		if err != nil {
+			return uuid.Nil, xerrors.Errorf("user %q either does not exist, or you are unauthorized to view them", v)
+		}
+		return user.ID, nil
 	})
 }
 
