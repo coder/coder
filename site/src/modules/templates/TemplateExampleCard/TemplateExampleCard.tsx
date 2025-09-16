@@ -6,6 +6,7 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Pill } from "components/Pill/Pill";
 import type { FC, HTMLAttributes } from "react";
 import { Link as RouterLink } from "react-router";
+import { cn } from "utils/cn";
 
 type TemplateExampleCardProps = HTMLAttributes<HTMLDivElement> & {
 	example: TemplateExample;
@@ -15,22 +16,41 @@ type TemplateExampleCardProps = HTMLAttributes<HTMLDivElement> & {
 export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 	example,
 	activeTag,
+	className,
 	...divProps
 }) => {
 	return (
-		<div css={styles.card} {...divProps}>
-			<div css={styles.header}>
-				<div css={styles.icon}>
+		<div
+			{...divProps}
+			className={cn(
+				"w-80 p-6 rounded-md text-left text-inherit flex flex-col border border-border border-solid hover:border-border-hover transition-colors duration-200",
+				className,
+			)}
+		>
+			<div className="flex items-center justify-between gap-4 pb-6">
+				<div className="shrink-0 pt-1 size-8">
 					<ExternalImage
 						src={example.icon}
-						css={{ width: "100%", height: "100%", objectFit: "contain" }}
+						className="size-full object-contain"
 					/>
 				</div>
 
-				<div css={styles.tags}>
+				<div className="flex flex-wrap gap-1.5 justify-end">
 					{example.tags.map((tag) => (
 						<RouterLink key={tag} to={`/starter-templates?tag=${tag}`}>
-							<Pill css={[styles.tag, activeTag === tag && styles.activeTag]}>
+							<Pill
+								className={cn(
+									"border border-solid border-border no-underline cursor-pointer hover:border-border-hover transition-colors duration-200",
+									tag === activeTag && "",
+								)}
+								css={
+									activeTag === tag &&
+									((theme) => ({
+										borderColor: theme.roles.active.outline,
+										backgroundColor: theme.roles.active.background,
+									}))
+								}
+							>
 								{tag}
 							</Pill>
 						</RouterLink>
@@ -39,19 +59,17 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 			</div>
 
 			<div>
-				<h4 css={{ fontSize: 14, fontWeight: 600, margin: 0, marginBottom: 4 }}>
-					{example.name}
-				</h4>
-				<span css={styles.description}>
+				<h4 className="text-sm font-semibold mb-1">{example.name}</h4>
+				<div className="text-sm text-content-secondary leading-normal">
 					{example.description}{" "}
 					<Link
 						component={RouterLink}
 						to={`/starter-templates/${example.id}`}
-						css={{ display: "inline-block", fontSize: 13, marginTop: 4 }}
+						className="inline-block text-sm mt-1"
 					>
 						Read more
 					</Link>
-				</span>
+				</div>
 			</div>
 
 			<div css={styles.useButtonContainer}>
@@ -66,59 +84,6 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 };
 
 const styles = {
-	card: (theme) => ({
-		width: "320px",
-		padding: 24,
-		borderRadius: 6,
-		border: `1px solid ${theme.palette.divider}`,
-		textAlign: "left",
-		color: "inherit",
-		display: "flex",
-		flexDirection: "column",
-	}),
-
-	header: {
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "space-between",
-		marginBottom: 24,
-	},
-
-	icon: {
-		flexShrink: 0,
-		paddingTop: 4,
-		width: 32,
-		height: 32,
-	},
-
-	tags: {
-		display: "flex",
-		flexWrap: "wrap",
-		gap: 8,
-		justifyContent: "end",
-	},
-
-	tag: (theme) => ({
-		borderColor: theme.palette.divider,
-		textDecoration: "none",
-		cursor: "pointer",
-		"&: hover": {
-			borderColor: theme.palette.primary.main,
-		},
-	}),
-
-	activeTag: (theme) => ({
-		borderColor: theme.roles.active.outline,
-		backgroundColor: theme.roles.active.background,
-	}),
-
-	description: (theme) => ({
-		fontSize: 13,
-		color: theme.palette.text.secondary,
-		lineHeight: "1.6",
-		display: "block",
-	}),
-
 	useButtonContainer: {
 		display: "flex",
 		gap: 12,

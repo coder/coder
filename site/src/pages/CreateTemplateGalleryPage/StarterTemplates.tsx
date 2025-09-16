@@ -71,19 +71,10 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 				</Stack>
 			)}
 
-			<div
-				css={{
-					display: "flex",
-					flexWrap: "wrap",
-					gap: 32,
-					height: "max-content",
-				}}
-			>
+			<div className="grid grid-cols-1 gap-6 h-max w-full xs:grid-cols-2 lg:grid-cols-3">
 				{visibleTemplates?.map((example) => (
 					<TemplateExampleCard
-						css={(theme) => ({
-							backgroundColor: theme.palette.background.paper,
-						})}
+						className="bg-surface-secondary w-full"
 						example={example}
 						key={example.id}
 						activeTag={activeTag}

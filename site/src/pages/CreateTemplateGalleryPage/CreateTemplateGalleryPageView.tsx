@@ -36,6 +36,7 @@ export const CreateTemplateGalleryPageView: FC<
 						>
 							Browse the Coder Registry
 							<ExternalLinkIcon className="size-icon-sm ml-1" />
+							<span className="sr-only"> (link opens in new tab)</span>
 						</a>
 					</Button>
 				}
