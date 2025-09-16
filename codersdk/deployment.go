@@ -500,6 +500,7 @@ type DeploymentValues struct {
 	WorkspaceHostnameSuffix         serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
 	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 	HideAITasks                     serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
+	AI                              AIConfig                             `json:"ai,omitempty"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -1162,6 +1163,10 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:   "Inbox",
 			Parent: &deploymentGroupNotifications,
 			YAML:   "inbox",
+		}
+		deploymentGroupAIBridge = serpent.Group{
+			Name: "AIBridge",
+			YAML: "aibridge",
 		}
 	)
 
@@ -3223,9 +3228,86 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupClient,
 			YAML:        "hideAITasks",
 		},
+
+		// AIBridge Options
+		{
+			Name:        "AIBridge Enabled",
+			Description: fmt.Sprintf("Whether to start an in-memory aibridged instance (%q experiment must be enabled, too).", ExperimentAIBridge),
+			Flag:        "aibridge-enabled",
+			Env:         "CODER_AIBRIDGE_ENABLED",
+			Value:       &c.AI.BridgeConfig.Enabled,
+			Default:     "false",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "enabled",
+			Hidden:      true,
+		},
+		{
+			Name:        "AIBridge OpenAI Base URL",
+			Description: "The base URL of the OpenAI API.",
+			Flag:        "aibridge-openai-base-url",
+			Env:         "CODER_AIBRIDGE_OPENAI_BASE_URL",
+			Value:       &c.AI.BridgeConfig.OpenAI.BaseURL,
+			Default:     "https://api.openai.com/v1/",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "openai_base_url",
+			Hidden:      true,
+		},
+		{
+			Name:        "AIBridge OpenAI Key",
+			Description: "The key to authenticate against the OpenAI API.",
+			Flag:        "aibridge-openai-key",
+			Env:         "CODER_AIBRIDGE_OPENAI_KEY",
+			Value:       &c.AI.BridgeConfig.OpenAI.Key,
+			Default:     "",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "openai_key",
+			Hidden:      true,
+		},
+		{
+			Name:        "AIBridge Anthropic Base URL",
+			Description: "The base URL of the Anthropic API.",
+			Flag:        "aibridge-anthropic-base-url",
+			Env:         "CODER_AIBRIDGE_ANTHROPIC_BASE_URL",
+			Value:       &c.AI.BridgeConfig.Anthropic.BaseURL,
+			Default:     "https://api.anthropic.com/",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "base_url",
+			Hidden:      true,
+		},
+		{
+			Name:        "AIBridge Anthropic KEY",
+			Description: "The key to authenticate against the Anthropic API.",
+			Flag:        "aibridge-anthropic-key",
+			Env:         "CODER_AIBRIDGE_ANTHROPIC_KEY",
+			Value:       &c.AI.BridgeConfig.Anthropic.Key,
+			Default:     "",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "key",
+			Hidden:      true,
+		},
 	}
 
 	return opts
+}
+
+type AIBridgeConfig struct {
+	Enabled   serpent.Bool            `json:"enabled" typescript:",notnull"`
+	OpenAI    AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
+	Anthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
+}
+
+type AIBridgeOpenAIConfig struct {
+	BaseURL serpent.String `json:"base_url" typescript:",notnull"`
+	Key     serpent.String `json:"key" typescript:",notnull"`
+}
+
+type AIBridgeAnthropicConfig struct {
+	BaseURL serpent.String `json:"base_url" typescript:",notnull"`
+	Key     serpent.String `json:"key" typescript:",notnull"`
+}
+
+type AIConfig struct {
+	BridgeConfig AIBridgeConfig `json:"bridge,omitempty"`
 }
 
 type SupportConfig struct {
@@ -3475,6 +3557,7 @@ const (
 	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
+	ExperimentAIBridge           Experiment = "aibridge"             // Enables AI Bridge functionality.
 )
 
 func (e Experiment) DisplayName() string {
@@ -3495,6 +3578,8 @@ func (e Experiment) DisplayName() string {
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceSharing:
 		return "Workspace Sharing"
+	case ExperimentAIBridge:
+		return "AI Bridge"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
@@ -3513,6 +3598,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
 	ExperimentWorkspaceSharing,
+	ExperimentAIBridge,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
