@@ -337,6 +337,59 @@ func TestSearchWorkspace(t *testing.T) {
 				SharedWithUserID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
 			},
 		},
+		{
+			Name:  "SharedWithGroupDefaultOrg",
+			Query: "shared_with_group:wibble",
+			Setup: func(t *testing.T, db database.Store) {
+				org, err := db.GetOrganizationByName(t.Context(), database.GetOrganizationByNameParams{
+					Name: "coder",
+				})
+				require.NoError(t, err)
+
+				dbgen.Group(t, db, database.Group{
+					ID:             uuid.MustParse("590f1006-15e6-4b21-a6e1-92e33af8a5c3"),
+					Name:           "wibble",
+					OrganizationID: org.ID,
+				})
+			},
+			Expected: database.GetWorkspacesParams{
+				SharedWithGroupID: uuid.MustParse("590f1006-15e6-4b21-a6e1-92e33af8a5c3"),
+			},
+		},
+		{
+			Name:  "SharedWithGroupInOrg",
+			Query: "shared_with_group:wibble/wobble",
+			Setup: func(t *testing.T, db database.Store) {
+				org := dbgen.Organization(t, db, database.Organization{
+					ID:   uuid.MustParse("dbeb1bd5-dce6-459c-ab7b-b7f8b9b10467"),
+					Name: "wibble",
+				})
+				dbgen.Group(t, db, database.Group{
+					ID:             uuid.MustParse("3c831688-0a5a-45a2-a796-f7648874df34"),
+					Name:           "wobble",
+					OrganizationID: org.ID,
+				})
+			},
+			Expected: database.GetWorkspacesParams{
+				SharedWithGroupID: uuid.MustParse("3c831688-0a5a-45a2-a796-f7648874df34"),
+			},
+		},
+		{
+			Name:  "SharedWithGroupID",
+			Query: "shared_with_group:a7d1ba00-53c7-4aa6-92ea-83157dd57480",
+			Setup: func(t *testing.T, db database.Store) {
+				org := dbgen.Organization(t, db, database.Organization{
+					ID: uuid.MustParse("8606620f-fee4-4c4e-83ba-f42db804139a"),
+				})
+				dbgen.Group(t, db, database.Group{
+					ID:             uuid.MustParse("a7d1ba00-53c7-4aa6-92ea-83157dd57480"),
+					OrganizationID: org.ID,
+				})
+			},
+			Expected: database.GetWorkspacesParams{
+				SharedWithGroupID: uuid.MustParse("a7d1ba00-53c7-4aa6-92ea-83157dd57480"),
+			},
+		},
 
 		// Failures
 		{
@@ -378,6 +431,21 @@ func TestSearchWorkspace(t *testing.T) {
 			Name:                  "ParamExtraColons",
 			Query:                 "param:foo:value",
 			ExpectedErrorContains: "can only contain 1 ':'",
+		},
+		{
+			Name:                  "SharedWithGroupTooManySegments",
+			Query:                 `shared_with_group:acme/devs/extra`,
+			ExpectedErrorContains: "the filter must be in the pattern of <organization name>/<group name>",
+		},
+		{
+			Name:                  "SharedWithGroupEmptyOrg",
+			Query:                 `shared_with_group:/devs`,
+			ExpectedErrorContains: "invalid organization name",
+		},
+		{
+			Name:                  "SharedWithGroupEmptyGroup",
+			Query:                 `shared_with_group:acme/`,
+			ExpectedErrorContains: "organization \"acme\" either does not exist",
 		},
 	}
 
