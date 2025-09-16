@@ -150,7 +150,8 @@ CREATE TYPE notification_method AS ENUM (
 );
 
 CREATE TYPE notification_template_kind AS ENUM (
-    'system'
+    'system',
+    'custom'
 );
 
 CREATE TYPE parameter_destination_scheme AS ENUM (
@@ -846,6 +847,68 @@ BEGIN
 END;
 $$;
 
+CREATE TABLE aibridge_interceptions (
+    id uuid NOT NULL,
+    initiator_id uuid NOT NULL,
+    provider text NOT NULL,
+    model text NOT NULL,
+    started_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
+
+COMMENT ON COLUMN aibridge_interceptions.initiator_id IS 'Relates to a users record, but FK is elided for performance.';
+
+CREATE TABLE aibridge_token_usages (
+    id uuid NOT NULL,
+    interception_id uuid NOT NULL,
+    provider_response_id text NOT NULL,
+    input_tokens bigint NOT NULL,
+    output_tokens bigint NOT NULL,
+    metadata jsonb,
+    created_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE aibridge_token_usages IS 'Audit log of tokens used by intercepted requests in AI Bridge';
+
+COMMENT ON COLUMN aibridge_token_usages.provider_response_id IS 'The ID for the response in which the tokens were used, produced by the provider.';
+
+CREATE TABLE aibridge_tool_usages (
+    id uuid NOT NULL,
+    interception_id uuid NOT NULL,
+    provider_response_id text NOT NULL,
+    server_url text,
+    tool text NOT NULL,
+    input text NOT NULL,
+    injected boolean DEFAULT false NOT NULL,
+    invocation_error text,
+    metadata jsonb,
+    created_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE aibridge_tool_usages IS 'Audit log of tool calls in intercepted requests in AI Bridge';
+
+COMMENT ON COLUMN aibridge_tool_usages.provider_response_id IS 'The ID for the response in which the tools were used, produced by the provider.';
+
+COMMENT ON COLUMN aibridge_tool_usages.server_url IS 'The name of the MCP server against which this tool was invoked. May be NULL, in which case the tool was defined by the client, not injected.';
+
+COMMENT ON COLUMN aibridge_tool_usages.injected IS 'Whether this tool was injected; i.e. Bridge injected these tools into the request from an MCP server. If false it means a tool was defined by the client and already existed in the request (MCP or built-in).';
+
+COMMENT ON COLUMN aibridge_tool_usages.invocation_error IS 'Only injected tools are invoked.';
+
+CREATE TABLE aibridge_user_prompts (
+    id uuid NOT NULL,
+    interception_id uuid NOT NULL,
+    provider_response_id text NOT NULL,
+    prompt text NOT NULL,
+    metadata jsonb,
+    created_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE aibridge_user_prompts IS 'Audit log of prompts used by intercepted requests in AI Bridge';
+
+COMMENT ON COLUMN aibridge_user_prompts.provider_response_id IS 'The ID for the response to the given prompt, produced by the provider.';
+
 CREATE TABLE api_keys (
     id text NOT NULL,
     hashed_secret bytea NOT NULL,
@@ -890,7 +953,7 @@ CREATE TABLE connection_logs (
     workspace_name text NOT NULL,
     agent_name text NOT NULL,
     type connection_type NOT NULL,
-    ip inet NOT NULL,
+    ip inet,
     code integer,
     user_agent text,
     user_id uuid,
@@ -1537,6 +1600,26 @@ CREATE TABLE tailnet_tunnels (
     src_id uuid NOT NULL,
     dst_id uuid NOT NULL,
     updated_at timestamp with time zone NOT NULL
+);
+
+CREATE TABLE task_workspace_apps (
+    task_id uuid NOT NULL,
+    workspace_build_id uuid NOT NULL,
+    workspace_agent_id uuid NOT NULL,
+    workspace_app_id uuid NOT NULL
+);
+
+CREATE TABLE tasks (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    owner_id uuid NOT NULL,
+    name text NOT NULL,
+    workspace_id uuid,
+    template_version_id uuid NOT NULL,
+    template_parameters jsonb DEFAULT '{}'::jsonb NOT NULL,
+    prompt text NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    deleted_at timestamp with time zone
 );
 
 CREATE TABLE telemetry_items (
@@ -2274,12 +2357,15 @@ CREATE TABLE workspace_apps (
     display_order integer DEFAULT 0 NOT NULL,
     hidden boolean DEFAULT false NOT NULL,
     open_in workspace_app_open_in DEFAULT 'slim-window'::workspace_app_open_in NOT NULL,
-    display_group text
+    display_group text,
+    tooltip character varying(2048) DEFAULT ''::character varying NOT NULL
 );
 
 COMMENT ON COLUMN workspace_apps.display_order IS 'Specifies the order in which to display agent app in user interfaces.';
 
 COMMENT ON COLUMN workspace_apps.hidden IS 'Determines if the app is not shown in user interfaces.';
+
+COMMENT ON COLUMN workspace_apps.tooltip IS 'Markdown text that is displayed when hovering over workspace apps.';
 
 CREATE TABLE workspace_build_parameters (
     workspace_build_id uuid NOT NULL,
@@ -2573,6 +2659,18 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY aibridge_interceptions
+    ADD CONSTRAINT aibridge_interceptions_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY aibridge_token_usages
+    ADD CONSTRAINT aibridge_token_usages_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY aibridge_tool_usages
+    ADD CONSTRAINT aibridge_tool_usages_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY aibridge_user_prompts
+    ADD CONSTRAINT aibridge_user_prompts_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_pkey PRIMARY KEY (id);
 
@@ -2716,6 +2814,9 @@ ALTER TABLE ONLY tailnet_peers
 
 ALTER TABLE ONLY tailnet_tunnels
     ADD CONSTRAINT tailnet_tunnels_pkey PRIMARY KEY (coordinator_id, src_id, dst_id);
+
+ALTER TABLE ONLY tasks
+    ADD CONSTRAINT tasks_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY telemetry_items
     ADD CONSTRAINT telemetry_items_pkey PRIMARY KEY (key);
@@ -2861,9 +2962,27 @@ ALTER TABLE ONLY workspace_resources
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 
+CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
+
+COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
+
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
+
+CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions USING btree (initiator_id);
+
+CREATE INDEX idx_aibridge_token_usages_interception_id ON aibridge_token_usages USING btree (interception_id);
+
+CREATE INDEX idx_aibridge_token_usages_provider_response_id ON aibridge_token_usages USING btree (provider_response_id);
+
+CREATE INDEX idx_aibridge_tool_usages_interception_id ON aibridge_tool_usages USING btree (interception_id);
+
+CREATE INDEX idx_aibridge_tool_usagesprovider_response_id ON aibridge_tool_usages USING btree (provider_response_id);
+
+CREATE INDEX idx_aibridge_user_prompts_interception_id ON aibridge_user_prompts USING btree (interception_id);
+
+CREATE INDEX idx_aibridge_user_prompts_provider_response_id ON aibridge_user_prompts USING btree (provider_response_id);
 
 CREATE UNIQUE INDEX idx_api_key_name ON api_keys USING btree (user_id, token_name) WHERE (login_type = 'token'::login_type);
 
@@ -2948,6 +3067,10 @@ CREATE UNIQUE INDEX organizations_single_default_org ON organizations USING btre
 CREATE INDEX provisioner_job_logs_id_job_id_idx ON provisioner_job_logs USING btree (job_id, id);
 
 CREATE INDEX provisioner_jobs_started_at_idx ON provisioner_jobs USING btree (started_at) WHERE (started_at IS NULL);
+
+CREATE INDEX provisioner_jobs_worker_id_organization_id_completed_at_idx ON provisioner_jobs USING btree (worker_id, organization_id, completed_at DESC);
+
+COMMENT ON INDEX provisioner_jobs_worker_id_organization_id_completed_at_idx IS 'Support index for finding the latest completed jobs for a worker (and organization), nulls first so that active jobs have priority; targets: GetProvisionerDaemonsWithStatusByOrganization';
 
 CREATE UNIQUE INDEX provisioner_keys_organization_id_name_idx ON provisioner_keys USING btree (organization_id, lower((name)::text));
 
@@ -3221,6 +3344,30 @@ ALTER TABLE ONLY tailnet_peers
 
 ALTER TABLE ONLY tailnet_tunnels
     ADD CONSTRAINT tailnet_tunnels_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY task_workspace_apps
+    ADD CONSTRAINT task_workspace_apps_task_id_fkey FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY task_workspace_apps
+    ADD CONSTRAINT task_workspace_apps_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY task_workspace_apps
+    ADD CONSTRAINT task_workspace_apps_workspace_app_id_fkey FOREIGN KEY (workspace_app_id) REFERENCES workspace_apps(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY task_workspace_apps
+    ADD CONSTRAINT task_workspace_apps_workspace_build_id_fkey FOREIGN KEY (workspace_build_id) REFERENCES workspace_builds(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY tasks
+    ADD CONSTRAINT tasks_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY tasks
+    ADD CONSTRAINT tasks_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY tasks
+    ADD CONSTRAINT tasks_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY tasks
+    ADD CONSTRAINT tasks_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;

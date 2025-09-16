@@ -580,7 +580,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 
 		require.Eventually(t, func() bool {
 			err := client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
-			return assert.NoError(t, err)
+			return err == nil
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
 		require.Eventually(t, func() bool {

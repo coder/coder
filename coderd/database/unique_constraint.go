@@ -7,6 +7,10 @@ type UniqueConstraint string
 // UniqueConstraint enums.
 const (
 	UniqueAgentStatsPkey                                      UniqueConstraint = "agent_stats_pkey"                                                // ALTER TABLE ONLY workspace_agent_stats ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
+	UniqueAibridgeInterceptionsPkey                           UniqueConstraint = "aibridge_interceptions_pkey"                                     // ALTER TABLE ONLY aibridge_interceptions ADD CONSTRAINT aibridge_interceptions_pkey PRIMARY KEY (id);
+	UniqueAibridgeTokenUsagesPkey                             UniqueConstraint = "aibridge_token_usages_pkey"                                      // ALTER TABLE ONLY aibridge_token_usages ADD CONSTRAINT aibridge_token_usages_pkey PRIMARY KEY (id);
+	UniqueAibridgeToolUsagesPkey                              UniqueConstraint = "aibridge_tool_usages_pkey"                                       // ALTER TABLE ONLY aibridge_tool_usages ADD CONSTRAINT aibridge_tool_usages_pkey PRIMARY KEY (id);
+	UniqueAibridgeUserPromptsPkey                             UniqueConstraint = "aibridge_user_prompts_pkey"                                      // ALTER TABLE ONLY aibridge_user_prompts ADD CONSTRAINT aibridge_user_prompts_pkey PRIMARY KEY (id);
 	UniqueAPIKeysPkey                                         UniqueConstraint = "api_keys_pkey"                                                   // ALTER TABLE ONLY api_keys ADD CONSTRAINT api_keys_pkey PRIMARY KEY (id);
 	UniqueAuditLogsPkey                                       UniqueConstraint = "audit_logs_pkey"                                                 // ALTER TABLE ONLY audit_logs ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 	UniqueConnectionLogsPkey                                  UniqueConstraint = "connection_logs_pkey"                                            // ALTER TABLE ONLY connection_logs ADD CONSTRAINT connection_logs_pkey PRIMARY KEY (id);
@@ -55,6 +59,7 @@ const (
 	UniqueTailnetCoordinatorsPkey                             UniqueConstraint = "tailnet_coordinators_pkey"                                       // ALTER TABLE ONLY tailnet_coordinators ADD CONSTRAINT tailnet_coordinators_pkey PRIMARY KEY (id);
 	UniqueTailnetPeersPkey                                    UniqueConstraint = "tailnet_peers_pkey"                                              // ALTER TABLE ONLY tailnet_peers ADD CONSTRAINT tailnet_peers_pkey PRIMARY KEY (id, coordinator_id);
 	UniqueTailnetTunnelsPkey                                  UniqueConstraint = "tailnet_tunnels_pkey"                                            // ALTER TABLE ONLY tailnet_tunnels ADD CONSTRAINT tailnet_tunnels_pkey PRIMARY KEY (coordinator_id, src_id, dst_id);
+	UniqueTasksPkey                                           UniqueConstraint = "tasks_pkey"                                                      // ALTER TABLE ONLY tasks ADD CONSTRAINT tasks_pkey PRIMARY KEY (id);
 	UniqueTelemetryItemsPkey                                  UniqueConstraint = "telemetry_items_pkey"                                            // ALTER TABLE ONLY telemetry_items ADD CONSTRAINT telemetry_items_pkey PRIMARY KEY (key);
 	UniqueTemplateUsageStatsPkey                              UniqueConstraint = "template_usage_stats_pkey"                                       // ALTER TABLE ONLY template_usage_stats ADD CONSTRAINT template_usage_stats_pkey PRIMARY KEY (start_time, template_id, user_id);
 	UniqueTemplateVersionParametersTemplateVersionIDNameKey   UniqueConstraint = "template_version_parameters_template_version_id_name_key"        // ALTER TABLE ONLY template_version_parameters ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
