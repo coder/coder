@@ -2,7 +2,7 @@ import type { Interpolation, Theme } from "@emotion/react";
 import type { TemplateExample } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
 import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
-import type { FC } from "react";
+import type { FC, ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import type { StarterTemplatesByTag } from "utils/starterTemplates";
 
@@ -35,6 +35,20 @@ const sortVisibleTemplates = (templates: TemplateExample[]) => {
 		}
 		return a.name.localeCompare(b.name);
 	});
+};
+
+type StarterTemplatesGridContainerProps = Readonly<{
+	children?: ReactNode;
+}>;
+
+export const StarterTemplatesGridContainer: FC<
+	StarterTemplatesGridContainerProps
+> = ({ children }) => {
+	return (
+		<div className="grid grid-cols-1 gap-6 h-max w-full xs:grid-cols-2 lg:grid-cols-3">
+			{children}
+		</div>
+	);
 };
 
 interface StarterTemplatesProps {
@@ -71,7 +85,7 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 				</Stack>
 			)}
 
-			<div className="grid grid-cols-1 gap-6 h-max w-full xs:grid-cols-2 lg:grid-cols-3">
+			<StarterTemplatesGridContainer>
 				{visibleTemplates?.map((example) => (
 					<TemplateExampleCard
 						className="bg-surface-secondary w-full"
@@ -80,7 +94,7 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 						activeTag={activeTag}
 					/>
 				))}
-			</div>
+			</StarterTemplatesGridContainer>
 		</Stack>
 	);
 };

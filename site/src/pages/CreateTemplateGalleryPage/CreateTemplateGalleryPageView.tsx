@@ -1,7 +1,6 @@
 import Card from "@mui/material/Card";
 import CardActionArea from "@mui/material/CardActionArea";
 import CardContent from "@mui/material/CardContent";
-import Stack from "@mui/material/Stack";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
@@ -12,7 +11,10 @@ import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import type { StarterTemplatesByTag } from "utils/starterTemplates";
-import { StarterTemplates } from "./StarterTemplates";
+import {
+	StarterTemplates,
+	StarterTemplatesGridContainer,
+} from "./StarterTemplates";
 
 interface CreateTemplateGalleryPageViewProps {
 	starterTemplatesByTag?: StarterTemplatesByTag;
@@ -42,22 +44,23 @@ export const CreateTemplateGalleryPageView: FC<
 			>
 				<PageHeaderTitle>Create a Template</PageHeaderTitle>
 			</PageHeader>
-			<Stack spacing={8}>
-				<Stack direction="row" spacing={4}>
-					<div className="w-[202px]">
+			<div className="flex flex-col gap-16">
+				<div className="flex flex-row gap-8">
+					<div className="basis-[202px] shrink-0">
 						<h2 className="text-base font-normal m-0 text-content-primary">
 							Choose a starting point for your new template
 						</h2>
 					</div>
-					<div className="flex flex-row flex-wrap gap-8 h-max">
-						<Card variant="outlined" className="w-80 rounded-md">
+
+					<StarterTemplatesGridContainer>
+						<Card className="rounded-md border-border border-solid">
 							<CardActionArea
 								component={RouterLink}
 								to="/templates/new"
 								className="h-[115px] p-2"
 							>
 								<CardContent>
-									<Stack direction="row" spacing={3} className="items-center">
+									<div className="flex flex-row gap-6 items-center">
 										<div className="shrink-0 size-8">
 											<ExternalImage
 												src="/emojis/1f4e1.png"
@@ -72,19 +75,19 @@ export const CreateTemplateGalleryPageView: FC<
 												Get started by uploading an existing template
 											</p>
 										</div>
-									</Stack>
+									</div>
 								</CardContent>
 							</CardActionArea>
 						</Card>
-					</div>
-				</Stack>
+					</StarterTemplatesGridContainer>
+				</div>
 
 				{Boolean(error) && <ErrorAlert error={error} />}
 
 				{Boolean(!starterTemplatesByTag) && <Loader />}
 
 				<StarterTemplates starterTemplatesByTag={starterTemplatesByTag} />
-			</Stack>
+			</div>
 		</Margins>
 	);
 };
