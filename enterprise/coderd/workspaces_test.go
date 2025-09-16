@@ -4106,16 +4106,15 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 func TestDeleteWorkspaceACL(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-
 	t.Run("WorkspaceOwnerCanDelete_Groups", func(t *testing.T) {
 		t.Parallel()
 
 		var (
 			client, db, admin = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
-					DeploymentValues: dv,
+					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+						dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{
@@ -4157,7 +4156,9 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 		var (
 			client, db, admin = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
-					DeploymentValues: dv,
+					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+						dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{
