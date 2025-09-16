@@ -47,6 +47,7 @@ prompt_ssh() {
 		--token "${CODER_SESSION_TOKEN}" \
 		--ssh-config-file="${OPENSSH_CONFIG_FILE}" \
 		--yes
+	trap 'rm -f /tmp/coder-ssh.config' EXIT
 
 	# Write prompt to a file in the workspace
 	ssh \
