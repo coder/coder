@@ -29,6 +29,9 @@ create() {
 
 prompt() {
 	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME PROMPT
+
+	wait
+
 	username=$(curl \
 		--fail \
 		--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
@@ -56,6 +59,43 @@ prompt() {
 			echo "Failed to send prompt"
 			exit 1
 		fi
+
+		wait
+}
+
+wait() {
+	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME PROMPT
+	username=$(curl \
+		--fail \
+		--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
+		--location \
+		--show-error \
+		--silent \
+		"${CODER_URL}/api/v2/users/me" | jq -r '.username')
+
+	payload="{
+		\"content\": \"${PROMPT}\",
+		\"type\": \"user\"
+	}"
+
+	for attempt in {1..600}; do
+		response=$(curl \
+		--data-raw "${payload}" \
+		--fail \
+		--header "Content-Type: application/json" \
+		--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
+		--location \
+		--request GET \
+		--show-error \
+		--silent \
+		"${CODER_URL}/@${username}/${WORKSPACE_NAME}/apps/agentapi/status" | jq -r '.status')
+		if [[ "${response}" == "stable" ]]; then
+			echo "AgentAPI stable"
+			break
+		fi
+		echo "Waiting for AgentAPI to report stable status (attempt ${attempt}/600)"
+		sleep 1
+	done
 }
 
 archive() {
@@ -97,6 +137,9 @@ main() {
 		;;
 	delete)
 		delete
+		;;
+	wait)
+		wait
 		;;
 	*)
 		echo "Unknown option: $1"
