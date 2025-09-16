@@ -1627,23 +1627,6 @@ jobs:
               },
               {
                 "type": "section",
-                "fields": [
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Workflow:*\n'"${GITHUB_WORKFLOW}"'"
-                  },
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Committer:*\n'"${GITHUB_ACTOR}"'"
-                  },
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Commit:*\n'"${GITHUB_SHA}"'"
-                  }
-                ]
-              },
-              {
-                "type": "section",
                 "text": {
                   "type": "mrkdwn",
                   "text": "*View failure:* <'"${RUN_URL}"'|Click here>"
