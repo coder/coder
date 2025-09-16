@@ -197,15 +197,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	const isEditorValueBinary =
 		typeof editorValue === "string" ? isBinaryData(editorValue) : false;
 
-	// Auto scroll
-	const logsContentRef = useRef<HTMLDivElement>(null);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
-	useEffect(() => {
-		if (logsContentRef.current) {
-			logsContentRef.current.scrollTop = logsContentRef.current.scrollHeight;
-		}
-	}, [buildLogs, resources]);
-
 	useLeaveSiteWarning(dirty);
 
 	const canBuild = !isBuilding;
@@ -596,10 +587,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							</div>
 
 							{selectedTab === "logs" && (
-								<div
-									css={[styles.logs, styles.tabContent]}
-									ref={logsContentRef}
-								>
+								<div css={[styles.logs, styles.tabContent]}>
 									{templateVersion.job.error ? (
 										<div>
 											<ProvisionerAlert
