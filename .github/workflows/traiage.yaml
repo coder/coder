@@ -9,84 +9,91 @@ on:
         type: string
       context_key:
         description: 'Unique context key (defaults to issue number)'
-        required: false
+        required: true
         type: string
       template_name:
         description: 'Coder template to use for workspace'
-        required: false
+        required: true
         default: 'ai-workspace'
         type: string
 
-env:
-  CODER_URL: ${{ secrets.CODER_URL }}
-  CODER_SESSION_TOKEN: ${{ secrets.CODER_SESSION_TOKEN }}
-  TEMPLATE_NAME: ${{ inputs.template_name }}
 
 jobs:
   triage:
-    name: AI Triage Processing
+    name: Triage GitHub Issue with Claude Code
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      CODER_URL: ${{ secrets.CODER_URL }}
+      CODER_SESSION_TOKEN: ${{ secrets.CODER_SESSION_TOKEN }}
+      TEMPLATE_NAME: ${{ inputs.template_name }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Coder CLI
-        uses: coder/setup-coder@latest
+      # NOTE: Only required for local testing via nektos/act
+      # - name: Install gh CLI
+        # run: |
+          # sudo apt-get update -y && \
+          # sudo apt-get install -y gh && \
+          # gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
 
-      - name: Extract context key from issue URL
-        id: extract-context
+      - name: Download and install Coder binary
+        shell: bash
+        env:
+          CODER_URL: ${{ secrets.CODER_URL }}
         run: |
-          if [[ -n "${{ inputs.context_key }}" ]]; then
-            echo "context_key=${{ inputs.context_key }}" >> $GITHUB_OUTPUT
+          if [ "${{ runner.arch }}" == "ARM64" ]; then
+            ARCH="arm64"
           else
-            # Extract issue number from URL (e.g., https://github.com/owner/repo/issues/123 -> 123)
-            issue_number=$(echo "${{ inputs.issue_url }}" | grep -oE '/issues/([0-9]+)' | grep -oE '[0-9]+')
-            echo "context_key=issue_${issue_number}" >> $GITHUB_OUTPUT
+            ARCH="amd64"
           fi
-
-          # Generate unique workspace name
-          timestamp=$(date +%s)
-          workspace_name="triage-$(echo "${{ inputs.context_key || 'auto' }}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')-${timestamp}"
-          echo "workspace_name=${workspace_name}" >> $GITHUB_OUTPUT
+          mkdir -p "$HOME"/.local/bin
+          curl -fsSL --compressed "$CODER_URL"/bin/coder-linux-${ARCH} -o "$HOME"/.local/bin/coder
+          chmod +x "$HOME"/.local/bin/coder
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          "$HOME"/.local/bin/coder version
+          "$HOME"/.local/bin/coder whoami
 
       - name: Create Coder workspace
         id: create-workspace
-        env:
-          WORKSPACE_NAME: ${{ steps.extract-context.outputs.workspace_name }}
         run: |
+          export WORKSPACE_NAME="gh-issue-${{ inputs.context_key }}-${{ github.run_id }}"
           echo "Creating workspace: $WORKSPACE_NAME"
           ./scripts/traiage.sh create
           echo "workspace_created=true" >> $GITHUB_OUTPUT
+          echo "workspace_name=$WORKSPACE_NAME" >> $GITHUB_OUTPUT
+          echo "WORKSPACE_NAME=${WORKSPACE_NAME}" >> $GITHUB_ENV
 
-      - name: Prepare AI prompt
+      - name: Send prompt to AI agent inside workspace
         id: prepare-prompt
         run: |
+          PROMPT_FILE=/tmp/prompt.txt
+          trap 'rm -f ${PROMPT_FILE}' EXIT
+
           # Extract issue content and prepare prompt
           issue_url="${{ inputs.issue_url }}"
           context_key="${{ steps.extract-context.outputs.context_key }}"
 
-          # Create a prompt that includes the issue URL and context
-          prompt="Process GitHub issue: ${issue_url}. Context key: ${context_key}. Please analyze the issue, understand the requirements, and create appropriate solutions."
+          # Fetch issue description using `gh` CLI
+          issue_description=$(gh issue view "$issue_url")
 
-          # Escape the prompt for shell usage
-          escaped_prompt=$(printf '%s\n' "$prompt" | sed 's/[\[\](){}.*^$+?|\\]/\\&/g')
-          echo "prompt=${escaped_prompt}" >> $GITHUB_OUTPUT
+          # Write a prompt to PROMPT_FILE
+          cat > "${PROMPT_FILE}" <<EOF
+            Analyze the below GitHub issue description, understand the root cause, and make appropriate changes to resolve the issue.
 
-      - name: Execute AI processing
-        id: ai-process
-        env:
-          WORKSPACE_NAME: ${{ steps.extract-context.outputs.workspace_name }}
-          PROMPT: ${{ steps.prepare-prompt.outputs.prompt }}
-        run: |
-          echo "Sending prompt to AI agent in workspace: $WORKSPACE_NAME"
-          ./scripts/traiage.sh prompt
+            ISSUE URL: ${issue_url}
+            ISSUE DESCRIPTION BELOW:
+
+            ${issue_description}
+          EOF
+
+          echo "WORKSPACE_NAME: ${WORKSPACE_NAME}"
+          PROMPT=$(cat $PROMPT_FILE) ./scripts/traiage.sh prompt
 
       - name: Create and upload archive
         id: create-archive
-        env:
-          WORKSPACE_NAME: ${{ steps.extract-context.outputs.workspace_name }}
         run: |
           echo "Creating archive for workspace: $WORKSPACE_NAME"
           archive_url=$(./scripts/traiage.sh archive)
@@ -102,8 +109,6 @@ jobs:
 
       - name: Cleanup workspace
         if: always() && steps.create-workspace.outputs.workspace_created == 'true'
-        env:
-          WORKSPACE_NAME: ${{ steps.extract-context.outputs.workspace_name }}
         run: |
           echo "Cleaning up workspace: $WORKSPACE_NAME"
           ./scripts/traiage.sh delete || true
