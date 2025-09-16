@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, within } from "storybook/test";
+import { screen, userEvent, within } from "storybook/test";
 import { Latency } from "./Latency";
 
 const meta: Meta<typeof Latency> = {
