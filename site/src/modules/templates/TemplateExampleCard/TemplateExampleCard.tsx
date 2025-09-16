@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import type { TemplateExample } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
@@ -38,19 +37,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 				<div className="flex flex-wrap gap-1.5 justify-end">
 					{example.tags.map((tag) => (
 						<RouterLink key={tag} to={`/starter-templates?tag=${tag}`}>
-							<Pill
-								className={cn(
-									"border border-solid border-border no-underline cursor-pointer hover:border-border-hover transition-colors duration-200",
-									tag === activeTag && "",
-								)}
-								css={
-									activeTag === tag &&
-									((theme) => ({
-										borderColor: theme.roles.active.outline,
-										backgroundColor: theme.roles.active.background,
-									}))
-								}
-							>
+							<Pill className="border border-solid border-border no-underline cursor-pointer hover:border-border-hover transition-colors duration-200">
 								{tag}
 							</Pill>
 						</RouterLink>
@@ -72,7 +59,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 				</div>
 			</div>
 
-			<div css={styles.useButtonContainer}>
+			<div className="flex flex-col gap-3 pt-6 mt-auto items-center">
 				<Button asChild className="w-full">
 					<RouterLink to={`/templates/new?exampleId=${example.id}`}>
 						Use template
@@ -82,14 +69,3 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 		</div>
 	);
 };
-
-const styles = {
-	useButtonContainer: {
-		display: "flex",
-		gap: 12,
-		flexDirection: "column",
-		paddingTop: 24,
-		marginTop: "auto",
-		alignItems: "center",
-	},
-} satisfies Record<string, Interpolation<Theme>>;
