@@ -454,6 +454,10 @@ updateCheck: false
 # IDE plugin.
 # (default: 168h0m0s, type: duration)
 defaultTokenLifetime: 168h0m0s
+# The default lifetime duration for OAuth2 refresh tokens. This controls how long
+# refresh tokens remain valid after issuance or rotation.
+# (default: 720h0m0s, type: duration)
+defaultOAuthRefreshLifetime: 720h0m0s
 # Expose the swagger endpoint via /swagger.
 # (default: <unset>, type: bool)
 enableSwagger: false

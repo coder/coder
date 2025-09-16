@@ -924,6 +924,15 @@ SET
 WHERE
 	id = @id;
 
+-- name: DeleteWorkspaceACLByID :exec
+UPDATE
+	workspaces
+SET
+	group_acl = '{}'::json,
+	user_acl = '{}'::json
+WHERE
+	id = @id;
+
 -- name: GetRegularWorkspaceCreateMetrics :many
 -- Count regular workspaces: only those whose first successful 'start' build
 -- was not initiated by the prebuild system user.
