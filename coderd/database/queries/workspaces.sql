@@ -390,6 +390,12 @@ WHERE
 			workspaces.user_acl ? (@shared_with_user_id :: uuid) :: text
 		ELSE true
 	END
+	-- Filter by shared_with_group_id
+	AND CASE
+		WHEN @shared_with_group_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.group_acl ? (@shared_with_group_id :: uuid) :: text
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ), filtered_workspaces_order AS (

@@ -21119,6 +21119,12 @@ WHERE
 			workspaces.user_acl ? ($22 :: uuid) :: text
 		ELSE true
 	END
+	-- Filter by shared_with_group_id
+	AND CASE
+		WHEN $23 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.group_acl ? ($23 :: uuid) :: text
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ), filtered_workspaces_order AS (
@@ -21128,7 +21134,7 @@ WHERE
 		filtered_workspaces fw
 	ORDER BY
 		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-		CASE WHEN owner_id = $23 AND favorite THEN 0 ELSE 1 END ASC,
+		CASE WHEN owner_id = $24 AND favorite THEN 0 ELSE 1 END ASC,
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
@@ -21137,11 +21143,11 @@ WHERE
 		LOWER(name) ASC
 	LIMIT
 		CASE
-			WHEN $25 :: integer > 0 THEN
-				$25
+			WHEN $26 :: integer > 0 THEN
+				$26
 		END
 	OFFSET
-		$24
+		$25
 ), filtered_workspaces_order_with_summary AS (
 	SELECT
 		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.next_start_at, fwo.group_acl, fwo.user_acl, fwo.owner_avatar_url, fwo.owner_username, fwo.owner_name, fwo.organization_name, fwo.organization_display_name, fwo.organization_icon, fwo.organization_description, fwo.template_name, fwo.template_display_name, fwo.template_icon, fwo.template_description, fwo.template_version_id, fwo.template_version_name, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status, fwo.latest_build_has_ai_task, fwo.latest_build_has_external_agent
@@ -21191,7 +21197,7 @@ WHERE
 		false, -- latest_build_has_ai_task
 		false -- latest_build_has_external_agent
 	WHERE
-		$26 :: boolean = true
+		$27 :: boolean = true
 ), total_count AS (
 	SELECT
 		count(*) AS count
@@ -21230,6 +21236,7 @@ type GetWorkspacesParams struct {
 	HasExternalAgent                      sql.NullBool `db:"has_external_agent" json:"has_external_agent"`
 	Shared                                sql.NullBool `db:"shared" json:"shared"`
 	SharedWithUserID                      uuid.UUID    `db:"shared_with_user_id" json:"shared_with_user_id"`
+	SharedWithGroupID                     uuid.UUID    `db:"shared_with_group_id" json:"shared_with_group_id"`
 	RequesterID                           uuid.UUID    `db:"requester_id" json:"requester_id"`
 	Offset                                int32        `db:"offset_" json:"offset_"`
 	Limit                                 int32        `db:"limit_" json:"limit_"`
@@ -21305,6 +21312,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.HasExternalAgent,
 		arg.Shared,
 		arg.SharedWithUserID,
+		arg.SharedWithGroupID,
 		arg.RequesterID,
 		arg.Offset,
 		arg.Limit,
