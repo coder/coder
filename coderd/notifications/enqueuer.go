@@ -143,7 +143,12 @@ func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID 
 			//
 			// This is more efficient than fetching the user's preferences for each enqueue, and centralizes the business logic.
 			if strings.Contains(err.Error(), ErrCannotEnqueueDisabledNotification.Error()) {
-				s.log.Debug(ctx, fmt.Sprintf("not enqueueing: %s", ErrCannotEnqueueDisabledNotification.Error()), slog.F("template_id", templateID), slog.F("user_id", userID), slog.F("method", method))
+				s.log.Debug(ctx, "notification not enqueued",
+					slog.F("template_id", templateID),
+					slog.F("user_id", userID),
+					slog.F("method", method),
+					slog.Error(ErrCannotEnqueueDisabledNotification),
+				)
 				continue
 			}
 
@@ -151,7 +156,12 @@ func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID 
 			// today with identical properties. It's far simpler to prevent duplicate sends in this central manner, rather than
 			// having each notification enqueue handle its own logic.
 			if database.IsUniqueViolation(err, database.UniqueNotificationMessagesDedupeHashIndex) {
-				s.log.Debug(ctx, fmt.Sprintf("not enqueueing: %s", ErrDuplicate.Error()), slog.F("template_id", templateID), slog.F("user_id", userID), slog.F("method", method))
+				s.log.Debug(ctx, "notification not enqueued",
+					slog.F("template_id", templateID),
+					slog.F("user_id", userID),
+					slog.F("method", method),
+					slog.Error(ErrDuplicate),
+				)
 				continue
 			}
 
