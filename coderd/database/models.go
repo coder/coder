@@ -1201,6 +1201,7 @@ type NotificationTemplateKind string
 
 const (
 	NotificationTemplateKindSystem NotificationTemplateKind = "system"
+	NotificationTemplateKindCustom NotificationTemplateKind = "custom"
 )
 
 func (e *NotificationTemplateKind) Scan(src interface{}) error {
@@ -1240,7 +1241,8 @@ func (ns NullNotificationTemplateKind) Value() (driver.Value, error) {
 
 func (e NotificationTemplateKind) Valid() bool {
 	switch e {
-	case NotificationTemplateKindSystem:
+	case NotificationTemplateKindSystem,
+		NotificationTemplateKindCustom:
 		return true
 	}
 	return false
@@ -1249,6 +1251,7 @@ func (e NotificationTemplateKind) Valid() bool {
 func AllNotificationTemplateKindValues() []NotificationTemplateKind {
 	return []NotificationTemplateKind{
 		NotificationTemplateKindSystem,
+		NotificationTemplateKindCustom,
 	}
 }
 
@@ -2952,6 +2955,57 @@ func AllWorkspaceTransitionValues() []WorkspaceTransition {
 	}
 }
 
+// Audit log of requests intercepted by AI Bridge
+type AIBridgeInterception struct {
+	ID uuid.UUID `db:"id" json:"id"`
+	// Relates to a users record, but FK is elided for performance.
+	InitiatorID uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	Provider    string    `db:"provider" json:"provider"`
+	Model       string    `db:"model" json:"model"`
+	StartedAt   time.Time `db:"started_at" json:"started_at"`
+}
+
+// Audit log of tokens used by intercepted requests in AI Bridge
+type AIBridgeTokenUsage struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	InterceptionID uuid.UUID `db:"interception_id" json:"interception_id"`
+	// The ID for the response in which the tokens were used, produced by the provider.
+	ProviderResponseID string                `db:"provider_response_id" json:"provider_response_id"`
+	InputTokens        int64                 `db:"input_tokens" json:"input_tokens"`
+	OutputTokens       int64                 `db:"output_tokens" json:"output_tokens"`
+	Metadata           pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
+}
+
+// Audit log of tool calls in intercepted requests in AI Bridge
+type AIBridgeToolUsage struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	InterceptionID uuid.UUID `db:"interception_id" json:"interception_id"`
+	// The ID for the response in which the tools were used, produced by the provider.
+	ProviderResponseID string `db:"provider_response_id" json:"provider_response_id"`
+	// The name of the MCP server against which this tool was invoked. May be NULL, in which case the tool was defined by the client, not injected.
+	ServerUrl sql.NullString `db:"server_url" json:"server_url"`
+	Tool      string         `db:"tool" json:"tool"`
+	Input     string         `db:"input" json:"input"`
+	// Whether this tool was injected; i.e. Bridge injected these tools into the request from an MCP server. If false it means a tool was defined by the client and already existed in the request (MCP or built-in).
+	Injected bool `db:"injected" json:"injected"`
+	// Only injected tools are invoked.
+	InvocationError sql.NullString        `db:"invocation_error" json:"invocation_error"`
+	Metadata        pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt       time.Time             `db:"created_at" json:"created_at"`
+}
+
+// Audit log of prompts used by intercepted requests in AI Bridge
+type AIBridgeUserPrompt struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	InterceptionID uuid.UUID `db:"interception_id" json:"interception_id"`
+	// The ID for the response to the given prompt, produced by the provider.
+	ProviderResponseID string                `db:"provider_response_id" json:"provider_response_id"`
+	Prompt             string                `db:"prompt" json:"prompt"`
+	Metadata           pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
+}
+
 type APIKey struct {
 	ID string `db:"id" json:"id"`
 	// hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.
@@ -3498,6 +3552,26 @@ type TailnetTunnel struct {
 	SrcID         uuid.UUID `db:"src_id" json:"src_id"`
 	DstID         uuid.UUID `db:"dst_id" json:"dst_id"`
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type Task struct {
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	OrganizationID     uuid.UUID       `db:"organization_id" json:"organization_id"`
+	OwnerID            uuid.UUID       `db:"owner_id" json:"owner_id"`
+	Name               string          `db:"name" json:"name"`
+	WorkspaceID        uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID  uuid.UUID       `db:"template_version_id" json:"template_version_id"`
+	TemplateParameters json.RawMessage `db:"template_parameters" json:"template_parameters"`
+	Prompt             string          `db:"prompt" json:"prompt"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+	DeletedAt          sql.NullTime    `db:"deleted_at" json:"deleted_at"`
+}
+
+type TaskWorkspaceApp struct {
+	TaskID           uuid.UUID `db:"task_id" json:"task_id"`
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	WorkspaceAppID   uuid.UUID `db:"workspace_app_id" json:"workspace_app_id"`
 }
 
 type TelemetryItem struct {
@@ -4104,6 +4178,8 @@ type WorkspaceApp struct {
 	Hidden       bool               `db:"hidden" json:"hidden"`
 	OpenIn       WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
 	DisplayGroup sql.NullString     `db:"display_group" json:"display_group"`
+	// Markdown text that is displayed when hovering over workspace apps.
+	Tooltip string `db:"tooltip" json:"tooltip"`
 }
 
 // Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.

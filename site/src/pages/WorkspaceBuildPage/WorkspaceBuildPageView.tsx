@@ -299,6 +299,7 @@ const BuildLogsContent: FC<{
 			}}
 			logs={sortLogsByCreatedAt(logs)}
 			build={build}
+			disableAutoscroll
 		/>
 	);
 };

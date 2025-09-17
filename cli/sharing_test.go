@@ -21,15 +21,14 @@ import (
 func TestSharingShare(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-
 	t.Run("ShareWithUsers_Simple", func(t *testing.T) {
 		t.Parallel()
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: dv,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+				}),
 			})
 			orgOwner                             = coderdtest.CreateFirstUser(t, client)
 			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
@@ -41,10 +40,10 @@ func TestSharingShare(t *testing.T) {
 		)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		inv, root := clitest.New(t, "sharing", "add", workspace.Name, "--org", orgOwner.OrganizationID.String(), "--user", toShareWithUser.Username)
+		inv, root := clitest.New(t, "sharing", "add", workspace.Name, "--user", toShareWithUser.Username)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
-		out := bytes.NewBuffer(nil)
+		out := new(bytes.Buffer)
 		inv.Stdout = out
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
@@ -69,7 +68,9 @@ func TestSharingShare(t *testing.T) {
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: dv,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+				}),
 			})
 			orgOwner = coderdtest.CreateFirstUser(t, client)
 
@@ -86,12 +87,12 @@ func TestSharingShare(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv, root := clitest.New(t,
 			"sharing",
-			"add", workspace.Name, "--org", orgOwner.OrganizationID.String(),
+			"add", workspace.Name,
 			fmt.Sprintf("--user=%s,%s", toShareWithUser1.Username, toShareWithUser2.Username),
 		)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
-		out := bytes.NewBuffer(nil)
+		out := new(bytes.Buffer)
 		inv.Stdout = out
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
@@ -124,7 +125,9 @@ func TestSharingShare(t *testing.T) {
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: dv,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+				}),
 			})
 			orgOwner                             = coderdtest.CreateFirstUser(t, client)
 			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
@@ -137,12 +140,11 @@ func TestSharingShare(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv, root := clitest.New(t, "sharing", "add", workspace.Name,
-			"--org", orgOwner.OrganizationID.String(),
 			"--user", fmt.Sprintf("%s:admin", toShareWithUser.Username),
 		)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
-		out := bytes.NewBuffer(nil)
+		out := new(bytes.Buffer)
 		inv.Stdout = out
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
@@ -172,15 +174,14 @@ func TestSharingShare(t *testing.T) {
 func TestSharingStatus(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-
 	t.Run("ListSharedUsers", func(t *testing.T) {
 		t.Parallel()
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: dv,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+				}),
 			})
 			orgOwner                             = coderdtest.CreateFirstUser(t, client)
 			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
@@ -199,10 +200,10 @@ func TestSharingStatus(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		inv, root := clitest.New(t, "sharing", "status", workspace.Name, "--org", orgOwner.OrganizationID.String())
+		inv, root := clitest.New(t, "sharing", "status", workspace.Name)
 		clitest.SetupConfig(t, workspaceOwnerClient, root)
 
-		out := bytes.NewBuffer(nil)
+		out := new(bytes.Buffer)
 		inv.Stdout = out
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
@@ -215,5 +216,118 @@ func TestSharingStatus(t *testing.T) {
 			}
 		}
 		assert.True(t, found, "expected to find username %s with role %s in the output: %s", toShareWithUser.Username, codersdk.WorkspaceRoleUse, out.String())
+	})
+}
+
+func TestSharingRemove(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RemoveSharedUser_Simple", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+				}),
+			})
+			orgOwner                             = coderdtest.CreateFirstUser(t, client)
+			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			workspace                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_, toRemoveUser    = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+			_, toShareWithUser = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+		)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Share the workspace with a user to later remove
+		err := client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				toShareWithUser.ID.String(): codersdk.WorkspaceRoleUse,
+				toRemoveUser.ID.String():    codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		inv, root := clitest.New(t,
+			"sharing",
+			"remove",
+			workspace.Name,
+			"--user", toRemoveUser.Username,
+		)
+		clitest.SetupConfig(t, workspaceOwnerClient, root)
+
+		out := new(bytes.Buffer)
+		inv.Stdout = out
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		acl, err := workspaceOwnerClient.WorkspaceACL(inv.Context(), workspace.ID)
+		require.NoError(t, err)
+
+		removedCorrectUser := true
+		keptOtherUser := false
+		for _, user := range acl.Users {
+			if user.ID == toRemoveUser.ID {
+				removedCorrectUser = false
+			}
+
+			if user.ID == toShareWithUser.ID {
+				keptOtherUser = true
+			}
+		}
+		assert.True(t, removedCorrectUser)
+		assert.True(t, keptOtherUser)
+	})
+
+	t.Run("RemoveSharedUser_Multiple", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+				}),
+			})
+			orgOwner                             = coderdtest.CreateFirstUser(t, client)
+			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			workspace                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_, toRemoveUser1 = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+			_, toRemoveUser2 = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+		)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Share the workspace with a user to later remove
+		err := client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				toRemoveUser2.ID.String(): codersdk.WorkspaceRoleUse,
+				toRemoveUser1.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		inv, root := clitest.New(t,
+			"sharing",
+			"remove",
+			workspace.Name,
+			fmt.Sprintf("--user=%s,%s", toRemoveUser1.Username, toRemoveUser2.Username),
+		)
+		clitest.SetupConfig(t, workspaceOwnerClient, root)
+
+		out := new(bytes.Buffer)
+		inv.Stdout = out
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		acl, err := workspaceOwnerClient.WorkspaceACL(inv.Context(), workspace.ID)
+		require.NoError(t, err)
+		assert.Empty(t, acl.Users)
 	})
 }

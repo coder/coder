@@ -378,6 +378,13 @@ WHERE
 			latest_build.has_external_agent = sqlc.narg('has_external_agent') :: boolean
 		ELSE true
 	END
+	-- Filter by shared status
+	AND CASE
+		WHEN sqlc.narg('shared') :: boolean IS NOT NULL THEN
+			(workspaces.user_acl != '{}'::jsonb OR workspaces.group_acl != '{}'::jsonb) = sqlc.narg('shared') :: boolean
+		ELSE true
+	END
+
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ), filtered_workspaces_order AS (
@@ -921,6 +928,15 @@ UPDATE
 SET
 	group_acl = @group_acl,
 	user_acl = @user_acl
+WHERE
+	id = @id;
+
+-- name: DeleteWorkspaceACLByID :exec
+UPDATE
+	workspaces
+SET
+	group_acl = '{}'::json,
+	user_acl = '{}'::json
 WHERE
 	id = @id;
 
