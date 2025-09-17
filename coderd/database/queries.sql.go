@@ -287,7 +287,7 @@ DELETE FROM
 	api_keys
 WHERE
 	user_id = $1 AND
-	scope = 'application_connect'::api_key_scope
+	'application_connect'::api_key_scope = ANY(scopes)
 `
 
 func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
@@ -337,7 +337,7 @@ func (q *sqlQuerier) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) 
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
-	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
 FROM
 	api_keys
 WHERE
@@ -360,15 +360,16 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 		&i.LoginType,
 		&i.LifetimeSeconds,
 		&i.IPAddress,
-		&i.Scope,
 		&i.TokenName,
+		&i.Scopes,
+		&i.AllowList,
 	)
 	return i, err
 }
 
 const getAPIKeyByName = `-- name: GetAPIKeyByName :one
 SELECT
-	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
 FROM
 	api_keys
 WHERE
@@ -399,14 +400,15 @@ func (q *sqlQuerier) GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNamePar
 		&i.LoginType,
 		&i.LifetimeSeconds,
 		&i.IPAddress,
-		&i.Scope,
 		&i.TokenName,
+		&i.Scopes,
+		&i.AllowList,
 	)
 	return i, err
 }
 
 const getAPIKeysByLoginType = `-- name: GetAPIKeysByLoginType :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name FROM api_keys WHERE login_type = $1
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list FROM api_keys WHERE login_type = $1
 `
 
 func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType LoginType) ([]APIKey, error) {
@@ -429,8 +431,9 @@ func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType LoginT
 			&i.LoginType,
 			&i.LifetimeSeconds,
 			&i.IPAddress,
-			&i.Scope,
 			&i.TokenName,
+			&i.Scopes,
+			&i.AllowList,
 		); err != nil {
 			return nil, err
 		}
@@ -446,7 +449,7 @@ func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType LoginT
 }
 
 const getAPIKeysByUserID = `-- name: GetAPIKeysByUserID :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name FROM api_keys WHERE login_type = $1 AND user_id = $2
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list FROM api_keys WHERE login_type = $1 AND user_id = $2
 `
 
 type GetAPIKeysByUserIDParams struct {
@@ -474,8 +477,9 @@ func (q *sqlQuerier) GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUse
 			&i.LoginType,
 			&i.LifetimeSeconds,
 			&i.IPAddress,
-			&i.Scope,
 			&i.TokenName,
+			&i.Scopes,
+			&i.AllowList,
 		); err != nil {
 			return nil, err
 		}
@@ -491,7 +495,7 @@ func (q *sqlQuerier) GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUse
 }
 
 const getAPIKeysLastUsedAfter = `-- name: GetAPIKeysLastUsedAfter :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name FROM api_keys WHERE last_used > $1
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list FROM api_keys WHERE last_used > $1
 `
 
 func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error) {
@@ -514,8 +518,9 @@ func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.
 			&i.LoginType,
 			&i.LifetimeSeconds,
 			&i.IPAddress,
-			&i.Scope,
 			&i.TokenName,
+			&i.Scopes,
+			&i.AllowList,
 		); err != nil {
 			return nil, err
 		}
@@ -543,7 +548,8 @@ INSERT INTO
 		created_at,
 		updated_at,
 		login_type,
-		scope,
+		scopes,
+		allow_list,
 		token_name
 	)
 VALUES
@@ -553,22 +559,23 @@ VALUES
 	     WHEN 0 THEN 86400
 		 ELSE $2::bigint
 	 END
-	 , $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
+	 , $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
 `
 
 type InsertAPIKeyParams struct {
-	ID              string      `db:"id" json:"id"`
-	LifetimeSeconds int64       `db:"lifetime_seconds" json:"lifetime_seconds"`
-	HashedSecret    []byte      `db:"hashed_secret" json:"hashed_secret"`
-	IPAddress       pqtype.Inet `db:"ip_address" json:"ip_address"`
-	UserID          uuid.UUID   `db:"user_id" json:"user_id"`
-	LastUsed        time.Time   `db:"last_used" json:"last_used"`
-	ExpiresAt       time.Time   `db:"expires_at" json:"expires_at"`
-	CreatedAt       time.Time   `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time   `db:"updated_at" json:"updated_at"`
-	LoginType       LoginType   `db:"login_type" json:"login_type"`
-	Scope           APIKeyScope `db:"scope" json:"scope"`
-	TokenName       string      `db:"token_name" json:"token_name"`
+	ID              string       `db:"id" json:"id"`
+	LifetimeSeconds int64        `db:"lifetime_seconds" json:"lifetime_seconds"`
+	HashedSecret    []byte       `db:"hashed_secret" json:"hashed_secret"`
+	IPAddress       pqtype.Inet  `db:"ip_address" json:"ip_address"`
+	UserID          uuid.UUID    `db:"user_id" json:"user_id"`
+	LastUsed        time.Time    `db:"last_used" json:"last_used"`
+	ExpiresAt       time.Time    `db:"expires_at" json:"expires_at"`
+	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time    `db:"updated_at" json:"updated_at"`
+	LoginType       LoginType    `db:"login_type" json:"login_type"`
+	Scopes          APIKeyScopes `db:"scopes" json:"scopes"`
+	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
+	TokenName       string       `db:"token_name" json:"token_name"`
 }
 
 func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error) {
@@ -583,7 +590,8 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.LoginType,
-		arg.Scope,
+		arg.Scopes,
+		arg.AllowList,
 		arg.TokenName,
 	)
 	var i APIKey
@@ -598,8 +606,9 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		&i.LoginType,
 		&i.LifetimeSeconds,
 		&i.IPAddress,
-		&i.Scope,
 		&i.TokenName,
+		&i.Scopes,
+		&i.AllowList,
 	)
 	return i, err
 }

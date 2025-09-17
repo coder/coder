@@ -159,9 +159,9 @@ func TestGenerate(t *testing.T) {
 			}
 
 			if tc.params.Scope != "" {
-				assert.Equal(t, tc.params.Scope, key.Scope)
+				assert.True(t, key.Scopes.Has(tc.params.Scope))
 			} else {
-				assert.Equal(t, database.APIKeyScopeAll, key.Scope)
+				assert.True(t, key.Scopes.Has(database.APIKeyScopeAll))
 			}
 
 			if tc.params.TokenName != "" {

@@ -2,6 +2,7 @@ package rbac
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -143,18 +144,63 @@ func AllowListAll() AllowListElement {
 	return AllowListElement{ID: policy.WildcardSymbol, Type: policy.WildcardSymbol}
 }
 
+// String encodes the allow list element into the canonical database representation
+// "type:id". This avoids fragile manual concatenations scattered across the codebase.
+func (e AllowListElement) String() string {
+	return e.Type + ":" + e.ID
+}
+
 func (s Scope) Expand() (Scope, error) {
 	return s, nil
 }
 
 func (s Scope) Name() RoleIdentifier {
-	return s.Role.Identifier
+	return s.Identifier
 }
 
 func ExpandScope(scope ScopeName) (Scope, error) {
-	role, ok := builtinScopes[scope]
-	if !ok {
-		return Scope{}, xerrors.Errorf("no scope named %q", scope)
+	if role, ok := builtinScopes[scope]; ok {
+		return role, nil
 	}
-	return role, nil
+	if res, act, ok := parseLowLevelScope(scope); ok {
+		return expandLowLevel(res, act), nil
+	}
+	return Scope{}, xerrors.Errorf("no scope named %q", scope)
+}
+
+// parseLowLevelScope parses a low-level scope name formatted as
+// "<resource>:<action>" and validates it against RBACPermissions.
+// Returns the resource and action if valid.
+func parseLowLevelScope(name ScopeName) (resource string, action policy.Action, ok bool) {
+	parts := strings.SplitN(string(name), ":", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	res := parts[0]
+	act := policy.Action(parts[1])
+
+	def, exists := policy.RBACPermissions[res]
+	if !exists {
+		return "", "", false
+	}
+	if _, exists := def.Actions[act]; !exists {
+		return "", "", false
+	}
+	return res, act, true
+}
+
+// expandLowLevel constructs a site-only Scope with a single permission for the
+// given resource and action. This mirrors how builtin scopes are represented
+// but is restricted to site-level only.
+func expandLowLevel(resource string, action policy.Action) Scope {
+	return Scope{
+		Role: Role{
+			Identifier:  RoleIdentifier{Name: fmt.Sprintf("Scope_%s:%s", resource, action)},
+			DisplayName: fmt.Sprintf("%s:%s", resource, action),
+			Site:        []Permission{{ResourceType: resource, Action: action}},
+			Org:         map[string][]Permission{},
+			User:        []Permission{},
+		},
+		AllowIDList: []AllowListElement{AllowListAll()},
+	}
 }
