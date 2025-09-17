@@ -247,7 +247,7 @@ type TaskStartingAgentProps = {
 };
 
 const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ agent }) => {
-	const logs = useAgentLogs(agent, true);
+	const logs = useAgentLogs({ agentId: agent.id });
 	const listRef = useRef<FixedSizeList>(null);
 
 	useLayoutEffect(() => {
@@ -272,6 +272,11 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ agent }) => {
 					<div className="w-full max-w-screen-lg flex flex-col gap-4 overflow-hidden">
 						<div className="h-96 border border-solid border-border rounded-lg">
 							<AgentLogs
+								ref={listRef}
+								sources={agent.log_sources}
+								height={96 * 4}
+								width="100%"
+								overflowed={agent.logs_overflowed}
 								logs={logs.map((l) => ({
 									id: l.id,
 									level: l.level,
@@ -279,10 +284,6 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ agent }) => {
 									sourceId: l.source_id,
 									time: l.created_at,
 								}))}
-								sources={agent.log_sources}
-								height={96 * 4}
-								width="100%"
-								ref={listRef}
 							/>
 						</div>
 					</div>
