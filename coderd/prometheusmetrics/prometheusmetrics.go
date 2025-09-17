@@ -357,8 +357,8 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 					templateVersionName = "unknown"
 				}
 
-				agents, err := db.GetWorkspaceAgentsByWorkspaceIDAndBuildNumber(ctx,
-					database.GetWorkspaceAgentsByWorkspaceIDAndBuildNumberParams{
+				agents, err := db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx,
+					database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
 						WorkspaceID: workspace.ID,
 						BuildNumber: workspace.BuildNumber,
 					})

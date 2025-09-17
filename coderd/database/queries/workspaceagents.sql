@@ -365,17 +365,3 @@ WHERE
 	id = $1
 	AND parent_id IS NOT NULL
 	AND deleted = FALSE;
-
--- name: GetWorkspaceAgentsByWorkspaceIDAndBuildNumber :many
-SELECT
-    workspace_agents.*
-FROM
-    workspace_agents
-JOIN
-    workspace_resources ON workspace_agents.resource_id = workspace_resources.id
-JOIN
-    workspace_builds ON workspace_resources.job_id = workspace_builds.job_id
-WHERE
-    workspace_builds.workspace_id = @workspace_id :: uuid
-    AND workspace_builds.build_number = @build_number :: integer
-    AND workspace_agents.deleted = FALSE;
