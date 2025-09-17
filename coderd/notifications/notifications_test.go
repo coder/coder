@@ -1666,9 +1666,10 @@ func TestDisabledByDefaultBeforeEnqueue(t *testing.T) {
 	// We want to try enqueuing a notification on a template that is disabled
 	// by default. We expect this to be a no-op that produces a debug log.
 	templateID := notifications.TemplateWorkspaceManuallyUpdated
-	_, err = enq.Enqueue(ctx, user.ID, templateID, map[string]string{}, "test")
+	notifIDs, err := enq.Enqueue(ctx, user.ID, templateID, map[string]string{}, "test")
 	require.NoError(t, err)
-	require.Contains(t, logbuf.String(), "not enqueueing disabled notification")
+	require.Contains(t, logbuf.String(), notifications.ErrCannotEnqueueDisabledNotification.Error())
+	require.Empty(t, notifIDs)
 }
 
 // TestDisabledBeforeEnqueue ensures that notifications cannot be enqueued once a user has disabled that notification template
@@ -1703,9 +1704,10 @@ func TestDisabledBeforeEnqueue(t *testing.T) {
 
 	// THEN: enqueuing the "workspace deleted" notification should fail be
 	// a no-op that produces a debug log
-	_, err = enq.Enqueue(ctx, user.ID, templateID, map[string]string{}, "test")
+	notifIDs, err := enq.Enqueue(ctx, user.ID, templateID, map[string]string{}, "test")
 	require.NoError(t, err)
-	require.Contains(t, logbuf.String(), "not enqueueing disabled notification")
+	require.Contains(t, logbuf.String(), notifications.ErrCannotEnqueueDisabledNotification.Error())
+	require.Empty(t, notifIDs)
 }
 
 // TestDisabledAfterEnqueue ensures that notifications enqueued before a notification template was disabled will not be
@@ -1941,10 +1943,11 @@ func TestNotificationDuplicates(t *testing.T) {
 	require.NoError(t, err)
 
 	// WHEN: the second is enqueued, the enqueuer will reject it as a duplicate.
-	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted,
+	ids, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted,
 		map[string]string{"initiator": "danny"}, "test", user.ID)
 	require.NoError(t, err)
-	require.Contains(t, logbuf.String(), "not enqueueing duplicate notification")
+	require.Contains(t, logbuf.String(), notifications.ErrDuplicate.Error())
+	require.Empty(t, ids)
 
 	// THEN: when the clock is advanced 24h, the notification will be accepted.
 	// NOTE: the time is used in the dedupe hash, so by advancing 24h we're creating a distinct notification from the one
