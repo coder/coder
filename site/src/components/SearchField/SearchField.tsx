@@ -4,7 +4,7 @@ import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { SearchIcon, XIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useLayoutEffect, useRef } from "react";
 
 export type SearchFieldProps = Omit<TextFieldProps, "onChange"> & {
 	onChange: (query: string) => void;
@@ -21,15 +21,19 @@ export const SearchField: FC<SearchFieldProps> = ({
 	// MUI's autoFocus behavior is wonky. If you set autoFocus=true, the
 	// component will keep getting focus on every single render, even if there
 	// are other input elements on screen. We want this to be one-time logic
-	const onMountRef = useEffectEvent((node: HTMLInputElement | null): void => {
+	const inputRef = useRef<HTMLInputElement | null>(null);
+	const focusOnMount = useEffectEvent((): void => {
 		if (autoFocus) {
-			node?.focus();
+			inputRef.current?.focus();
 		}
 	});
+	useLayoutEffect(() => {
+		focusOnMount();
+	}, [focusOnMount]);
 
 	return (
 		<TextField
-			inputRef={onMountRef}
+			inputRef={inputRef}
 			// Specifying min width so that the text box can't shrink so much
 			// that it becomes un-clickable as we add more filter controls
 			className="min-w-[280px]"
