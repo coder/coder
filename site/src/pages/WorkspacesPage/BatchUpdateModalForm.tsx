@@ -18,7 +18,6 @@ import { TriangleAlert } from "lucide-react";
 import {
 	type FC,
 	type ForwardedRef,
-	type PropsWithChildren,
 	type ReactNode,
 	useId,
 	useRef,
@@ -137,7 +136,7 @@ const ReviewPanel: FC<ReviewPanelProps> = ({
 	);
 };
 
-const PanelListItem: FC<PropsWithChildren> = ({ children }) => {
+const PanelListItem: FC<{ children: ReactNode }> = ({ children }) => {
 	return (
 		<li className="[&:not(:last-child)]:border-b-border [&:not(:last-child)]:border-b [&:not(:last-child)]:border-solid border-0">
 			{children}
@@ -213,11 +212,10 @@ const RunningWorkspacesWarning: FC<RunningWorkspacesWarningProps> = ({
 	);
 };
 
-type ContainerProps = Readonly<
-	PropsWithChildren<{
-		asChild?: boolean;
-	}>
->;
+type ContainerProps = Readonly<{
+	asChild?: boolean;
+	children?: ReactNode;
+}>;
 const Container: FC<ContainerProps> = ({ children, asChild = false }) => {
 	const Wrapper = asChild ? Slot : "div";
 	return (
@@ -227,13 +225,12 @@ const Container: FC<ContainerProps> = ({ children, asChild = false }) => {
 	);
 };
 
-type ContainerBodyProps = Readonly<
-	PropsWithChildren<{
-		headerText: ReactNode;
-		description: ReactNode;
-		showDescription?: boolean;
-	}>
->;
+type ContainerBodyProps = Readonly<{
+	headerText: ReactNode;
+	description: ReactNode;
+	showDescription?: boolean;
+	children?: ReactNode;
+}>;
 const ContainerBody: FC<ContainerBodyProps> = ({
 	children,
 	headerText,
@@ -264,11 +261,10 @@ const ContainerBody: FC<ContainerBodyProps> = ({
 	);
 };
 
-type ContainerFooterProps = Readonly<
-	PropsWithChildren<{
-		className?: string;
-	}>
->;
+type ContainerFooterProps = Readonly<{
+	className?: string;
+	children?: ReactNode;
+}>;
 const ContainerFooter: FC<ContainerFooterProps> = ({ children, className }) => {
 	return (
 		<div
@@ -285,12 +281,11 @@ const ContainerFooter: FC<ContainerFooterProps> = ({ children, className }) => {
 	);
 };
 
-type WorkspacesListSectionProps = Readonly<
-	PropsWithChildren<{
-		headerText: ReactNode;
-		description: ReactNode;
-	}>
->;
+type WorkspacesListSectionProps = Readonly<{
+	headerText: ReactNode;
+	description: ReactNode;
+	children?: ReactNode;
+}>;
 const WorkspacesListSection: FC<WorkspacesListSectionProps> = ({
 	children,
 	headerText,
