@@ -510,12 +510,12 @@ type sqlcQuerier interface {
 	GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]GetWorkspacesAndAgentsByOwnerIDRow, error)
 	GetWorkspacesByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceTable, error)
 	GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]GetWorkspacesEligibleForTransitionRow, error)
+	GetWorkspacesForAgentMetrics(ctx context.Context, deleted bool) ([]GetWorkspacesForAgentMetricsRow, error)
+	GetWorkspacesForWorkspaceMetrics(ctx context.Context, deleted bool) ([]GetWorkspacesForWorkspaceMetricsRow, error)
 	InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error)
 	InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) (AIBridgeTokenUsage, error)
 	InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBridgeToolUsageParams) (AIBridgeToolUsage, error)
 	InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIBridgeUserPromptParams) (AIBridgeUserPrompt, error)
-	GetWorkspacesForAgentMetrics(ctx context.Context, deleted bool) ([]GetWorkspacesForAgentMetricsRow, error)
-	GetWorkspacesForWorkspaceMetrics(ctx context.Context, deleted bool) ([]GetWorkspacesForWorkspaceMetricsRow, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
 	// We use the organization_id as the id
 	// for simplicity since all users is
