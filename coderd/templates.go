@@ -151,7 +151,7 @@ func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Tem
 		}, "api-templates-delete",
 		// Associate this notification with all the related entities.
 		template.ID, template.OrganizationID,
-	); err != nil && notifications.IsSeriousEnqueueError(err) {
+	); err != nil {
 		api.Logger.Warn(ctx, "failed to notify of template deletion", slog.F("deleted_template_id", template.ID), slog.Error(err))
 	}
 }
@@ -968,7 +968,7 @@ func (api *API) notifyUsersOfTemplateDeprecation(ctx context.Context, template d
 			},
 			"notify-users-of-template-deprecation",
 		)
-		if err != nil && notifications.IsSeriousEnqueueError(err) {
+		if err != nil {
 			errs = append(errs, xerrors.Errorf("enqueue notification: %w", err))
 		}
 	}

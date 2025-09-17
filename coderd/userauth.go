@@ -317,7 +317,7 @@ func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user dat
 		"change-password-with-one-time-passcode",
 		user.ID,
 	)
-	if err != nil && notifications.IsSeriousEnqueueError(err) {
+	if err != nil {
 		return xerrors.Errorf("enqueue notification: %w", err)
 	}
 

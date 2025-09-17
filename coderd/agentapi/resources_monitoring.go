@@ -161,7 +161,7 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 		workspace.OwnerID,
 		workspace.OrganizationID,
 	)
-	if err != nil && notifications.IsSeriousEnqueueError(err) {
+	if err != nil {
 		return xerrors.Errorf("notify workspace OOM: %w", err)
 	}
 
@@ -254,7 +254,7 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 		workspace.ID,
 		workspace.OwnerID,
 		workspace.OrganizationID,
-	); err != nil && notifications.IsSeriousEnqueueError(err) {
+	); err != nil {
 		return xerrors.Errorf("notify workspace OOD: %w", err)
 	}
 

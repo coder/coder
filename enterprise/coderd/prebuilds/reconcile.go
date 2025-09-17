@@ -903,7 +903,7 @@ func (c *StoreReconciler) trackResourceReplacement(ctx context.Context, workspac
 			}, "prebuilds_reconciler",
 			// Associate this notification with all the related entities.
 			workspace.ID, workspace.OwnerID, workspace.TemplateID, templateVersion.ID, prebuildPreset.ID, workspace.OrganizationID,
-		); err != nil && notifications.IsSeriousEnqueueError(err) {
+		); err != nil {
 			notifErr = errors.Join(xerrors.Errorf("send notification to %q: %w", templateAdmin.ID.String(), err))
 			continue
 		}

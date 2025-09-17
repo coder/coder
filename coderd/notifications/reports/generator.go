@@ -205,7 +205,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 			reportData,
 			"report_generator",
 			slice.Unique(targets)...,
-		); err != nil && notifications.IsSeriousEnqueueError(err) {
+		); err != nil {
 			logger.Warn(ctx, "failed to send a report with failed workspace builds", slog.Error(err))
 		}
 	}
