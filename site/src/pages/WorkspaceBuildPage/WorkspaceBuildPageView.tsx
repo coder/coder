@@ -6,7 +6,6 @@ import type {
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
-import type { Line } from "components/Logs/LogLine";
 import { Margins } from "components/Margins/Margins";
 import {
 	FullWidthPageHeader,
@@ -293,24 +292,20 @@ type AgentLogsContentProps = {
 };
 
 const AgentLogsContent: FC<AgentLogsContentProps> = ({ agent }) => {
-	const logs = useAgentLogs(agent, true);
-
-	if (!logs) {
-		return <Loader />;
-	}
-
+	const logs = useAgentLogs({ agentId: agent.id });
 	return (
 		<AgentLogs
+			overflowed={agent.logs_overflowed}
 			sources={agent.log_sources}
-			logs={logs.map<Line>((l) => ({
+			height={560}
+			width="100%"
+			logs={logs.map((l) => ({
 				id: l.id,
 				output: l.output,
 				time: l.created_at,
 				level: l.level,
 				sourceId: l.source_id,
 			}))}
-			height={560}
-			width="100%"
 		/>
 	);
 };

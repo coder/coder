@@ -21,6 +21,24 @@ export const Warning: Story = {
 	},
 };
 
+export const Destructive: Story = {
+	args: {
+		variant: "destructive",
+	},
+};
+
+export const Info: Story = {
+	args: {
+		variant: "info",
+	},
+};
+
+export const Green: Story = {
+	args: {
+		variant: "green",
+	},
+};
+
 export const SmallWithIcon: Story = {
 	args: {
 		variant: "default",
