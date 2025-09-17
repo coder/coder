@@ -11,19 +11,18 @@ coder:
           - get
           - list
     workspaceNamespaces:
-      namespaces:
-        - name: test-namespace1
-        - name: test-namespace2
-          workspacePerms: false
-          enableDeployments: true
-        - name: test-namespace3
-          workspacePerms: true
-          enableDeployments: false
-          extraRules:
-            - apiGroups: ["batch"]
-              resources: ["jobs"]
-              verbs:
-                - get
-                - list
-                - create
-        - name: test-namespace4
+      - name: test-namespace1
+      - name: test-namespace2
+        workspacePerms: false
+        enableDeployments: true
+      - name: test-namespace3
+        workspacePerms: true
+        enableDeployments: false
+        extraRules:
+          - apiGroups: ["batch"]
+            resources: ["jobs"]
+            verbs:
+              - get
+              - list
+              - create
+      - name: test-namespace4

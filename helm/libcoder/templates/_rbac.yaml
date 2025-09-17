@@ -58,8 +58,7 @@ roleRef:
   {{ include "libcoder.rbac.forNamespace" $rootParams }}
 
   {{- $wsnsRaw := get $top.Values.coder.serviceAccount "workspaceNamespaces" -}}
-  {{- $extra := ternary $wsnsRaw ((get (default (dict) $wsnsRaw) "namespaces") | default (list)) (kindIs "slice" $wsnsRaw) -}}
-  {{- $extra := default (list) $extra -}}
+  {{- $extra := default (list) $wsnsRaw -}}
 
   {{- range $_, $ns := $extra }}
     {{- $nsName := ternary $ns.name $ns (kindIs "map" $ns) -}}
