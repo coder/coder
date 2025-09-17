@@ -167,14 +167,15 @@ const TemplateNameChange: FC<TemplateNameChangeProps> = ({
 };
 
 type RunningWorkspacesWarningProps = Readonly<{
-	acceptedConsequences: boolean;
-	onAcceptedConsequencesChange: (newValue: boolean) => void;
+	acceptedRisks: boolean;
+	onAcceptedRisksChange: (newValue: boolean) => void;
 	checkboxRef: ForwardedRef<HTMLButtonElement>;
 	containerRef: ForwardedRef<HTMLDivElement>;
 }>;
+
 const RunningWorkspacesWarning: FC<RunningWorkspacesWarningProps> = ({
-	acceptedConsequences,
-	onAcceptedConsequencesChange,
+	acceptedRisks,
+	onAcceptedRisksChange,
 	checkboxRef,
 	containerRef,
 }) => {
@@ -203,10 +204,10 @@ const RunningWorkspacesWarning: FC<RunningWorkspacesWarningProps> = ({
 			<Label className="flex flex-row gap-3 items-center leading-tight pt-6">
 				<Checkbox
 					ref={checkboxRef}
-					checked={acceptedConsequences}
-					onCheckedChange={onAcceptedConsequencesChange}
+					checked={acceptedRisks}
+					onCheckedChange={onAcceptedRisksChange}
 				/>
-				I acknowledge these consequences.
+				I acknowledge these risks.
 			</Label>
 		</div>
 	);
@@ -216,6 +217,7 @@ type ContainerProps = Readonly<{
 	asChild?: boolean;
 	children?: ReactNode;
 }>;
+
 const Container: FC<ContainerProps> = ({ children, asChild = false }) => {
 	const Wrapper = asChild ? Slot : "div";
 	return (
@@ -231,6 +233,7 @@ type ContainerBodyProps = Readonly<{
 	showDescription?: boolean;
 	children?: ReactNode;
 }>;
+
 const ContainerBody: FC<ContainerBodyProps> = ({
 	children,
 	headerText,
@@ -265,6 +268,7 @@ type ContainerFooterProps = Readonly<{
 	className?: string;
 	children?: ReactNode;
 }>;
+
 const ContainerFooter: FC<ContainerFooterProps> = ({ children, className }) => {
 	return (
 		<div
@@ -286,6 +290,7 @@ type WorkspacesListSectionProps = Readonly<{
 	description: ReactNode;
 	children?: ReactNode;
 }>;
+
 const WorkspacesListSection: FC<WorkspacesListSectionProps> = ({
 	children,
 	headerText,
@@ -309,7 +314,7 @@ const WorkspacesListSection: FC<WorkspacesListSectionProps> = ({
 
 // Used to force the user to acknowledge that batch updating has risks in
 // certain situations and could destroy their data
-type ConsequencesStage = "notAccepted" | "accepted" | "failedValidation";
+type RisksStage = "notAccepted" | "accepted" | "failedValidation";
 
 type ReviewFormProps = Readonly<{
 	workspacesToUpdate: readonly Workspace[];
@@ -325,9 +330,9 @@ const ReviewForm: FC<ReviewFormProps> = ({
 	onSubmit,
 }) => {
 	const hookId = useId();
-	const [stage, setStage] = useState<ConsequencesStage>("notAccepted");
-	const consequencesContainerRef = useRef<HTMLDivElement>(null);
-	const consequencesCheckboxRef = useRef<HTMLButtonElement>(null);
+	const [stage, setStage] = useState<RisksStage>("notAccepted");
+	const risksContainerRef = useRef<HTMLDivElement>(null);
+	const risksCheckboxRef = useRef<HTMLButtonElement>(null);
 
 	// Dormant workspaces can't be activated without activating them first. For
 	// now, we'll only show the user that some workspaces can't be updated, and
@@ -416,7 +421,7 @@ const ReviewForm: FC<ReviewFormProps> = ({
 	);
 
 	const hasRunningWorkspaces = runningIds.size > 0;
-	const consequencesResolved = !hasRunningWorkspaces || stage === "accepted";
+	const risksAcknowledged = !hasRunningWorkspaces || stage === "accepted";
 	const failedValidationId =
 		stage === "failedValidation" ? `${hookId}-failed-validation` : undefined;
 
@@ -428,7 +433,7 @@ const ReviewForm: FC<ReviewFormProps> = ({
 	const safeToSubmit = transitioningIds.size === 0 && error === undefined;
 	const buttonIsDisabled = !safeToSubmit || isProcessing;
 	const submitIsValid =
-		consequencesResolved && error === undefined && readyToUpdate.length > 0;
+		risksAcknowledged && error === undefined && readyToUpdate.length > 0;
 
 	return (
 		<Container asChild>
@@ -451,10 +456,10 @@ const ReviewForm: FC<ReviewFormProps> = ({
 					// Makes sure that if the modal is long enough to scroll and
 					// if the warning section checkbox isn't on screen anymore,
 					// the warning section goes back to being on screen
-					consequencesContainerRef.current?.scrollIntoView({
+					risksContainerRef.current?.scrollIntoView({
 						behavior: "smooth",
 					});
-					consequencesCheckboxRef.current?.focus();
+					risksCheckboxRef.current?.focus();
 				}}
 			>
 				<ContainerBody
@@ -466,10 +471,10 @@ const ReviewForm: FC<ReviewFormProps> = ({
 
 						{hasRunningWorkspaces && (
 							<RunningWorkspacesWarning
-								checkboxRef={consequencesCheckboxRef}
-								containerRef={consequencesContainerRef}
-								acceptedConsequences={stage === "accepted"}
-								onAcceptedConsequencesChange={(newChecked) => {
+								checkboxRef={risksCheckboxRef}
+								containerRef={risksContainerRef}
+								acceptedRisks={stage === "accepted"}
+								onAcceptedRisksChange={(newChecked) => {
 									if (newChecked) {
 										setStage("accepted");
 									} else {

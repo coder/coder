@@ -1,3 +1,4 @@
+import { MockTemplateVersion, MockWorkspace } from "testHelpers/entities";
 import type { Meta, Parameters, StoryObj } from "@storybook/react-vite";
 import { templateVersionRoot } from "api/queries/templates";
 import type {
@@ -8,7 +9,6 @@ import type {
 import { useQueryClient } from "react-query";
 import { action } from "storybook/internal/actions";
 import { expect, screen, userEvent, within } from "storybook/test";
-import { MockTemplateVersion, MockWorkspace } from "testHelpers/entities";
 import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
 import { ACTIVE_BUILD_STATUSES } from "./WorkspacesPage";
 
