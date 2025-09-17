@@ -12783,7 +12783,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "token_revoked": {
-                    "description": "TokenRevoked set to true if token revocation was attempted and was succesfful",
+                    "description": "TokenRevoked set to true if token revocation was attempted and was successful",
                     "type": "boolean"
                 }
             }

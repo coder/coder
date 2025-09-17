@@ -2210,7 +2210,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Name                     | Type    | Required | Restrictions | Description                                                                    |
 |--------------------------|---------|----------|--------------|--------------------------------------------------------------------------------|
 | `token_revocation_error` | string  | false    |              |                                                                                |
-| `token_revoked`          | boolean | false    |              | Token revoked set to true if token revocation was attempted and was succesfful |
+| `token_revoked`          | boolean | false    |              | Token revoked set to true if token revocation was attempted and was successful |
 
 ## codersdk.DeleteWebpushSubscription
 
