@@ -28,8 +28,9 @@ type Runner struct {
 }
 
 var (
-	_ harness.Runnable  = &Runner{}
-	_ harness.Cleanable = &Runner{}
+	_ harness.Runnable    = &Runner{}
+	_ harness.Cleanable   = &Runner{}
+	_ harness.Collectable = &Runner{}
 )
 
 // func NewRunner(client *codersdk.Client, cfg Config, metrics *Metrics) *Runner {
@@ -210,10 +211,16 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 	}
 }
 
-func (r *Runner) GetBytesTransferred() (bytesRead, bytesWritten int64) {
-	bytesRead = r.cfg.ReadMetrics.GetTotalBytes()
-	bytesWritten = r.cfg.WriteMetrics.GetTotalBytes()
-	return bytesRead, bytesWritten
+const (
+	BytesReadMetric    = "bytes_read"
+	BytesWrittenMetric = "bytes_written"
+)
+
+func (r *Runner) GetMetrics() map[string]any {
+	return map[string]any{
+		BytesReadMetric:    r.cfg.ReadMetrics.GetTotalBytes(),
+		BytesWrittenMetric: r.cfg.WriteMetrics.GetTotalBytes(),
+	}
 }
 
 // Cleanup does nothing, successfully.
