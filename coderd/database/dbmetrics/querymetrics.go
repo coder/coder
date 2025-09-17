@@ -1965,13 +1965,6 @@ func (m queryMetricsStore) GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx conte
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkspaceAgentsByWorkspaceIDAndBuildNumber(ctx context.Context, arg database.GetWorkspaceAgentsByWorkspaceIDAndBuildNumberParams) ([]database.WorkspaceAgent, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceAgentsByWorkspaceIDAndBuildNumber(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetWorkspaceAgentsByWorkspaceIDAndBuildNumber").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceAgent, error) {
 	start := time.Now()
 	agents, err := m.s.GetWorkspaceAgentsCreatedAfter(ctx, createdAt)

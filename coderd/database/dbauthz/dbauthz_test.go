@@ -1689,6 +1689,15 @@ func (s *MethodTestSuite) TestWorkspace() {
 		// No asserts here because SQLFilter.
 		check.Args(arg).Asserts()
 	}))
+	s.Run("GetWorkspacesForAgentMetrics", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		row := testutil.Fake(s.T(), faker, database.GetWorkspacesForAgentMetricsRow{})
+		dbm.EXPECT().GetWorkspacesForAgentMetrics(gomock.Any(), false).Return([]database.GetWorkspacesForAgentMetricsRow{row}, nil).AnyTimes()
+		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.GetWorkspacesForAgentMetricsRow{row})
+	}))
+	s.Run("GetWorkspacesForWorkspaceMetrics", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetWorkspacesForWorkspaceMetrics(gomock.Any(), false).Return([]database.GetWorkspacesForWorkspaceMetricsRow{}, nil).AnyTimes()
+		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 	s.Run("GetAuthorizedWorkspaces", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetWorkspacesParams{}
 		dbm.EXPECT().GetAuthorizedWorkspaces(gomock.Any(), arg, gomock.Any()).Return([]database.GetWorkspacesRow{}, nil).AnyTimes()
