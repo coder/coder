@@ -50,7 +50,7 @@ const badgeVariants = cva(
 		defaultVariants: {
 			variant: "default",
 			size: "md",
-			border: "solid",
+			border: "none",
 			hover: false,
 		},
 	},
