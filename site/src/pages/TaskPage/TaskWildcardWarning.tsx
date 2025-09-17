@@ -2,16 +2,23 @@ import { Button } from "components/Button/Button";
 import { useAuthenticated } from "hooks/useAuthenticated";
 import { SquareArrowOutUpRightIcon } from "lucide-react";
 import { Link as RouterLink } from "react-router";
+import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 
-export const TaskWildcardWarning = () => {
+type TaskWildcardWarningProps = {
+	className?: string;
+};
+
+export const TaskWildcardWarning = ({
+	className,
+}: TaskWildcardWarningProps) => {
 	const { permissions } = useAuthenticated();
 	const canEditDeploymentConfig = Boolean(permissions.editDeploymentConfig);
 
 	return (
-		<div className="mx-auto my-auto flex flex-col items-center max-w-xl">
-			<h3 className="font-medium text-content-primary text-base">Error</h3>
-			<div className="text-content-secondary text-sm text-center flex flex-col gap-3 items-center">
+		<div className={cn("text-center", className)}>
+			<h3 className="font-medium text-content-primary text-base mb-3">Error</h3>
+			<div className="text-content-secondary text-sm flex flex-col gap-3 items-center">
 				<div className="px-4">
 					This application has{" "}
 					<code className="py-px px-1 bg-surface-tertiary rounded-sm text-content-primary">

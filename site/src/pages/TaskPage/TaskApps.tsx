@@ -92,7 +92,9 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 
 			{embeddedApps.length > 0 ? (
 				shouldDisplayWildcardWarning ? (
-					<TaskWildcardWarning />
+					<div className="flex-1 flex flex-col items-center justify-center pb-4">
+						<TaskWildcardWarning className="max-w-xl" />
+					</div>
 				) : (
 					<div className="flex-1">
 						{embeddedApps.map(({ app }) => (

@@ -75,11 +75,13 @@ export const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
 	return (
 		<aside className="flex flex-col h-full shrink-0 w-full">
 			{sidebarAppStatus === "loading" ? (
-				<div className="flex-1 flex flex-col items-center justify-center">
-					<Spinner loading className="mb-4" />
+				<div className="flex-1 flex flex-col items-center justify-center pb-4">
+					<Spinner loading />
 				</div>
 			) : shouldDisplayWildcardWarning ? (
-				<TaskWildcardWarning />
+				<div className="flex-1 flex flex-col items-center justify-center pb-4">
+					<TaskWildcardWarning className="max-w-xl" />
+				</div>
 			) : sidebarAppStatus === "healthy" && sidebarApp ? (
 				<TaskAppIFrame
 					active
