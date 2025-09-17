@@ -32,7 +32,6 @@ import {
 	type ReactNode,
 	useLayoutEffect,
 	useRef,
-	useState,
 } from "react";
 import { Link } from "react-router";
 import { cn } from "utils/cn";
@@ -211,11 +210,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	);
 };
 
-const ScrollArea: FC<HTMLProps<HTMLDivElement>> = ({
-	className,
-	style = {},
-	...props
-}) => {
+const ScrollArea: FC<HTMLProps<HTMLDivElement>> = ({ className, ...props }) => {
 	/**
 	 * @todo 2024-10-03 - Use only CSS to set the height of the content.
 	 *
@@ -228,17 +223,22 @@ const ScrollArea: FC<HTMLProps<HTMLDivElement>> = ({
 	 * @see {@link https://stackoverflow.com/questions/43381836/height100-works-in-chrome-but-not-in-safari}
 	 */
 	const contentRef = useRef<HTMLDivElement>(null);
-	const [height, setHeight] = useState(0);
 	useLayoutEffect(() => {
 		const contentEl = contentRef.current;
 		if (!contentEl) {
 			return;
 		}
 
+		/**
+		 * 2025-09-17 - We're updating the height directly to minimize the
+		 * overhead in React itself. There is a risk down the line that the
+		 * height value will be wiped on re-renders, but that seemed like a
+		 * small enough risk that it wasn't worth accounting for just yet
+		 */
 		const syncParentSize = () => {
 			const parentEl = contentEl.parentElement;
-			if (parentEl) {
-				setHeight(parentEl.clientHeight);
+			if (parentEl && contentEl) {
+				contentEl.style.height = `${contentEl.parentElement.clientHeight}px`;
 			}
 		};
 
@@ -254,7 +254,6 @@ const ScrollArea: FC<HTMLProps<HTMLDivElement>> = ({
 		<div
 			ref={contentRef}
 			className={cn("overflow-y-auto w-full", className)}
-			style={{ ...style, height }}
 			{...props}
 		/>
 	);
