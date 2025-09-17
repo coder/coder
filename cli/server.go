@@ -55,6 +55,8 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/aibridge"
+	"github.com/coder/coder/v2/aibridged"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/pretty"
 	"github.com/coder/quartz"
@@ -1038,6 +1040,25 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			options.WorkspaceUsageTracker = tracker
 			defer tracker.Close()
 
+			var aibridgeDaemon *aibridged.Server
+			// In-memory aibridge daemon.
+			if vals.AI.BridgeConfig.Enabled {
+				if experiments.Enabled(codersdk.ExperimentAIBridge) {
+					aibridgeDaemon, err = newAIBridgeDaemon(coderAPI)
+					if err != nil {
+						return xerrors.Errorf("create aibridged: %w", err)
+					}
+
+					coderAPI.RegisterInMemoryAIBridgedHTTPHandler(aibridgeDaemon)
+				} else {
+					logger.Warn(ctx, fmt.Sprintf("CODER_AIBRIDGE_ENABLED=true but experiment %q not enabled", codersdk.ExperimentAIBridge))
+				}
+			} else {
+				if experiments.Enabled(codersdk.ExperimentAIBridge) {
+					logger.Warn(ctx, "aibridge experiment enabled but CODER_AIBRIDGE_ENABLED=false")
+				}
+			}
+
 			// Wrap the server in middleware that redirects to the access URL if
 			// the request is not to a local IP.
 			var handler http.Handler = coderAPI.RootHandler
@@ -1142,6 +1163,23 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			_, err = daemon.SdNotify(false, daemon.SdNotifyStopping)
 			if err != nil {
 				cliui.Errorf(inv.Stderr, "Notify systemd failed: %s", err)
+			}
+
+			// Stop accepting new connections to aibridged.
+			//
+			// When running as an in-memory daemon, the HTTP handler is wired into the
+			// coderd API and therefore is subject to its context. Calling shutdown on
+			// aibridged will NOT affect in-flight requests but those will be closed once
+			// the API server is shutdown below.
+			if aibridgeDaemon != nil {
+				cliui.Info(inv.Stdout, "Shutting down aibridge daemon...\n")
+
+				err = shutdownWithTimeout(aibridgeDaemon.Shutdown, 5*time.Second)
+				if err != nil {
+					cliui.Errorf(inv.Stderr, "Graceful shutdown of aibridge daemon failed: %s\n", err)
+				} else {
+					cliui.Info(inv.Stdout, "Gracefully shut down aibridge daemon\n")
+				}
 			}
 
 			// Stop accepting new connections without interrupting
@@ -1504,6 +1542,40 @@ func newProvisionerDaemon(
 		TracerProvider:      coderAPI.TracerProvider,
 		Metrics:             &metrics,
 	}), nil
+}
+
+func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
+	ctx := context.Background()
+	coderAPI.Logger.Debug(ctx, "starting in-memory aibridge daemon")
+
+	logger := coderAPI.Logger.Named("aibridged")
+
+	// Setup supported providers.
+	providers := []aibridge.Provider{
+		aibridge.NewOpenAIProvider(aibridge.ProviderConfig{
+			BaseURL: coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(),
+			Key:     coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String(),
+		}),
+		aibridge.NewAnthropicProvider(aibridge.ProviderConfig{
+			BaseURL: coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(),
+			Key:     coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String(),
+		}),
+	}
+
+	// Create pool for reusable stateful [aibridge.RequestBridge] instances (one per user).
+	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger.Named("pool")) // TODO: configurable.
+	if err != nil {
+		return nil, xerrors.Errorf("create request pool: %w", err)
+	}
+
+	// Create daemon.
+	srv, err := aibridged.New(ctx, pool, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
+		return coderAPI.CreateInMemoryAIBridgeServer(dialCtx)
+	}, logger)
+	if err != nil {
+		return nil, xerrors.Errorf("start in-memory aibridge daemon: %w", err)
+	}
+	return srv, nil
 }
 
 // nolint: revive
