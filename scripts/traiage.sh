@@ -62,7 +62,7 @@ prompt_ssh() {
 		-F /tmp/coder-ssh.config \
 		"${WORKSPACE_NAME}.coder" \
 		-- \
-		"cat /tmp/prompt.txt | \"\${HOME}\"/.local/bin/claude --print --verbose --output-format=stream-json"
+		"cat /tmp/prompt.txt | \"\${HOME}\"/.local/bin/claude --dangerously-skip-permissions --print --verbose --output-format=stream-json"
 	exit 0
 }
 
