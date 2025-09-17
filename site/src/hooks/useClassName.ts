@@ -2,7 +2,7 @@ import { css } from "@emotion/css";
 import { type Theme, useTheme } from "@emotion/react";
 import { type DependencyList, useMemo } from "react";
 
-export type ClassName = (cssFn: typeof css, theme: Theme) => string;
+type ClassName = (cssFn: typeof css, theme: Theme) => string;
 
 /**
  * @deprecated This hook was used as an escape hatch to generate class names

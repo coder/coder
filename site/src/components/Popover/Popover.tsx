@@ -10,9 +10,15 @@ import {
 } from "react";
 import { cn } from "utils/cn";
 
+export type PopoverContentProps = PopoverPrimitive.PopoverContentProps;
+
+export type PopoverTriggerProps = PopoverPrimitive.PopoverTriggerProps;
+
 export const Popover = PopoverPrimitive.Root;
 
 export const PopoverTrigger = PopoverPrimitive.Trigger;
+
+export const PopoverClose = PopoverPrimitive.PopoverClose;
 
 export const PopoverContent = forwardRef<
 	ElementRef<typeof PopoverPrimitive.Content>,
@@ -23,6 +29,7 @@ export const PopoverContent = forwardRef<
 			ref={ref}
 			align={align}
 			sideOffset={sideOffset}
+			collisionPadding={16}
 			className={cn(
 				`z-50 w-72 rounded-md border border-solid bg-surface-primary
 				text-content-primary shadow-md outline-none
