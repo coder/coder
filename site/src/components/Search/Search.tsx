@@ -1,9 +1,15 @@
 import { SearchIcon } from "lucide-react";
-import type { FC, HTMLAttributes, InputHTMLAttributes, Ref } from "react";
+import type {
+	FC,
+	HTMLAttributes,
+	InputHTMLAttributes,
+	Ref,
+	RefObject,
+} from "react";
 import { cn } from "utils/cn";
 
-interface SearchProps extends Omit<HTMLAttributes<HTMLDivElement>, "ref"> {
-	$$ref?: Ref<HTMLDivElement>;
+interface SearchProps extends HTMLAttributes<HTMLDivElement> {
+	ref?: RefObject<HTMLDivElement>;
 }
 
 /**
@@ -17,13 +23,13 @@ interface SearchProps extends Omit<HTMLAttributes<HTMLDivElement>, "ref"> {
  */
 export const Search: FC<SearchProps> = ({
 	children,
-	$$ref,
+	ref,
 	className,
 	...props
 }) => {
 	return (
 		<div
-			ref={$$ref}
+			ref={ref}
 			{...props}
 			className={cn(
 				"flex items-center h-10 pl-4 border-0 border-b border-solid border-border",
@@ -38,12 +44,12 @@ export const Search: FC<SearchProps> = ({
 
 type SearchInputProps = InputHTMLAttributes<HTMLInputElement> & {
 	label?: string;
-	$$ref?: Ref<HTMLInputElement>;
+	ref?: Ref<HTMLInputElement>;
 };
 
 export const SearchInput: FC<SearchInputProps> = ({
 	label,
-	$$ref,
+	ref,
 	id,
 	...inputProps
 }) => {
@@ -53,7 +59,7 @@ export const SearchInput: FC<SearchInputProps> = ({
 				{label}
 			</label>
 			<input
-				ref={$$ref}
+				ref={ref}
 				id={id}
 				tabIndex={0}
 				type="text"

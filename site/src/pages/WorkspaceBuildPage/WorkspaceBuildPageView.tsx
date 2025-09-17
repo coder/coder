@@ -261,10 +261,18 @@ const ScrollArea: FC<HTMLProps<HTMLDivElement>> = ({
 	);
 };
 
+function sortLogsByCreatedAt(
+	logs: readonly ProvisionerJobLog[],
+): ProvisionerJobLog[] {
+	return [...logs].sort((a, b) => {
+		return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+	});
+}
+
 const BuildLogsContent: FC<{
 	logs?: ProvisionerJobLog[];
 	build?: WorkspaceBuild;
-}> = ({ logs, build }) => {
+}> = ({ logs = [], build }) => {
 	if (!logs) {
 		return <Loader />;
 	}
@@ -276,11 +284,7 @@ const BuildLogsContent: FC<{
 			className="border-none [&_.logs-header:first-of-type]:pt-4"
 			style={{ "--log-line-side-padding": `${TAB_PADDING_X}px` }}
 			build={build}
-			logs={[...logs].sort((a, b) => {
-				return (
-					new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-				);
-			})}
+			logs={sortLogsByCreatedAt(logs)}
 			disableAutoscroll
 		/>
 	);
