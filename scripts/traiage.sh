@@ -7,6 +7,9 @@ source "${SCRIPT_DIR}/lib.sh"
 CODER_BIN=${CODER_BIN:-"$(which coder)"}
 AGENTAPI_SLUG=${AGENTAPI_SLUG:-""}
 
+TEMPDIR=$(mktemp -d)
+trap 'rm -rfv "${TEMPDIR}"' EXIT
+
 [[ -n ${VERBOSE:-} ]] && set -x
 set -euo pipefail
 
@@ -36,30 +39,40 @@ prompt() {
 	fi
 }
 
-prompt_ssh() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME PROMPT
+ssh_config() {
+	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME
 
-	# For sanity, use OpenSSH with coder config-ssh.
-	OPENSSH_CONFIG_FILE=/tmp/coder-ssh.config
+	if [[ -n "${OPENSSH_CONFIG_FILE:-}" ]]; then
+		echo "Using existing SSH config file: ${OPENSSH_CONFIG_FILE}"
+		return
+	fi
+
+	OPENSSH_CONFIG_FILE="${TEMPDIR}/coder-ssh.config"
 	"${CODER_BIN}" \
 		config-ssh \
 		--url "${CODER_URL}" \
 		--token "${CODER_SESSION_TOKEN}" \
 		--ssh-config-file="${OPENSSH_CONFIG_FILE}" \
 		--yes
-	trap 'rm -f /tmp/coder-ssh.config' EXIT
+	export OPENSSH_CONFIG_FILE
+}
+
+prompt_ssh() {
+	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME PROMPT
+
+	ssh_config
 
 	# Write prompt to a file in the workspace
-	ssh \
-		-F /tmp/coder-ssh.config \
-		"${WORKSPACE_NAME}.coder" \
-		-- \
-		"cat > /tmp/prompt.txt" <<<"${PROMPT}"
+	cat <<<"${PROMPT}" > "${TEMPDIR}/prompt.txt"
+	scp \
+		-F "${OPENSSH_CONFIG_FILE}" \
+		"${TEMPDIR}/prompt.txt" \
+		"${WORKSPACE_NAME}.coder:/tmp/prompt.txt"
 
 	# Execute claude over SSH
 	# Note: use of cat to work around claude-code#7357
 	ssh \
-		-F /tmp/coder-ssh.config \
+		-F "${OPENSSH_CONFIG_FILE}" \
 		"${WORKSPACE_NAME}.coder" \
 		-- \
 		"cat /tmp/prompt.txt | \"\${HOME}\"/.local/bin/claude --dangerously-skip-permissions --print --verbose --output-format=stream-json"
@@ -139,13 +152,54 @@ wait() {
 
 archive() {
 	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME
-	echo "Not implemented yet!"
+
+	ssh_config
 	exit 0
 	"${CODER_BIN}" \
 		--url "${CODER_URL}" \
 		--token "${CODER_SESSION_TOKEN}" \
 		ssh "${WORKSPACE_NAME}" -- /bin/bash -lc "coder-create-archive"
 	exit 0
+}
+
+commit_push() {
+	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME
+	ssh_config
+
+	# For multiple commands, upload a script and run it.
+	cat > "${TEMPDIR}/commit_push.sh" <<- EOF
+		#!/usr/bin/env bash
+		set -euo pipefail
+		if [[ \$(git branch --show-current) != "${WORKSPACE_NAME}" ]]; then
+			git checkout -b ${WORKSPACE_NAME}
+		fi
+
+		if [[ -z \$(git status --porcelain) ]]; then
+			echo "FATAL: No changes to commit"
+			exit 1
+		fi
+
+		git add -A
+		commit_msg=\$(echo -n 'You are a CLI utility that generates a commit message. Generate a concise git commit message for the currently staged changes. Print ONLY the commit message and nothing else.' | \${HOME}/.local/bin/claude --print)
+		if [[ -z "\${commit_msg}" ]]; then
+			commit_msg="Default commit message"
+		fi
+		git commit -am "\${commit_msg}"
+		git push origin ${WORKSPACE_NAME}
+	EOF
+
+	scp \
+		-F "${OPENSSH_CONFIG_FILE}" \
+		"${TEMPDIR}/commit_push.sh" \
+		"${WORKSPACE_NAME}.coder:/tmp/commit_push.sh"
+
+	ssh \
+		-F "${OPENSSH_CONFIG_FILE}" \
+		"${WORKSPACE_NAME}.coder" \
+		-- \
+		"chmod +x /tmp/commit_push.sh && /tmp/commit_push.sh"
+
+	exit $?
 }
 
 delete() {
@@ -175,6 +229,9 @@ main() {
 		;;
 	archive)
 		archive
+		;;
+	commit-push)
+		commit_push
 		;;
 	delete)
 		delete
