@@ -442,7 +442,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						}, "autobuild",
 						// Associate this notification with all the related entities.
 						ws.ID, ws.OwnerID, ws.TemplateID, ws.OrganizationID,
-					); err != nil {
+					); err != nil && notifications.IsSeriousEnqueueError(err) {
 						log.Warn(e.ctx, "failed to notify of autoupdated workspace", slog.Error(err))
 					}
 				}
@@ -476,7 +476,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						ws.TemplateID,
 						ws.OrganizationID,
 					)
-					if err != nil {
+					if err != nil && notifications.IsSeriousEnqueueError(err) {
 						log.Warn(e.ctx, "failed to notify of workspace marked as dormant", slog.Error(err), slog.F("workspace_id", ws.ID))
 					}
 				}

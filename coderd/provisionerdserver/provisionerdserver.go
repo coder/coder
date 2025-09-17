@@ -1313,7 +1313,7 @@ func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace datab
 		}, "provisionerdserver",
 		// Associate this notification with all the related entities.
 		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
-	); err != nil {
+	); err != nil && notifications.IsSeriousEnqueueError(err) {
 		s.Logger.Warn(ctx, "failed to notify of failed workspace autobuild", slog.Error(err))
 	}
 }
@@ -1342,7 +1342,7 @@ func (s *server) notifyWorkspaceManualBuildFailed(ctx context.Context, workspace
 			labels, "provisionerdserver",
 			// Associate this notification with all the related entities.
 			workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
-		); err != nil {
+		); err != nil && notifications.IsSeriousEnqueueError(err) {
 			s.Logger.Warn(ctx, "failed to notify of failed workspace manual build", slog.Error(err))
 		}
 	}
@@ -2441,7 +2441,7 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 		}, "provisionerdserver",
 		// Associate this notification with all the related entities.
 		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
-	); err != nil {
+	); err != nil && notifications.IsSeriousEnqueueError(err) {
 		s.Logger.Warn(ctx, "failed to notify of workspace deletion", slog.Error(err))
 	}
 }

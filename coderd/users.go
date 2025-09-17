@@ -606,7 +606,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 			},
 			"api-users-delete",
 			user.ID,
-		); err != nil {
+		); err != nil && notifications.IsSeriousEnqueueError(err) {
 			api.Logger.Warn(ctx, "unable to notify about deleted user", slog.F("deleted_user", user.Username), slog.Error(err))
 		}
 	}
@@ -951,7 +951,7 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 		if _, err := api.NotificationsEnqueuer.EnqueueWithData(dbauthz.AsNotifier(ctx), u.ID, adminTemplateID,
 			labels, data, "api-put-user-status",
 			targetUser.ID,
-		); err != nil {
+		); err != nil && notifications.IsSeriousEnqueueError(err) {
 			api.Logger.Warn(ctx, "unable to notify about changed user's status", slog.F("affected_user", targetUser.Username), slog.Error(err))
 		}
 	}
@@ -959,7 +959,7 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 	if _, err := api.NotificationsEnqueuer.EnqueueWithData(dbauthz.AsNotifier(ctx), targetUser.ID, personalTemplateID,
 		labels, data, "api-put-user-status",
 		targetUser.ID,
-	); err != nil {
+	); err != nil && notifications.IsSeriousEnqueueError(err) {
 		api.Logger.Warn(ctx, "unable to notify user about status change of their account", slog.F("affected_user", targetUser.Username), slog.Error(err))
 	}
 	return nil
@@ -1518,7 +1518,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			},
 			"api-users-create",
 			user.ID,
-		); err != nil {
+		); err != nil && notifications.IsSeriousEnqueueError(err) {
 			api.Logger.Warn(ctx, "unable to notify about created user", slog.F("created_user", user.Username), slog.Error(err))
 		}
 	}

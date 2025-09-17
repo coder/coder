@@ -974,7 +974,7 @@ func (api *API) notifyWorkspaceCreated(
 		"api-workspaces-create",
 		// Associate this notification with all the related entities
 		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
-	); err != nil {
+	); err != nil && notifications.IsSeriousEnqueueError(err) {
 		log.Warn(ctx, "failed to notify of workspace creation", slog.Error(err))
 	}
 }
@@ -1417,7 +1417,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 				newWorkspace.TemplateID,
 				newWorkspace.OrganizationID,
 			)
-			if err != nil {
+			if err != nil && notifications.IsSeriousEnqueueError(err) {
 				api.Logger.Warn(ctx, "failed to notify of workspace marked as dormant", slog.Error(err))
 			}
 		}

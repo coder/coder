@@ -605,7 +605,7 @@ func (api *API) notifyWorkspaceUpdated(
 		"api-workspaces-updated",
 		// Associate this notification with all the related entities
 		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
-	); err != nil {
+	); err != nil && notifications.IsSeriousEnqueueError(err) {
 		log.Warn(ctx, "failed to notify of workspace update", slog.Error(err))
 	}
 }

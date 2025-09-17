@@ -26,6 +26,12 @@ var (
 	ErrDuplicate                         = xerrors.New("duplicate notification")
 )
 
+// IsSeriousEnqueueError filters out trivial errors which can be ignored by
+// most callers of Enqueue.
+func IsSeriousEnqueueError(err error) bool {
+	return !xerrors.Is(err, ErrCannotEnqueueDisabledNotification) && !xerrors.Is(err, ErrDuplicate)
+}
+
 type InvalidDefaultNotificationMethodError struct {
 	Method string
 }
