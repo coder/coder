@@ -117,7 +117,7 @@ const TerminalPage: FC = () => {
 		appearanceSettingsQuery.data?.terminal_font || DEFAULT_TERMINAL_FONT;
 
 	// Create the terminal!
-	const fitAddonRef = useRef<FitAddon>();
+	const fitAddonRef = useRef<FitAddon>(undefined);
 	useEffect(() => {
 		if (!terminalWrapperRef.current || config.isLoading) {
 			return;
@@ -209,7 +209,7 @@ const TerminalPage: FC = () => {
 	}, [navigate, reconnectionToken, searchParams]);
 
 	// Hook up the terminal through a web socket.
-	const websocketRef = useRef<Websocket>();
+	const websocketRef = useRef<Websocket>(undefined);
 	useEffect(() => {
 		if (!terminal) {
 			return;

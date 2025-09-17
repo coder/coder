@@ -1,7 +1,7 @@
 import { renderComponent } from "testHelpers/renderHelpers";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { act } from "react-dom/test-utils";
+import { act } from "react";
 import { DeleteDialog } from "./DeleteDialog";
 
 const inputTestId = "delete-dialog-name-confirmation";

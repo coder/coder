@@ -3,7 +3,6 @@ import LocationOnOutlined from "@mui/icons-material/LocationOnOutlined";
 import Button from "@mui/material/Button";
 import type {
 	HealthcheckReport,
-	HealthMessage,
 	HealthSeverity,
 	NetcheckReport,
 } from "api/typesGenerated";
@@ -65,10 +64,10 @@ const DERPPage: FC = () => {
 			</Header>
 
 			<Main>
-				{derp.warnings.map((warning: HealthMessage) => {
+				{derp.warnings.map((warning) => {
 					return (
 						<Alert
-							actions={HealthMessageDocsLink(warning)}
+							actions={<HealthMessageDocsLink {...warning} />}
 							key={warning.code}
 							severity="warning"
 						>

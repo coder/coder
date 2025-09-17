@@ -246,7 +246,9 @@ const ScrollArea: FC<HTMLProps<HTMLDivElement>> = ({
 		syncParentSize();
 		const resizeObserver = new ResizeObserver(syncParentSize);
 		resizeObserver.observe(document.body);
-		return () => resizeObserver.disconnect();
+		return () => {
+			resizeObserver.disconnect();
+		};
 	}, []);
 
 	return (
@@ -279,6 +281,7 @@ const BuildLogsContent: FC<{
 					new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
 				);
 			})}
+			disableAutoscroll
 		/>
 	);
 };

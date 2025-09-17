@@ -1,10 +1,16 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import type { ProvisionerJobLog, WorkspaceBuild } from "api/typesGenerated";
 import type { Line } from "components/Logs/LogLine";
 import { DEFAULT_LOG_LINE_SIDE_PADDING, Logs } from "components/Logs/Logs";
 import dayjs from "dayjs";
-import { type FC, Fragment, type HTMLAttributes, useMemo } from "react";
-import { BODY_FONT_FAMILY, MONOSPACE_FONT_FAMILY } from "theme/constants";
+import {
+	type FC,
+	Fragment,
+	type HTMLAttributes,
+	useLayoutEffect,
+	useRef,
+} from "react";
+import { BODY_FONT_FAMILY } from "theme/constants";
 
 const Language = {
 	seconds: "seconds",
@@ -43,6 +49,7 @@ interface WorkspaceBuildLogsProps extends HTMLAttributes<HTMLDivElement> {
 	sticky?: boolean;
 	logs: ProvisionerJobLog[];
 	build?: WorkspaceBuild;
+	disableAutoscroll?: boolean;
 }
 
 export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
@@ -50,38 +57,24 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 	sticky,
 	logs,
 	build,
+	disableAutoscroll,
+	className,
 	...attrs
 }) => {
-	const theme = useTheme();
-
-	const _processedLogs = useMemo(() => {
-		const allLogs = logs || [];
-
-		// Add synthetic overflow message if needed
-		if (build?.job?.logs_overflowed) {
-			allLogs.push({
-				id: -1,
-				created_at: new Date().toISOString(),
-				log_level: "error",
-				log_source: "provisioner",
-				output:
-					"Provisioner logs exceeded the max size of 1MB. Will not continue to write provisioner logs for workspace build.",
-				stage: "overflow",
-			});
-		}
-
-		return allLogs;
-	}, [logs, build?.job?.logs_overflowed]);
-
 	const groupedLogsByStage = groupLogsByStage(logs);
+
+	const ref = useRef<HTMLDivElement>(null);
+	useLayoutEffect(() => {
+		if (disableAutoscroll || logs.length === 0) {
+			return;
+		}
+		ref.current?.scrollIntoView({ block: "end" });
+	}, [logs, disableAutoscroll]);
 
 	return (
 		<div
-			css={{
-				border: `1px solid ${theme.palette.divider}`,
-				borderRadius: 8,
-				fontFamily: MONOSPACE_FONT_FAMILY,
-			}}
+			ref={ref}
+			className="font-mono border border-border rounded-lg"
 			{...attrs}
 		>
 			{Object.entries(groupedLogsByStage).map(([stage, logs]) => {
