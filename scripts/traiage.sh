@@ -52,7 +52,7 @@ prompt_ssh() {
 	# Write prompt to a file in the workspace
 	ssh \
 		-F /tmp/coder-ssh.config \
-	"${WORKSPACE_NAME}.coder" \
+		"${WORKSPACE_NAME}.coder" \
 		-- \
 		"cat > /tmp/prompt.txt" <<<"${PROMPT}"
 
@@ -63,7 +63,7 @@ prompt_ssh() {
 		"${WORKSPACE_NAME}.coder" \
 		-- \
 		"cat /tmp/prompt.txt | \"\${HOME}\"/.local/bin/claude --print --verbose --output-format=stream-json"
-		exit 0
+	exit 0
 }
 
 prompt_agentapi() {
@@ -94,12 +94,12 @@ prompt_agentapi() {
 		--show-error \
 		--silent \
 		"${CODER_URL}/@${username}/${WORKSPACE_NAME}/apps/${AGENTAPI_SLUG}/message" | jq -r '.ok')
-		if [[ "${response}" != "true" ]]; then
-			echo "Failed to send prompt"
-			exit 1
-		fi
+	if [[ "${response}" != "true" ]]; then
+		echo "Failed to send prompt"
+		exit 1
+	fi
 
-		wait
+	wait
 }
 
 wait() {
@@ -119,15 +119,15 @@ wait() {
 
 	for attempt in {1..600}; do
 		response=$(curl \
-		--data-raw "${payload}" \
-		--fail \
-		--header "Content-Type: application/json" \
-		--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
-		--location \
-		--request GET \
-		--show-error \
-		--silent \
-		"${CODER_URL}/@${username}/${WORKSPACE_NAME}/apps/agentapi/status" | jq -r '.status')
+			--data-raw "${payload}" \
+			--fail \
+			--header "Content-Type: application/json" \
+			--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
+			--location \
+			--request GET \
+			--show-error \
+			--silent \
+			"${CODER_URL}/@${username}/${WORKSPACE_NAME}/apps/agentapi/status" | jq -r '.status')
 		if [[ "${response}" == "stable" ]]; then
 			echo "AgentAPI stable"
 			break
