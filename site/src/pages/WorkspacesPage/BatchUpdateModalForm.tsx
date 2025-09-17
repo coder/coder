@@ -38,8 +38,8 @@ export const BatchUpdateModalForm: FC<BatchUpdateModalFormProps> = ({
 	return (
 		<Dialog
 			open={open}
-			onOpenChange={() => {
-				if (open) {
+			onOpenChange={(newIsOpen) => {
+				if (!newIsOpen) {
 					onCancel();
 				}
 			}}
