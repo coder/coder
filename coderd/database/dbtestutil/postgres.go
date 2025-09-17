@@ -22,7 +22,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database/migrations"
-	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/retry"
 )
 
@@ -52,6 +51,7 @@ var (
 		"connection refused",          // nothing is listening on the port
 		"No connection could be made", // Windows variant of the above
 	}
+	DefaultBroker = Broker{}
 )
 
 // initDefaultConnection initializes the default postgres connection parameters.
@@ -173,101 +173,25 @@ type TBSubset interface {
 // Otherwise, it will start a new postgres container.
 func Open(t TBSubset, opts ...OpenOption) (string, error) {
 	t.Helper()
-
-	connectionParamsInitOnce.Do(func() {
-		errDefaultConnectionParamsInit = initDefaultConnection(t)
-	})
-	if errDefaultConnectionParamsInit != nil {
-		return "", xerrors.Errorf("init default connection params: %w", errDefaultConnectionParamsInit)
-	}
-
-	openOptions := OpenOptions{}
-	for _, opt := range opts {
-		opt(&openOptions)
-	}
-
-	var (
-		username = defaultConnectionParams.Username
-		password = defaultConnectionParams.Password
-		host     = defaultConnectionParams.Host
-		port     = defaultConnectionParams.Port
-	)
-
-	// Use a time-based prefix to make it easier to find the database
-	// when debugging.
-	now := time.Now().Format("test_2006_01_02_15_04_05")
-	dbSuffix, err := cryptorand.StringCharset(cryptorand.Lower, 10)
+	params, err := DefaultBroker.Create(t, opts...)
 	if err != nil {
-		return "", xerrors.Errorf("generate db suffix: %w", err)
+		return "", err
 	}
-	dbName := now + "_" + dbSuffix
-
-	// if empty createDatabaseFromTemplate will create a new template db
-	templateDBName := os.Getenv("DB_FROM")
-	if openOptions.DBFrom != nil {
-		templateDBName = *openOptions.DBFrom
-	}
-	if err = createDatabaseFromTemplate(t, defaultConnectionParams, dbName, templateDBName); err != nil {
-		return "", xerrors.Errorf("create database: %w", err)
-	}
-
-	t.Cleanup(func() {
-		cleanupDbURL := defaultConnectionParams.DSN()
-		cleanupConn, err := sql.Open("postgres", cleanupDbURL)
-		if err != nil {
-			t.Logf("cleanup database %q: failed to connect to postgres: %s\n", dbName, err.Error())
-			return
-		}
-		defer func() {
-			if err := cleanupConn.Close(); err != nil {
-				t.Logf("cleanup database %q: failed to close connection: %s\n", dbName, err.Error())
-			}
-		}()
-		_, err = cleanupConn.Exec("DROP DATABASE " + dbName + ";")
-		if err != nil {
-			t.Logf("failed to clean up database %q: %s\n", dbName, err.Error())
-			return
-		}
-	})
-
-	dsn := ConnectionParams{
-		Username: username,
-		Password: password,
-		Host:     host,
-		Port:     port,
-		DBName:   dbName,
-	}.DSN()
-
-	// Optionally log the DSN to help connect to the test database.
-	if openOptions.LogDSN {
-		_, _ = fmt.Fprintf(os.Stderr, "Connect to the database for %s using: psql '%s'\n", t.Name(), dsn)
-	}
-	return dsn, nil
+	return params.DSN(), nil
 }
 
 // createDatabaseFromTemplate creates a new database from a template database.
 // If templateDBName is empty, it will create a new template database based on
 // the current migrations, and name it "tpl_<migrations_hash>". Or if it's
 // already been created, it will use that.
-func createDatabaseFromTemplate(t TBSubset, connParams ConnectionParams, newDBName string, templateDBName string) error {
+func createDatabaseFromTemplate(t TBSubset, connParams ConnectionParams, db *sql.DB, newDBName string, templateDBName string) error {
 	t.Helper()
-
-	dbURL := connParams.DSN()
-	db, err := sql.Open("postgres", dbURL)
-	if err != nil {
-		return xerrors.Errorf("connect to postgres: %w", err)
-	}
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("create database from template: failed to close connection: %s\n", err.Error())
-		}
-	}()
 
 	emptyTemplateDBName := templateDBName == ""
 	if emptyTemplateDBName {
 		templateDBName = fmt.Sprintf("tpl_%s", migrations.GetMigrationsHash()[:32])
 	}
-	_, err = db.Exec("CREATE DATABASE " + newDBName + " WITH TEMPLATE " + templateDBName)
+	_, err := db.Exec("CREATE DATABASE " + newDBName + " WITH TEMPLATE " + templateDBName)
 	if err == nil {
 		// Template database already exists and we successfully created the new database.
 		return nil
@@ -282,82 +206,96 @@ func createDatabaseFromTemplate(t TBSubset, connParams ConnectionParams, newDBNa
 		// sanity check
 		panic("templateDBName is not empty. there's a bug in the code above")
 	}
-	// The templateDBName is empty, so we need to create the template database.
-	// We will use a tx to obtain a lock, so another test or process doesn't race with us.
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return xerrors.Errorf("begin tx: %w", err)
-	}
-	defer func() {
-		err := tx.Rollback()
-		if err != nil && !errors.Is(err, sql.ErrTxDone) {
-			t.Logf("create database from template: failed to rollback tx: %s\n", err.Error())
-		}
-	}()
-	// 2137 is an arbitrary number. We just need a lock that is unique to creating
-	// the template database.
-	_, err = tx.Exec("SELECT pg_advisory_xact_lock(2137)")
-	if err != nil {
-		return xerrors.Errorf("acquire lock: %w", err)
-	}
 
-	// Someone else might have created the template db while we were waiting.
-	tplDbExistsRes, err := tx.Query("SELECT 1 FROM pg_database WHERE datname = $1", templateDBName)
-	if err != nil {
-		return xerrors.Errorf("check if db exists: %w", err)
-	}
-	tplDbAlreadyExists := tplDbExistsRes.Next()
-	if err := tplDbExistsRes.Close(); err != nil {
-		return xerrors.Errorf("close tpl db exists res: %w", err)
-	}
-	if !tplDbAlreadyExists {
-		// We will use a temporary template database to avoid race conditions. We will
-		// rename it to the real template database name after we're sure it was fully
-		// initialized.
-		// It's dropped here to ensure that if a previous run of this function failed
-		// midway, we don't encounter issues with the temporary database still existing.
-		tmpTemplateDBName := "tmp_" + templateDBName
-		// We're using db instead of tx here because you can't run `DROP DATABASE` inside
-		// a transaction.
-		if _, err := db.Exec("DROP DATABASE IF EXISTS " + tmpTemplateDBName); err != nil {
-			return xerrors.Errorf("drop tmp template db: %w", err)
-		}
-		if _, err := db.Exec("CREATE DATABASE " + tmpTemplateDBName); err != nil {
-			return xerrors.Errorf("create tmp template db: %w", err)
-		}
-		tplDbURL := ConnectionParams{
-			Username: connParams.Username,
-			Password: connParams.Password,
-			Host:     connParams.Host,
-			Port:     connParams.Port,
-			DBName:   tmpTemplateDBName,
-		}.DSN()
-		tplDb, err := sql.Open("postgres", tplDbURL)
-		if err != nil {
-			return xerrors.Errorf("connect to template db: %w", err)
-		}
-		defer func() {
-			if err := tplDb.Close(); err != nil {
-				t.Logf("create database from template: failed to close template db: %s\n", err.Error())
-			}
-		}()
+	// The templateDBName is empty, so we need to create the template database.
+	err = createAndInitDatabase(t, connParams, db, templateDBName, func(tplDb *sql.DB) error {
 		if err := migrations.Up(tplDb); err != nil {
 			return xerrors.Errorf("migrate template db: %w", err)
 		}
-		if err := tplDb.Close(); err != nil {
-			return xerrors.Errorf("close template db: %w", err)
-		}
-		if _, err := db.Exec("ALTER DATABASE " + tmpTemplateDBName + " RENAME TO " + templateDBName); err != nil {
-			return xerrors.Errorf("rename tmp template db: %w", err)
-		}
+		return nil
+	})
+	if err != nil {
+		return xerrors.Errorf("create template database: %w", err)
 	}
 
 	// Try to create the database again now that a template exists.
 	if _, err = db.Exec("CREATE DATABASE " + newDBName + " WITH TEMPLATE " + templateDBName); err != nil {
 		return xerrors.Errorf("create db with template after migrations: %w", err)
 	}
-	if err = tx.Commit(); err != nil {
-		return xerrors.Errorf("commit tx: %w", err)
+	return nil
+}
+
+func createAndInitDatabase(t TBSubset, connParams ConnectionParams, db *sql.DB, name string, initialize func(*sql.DB) error) error {
+	// We will use a tx to obtain a lock, so another test or process doesn't race with us.
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return xerrors.Errorf("begin tx: %w", err)
+	}
+	// we only use the transaction for locking and querying, so it's fine to always roll it back.
+	defer func() {
+		err := tx.Rollback()
+		if err != nil && !errors.Is(err, sql.ErrTxDone) {
+			t.Logf("create database: failed to rollback tx: %s\n", err.Error())
+		}
+	}()
+	// 2137 is an arbitrary number. We just need a lock that is unique to creating
+	// the database.
+	_, err = tx.Exec("SELECT pg_advisory_xact_lock(2137)")
+	if err != nil {
+		return xerrors.Errorf("acquire lock: %w", err)
+	}
+
+	// Someone else might have created the db while we were waiting.
+	dbExistsRes, err := tx.Query("SELECT 1 FROM pg_database WHERE datname = $1", name)
+	if err != nil {
+		return xerrors.Errorf("check if db exists: %w", err)
+	}
+	dbAlreadyExists := dbExistsRes.Next()
+	if err := dbExistsRes.Close(); err != nil {
+		return xerrors.Errorf("close tpl db exists res: %w", err)
+	}
+	if dbAlreadyExists {
+		return nil
+	}
+
+	// We will use a temporary database to avoid race conditions. We will
+	// rename it to the real database name after we're sure it was fully
+	// initialized.
+	// It's dropped here to ensure that if a previous run of this function failed
+	// midway, we don't encounter issues with the temporary database still existing.
+	tmpDBName := "tmp_" + name
+	// We're using db instead of tx here because you can't run `DROP DATABASE` inside
+	// a transaction.
+	if _, err := db.Exec("DROP DATABASE IF EXISTS " + tmpDBName); err != nil {
+		return xerrors.Errorf("drop tmp db: %w", err)
+	}
+	if _, err := db.Exec("CREATE DATABASE " + tmpDBName); err != nil {
+		return xerrors.Errorf("create tmp db: %w", err)
+	}
+	tmpDbURL := ConnectionParams{
+		Username: connParams.Username,
+		Password: connParams.Password,
+		Host:     connParams.Host,
+		Port:     connParams.Port,
+		DBName:   tmpDBName,
+	}.DSN()
+	tmpDb, err := sql.Open("postgres", tmpDbURL)
+	if err != nil {
+		return xerrors.Errorf("connect to template db: %w", err)
+	}
+	defer func() {
+		if err := tmpDb.Close(); err != nil {
+			t.Logf("failed to close temp db: %s\n", err.Error())
+		}
+	}()
+	if err := initialize(tmpDb); err != nil {
+		return xerrors.Errorf("initialize: %w", err)
+	}
+	if err := tmpDb.Close(); err != nil {
+		return xerrors.Errorf("close template db: %w", err)
+	}
+	if _, err := db.Exec("ALTER DATABASE " + tmpDBName + " RENAME TO " + name); err != nil {
+		return xerrors.Errorf("rename tmp db: %w", err)
 	}
 	return nil
 }
