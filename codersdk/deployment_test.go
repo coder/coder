@@ -399,6 +399,9 @@ func TestExternalAuthYAMLConfig(t *testing.T) {
 		Regex:               "^https://example.com/.*$",
 		DisplayName:         "GitHub",
 		DisplayIcon:         "/static/icons/github.svg",
+		MCPURL:              "https://api.githubcopilot.com/mcp/",
+		MCPToolAllowRegex:   ".*",
+		MCPToolDenyRegex:    "create_gist",
 	}
 
 	// Input the github section twice for testing a slice of configs.

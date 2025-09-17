@@ -506,7 +506,7 @@ export const MultiSelectCombobox = forwardRef<
 									<Badge
 										key={option.value}
 										className={cn(
-											"data-[disabled]:bg-content-disabled data-[disabled]:text-surface-tertiarydata-[disabled]:hover:bg-content-disabled",
+											"data-[disabled]:bg-content-disabled data-[disabled]:text-surface-tertiary data-[disabled]:hover:bg-content-disabled",
 											"data-[fixed]:bg-content-disabled data-[fixed]:text-surface-tertiary data-[fixed]:hover:bg-surface-secondary",
 											badgeClassName,
 										)}

@@ -8,7 +8,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { type ComponentProps, forwardRef } from "react";
+import { type ComponentProps, forwardRef, type JSX } from "react";
 import { FixedSizeList as List } from "react-window";
 import { cn } from "utils/cn";
 import { AGENT_LOG_LINE_HEIGHT, AgentLogLine } from "./AgentLogLine";

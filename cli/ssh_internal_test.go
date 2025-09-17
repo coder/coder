@@ -158,7 +158,7 @@ func TestCloserStack_CloseAfterContext(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	uut := newCloserStack(ctx, logger, quartz.NewMock(t))
 	ac := newAsyncCloser(testCtx, t)
-	defer ac.complete()
+	defer ac.unblock()
 	err := uut.push("async", ac)
 	require.NoError(t, err)
 	cancel()
@@ -178,8 +178,9 @@ func TestCloserStack_CloseAfterContext(t *testing.T) {
 		t.Fatal("closed before stack was finished")
 	}
 
-	ac.complete()
+	ac.unblock()
 	testutil.TryReceive(testCtx, t, closed)
+	testutil.TryReceive(testCtx, t, ac.done)
 }
 
 func TestCloserStack_Timeout(t *testing.T) {
@@ -198,7 +199,8 @@ func TestCloserStack_Timeout(t *testing.T) {
 	}
 	defer func() {
 		for _, a := range ac {
-			a.complete()
+			a.unblock()
+			testutil.TryReceive(ctx, t, a.done) // ensure we don't race with context cancellation
 		}
 	}()
 
@@ -215,7 +217,7 @@ func TestCloserStack_Timeout(t *testing.T) {
 	testutil.TryReceive(ctx, t, ac[1].started)
 
 	// middle one finishes
-	ac[1].complete()
+	ac[1].unblock()
 	// bottom starts, but also hangs
 	testutil.TryReceive(ctx, t, ac[0].started)
 
@@ -317,34 +319,37 @@ func (c *fakeCloser) Close() error {
 }
 
 type asyncCloser struct {
-	t             *testing.T
-	ctx           context.Context
-	started       chan struct{}
-	isComplete    chan struct{}
-	comepleteOnce sync.Once
+	t           *testing.T
+	ctx         context.Context
+	started     chan struct{}
+	done        chan struct{}
+	isUnblocked chan struct{}
+	unblockOnce sync.Once
 }
 
 func (c *asyncCloser) Close() error {
 	close(c.started)
+	defer close(c.done)
 	select {
 	case <-c.ctx.Done():
 		c.t.Error("timed out")
 		return c.ctx.Err()
-	case <-c.isComplete:
+	case <-c.isUnblocked:
 		return nil
 	}
 }
 
-func (c *asyncCloser) complete() {
-	c.comepleteOnce.Do(func() { close(c.isComplete) })
+func (c *asyncCloser) unblock() {
+	c.unblockOnce.Do(func() { close(c.isUnblocked) })
 }
 
 func newAsyncCloser(ctx context.Context, t *testing.T) *asyncCloser {
 	return &asyncCloser{
-		t:          t,
-		ctx:        ctx,
-		isComplete: make(chan struct{}),
-		started:    make(chan struct{}),
+		t:           t,
+		ctx:         ctx,
+		isUnblocked: make(chan struct{}),
+		started:     make(chan struct{}),
+		done:        make(chan struct{}),
 	}
 }
 

@@ -11175,6 +11175,50 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIBridgeAnthropicConfig": {
+            "type": "object",
+            "properties": {
+                "base_url": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBridgeConfig": {
+            "type": "object",
+            "properties": {
+                "anthropic": {
+                    "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "openai": {
+                    "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
+                }
+            }
+        },
+        "codersdk.AIBridgeOpenAIConfig": {
+            "type": "object",
+            "properties": {
+                "base_url": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIConfig": {
+            "type": "object",
+            "properties": {
+                "bridge": {
+                    "$ref": "#/definitions/codersdk.AIBridgeConfig"
+                }
+            }
+        },
         "codersdk.APIKey": {
             "type": "object",
             "required": [
@@ -12811,6 +12855,9 @@ const docTemplate = `{
                 "agent_stat_refresh_interval": {
                     "type": "integer"
                 },
+                "ai": {
+                    "$ref": "#/definitions/codersdk.AIConfig"
+                },
                 "allow_workspace_renames": {
                     "type": "boolean"
                 },
@@ -13138,9 +13185,11 @@ const docTemplate = `{
                 "web-push",
                 "oauth2",
                 "mcp-server-http",
-                "workspace-sharing"
+                "workspace-sharing",
+                "aibridge"
             ],
             "x-enum-comments": {
+                "ExperimentAIBridge": "Enables AI Bridge functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -13158,7 +13207,8 @@ const docTemplate = `{
                 "ExperimentWebPush",
                 "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP",
-                "ExperimentWorkspaceSharing"
+                "ExperimentWorkspaceSharing",
+                "ExperimentAIBridge"
             ]
         },
         "codersdk.ExternalAgentCredentials": {
@@ -13254,6 +13304,15 @@ const docTemplate = `{
                 },
                 "id": {
                     "description": "ID is a unique identifier for the auth config.\nIt defaults to ` + "`" + `type` + "`" + ` when not provided.",
+                    "type": "string"
+                },
+                "mcp_tool_allow_regex": {
+                    "type": "string"
+                },
+                "mcp_tool_deny_regex": {
+                    "type": "string"
+                },
+                "mcp_url": {
                     "type": "string"
                 },
                 "no_refresh": {
@@ -15942,6 +16001,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "*",
+                "aibridge_interception",
                 "api_key",
                 "assign_org_role",
                 "assign_role",
@@ -15984,6 +16044,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ResourceWildcard",
+                "ResourceAibridgeInterception",
                 "ResourceApiKey",
                 "ResourceAssignOrgRole",
                 "ResourceAssignRole",
