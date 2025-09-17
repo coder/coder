@@ -190,6 +190,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 									{proxy.display_name}
 
 									<Latency
+										className="ml-auto"
 										latency={latencies?.[proxy.id]?.latencyMS}
 										isLoading={proxyLatencyLoading(proxy)}
 									/>
