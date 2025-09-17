@@ -29,7 +29,7 @@ import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/Worksp
 import {
 	type FC,
 	type HTMLProps,
-	type PropsWithChildren,
+	type ReactNode,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -41,11 +41,10 @@ import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 
 export const LOGS_TAB_KEY = "logs";
 
-type BuildStatsItemProps = Readonly<
-	PropsWithChildren<{
-		label: string;
-	}>
->;
+type BuildStatsItemProps = Readonly<{
+	children?: ReactNode;
+	label: string;
+}>;
 
 const BuildStatsItem: FC<BuildStatsItemProps> = ({ children, label }) => {
 	return (
