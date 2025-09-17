@@ -74,7 +74,7 @@ type ListUserExternalAuthResponse struct {
 }
 
 type DeleteExternalAuthByIDResponse struct {
-	// TokenRevoked set to true if token revocation was attempted and was succesfful
+	// TokenRevoked set to true if token revocation was attempted and was successful
 	TokenRevoked         bool   `json:"token_revoked"`
 	TokenRevocationError string `json:"token_revocation_error,omitempty"`
 }

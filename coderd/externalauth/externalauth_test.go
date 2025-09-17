@@ -396,7 +396,7 @@ func TestRevokeToken(t *testing.T) {
 			},
 		})
 
-		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
+		ctx := oidc.ClientContext(testutil.Context(t, testutil.WaitLong), fake.HTTPClient(nil))
 		revoked, err := config.RevokeToken(ctx, link)
 		require.NoError(t, err)
 		require.True(t, revoked)
@@ -413,7 +413,7 @@ func TestRevokeToken(t *testing.T) {
 		})
 
 		link.OAuthAccessToken += "wrong_token"
-		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
+		ctx := oidc.ClientContext(testutil.Context(t, testutil.WaitLong), fake.HTTPClient(nil))
 		revoked, err := config.RevokeToken(ctx, link)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "token validation failed")
@@ -431,7 +431,7 @@ func TestRevokeToken(t *testing.T) {
 		})
 
 		config.RevokeURL = "%"
-		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
+		ctx := oidc.ClientContext(testutil.Context(t, testutil.WaitLong), fake.HTTPClient(nil))
 		revoked, err := config.RevokeToken(ctx, link)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "invalid URL escape")
@@ -440,22 +440,27 @@ func TestRevokeToken(t *testing.T) {
 
 	t.Run("RevokeTokenRFC_Timeout", func(t *testing.T) {
 		t.Parallel()
-		contextTimeout := make(chan bool, 1)
+		revokeExited := make(chan bool, 1)
 		testTimeout := make(chan bool, 1)
+		handlerDone := make(chan bool)
 
 		go func() {
-			time.Sleep(time.Second)
+			time.Sleep(5 * time.Second)
 			testTimeout <- true
 		}()
 
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
 				oidctest.WithRevokeTokenRFC(func() (int, error) {
+					defer func() {
+						handlerDone <- true
+					}()
+
 					select {
 					case <-testTimeout:
 						t.Error("test timeout reached before context timeout")
 						return http.StatusOK, nil
-					case <-contextTimeout:
+					case <-revokeExited:
 						return http.StatusOK, nil
 					}
 				}),
@@ -463,12 +468,13 @@ func TestRevokeToken(t *testing.T) {
 			},
 		})
 
-		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
+		ctx := oidc.ClientContext(testutil.Context(t, testutil.WaitLong), fake.HTTPClient(nil))
 		config.RevokeTimeout = time.Millisecond * 10
 		revoked, err := config.RevokeToken(ctx, link)
+		revokeExited <- true
 		require.ErrorIs(t, err, context.DeadlineExceeded)
-		contextTimeout <- true
 		require.False(t, revoked)
+		_ = testutil.RequireReceive(ctx, t, handlerDone)
 	})
 
 	t.Run("RevokeTokenGitHub_OK", func(t *testing.T) {
@@ -488,7 +494,7 @@ func TestRevokeToken(t *testing.T) {
 		config.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
 		config.ClientID = clientID
 		config.ClientSecret = clientSecret
-		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
+		ctx := oidc.ClientContext(testutil.Context(t, testutil.WaitLong), fake.HTTPClient(nil))
 		revoked, err := config.RevokeToken(ctx, link)
 		require.NoError(t, err)
 		require.True(t, revoked)
@@ -511,7 +517,7 @@ func TestRevokeToken(t *testing.T) {
 		config.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
 		config.ClientID = clientID + "bad"
 		config.ClientSecret = clientSecret
-		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
+		ctx := oidc.ClientContext(testutil.Context(t, testutil.WaitLong), fake.HTTPClient(nil))
 		revoked, err := config.RevokeToken(ctx, link)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "basic auth failed")
