@@ -7,26 +7,27 @@ import (
 
 	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) groupDelete() *serpent.Command {
 	orgContext := agpl.NewOrganizationContext()
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "delete <name>",
 		Short: "Delete a user group",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			var (
 				ctx       = inv.Context()
 				groupName = inv.Args[0]
 			)
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {

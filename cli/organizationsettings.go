@@ -95,7 +95,6 @@ type organizationSetting struct {
 }
 
 func (r *RootCmd) setOrganizationSettings(orgContext *OrganizationContext, settings []organizationSetting) *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "set",
 		Short: "Update specified organization setting.",
@@ -108,7 +107,6 @@ func (r *RootCmd) setOrganizationSettings(orgContext *OrganizationContext, setti
 		Options: []serpent.Option{},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
@@ -124,12 +122,15 @@ func (r *RootCmd) setOrganizationSettings(orgContext *OrganizationContext, setti
 			Options: []serpent.Option{},
 			Middleware: serpent.Chain(
 				serpent.RequireNArgs(0),
-				r.InitClient(client),
 			),
 			Handler: func(inv *serpent.Invocation) error {
+				client, err := r.InitClient(inv)
+				if err != nil {
+					return err
+				}
+
 				ctx := inv.Context()
 				var org codersdk.Organization
-				var err error
 
 				if !set.DisableOrgContext {
 					org, err = orgContext.Selected(inv, client)
@@ -170,7 +171,6 @@ func (r *RootCmd) setOrganizationSettings(orgContext *OrganizationContext, setti
 }
 
 func (r *RootCmd) printOrganizationSetting(orgContext *OrganizationContext, settings []organizationSetting) *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "show",
 		Short: "Outputs specified organization setting.",
@@ -183,7 +183,6 @@ func (r *RootCmd) printOrganizationSetting(orgContext *OrganizationContext, sett
 		Options: []serpent.Option{},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
@@ -199,13 +198,15 @@ func (r *RootCmd) printOrganizationSetting(orgContext *OrganizationContext, sett
 			Options: []serpent.Option{},
 			Middleware: serpent.Chain(
 				serpent.RequireNArgs(0),
-				r.InitClient(client),
 			),
 			Handler: func(inv *serpent.Invocation) error {
+				client, err := r.InitClient(inv)
+				if err != nil {
+					return err
+				}
+
 				ctx := inv.Context()
 				var org codersdk.Organization
-				var err error
-
 				if !set.DisableOrgContext {
 					org, err = orgContext.Selected(inv, client)
 					if err != nil {

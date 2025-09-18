@@ -15,7 +15,6 @@ import (
 
 func (r *RootCmd) taskStatus() *serpent.Command {
 	var (
-		client    = new(codersdk.Client)
 		formatter = cliui.NewOutputFormatter(
 			cliui.TableFormat(
 				[]taskStatusRow{},
@@ -66,9 +65,13 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 		},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(i *serpent.Invocation) error {
+			client, err := r.InitClient(i)
+			if err != nil {
+				return err
+			}
+
 			ctx := i.Context()
 			ec := codersdk.NewExperimentalClient(client)
 			identifier := i.Args[0]

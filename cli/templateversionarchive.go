@@ -32,13 +32,9 @@ func (r *RootCmd) setArchiveTemplateVersion(archive bool) *serpent.Command {
 	}
 
 	orgContext := NewOrganizationContext()
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   presentVerb + " <template-name> [template-version-names...] ",
 		Short: strings.ToUpper(string(presentVerb[0])) + presentVerb[1:] + " a template version(s).",
-		Middleware: serpent.Chain(
-			r.InitClient(client),
-		),
 		Options: serpent.OptionSet{
 			cliui.SkipPromptOption(),
 		},
@@ -47,6 +43,11 @@ func (r *RootCmd) setArchiveTemplateVersion(archive bool) *serpent.Command {
 				ctx      = inv.Context()
 				versions []codersdk.TemplateVersion
 			)
+
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 
 			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
@@ -100,14 +101,10 @@ func (r *RootCmd) setArchiveTemplateVersion(archive bool) *serpent.Command {
 
 func (r *RootCmd) archiveTemplateVersions() *serpent.Command {
 	var all serpent.Bool
-	client := new(codersdk.Client)
 	orgContext := NewOrganizationContext()
 	cmd := &serpent.Command{
 		Use:   "archive [template-name...] ",
 		Short: "Archive unused or failed template versions from a given template(s)",
-		Middleware: serpent.Chain(
-			r.InitClient(client),
-		),
 		Options: serpent.OptionSet{
 			cliui.SkipPromptOption(),
 			serpent.Option{
@@ -123,7 +120,10 @@ func (r *RootCmd) archiveTemplateVersions() *serpent.Command {
 				templateNames = []string{}
 				templates     = []codersdk.Template{}
 			)
-
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err

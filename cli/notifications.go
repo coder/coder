@@ -47,16 +47,19 @@ func (r *RootCmd) notifications() *serpent.Command {
 }
 
 func (r *RootCmd) pauseNotifications() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "pause",
 		Short: "Pause notifications",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			err := client.PutNotificationsSettings(inv.Context(), codersdk.NotificationsSettings{
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
+			err = client.PutNotificationsSettings(inv.Context(), codersdk.NotificationsSettings{
 				NotifierPaused: true,
 			})
 			if err != nil {
@@ -71,16 +74,19 @@ func (r *RootCmd) pauseNotifications() *serpent.Command {
 }
 
 func (r *RootCmd) resumeNotifications() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "resume",
 		Short: "Resume notifications",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			err := client.PutNotificationsSettings(inv.Context(), codersdk.NotificationsSettings{
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
+			err = client.PutNotificationsSettings(inv.Context(), codersdk.NotificationsSettings{
 				NotifierPaused: false,
 			})
 			if err != nil {
@@ -95,15 +101,18 @@ func (r *RootCmd) resumeNotifications() *serpent.Command {
 }
 
 func (r *RootCmd) testNotifications() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "test",
 		Short: "Send a test notification",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			if err := client.PostTestNotification(inv.Context()); err != nil {
 				return xerrors.Errorf("unable to post test notification: %w", err)
 			}
@@ -116,16 +125,18 @@ func (r *RootCmd) testNotifications() *serpent.Command {
 }
 
 func (r *RootCmd) customNotifications() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "custom <title> <message>",
 		Short: "Send a custom notification",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(2),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			err := client.PostCustomNotification(inv.Context(), codersdk.CustomNotificationRequest{
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+			err = client.PostCustomNotification(inv.Context(), codersdk.CustomNotificationRequest{
 				Content: &codersdk.CustomNotificationContent{
 					Title:   inv.Args[0],
 					Message: inv.Args[1],

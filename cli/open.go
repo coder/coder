@@ -41,24 +41,25 @@ const vscodeDesktopName = "VS Code Desktop"
 
 func (r *RootCmd) openVSCode() *serpent.Command {
 	var (
-		generateToken    bool
-		testOpenError    bool
-		appearanceConfig codersdk.AppearanceConfig
+		generateToken bool
+		testOpenError bool
 	)
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "vscode <workspace> [<directory in workspace>]",
 		Short:       fmt.Sprintf("Open a workspace in %s", vscodeDesktopName),
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(1, 2),
-			r.InitClient(client),
-			initAppearance(client, &appearanceConfig),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
+			appearanceConfig := initAppearance(ctx, client)
 
 			// Check if we're inside a workspace, and especially inside _this_
 			// workspace so we can perform path resolution/expansion. Generally,
@@ -299,15 +300,16 @@ func (r *RootCmd) openApp() *serpent.Command {
 		testOpenError bool
 	)
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "app <workspace> <app slug>",
 		Short:       "Open a workspace application.",
-		Middleware: serpent.Chain(
-			r.InitClient(client),
-		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 

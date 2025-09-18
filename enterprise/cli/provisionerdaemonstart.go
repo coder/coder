@@ -53,19 +53,16 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 		prometheusAddress string
 	)
 	orgContext := agpl.NewOrganizationContext()
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "start",
 		Short: "Run a provisioner daemon",
-		Middleware: serpent.Chain(
-			// disable checks and warnings because this command starts a daemon; it is
-			// not meant for humans typing commands.  Furthermore, the checks are
-			// incompatible with PSK auth that this command uses
-			r.InitClient(client),
-		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 
 			stopCtx, stopCancel := inv.SignalNotifyContext(ctx, agpl.StopSignalsNoInterrupt...)
 			defer stopCancel()

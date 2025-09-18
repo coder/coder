@@ -19,17 +19,20 @@ func (r *RootCmd) restart() *serpent.Command {
 		bflags         buildFlags
 	)
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "restart <workspace>",
 		Short:       "Restart a workspace",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Options: serpent.OptionSet{cliui.SkipPromptOption()},
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			ctx := inv.Context()
 			out := inv.Stdout
 
