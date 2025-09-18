@@ -217,7 +217,7 @@ func TestWorkspaceBashTimeoutIntegration(t *testing.T) {
 		// Scenario: echo "123"; sleep 60; echo "456" with 5s timeout
 		// In this scenario, we'd expect to see "123" in the output and a cancellation message
 
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
 		// Start the agent and wait for it to be fully ready
 		_ = agenttest.New(t, client.URL, agentToken)
@@ -259,7 +259,7 @@ func TestWorkspaceBashTimeoutIntegration(t *testing.T) {
 
 		// Test that normal commands still work with timeout functionality present
 
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
 		// Start the agent and wait for it to be fully ready
 		_ = agenttest.New(t, client.URL, agentToken)
@@ -304,7 +304,7 @@ func TestWorkspaceBashBackgroundIntegration(t *testing.T) {
 	t.Run("BackgroundCommandCapturesOutput", func(t *testing.T) {
 		t.Parallel()
 
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
 		// Start the agent and wait for it to be fully ready
 		_ = agenttest.New(t, client.URL, agentToken)
@@ -345,7 +345,7 @@ func TestWorkspaceBashBackgroundIntegration(t *testing.T) {
 	t.Run("BackgroundVsNormalExecution", func(t *testing.T) {
 		t.Parallel()
 
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
 		// Start the agent and wait for it to be fully ready
 		_ = agenttest.New(t, client.URL, agentToken)
@@ -391,7 +391,7 @@ func TestWorkspaceBashBackgroundIntegration(t *testing.T) {
 	t.Run("BackgroundCommandContinuesAfterTimeout", func(t *testing.T) {
 		t.Parallel()
 
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
 		// Start the agent and wait for it to be fully ready
 		_ = agenttest.New(t, client.URL, agentToken)
