@@ -25,9 +25,16 @@ type CreateParams struct {
 	// Optional.
 	ExpiresAt       time.Time
 	LifetimeSeconds int64
-	Scope           database.APIKeyScope
-	TokenName       string
-	RemoteAddr      string
+	// Scope is legacy single-scope input kept for backward compatibility.
+	//
+	// Deprecated: Prefer Scopes for new code.
+	Scope database.APIKeyScope
+	// Scopes is the full list of scopes to attach to the key.
+	// If empty and Scope is set, the generator will use [Scope].
+	// If both are empty, the generator will default to [APIKeyScopeAll].
+	Scopes     database.APIKeyScopes
+	TokenName  string
+	RemoteAddr string
 }
 
 // Generate generates an API key, returning the key as a string as well as the
@@ -62,14 +69,20 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 
 	bitlen := len(ip) * 8
 
-	scope := database.APIKeyScopeAll
-	if params.Scope != "" {
-		scope = params.Scope
-	}
-	switch scope {
-	case database.APIKeyScopeAll, database.APIKeyScopeApplicationConnect:
+	var scopes database.APIKeyScopes
+	switch {
+	case len(params.Scopes) > 0:
+		scopes = params.Scopes
+	case params.Scope != "":
+		scopes = database.APIKeyScopes{params.Scope}
 	default:
-		return database.InsertAPIKeyParams{}, "", xerrors.Errorf("invalid API key scope: %q", scope)
+		scopes = database.APIKeyScopes{database.APIKeyScopeAll}
+	}
+
+	for _, s := range scopes {
+		if !s.Valid() {
+			return database.InsertAPIKeyParams{}, "", xerrors.Errorf("invalid API key scope: %q", s)
+		}
 	}
 
 	token := fmt.Sprintf("%s-%s", keyID, keySecret)
@@ -92,7 +105,7 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 		UpdatedAt:    dbtime.Now(),
 		HashedSecret: hashed[:],
 		LoginType:    params.LoginType,
-		Scopes:       database.APIKeyScopes{scope},
+		Scopes:       scopes,
 		AllowList:    database.AllowList{database.AllowListWildcard()},
 		TokenName:    params.TokenName,
 	}, token, nil

@@ -468,10 +468,40 @@
 
 #### Enumerated Values
 
-| Value                 |
-|-----------------------|
-| `all`                 |
-| `application_connect` |
+| Value                           |
+|---------------------------------|
+| `all`                           |
+| `api_key:*`                     |
+| `api_key:create`                |
+| `api_key:delete`                |
+| `api_key:read`                  |
+| `api_key:update`                |
+| `application_connect`           |
+| `file:*`                        |
+| `file:create`                   |
+| `file:read`                     |
+| `template:*`                    |
+| `template:create`               |
+| `template:delete`               |
+| `template:read`                 |
+| `template:update`               |
+| `template:use`                  |
+| `user:read_personal`            |
+| `user:update_personal`          |
+| `user_secret:*`                 |
+| `user_secret:create`            |
+| `user_secret:delete`            |
+| `user_secret:read`              |
+| `user_secret:update`            |
+| `workspace:*`                   |
+| `workspace:application_connect` |
+| `workspace:create`              |
+| `workspace:delete`              |
+| `workspace:read`                |
+| `workspace:ssh`                 |
+| `workspace:start`               |
+| `workspace:stop`                |
+| `workspace:update`              |
 
 ## codersdk.AddLicenseRequest
 
@@ -1755,13 +1785,6 @@ This is required on creation to enable a user-flow of validating a template work
 | `lifetime`   | integer                                      | false    |              |             |
 | `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
 | `token_name` | string                                       | false    |              |             |
-
-#### Enumerated Values
-
-| Property | Value                 |
-|----------|-----------------------|
-| `scope`  | `all`                 |
-| `scope`  | `application_connect` |
 
 ## codersdk.CreateUserRequestWithOrgs
 
@@ -3488,6 +3511,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `mcp-server-http`      |
 | `workspace-sharing`    |
 | `aibridge`             |
+
+## codersdk.ExternalAPIKeyScopes
+
+```json
+{
+  "external": [
+    "all"
+  ]
+}
+```
+
+### Properties
+
+| Name       | Type                                                  | Required | Restrictions | Description |
+|------------|-------------------------------------------------------|----------|--------------|-------------|
+| `external` | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
 
 ## codersdk.ExternalAgentCredentials
 

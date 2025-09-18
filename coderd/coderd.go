@@ -1048,6 +1048,8 @@ func New(options *Options) *API {
 		// All CSP errors will be logged
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
+		r.Get("/auth/scopes", api.listExternalScopes)
+
 		r.Get("/buildinfo", buildInfoHandler(buildInfo))
 		// /regions is overridden in the enterprise version
 		r.Group(func(r chi.Router) {

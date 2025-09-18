@@ -324,6 +324,26 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/scopes": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "List API key scopes",
+                "operationId": "list-api-key-scopes",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ExternalAPIKeyScopes"
+                        }
+                    }
+                }
+            }
+        },
         "/authcheck": {
             "post": {
                 "security": [
@@ -11299,11 +11319,71 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "all",
-                "application_connect"
+                "api_key:*",
+                "api_key:create",
+                "api_key:delete",
+                "api_key:read",
+                "api_key:update",
+                "application_connect",
+                "file:*",
+                "file:create",
+                "file:read",
+                "template:*",
+                "template:create",
+                "template:delete",
+                "template:read",
+                "template:update",
+                "template:use",
+                "user:read_personal",
+                "user:update_personal",
+                "user_secret:*",
+                "user_secret:create",
+                "user_secret:delete",
+                "user_secret:read",
+                "user_secret:update",
+                "workspace:*",
+                "workspace:application_connect",
+                "workspace:create",
+                "workspace:delete",
+                "workspace:read",
+                "workspace:ssh",
+                "workspace:start",
+                "workspace:stop",
+                "workspace:update"
             ],
             "x-enum-varnames": [
                 "APIKeyScopeAll",
-                "APIKeyScopeApplicationConnect"
+                "APIKeyScopeApiKeyAll",
+                "APIKeyScopeApiKeyCreate",
+                "APIKeyScopeApiKeyDelete",
+                "APIKeyScopeApiKeyRead",
+                "APIKeyScopeApiKeyUpdate",
+                "APIKeyScopeApplicationConnect",
+                "APIKeyScopeFileAll",
+                "APIKeyScopeFileCreate",
+                "APIKeyScopeFileRead",
+                "APIKeyScopeTemplateAll",
+                "APIKeyScopeTemplateCreate",
+                "APIKeyScopeTemplateDelete",
+                "APIKeyScopeTemplateRead",
+                "APIKeyScopeTemplateUpdate",
+                "APIKeyScopeTemplateUse",
+                "APIKeyScopeUserReadPersonal",
+                "APIKeyScopeUserUpdatePersonal",
+                "APIKeyScopeUserSecretAll",
+                "APIKeyScopeUserSecretCreate",
+                "APIKeyScopeUserSecretDelete",
+                "APIKeyScopeUserSecretRead",
+                "APIKeyScopeUserSecretUpdate",
+                "APIKeyScopeWorkspaceAll",
+                "APIKeyScopeWorkspaceApplicationConnect",
+                "APIKeyScopeWorkspaceCreate",
+                "APIKeyScopeWorkspaceDelete",
+                "APIKeyScopeWorkspaceRead",
+                "APIKeyScopeWorkspaceSsh",
+                "APIKeyScopeWorkspaceStart",
+                "APIKeyScopeWorkspaceStop",
+                "APIKeyScopeWorkspaceUpdate"
             ]
         },
         "codersdk.AddLicenseRequest": {
@@ -12373,15 +12453,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "scope": {
-                    "enum": [
-                        "all",
-                        "application_connect"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.APIKeyScope"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.APIKeyScope"
                 },
                 "token_name": {
                     "type": "string"
@@ -13228,6 +13300,17 @@ const docTemplate = `{
                 "ExperimentWorkspaceSharing",
                 "ExperimentAIBridge"
             ]
+        },
+        "codersdk.ExternalAPIKeyScopes": {
+            "type": "object",
+            "properties": {
+                "external": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.APIKeyScope"
+                    }
+                }
+            }
         },
         "codersdk.ExternalAgentCredentials": {
             "type": "object",
