@@ -152,13 +152,16 @@ wait() {
 
 archive() {
 	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME
-
-	ssh_config
 	exit 0
+
+	#shellcheck disable=SC2086
+	ssh_config
+	#shellcheck disable=SC2086
 	"${CODER_BIN}" \
 		--url "${CODER_URL}" \
 		--token "${CODER_SESSION_TOKEN}" \
 		ssh "${WORKSPACE_NAME}" -- /bin/bash -lc "coder-create-archive"
+	#shellcheck disable=SC2086
 	exit 0
 }
 

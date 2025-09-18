@@ -28,10 +28,17 @@ jobs:
       CODER_URL: ${{ secrets.CODER_URL }}
       CODER_SESSION_TOKEN: ${{ secrets.CODER_SESSION_TOKEN }}
       TEMPLATE_NAME: ${{ inputs.template_name }}
+    permissions:
+      contents: read
+      issues: write
+      actions: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
 
       # NOTE: Only required for local testing via nektos/act
       - name: Install gh CLI
@@ -42,11 +49,13 @@ jobs:
 
       - name: Extract context key from issue
         id: extract-context
+        env:
+          ISSUE_URL: ${{ inputs.issue_url }}
         run: |
-          issue_number=$(gh issue view "${{ inputs.issue_url }}" --json number --jq '.number')
+          issue_number="$(gh issue view "${ISSUE_URL}" --json number --jq '.number')"
           context_key="gh-${issue_number}"
-          echo "context_key=${context_key}" >> $GITHUB_OUTPUT
-          echo "CONTEXT_KEY=${context_key}" >> $GITHUB_ENV
+          echo "context_key=${context_key}" >> "${GITHUB_OUTPUT}"
+          echo "CONTEXT_KEY=${context_key}" >> "${GITHUB_ENV}"
 
       - name: Download and install Coder binary
         shell: bash
@@ -58,41 +67,43 @@ jobs:
           else
             ARCH="amd64"
           fi
-          mkdir -p "$HOME"/.local/bin
-          curl -fsSL --compressed "$CODER_URL"/bin/coder-linux-${ARCH} -o "$HOME"/.local/bin/coder
-          chmod +x "$HOME"/.local/bin/coder
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          mkdir -p "${HOME}/.local/bin"
+          curl -fsSL --compressed "$CODER_URL/bin/coder-linux-${ARCH}" -o "${HOME}/.local/bin/coder"
+          chmod +x "${HOME}/.local/bin/coder"
+          echo "$HOME/.local/bin" >> "${GITHUB_PATH}"
           "$HOME"/.local/bin/coder version
           "$HOME"/.local/bin/coder whoami
 
       - name: Create Coder workspace
         id: create-workspace
+        env:
+          PREFIX: ${{ inputs.prefix }}
+          CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
+          RUN_ID: ${{ github.run_id }}
         run: |
-          export WORKSPACE_NAME="${{ inputs.prefix }}-${{ steps.extract-context.outputs.context_key }}-${{ github.run_id }}"
+          export WORKSPACE_NAME="${PREFIX}-${CONTEXT_KEY}-${RUN_ID}"
           echo "Creating workspace: $WORKSPACE_NAME"
           ./scripts/traiage.sh create
-          echo "workspace_created=true" >> $GITHUB_OUTPUT
-          echo "workspace_name=$WORKSPACE_NAME" >> $GITHUB_OUTPUT
-          echo "WORKSPACE_NAME=${WORKSPACE_NAME}" >> $GITHUB_ENV
+          echo "workspace_name=$WORKSPACE_NAME" >> "${GITHUB_OUTPUT}"
+          echo "WORKSPACE_NAME=${WORKSPACE_NAME}" >> "${GITHUB_ENV}"
 
       - name: Send prompt to AI agent inside workspace
         id: prepare-prompt
+        env:
+          WORKSPACE_NAME: ${{ steps.create-workspace.outputs.workspace_name }}
+          ISSUE_URL: ${{ inputs.issue_url }}
         run: |
           PROMPT_FILE=/tmp/prompt.txt
-          trap 'rm -f ${PROMPT_FILE}' EXIT
-
-          # Extract issue content and prepare prompt
-          issue_url="${{ inputs.issue_url }}"
-          context_key="${{ steps.extract-context.outputs.context_key }}"
+          trap 'rm -f "${PROMPT_FILE}"' EXIT
 
           # Fetch issue description using `gh` CLI
-          issue_description=$(gh issue view "$issue_url")
+          issue_description=$(gh issue view "${ISSUE_URL}")
 
           # Write a prompt to PROMPT_FILE
           cat > "${PROMPT_FILE}" <<EOF
             Analyze the below GitHub issue description, understand the root cause, and make appropriate changes to resolve the issue.
 
-            ISSUE URL: ${issue_url}
+            ISSUE URL: ${ISSUE_URL}
             ISSUE DESCRIPTION BELOW:
 
             ${issue_description}
@@ -107,23 +118,30 @@ jobs:
           echo "Committing and pushing changes in workspace: $WORKSPACE_NAME"
           ./scripts/traiage.sh commit-push
 
-      # - name: Create and upload archive
-        # id: create-archive
-        # run: |
-          # echo "Creating archive for workspace: $WORKSPACE_NAME"
-          # archive_url=$(./scripts/traiage.sh archive)
-          # echo "archive_url=${archive_url}" >> $GITHUB_OUTPUT
+      - name: Create and upload archive
+        id: create-archive
+        run: |
+          echo "Creating archive for workspace: $WORKSPACE_NAME"
+          archive_url=$(./scripts/traiage.sh archive)
+          echo "archive_url=${archive_url}" >> "${GITHUB_OUTPUT}"
 
       - name: Report results
+        env:
+          ISSUE_URL: ${{ inputs.issue_url }}
+          CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
+          WORKSPACE_NAME: ${{ steps.create-workspace.outputs.workspace_name }}
+          ARCHIVE_URL: ${{ steps.create-archive.outputs.archive_url }}
         run: |
-          echo "## AI Triage Results" >> $GITHUB_STEP_SUMMARY
-          echo "- **Issue URL:** ${{ inputs.issue_url }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Context Key:** ${{ steps.extract-context.outputs.context_key }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Workspace:** ${{ steps.create-workspace.outputs.workspace_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Archive URL:** ${{ steps.create-archive.outputs.archive_url }}" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## AI Triage Results";
+            echo "- **Issue URL:** ${ISSUE_URL}";
+            echo "- **Context Key:** ${CONTEXT_KEY}";
+            echo "- **Workspace:** ${WORKSPACE_NAME}";
+            echo "- **Archive URL:** ${ARCHIVE_URL}"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Cleanup workspace
-        if: always() && steps.create-workspace.outputs.workspace_created == 'true'
+        if: always() && steps.create-workspace.outputs.workspace_name != ''
         run: |
           echo "Cleaning up workspace: $WORKSPACE_NAME"
           ./scripts/traiage.sh delete || true
