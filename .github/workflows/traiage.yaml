@@ -32,8 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      CODER_URL: ${{ secrets.CODER_URL }}
-      CODER_SESSION_TOKEN: ${{ secrets.CODER_SESSION_TOKEN }}
+      CODER_URL: ${{ secrets.TRAIAGE_CODER_URL }}
+      CODER_SESSION_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
       TEMPLATE_NAME: ${{ inputs.template_name }}
     permissions:
       contents: read
@@ -52,7 +52,7 @@ jobs:
         run: |
           sudo apt-get update -y && \
           sudo apt-get install -y gh && \
-          gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
+          gh auth login --with-token <<< "${{ secrets.TRAIAGE_GITHUB_TOKEN }}"
 
       - name: Extract context key from issue
         id: extract-context
@@ -67,7 +67,7 @@ jobs:
       - name: Download and install Coder binary
         shell: bash
         env:
-          CODER_URL: ${{ secrets.CODER_URL }}
+          CODER_URL: ${{ secrets.TRAIAGE_CODER_URL }}
         run: |
           if [ "${{ runner.arch }}" == "ARM64" ]; then
             ARCH="arm64"
@@ -129,8 +129,8 @@ jobs:
       - name: Create and upload archive
         id: create-archive
         if: ${{ inputs.persistence_mode == 'archive' }}
-          env:
-            GCS_BUCKET: ${{ secrets.TRAIAGE_DEST_GCS_BUCKET }}
+        env:
+          GCS_BUCKET: ${{ secrets.TRAIAGE_DEST_GCS_BUCKET }}
         run: |
           echo "Creating archive for workspace: $WORKSPACE_NAME"
           archive_url=$(./scripts/traiage.sh archive)
