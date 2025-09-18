@@ -47,8 +47,6 @@ RUN apt-get update && \
 	go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.15.1 && \
 	# goreleaser for compiling v2 binaries
 	go install github.com/goreleaser/goreleaser@v1.6.1 && \
-	# Pin gopls to v0.16.1 for compatibility with Go 1.25
-	go install golang.org/x/tools/gopls@v0.16.1 && \
 	# gotestsum makes test output more readable
 	go install gotest.tools/gotestsum@v1.9.0 && \
 	# goveralls collects code coverage metrics from tests
