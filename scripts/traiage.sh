@@ -63,7 +63,7 @@ prompt_ssh() {
 	ssh_config
 
 	# Write prompt to a file in the workspace
-	cat <<<"${PROMPT}" > "${TEMPDIR}/prompt.txt"
+	cat <<<"${PROMPT}" >"${TEMPDIR}/prompt.txt"
 	scp \
 		-F "${OPENSSH_CONFIG_FILE}" \
 		"${TEMPDIR}/prompt.txt" \
@@ -167,7 +167,7 @@ commit_push() {
 	ssh_config
 
 	# For multiple commands, upload a script and run it.
-	cat > "${TEMPDIR}/commit_push.sh" <<- EOF
+	cat >"${TEMPDIR}/commit_push.sh" <<-EOF
 		#!/usr/bin/env bash
 		set -euo pipefail
 		if [[ \$(git branch --show-current) != "${WORKSPACE_NAME}" ]]; then
