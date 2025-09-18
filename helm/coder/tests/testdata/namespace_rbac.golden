@@ -57,9 +57,22 @@ rules:
     - update
     - watch
   - apiGroups:
-    - ""
+    - networking.k8s.io
     resources:
-    - services
+    - ingresses
+    verbs:
+    - get
+    - list
+---
+# Source: coder/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: coder-workspace-perms
+  namespace: test-namespace1
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
     verbs:
     - create
     - delete
@@ -69,6 +82,153 @@ rules:
     - patch
     - update
     - watch
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
+  - apiGroups:
+    - apps
+    resources:
+    - deployments
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
+  - apiGroups:
+    - networking.k8s.io
+    resources:
+    - ingresses
+    verbs:
+    - get
+    - list
+---
+# Source: coder/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: coder-workspace-perms
+  namespace: test-namespace2
+rules:
+  - apiGroups:
+    - apps
+    resources:
+    - deployments
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
+  - apiGroups:
+    - networking.k8s.io
+    resources:
+    - ingresses
+    verbs:
+    - get
+    - list
+---
+# Source: coder/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: coder-workspace-perms
+  namespace: test-namespace3
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
+  - apiGroups:
+    - batch
+    resources:
+    - jobs
+    verbs:
+    - get
+    - list
+    - create
+---
+# Source: coder/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: coder-workspace-perms
+  namespace: test-namespace4
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
+  - apiGroups:
+    - apps
+    resources:
+    - deployments
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
+  - apiGroups:
+    - networking.k8s.io
+    resources:
+    - ingresses
+    verbs:
+    - get
+    - list
 ---
 # Source: coder/templates/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -79,6 +239,66 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: "coder"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: coder-workspace-perms
+---
+# Source: coder/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: "coder"
+  namespace: test-namespace1
+subjects:
+  - kind: ServiceAccount
+    name: "coder"
+    namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: coder-workspace-perms
+---
+# Source: coder/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: "coder"
+  namespace: test-namespace2
+subjects:
+  - kind: ServiceAccount
+    name: "coder"
+    namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: coder-workspace-perms
+---
+# Source: coder/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: "coder"
+  namespace: test-namespace3
+subjects:
+  - kind: ServiceAccount
+    name: "coder"
+    namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: coder-workspace-perms
+---
+# Source: coder/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: "coder"
+  namespace: test-namespace4
+subjects:
+  - kind: ServiceAccount
+    name: "coder"
+    namespace: default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role

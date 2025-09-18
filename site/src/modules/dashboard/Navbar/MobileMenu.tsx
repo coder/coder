@@ -162,7 +162,7 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 								<img className="w-4 h-4" src={p.icon_url} alt={p.name} />
 								{p.display_name || p.name}
 								{latency ? (
-									<Latency latency={latency.latencyMS} />
+									<Latency className="ml-auto" latency={latency.latencyMS} />
 								) : (
 									<CircleHelpIcon className="ml-auto" />
 								)}
