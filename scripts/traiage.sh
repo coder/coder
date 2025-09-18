@@ -156,7 +156,6 @@ archive() {
 
 	cat >"${TEMPDIR}/archive.sh" <<-EOF
 		#!/usr/bin/env bash
-		set -x
 		set -euo pipefail
 		/tmp/coder-script-data/bin/coder-archive-create
 		ARCHIVE_NAME=\$(cd && find . -maxdepth 1 -type f -name "*.tar.gz" -print0 | xargs -0 -n 1 basename)

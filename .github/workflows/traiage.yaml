@@ -47,13 +47,6 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      # NOTE: Only required for local testing via nektos/act
-      - name: Install gh CLI
-        run: |
-          sudo apt-get update -y && \
-          sudo apt-get install -y gh && \
-          gh auth login --with-token <<< "${{ secrets.TRAIAGE_GITHUB_TOKEN }}"
-
       - name: Extract context key from issue
         id: extract-context
         env:
@@ -130,11 +123,11 @@ jobs:
         id: create-archive
         if: ${{ inputs.persistence_mode == 'archive' }}
         env:
-          GCS_BUCKET: ${{ secrets.TRAIAGE_DEST_GCS_BUCKET }}
+          DESTINATION_PREFIX: ${{ secrets.TRAIAGE_DESTINATION_PREFIX }}
         run: |
           echo "Creating archive for workspace: $WORKSPACE_NAME"
-          archive_url=$(./scripts/traiage.sh archive)
-          echo "archive_url=${archive_url}" >> "${GITHUB_OUTPUT}"
+          ./scripts/traiage.sh archive
+          echo "archive_url=${DESTINATION_PREFIX%%/}/$WORKSPACE_NAME.tar.gz" >> "${GITHUB_OUTPUT}"
 
       - name: Report results
         env:
@@ -152,7 +145,7 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Cleanup workspace
-        if: always() && steps.create-workspace.outputs.workspace_name != ''
+        if: steps.create-workspace.outputs.workspace_name != '' && (inputs.persistence_mode == 'archive' && steps.create-archive.outputs.archive_url != '')
         run: |
           echo "Cleaning up workspace: $WORKSPACE_NAME"
           ./scripts/traiage.sh delete || true
