@@ -85,6 +85,27 @@ RUN apt-get update && \
 	rm -rf /tmp/go/pkg && \
 	rm -rf /tmp/go/src
 
+FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97 AS gopls
+
+# Install Go manually for building gopls with a pre-1.25 toolchain
+ARG GO_VERSION=1.24.6
+ARG GO_CHECKSUM="bbca37cc395c974ffa4893ee35819ad23ebb27426df87af92e93a9ec66ef8712"
+RUN apt-get update && \
+    apt-get install --yes curl && \
+    curl --silent --show-error --location \
+    "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
+    -o /usr/local/go.tar.gz && \
+    echo "$GO_CHECKSUM /usr/local/go.tar.gz" | sha256sum -c && \
+    mkdir --parents /usr/local/go && \
+    tar --extract --gzip --directory=/usr/local/go --file=/usr/local/go.tar.gz --strip-components=1 && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV PATH=$PATH:/usr/local/go/bin
+ARG GOPATH="/tmp/"
+RUN mkdir --parents "$GOPATH" && \
+    go env -w GOSUMDB=sum.golang.org && \
+    go install golang.org/x/tools/gopls@v0.16.1
+
 # alpine:3.18
 FROM us-docker.pkg.dev/coder-v2-images-public/public/alpine@sha256:fd032399cd767f310a1d1274e81cab9f0fd8a49b3589eba2c3420228cd45b6a7 AS proto
 WORKDIR /tmp
@@ -397,6 +418,7 @@ COPY --from=go /tmp/bin /usr/local/bin
 COPY --from=rust-utils /tmp/bin /usr/local/bin
 COPY --from=proto /tmp/bin /usr/local/bin
 COPY --from=proto /tmp/include /usr/local/bin/include
+COPY --from=gopls /tmp/bin/gopls /usr/local/bin/gopls
 
 USER coder
 
