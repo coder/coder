@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cryptorand"
-	"github.com/google/uuid"
 )
 
 const CoderTestingDBName = "coder_testing"
@@ -126,7 +126,10 @@ func (b *Broker) init(t TBSubset) error {
 	var pqErr *pq.Error
 	if xerrors.As(err, &pqErr) && pqErr.Code == "3D000" {
 		// database does not exist.
-		err = b.createCoderTestingDB(t)
+		if closeErr := coderTestingDB.Close(); closeErr != nil {
+			return xerrors.Errorf("close postgres connection: %w", closeErr)
+		}
+		err = createCoderTestingDB(t)
 		if err != nil {
 			return xerrors.Errorf("create coder testing db: %w", err)
 		}
@@ -135,6 +138,7 @@ func (b *Broker) init(t TBSubset) error {
 			return xerrors.Errorf("open postgres connection: %w", err)
 		}
 	} else if err != nil {
+		_ = coderTestingDB.Close()
 		return xerrors.Errorf("ping '%s' database: %w", CoderTestingDBName, err)
 	}
 	b.coderTestingDB = coderTestingDB
@@ -142,7 +146,7 @@ func (b *Broker) init(t TBSubset) error {
 	return nil
 }
 
-func (b *Broker) createCoderTestingDB(t TBSubset) error {
+func createCoderTestingDB(t TBSubset) error {
 	db, err := sql.Open("postgres", defaultConnectionParams.DSN())
 	if err != nil {
 		return xerrors.Errorf("open postgres connection: %w", err)
