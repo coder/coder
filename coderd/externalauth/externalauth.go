@@ -433,13 +433,19 @@ func (c *Config) TokenRevocationRequestRFC7009(ctx context.Context, link databas
 	p := url.Values{}
 	p.Add("client_id", c.ClientID)
 	p.Add("client_secret", c.ClientSecret)
-	p.Add("token_type_hint", "refresh_token")
-	p.Add("token", link.OAuthRefreshToken)
+	if link.OAuthRefreshToken != "" {
+		p.Add("token_type_hint", "refresh_token")
+		p.Add("token", link.OAuthRefreshToken)
+	} else {
+		p.Add("token_type_hint", "access_token")
+		p.Add("token", link.OAuthAccessToken)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.RevokeURL, strings.NewReader(p.Encode()))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", link.OAuthAccessToken))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	return req, nil
 }
 
