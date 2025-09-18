@@ -188,7 +188,7 @@ const TaskAppTab: FC<TaskAppTabProps> = ({ task, app, active, onClick }) => {
 				{ "opacity-75 hover:opacity-100": !active },
 			])}
 		>
-			<RouterLink to={link.href} onClick={onClick} data-app-tab>
+			<RouterLink to={link.href} onClick={onClick}>
 				{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
 				{link.label}
 				{app.health === "unhealthy" && (
