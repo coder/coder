@@ -34,48 +34,49 @@ RUN apt-get update && \
 	# moq for Go tests.
 	go install github.com/matryer/moq@v0.2.3 && \
 	# swag for Swagger doc generation
-go install github.com/swaggo/swag/cmd/swag@v1.7.4 && \
+	go install github.com/swaggo/swag/cmd/swag@v1.7.4 && \
 	# go-swagger tool to generate the go coder api client
-go install github.com/go-swagger/go-swagger/cmd/swagger@v0.28.0 && \
+	go install github.com/go-swagger/go-swagger/cmd/swagger@v0.28.0 && \
 	# goimports for updating imports
-go install golang.org/x/tools/cmd/goimports@v0.31.0 && \
+	go install golang.org/x/tools/cmd/goimports@v0.31.0 && \
 	# protoc-gen-go is needed to build sysbox from source
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30.0 && \
 	# drpc support for v2
-go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34 && \
+	go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34 && \
 	# migrate for migration support for v2
-go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.15.1 && \
+	go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.15.1 && \
 	# goreleaser for compiling v2 binaries
-go install github.com/goreleaser/goreleaser@v1.6.1 && \
+	go install github.com/goreleaser/goreleaser@v1.6.1 && \
 	# Install the latest version of gopls for editors that support
-the language server protocol
-go install golang.org/x/tools/gopls@v0.18.1 && \
+	# the language server protocol
+	go install golang.org/x/tools/gopls@v0.18.1 && \
 	# gotestsum makes test output more readable
-go install gotest.tools/gotestsum@v1.9.0 && \
+	go install gotest.tools/gotestsum@v1.9.0 && \
 	# goveralls collects code coverage metrics from tests
-	# and sends to Coveralls\ngo install github.com/mattn/goveralls@v0.0.11 && \
+	# and sends to Coveralls
+	go install github.com/mattn/goveralls@v0.0.11 && \
 	# kind for running Kubernetes-in-Docker, needed for tests
 	go install sigs.k8s.io/kind@v0.10.0 && \
 	# helm-docs generates our Helm README based on a template and the
 	# charts and values files
-go install github.com/norwoodj/helm-docs/cmd/helm-docs@v1.5.0 && \
+	go install github.com/norwoodj/helm-docs/cmd/helm-docs@v1.5.0 && \
 	# sqlc for Go code generation
-(CGO_ENABLED=1 go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.27.0) && \
+	(CGO_ENABLED=1 go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.27.0) && \
 	# gcr-cleaner-cli used by CI to prune unused images
-go install github.com/sethvargo/gcr-cleaner/cmd/gcr-cleaner-cli@v0.5.1 && \
+	go install github.com/sethvargo/gcr-cleaner/cmd/gcr-cleaner-cli@v0.5.1 && \
 	# ruleguard for checking custom rules, without needing to run all of
 	# golangci-lint. Check the go.mod in the release of golangci-lint that
 	# we're using for the version of go-critic that it embeds, then check
 	# the version of ruleguard in go-critic for that tag.
-go install github.com/quasilyte/go-ruleguard/cmd/ruleguard@v0.3.13 && \
+	go install github.com/quasilyte/go-ruleguard/cmd/ruleguard@v0.3.13 && \
 	# go-releaser for building 'fat binaries' that work cross-platform
-go install github.com/goreleaser/goreleaser@v1.6.1 && \
+	go install github.com/goreleaser/goreleaser@v1.6.1 && \
 	go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0 && \
 	# nfpm is used with `make build` to make release packages
-go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1 && \
+	go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1 && \
 	# yq v4 is used to process yaml files in coder v2. Conflicts with
 	# yq v3 used in v1.
-go install github.com/mikefarah/yq/v4@v4.44.3 && \
+	go install github.com/mikefarah/yq/v4@v4.44.3 && \
 	mv /tmp/bin/yq /tmp/bin/yq4 && \
 	go install go.uber.org/mock/mockgen@v0.5.0 && \
 	# Reduce image size.
@@ -111,7 +112,7 @@ RUN apt-get update && \
 	apt-get install --yes ca-certificates locales && \
 	echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \
 	locale-gen && \
-yes | unminimize
+	yes | unminimize
 
 COPY files /
 
@@ -176,13 +177,14 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	neovim \
 	net-tools \
 	openjdk-11-jdk-headless \
+	openssh-server \
 	openssl \
 	packer \
 	pkg-config \
 	postgresql-16 \
 	python3 \
 	python3-pip \
-ripgrep \
+	ripgrep \
 	rsync \
 	screen \
 	shellcheck \
@@ -301,40 +303,40 @@ RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_prox
 	chmod a=rx /usr/local/bin/cloud_sql_proxy && \
 	# dive for scanning image layer utilization metrics in CI
 	curl --silent --show-error --location "https://github.com/wagoodman/dive/releases/download/v${DIVE_VERSION}/dive_${DIVE_VERSION}_linux_amd64.tar.gz" | \
-		tar --extract --gzip --directory=/usr/local/bin --file=- dive && \
+	tar --extract --gzip --directory=/usr/local/bin --file=- dive && \
 	# docker-credential-gcr is a Docker credential helper for pushing/pulling
 	# images from Google Container Registry and Artifact Registry
 	curl --silent --show-error --location "https://github.com/GoogleCloudPlatform/docker-credential-gcr/releases/download/v${DOCKER_GCR_VERSION}/docker-credential-gcr_linux_amd64-${DOCKER_GCR_VERSION}.tar.gz" | \
-		tar --extract --gzip --directory=/usr/local/bin --file=- docker-credential-gcr && \
+	tar --extract --gzip --directory=/usr/local/bin --file=- docker-credential-gcr && \
 	# golangci-lint performs static code analysis for our Go code
 	curl --silent --show-error --location "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64.tar.gz" | \
-		tar --extract --gzip --directory=/usr/local/bin --file=- --strip-components=1 "golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64/golangci-lint" && \
+	tar --extract --gzip --directory=/usr/local/bin --file=- --strip-components=1 "golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64/golangci-lint" && \
 	# Anchore Grype for scanning container images for security issues
 	curl --silent --show-error --location "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_amd64.tar.gz" | \
-		tar --extract --gzip --directory=/usr/local/bin --file=- grype && \
+	tar --extract --gzip --directory=/usr/local/bin --file=- grype && \
 	# Helm is necessary for deploying Coder
 	curl --silent --show-error --location "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" | \
-		tar --extract --gzip --directory=/usr/local/bin --file=- --strip-components=1 linux-amd64/helm && \
+	tar --extract --gzip --directory=/usr/local/bin --file=- --strip-components=1 linux-amd64/helm && \
 	# kube-linter for linting Kubernetes objects, including those
 	# that Helm generates from our charts
 	curl --silent --show-error --location "https://github.com/stackrox/kube-linter/releases/download/${KUBE_LINTER_VERSION}/kube-linter-linux" --output /usr/local/bin/kube-linter && \
 	# kubens and kubectx for managing Kubernetes namespaces and contexts
 	curl --silent --show-error --location "https://github.com/ahmetb/kubectx/releases/download/v${KUBECTX_VERSION}/kubectx_v${KUBECTX_VERSION}_linux_x86_64.tar.gz" | \
-		tar --extract --gzip --directory=/usr/local/bin --file=- kubectx && \
+	tar --extract --gzip --directory=/usr/local/bin --file=- kubectx && \
 	curl --silent --show-error --location "https://github.com/ahmetb/kubectx/releases/download/v${KUBECTX_VERSION}/kubens_v${KUBECTX_VERSION}_linux_x86_64.tar.gz" | \
-		tar --extract --gzip --directory=/usr/local/bin --file=- kubens && \
+	tar --extract --gzip --directory=/usr/local/bin --file=- kubens && \
 	# stripe for coder.com billing API
 	curl --silent --show-error --location "https://github.com/stripe/stripe-cli/releases/download/v${STRIPE_VERSION}/stripe_${STRIPE_VERSION}_linux_x86_64.tar.gz" | \
-		tar --extract --gzip --directory=/usr/local/bin --file=- stripe && \
+	tar --extract --gzip --directory=/usr/local/bin --file=- stripe && \
 	# terragrunt for running Terraform and Terragrunt files
 	curl --silent --show-error --location --output /usr/local/bin/terragrunt "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64" && \
 	chmod a=rx /usr/local/bin/terragrunt && \
 	# AquaSec Trivy for scanning container images for security issues
 	curl --silent --show-error --location "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | \
-		tar --extract --gzip --directory=/usr/local/bin --file=- trivy && \
+	tar --extract --gzip --directory=/usr/local/bin --file=- trivy && \
 	# Anchore Syft for SBOM generation
 	curl --silent --show-error --location "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" | \
-		tar --extract --gzip --directory=/usr/local/bin --file=- syft && \
+	tar --extract --gzip --directory=/usr/local/bin --file=- syft && \
 	# Sigstore Cosign for artifact signing and attestation
 	curl --silent --show-error --location --output /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" && \
 	chmod a=rx /usr/local/bin/cosign && \
