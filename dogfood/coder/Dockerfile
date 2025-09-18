@@ -38,7 +38,7 @@ RUN apt-get update && \
 	# go-swagger tool to generate the go coder api client
 	go install github.com/go-swagger/go-swagger/cmd/swagger@v0.28.0 && \
 	# goimports for updating imports
-	go install golang.org/x/tools/cmd/goimports@v0.31.0 && \
+	go install golang.org/x/tools/cmd/goimports@v0.29.0 && \
 	# protoc-gen-go is needed to build sysbox from source
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30.0 && \
 	# drpc support for v2
@@ -47,9 +47,8 @@ RUN apt-get update && \
 	go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.15.1 && \
 	# goreleaser for compiling v2 binaries
 	go install github.com/goreleaser/goreleaser@v1.6.1 && \
-	# Install the latest version of gopls for editors that support
-	# the language server protocol
-	go install golang.org/x/tools/gopls@v0.16.1 && \
+	# Install gopls from x/tools v0.29.0 to avoid tokeninternal compile issue with Go 1.25
+	go install golang.org/x/tools/gopls@v0.29.0 && \
 	# gotestsum makes test output more readable
 	go install gotest.tools/gotestsum@v1.9.0 && \
 	# goveralls collects code coverage metrics from tests
