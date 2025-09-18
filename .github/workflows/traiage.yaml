@@ -15,12 +15,19 @@ on:
       prefix:
         description: 'Prefix for workspace name'
         required: false
-        default: 'triage'
+        default: 'traiage'
         type: string
-
+      persistence_mode:
+        description: 'Persistence mode (push or archive)'
+        required: false
+        type: choice
+        options:
+          - push
+          - archive
+        default: 'archive'
 
 jobs:
-  triage:
+  traiage:
     name: Triage GitHub Issue with Claude Code
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -114,12 +121,16 @@ jobs:
 
       - name: Commit and push changes
         id: commit-push
+        if: ${{ inputs.persistence_mode == 'push' }}
         run: |
           echo "Committing and pushing changes in workspace: $WORKSPACE_NAME"
           ./scripts/traiage.sh commit-push
 
       - name: Create and upload archive
         id: create-archive
+        if: ${{ inputs.persistence_mode == 'archive' }}
+          env:
+            GCS_BUCKET: ${{ secrets.TRAIAGE_DEST_GCS_BUCKET }}
         run: |
           echo "Creating archive for workspace: $WORKSPACE_NAME"
           archive_url=$(./scripts/traiage.sh archive)
@@ -133,7 +144,7 @@ jobs:
           ARCHIVE_URL: ${{ steps.create-archive.outputs.archive_url }}
         run: |
           {
-            echo "## AI Triage Results";
+            echo "## TrAIage Results";
             echo "- **Issue URL:** ${ISSUE_URL}";
             echo "- **Context Key:** ${CONTEXT_KEY}";
             echo "- **Workspace:** ${WORKSPACE_NAME}";
