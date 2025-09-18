@@ -8,7 +8,7 @@ CODER_BIN=${CODER_BIN:-"$(which coder)"}
 AGENTAPI_SLUG=${AGENTAPI_SLUG:-""}
 
 TEMPDIR=$(mktemp -d)
-trap 'rm -rfv "${TEMPDIR}"' EXIT
+trap 'rm -rf "${TEMPDIR}"' EXIT
 
 [[ -n ${VERBOSE:-} ]] && set -x
 set -euo pipefail
@@ -151,17 +151,37 @@ wait() {
 }
 
 archive() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME
-	exit 0
-
-	#shellcheck disable=SC2086
+	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME DESTINATION_PREFIX
 	ssh_config
-	#shellcheck disable=SC2086
-	"${CODER_BIN}" \
-		--url "${CODER_URL}" \
-		--token "${CODER_SESSION_TOKEN}" \
-		ssh "${WORKSPACE_NAME}" -- /bin/bash -lc "coder-create-archive"
-	#shellcheck disable=SC2086
+
+	cat >"${TEMPDIR}/archive.sh" <<-EOF
+		#!/usr/bin/env bash
+		set -x
+		set -euo pipefail
+		/tmp/coder-script-data/bin/coder-archive-create
+		ARCHIVE_NAME=\$(cd && find . -maxdepth 1 -type f -name "*.tar.gz" -print0 | xargs -0 -n 1 basename)
+		ARCHIVE_PATH="/home/coder/\${ARCHIVE_NAME}"
+		ARCHIVE_DEST="${DESTINATION_PREFIX%%/}/\${ARCHIVE_NAME}"
+		if [[ ! -f "\${ARCHIVE_PATH}" ]]; then
+			echo "FATAL: Archive not found at expected path: \${ARCHIVE_PATH}"
+			exit 1
+		fi
+		gcloud storage cp "\${ARCHIVE_PATH}" "\${ARCHIVE_DEST}"
+		echo "\${ARCHIVE_DEST}"
+		exit 0
+	EOF
+
+	scp -F "${OPENSSH_CONFIG_FILE}" \
+		"${TEMPDIR}/archive.sh" \
+		"${WORKSPACE_NAME}.coder:/tmp/archive.sh"
+
+	ARCHIVE_DEST=$(ssh -F "${OPENSSH_CONFIG_FILE}" \
+		"${WORKSPACE_NAME}.coder" \
+		-- \
+		"chmod +x /tmp/archive.sh && /tmp/archive.sh")
+
+	echo "${ARCHIVE_DEST}"
+
 	exit 0
 }
 
