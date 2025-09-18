@@ -131,7 +131,7 @@
             gnused
             gnugrep
             gnutar
-            unstablePkgs.go_1_24
+            unstablePkgs.go_1_25
             gofumpt
             go-migrate
             (pinnedPkgs.golangci-lint)
@@ -199,7 +199,7 @@
         # slim bundle into it's own derivation.
         buildFat =
           osArch:
-          unstablePkgs.buildGo124Module {
+          unstablePkgs.buildGo125Module {
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
