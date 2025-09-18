@@ -608,7 +608,7 @@ const ReviewForm: FC<ReviewFormProps> = ({
 							id={failedValidationId}
 							className="m-0 text-highlight-red text-right text-sm pt-2"
 						>
-							Please acknowledge consequences to continue.
+							Please acknowledge risks to continue.
 						</p>
 					)}
 				</ContainerFooter>
