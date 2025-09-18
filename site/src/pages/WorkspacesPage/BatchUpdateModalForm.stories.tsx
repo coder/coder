@@ -217,10 +217,10 @@ export const RunningWorkspacesFailedValidation: Story = {
 			 */
 			pointerEventsCheck: 0,
 		});
-		await modal.findByText("Please acknowledge consequences to continue.");
+		await modal.findByText("Please acknowledge risks to continue.");
 
 		const checkbox = modal.getByRole("checkbox", {
-			name: /I acknowledge these consequences\./,
+			name: /I acknowledge these risks\./,
 		});
 		expect(checkbox).toHaveFocus();
 	},
