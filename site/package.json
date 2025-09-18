@@ -114,7 +114,7 @@
 		"semver": "7.6.2",
 		"tailwind-merge": "2.6.0",
 		"tailwindcss-animate": "1.0.7",
-		"tzdata": "1.0.44",
+		"tzdata": "1.0.46",
 		"ua-parser-js": "1.0.40",
 		"ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
 		"undici": "6.21.2",
@@ -127,7 +127,7 @@
 		"@biomejs/biome": "2.2.0",
 		"@chromatic-com/storybook": "4.1.0",
 		"@octokit/types": "12.3.0",
-		"@playwright/test": "1.47.0",
+		"@playwright/test": "1.50.1",
 		"@storybook/addon-docs": "9.1.2",
 		"@storybook/addon-links": "9.1.2",
 		"@storybook/addon-themes": "9.1.2",
@@ -195,7 +195,7 @@
 	},
 	"engines": {
 		"pnpm": ">=10.0.0 <11.0.0",
-		"node": ">=18.0.0 <21.0.0"
+		"node": ">=18.0.0 <23.0.0"
 	},
 	"pnpm": {
 		"overrides": {
