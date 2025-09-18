@@ -171,7 +171,13 @@ export const RunningWorkspaces: Story = {
 	beforeEach: (ctx) => {
 		const { workspaces, queries } = createPatchedDependencies(3);
 		const allRunning = workspaces.map<Workspace>((ws) => {
-			return { ...ws, status: "running" };
+			return {
+				...ws,
+				latest_build: {
+					...ws.latest_build,
+					status: "running",
+				},
+			};
 		});
 
 		ctx.args = { ...ctx.args, workspacesToUpdate: allRunning };
