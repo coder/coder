@@ -127,7 +127,7 @@ describe("WorkspacesPage", () => {
 				name: /Review Updates/i,
 			});
 			const confirmCheckbox = within(modal).getByRole("checkbox", {
-				name: /I acknowledge these consequences\./,
+				name: /I acknowledge these risks\./,
 			});
 			await user.click(confirmCheckbox);
 			const updateModalButton = within(modal).getByRole("button", {
@@ -171,7 +171,7 @@ describe("WorkspacesPage", () => {
 				name: /Review Updates/i,
 			});
 			const confirmCheckbox = within(modal).getByRole("checkbox", {
-				name: /I acknowledge these consequences\./,
+				name: /I acknowledge these risks\./,
 			});
 			await user.click(confirmCheckbox);
 			const updateModalButton = within(modal).getByRole("button", {
