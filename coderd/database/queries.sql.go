@@ -21660,6 +21660,124 @@ func (q *sqlQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now
 	return items, nil
 }
 
+const getWorkspacesForAgentMetrics = `-- name: GetWorkspacesForAgentMetrics :many
+SELECT
+    w.id,
+    w.name,
+    u.username as owner_username,
+    t.name as template_name,
+    tv.name as template_version_name,
+    wb.build_number
+FROM workspaces w
+JOIN users u ON w.owner_id = u.id
+JOIN templates t ON w.template_id = t.id
+JOIN workspace_builds wb ON w.id = wb.workspace_id
+LEFT JOIN template_versions tv ON wb.template_version_id = tv.id  -- LEFT JOIN preserves NULLs
+WHERE w.deleted = $1
+AND wb.build_number = (
+    SELECT MAX(wb2.build_number)
+    FROM workspace_builds wb2
+    WHERE wb2.workspace_id = w.id
+)
+`
+
+type GetWorkspacesForAgentMetricsRow struct {
+	ID                  uuid.UUID      `db:"id" json:"id"`
+	Name                string         `db:"name" json:"name"`
+	OwnerUsername       string         `db:"owner_username" json:"owner_username"`
+	TemplateName        string         `db:"template_name" json:"template_name"`
+	TemplateVersionName sql.NullString `db:"template_version_name" json:"template_version_name"`
+	BuildNumber         int32          `db:"build_number" json:"build_number"`
+}
+
+func (q *sqlQuerier) GetWorkspacesForAgentMetrics(ctx context.Context, deleted bool) ([]GetWorkspacesForAgentMetricsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesForAgentMetrics, deleted)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspacesForAgentMetricsRow
+	for rows.Next() {
+		var i GetWorkspacesForAgentMetricsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.OwnerUsername,
+			&i.TemplateName,
+			&i.TemplateVersionName,
+			&i.BuildNumber,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspacesForWorkspaceMetrics = `-- name: GetWorkspacesForWorkspaceMetrics :many
+SELECT
+    u.username as owner_username,
+    t.name as template_name,
+    tv.name as template_version_name,
+    pj.job_status as latest_build_status,
+    wb.transition as latest_build_transition
+FROM workspaces w
+JOIN users u ON w.owner_id = u.id
+JOIN templates t ON w.template_id = t.id
+JOIN workspace_builds wb ON w.id = wb.workspace_id
+JOIN provisioner_jobs pj ON wb.job_id = pj.id
+LEFT JOIN template_versions tv ON wb.template_version_id = tv.id
+WHERE w.deleted = $1
+AND wb.build_number = (
+    SELECT MAX(wb2.build_number)
+    FROM workspace_builds wb2
+    WHERE wb2.workspace_id = w.id
+)
+`
+
+type GetWorkspacesForWorkspaceMetricsRow struct {
+	OwnerUsername         string               `db:"owner_username" json:"owner_username"`
+	TemplateName          string               `db:"template_name" json:"template_name"`
+	TemplateVersionName   sql.NullString       `db:"template_version_name" json:"template_version_name"`
+	LatestBuildStatus     ProvisionerJobStatus `db:"latest_build_status" json:"latest_build_status"`
+	LatestBuildTransition WorkspaceTransition  `db:"latest_build_transition" json:"latest_build_transition"`
+}
+
+func (q *sqlQuerier) GetWorkspacesForWorkspaceMetrics(ctx context.Context, deleted bool) ([]GetWorkspacesForWorkspaceMetricsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesForWorkspaceMetrics, deleted)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspacesForWorkspaceMetricsRow
+	for rows.Next() {
+		var i GetWorkspacesForWorkspaceMetricsRow
+		if err := rows.Scan(
+			&i.OwnerUsername,
+			&i.TemplateName,
+			&i.TemplateVersionName,
+			&i.LatestBuildStatus,
+			&i.LatestBuildTransition,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertWorkspace = `-- name: InsertWorkspace :one
 INSERT INTO
 	workspaces (
