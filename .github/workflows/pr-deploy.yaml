@@ -370,6 +370,7 @@ jobs:
           helm repo add bitnami https://charts.bitnami.com/bitnami
           helm install coder-db bitnami/postgresql \
             --namespace "pr${PR_NUMBER}" \
+            --set image.repository=bitnamilegacy/postgresql \
             --set auth.username=coder \
             --set auth.password=coder \
             --set auth.database=coder \

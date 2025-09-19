@@ -822,6 +822,7 @@
 						"CoderSessionToken": []
 					}
 				],
+				"produces": ["application/json"],
 				"tags": ["Git"],
 				"summary": "Delete external auth user link by ID",
 				"operationId": "delete-external-auth-user-link-by-id",
@@ -837,7 +838,10 @@
 				],
 				"responses": {
 					"200": {
-						"description": "OK"
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.DeleteExternalAuthByIDResponse"
+						}
 					}
 				}
 			}
@@ -11413,6 +11417,18 @@
 				}
 			}
 		},
+		"codersdk.DeleteExternalAuthByIDResponse": {
+			"type": "object",
+			"properties": {
+				"token_revocation_error": {
+					"type": "string"
+				},
+				"token_revoked": {
+					"description": "TokenRevoked set to true if token revocation was attempted and was successful",
+					"type": "boolean"
+				}
+			}
+		},
 		"codersdk.DeleteWebpushSubscription": {
 			"type": "object",
 			"properties": {
@@ -11885,6 +11901,9 @@
 						"$ref": "#/definitions/codersdk.ExternalAuthAppInstallation"
 					}
 				},
+				"supports_revocation": {
+					"type": "boolean"
+				},
 				"user": {
 					"description": "User is the user that authenticated with the provider.",
 					"allOf": [
@@ -11956,6 +11975,9 @@
 				},
 				"regex": {
 					"description": "Regex allows API requesters to match an auth config by\na string (e.g. coder.com) instead of by it's type.\n\nGit clone makes use of this by parsing the URL from:\n'Username for \"https://github.com\":'\nAnd sending it to the Coder server to match against the Regex.",
+					"type": "string"
+				},
+				"revoke_url": {
 					"type": "string"
 				},
 				"scopes": {

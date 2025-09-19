@@ -1,8 +1,10 @@
 import type { WorkspaceApp } from "api/typesGenerated";
 import { Spinner } from "components/Spinner/Spinner";
+import { useProxy } from "contexts/ProxyContext";
 import type { Task } from "modules/tasks/tasks";
 import type { FC } from "react";
 import { TaskAppIFrame } from "./TaskAppIframe";
+import { TaskWildcardWarning } from "./TaskWildcardWarning";
 
 type TaskSidebarProps = {
 	task: Task;
@@ -64,21 +66,29 @@ const getSidebarApp = (task: Task): [WorkspaceApp | null, SidebarAppStatus] => {
 };
 
 export const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
+	const proxy = useProxy();
+
 	const [sidebarApp, sidebarAppStatus] = getSidebarApp(task);
+	const shouldDisplayWildcardWarning =
+		sidebarApp?.subdomain && proxy.proxy?.preferredWildcardHostname === "";
 
 	return (
 		<aside className="flex flex-col h-full shrink-0 w-full">
-			{sidebarAppStatus === "healthy" && sidebarApp ? (
+			{sidebarAppStatus === "loading" ? (
+				<div className="flex-1 flex flex-col items-center justify-center pb-4">
+					<Spinner loading />
+				</div>
+			) : shouldDisplayWildcardWarning ? (
+				<div className="flex-1 flex flex-col items-center justify-center pb-4">
+					<TaskWildcardWarning className="max-w-xl" />
+				</div>
+			) : sidebarAppStatus === "healthy" && sidebarApp ? (
 				<TaskAppIFrame
 					active
 					key={sidebarApp.id}
 					app={sidebarApp}
 					task={task}
 				/>
-			) : sidebarAppStatus === "loading" ? (
-				<div className="flex-1 flex flex-col items-center justify-center">
-					<Spinner loading className="mb-4" />
-				</div>
 			) : (
 				<div className="flex-1 flex flex-col items-center justify-center">
 					<h3 className="m-0 font-medium text-content-primary text-base">

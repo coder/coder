@@ -9,6 +9,7 @@ import {
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { Link } from "components/Link/Link";
+import { useProxy } from "contexts/ProxyContext";
 import { ChevronDownIcon, LayoutGridIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import type { Task } from "modules/tasks/tasks";
@@ -18,6 +19,7 @@ import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import { TaskAppIFrame } from "./TaskAppIframe";
+import { TaskWildcardWarning } from "./TaskWildcardWarning";
 
 type TaskAppsProps = {
 	task: Task;
@@ -29,6 +31,8 @@ type AppWithAgent = {
 };
 
 export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
+	const { proxy } = useProxy();
+
 	const agents = task.workspace.latest_build.resources
 		.flatMap((r) => r.agents)
 		.filter((a) => !!a);
@@ -53,6 +57,10 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	const [activeAppId, setActiveAppId] = useState<string | undefined>(
 		embeddedApps[0]?.app.id,
 	);
+
+	const activeApp = embeddedApps.find(({ app }) => app.id === activeAppId)?.app;
+	const shouldDisplayWildcardWarning =
+		activeApp?.subdomain && !proxy.proxy?.wildcard_hostname;
 
 	return (
 		<main className="flex flex-col">
@@ -83,18 +91,22 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 			</div>
 
 			{embeddedApps.length > 0 ? (
-				<div className="flex-1">
-					{embeddedApps.map(({ app }) => {
-						return (
+				shouldDisplayWildcardWarning ? (
+					<div className="flex-1 flex flex-col items-center justify-center pb-4">
+						<TaskWildcardWarning className="max-w-xl" />
+					</div>
+				) : (
+					<div className="flex-1">
+						{embeddedApps.map(({ app }) => (
 							<TaskAppIFrame
 								key={app.id}
 								active={activeAppId === app.id}
 								app={app}
 								task={task}
 							/>
-						);
-					})}
-				</div>
+						))}
+					</div>
+				)
 			) : (
 				<div className="mx-auto my-auto flex flex-col items-center">
 					<h3 className="font-medium text-content-primary text-base">
