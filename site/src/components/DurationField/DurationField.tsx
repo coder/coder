@@ -45,19 +45,12 @@ const reducer = (state: State, action: Action): State => {
 				state.unit,
 			);
 
-			if (
-				action.unit === "days" &&
-				!canConvertDurationToDays(currentDurationMs)
-			) {
-				return state;
-			}
-
 			return {
 				unit: action.unit,
 				durationFieldValue:
 					action.unit === "hours"
 						? durationInHours(currentDurationMs).toString()
-						: durationInDays(currentDurationMs).toString(),
+						: Math.ceil(durationInDays(currentDurationMs)).toString(),
 			};
 		}
 		default: {
@@ -124,15 +117,22 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
 							type: "CHANGE_TIME_UNIT",
 							unit,
 						});
+
+						// Calculate the new duration in ms after changing the unit
+						const newDurationMs = unit === "hours"
+							? hoursToDuration(Number(state.durationFieldValue))
+							: daysToDuration(Math.ceil(Number(state.durationFieldValue)));
+
+						// Notify parent component if the value has changed
+						if (newDurationMs !== parentValueMs) {
+							onChange(newDurationMs);
+						}
 					}}
 					inputProps={{ "aria-label": "Time unit" }}
 					IconComponent={ChevronDownIcon}
 				>
 					<MenuItem value="hours">Hours</MenuItem>
-					<MenuItem
-						value="days"
-						disabled={!canConvertDurationToDays(currentDurationMs)}
-					>
+					<MenuItem value="days">
 						Days
 					</MenuItem>
 				</Select>
@@ -182,6 +182,3 @@ function daysToDuration(days: number): number {
 	return days * 24 * hoursToDuration(1);
 }
 
-function canConvertDurationToDays(duration: number): boolean {
-	return Number.isInteger(durationInDays(duration));
-}
