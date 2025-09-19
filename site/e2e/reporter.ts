@@ -1,10 +1,5 @@
 import * as fs from "node:fs/promises";
-import type {
-	Reporter,
-	TestCase,
-	TestError,
-	TestResult,
-} from "@playwright/test/reporter";
+import type { Reporter, TestCase, TestResult } from "@playwright/test/reporter";
 import { API } from "api/api";
 import { coderdPProfPort } from "./constants";
 
