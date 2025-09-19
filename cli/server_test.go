@@ -77,6 +77,7 @@ func TestReadExternalAuthProvidersFromEnv(t *testing.T) {
 			"CODER_EXTERNAL_AUTH_1_CLIENT_SECRET=hunter12",
 			"CODER_EXTERNAL_AUTH_1_TOKEN_URL=google.com",
 			"CODER_EXTERNAL_AUTH_1_VALIDATE_URL=bing.com",
+			"CODER_EXTERNAL_AUTH_1_REVOKE_URL=revoke.url",
 			"CODER_EXTERNAL_AUTH_1_SCOPES=repo:read repo:write",
 			"CODER_EXTERNAL_AUTH_1_NO_REFRESH=true",
 			"CODER_EXTERNAL_AUTH_1_DISPLAY_NAME=Google",
@@ -88,6 +89,7 @@ func TestReadExternalAuthProvidersFromEnv(t *testing.T) {
 		// Validate the first provider.
 		assert.Equal(t, "1", providers[0].ID)
 		assert.Equal(t, "gitlab", providers[0].Type)
+		assert.Equal(t, "", providers[0].RevokeURL)
 
 		// Validate the second provider.
 		assert.Equal(t, "2", providers[1].ID)
@@ -95,6 +97,7 @@ func TestReadExternalAuthProvidersFromEnv(t *testing.T) {
 		assert.Equal(t, "hunter12", providers[1].ClientSecret)
 		assert.Equal(t, "google.com", providers[1].TokenURL)
 		assert.Equal(t, "bing.com", providers[1].ValidateURL)
+		assert.Equal(t, "revoke.url", providers[1].RevokeURL)
 		assert.Equal(t, []string{"repo:read", "repo:write"}, providers[1].Scopes)
 		assert.Equal(t, true, providers[1].NoRefresh)
 		assert.Equal(t, "Google", providers[1].DisplayName)
