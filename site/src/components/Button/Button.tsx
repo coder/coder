@@ -12,7 +12,7 @@ import { cn } from "utils/cn";
 const buttonVariants = cva(
 	`
 	inline-flex items-center justify-center gap-1 whitespace-nowrap font-sans
-	border-solid rounded-md transition-colors
+	border-solid rounded-md transition-colors shrink-0
 	text-sm font-medium cursor-pointer no-underline
 	focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
 	disabled:pointer-events-none disabled:text-content-disabled

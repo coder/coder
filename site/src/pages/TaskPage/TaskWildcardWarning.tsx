@@ -2,21 +2,13 @@ import { Button } from "components/Button/Button";
 import { useAuthenticated } from "hooks/useAuthenticated";
 import { SquareArrowOutUpRightIcon } from "lucide-react";
 import { Link as RouterLink } from "react-router";
-import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 
-type TaskWildcardWarningProps = {
-	className?: string;
-};
-
-export const TaskWildcardWarning = ({
-	className,
-}: TaskWildcardWarningProps) => {
+export const TaskWildcardWarning = () => {
 	const { permissions } = useAuthenticated();
-	const canEditDeploymentConfig = Boolean(permissions.editDeploymentConfig);
 
 	return (
-		<div className={cn("text-center", className)}>
+		<div className="text-center max-w-md">
 			<h3 className="font-medium text-content-primary text-base mb-3">Error</h3>
 			<div className="text-content-secondary text-sm flex flex-col gap-3 items-center">
 				<div className="px-4">
@@ -24,7 +16,7 @@ export const TaskWildcardWarning = ({
 					<code className="py-px px-1 bg-surface-tertiary rounded-sm text-content-primary">
 						subdomain = true
 					</code>
-					{canEditDeploymentConfig ? (
+					{permissions.editDeploymentConfig ? (
 						<>
 							, but subdomain applications are not configured. This application
 							won't be accessible until you configure the{" "}
