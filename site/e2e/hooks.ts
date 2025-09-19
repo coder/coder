@@ -18,12 +18,25 @@ export const beforeCoderTest = (page: Page) => {
 	});
 
 	page.on("response", async (response) => {
+		// Don't log responses for static assets.
 		if (!isApiCall(response.url())) {
 			return;
 		}
+		// Don't log successful responses. Those are almost always less interesting.
+		if (response.ok()) {
+			return;
+		}
+
+		let responseText: string;
+		try {
+			responseText = await response.text();
+			responseText = responseText.replaceAll("\n", "");
+		} catch {
+			responseText = "<n/a>";
+		}
 
 		console.info(
-			`[response] url=${response.url()} status=${response.status()}`,
+			`[response] url=${response.url()} status=${response.status()} body=${responseText}`,
 		);
 	});
 };
