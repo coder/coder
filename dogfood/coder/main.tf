@@ -954,3 +954,14 @@ resource "coder_app" "preview" {
     threshold = 15
   }
 }
+
+resource "coder_app" "terminal_tooltip" {
+  count        = data.coder_workspace.me.start_count
+  agent_id     = coder_agent.dev.id
+  slug         = "terminal"
+  display_name = "Terminal (w/tooltip)"
+  icon         = "/icon/terminal.svg"
+  share        = "authenticated"
+  order        = 2
+  tooltip      = "This is a tooltip with Markdown support: **bold**, _italic_, and [link](https://coder.com/docs)"
+}
