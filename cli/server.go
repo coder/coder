@@ -1576,7 +1576,7 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 	}
 
 	// Create pool for reusable stateful [aibridge.RequestBridge] instances (one per user).
-	pool, err := aibridged.NewCachedBridgePool(100, providers, logger.Named("pool")) // TODO: configurable pool size.
+	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger.Named("pool")) // TODO: configurable.
 	if err != nil {
 		return nil, xerrors.Errorf("create request pool: %w", err)
 	}

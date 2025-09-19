@@ -325,38 +325,48 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	// Key matches expected format.
 	id, _, err := httpmw.SplitAPIToken(in.GetKey())
 	if err != nil {
-		return nil, xerrors.Errorf("split API token: %w", err)
+		s.logger.Warn(ctx, "invalid key provided", slog.Error(err))
+		return nil, ErrInvalidKey
 	}
 
 	// Key exists.
 	key, err := s.store.GetAPIKeyByID(ctx, id)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to retrieve API key by id", slog.F("id", id), slog.Error(err))
-		return nil, xerrors.Errorf("get key by id: %w", err)
+		return nil, ErrUnknownKey
+	}
+
+	// Key has not expired.
+	now := dbtime.Now()
+	if key.ExpiresAt.Before(now) {
+		return nil, ErrExpired
 	}
 
 	// User exists.
 	user, err := s.store.GetUserByID(ctx, key.UserID)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to retrieve API key user", slog.F("user_id", key.UserID), slog.Error(err))
-		return nil, xerrors.Errorf("get user by id: %w", err)
+		return nil, ErrUnknownUser
 	}
 
 	// User is not deleted or a system user.
 	if user.Deleted {
-		return nil, xerrors.Errorf("deleted user")
+		return nil, ErrDeletedUser
 	}
 	if user.IsSystem {
-		return nil, xerrors.Errorf("system user")
-	}
-
-	// Key has not expired.
-	now := dbtime.Now()
-	if key.ExpiresAt.Before(now) {
-		return nil, xerrors.Errorf("key expired")
+		return nil, ErrSystemUser
 	}
 
 	return &proto.IsAuthorizedResponse{
 		OwnerId: key.UserID.String(),
 	}, nil
 }
+
+var (
+	ErrInvalidKey  = xerrors.New("invalid key format")
+	ErrUnknownKey  = xerrors.New("unknown key")
+	ErrExpired     = xerrors.New("expired")
+	ErrUnknownUser = xerrors.New("unknown user")
+	ErrDeletedUser = xerrors.New("deleted user")
+	ErrSystemUser  = xerrors.New("system user")
+)
