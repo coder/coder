@@ -88,6 +88,19 @@ func TestRun(t *testing.T) {
 		assertNotNilNotEmpty(t, bun.Agent.Prometheus, "agent prometheus metrics should be present")
 		assertNotNilNotEmpty(t, bun.Agent.StartupLogs, "agent startup logs should be present")
 		assertNotNilNotEmpty(t, bun.Logs, "bundle logs should be present")
+
+		// New: deployment health settings should be present
+		assertNotNilNotEmpty(t, bun.Deployment.HealthSettings, "deployment health settings should be present")
+		// New: aggregated workspaces should be present and include created workspace
+		assert.NotNil(t, bun.Deployment.Workspaces, "deployment workspaces should be present")
+		assert.GreaterOrEqual(t, bun.Deployment.Workspaces.Count, 1)
+		for _, aws := range bun.Deployment.Workspaces.Workspaces {
+			for _, res := range aws.LatestBuild.Resources {
+				for _, a := range res.Agents {
+					assertSanitizedEnv(t, a.EnvironmentVariables)
+				}
+			}
+		}
 	})
 
 	t.Run("OK_NoWorkspace", func(t *testing.T) {
@@ -120,6 +133,11 @@ func TestRun(t *testing.T) {
 		assert.Empty(t, bun.Workspace.Workspace, "did not expect workspace to be present")
 		assert.Empty(t, bun.Agent, "did not expect agent to be present")
 		assertNotNilNotEmpty(t, bun.Logs, "bundle logs should be present")
+
+		// New: health settings should be present even without workspace context
+		assertNotNilNotEmpty(t, bun.Deployment.HealthSettings, "deployment health settings should be present")
+		// New: aggregated workspaces struct should exist (may be empty)
+		assert.NotNil(t, bun.Deployment.Workspaces)
 	})
 
 	t.Run("NoAuth", func(t *testing.T) {
