@@ -144,6 +144,7 @@ func TestProvisionerDaemon_EnvTagsIgnoredWithKey(t *testing.T) {
 			},
 		},
 	})
+	//nolint:gocritic // ignore This client is operating as the owner user, which has unrestricted permissions
 	res, err := client.CreateProvisionerKey(ctx, user.OrganizationID, codersdk.CreateProvisionerKeyRequest{
 		Name: "env-tags-ignored",
 	})

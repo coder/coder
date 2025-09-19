@@ -126,8 +126,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			if preSharedKey != "" && len(rawTags) > 0 {
 				for _, opt := range inv.Command.Options {
 					if opt.Env == "CODER_PROVISIONERD_TAGS" {
-						switch opt.ValueSource {
-						case serpent.ValueSourceEnv:
+						if opt.ValueSource == serpent.ValueSourceEnv {
 							cliui.Warn(inv.Stderr, "CODER_PROVISIONERD_TAGS is set but will be ignored when using --psk.")
 							rawTags = nil
 						}
