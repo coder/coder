@@ -30,10 +30,10 @@ var (
 //
 // A [DRPCClient] is provided to the [aibridge.RequestBridge] instance so that data can
 // be passed up to a [DRPCServer] for persistence.
-func (d *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	logger := d.logger.With(slog.F("path", r.URL.Path))
+	logger := s.logger.With(slog.F("path", r.URL.Path))
 
 	key := strings.TrimSpace(ExtractAuthToken(r.Header))
 	if key == "" {
@@ -42,7 +42,7 @@ func (d *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client, err := d.Client()
+	client, err := s.Client()
 	if err != nil {
 		logger.Warn(ctx, "failed to connect to coderd", slog.Error(err))
 		http.Error(rw, ErrConnect.Error(), http.StatusServiceUnavailable)
@@ -66,7 +66,7 @@ func (d *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handler, err := d.GetRequestHandler(ctx, Request{
+	handler, err := s.GetRequestHandler(ctx, Request{
 		SessionKey:  key,
 		InitiatorID: id,
 	})

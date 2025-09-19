@@ -1,22 +1,20 @@
 package aibridged_test
 
 import (
-	"bytes"
+	"context"
 	_ "embed"
-	"net/http"
-	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/aibridge"
+	"github.com/coder/aibridge/mcp"
+	"github.com/coder/aibridge/mcpmock"
 	"github.com/coder/coder/v2/enterprise/x/aibridged"
 	mock "github.com/coder/coder/v2/enterprise/x/aibridged/aibridgedmock"
-	"github.com/coder/coder/v2/enterprise/x/aibridged/proto"
-	"github.com/coder/coder/v2/testutil"
 )
 
 // TestPool validates the published behavior of [aibridged.CachedBridgePool].
@@ -29,41 +27,78 @@ func TestPool(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	client := mock.NewMockDRPCClient(ctrl)
+	mcpProxy := mcpmock.NewMockServerProxier(ctrl)
 
-	srv := httptest.NewServer(&mockAIUpstreamServer{})
-
-	client.EXPECT().GetMCPServerConfigs(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.GetMCPServerConfigsResponse{}, nil)
-
-	pool, err := aibridged.NewCachedBridgePool(1, aibridge.Config{
-		OpenAI: aibridge.ProviderConfig{
-			BaseURL: srv.URL,
-		},
-	}, logger)
+	opts := aibridged.PoolOptions{MaxItems: 1, TTL: time.Second}
+	pool, err := aibridged.NewCachedBridgePool(opts, nil, logger)
 	require.NoError(t, err)
+	t.Cleanup(func() { pool.Shutdown(context.Background()) })
 
-	id := uuid.New()
-	_, err = pool.Acquire(t.Context(), aibridged.Request{
+	id, id2 := uuid.New(), uuid.New()
+	clientFn := func() (aibridged.DRPCClient, error) {
+		return client, nil
+	}
+
+	// Once a pool instance is initialized, it will try setup its MCP proxier(s).
+	// This is called exactly once since the instance below is only created once.
+	mcpProxy.EXPECT().Init(gomock.Any()).Times(1).Return(nil)
+	// This is part of the lifecycle.
+	mcpProxy.EXPECT().Shutdown(gomock.Any()).AnyTimes().Return(nil)
+
+	// Acquiring a pool instance will create one the first time it sees an
+	// initiator ID...
+	inst, err := pool.Acquire(t.Context(), aibridged.Request{
 		SessionKey:  "key",
 		InitiatorID: id,
-	}, func() (aibridged.DRPCClient, error) {
-		return client, nil
-	})
+	}, clientFn, newMockMCPFactory(mcpProxy))
 	require.NoError(t, err, "acquire pool instance")
 
-	req, err := http.NewRequestWithContext(testutil.Context(t, testutil.WaitShort), http.MethodPost, "/openai/v1/chat/completions", bytes.NewBufferString(`{
-  "messages": [
-    {
-      "role": "user",
-      "content": "how many angels can dance on the head of a pin\n"
-    }
-  ],
-  "model": "gpt-4.1"
-}`))
-	require.NoError(t, err)
-	req.Header.Add("Authorization", "Bearer key")
+	// ...and it will return it when acquired again.
+	instB, err := pool.Acquire(t.Context(), aibridged.Request{
+		SessionKey:  "key",
+		InitiatorID: id,
+	}, clientFn, newMockMCPFactory(mcpProxy))
+	require.NoError(t, err, "acquire pool instance")
+	require.Same(t, inst, instB)
 
-	// rec := httptest.NewRecorder()
-	// h.ServeHTTP(rec, req)
+	metrics := pool.Metrics()
+	require.EqualValues(t, 1, metrics.KeysAdded())
+	require.EqualValues(t, 0, metrics.KeysEvicted())
+	require.EqualValues(t, 1, metrics.Hits())
+	require.EqualValues(t, 1, metrics.Misses())
 
-	// TODO: incomplete.
+	// This will get called again because a new instance will be created.
+	mcpProxy.EXPECT().Init(gomock.Any()).Times(1).Return(nil)
+
+	// But that key will be evicted when a new initiator is seen (maxItems=1):
+	inst2, err := pool.Acquire(t.Context(), aibridged.Request{
+		SessionKey:  "key",
+		InitiatorID: id2,
+	}, clientFn, newMockMCPFactory(mcpProxy))
+	require.NoError(t, err, "acquire pool instance")
+	require.NotSame(t, inst, inst2)
+
+	metrics = pool.Metrics()
+	require.EqualValues(t, 2, metrics.KeysAdded())
+	require.EqualValues(t, 1, metrics.KeysEvicted())
+	require.EqualValues(t, 1, metrics.Hits())
+	require.EqualValues(t, 2, metrics.Misses())
+
+	// TODO: add test for expiry.
+	// This requires Go 1.25's [synctest](https://pkg.go.dev/testing/synctest) since the
+	// internal cache lib cannot be tested using coder/quartz.
+}
+
+var _ aibridged.MCPProxyBuilder = &mockMCPFactory{}
+
+type mockMCPFactory struct {
+	proxy *mcpmock.MockServerProxier
+}
+
+func newMockMCPFactory(proxy *mcpmock.MockServerProxier) *mockMCPFactory {
+	return &mockMCPFactory{proxy: proxy}
+}
+
+func (m *mockMCPFactory) Build(ctx context.Context, req aibridged.Request) (mcp.ServerProxier, error) {
+	return m.proxy, nil
 }

@@ -32,6 +32,10 @@ func newTestServer(t *testing.T) (*aibridged.Server, *mock.MockDRPCClient, *mock
 	client := mock.NewMockDRPCClient(ctrl)
 	pool := mock.NewMockPooler(ctrl)
 
+	conn := &mockDRPCConn{}
+	client.EXPECT().DRPCConn().AnyTimes().Return(conn)
+	pool.EXPECT().Shutdown(gomock.Any()).MinTimes(1).Return(nil)
+
 	srv, err := aibridged.New(
 		t.Context(),
 		pool,
@@ -40,6 +44,9 @@ func newTestServer(t *testing.T) (*aibridged.Server, *mock.MockDRPCClient, *mock
 		},
 		logger)
 	require.NoError(t, err, "create new aibridged")
+	t.Cleanup(func() {
+		srv.Shutdown(context.Background())
+	})
 
 	return srv, client, pool
 }
@@ -115,7 +122,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 				// Should pass authorization.
 				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
 				// But fail when acquiring a pool instance.
-				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil, xerrors.New("oops"))
+				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil, xerrors.New("oops"))
 			},
 			expectedErr:    aibridged.ErrAcquireRequestHandler,
 			expectedStatus: http.StatusInternalServerError,
@@ -228,38 +235,6 @@ func (*mockHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	_, _ = rw.Write([]byte(r.URL.Path))
 }
 
-// TestPoolHandler validates that an http.Handler can be acquired from a given [aibridged.Pooler]
-// and have its HTTP handler invoked.
-//
-// We're not actually testing the routing, since that is being tested by [aibridge.RequestBridge].
-//
-// We're validating that a request can be successfully processed by aibridged
-// (i.e. authn/z, acquire pool instance) and what happens thereafter is a black box to aibridged.
-func TestPoolHandler(t *testing.T) {
-	t.Parallel()
-
-	srv, client, pool := newTestServer(t)
-
-	conn := &mockDRPCConn{}
-	client.EXPECT().DRPCConn().AnyTimes().Return(conn)
-	// Authorize all requests.
-	client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
-	pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(&mockHandler{}, nil)
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	path := "/irrelevant"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, path, nil)
-	require.NoError(t, err, "make request to test server")
-	req.Header.Add("Authorization", "Bearer key")
-
-	rec := httptest.NewRecorder()
-	srv.ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.NotNil(t, rec.Body)
-	require.Equal(t, path, rec.Body.String())
-}
-
 // TestRouting validates that a request which originates with aibridged will be handled
 // by coder/aibridge's handling logic in a provider-specific manner.
 // We must validate that logic that pertains to coder/coder is exercised.
@@ -284,13 +259,13 @@ func TestRouting(t *testing.T) {
 		{
 			name:           "openai chat completions",
 			path:           "/openai/v1/chat/completions",
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusTeapot, // Nonsense status to indicate server was hit.
 			expectedHits:   1,
 		},
 		{
 			name:           "anthropic messages",
 			path:           "/anthropic/v1/messages",
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusTeapot, // Nonsense status to indicate server was hit.
 			expectedHits:   1,
 		},
 	}
@@ -310,14 +285,12 @@ func TestRouting(t *testing.T) {
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 			ctrl := gomock.NewController(t)
 			client := mock.NewMockDRPCClient(ctrl)
-			pool, err := aibridged.NewCachedBridgePool(10, aibridge.Config{
-				OpenAI: aibridge.ProviderConfig{
-					BaseURL: openaiSrv.URL,
-				},
-				Anthropic: aibridge.ProviderConfig{
-					BaseURL: antSrv.URL,
-				},
-			}, logger)
+
+			providers := []aibridge.Provider{
+				aibridge.NewOpenAIProvider(aibridge.ProviderConfig{BaseURL: openaiSrv.URL}),
+				aibridge.NewAnthropicProvider(aibridge.ProviderConfig{BaseURL: antSrv.URL}),
+			}
+			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger)
 			require.NoError(t, err)
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
@@ -331,9 +304,6 @@ func TestRouting(t *testing.T) {
 				interceptionID = in.GetId()
 				return &proto.RecordInterceptionResponse{}, nil
 			})
-			client.EXPECT().RecordPromptUsage(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.RecordPromptUsageResponse{}, nil)
-			client.EXPECT().RecordTokenUsage(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.RecordTokenUsageResponse{}, nil)
-			client.EXPECT().RecordToolUsage(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.RecordToolUsageResponse{}, nil)
 
 			// Given: aibridged is started.
 			srv, err := aibridged.New(t.Context(), pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
@@ -356,6 +326,8 @@ func TestRouting(t *testing.T) {
 			srv.ServeHTTP(rec, req)
 
 			// Then: the upstream server will have received a number of hits.
+			// NOTE: we *expect* the interceptions to fail because [mockAIUpstreamServer] returns a nonsense status code.
+			// We only need to test that the request was routed, NOT processed.
 			require.Equal(t, tc.expectedStatus, rec.Code)
 			assert.EqualValues(t, tc.expectedHits, upstreamSrv.Hits())
 			if tc.expectedHits > 0 {

@@ -3,9 +3,7 @@ package aibridged
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
-	"regexp"
 	"sync"
 	"time"
 
@@ -17,7 +15,6 @@ import (
 
 	"github.com/coder/aibridge"
 	"github.com/coder/aibridge/mcp"
-	"github.com/coder/coder/v2/enterprise/x/aibridged/proto"
 )
 
 const (
@@ -27,8 +24,15 @@ const (
 // Pooler describes a pool of [*aibridge.RequestBridge] instances from which instances can be retrieved.
 // One [*aibridge.RequestBridge] instance is created per given key.
 type Pooler interface {
-	Acquire(ctx context.Context, req Request, clientFn func() (DRPCClient, error)) (http.Handler, error)
+	Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpBootstrapper MCPProxyBuilder) (http.Handler, error)
 	Shutdown(ctx context.Context) error
+}
+
+type PoolMetrics interface {
+	Hits() uint64
+	Misses() uint64
+	KeysAdded() uint64
+	KeysEvicted() uint64
 }
 
 type PoolOptions struct {
@@ -52,12 +56,13 @@ type CachedBridgePool struct {
 	shuttingDownCh chan struct{}
 }
 
-func NewCachedBridgePool(size int64, cfg aibridge.Config, logger slog.Logger) (*CachedBridgePool, error) {
+func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, logger slog.Logger) (*CachedBridgePool, error) {
 	cache, err := ristretto.NewCache(&ristretto.Config[string, *aibridge.RequestBridge]{
-		NumCounters:        size * 10,        // Docs suggest setting this 10x number of keys.
-		MaxCost:            size * cacheCost, // Up to n instances.
-		IgnoreInternalCost: true,             // Don't try estimate cost using bytes (ristretto does this naïvely anyway, just using the size of the value struct not the REAL memory usage).
-		BufferItems:        64,               // Sticking with recommendation from docs.
+		NumCounters:        options.MaxItems * 10,        // Docs suggest setting this 10x number of keys.
+		MaxCost:            options.MaxItems * cacheCost, // Up to n instances.
+		IgnoreInternalCost: true,                         // Don't try estimate cost using bytes (ristretto does this naïvely anyway, just using the size of the value struct not the REAL memory usage).
+		BufferItems:        64,                           // Sticking with recommendation from docs.
+		Metrics:            true,                         // Collect metrics (only used in tests, for now).
 		OnEvict: func(item *ristretto.Item[*aibridge.RequestBridge]) {
 			if item == nil || item.Value == nil {
 				return
@@ -83,12 +88,10 @@ func NewCachedBridgePool(size int64, cfg aibridge.Config, logger slog.Logger) (*
 	}
 
 	return &CachedBridgePool{
-		cache: cache,
-		providers: []aibridge.Provider{
-			aibridge.NewOpenAIProvider(cfg.OpenAI),
-			aibridge.NewAnthropicProvider(cfg.Anthropic),
-		},
-		logger: logger,
+		cache:     cache,
+		providers: providers,
+		logger:    logger,
+		options:   options,
 
 		singleflight: &singleflight.Group[string, *aibridge.RequestBridge]{},
 
@@ -100,7 +103,7 @@ func NewCachedBridgePool(size int64, cfg aibridge.Config, logger slog.Logger) (*
 //
 // Each returned [*aibridge.RequestBridge] is safe for concurrent use.
 // Each [*aibridge.RequestBridge] is stateful because it has MCP clients which maintain sessions to the configured MCP server.
-func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn func() (DRPCClient, error)) (http.Handler, error) {
+func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpProxyFactory MCPProxyBuilder) (http.Handler, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, xerrors.Errorf("acquire: %w", err)
 	}
@@ -111,6 +114,10 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn fu
 	default:
 	}
 
+	// Wait for all buffered writes to be applied, otherwise multiple calls in quick succession
+	// may visit the slow path unnecessarily.
+	defer p.cache.Wait()
+
 	recorder := aibridge.NewRecorder(p.logger.Named("recorder"), func() (aibridge.Recorder, error) {
 		client, err := clientFn()
 		if err != nil {
@@ -119,10 +126,6 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn fu
 
 		return &recorderTranslation{client: client}, nil
 	})
-
-	// Wait for all buffered writes to be applied, otherwise multiple calls in quick succession
-	// may visit the slow path unnecessarily.
-	p.cache.Wait()
 
 	// Fast path.
 	bridge, ok := p.cache.Get(req.InitiatorID.String())
@@ -139,18 +142,25 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn fu
 	// Creating an *aibridge.RequestBridge may take some time, so gate all subsequent callers behind the initial request and return the resulting value.
 	// TODO: track startup time since it adds latency to first request (histogram count will also help us see how often this occurs).
 	instance, err, _ := p.singleflight.Do(req.InitiatorID.String(), func() (*aibridge.RequestBridge, error) {
-		proxiers, err := p.setupMCPServerProxiers(ctx, clientFn, req)
+		var (
+			mcpServers mcp.ServerProxier
+			err        error
+		)
+
+		mcpServers, err = mcpProxyFactory.Build(ctx, req)
 		if err != nil {
-			// Log but don't fail; request can proceed without MCP server proxiers.
-			p.logger.Error(ctx, "failed to retrieve MCP server configs", slog.Error(err))
+			p.logger.Warn(ctx, "failed to create MCP server proxiers", slog.Error(err))
+			// Don't fail here; MCP server injection can gracefully degrade.
 		}
 
-		mcpProxyMgr := mcp.NewServerProxyManager(proxiers)
-		if err := mcpProxyMgr.Init(ctx); err != nil {
-			p.logger.Warn(ctx, "failed to initialize MCP server proxier(s)", slog.Error(err))
+		if mcpServers != nil {
+			// This will block while connections are established with upstream MCP server(s), and tools are listed.
+			if err := mcpServers.Init(ctx); err != nil {
+				p.logger.Warn(ctx, "failed to initialize MCP server proxier(s)", slog.Error(err))
+			}
 		}
 
-		bridge, err := aibridge.NewRequestBridge(ctx, p.providers, p.logger, recorder, mcpProxyMgr)
+		bridge, err := aibridge.NewRequestBridge(ctx, p.providers, p.logger, recorder, mcpServers)
 		if err != nil {
 			return nil, xerrors.Errorf("create new request bridge: %w", err)
 		}
@@ -163,123 +173,12 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn fu
 	return instance, err
 }
 
-func (p *CachedBridgePool) setupMCPServerProxiers(ctx context.Context, clientFn func() (DRPCClient, error), req Request) (map[string]mcp.ServerProxier, error) {
-	client, err := clientFn()
-	if err != nil {
-		return nil, xerrors.Errorf("acquire client: %w", err)
+func (p *CachedBridgePool) Metrics() PoolMetrics {
+	if p.cache == nil {
+		return nil
 	}
 
-	srvCfgCtx, srvCfgCancel := context.WithTimeout(ctx, time.Second*10)
-	defer srvCfgCancel()
-
-	// Fetch MCP server configs.
-	mcpSrvCfgs, err := client.GetMCPServerConfigs(srvCfgCtx, &proto.GetMCPServerConfigsRequest{
-		UserId: req.InitiatorID.String(),
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("get MCP server configs: %w", err)
-	}
-
-	proxiers := make(map[string]mcp.ServerProxier, len(mcpSrvCfgs.GetExternalAuthMcpConfigs())+1) // Extra one for Coder MCP server.
-
-	// Setup the Coder MCP server proxy.
-	coderMCPProxy, err := p.newStreamableHTTPServerProxy(mcpSrvCfgs.GetCoderMcpConfig(), req.SessionKey) // The session key is used to auth against our internal MCP server.
-	if err != nil {
-		p.logger.Warn(ctx, "failed to create MCP server proxy", slog.F("mcp_server_id", mcpSrvCfgs.GetCoderMcpConfig().GetId()), slog.Error(err))
-	} else {
-		proxiers["coder"] = coderMCPProxy
-	}
-
-	if len(mcpSrvCfgs.GetExternalAuthMcpConfigs()) == 0 {
-		return proxiers, nil
-	}
-
-	serverIDs := make([]string, 0, len(mcpSrvCfgs.GetExternalAuthMcpConfigs()))
-	for _, cfg := range mcpSrvCfgs.GetExternalAuthMcpConfigs() {
-		serverIDs = append(serverIDs, cfg.GetId())
-	}
-
-	accTokCtx, accTokCancel := context.WithTimeout(ctx, time.Second*10)
-	defer accTokCancel()
-
-	// Request a batch of access tokens, one per given server ID.
-	resp, err := client.GetMCPServerAccessTokensBatch(accTokCtx, &proto.GetMCPServerAccessTokensBatchRequest{
-		UserId:             req.InitiatorID.String(),
-		McpServerConfigIds: serverIDs,
-	})
-	if err != nil {
-		p.logger.Warn(ctx, "failed to retrieve access token(s)", slog.F("server_ids", serverIDs), slog.Error(err))
-	}
-
-	for _, cfg := range mcpSrvCfgs.GetExternalAuthMcpConfigs() {
-		if err, ok := resp.GetErrors()[cfg.GetId()]; ok {
-			p.logger.Warn(ctx, "failed to get access token", slog.F("mcp_server_id", cfg.GetId()), slog.F("error", err))
-			continue
-		}
-
-		token, ok := resp.GetAccessTokens()[cfg.GetId()]
-		if !ok {
-			p.logger.Warn(ctx, "no access token found", slog.F("mcp_server_id", cfg.GetId()))
-			continue
-		}
-
-		proxy, err := p.newStreamableHTTPServerProxy(cfg, token)
-		if err != nil {
-			p.logger.Warn(ctx, "failed to create MCP server proxy", slog.F("mcp_server_id", cfg.GetId()), slog.Error(err))
-			continue
-		}
-
-		proxiers[cfg.Id] = proxy
-	}
-	return proxiers, nil
-}
-
-// newStreamableHTTPServerProxy creates an MCP server capable of proxying requests using the Streamable HTTP transport.
-//
-// TODO: support SSE transport.
-func (p *CachedBridgePool) newStreamableHTTPServerProxy(cfg *proto.MCPServerConfig, accessToken string) (mcp.ServerProxier, error) {
-	var (
-		allowlist, denylist *regexp.Regexp
-		err                 error
-	)
-	if cfg.GetToolAllowRegex() != "" {
-		allowlist, err = regexp.Compile(cfg.GetToolAllowRegex())
-		if err != nil {
-			return nil, xerrors.Errorf("compile MCP tool allowlist: %w", err)
-		}
-	}
-	if cfg.GetToolDenyRegex() != "" {
-		denylist, err = regexp.Compile(cfg.GetToolDenyRegex())
-		if err != nil {
-			return nil, xerrors.Errorf("compile MCP tool denylist: %w", err)
-		}
-	}
-
-	// TODO: future improvement:
-	//
-	// The access token provided here may expire at any time, or the connection to the MCP server could be severed.
-	// Instead of passing through an access token directly, rather provide an interface through which to retrieve
-	// an access token imperatively. In the event of a tool call failing, we could Ping() the MCP server to establish
-	// whether the connection is still active. If not, this indicates that the access token is probably expired/revoked.
-	// (It could also mean the server has a problem, which we should account for.)
-	// The proxy could then use its interface to retrieve a new access token and re-establish a connection.
-	// For now though, the short TTL of this cache should mostly mask this problem.
-	srv, err := mcp.NewStreamableHTTPServerProxy(
-		p.logger.Named(fmt.Sprintf("mcp-server-proxy-%s", cfg.GetId())),
-		cfg.GetId(),
-		cfg.GetUrl(),
-		// See https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization#token-requirements.
-		map[string]string{
-			"Authorization": fmt.Sprintf("Bearer %s", accessToken),
-		},
-		allowlist,
-		denylist,
-	)
-	if err != nil {
-		return nil, xerrors.Errorf("create streamable HTTP MCP server proxy: %w", err)
-	}
-
-	return srv, nil
+	return p.cache.Metrics
 }
 
 // Shutdown will close the cache which will trigger eviction of all the Bridge entries.

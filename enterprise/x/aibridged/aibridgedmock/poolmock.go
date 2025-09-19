@@ -43,18 +43,18 @@ func (m *MockPooler) EXPECT() *MockPoolerMockRecorder {
 }
 
 // Acquire mocks base method.
-func (m *MockPooler) Acquire(ctx context.Context, req aibridged.Request, clientFn func() (aibridged.DRPCClient, error)) (http.Handler, error) {
+func (m *MockPooler) Acquire(ctx context.Context, req aibridged.Request, clientFn aibridged.ClientFunc, mcpBootstrapper aibridged.MCPProxyBuilder) (http.Handler, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Acquire", ctx, req, clientFn)
+	ret := m.ctrl.Call(m, "Acquire", ctx, req, clientFn, mcpBootstrapper)
 	ret0, _ := ret[0].(http.Handler)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Acquire indicates an expected call of Acquire.
-func (mr *MockPoolerMockRecorder) Acquire(ctx, req, clientFn any) *gomock.Call {
+func (mr *MockPoolerMockRecorder) Acquire(ctx, req, clientFn, mcpBootstrapper any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Acquire", reflect.TypeOf((*MockPooler)(nil).Acquire), ctx, req, clientFn)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Acquire", reflect.TypeOf((*MockPooler)(nil).Acquire), ctx, req, clientFn, mcpBootstrapper)
 }
 
 // Shutdown mocks base method.
