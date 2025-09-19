@@ -19,13 +19,14 @@ usage() {
 }
 
 create() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME TEMPLATE_NAME
+	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME TEMPLATE_NAME TEMPLATE_PARAMETERS
 	"${CODER_BIN}" \
 		--url "${CODER_URL}" \
 		--token "${CODER_SESSION_TOKEN}" \
 		create \
 		--template "${TEMPLATE_NAME}" \
 		--stop-after 30m \
+		--parameter "${TEMPLATE_PARAMETERS}" \
 		--yes \
 		"${WORKSPACE_NAME}"
 	exit 0

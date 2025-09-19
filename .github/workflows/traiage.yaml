@@ -81,6 +81,7 @@ jobs:
           PREFIX: ${{ inputs.prefix }}
           CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
           RUN_ID: ${{ github.run_id }}
+          TEMPLATE_PARAMETERS: ${{ secrets.TRAIAGE_TEMPLATE_PARAMETERS }}
         run: |
           export WORKSPACE_NAME="${PREFIX}-${CONTEXT_KEY}-${RUN_ID}"
           echo "Creating workspace: $WORKSPACE_NAME"
