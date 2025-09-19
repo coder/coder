@@ -144,23 +144,24 @@ archive() {
 
 	# We want the heredoc to be expanded locally and not remotely.
 	# shellcheck disable=SC2087
-	ARCHIVE_DEST=$(ssh -F "${OPENSSH_CONFIG_FILE}" \
-		"${WORKSPACE_NAME}.coder" \
-		bash <<-EOF
-			#!/usr/bin/env bash
-			set -euo pipefail
-			ARCHIVE_PATH=\$(coder-archive-create)
-			ARCHIVE_NAME=\$(basename "\${ARCHIVE_PATH}")
-			ARCHIVE_DEST="${DESTINATION_PREFIX%%/}/\${ARCHIVE_NAME}"
-			if [[ ! -f "\${ARCHIVE_PATH}" ]]; then
-				echo "FATAL: Archive not found at expected path: \${ARCHIVE_PATH}"
-				exit 1
-			fi
-			gcloud storage cp "\${ARCHIVE_PATH}" "\${ARCHIVE_DEST}"
-			echo "\${ARCHIVE_DEST}"
-			exit 0
-		EOF
-		)
+	ARCHIVE_DEST=$(
+		ssh -F "${OPENSSH_CONFIG_FILE}" \
+			"${WORKSPACE_NAME}.coder" \
+			bash <<-EOF
+				#!/usr/bin/env bash
+				set -euo pipefail
+				ARCHIVE_PATH=\$(coder-archive-create)
+				ARCHIVE_NAME=\$(basename "\${ARCHIVE_PATH}")
+				ARCHIVE_DEST="${DESTINATION_PREFIX%%/}/\${ARCHIVE_NAME}"
+				if [[ ! -f "\${ARCHIVE_PATH}" ]]; then
+					echo "FATAL: Archive not found at expected path: \${ARCHIVE_PATH}"
+					exit 1
+				fi
+				gcloud storage cp "\${ARCHIVE_PATH}" "\${ARCHIVE_DEST}"
+				echo "\${ARCHIVE_DEST}"
+				exit 0
+			EOF
+	)
 
 	echo "${ARCHIVE_DEST}"
 
@@ -171,7 +172,7 @@ commit_push() {
 	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME
 	ssh_config
 
-  # We want the heredoc to be expanded locally and not remotely.
+	# We want the heredoc to be expanded locally and not remotely.
 	# shellcheck disable=SC2087
 	ssh \
 		-F "${OPENSSH_CONFIG_FILE}" \
