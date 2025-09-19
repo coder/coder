@@ -9,8 +9,8 @@ import type {
 import { useQueryClient } from "react-query";
 import { action } from "storybook/internal/actions";
 import { expect, screen, userEvent, within } from "storybook/test";
+import { ACTIVE_BUILD_STATUSES } from "utils/workspace";
 import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
-import { ACTIVE_BUILD_STATUSES } from "./WorkspacesPage";
 
 type Writeable<T> = { -readonly [Key in keyof T]: T[Key] };
 type MutableWorkspace = Writeable<Omit<Workspace, "latest_build">> & {

@@ -25,7 +25,7 @@ import {
 } from "react";
 import { useQueries } from "react-query";
 import { cn } from "utils/cn";
-import { ACTIVE_BUILD_STATUSES } from "./WorkspacesPage";
+import { ACTIVE_BUILD_STATUSES } from "utils/workspace";
 
 export const BatchUpdateModalForm: FC<BatchUpdateModalFormProps> = ({
 	open,
