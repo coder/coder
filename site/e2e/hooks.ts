@@ -14,7 +14,7 @@ export const beforeCoderTest = (page: Page) => {
 		if (msg.type() === "info") {
 			return;
 		}
-		console.debug(`[console][${msg.type()}] ${msg.text()}`);
+		console.info(`[console][${msg.type()}] ${msg.text()}`);
 	});
 
 	page.on("response", async (response) => {
