@@ -157,7 +157,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 	return template
 }
 
-func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database.APIKey, token string) {
+func APIKey(t testing.TB, db database.Store, seed database.APIKey, munge ...func(*database.InsertAPIKeyParams)) (key database.APIKey, token string) {
 	id, _ := cryptorand.String(10)
 	secret, _ := cryptorand.String(22)
 	hashed := sha256.Sum256([]byte(secret))
@@ -173,7 +173,7 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 		}
 	}
 
-	key, err := db.InsertAPIKey(genCtx, database.InsertAPIKeyParams{
+	params := database.InsertAPIKeyParams{
 		ID: takeFirst(seed.ID, id),
 		// 0 defaults to 86400 at the db layer
 		LifetimeSeconds: takeFirst(seed.LifetimeSeconds, 0),
@@ -187,7 +187,11 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 		LoginType:       takeFirst(seed.LoginType, database.LoginTypePassword),
 		Scope:           takeFirst(seed.Scope, database.APIKeyScopeAll),
 		TokenName:       takeFirst(seed.TokenName),
-	})
+	}
+	for _, fn := range munge {
+		fn(&params)
+	}
+	key, err := db.InsertAPIKey(genCtx, params)
 	require.NoError(t, err, "insert api key")
 	return key, fmt.Sprintf("%s-%s", key.ID, secret)
 }
@@ -862,6 +866,7 @@ func WorkspaceApp(t testing.TB, db database.Store, orig database.WorkspaceApp) d
 		DisplayGroup:         orig.DisplayGroup,
 		Hidden:               orig.Hidden,
 		OpenIn:               takeFirst(orig.OpenIn, database.WorkspaceAppOpenInSlimWindow),
+		Tooltip:              takeFirst(orig.Tooltip, testutil.GetRandomName(t)),
 	})
 	require.NoError(t, err, "insert app")
 	return resource

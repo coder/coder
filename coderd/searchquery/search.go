@@ -225,6 +225,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	filter.HasAITask = parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task")
 	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
+	filter.Shared = parser.NullableBoolean(values, sql.NullBool{}, "shared")
 
 	type paramMatch struct {
 		name  string
@@ -268,8 +269,8 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
-		// Default to the template name
-		values.Add("name", term)
+		// Default to the display name
+		values.Add("display_name", term)
 		return nil
 	})
 	if len(errors) > 0 {
@@ -281,7 +282,9 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 		Deleted:          parser.Boolean(values, false, "deleted"),
 		OrganizationID:   parseOrganization(ctx, db, parser, values, "organization"),
 		ExactName:        parser.String(values, "", "exact_name"),
+		ExactDisplayName: parser.String(values, "", "exact_display_name"),
 		FuzzyName:        parser.String(values, "", "name"),
+		FuzzyDisplayName: parser.String(values, "", "display_name"),
 		IDs:              parser.UUIDs(values, []uuid.UUID{}, "ids"),
 		Deprecated:       parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
 		HasAITask:        parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
@@ -305,7 +308,8 @@ func searchTerms(query string, defaultKey func(term string, values url.Values) e
 	// Because we do this in 2 passes, we want to maintain quotes on the first
 	// pass. Further splitting occurs on the second pass and quotes will be
 	// dropped.
-	elements := splitQueryParameterByDelimiter(query, ' ', true)
+	tokens := splitQueryParameterByDelimiter(query, ' ', true)
+	elements := processTokens(tokens)
 	for _, element := range elements {
 		if strings.HasPrefix(element, ":") || strings.HasSuffix(element, ":") {
 			return nil, []codersdk.ValidationError{
@@ -384,4 +388,25 @@ func splitQueryParameterByDelimiter(query string, delimiter rune, maintainQuotes
 	}
 
 	return parts
+}
+
+// processTokens takes the split tokens and groups them based on a delimiter (':').
+// Tokens without a delimiter present are joined to support searching with spaces.
+//
+//	Example Input: ['deprecated:false', 'test', 'template']
+//	Example Output: ['deprecated:false', 'test template']
+func processTokens(tokens []string) []string {
+	var results []string
+	var nonFieldTerms []string
+	for _, token := range tokens {
+		if strings.Contains(token, string(':')) {
+			results = append(results, token)
+		} else {
+			nonFieldTerms = append(nonFieldTerms, token)
+		}
+	}
+	if len(nonFieldTerms) > 0 {
+		results = append(results, strings.Join(nonFieldTerms, " "))
+	}
+	return results
 }

@@ -4,7 +4,6 @@ import type {
 	DERPNodeReport,
 	DERPRegionReport,
 	HealthcheckReport,
-	HealthMessage,
 	HealthSeverity,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
@@ -75,10 +74,10 @@ const DERPRegionPage: FC = () => {
 			</Header>
 
 			<Main>
-				{warnings.map((warning: HealthMessage) => {
+				{warnings.map((warning) => {
 					return (
 						<Alert
-							actions={HealthMessageDocsLink(warning)}
+							actions={<HealthMessageDocsLink {...warning} />}
 							key={warning.code}
 							severity="warning"
 						>

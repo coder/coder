@@ -1,5 +1,64 @@
 # Notifications
 
+## Send a custom notification
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/notifications/custom \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /notifications/custom`
+
+> Body parameter
+
+```json
+{
+  "content": {
+    "message": "string",
+    "title": "string"
+  }
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                               | Required | Description                          |
+|--------|------|------------------------------------------------------------------------------------|----------|--------------------------------------|
+| `body` | body | [codersdk.CustomNotificationRequest](schemas.md#codersdkcustomnotificationrequest) | true     | Provide a non-empty title or message |
+
+### Example responses
+
+> 400 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                                    | Description                                   | Schema                                           |
+|--------|----------------------------------------------------------------------------|-----------------------------------------------|--------------------------------------------------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)            | No Content                                    |                                                  |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)           | Invalid request body                          | [codersdk.Response](schemas.md#codersdkresponse) |
+| 403    | [Forbidden](https://tools.ietf.org/html/rfc7231#section-6.5.3)             | System users cannot send custom notifications | [codersdk.Response](schemas.md#codersdkresponse) |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | Failed to send custom notification            | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get notification dispatch methods
 
 ### Code samples
@@ -315,6 +374,65 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/settings \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get custom notification templates
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/notifications/templates/custom \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /notifications/templates/custom`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "actions": "string",
+    "body_template": "string",
+    "enabled_by_default": true,
+    "group": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "kind": "string",
+    "method": "string",
+    "name": "string",
+    "title_template": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                                    | Description                                        | Schema                                                                            |
+|--------|----------------------------------------------------------------------------|----------------------------------------------------|-----------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                    | OK                                                 | array of [codersdk.NotificationTemplate](schemas.md#codersdknotificationtemplate) |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | Failed to retrieve 'custom' notifications template | [codersdk.Response](schemas.md#codersdkresponse)                                  |
+
+<h3 id="get-custom-notification-templates-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                   | Type         | Required | Restrictions | Description |
+|------------------------|--------------|----------|--------------|-------------|
+| `[array item]`         | array        | false    |              |             |
+| `» actions`            | string       | false    |              |             |
+| `» body_template`      | string       | false    |              |             |
+| `» enabled_by_default` | boolean      | false    |              |             |
+| `» group`              | string       | false    |              |             |
+| `» id`                 | string(uuid) | false    |              |             |
+| `» kind`               | string       | false    |              |             |
+| `» method`             | string       | false    |              |             |
+| `» name`               | string       | false    |              |             |
+| `» title_template`     | string       | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get system notification templates
 
 ### Code samples
@@ -350,9 +468,10 @@ curl -X GET http://coder-server:8080/api/v2/notifications/templates/system \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                            |
-|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.NotificationTemplate](schemas.md#codersdknotificationtemplate) |
+| Status | Meaning                                                                    | Description                                        | Schema                                                                            |
+|--------|----------------------------------------------------------------------------|----------------------------------------------------|-----------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                    | OK                                                 | array of [codersdk.NotificationTemplate](schemas.md#codersdknotificationtemplate) |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | Failed to retrieve 'system' notifications template | [codersdk.Response](schemas.md#codersdkresponse)                                  |
 
 <h3 id="get-system-notification-templates-responseschema">Response Schema</h3>
 

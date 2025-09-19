@@ -56,6 +56,7 @@ import (
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func dbArg(t *testing.T) string {
@@ -486,7 +487,9 @@ func TestServer(t *testing.T) {
 			"--cache-dir", t.TempDir(),
 		)
 		pty := ptytest.New(t).Attach(inv)
-		clitest.Start(t, inv)
+		// Since we end the test after seeing the log lines about the access url, we could cancel the test before
+		// our initial interactions with PostgreSQL are complete. So, ignore errors of that type for this test.
+		startIgnoringPostgresQueryCancel(t, inv)
 
 		// Just wait for startup
 		_ = waitAccessURL(t, cfg)
@@ -510,7 +513,9 @@ func TestServer(t *testing.T) {
 		)
 		pty := ptytest.New(t).Attach(inv)
 
-		clitest.Start(t, inv)
+		// Since we end the test after seeing the log lines about the access url, we could cancel the test before
+		// our initial interactions with PostgreSQL are complete. So, ignore errors of that type for this test.
+		startIgnoringPostgresQueryCancel(t, inv)
 
 		// Just wait for startup
 		_ = waitAccessURL(t, cfg)
@@ -530,7 +535,9 @@ func TestServer(t *testing.T) {
 			"--cache-dir", t.TempDir(),
 		)
 		pty := ptytest.New(t).Attach(inv)
-		clitest.Start(t, inv)
+		// Since we end the test after seeing the log lines about the access url, we could cancel the test before
+		// our initial interactions with PostgreSQL are complete. So, ignore errors of that type for this test.
+		startIgnoringPostgresQueryCancel(t, inv)
 
 		// Just wait for startup
 		_ = waitAccessURL(t, cfg)
@@ -1015,7 +1022,9 @@ func TestServer(t *testing.T) {
 		)
 
 		pty := ptytest.New(t).Attach(inv)
-		clitest.Start(t, inv)
+		// Since we end the test after seeing the log lines about the HTTP listener, we could cancel the test before
+		// our initial interactions with PostgreSQL are complete. So, ignore errors of that type for this test.
+		startIgnoringPostgresQueryCancel(t, inv)
 
 		pty.ExpectMatch("Started HTTP listener")
 		pty.ExpectMatch("http://0.0.0.0:")
@@ -1032,7 +1041,9 @@ func TestServer(t *testing.T) {
 		)
 
 		pty := ptytest.New(t).Attach(inv)
-		clitest.Start(t, inv)
+		// Since we end the test after seeing the log lines about the HTTP listener, we could cancel the test before
+		// our initial interactions with PostgreSQL are complete. So, ignore errors of that type for this test.
+		startIgnoringPostgresQueryCancel(t, inv)
 
 		pty.ExpectMatch("Started HTTP listener at")
 		pty.ExpectMatch("http://[::]:")
@@ -1157,7 +1168,10 @@ func TestServer(t *testing.T) {
 		)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		clitest.Start(t, inv.WithContext(ctx))
+		// Since we cancel the context before our initial interactions with PostgreSQL are complete, we need to ignore
+		// errors about queries being canceled.
+		startIgnoringPostgresQueryCancel(t, inv.WithContext(ctx))
+
 		cancel()
 		require.Error(t, goleak.Find())
 	})
@@ -2369,4 +2383,17 @@ func mockTelemetryServer(t *testing.T) (*url.URL, chan *telemetry.Deployment, ch
 	require.NoError(t, err)
 
 	return serverURL, deployment, snapshot
+}
+
+// startIgnoringPostgresQueryCancel starts the Invocation, but excludes PostgreSQL query canceled and context
+// cancellation errors. This prevents flakes in tests that only assert things that happen before PostgreSQL is fully
+// initialized in the server.
+func startIgnoringPostgresQueryCancel(t *testing.T, inv *serpent.Invocation) {
+	t.Helper()
+	clitest.StartWithAssert(t, inv, func(t *testing.T, err error) {
+		if database.IsQueryCanceledError(err) {
+			return
+		}
+		assert.NoError(t, err)
+	})
 }

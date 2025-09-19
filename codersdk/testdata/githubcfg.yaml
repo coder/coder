@@ -17,6 +17,9 @@ externalAuthProviders:
       - token
     device_flow: true
     device_code_url: https://example.com/device
+    mcp_url: https://api.githubcopilot.com/mcp/
+    mcp_tool_allow_regex: .*
+    mcp_tool_deny_regex: create_gist
     regex: ^https://example.com/.*$
     display_name: GitHub
     display_icon: /static/icons/github.svg

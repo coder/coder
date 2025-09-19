@@ -1,6 +1,7 @@
 import {
 	Children,
 	type FC,
+	type JSX,
 	type PropsWithChildren,
 	type ReactNode,
 } from "react";

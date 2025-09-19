@@ -18,6 +18,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -663,6 +664,24 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 		dbm.EXPECT().GetProvisionerLogsAfterID(gomock.Any(), arg).Return([]database.ProvisionerJobLog{}, nil).AnyTimes()
 		check.Args(arg).Asserts(ws, policy.ActionRead).Returns([]database.ProvisionerJobLog{})
 	}))
+	s.Run("Build/GetProvisionerJobByIDWithLock", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeWorkspaceBuild})
+		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: j.ID})
+		dbm.EXPECT().GetProvisionerJobByIDWithLock(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), j.ID).Return(build, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), build.WorkspaceID).Return(ws, nil).AnyTimes()
+		check.Args(j.ID).Asserts(ws, policy.ActionRead).Returns(j)
+	}))
+	s.Run("TemplateVersion/GetProvisionerJobByIDWithLock", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		tpl := testutil.Fake(s.T(), faker, database.Template{})
+		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeTemplateVersionImport})
+		v := testutil.Fake(s.T(), faker, database.TemplateVersion{JobID: j.ID, TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
+		dbm.EXPECT().GetProvisionerJobByIDWithLock(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateVersionByJobID(gomock.Any(), j.ID).Return(v, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+		check.Args(j.ID).Asserts(v.RBACObject(tpl), policy.ActionRead).Returns(j)
+	}))
 }
 
 func (s *MethodTestSuite) TestLicense() {
@@ -1297,6 +1316,10 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().DeleteAPIKeysByUserID(gomock.Any(), key.UserID).Return(nil).AnyTimes()
 		check.Args(key.UserID).Asserts(rbac.ResourceApiKey.WithOwner(key.UserID.String()), policy.ActionDelete).Returns()
 	}))
+	s.Run("ExpirePrebuildsAPIKeys", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Times(1).Return(nil)
+		check.Args(dbtime.Now()).Asserts(rbac.ResourceApiKey, policy.ActionDelete).Returns()
+	}))
 	s.Run("GetQuotaAllowanceForUser", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
 		arg := database.GetQuotaAllowanceForUserParams{UserID: u.ID, OrganizationID: uuid.New()}
@@ -1675,6 +1698,12 @@ func (s *MethodTestSuite) TestWorkspace() {
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
 		dbm.EXPECT().UpdateWorkspaceACLByID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(w, policy.ActionCreate)
+	}))
+	s.Run("DeleteWorkspaceACLByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		w := testutil.Fake(s.T(), faker, database.Workspace{})
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
+		dbm.EXPECT().DeleteWorkspaceACLByID(gomock.Any(), w.ID).Return(nil).AnyTimes()
+		check.Args(w.ID).Asserts(w, policy.ActionUpdate)
 	}))
 	s.Run("GetLatestWorkspaceBuildByWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		w := testutil.Fake(s.T(), faker, database.Workspace{})
@@ -3160,7 +3189,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(p)
 	}))
 	s.Run("GetTemplateAverageBuildTime", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetTemplateAverageBuildTimeParams{}
+		arg := uuid.NullUUID{}
 		dbm.EXPECT().GetTemplateAverageBuildTime(gomock.Any(), arg).Return(database.GetTemplateAverageBuildTimeRow{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
@@ -4285,5 +4314,73 @@ func (s *MethodTestSuite) TestUsageEvents() {
 			StartDate: time.Time{},
 			EndDate:   time.Time{},
 		}).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
+	}))
+}
+
+// Ensures that the prebuilds actor may never insert an api key.
+func TestInsertAPIKey_AsPrebuildsUser(t *testing.T) {
+	t.Parallel()
+	prebuildsSubj := rbac.Subject{
+		ID: database.PrebuildsSystemUserID.String(),
+	}
+	ctx := dbauthz.As(testutil.Context(t, testutil.WaitShort), prebuildsSubj)
+	mDB := dbmock.NewMockStore(gomock.NewController(t))
+	log := slogtest.Make(t, nil)
+	mDB.EXPECT().Wrappers().Times(1).Return([]string{})
+	dbz := dbauthz.New(mDB, nil, log, nil)
+	faker := gofakeit.New(0)
+	_, err := dbz.InsertAPIKey(ctx, testutil.Fake(t, faker, database.InsertAPIKeyParams{}))
+	require.True(t, dbauthz.IsNotAuthorizedError(err))
+}
+
+func (s *MethodTestSuite) TestAIBridge() {
+	s.Run("GetAIBridgeInterceptionByID", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		sessID := uuid.UUID{2}
+		sess := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: sessID})
+		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), sessID).Return(sess, nil).AnyTimes()
+		check.Args(sessID).Asserts(sess, policy.ActionRead).Returns(sess)
+	}))
+
+	s.Run("InsertAIBridgeInterception", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		initID := uuid.UUID{3}
+		user := testutil.Fake(s.T(), faker, database.User{ID: initID})
+		// testutil.Fake cannot distinguish between a zero value and an explicitly requested value which is equivalent.
+		user.IsSystem = false
+		user.Deleted = false
+
+		sessID := uuid.UUID{2}
+		sess := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: sessID, InitiatorID: initID})
+
+		params := database.InsertAIBridgeInterceptionParams{ID: sess.ID, InitiatorID: sess.InitiatorID, Provider: sess.Provider, Model: sess.Model}
+		db.EXPECT().GetUserByID(gomock.Any(), initID).Return(user, nil).AnyTimes() // Validation.
+		db.EXPECT().InsertAIBridgeInterception(gomock.Any(), params).Return(sess, nil).AnyTimes()
+		check.Args(params).Asserts(sess, policy.ActionCreate)
+	}))
+
+	s.Run("InsertAIBridgeTokenUsage", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		sessID := uuid.UUID{2}
+		sess := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: sessID})
+		params := database.InsertAIBridgeTokenUsageParams{InterceptionID: sess.ID}
+		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), sessID).Return(sess, nil).AnyTimes() // Validation.
+		db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), params).Return(nil).AnyTimes()
+		check.Args(params).Asserts(sess, policy.ActionUpdate)
+	}))
+
+	s.Run("InsertAIBridgeToolUsage", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		sessID := uuid.UUID{2}
+		sess := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: sessID})
+		params := database.InsertAIBridgeToolUsageParams{InterceptionID: sess.ID}
+		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), sessID).Return(sess, nil).AnyTimes() // Validation.
+		db.EXPECT().InsertAIBridgeToolUsage(gomock.Any(), params).Return(nil).AnyTimes()
+		check.Args(params).Asserts(sess, policy.ActionUpdate)
+	}))
+
+	s.Run("InsertAIBridgeUserPrompt", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		sessID := uuid.UUID{2}
+		sess := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: sessID})
+		params := database.InsertAIBridgeUserPromptParams{InterceptionID: sess.ID}
+		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), sessID).Return(sess, nil).AnyTimes() // Validation.
+		db.EXPECT().InsertAIBridgeUserPrompt(gomock.Any(), params).Return(nil).AnyTimes()
+		check.Args(params).Asserts(sess, policy.ActionUpdate)
 	}))
 }

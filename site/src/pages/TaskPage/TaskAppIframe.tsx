@@ -1,4 +1,3 @@
-import type { WorkspaceApp } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -7,55 +6,44 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { Spinner } from "components/Spinner/Spinner";
+import { useProxy } from "contexts/ProxyContext";
 import { EllipsisVertical, ExternalLinkIcon, HouseIcon } from "lucide-react";
-import { useAppLink } from "modules/apps/useAppLink";
+import { type AppLink, useAppLink } from "modules/apps/useAppLink";
 import type { Task } from "modules/tasks/tasks";
 import { type FC, useRef } from "react";
 import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
+import { TaskWildcardWarning } from "./TaskWildcardWarning";
+import type { WorkspaceAppWithAgent } from "./types";
 
 type TaskAppIFrameProps = {
 	task: Task;
-	app: WorkspaceApp;
+	app: WorkspaceAppWithAgent;
 	active: boolean;
-	pathname?: string;
 };
 
 export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 	task,
 	app,
 	active,
-	pathname,
 }) => {
-	const agent = task.workspace.latest_build.resources
-		.flatMap((r) => r.agents)
-		.filter((a) => !!a)
-		.find((a) => a.apps.some((a) => a.id === app.id));
-
-	if (!agent) {
-		throw new Error(`Agent for app ${app.id} not found in task workspace`);
-	}
-
 	const link = useAppLink(app, {
-		agent,
+		agent: app.agent,
 		workspace: task.workspace,
 	});
-
-	const appHref = (): string => {
-		try {
-			const url = new URL(link.href, location.href);
-			if (pathname) {
-				url.pathname = pathname;
-			}
-			return url.toString();
-		} catch (err) {
-			console.warn(`Failed to parse URL ${link.href} for app ${app.id}`, err);
-			return link.href;
-		}
-	};
-
+	const proxy = useProxy();
 	const frameRef = useRef<HTMLIFrameElement>(null);
-	const frameSrc = appHref();
+	const frameSrc = parseIframeSrc(link);
+	const shouldDisplayWildcardWarning =
+		app.subdomain && !proxy.proxy?.preferredWildcardHostname;
+
+	if (shouldDisplayWildcardWarning) {
+		return (
+			<div className="flex-1 flex flex-col items-center justify-center pb-4">
+				<TaskWildcardWarning />
+			</div>
+		);
+	}
 
 	return (
 		<div className={cn([active ? "flex" : "hidden", "w-full h-full flex-col"])}>
@@ -67,7 +55,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 						onClick={(e) => {
 							e.preventDefault();
 							if (frameRef.current?.contentWindow) {
-								frameRef.current.contentWindow.location.href = appHref();
+								frameRef.current.contentWindow.location.href = frameSrc;
 							}
 						}}
 					>
@@ -126,3 +114,13 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 		</div>
 	);
 };
+
+function parseIframeSrc(link: AppLink) {
+	try {
+		const url = new URL(link.href, location.href);
+		return url.toString();
+	} catch (err) {
+		console.warn(`Failed to parse URL ${link.href}`, err);
+		return link.href;
+	}
+}

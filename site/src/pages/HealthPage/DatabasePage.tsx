@@ -37,7 +37,7 @@ const DatabasePage = () => {
 				{database.warnings.map((warning) => {
 					return (
 						<Alert
-							actions={HealthMessageDocsLink(warning)}
+							actions={<HealthMessageDocsLink {...warning} />}
 							key={warning.code}
 							severity="warning"
 						>

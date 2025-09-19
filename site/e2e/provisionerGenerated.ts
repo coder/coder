@@ -316,6 +316,7 @@ export interface App {
   group: string;
   /** If nil, new UUID will be generated. */
   id: string;
+  tooltip: string;
 }
 
 /** Healthcheck represents configuration for checking for app readiness. */
@@ -1077,6 +1078,9 @@ export const App = {
     }
     if (message.id !== "") {
       writer.uint32(114).string(message.id);
+    }
+    if (message.tooltip !== "") {
+      writer.uint32(122).string(message.tooltip);
     }
     return writer;
   },

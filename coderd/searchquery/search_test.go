@@ -282,6 +282,36 @@ func TestSearchWorkspace(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name:  "SharedTrue",
+			Query: "shared:true",
+			Expected: database.GetWorkspacesParams{
+				Shared: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "SharedFalse",
+			Query: "shared:false",
+			Expected: database.GetWorkspacesParams{
+				Shared: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "SharedMissing",
+			Query: "",
+			Expected: database.GetWorkspacesParams{
+				Shared: sql.NullBool{
+					Bool:  false,
+					Valid: false,
+				},
+			},
+		},
 
 		// Failures
 		{
@@ -686,7 +716,7 @@ func TestSearchTemplates(t *testing.T) {
 			Name:  "OnlyName",
 			Query: "foobar",
 			Expected: database.GetTemplatesWithFilterParams{
-				FuzzyName: "foobar",
+				FuzzyDisplayName: "foobar",
 			},
 		},
 		{
@@ -755,6 +785,43 @@ func TestSearchTemplates(t *testing.T) {
 			Expected: database.GetTemplatesWithFilterParams{
 				AuthorUsername: "",
 				AuthorID:       userID,
+			},
+		},
+		{
+			Name:  "SearchOnDisplayName",
+			Query: "test name",
+			Expected: database.GetTemplatesWithFilterParams{
+				FuzzyDisplayName: "test name",
+			},
+		},
+		{
+			Name:  "NameField",
+			Query: "name:testname",
+			Expected: database.GetTemplatesWithFilterParams{
+				FuzzyName: "testname",
+			},
+		},
+		{
+			Name:  "QuotedValue",
+			Query: `name:"test name"`,
+			Expected: database.GetTemplatesWithFilterParams{
+				FuzzyName: "test name",
+			},
+		},
+		{
+			Name:  "MultipleTerms",
+			Query: `foo bar exact_name:"test display name"`,
+			Expected: database.GetTemplatesWithFilterParams{
+				ExactName:        "test display name",
+				FuzzyDisplayName: "foo bar",
+			},
+		},
+		{
+			Name:  "FieldAndSpaces",
+			Query: "deprecated:false test template",
+			Expected: database.GetTemplatesWithFilterParams{
+				Deprecated:       sql.NullBool{Bool: false, Valid: true},
+				FuzzyDisplayName: "test template",
 			},
 		},
 	}

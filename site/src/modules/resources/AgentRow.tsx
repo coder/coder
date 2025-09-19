@@ -19,7 +19,6 @@ import {
 	useCallback,
 	useEffect,
 	useLayoutEffect,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -41,6 +40,7 @@ import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { useAgentContainers } from "./useAgentContainers";
 import { useAgentLogs } from "./useAgentLogs";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
+import { WildcardHostnameWarning } from "./WildcardHostnameWarning";
 
 interface AgentRowProps {
 	agent: WorkspaceAgent;
@@ -78,25 +78,9 @@ export const AgentRow: FC<AgentRowProps> = ({
 		["starting", "start_timeout"].includes(agent.lifecycle_state) &&
 			hasStartupFeatures,
 	);
-	const agentLogs = useAgentLogs(agent, showLogs);
+	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
 	const logListRef = useRef<List>(null);
 	const logListDivRef = useRef<HTMLDivElement>(null);
-	const startupLogs = useMemo(() => {
-		const allLogs = agentLogs || [];
-
-		const logs = [...allLogs];
-		if (agent.logs_overflowed) {
-			logs.push({
-				id: -1,
-				level: "error",
-				output:
-					"Startup logs exceeded the max size of 1MB, and will not continue to be written to the database! Logs will continue to be written to the /tmp/coder-startup-script.log file in the workspace.",
-				created_at: new Date().toISOString(),
-				source_id: "",
-			});
-		}
-		return logs;
-	}, [agentLogs, agent.logs_overflowed]);
 	const [bottomOfLogs, setBottomOfLogs] = useState(true);
 
 	useEffect(() => {
@@ -108,9 +92,9 @@ export const AgentRow: FC<AgentRowProps> = ({
 	useLayoutEffect(() => {
 		// If we're currently watching the bottom, we always want to stay at the bottom.
 		if (bottomOfLogs && logListRef.current) {
-			logListRef.current.scrollToItem(startupLogs.length - 1, "end");
+			logListRef.current.scrollToItem(agentLogs.length - 1, "end");
 		}
-	}, [showLogs, startupLogs, bottomOfLogs]);
+	}, [showLogs, agentLogs, bottomOfLogs]);
 
 	// This is a bit of a hack on the react-window API to get the scroll position.
 	// If we're scrolled to the bottom, we want to keep the list scrolled to the bottom.
@@ -155,6 +139,10 @@ export const AgentRow: FC<AgentRowProps> = ({
 	// Check if any devcontainers have errors to gray out agent border
 	const hasDevcontainerErrors = devcontainers?.some((dc) => dc.error);
 
+	const hasSubdomainApps = agent.apps?.some((app) => app.subdomain);
+	const shouldShowWildcardWarning =
+		hasSubdomainApps && !proxy.proxy?.wildcard_hostname;
+
 	return (
 		<Stack
 			key={agent.id}
@@ -164,7 +152,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 				styles.agentRow,
 				styles[`agentRow-${agent.status}`],
 				styles[`agentRow-lifecycle-${agent.lifecycle_state}`],
-				hasDevcontainerErrors && styles.agentRowWithErrors,
+				(hasDevcontainerErrors || shouldShowWildcardWarning) &&
+					styles.agentRowWithErrors,
 			]}
 		>
 			<header css={styles.header}>
@@ -225,6 +214,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 						<AppStatuses workspace={workspace} agent={agent} />
 					</section>
 				)}
+
+				{shouldShowWildcardWarning && <WildcardHostnameWarning />}
 
 				{shouldDisplayAppsSection && (
 					<section css={styles.apps}>
@@ -320,7 +311,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 									width={width}
 									css={styles.startupLogs}
 									onScroll={handleLogScroll}
-									logs={startupLogs.map((l) => ({
+									overflowed={agent.logs_overflowed}
+									logs={agentLogs.map((l) => ({
 										id: l.id,
 										level: l.level,
 										output: l.output,
@@ -533,7 +525,7 @@ const styles = {
 	},
 
 	startupLogs: (theme) => ({
-		maxHeight: 256,
+		maxHeight: 420,
 		borderBottom: `1px solid ${theme.palette.divider}`,
 		backgroundColor: theme.palette.background.paper,
 		paddingTop: 16,

@@ -1,4 +1,3 @@
-import type { WorkspaceAgent, WorkspaceApp } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -19,13 +18,10 @@ import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import { TaskAppIFrame } from "./TaskAppIframe";
+import type { WorkspaceAppWithAgent } from "./types";
 
 type TaskAppsProps = {
 	task: Task;
-};
-
-type WorkspaceAppWithAgent = WorkspaceApp & {
-	agent: WorkspaceAgent;
 };
 
 export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
@@ -61,16 +57,14 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 
 			{embeddedApps.length > 0 ? (
 				<div className="flex-1">
-					{embeddedApps.map((app) => {
-						return (
-							<TaskAppIFrame
-								key={app.id}
-								active={activeAppId === app.id}
-								app={app}
-								task={task}
-							/>
-						);
-					})}
+					{embeddedApps.map((app) => (
+						<TaskAppIFrame
+							key={app.id}
+							active={activeAppId === app.id}
+							app={app}
+							task={task}
+						/>
+					))}
 				</div>
 			) : (
 				<div className="mx-auto my-auto flex flex-col items-center">

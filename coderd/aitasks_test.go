@@ -253,7 +253,6 @@ func TestTasks(t *testing.T) {
 				{Name: codersdk.AITaskPromptParameterName, Value: wantPrompt},
 			}
 		})
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		// Fetch the task by ID via experimental API and verify fields.
 		exp := codersdk.NewExperimentalClient(client)
@@ -440,6 +439,80 @@ func TestTasksCreate(t *testing.T) {
 		require.Len(t, parameters, 1)
 		assert.Equal(t, codersdk.AITaskPromptParameterName, parameters[0].Name)
 		assert.Equal(t, taskPrompt, parameters[0].Value)
+	})
+
+	t.Run("CustomNames", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name               string
+			taskName           string
+			expectFallbackName bool
+			expectError        string
+		}{
+			{
+				name:     "ValidName",
+				taskName: "a-valid-task-name",
+			},
+			{
+				name:        "NotValidName",
+				taskName:    "this is not a valid task name",
+				expectError: "Unable to create a Task with the provided name.",
+			},
+			{
+				name:               "NoNameProvided",
+				taskName:           "",
+				expectFallbackName: true,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				var (
+					ctx       = testutil.Context(t, testutil.WaitShort)
+					client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+					expClient = codersdk.NewExperimentalClient(client)
+					user      = coderdtest.CreateFirstUser(t, client)
+					version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+						Parse:          echo.ParseComplete,
+						ProvisionApply: echo.ApplyComplete,
+						ProvisionPlan: []*proto.Response{
+							{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+								Parameters: []*proto.RichParameter{{Name: "AI Prompt", Type: "string"}},
+								HasAiTasks: true,
+							}}},
+						},
+					})
+					template = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+				)
+
+				coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+				// When: We attempt to create a Task.
+				task, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+					TemplateVersionID: template.ActiveVersionID,
+					Prompt:            "Some prompt",
+					Name:              tt.taskName,
+				})
+				if tt.expectError == "" {
+					require.NoError(t, err)
+					require.True(t, task.WorkspaceID.Valid)
+
+					// Then: We expect the correct name to have been picked.
+					err = codersdk.NameValid(task.Name)
+					require.NoError(t, err, "Generated task name should be valid")
+
+					require.NotEmpty(t, task.Name)
+					if !tt.expectFallbackName {
+						require.Equal(t, tt.taskName, task.Name)
+					}
+				} else {
+					require.ErrorContains(t, err, tt.expectError)
+				}
+			})
+		}
 	})
 
 	t.Run("FailsOnNonTaskTemplate", func(t *testing.T) {

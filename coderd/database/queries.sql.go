@@ -111,6 +111,153 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
+const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
+SELECT id, initiator_id, provider, model, started_at FROM aibridge_interceptions WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (AIBridgeInterception, error) {
+	row := q.db.QueryRowContext(ctx, getAIBridgeInterceptionByID, id)
+	var i AIBridgeInterception
+	err := row.Scan(
+		&i.ID,
+		&i.InitiatorID,
+		&i.Provider,
+		&i.Model,
+		&i.StartedAt,
+	)
+	return i, err
+}
+
+const insertAIBridgeInterception = `-- name: InsertAIBridgeInterception :one
+INSERT INTO aibridge_interceptions (id, initiator_id, provider, model, started_at)
+VALUES ($1::uuid, $2::uuid, $3, $4, $5)
+RETURNING id, initiator_id, provider, model, started_at
+`
+
+type InsertAIBridgeInterceptionParams struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	InitiatorID uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	Provider    string    `db:"provider" json:"provider"`
+	Model       string    `db:"model" json:"model"`
+	StartedAt   time.Time `db:"started_at" json:"started_at"`
+}
+
+func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error) {
+	row := q.db.QueryRowContext(ctx, insertAIBridgeInterception,
+		arg.ID,
+		arg.InitiatorID,
+		arg.Provider,
+		arg.Model,
+		arg.StartedAt,
+	)
+	var i AIBridgeInterception
+	err := row.Scan(
+		&i.ID,
+		&i.InitiatorID,
+		&i.Provider,
+		&i.Model,
+		&i.StartedAt,
+	)
+	return i, err
+}
+
+const insertAIBridgeTokenUsage = `-- name: InsertAIBridgeTokenUsage :exec
+INSERT INTO aibridge_token_usages (
+  id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at
+) VALUES (
+  $1, $2, $3, $4, $5, COALESCE($6::jsonb, '{}'::jsonb), $7
+)
+`
+
+type InsertAIBridgeTokenUsageParams struct {
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	InterceptionID     uuid.UUID       `db:"interception_id" json:"interception_id"`
+	ProviderResponseID string          `db:"provider_response_id" json:"provider_response_id"`
+	InputTokens        int64           `db:"input_tokens" json:"input_tokens"`
+	OutputTokens       int64           `db:"output_tokens" json:"output_tokens"`
+	Metadata           json.RawMessage `db:"metadata" json:"metadata"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) error {
+	_, err := q.db.ExecContext(ctx, insertAIBridgeTokenUsage,
+		arg.ID,
+		arg.InterceptionID,
+		arg.ProviderResponseID,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.Metadata,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const insertAIBridgeToolUsage = `-- name: InsertAIBridgeToolUsage :exec
+INSERT INTO aibridge_tool_usages (
+  id, interception_id, provider_response_id, tool, server_url, input, injected, invocation_error, metadata, created_at
+) VALUES (
+  $1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9::jsonb, '{}'::jsonb), $10
+)
+`
+
+type InsertAIBridgeToolUsageParams struct {
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	InterceptionID     uuid.UUID       `db:"interception_id" json:"interception_id"`
+	ProviderResponseID string          `db:"provider_response_id" json:"provider_response_id"`
+	Tool               string          `db:"tool" json:"tool"`
+	ServerUrl          sql.NullString  `db:"server_url" json:"server_url"`
+	Input              string          `db:"input" json:"input"`
+	Injected           bool            `db:"injected" json:"injected"`
+	InvocationError    sql.NullString  `db:"invocation_error" json:"invocation_error"`
+	Metadata           json.RawMessage `db:"metadata" json:"metadata"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBridgeToolUsageParams) error {
+	_, err := q.db.ExecContext(ctx, insertAIBridgeToolUsage,
+		arg.ID,
+		arg.InterceptionID,
+		arg.ProviderResponseID,
+		arg.Tool,
+		arg.ServerUrl,
+		arg.Input,
+		arg.Injected,
+		arg.InvocationError,
+		arg.Metadata,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const insertAIBridgeUserPrompt = `-- name: InsertAIBridgeUserPrompt :exec
+INSERT INTO aibridge_user_prompts (
+  id, interception_id, provider_response_id, prompt, metadata, created_at
+) VALUES (
+  $1, $2, $3, $4, COALESCE($5::jsonb, '{}'::jsonb), $6
+)
+`
+
+type InsertAIBridgeUserPromptParams struct {
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	InterceptionID     uuid.UUID       `db:"interception_id" json:"interception_id"`
+	ProviderResponseID string          `db:"provider_response_id" json:"provider_response_id"`
+	Prompt             string          `db:"prompt" json:"prompt"`
+	Metadata           json.RawMessage `db:"metadata" json:"metadata"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIBridgeUserPromptParams) error {
+	_, err := q.db.ExecContext(ctx, insertAIBridgeUserPrompt,
+		arg.ID,
+		arg.InterceptionID,
+		arg.ProviderResponseID,
+		arg.Prompt,
+		arg.Metadata,
+		arg.CreatedAt,
+	)
+	return err
+}
+
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
 DELETE FROM
 	api_keys
@@ -145,6 +292,46 @@ WHERE
 
 func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteApplicationConnectAPIKeysByUserID, userID)
+	return err
+}
+
+const expirePrebuildsAPIKeys = `-- name: ExpirePrebuildsAPIKeys :exec
+WITH unexpired_prebuilds_workspace_session_tokens AS (
+	SELECT id, SUBSTRING(token_name FROM 38 FOR 36)::uuid AS workspace_id
+	FROM api_keys
+	WHERE user_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+	AND expires_at > $1::timestamptz
+	AND token_name SIMILAR TO 'c42fdf75-3097-471c-8c33-fb52454d81c0_[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}_session_token'
+),
+stale_prebuilds_workspace_session_tokens AS (
+	SELECT upwst.id
+	FROM unexpired_prebuilds_workspace_session_tokens upwst
+	LEFT JOIN workspaces w
+	ON w.id = upwst.workspace_id
+	WHERE w.owner_id <> 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+),
+unnamed_prebuilds_api_keys AS (
+	SELECT id
+	FROM api_keys
+	WHERE user_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+	AND token_name = ''
+	AND expires_at > $1::timestamptz
+)
+UPDATE api_keys
+SET expires_at = $1::timestamptz
+WHERE id IN (
+	SELECT id FROM stale_prebuilds_workspace_session_tokens
+	UNION
+	SELECT id FROM unnamed_prebuilds_api_keys
+)
+`
+
+// Firstly, collect api_keys owned by the prebuilds user that correlate
+// to workspaces no longer owned by the prebuilds user.
+// Next, collect api_keys that belong to the prebuilds user but have no token name.
+// These were most likely created via 'coder login' as the prebuilds user.
+func (q *sqlQuerier) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
+	_, err := q.db.ExecContext(ctx, expirePrebuildsAPIKeys, now)
 	return err
 }
 
@@ -8835,6 +9022,47 @@ func (q *sqlQuerier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid
 	return i, err
 }
 
+const getProvisionerJobByIDWithLock = `-- name: GetProvisionerJobByIDWithLock :one
+SELECT
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
+FROM
+	provisioner_jobs
+WHERE
+	id = $1
+FOR UPDATE
+`
+
+// Gets a provisioner job by ID with exclusive lock.
+// Blocks until the row is available for update.
+func (q *sqlQuerier) GetProvisionerJobByIDWithLock(ctx context.Context, id uuid.UUID) (ProvisionerJob, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerJobByIDWithLock, id)
+	var i ProvisionerJob
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StartedAt,
+		&i.CanceledAt,
+		&i.CompletedAt,
+		&i.Error,
+		&i.OrganizationID,
+		&i.InitiatorID,
+		&i.Provisioner,
+		&i.StorageMethod,
+		&i.Type,
+		&i.Input,
+		&i.WorkerID,
+		&i.FileID,
+		&i.Tags,
+		&i.ErrorCode,
+		&i.TraceMetadata,
+		&i.JobStatus,
+		&i.LogsLength,
+		&i.LogsOverflowed,
+	)
+	return i, err
+}
+
 const getProvisionerJobTimingsByJobID = `-- name: GetProvisionerJobTimingsByJobID :many
 SELECT job_id, started_at, ended_at, stage, source, action, resource FROM provisioner_job_timings
 WHERE job_id = $1
@@ -11903,11 +12131,11 @@ JOIN provisioner_jobs pj ON
 WHERE
 	template_versions.template_id = $1 AND
 		(pj.completed_at IS NOT NULL) AND (pj.started_at IS NOT NULL) AND
-		(pj.started_at > $2) AND
 		(pj.canceled_at IS NULL) AND
 		((pj.error IS NULL) OR (pj.error = ''))
 ORDER BY
 	workspace_builds.created_at DESC
+LIMIT 100
 )
 SELECT
 	-- Postgres offers no clear way to DRY this short of a function or other
@@ -11921,11 +12149,6 @@ SELECT
 FROM build_times
 `
 
-type GetTemplateAverageBuildTimeParams struct {
-	TemplateID uuid.NullUUID `db:"template_id" json:"template_id"`
-	StartTime  sql.NullTime  `db:"start_time" json:"start_time"`
-}
-
 type GetTemplateAverageBuildTimeRow struct {
 	Start50  float64 `db:"start_50" json:"start_50"`
 	Stop50   float64 `db:"stop_50" json:"stop_50"`
@@ -11935,8 +12158,8 @@ type GetTemplateAverageBuildTimeRow struct {
 	Delete95 float64 `db:"delete_95" json:"delete_95"`
 }
 
-func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTemplateAverageBuildTimeParams) (GetTemplateAverageBuildTimeRow, error) {
-	row := q.db.QueryRowContext(ctx, getTemplateAverageBuildTime, arg.TemplateID, arg.StartTime)
+func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, templateID uuid.NullUUID) (GetTemplateAverageBuildTimeRow, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateAverageBuildTime, templateID)
 	var i GetTemplateAverageBuildTimeRow
 	err := row.Scan(
 		&i.Start50,
@@ -12154,23 +12377,41 @@ WHERE
 			LOWER(t.name) = LOWER($3)
 		ELSE true
 	END
-	-- Filter by name, matching on substring
+	-- Filter by exact display name
 	AND CASE
 		WHEN $4 :: text != '' THEN
-			lower(t.name) ILIKE '%' || lower($4) || '%'
+			LOWER(t.display_name) = LOWER($4)
+		ELSE true
+	END
+	-- Filter by name, matching on substring
+	AND CASE
+		WHEN $5 :: text != '' THEN
+			lower(t.name) ILIKE '%' || lower($5) || '%'
+		ELSE true
+	END
+	-- Filter by display_name, matching on substring (fallback to name if display_name is empty)
+	AND CASE
+		WHEN $6 :: text != '' THEN
+			CASE
+				WHEN t.display_name IS NOT NULL AND t.display_name != '' THEN
+					lower(t.display_name) ILIKE '%' || lower($6) || '%'
+				ELSE
+					-- Remove spaces if present since 't.name' cannot have any spaces
+					lower(t.name) ILIKE '%' || REPLACE(lower($6), ' ', '') || '%'
+			END
 		ELSE true
 	END
 	-- Filter by ids
 	AND CASE
-		WHEN array_length($5 :: uuid[], 1) > 0 THEN
-			t.id = ANY($5)
+		WHEN array_length($7 :: uuid[], 1) > 0 THEN
+			t.id = ANY($7)
 		ELSE true
 	END
 	-- Filter by deprecated
 	AND CASE
-		WHEN $6 :: boolean IS NOT NULL THEN
+		WHEN $8 :: boolean IS NOT NULL THEN
 			CASE
-				WHEN $6 :: boolean THEN
+				WHEN $8 :: boolean THEN
 					t.deprecated != ''
 				ELSE
 					t.deprecated = ''
@@ -12179,27 +12420,27 @@ WHERE
 	END
 	-- Filter by has_ai_task in latest version
 	AND CASE
-		WHEN $7 :: boolean IS NOT NULL THEN
-			tv.has_ai_task = $7 :: boolean
+		WHEN $9 :: boolean IS NOT NULL THEN
+			tv.has_ai_task = $9 :: boolean
 		ELSE true
 	END
 	-- Filter by author_id
 	AND CASE
-		  WHEN $8 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			  t.created_by = $8
+		  WHEN $10 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			  t.created_by = $10
 		  ELSE true
 	END
 	-- Filter by author_username
 	AND CASE
-		  WHEN $9 :: text != '' THEN
-			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($9) AND deleted = false)
+		  WHEN $11 :: text != '' THEN
+			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($11) AND deleted = false)
 		  ELSE true
 	END
 
 	-- Filter by has_external_agent in latest version
 	AND CASE
-		WHEN $10 :: boolean IS NOT NULL THEN
-			tv.has_external_agent = $10 :: boolean
+		WHEN $12 :: boolean IS NOT NULL THEN
+			tv.has_external_agent = $12 :: boolean
 		ELSE true
 	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
@@ -12211,7 +12452,9 @@ type GetTemplatesWithFilterParams struct {
 	Deleted          bool         `db:"deleted" json:"deleted"`
 	OrganizationID   uuid.UUID    `db:"organization_id" json:"organization_id"`
 	ExactName        string       `db:"exact_name" json:"exact_name"`
+	ExactDisplayName string       `db:"exact_display_name" json:"exact_display_name"`
 	FuzzyName        string       `db:"fuzzy_name" json:"fuzzy_name"`
+	FuzzyDisplayName string       `db:"fuzzy_display_name" json:"fuzzy_display_name"`
 	IDs              []uuid.UUID  `db:"ids" json:"ids"`
 	Deprecated       sql.NullBool `db:"deprecated" json:"deprecated"`
 	HasAITask        sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
@@ -12225,7 +12468,9 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		arg.Deleted,
 		arg.OrganizationID,
 		arg.ExactName,
+		arg.ExactDisplayName,
 		arg.FuzzyName,
+		arg.FuzzyDisplayName,
 		pq.Array(arg.IDs),
 		arg.Deprecated,
 		arg.HasAITask,
@@ -18182,7 +18427,7 @@ func (q *sqlQuerier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Con
 }
 
 const getWorkspaceAppByAgentIDAndSlug = `-- name: GetWorkspaceAppByAgentIDAndSlug :one
-SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group FROM workspace_apps WHERE agent_id = $1 AND slug = $2
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group, tooltip FROM workspace_apps WHERE agent_id = $1 AND slug = $2
 `
 
 type GetWorkspaceAppByAgentIDAndSlugParams struct {
@@ -18213,6 +18458,7 @@ func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg Ge
 		&i.Hidden,
 		&i.OpenIn,
 		&i.DisplayGroup,
+		&i.Tooltip,
 	)
 	return i, err
 }
@@ -18254,7 +18500,7 @@ func (q *sqlQuerier) GetWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []
 }
 
 const getWorkspaceAppsByAgentID = `-- name: GetWorkspaceAppsByAgentID :many
-SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group FROM workspace_apps WHERE agent_id = $1 ORDER BY slug ASC
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group, tooltip FROM workspace_apps WHERE agent_id = $1 ORDER BY slug ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceApp, error) {
@@ -18286,6 +18532,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid
 			&i.Hidden,
 			&i.OpenIn,
 			&i.DisplayGroup,
+			&i.Tooltip,
 		); err != nil {
 			return nil, err
 		}
@@ -18301,7 +18548,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid
 }
 
 const getWorkspaceAppsByAgentIDs = `-- name: GetWorkspaceAppsByAgentIDs :many
-SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ]) ORDER BY slug ASC
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group, tooltip FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ]) ORDER BY slug ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceApp, error) {
@@ -18333,6 +18580,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.
 			&i.Hidden,
 			&i.OpenIn,
 			&i.DisplayGroup,
+			&i.Tooltip,
 		); err != nil {
 			return nil, err
 		}
@@ -18348,7 +18596,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.
 }
 
 const getWorkspaceAppsCreatedAfter = `-- name: GetWorkspaceAppsCreatedAfter :many
-SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group FROM workspace_apps WHERE created_at > $1 ORDER BY slug ASC
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group, tooltip FROM workspace_apps WHERE created_at > $1 ORDER BY slug ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceApp, error) {
@@ -18380,6 +18628,7 @@ func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt
 			&i.Hidden,
 			&i.OpenIn,
 			&i.DisplayGroup,
+			&i.Tooltip,
 		); err != nil {
 			return nil, err
 		}
@@ -18476,10 +18725,11 @@ INSERT INTO
         display_order,
         hidden,
         open_in,
-        display_group
+        display_group,
+        tooltip
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 ON CONFLICT (id) DO UPDATE SET
     display_name = EXCLUDED.display_name,
     icon = EXCLUDED.icon,
@@ -18497,8 +18747,9 @@ ON CONFLICT (id) DO UPDATE SET
     open_in = EXCLUDED.open_in,
     display_group = EXCLUDED.display_group,
     agent_id = EXCLUDED.agent_id,
-    slug = EXCLUDED.slug
-RETURNING id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group
+    slug = EXCLUDED.slug,
+    tooltip = EXCLUDED.tooltip
+RETURNING id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group, tooltip
 `
 
 type UpsertWorkspaceAppParams struct {
@@ -18521,6 +18772,7 @@ type UpsertWorkspaceAppParams struct {
 	Hidden               bool               `db:"hidden" json:"hidden"`
 	OpenIn               WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
 	DisplayGroup         sql.NullString     `db:"display_group" json:"display_group"`
+	Tooltip              string             `db:"tooltip" json:"tooltip"`
 }
 
 func (q *sqlQuerier) UpsertWorkspaceApp(ctx context.Context, arg UpsertWorkspaceAppParams) (WorkspaceApp, error) {
@@ -18544,6 +18796,7 @@ func (q *sqlQuerier) UpsertWorkspaceApp(ctx context.Context, arg UpsertWorkspace
 		arg.Hidden,
 		arg.OpenIn,
 		arg.DisplayGroup,
+		arg.Tooltip,
 	)
 	var i WorkspaceApp
 	err := row.Scan(
@@ -18566,6 +18819,7 @@ func (q *sqlQuerier) UpsertWorkspaceApp(ctx context.Context, arg UpsertWorkspace
 		&i.Hidden,
 		&i.OpenIn,
 		&i.DisplayGroup,
+		&i.Tooltip,
 	)
 	return i, err
 }
@@ -20034,6 +20288,21 @@ func (q *sqlQuerier) BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg Ba
 	return err
 }
 
+const deleteWorkspaceACLByID = `-- name: DeleteWorkspaceACLByID :exec
+UPDATE
+	workspaces
+SET
+	group_acl = '{}'::json,
+	user_acl = '{}'::json
+WHERE
+	id = $1
+`
+
+func (q *sqlQuerier) DeleteWorkspaceACLByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkspaceACLByID, id)
+	return err
+}
+
 const favoriteWorkspace = `-- name: FavoriteWorkspace :exec
 UPDATE workspaces SET favorite = true WHERE id = $1
 `
@@ -20838,6 +21107,13 @@ WHERE
 			latest_build.has_external_agent = $20 :: boolean
 		ELSE true
 	END
+	-- Filter by shared status
+	AND CASE
+		WHEN $21 :: boolean IS NOT NULL THEN
+			(workspaces.user_acl != '{}'::jsonb OR workspaces.group_acl != '{}'::jsonb) = $21 :: boolean
+		ELSE true
+	END
+
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ), filtered_workspaces_order AS (
@@ -20847,7 +21123,7 @@ WHERE
 		filtered_workspaces fw
 	ORDER BY
 		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-		CASE WHEN owner_id = $21 AND favorite THEN 0 ELSE 1 END ASC,
+		CASE WHEN owner_id = $22 AND favorite THEN 0 ELSE 1 END ASC,
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
@@ -20856,11 +21132,11 @@ WHERE
 		LOWER(name) ASC
 	LIMIT
 		CASE
-			WHEN $23 :: integer > 0 THEN
-				$23
+			WHEN $24 :: integer > 0 THEN
+				$24
 		END
 	OFFSET
-		$22
+		$23
 ), filtered_workspaces_order_with_summary AS (
 	SELECT
 		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.next_start_at, fwo.group_acl, fwo.user_acl, fwo.owner_avatar_url, fwo.owner_username, fwo.owner_name, fwo.organization_name, fwo.organization_display_name, fwo.organization_icon, fwo.organization_description, fwo.template_name, fwo.template_display_name, fwo.template_icon, fwo.template_description, fwo.template_version_id, fwo.template_version_name, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status, fwo.latest_build_has_ai_task, fwo.latest_build_has_external_agent
@@ -20910,7 +21186,7 @@ WHERE
 		false, -- latest_build_has_ai_task
 		false -- latest_build_has_external_agent
 	WHERE
-		$24 :: boolean = true
+		$25 :: boolean = true
 ), total_count AS (
 	SELECT
 		count(*) AS count
@@ -20947,6 +21223,7 @@ type GetWorkspacesParams struct {
 	UsingActive                           sql.NullBool `db:"using_active" json:"using_active"`
 	HasAITask                             sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
 	HasExternalAgent                      sql.NullBool `db:"has_external_agent" json:"has_external_agent"`
+	Shared                                sql.NullBool `db:"shared" json:"shared"`
 	RequesterID                           uuid.UUID    `db:"requester_id" json:"requester_id"`
 	Offset                                int32        `db:"offset_" json:"offset_"`
 	Limit                                 int32        `db:"limit_" json:"limit_"`
@@ -21020,6 +21297,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.UsingActive,
 		arg.HasAITask,
 		arg.HasExternalAgent,
+		arg.Shared,
 		arg.RequesterID,
 		arg.Offset,
 		arg.Limit,
