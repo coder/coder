@@ -188,13 +188,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 					return err
 				}
 
-				_, _ = fmt.Fprintln(
-					inv.Stdout, "\n"+cliui.Wrap(
-						"The "+cliui.Keyword(name)+" template has been created at "+cliui.Timestamp(time.Now())+"! "+
-							"Developers can provision a workspace with this template using:")+"\n")
-				// Print example command to create a workspace from this template.
-				_, _ = fmt.Fprintln(inv.Stdout, "  "+pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("coder create --template=%q --org=%q [workspace name]", name, organization.Name)))
-				_, _ = fmt.Fprintln(inv.Stdout)
+				cliui.WriteTemplateCreateHint(inv.Stdout, name, organization.Name, time.Now())
 			} else if activate {
 				err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
 					ID: job.ID,

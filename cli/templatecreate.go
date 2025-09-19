@@ -8,7 +8,6 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -160,19 +159,12 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 				RequireActiveVersion:           requireActiveVersion,
 			}
 
-			template, err := client.CreateTemplate(inv.Context(), organization.ID, createReq)
+			_, err = client.CreateTemplate(inv.Context(), organization.ID, createReq)
 			if err != nil {
 				return err
 			}
 
-			_, _ = fmt.Fprintln(inv.Stdout, "\n"+pretty.Sprint(cliui.DefaultStyles.Wrap,
-				"The "+pretty.Sprint(
-					cliui.DefaultStyles.Keyword, templateName)+" template has been created at "+
-					pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp))+"! "+
-					"Developers can provision a workspace with this template using:")+"\n")
-
-			_, _ = fmt.Fprintln(inv.Stdout, "  "+pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("coder create --template=%q --org=%q [workspace name]", templateName, template.OrganizationName)))
-			_, _ = fmt.Fprintln(inv.Stdout)
+			cliui.WriteTemplateCreateHint(inv.Stdout, templateName, organization.Name, time.Now())
 
 			return nil
 		},
