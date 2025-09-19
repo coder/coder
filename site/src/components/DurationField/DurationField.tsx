@@ -119,9 +119,16 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
 						});
 
 						// Calculate the new duration in ms after changing the unit
-						const newDurationMs = unit === "hours"
-							? hoursToDuration(Number(state.durationFieldValue))
-							: daysToDuration(Math.ceil(Number(state.durationFieldValue)));
+						// Important: When changing from hours to days, we need to round up to nearest day
+						// but keep the millisecond value consistent for the parent component
+						let newDurationMs: number;
+						if (unit === "hours") {
+							newDurationMs = hoursToDuration(Number(state.durationFieldValue));
+						} else {
+							// When switching to days, round up to the nearest day
+							const daysValue = Math.ceil(durationInDays(currentDurationMs));
+							newDurationMs = daysToDuration(daysValue);
+						}
 
 						// Notify parent component if the value has changed
 						if (newDurationMs !== parentValueMs) {
