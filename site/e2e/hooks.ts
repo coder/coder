@@ -3,44 +3,40 @@ import type { BrowserContext, Page } from "@playwright/test";
 import { coderPort, gitAuth } from "./constants";
 
 export const beforeCoderTest = (page: Page) => {
-	page.on("console", (msg) => console.info(`[onConsole] ${msg.text()}`));
-
-	page.on("request", (request) => {
-		if (!isApiCall(request.url())) {
+	page.on("console", (msg) => {
+		const location = msg.location();
+		// Filters out a bunch of junk warnings the browser produces.
+		if (!location.url) {
 			return;
 		}
-
-		console.info(
-			`[onRequest] method=${request.method()} url=${request.url()} postData=${
-				request.postData() ? request.postData() : ""
-			}`,
-		);
+		// Filters out the gigantic CODER logo we print on every page load, as well
+		// as some other noise.
+		if (msg.type() === "info") {
+			return;
+		}
+		console.info(`[console][${msg.type()}] ${msg.text()}`);
 	});
+
 	page.on("response", async (response) => {
+		// Don't log responses for static assets.
 		if (!isApiCall(response.url())) {
 			return;
 		}
+		// Don't log successful responses. Those are almost always less interesting.
+		if (response.ok()) {
+			return;
+		}
 
-		const shouldLogResponse =
-			!response.url().endsWith("/api/v2/deployment/config") &&
-			!response.url().endsWith("/api/v2/debug/health?force=false");
-
-		let responseText = "";
+		let responseText: string;
 		try {
-			if (shouldLogResponse) {
-				const buffer = await response.body();
-				responseText = buffer.toString("utf-8");
-				responseText = responseText.replace(/\n$/g, "");
-			} else {
-				responseText = "skipped...";
-			}
-		} catch (error) {
-			console.error(error);
-			responseText = "not_available";
+			responseText = await response.text();
+			responseText = responseText.replaceAll("\n", "");
+		} catch {
+			responseText = "<n/a>";
 		}
 
 		console.info(
-			`[onResponse] url=${response.url()} status=${response.status()} body=${responseText}`,
+			`[response] url=${response.url()} status=${response.status()} body=${responseText}`,
 		);
 	});
 };
