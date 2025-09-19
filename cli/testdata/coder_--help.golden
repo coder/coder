@@ -14,6 +14,7 @@ USAGE:
        $ coder templates init
 
 SUBCOMMANDS:
+    api               Make requests to the Coder API
     autoupdate        Toggle auto-update policy for a workspace
     completion        Install or update shell completion scripts for the
                       detected or chosen shell.
