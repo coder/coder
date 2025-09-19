@@ -15,6 +15,7 @@ import {
 } from "components/Dialog/Dialog";
 import { Spinner } from "components/Spinner/Spinner";
 import { TriangleAlert } from "lucide-react";
+import { ACTIVE_BUILD_STATUSES } from "modules/workspaces/status";
 import {
 	type FC,
 	type ForwardedRef,
@@ -25,7 +26,6 @@ import {
 } from "react";
 import { useQueries } from "react-query";
 import { cn } from "utils/cn";
-import { ACTIVE_BUILD_STATUSES } from "utils/workspace";
 
 export const BatchUpdateModalForm: FC<BatchUpdateModalFormProps> = ({
 	open,

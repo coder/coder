@@ -6,10 +6,10 @@ import type {
 	Workspace,
 	WorkspaceBuild,
 } from "api/typesGenerated";
+import { ACTIVE_BUILD_STATUSES } from "modules/workspaces/status";
 import { useQueryClient } from "react-query";
 import { action } from "storybook/internal/actions";
 import { expect, screen, userEvent, within } from "storybook/test";
-import { ACTIVE_BUILD_STATUSES } from "utils/workspace";
 import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
 
 type Writeable<T> = { -readonly [Key in keyof T]: T[Key] };
