@@ -68,22 +68,22 @@ func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger)
 }
 
 // Connect establishes a connection to coderd.
-func (d *Server) connect() {
-	defer d.logger.Debug(d.lifecycleCtx, "connect loop exited")
-	defer d.wg.Done()
+func (s *Server) connect() {
+	defer s.logger.Debug(s.lifecycleCtx, "connect loop exited")
+	defer s.wg.Done()
 
-	logConnect := d.logger.With(slog.F("context", "aibridged.server")).Debug
+	logConnect := s.logger.With(slog.F("context", "aibridged.server")).Debug
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
 connectLoop:
-	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(d.lifecycleCtx); {
+	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(s.lifecycleCtx); {
 		// It's possible for the aibridge daemon to be shut down
 		// before the wait is complete!
-		if d.isShutdown() {
+		if s.isShutdown() {
 			return
 		}
-		d.logger.Debug(d.lifecycleCtx, "dialing coderd")
-		client, err := d.clientDialer(d.lifecycleCtx)
+		s.logger.Debug(s.lifecycleCtx, "dialing coderd")
+		client, err := s.clientDialer(s.lifecycleCtx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return
@@ -91,55 +91,55 @@ connectLoop:
 			var sdkErr *codersdk.Error
 			// If something is wrong with our auth, stop trying to connect.
 			if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusForbidden {
-				d.logger.Error(d.lifecycleCtx, "not authorized to dial coderd", slog.Error(err))
+				s.logger.Error(s.lifecycleCtx, "not authorized to dial coderd", slog.Error(err))
 				return
 			}
-			if d.isShutdown() {
+			if s.isShutdown() {
 				return
 			}
-			d.logger.Warn(d.lifecycleCtx, "coderd client failed to dial", slog.Error(err))
+			s.logger.Warn(s.lifecycleCtx, "coderd client failed to dial", slog.Error(err))
 			continue
 		}
 
 		// TODO: log this with INFO level when we implement external aibridge daemons.
-		logConnect(d.lifecycleCtx, "successfully connected to coderd")
+		logConnect(s.lifecycleCtx, "successfully connected to coderd")
 		retrier.Reset()
-		d.initConnectionOnce.Do(func() {
-			close(d.initConnectionCh)
+		s.initConnectionOnce.Do(func() {
+			close(s.initConnectionCh)
 		})
 
 		// Serve the client until we are closed or it disconnects.
 		for {
 			select {
-			case <-d.lifecycleCtx.Done():
+			case <-s.lifecycleCtx.Done():
 				client.DRPCConn().Close()
 				return
 			case <-client.DRPCConn().Closed():
-				logConnect(d.lifecycleCtx, "connection to coderd closed")
+				logConnect(s.lifecycleCtx, "connection to coderd closed")
 				continue connectLoop
-			case d.clientCh <- client:
+			case s.clientCh <- client:
 				continue
 			}
 		}
 	}
 }
 
-func (d *Server) Client() (DRPCClient, error) {
+func (s *Server) Client() (DRPCClient, error) {
 	select {
-	case <-d.lifecycleCtx.Done():
+	case <-s.lifecycleCtx.Done():
 		return nil, xerrors.New("context closed")
-	case client := <-d.clientCh:
+	case client := <-s.clientCh:
 		return client, nil
 	}
 }
 
 // GetRequestHandler retrieves a (possibly reused) [*aibridge.RequestBridge] from the pool, for the given user.
-func (d *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handler, error) {
-	if d.requestBridgePool == nil {
+func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handler, error) {
+	if s.requestBridgePool == nil {
 		return nil, xerrors.New("nil requestBridgePool")
 	}
 
-	reqBridge, err := d.requestBridgePool.Acquire(ctx, req, d.Client)
+	reqBridge, err := s.requestBridgePool.Acquire(ctx, req, s.Client, NewMCPProxyFactory(s.logger, s.Client))
 	if err != nil {
 		return nil, xerrors.Errorf("acquire request bridge: %w", err)
 	}
@@ -148,9 +148,9 @@ func (d *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 }
 
 // isShutdown returns whether the Server is shutdown or not.
-func (d *Server) isShutdown() bool {
+func (s *Server) isShutdown() bool {
 	select {
-	case <-d.lifecycleCtx.Done():
+	case <-s.lifecycleCtx.Done():
 		return true
 	default:
 		return false
@@ -158,28 +158,28 @@ func (d *Server) isShutdown() bool {
 }
 
 // Shutdown waits for all exiting in-flight requests to complete, or the context to expire, whichever comes first.
-func (d *Server) Shutdown(ctx context.Context) error {
+func (s *Server) Shutdown(ctx context.Context) error {
 	var err error
-	d.shutdownOnce.Do(func() {
-		d.cancelFn()
+	s.shutdownOnce.Do(func() {
+		s.cancelFn()
 
 		// Wait for any outstanding connections to terminate.
-		d.wg.Wait()
+		s.wg.Wait()
 
 		select {
 		case <-ctx.Done():
-			d.logger.Warn(ctx, "graceful shutdown failed", slog.Error(ctx.Err()))
+			s.logger.Warn(ctx, "graceful shutdown failed", slog.Error(ctx.Err()))
 			err = ctx.Err()
 			return
 		default:
 		}
 
-		d.logger.Info(ctx, "shutting down request pool")
-		if err = d.requestBridgePool.Shutdown(ctx); err != nil {
-			d.logger.Error(ctx, "request pool shutdown failed with error", slog.Error(err))
+		s.logger.Info(ctx, "shutting down request pool")
+		if err = s.requestBridgePool.Shutdown(ctx); err != nil {
+			s.logger.Error(ctx, "request pool shutdown failed with error", slog.Error(err))
 		}
 
-		d.logger.Info(ctx, "gracefully shutdown")
+		s.logger.Info(ctx, "gracefully shutdown")
 	})
 	return err
 }
