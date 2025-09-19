@@ -139,9 +139,7 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
 					IconComponent={ChevronDownIcon}
 				>
 					<MenuItem value="hours">Hours</MenuItem>
-					<MenuItem value="days">
-						Days
-					</MenuItem>
+					<MenuItem value="days">Days</MenuItem>
 				</Select>
 			</div>
 
@@ -188,4 +186,3 @@ function hoursToDuration(hours: number): number {
 function daysToDuration(days: number): number {
 	return days * 24 * hoursToDuration(1);
 }
-
