@@ -18,7 +18,6 @@ import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
-import { getAgents } from "utils/workspace";
 import { TaskAppIFrame } from "./TaskAppIframe";
 
 type TaskAppsProps = {
@@ -30,29 +29,16 @@ type WorkspaceAppWithAgent = WorkspaceApp & {
 };
 
 export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
-	const agents = getAgents(task.workspace);
-	const apps: WorkspaceAppWithAgent[] = agents
-		.flatMap((agent) =>
-			agent.apps.map((app) => ({
-				...app,
-				agent,
-			})),
-		)
-		// The Chat UI app will be displayed in the sidebar, so we don't want to
-		// show it as a tab.
-		.filter(
-			(app) => app.id !== task.workspace.latest_build.ai_task_sidebar_app_id,
-		);
-	const embedApps = apps.filter((app) => !app.external);
-	const externalApps = apps.filter((app) => app.external);
-	const [activeAppId, setActiveAppId] = useState(embedApps.at(0)?.id);
+	const apps = getTaskApps(task);
+	const [embeddedApps, externalApps] = splitEmbeddedAndExternalApps(apps);
+	const [activeAppId, setActiveAppId] = useState(embeddedApps.at(0)?.id);
 
 	return (
 		<main className="flex flex-col">
 			<div className="w-full flex items-center border-0 border-b border-border border-solid">
 				<ScrollArea className="max-w-full">
 					<div className="flex w-max gap-2 items-center p-2 pb-0">
-						{embedApps.map((app) => (
+						{embeddedApps.map((app) => (
 							<TaskAppTab
 								key={app.id}
 								task={task}
@@ -69,17 +55,13 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 				</ScrollArea>
 
 				{externalApps.length > 0 && (
-					<ExternalAppsDropdown
-						task={task}
-						agents={agents}
-						externalApps={externalApps}
-					/>
+					<ExternalAppsDropdown task={task} externalApps={externalApps} />
 				)}
 			</div>
 
-			{embedApps.length > 0 ? (
+			{embeddedApps.length > 0 ? (
 				<div className="flex-1">
-					{embedApps.map((app) => {
+					{embeddedApps.map((app) => {
 						return (
 							<TaskAppIFrame
 								key={app.id}
@@ -114,7 +96,6 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 
 type ExternalAppsDropdownProps = {
 	task: Task;
-	agents: WorkspaceAgent[];
 	externalApps: WorkspaceAppWithAgent[];
 };
 
@@ -202,3 +183,39 @@ const TaskAppTab: FC<TaskAppTabProps> = ({ task, app, active, onClick }) => {
 		</Button>
 	);
 };
+
+function getTaskApps(task: Task): WorkspaceAppWithAgent[] {
+	return (
+		task.workspace.latest_build.resources
+			.flatMap((r) => r.agents)
+			.filter((a) => a !== undefined)
+			.flatMap((agent) =>
+				agent.apps.map((app) => ({
+					...app,
+					agent,
+				})),
+			)
+			// The Chat UI app will be displayed in the sidebar, so we don't want to
+			// show it as a tab.
+			.filter(
+				(app) => app.id !== task.workspace.latest_build.ai_task_sidebar_app_id,
+			)
+	);
+}
+
+function splitEmbeddedAndExternalApps(
+	apps: WorkspaceAppWithAgent[],
+): [WorkspaceAppWithAgent[], WorkspaceAppWithAgent[]] {
+	const embeddedApps = [];
+	const externalApps = [];
+
+	for (const app of apps) {
+		if (app.external) {
+			externalApps.push(app);
+		} else {
+			embeddedApps.push(app);
+		}
+	}
+
+	return [embeddedApps, externalApps];
+}

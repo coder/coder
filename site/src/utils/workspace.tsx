@@ -286,12 +286,6 @@ export const paramsUsedToCreateWorkspace = (
 	param: TypesGen.TemplateVersionParameter,
 ) => !param.ephemeral;
 
-export const getAgents = (workspace: TypesGen.Workspace) => {
-	return workspace.latest_build.resources
-		.flatMap((r) => r.agents)
-		.filter((a) => !!a);
-};
-
 export const getMatchingAgentOrFirst = (
 	workspace: TypesGen.Workspace,
 	agentName: string | undefined,

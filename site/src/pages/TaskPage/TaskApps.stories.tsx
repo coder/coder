@@ -136,7 +136,7 @@ export const WithMixedApps: Story = {
 
 const createMockEmbeddedApp = (name: string): WorkspaceApp => ({
 	...MockWorkspaceApp,
-	id: window.crypto.randomUUID(),
+	id: crypto.randomUUID(),
 	slug: kebabCase(name),
 	display_name: name,
 	external: false,
