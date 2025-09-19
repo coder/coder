@@ -33,7 +33,7 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	const [activeAppId, setActiveAppId] = useState(embeddedApps.at(0)?.id);
 
 	return (
-		<main className="flex flex-col">
+		<main className="flex flex-col h-full">
 			<div className="w-full flex items-center border-0 border-b border-border border-solid">
 				<ScrollArea className="max-w-full">
 					<div className="flex w-max gap-2 items-center p-2 pb-0">

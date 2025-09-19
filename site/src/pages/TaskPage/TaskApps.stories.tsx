@@ -1,12 +1,13 @@
 import {
 	MockPrimaryWorkspaceProxy,
 	MockTasks,
+	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
 	MockWorkspaceProxies,
 } from "testHelpers/entities";
-import { withProxyProvider } from "testHelpers/storybook";
+import { withAuthProvider, withProxyProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { WorkspaceApp } from "api/typesGenerated";
 import { getPreferredProxy } from "contexts/ProxyContext";
@@ -57,6 +58,7 @@ export const WithMixedApps: Story = {
 
 export const WithWildcardWarning: Story = {
 	decorators: [
+		withAuthProvider,
 		withProxyProvider({
 			proxy: {
 				...getPreferredProxy(MockWorkspaceProxies, MockPrimaryWorkspaceProxy),
@@ -64,6 +66,9 @@ export const WithWildcardWarning: Story = {
 			},
 		}),
 	],
+	parameters: {
+		user: MockUserOwner,
+	},
 	args: {
 		task: mockTask([
 			{

@@ -8,7 +8,7 @@ export const TaskWildcardWarning = () => {
 	const { permissions } = useAuthenticated();
 
 	return (
-		<div className="text-center">
+		<div className="text-center max-w-md">
 			<h3 className="font-medium text-content-primary text-base mb-3">Error</h3>
 			<div className="text-content-secondary text-sm flex flex-col gap-3 items-center">
 				<div className="px-4">

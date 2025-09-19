@@ -38,7 +38,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 
 	if (shouldDisplayWildcardWarning) {
 		return (
-			<div className="flex-1 flex flex-col items-center justify-center pb-4">
+			<div className="h-full flex items-center justify-center pb-4">
 				<TaskWildcardWarning />
 			</div>
 		);
