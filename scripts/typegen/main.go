@@ -31,6 +31,9 @@ var codersdkTemplate string
 //go:embed typescript.tstmpl
 var typescriptTemplate string
 
+//go:embed scopenames.gotmpl
+var scopenamesTemplate string
+
 //go:embed countries.tstmpl
 var countriesTemplate string
 
@@ -96,6 +99,8 @@ func generateRBAC(tmpl string) ([]byte, error) {
 			// No typescript formatting
 			return src, nil
 		}
+	case "scopenames":
+		source = scopenamesTemplate
 	default:
 		return nil, xerrors.Errorf("%q is not a valid RBAC template target", tmpl)
 	}
@@ -224,6 +229,34 @@ func generateRbacObjects(templateSource string) ([]byte, error) {
 		"pascalCaseName": pascalCaseName[string],
 		"actionsList": func() []ActionDetails {
 			return actionList
+		},
+		"actionsOf": func(d Definition) []string {
+			// Extract and sort action string keys for deterministic output.
+			list := make([]string, 0, len(d.Actions))
+			for a := range d.Actions {
+				list = append(list, string(a))
+			}
+			slices.Sort(list)
+			return list
+		},
+		"allCaseList": func(defs []Definition) string {
+			// Build a multi-line comma-separated list of all scope constants (including builtins)
+			// suitable for use in a `case ...:` clause, without a trailing comma.
+			var names []string
+			// Builtins first
+			names = append(names, "ScopeAll", "ScopeApplicationConnect", "ScopeNoUserData")
+			for _, d := range defs {
+				res := pascalCaseName[string](d.Type)
+				acts := make([]string, 0, len(d.Actions))
+				for a := range d.Actions {
+					acts = append(acts, string(a))
+				}
+				slices.Sort(acts)
+				for _, a := range acts {
+					names = append(names, "Scope"+res+pascalCaseName[string](a))
+				}
+			}
+			return strings.Join(names, ",\n\t\t")
 		},
 		"actionEnum": func(action policy.Action) string {
 			x++
