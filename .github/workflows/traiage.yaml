@@ -70,9 +70,10 @@ jobs:
           mkdir -p "${HOME}/.local/bin"
           curl -fsSL --compressed "$CODER_URL/bin/coder-linux-${ARCH}" -o "${HOME}/.local/bin/coder"
           chmod +x "${HOME}/.local/bin/coder"
+          export PATH="$HOME/.local/bin:$PATH"
+          coder version
+          coder whoami
           echo "$HOME/.local/bin" >> "${GITHUB_PATH}"
-          "$HOME"/.local/bin/coder version
-          "$HOME"/.local/bin/coder whoami
 
       - name: Create Coder workspace
         id: create-workspace
@@ -101,15 +102,17 @@ jobs:
 
           # Write a prompt to PROMPT_FILE
           cat > "${PROMPT_FILE}" <<EOF
-            Analyze the below GitHub issue description, understand the root cause, and make appropriate changes to resolve the issue.
+          Analyze the below GitHub issue description, understand the root cause, and make appropriate changes to resolve the issue.
 
-            ISSUE URL: ${ISSUE_URL}
-            ISSUE DESCRIPTION BELOW:
+          ISSUE URL: ${ISSUE_URL}
+          ISSUE DESCRIPTION BELOW:
 
-            ${issue_description}
+          ${issue_description}
           EOF
 
           echo "WORKSPACE_NAME: ${WORKSPACE_NAME}"
+          # This command will run the prompt inside the workspace
+          # and exit once the agent has completed the task.
           PROMPT=$(cat $PROMPT_FILE) ./scripts/traiage.sh prompt
 
       - name: Commit and push changes

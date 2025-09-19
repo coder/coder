@@ -62,27 +62,21 @@ prompt_ssh() {
 
 	ssh_config
 
-	# Write prompt to a file in the workspace
-	cat <<<"${PROMPT}" >"${TEMPDIR}/prompt.txt"
-	scp \
-		-F "${OPENSSH_CONFIG_FILE}" \
-		"${TEMPDIR}/prompt.txt" \
-		"${WORKSPACE_NAME}.coder:/tmp/prompt.txt"
-
-	# Execute claude over SSH
+	# Execute claude over SSH and provide prompt via stdin
 	# Note: use of cat to work around claude-code#7357
 	ssh \
 		-F "${OPENSSH_CONFIG_FILE}" \
 		"${WORKSPACE_NAME}.coder" \
 		-- \
-		"cat /tmp/prompt.txt | \"\${HOME}\"/.local/bin/claude --dangerously-skip-permissions --print --verbose --output-format=stream-json"
+		"cat | \"\${HOME}\"/.local/bin/claude --dangerously-skip-permissions --print --verbose --output-format=stream-json" \
+		<<<"${PROMPT}"
 	exit 0
 }
 
 prompt_agentapi() {
 	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME AGENTAPI_SLUG PROMPT
 
-	wait
+	wait_agentapi_stable
 
 	username=$(curl \
 		--fail \
@@ -112,10 +106,10 @@ prompt_agentapi() {
 		exit 1
 	fi
 
-	wait
+	wait_agentapi_stable
 }
 
-wait() {
+wait_agentapi_stable() {
 	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME PROMPT
 	username=$(curl \
 		--fail \
@@ -125,14 +119,8 @@ wait() {
 		--silent \
 		"${CODER_URL}/api/v2/users/me" | jq -r '.username')
 
-	payload="{
-		\"content\": \"${PROMPT}\",
-		\"type\": \"user\"
-	}"
-
-	for attempt in {1..600}; do
+	for attempt in {1..120}; do
 		response=$(curl \
-			--data-raw "${payload}" \
 			--fail \
 			--header "Content-Type: application/json" \
 			--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
@@ -145,8 +133,8 @@ wait() {
 			echo "AgentAPI stable"
 			break
 		fi
-		echo "Waiting for AgentAPI to report stable status (attempt ${attempt}/600)"
-		sleep 1
+		echo "Waiting for AgentAPI to report stable status (attempt ${attempt}/120)"
+		sleep 5
 	done
 }
 
@@ -154,30 +142,25 @@ archive() {
 	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME DESTINATION_PREFIX
 	ssh_config
 
-	cat >"${TEMPDIR}/archive.sh" <<-EOF
-		#!/usr/bin/env bash
-		set -euo pipefail
-		/tmp/coder-script-data/bin/coder-archive-create
-		ARCHIVE_NAME=\$(cd && find . -maxdepth 1 -type f -name "*.tar.gz" -print0 | xargs -0 -n 1 basename)
-		ARCHIVE_PATH="/home/coder/\${ARCHIVE_NAME}"
-		ARCHIVE_DEST="${DESTINATION_PREFIX%%/}/\${ARCHIVE_NAME}"
-		if [[ ! -f "\${ARCHIVE_PATH}" ]]; then
-			echo "FATAL: Archive not found at expected path: \${ARCHIVE_PATH}"
-			exit 1
-		fi
-		gcloud storage cp "\${ARCHIVE_PATH}" "\${ARCHIVE_DEST}"
-		echo "\${ARCHIVE_DEST}"
-		exit 0
-	EOF
-
-	scp -F "${OPENSSH_CONFIG_FILE}" \
-		"${TEMPDIR}/archive.sh" \
-		"${WORKSPACE_NAME}.coder:/tmp/archive.sh"
-
+	# We want the heredoc to be expanded locally and not remotely.
+	# shellcheck disable=SC2087
 	ARCHIVE_DEST=$(ssh -F "${OPENSSH_CONFIG_FILE}" \
 		"${WORKSPACE_NAME}.coder" \
-		-- \
-		"chmod +x /tmp/archive.sh && /tmp/archive.sh")
+		bash <<-EOF
+			#!/usr/bin/env bash
+			set -euo pipefail
+			ARCHIVE_PATH=\$(coder-archive-create)
+			ARCHIVE_NAME=\$(basename "\${ARCHIVE_PATH}")
+			ARCHIVE_DEST="${DESTINATION_PREFIX%%/}/\${ARCHIVE_NAME}"
+			if [[ ! -f "\${ARCHIVE_PATH}" ]]; then
+				echo "FATAL: Archive not found at expected path: \${ARCHIVE_PATH}"
+				exit 1
+			fi
+			gcloud storage cp "\${ARCHIVE_PATH}" "\${ARCHIVE_DEST}"
+			echo "\${ARCHIVE_DEST}"
+			exit 0
+		EOF
+		)
 
 	echo "${ARCHIVE_DEST}"
 
@@ -188,38 +171,33 @@ commit_push() {
 	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME
 	ssh_config
 
-	# For multiple commands, upload a script and run it.
-	cat >"${TEMPDIR}/commit_push.sh" <<-EOF
-		#!/usr/bin/env bash
-		set -euo pipefail
-		if [[ \$(git branch --show-current) != "${WORKSPACE_NAME}" ]]; then
-			git checkout -b ${WORKSPACE_NAME}
-		fi
-
-		if [[ -z \$(git status --porcelain) ]]; then
-			echo "FATAL: No changes to commit"
-			exit 1
-		fi
-
-		git add -A
-		commit_msg=\$(echo -n 'You are a CLI utility that generates a commit message. Generate a concise git commit message for the currently staged changes. Print ONLY the commit message and nothing else.' | \${HOME}/.local/bin/claude --print)
-		if [[ -z "\${commit_msg}" ]]; then
-			commit_msg="Default commit message"
-		fi
-		git commit -am "\${commit_msg}"
-		git push origin ${WORKSPACE_NAME}
-	EOF
-
-	scp \
-		-F "${OPENSSH_CONFIG_FILE}" \
-		"${TEMPDIR}/commit_push.sh" \
-		"${WORKSPACE_NAME}.coder:/tmp/commit_push.sh"
-
+  # We want the heredoc to be expanded locally and not remotely.
+	# shellcheck disable=SC2087
 	ssh \
 		-F "${OPENSSH_CONFIG_FILE}" \
 		"${WORKSPACE_NAME}.coder" \
 		-- \
-		"chmod +x /tmp/commit_push.sh && /tmp/commit_push.sh"
+		bash <<-EOF
+			#!/usr/bin/env bash
+			set -euo pipefail
+			BRANCH="traiage/${WORKSPACE_NAME}"
+			if [[ \$(git branch --show-current) != "\${BRANCH}" ]]; then
+				git checkout -b "\${BRANCH}"
+			fi
+
+			if [[ -z \$(git status --porcelain) ]]; then
+				echo "FATAL: No changes to commit"
+				exit 1
+			fi
+
+			git add -A
+			commit_msg=\$(echo -n 'You are a CLI utility that generates a commit message. Generate a concise git commit message for the currently staged changes. Print ONLY the commit message and nothing else.' | \${HOME}/.local/bin/claude --print)
+			if [[ -z "\${commit_msg}" ]]; then
+				commit_msg="Default commit message"
+			fi
+			git commit -am "\${commit_msg}"
+			exit 0
+		EOF
 
 	exit $?
 }
@@ -258,8 +236,8 @@ main() {
 	delete)
 		delete
 		;;
-	wait)
-		wait
+	wait-agentapi-stable)
+		wait_agentapi_stable
 		;;
 	*)
 		echo "Unknown option: $1"
