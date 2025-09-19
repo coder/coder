@@ -434,7 +434,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	// If the key is valid, we also fetch the user roles and status.
 	// The roles are used for RBAC authorize checks, and the status
 	// is to block 'suspended' users from accessing the platform.
-	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, rbac.ScopeName(key.Scope))
+	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, key.Scopes)
 	if err != nil {
 		return write(http.StatusUnauthorized, codersdk.Response{
 			Message: internalErrorMessage,
