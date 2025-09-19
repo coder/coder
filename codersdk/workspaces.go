@@ -518,6 +518,10 @@ type WorkspaceFilter struct {
 	Limit int `json:"limit,omitempty" typescript:"-"`
 	// Shared is a whether the workspace is shared with any users or groups
 	Shared *bool `json:"shared,omitempty" typescript:"-"`
+	// SharedWithUser is the username or ID of the user that the workspace is shared with
+	SharedWithUser string `json:"shared_with_user,omitempty" typescript:"-"`
+	// SharedWithGroup is the group name, group ID, or <org name>/<group name> of the group that the workspace is shared with
+	SharedWithGroup string `json:"shared_with_group,omitempty" typescript:"-"`
 	// FilterQuery supports a raw filter query string
 	FilterQuery string `json:"q,omitempty"`
 }
@@ -543,6 +547,12 @@ func (f WorkspaceFilter) asRequestOption() RequestOption {
 		}
 		if f.Shared != nil {
 			params = append(params, fmt.Sprintf("shared:%v", *f.Shared))
+		}
+		if f.SharedWithUser != "" {
+			params = append(params, fmt.Sprintf("shared_with_user:%q", f.SharedWithUser))
+		}
+		if f.SharedWithGroup != "" {
+			params = append(params, fmt.Sprintf("shared_with_group:%q", f.SharedWithGroup))
 		}
 		if f.FilterQuery != "" {
 			// If custom stuff is added, just add it on here.
