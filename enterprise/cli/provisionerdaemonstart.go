@@ -86,8 +86,17 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				}
 
 				orgID = org.ID
-			} else if orgContext.FlagSelect != "" {
-				return xerrors.New("cannot provide --org value with --psk or --key flags")
+			} else {
+				// When authenticating with a PSK or provisioner key, ignore any organization
+				// set via environment, but still error when explicitly provided via flag.
+				if orgVal, src := orgContext.ValueSource(inv); orgVal != "" {
+					switch src {
+					case serpent.ValueSourceEnv:
+						cliui.Warn(inv.Stderr, "CODER_ORGANIZATION is set but will be ignored when using --psk or --key.")
+					case serpent.ValueSourceFlag, serpent.ValueSourceYAML:
+						return xerrors.New("cannot provide --org value with --psk or --key flags")
+					}
+				}
 			}
 
 			if provisionerKey != "" {
@@ -95,7 +104,35 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 					return xerrors.New("cannot provide both provisioner key --key and pre-shared key --psk")
 				}
 				if len(rawTags) > 0 {
-					return xerrors.New("cannot provide tags when using provisioner key")
+					// Determine the source of the tags option. If tags came from env, warn and ignore.
+					for _, opt := range inv.Command.Options {
+						if opt.Env == "CODER_PROVISIONERD_TAGS" {
+							switch opt.ValueSource {
+							case serpent.ValueSourceEnv:
+								cliui.Warn(inv.Stderr, "CODER_PROVISIONERD_TAGS is set but will be ignored when using --key.")
+								// ignore env-provided tags
+								rawTags = nil
+							case serpent.ValueSourceFlag, serpent.ValueSourceYAML:
+								return xerrors.New("cannot provide tags when using provisioner key")
+							}
+							break
+						}
+					}
+				}
+			}
+
+			// If authenticating with a PSK, ignore any tags set via environment as the
+			// PSK determines the correct scope/tags mapping.
+			if preSharedKey != "" && len(rawTags) > 0 {
+				for _, opt := range inv.Command.Options {
+					if opt.Env == "CODER_PROVISIONERD_TAGS" {
+						switch opt.ValueSource {
+						case serpent.ValueSourceEnv:
+							cliui.Warn(inv.Stderr, "CODER_PROVISIONERD_TAGS is set but will be ignored when using --psk.")
+							rawTags = nil
+						}
+						break
+					}
 				}
 			}
 

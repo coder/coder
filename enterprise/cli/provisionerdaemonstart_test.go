@@ -105,6 +105,85 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 	})
 }
 
+func TestProvisionerDaemon_OrgEnvIgnoredWithPSK(t *testing.T) {
+	t.Parallel()
+
+	client, _ := coderdenttest.New(t, &coderdenttest.Options{
+		ProvisionerDaemonPSK: "provisionersftw",
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+				codersdk.FeatureMultipleOrganizations:      1,
+			},
+		},
+	})
+	inv, conf := newCLI(t, "provisionerd", "start", "--psk=provisionersftw", "--name=env-org-ignored")
+	// Set organization via environment; should be ignored with a warning.
+	t.Setenv("CODER_ORGANIZATION", "some-org")
+	err := conf.URL().Write(client.URL.String())
+	require.NoError(t, err)
+	pty := ptytest.New(t).Attach(inv)
+	ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
+	defer cancel()
+	clitest.Start(t, inv)
+	pty.ExpectMatchContext(ctx, "CODER_ORGANIZATION is set but will be ignored")
+	pty.ExpectMatchContext(ctx, "starting provisioner daemon")
+}
+
+func TestProvisionerDaemon_EnvTagsIgnoredWithKey(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	client, user := coderdenttest.New(t, &coderdenttest.Options{
+		ProvisionerDaemonPSK: "provisionersftw",
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+				codersdk.FeatureMultipleOrganizations:      1,
+			},
+		},
+	})
+	res, err := client.CreateProvisionerKey(ctx, user.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+		Name: "env-tags-ignored",
+	})
+	require.NoError(t, err)
+
+	inv, conf := newCLI(t, "provisionerd", "start", "--key", res.Key, "--name=env-tags-ignored")
+	// Set tags via environment; should be ignored with a warning when using --key.
+	t.Setenv("CODER_PROVISIONERD_TAGS", "foo=bar")
+	err = conf.URL().Write(client.URL.String())
+	require.NoError(t, err)
+	pty := ptytest.New(t).Attach(inv)
+	clitest.Start(t, inv)
+	pty.ExpectMatchContext(ctx, "CODER_PROVISIONERD_TAGS is set but will be ignored when using --key")
+	pty.ExpectMatchContext(ctx, "starting provisioner daemon")
+}
+
+func TestProvisionerDaemon_EnvTagsIgnoredWithPSK(t *testing.T) {
+	t.Parallel()
+
+	client, _ := coderdenttest.New(t, &coderdenttest.Options{
+		ProvisionerDaemonPSK: "provisionersftw",
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
+		},
+	})
+	inv, conf := newCLI(t, "provisionerd", "start", "--psk=provisionersftw", "--name=env-tags-ignored-psk")
+	// Set tags via environment; should be ignored with a warning when using --psk.
+	t.Setenv("CODER_PROVISIONERD_TAGS", "foo=bar")
+	err := conf.URL().Write(client.URL.String())
+	require.NoError(t, err)
+	pty := ptytest.New(t).Attach(inv)
+	ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
+	defer cancel()
+	clitest.Start(t, inv)
+	pty.ExpectMatchContext(ctx, "CODER_PROVISIONERD_TAGS is set but will be ignored when using --psk")
+	pty.ExpectMatchContext(ctx, "starting provisioner daemon")
+}
+
 func TestProvisionerDaemon_SessionToken(t *testing.T) {
 	t.Parallel()
 	t.Run("ScopeUser", func(t *testing.T) {
