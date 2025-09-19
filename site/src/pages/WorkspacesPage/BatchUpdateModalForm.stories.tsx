@@ -6,11 +6,11 @@ import type {
 	Workspace,
 	WorkspaceBuild,
 } from "api/typesGenerated";
+import { ACTIVE_BUILD_STATUSES } from "modules/workspaces/status";
 import { useQueryClient } from "react-query";
 import { action } from "storybook/internal/actions";
 import { expect, screen, userEvent, within } from "storybook/test";
 import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
-import { ACTIVE_BUILD_STATUSES } from "./WorkspacesPage";
 
 type Writeable<T> = { -readonly [Key in keyof T]: T[Key] };
 type MutableWorkspace = Writeable<Omit<Workspace, "latest_build">> & {
