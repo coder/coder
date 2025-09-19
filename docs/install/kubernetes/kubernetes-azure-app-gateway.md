@@ -109,6 +109,7 @@ The steps here follow the Microsoft tutorial for a Coder deployment.
    ```shell
    helm repo add bitnami https://charts.bitnami.com/bitnami
    helm install coder-db bitnami/postgresql \
+   --set image.repository=bitnamilegacy/postgresql
    --namespace coder \
    --set auth.username=coder \
    --set auth.password=coder \
