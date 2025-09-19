@@ -1,4 +1,3 @@
-# 1.86.0
 FROM rust:slim@sha256:3f391b0678a6e0c88fd26f13e399c9c515ac47354e3cadfee7daee3b21651a4f AS rust-utils
 # Install rust helper programs
 ENV CARGO_INSTALL_ROOT=/tmp/
@@ -11,8 +10,8 @@ RUN cargo install jj-cli typos-cli watchexec-cli
 FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97 AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.24.6
-ARG GO_CHECKSUM="bbca37cc395c974ffa4893ee35819ad23ebb27426df87af92e93a9ec66ef8712"
+ARG GO_VERSION=1.25.1
+ARG GO_CHECKSUM="7716a0d940a0f6ae8e1f3b3f4f36299dc53e31b16840dbd171254312c41ca12e"
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -39,7 +38,7 @@ RUN apt-get update && \
 	# go-swagger tool to generate the go coder api client
 	go install github.com/go-swagger/go-swagger/cmd/swagger@v0.28.0 && \
 	# goimports for updating imports
-	go install golang.org/x/tools/cmd/goimports@v0.31.0 && \
+	go install golang.org/x/tools/cmd/goimports@v0.29.0 && \
 	# protoc-gen-go is needed to build sysbox from source
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30.0 && \
 	# drpc support for v2
@@ -48,9 +47,6 @@ RUN apt-get update && \
 	go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.15.1 && \
 	# goreleaser for compiling v2 binaries
 	go install github.com/goreleaser/goreleaser@v1.6.1 && \
-	# Install the latest version of gopls for editors that support
-	# the language server protocol
-	go install golang.org/x/tools/gopls@v0.18.1 && \
 	# gotestsum makes test output more readable
 	go install gotest.tools/gotestsum@v1.9.0 && \
 	# goveralls collects code coverage metrics from tests
@@ -79,7 +75,7 @@ RUN apt-get update && \
 	# yq v3 used in v1.
 	go install github.com/mikefarah/yq/v4@v4.44.3 && \
 	mv /tmp/bin/yq /tmp/bin/yq4 && \
-	go install go.uber.org/mock/mockgen@v0.5.0 && \
+	go install go.uber.org/mock/mockgen@v0.6.0 && \
 	# Reduce image size.
 	apt-get remove --yes gcc && \
 	apt-get autoremove --yes && \
@@ -88,6 +84,27 @@ RUN apt-get update && \
 	rm -rf /usr/local/go && \
 	rm -rf /tmp/go/pkg && \
 	rm -rf /tmp/go/src
+
+FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97 AS gopls
+
+# Install Go manually for building gopls with a pre-1.25 toolchain
+ARG GO_VERSION=1.24.6
+ARG GO_CHECKSUM="bbca37cc395c974ffa4893ee35819ad23ebb27426df87af92e93a9ec66ef8712"
+RUN apt-get update && \
+    apt-get install --yes curl && \
+    curl --silent --show-error --location \
+    "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
+    -o /usr/local/go.tar.gz && \
+    echo "$GO_CHECKSUM /usr/local/go.tar.gz" | sha256sum -c && \
+    mkdir --parents /usr/local/go && \
+    tar --extract --gzip --directory=/usr/local/go --file=/usr/local/go.tar.gz --strip-components=1 && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV PATH=$PATH:/usr/local/go/bin
+ARG GOPATH="/tmp/"
+RUN mkdir --parents "$GOPATH" && \
+    go env -w GOSUMDB=sum.golang.org && \
+    go install golang.org/x/tools/gopls@v0.16.1
 
 # alpine:3.18
 FROM us-docker.pkg.dev/coder-v2-images-public/public/alpine@sha256:fd032399cd767f310a1d1274e81cab9f0fd8a49b3589eba2c3420228cd45b6a7 AS proto
@@ -223,7 +240,7 @@ RUN DOCKER_BUILDX_VERSION=$(curl -s "https://api.github.com/repos/docker/buildx/
 
 # See https://github.com/cli/cli/issues/6175#issuecomment-1235984381 for proof
 # the apt repository is unreliable
-RUN GH_CLI_VERSION=$(curl -s "https://api.github.com/repos/cli/cli/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"v([^"]+)".*/\1/') && \
+RUN GH_CLI_VERSION=$(curl -s "https://api.github.com/repos/cli/cli/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"(v[^"]+)".*/\1/') && \
 	curl -L https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_amd64.deb -o gh.deb && \
 	dpkg -i gh.deb && \
 	rm gh.deb
@@ -401,6 +418,7 @@ COPY --from=go /tmp/bin /usr/local/bin
 COPY --from=rust-utils /tmp/bin /usr/local/bin
 COPY --from=proto /tmp/bin /usr/local/bin
 COPY --from=proto /tmp/include /usr/local/bin/include
+COPY --from=gopls /tmp/bin/gopls /usr/local/bin/gopls
 
 USER coder
 
