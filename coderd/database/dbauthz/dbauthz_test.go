@@ -4335,10 +4335,10 @@ func TestInsertAPIKey_AsPrebuildsUser(t *testing.T) {
 
 func (s *MethodTestSuite) TestAIBridge() {
 	s.Run("GetAIBridgeInterceptionByID", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		sessID := uuid.UUID{2}
-		sess := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: sessID})
-		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), sessID).Return(sess, nil).AnyTimes()
-		check.Args(sessID).Asserts(sess, policy.ActionRead).Returns(sess)
+		intID := uuid.UUID{2}
+		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intID})
+		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intID).Return(intc, nil).AnyTimes()
+		check.Args(intID).Asserts(intc, policy.ActionRead).Returns(intc)
 	}))
 
 	s.Run("InsertAIBridgeInterception", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -4348,39 +4348,76 @@ func (s *MethodTestSuite) TestAIBridge() {
 		user.IsSystem = false
 		user.Deleted = false
 
-		sessID := uuid.UUID{2}
-		sess := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: sessID, InitiatorID: initID})
+		intID := uuid.UUID{2}
+		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intID, InitiatorID: initID})
 
-		params := database.InsertAIBridgeInterceptionParams{ID: sess.ID, InitiatorID: sess.InitiatorID, Provider: sess.Provider, Model: sess.Model}
+		params := database.InsertAIBridgeInterceptionParams{ID: intc.ID, InitiatorID: intc.InitiatorID, Provider: intc.Provider, Model: intc.Model}
 		db.EXPECT().GetUserByID(gomock.Any(), initID).Return(user, nil).AnyTimes() // Validation.
-		db.EXPECT().InsertAIBridgeInterception(gomock.Any(), params).Return(sess, nil).AnyTimes()
-		check.Args(params).Asserts(sess, policy.ActionCreate)
+		db.EXPECT().InsertAIBridgeInterception(gomock.Any(), params).Return(intc, nil).AnyTimes()
+		check.Args(params).Asserts(intc, policy.ActionCreate)
 	}))
 
 	s.Run("InsertAIBridgeTokenUsage", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		sessID := uuid.UUID{2}
-		sess := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: sessID})
-		params := database.InsertAIBridgeTokenUsageParams{InterceptionID: sess.ID}
-		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), sessID).Return(sess, nil).AnyTimes() // Validation.
+		intID := uuid.UUID{2}
+		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intID})
+		params := database.InsertAIBridgeTokenUsageParams{InterceptionID: intc.ID}
+		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intID).Return(intc, nil).AnyTimes() // Validation.
 		db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), params).Return(nil).AnyTimes()
-		check.Args(params).Asserts(sess, policy.ActionUpdate)
+		check.Args(params).Asserts(intc, policy.ActionUpdate)
 	}))
 
 	s.Run("InsertAIBridgeToolUsage", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		sessID := uuid.UUID{2}
-		sess := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: sessID})
-		params := database.InsertAIBridgeToolUsageParams{InterceptionID: sess.ID}
-		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), sessID).Return(sess, nil).AnyTimes() // Validation.
+		intID := uuid.UUID{2}
+		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intID})
+		params := database.InsertAIBridgeToolUsageParams{InterceptionID: intc.ID}
+		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intID).Return(intc, nil).AnyTimes() // Validation.
 		db.EXPECT().InsertAIBridgeToolUsage(gomock.Any(), params).Return(nil).AnyTimes()
-		check.Args(params).Asserts(sess, policy.ActionUpdate)
+		check.Args(params).Asserts(intc, policy.ActionUpdate)
 	}))
 
 	s.Run("InsertAIBridgeUserPrompt", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		sessID := uuid.UUID{2}
-		sess := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: sessID})
-		params := database.InsertAIBridgeUserPromptParams{InterceptionID: sess.ID}
-		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), sessID).Return(sess, nil).AnyTimes() // Validation.
+		intID := uuid.UUID{2}
+		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intID})
+		params := database.InsertAIBridgeUserPromptParams{InterceptionID: intc.ID}
+		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intID).Return(intc, nil).AnyTimes() // Validation.
 		db.EXPECT().InsertAIBridgeUserPrompt(gomock.Any(), params).Return(nil).AnyTimes()
-		check.Args(params).Asserts(sess, policy.ActionUpdate)
+		check.Args(params).Asserts(intc, policy.ActionUpdate)
+	}))
+
+	s.Run("GetAIBridgeInterceptions", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		a := testutil.Fake(s.T(), faker, database.AIBridgeInterception{})
+		b := testutil.Fake(s.T(), faker, database.AIBridgeInterception{})
+		db.EXPECT().GetAIBridgeInterceptions(gomock.Any()).Return([]database.AIBridgeInterception{a, b}, nil).AnyTimes()
+		check.Args().Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns([]database.AIBridgeInterception{a, b})
+	}))
+
+	s.Run("GetAIBridgeTokenUsagesByInterceptionID", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		intID := uuid.UUID{2}
+		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intID})
+		tok := testutil.Fake(s.T(), faker, database.AIBridgeTokenUsage{InterceptionID: intID})
+		toks := []database.AIBridgeTokenUsage{tok}
+		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intID).Return(intc, nil).AnyTimes() // Validation.
+		db.EXPECT().GetAIBridgeTokenUsagesByInterceptionID(gomock.Any(), intID).Return(toks, nil).AnyTimes()
+		check.Args(intID).Asserts(intc, policy.ActionRead).Returns(toks)
+	}))
+
+	s.Run("GetAIBridgeToolUsagesByInterceptionID", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		intID := uuid.UUID{2}
+		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intID})
+		tool := testutil.Fake(s.T(), faker, database.AIBridgeToolUsage{InterceptionID: intID})
+		tools := []database.AIBridgeToolUsage{tool}
+		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intID).Return(intc, nil).AnyTimes() // Validation.
+		db.EXPECT().GetAIBridgeToolUsagesByInterceptionID(gomock.Any(), intID).Return(tools, nil).AnyTimes()
+		check.Args(intID).Asserts(intc, policy.ActionRead).Returns(tools)
+	}))
+
+	s.Run("GetAIBridgeUserPromptsByInterceptionID", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		intID := uuid.UUID{2}
+		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intID})
+		pr := testutil.Fake(s.T(), faker, database.AIBridgeUserPrompt{InterceptionID: intID})
+		prs := []database.AIBridgeUserPrompt{pr}
+		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intID).Return(intc, nil).AnyTimes() // Validation.
+		db.EXPECT().GetAIBridgeUserPromptsByInterceptionID(gomock.Any(), intID).Return(prs, nil).AnyTimes()
+		check.Args(intID).Asserts(intc, policy.ActionRead).Returns(prs)
 	}))
 }

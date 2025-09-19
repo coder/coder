@@ -1109,6 +1109,66 @@ func (mr *MockStoreMockRecorder) GetAIBridgeInterceptionByID(ctx, id any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIBridgeInterceptionByID", reflect.TypeOf((*MockStore)(nil).GetAIBridgeInterceptionByID), ctx, id)
 }
 
+// GetAIBridgeInterceptions mocks base method.
+func (m *MockStore) GetAIBridgeInterceptions(ctx context.Context) ([]database.AIBridgeInterception, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIBridgeInterceptions", ctx)
+	ret0, _ := ret[0].([]database.AIBridgeInterception)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIBridgeInterceptions indicates an expected call of GetAIBridgeInterceptions.
+func (mr *MockStoreMockRecorder) GetAIBridgeInterceptions(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIBridgeInterceptions", reflect.TypeOf((*MockStore)(nil).GetAIBridgeInterceptions), ctx)
+}
+
+// GetAIBridgeTokenUsagesByInterceptionID mocks base method.
+func (m *MockStore) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIBridgeTokenUsagesByInterceptionID", ctx, interceptionID)
+	ret0, _ := ret[0].([]database.AIBridgeTokenUsage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIBridgeTokenUsagesByInterceptionID indicates an expected call of GetAIBridgeTokenUsagesByInterceptionID.
+func (mr *MockStoreMockRecorder) GetAIBridgeTokenUsagesByInterceptionID(ctx, interceptionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIBridgeTokenUsagesByInterceptionID", reflect.TypeOf((*MockStore)(nil).GetAIBridgeTokenUsagesByInterceptionID), ctx, interceptionID)
+}
+
+// GetAIBridgeToolUsagesByInterceptionID mocks base method.
+func (m *MockStore) GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeToolUsage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIBridgeToolUsagesByInterceptionID", ctx, interceptionID)
+	ret0, _ := ret[0].([]database.AIBridgeToolUsage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIBridgeToolUsagesByInterceptionID indicates an expected call of GetAIBridgeToolUsagesByInterceptionID.
+func (mr *MockStoreMockRecorder) GetAIBridgeToolUsagesByInterceptionID(ctx, interceptionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIBridgeToolUsagesByInterceptionID", reflect.TypeOf((*MockStore)(nil).GetAIBridgeToolUsagesByInterceptionID), ctx, interceptionID)
+}
+
+// GetAIBridgeUserPromptsByInterceptionID mocks base method.
+func (m *MockStore) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeUserPrompt, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIBridgeUserPromptsByInterceptionID", ctx, interceptionID)
+	ret0, _ := ret[0].([]database.AIBridgeUserPrompt)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIBridgeUserPromptsByInterceptionID indicates an expected call of GetAIBridgeUserPromptsByInterceptionID.
+func (mr *MockStoreMockRecorder) GetAIBridgeUserPromptsByInterceptionID(ctx, interceptionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIBridgeUserPromptsByInterceptionID", reflect.TypeOf((*MockStore)(nil).GetAIBridgeUserPromptsByInterceptionID), ctx, interceptionID)
+}
+
 // GetAPIKeyByID mocks base method.
 func (m *MockStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	m.ctrl.T.Helper()
