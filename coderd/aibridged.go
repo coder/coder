@@ -5,9 +5,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/coder/coder/v2/aibridged"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/x/aibridged"
 )
 
 // RegisterInMemoryAIBridgedHTTPHandler mounts [aibridged.Server]'s HTTP router onto

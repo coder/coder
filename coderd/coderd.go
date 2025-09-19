@@ -20,13 +20,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/coder/v2/aibridged"
-	aibridgedproto "github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/enterprise/x/aibridged"
+	aibridgedproto "github.com/coder/coder/v2/enterprise/x/aibridged/proto"
 
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
@@ -46,7 +46,7 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
-	"github.com/coder/coder/v2/coderd/aibridgedserver"
+	"github.com/coder/coder/v2/enterprise/x/aibridgedserver"
 	"github.com/coder/coder/v2/provisionerd/proto"
 
 	"cdr.dev/slog"
