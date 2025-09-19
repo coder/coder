@@ -9,12 +9,11 @@ import { Spinner } from "components/Spinner/Spinner";
 import { useProxy } from "contexts/ProxyContext";
 import { EllipsisVertical, ExternalLinkIcon, HouseIcon } from "lucide-react";
 import { type AppLink, useAppLink } from "modules/apps/useAppLink";
-import type { Task } from "modules/tasks/tasks";
+import type { Task, WorkspaceAppWithAgent } from "modules/tasks/tasks";
 import { type FC, useRef } from "react";
 import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
 import { TaskWildcardWarning } from "./TaskWildcardWarning";
-import type { WorkspaceAppWithAgent } from "./types";
 
 type TaskAppIFrameProps = {
 	task: Task;

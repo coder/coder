@@ -11,14 +11,17 @@ import { Link } from "components/Link/Link";
 import { ScrollArea, ScrollBar } from "components/ScrollArea/ScrollArea";
 import { ChevronDownIcon, LayoutGridIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
-import type { Task } from "modules/tasks/tasks";
+import {
+	getTaskApps,
+	type Task,
+	type WorkspaceAppWithAgent,
+} from "modules/tasks/tasks";
 import type React from "react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import { TaskAppIFrame } from "./TaskAppIframe";
-import type { WorkspaceAppWithAgent } from "./types";
 
 type TaskAppsProps = {
 	task: Task;
@@ -177,25 +180,6 @@ const TaskAppTab: FC<TaskAppTabProps> = ({ task, app, active, onClick }) => {
 		</Button>
 	);
 };
-
-function getTaskApps(task: Task): WorkspaceAppWithAgent[] {
-	return (
-		task.workspace.latest_build.resources
-			.flatMap((r) => r.agents)
-			.filter((a) => a !== undefined)
-			.flatMap((agent) =>
-				agent.apps.map((app) => ({
-					...app,
-					agent,
-				})),
-			)
-			// The Chat UI app will be displayed in the sidebar, so we don't want to
-			// show it as a tab.
-			.filter(
-				(app) => app.id !== task.workspace.latest_build.ai_task_sidebar_app_id,
-			)
-	);
-}
 
 function splitEmbeddedAndExternalApps(
 	apps: WorkspaceAppWithAgent[],
