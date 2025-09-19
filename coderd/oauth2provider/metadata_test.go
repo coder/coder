@@ -23,20 +23,29 @@ func TestOAuth2AuthorizationServerMetadata(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	// Use a plain HTTP client since this endpoint doesn't require authentication
+	// Use a plain HTTP client since this endpoint doesn't require authentication.
+	// Add a short readiness wait to avoid rare races with server startup.
 	endpoint := serverURL.ResolveReference(&url.URL{Path: "/.well-known/oauth-authorization-server"}).String()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	require.NoError(t, err)
-
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
 	var metadata codersdk.OAuth2AuthorizationServerMetadata
-	err = json.NewDecoder(resp.Body).Decode(&metadata)
-	require.NoError(t, err)
+	ok := testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return false
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return false
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return false
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&metadata); err != nil {
+			return false
+		}
+		return true
+	}, testutil.IntervalFast)
+	require.True(t, ok, "authorization server metadata endpoint not ready in time")
 
 	// Verify the metadata
 	require.NotEmpty(t, metadata.Issuer)
@@ -57,20 +66,29 @@ func TestOAuth2ProtectedResourceMetadata(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	// Use a plain HTTP client since this endpoint doesn't require authentication
+	// Use a plain HTTP client since this endpoint doesn't require authentication.
+	// Add a short readiness wait to avoid rare races with server startup.
 	endpoint := serverURL.ResolveReference(&url.URL{Path: "/.well-known/oauth-protected-resource"}).String()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	require.NoError(t, err)
-
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
 	var metadata codersdk.OAuth2ProtectedResourceMetadata
-	err = json.NewDecoder(resp.Body).Decode(&metadata)
-	require.NoError(t, err)
+	ok := testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return false
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return false
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return false
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&metadata); err != nil {
+			return false
+		}
+		return true
+	}, testutil.IntervalFast)
+	require.True(t, ok, "protected resource metadata endpoint not ready in time")
 
 	// Verify the metadata
 	require.NotEmpty(t, metadata.Resource)
