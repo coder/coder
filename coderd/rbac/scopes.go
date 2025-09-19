@@ -2,6 +2,7 @@ package rbac
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -105,6 +106,18 @@ var builtinScopes = map[ScopeName]Scope{
 		},
 		AllowIDList: []AllowListElement{AllowListAll()},
 	},
+}
+
+// BuiltinScopeNames returns the list of built-in high-level scope names
+// defined in this package (e.g., "all", "application_connect"). The result
+// is sorted for deterministic ordering in code generation and tests.
+func BuiltinScopeNames() []ScopeName {
+	names := make([]ScopeName, 0, len(builtinScopes))
+	for name := range builtinScopes {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
 }
 
 type ExpandableScope interface {

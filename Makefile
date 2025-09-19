@@ -646,6 +646,7 @@ GEN_FILES := \
 	$(SITE_GEN_FILES) \
 	coderd/rbac/object_gen.go \
 	codersdk/rbacresources_gen.go \
+	coderd/rbac/scopes_constants_gen.go \
 	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
@@ -695,6 +696,7 @@ gen/mark-fresh:
 		site/src/api/typesGenerated.ts \
 		coderd/rbac/object_gen.go \
 		codersdk/rbacresources_gen.go \
+		coderd/rbac/scopes_constants_gen.go \
 		site/src/api/rbacresourcesGenerated.ts \
 		site/src/api/countriesGenerated.ts \
 		docs/admin/integrations/prometheus.md \
@@ -840,6 +842,15 @@ coderd/rbac/object_gen.go: scripts/typegen/rbacobject.gotmpl scripts/typegen/mai
 	go run ./scripts/typegen/main.go rbac object > "$$tempdir/object_gen.go"
 	mv -v "$$tempdir/object_gen.go" coderd/rbac/object_gen.go
 	rmdir -v "$$tempdir"
+	touch "$@"
+
+coderd/rbac/scopes_constants_gen.go: scripts/typegen/scopenames.gotmpl scripts/typegen/main.go coderd/rbac/policy/policy.go
+	# Generate typed low-level ScopeName constants from RBACPermissions
+	# Write to a temp file first to avoid truncating the package during build
+	# since the generator imports the rbac package.
+	tempfile=$(shell mktemp /tmp/scopes_constants_gen.XXXXXX)
+	go run ./scripts/typegen/main.go rbac scopenames > "$$tempfile"
+	mv -v "$$tempfile" coderd/rbac/scopes_constants_gen.go
 	touch "$@"
 
 codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
