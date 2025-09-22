@@ -1,6 +1,7 @@
 package dbtestutil
 
 import (
+	"context"
 	"database/sql"
 	_ "embed"
 	"fmt"
@@ -25,6 +26,8 @@ type Broker struct {
 	uuid           uuid.UUID
 	coderTestingDB *sql.DB
 	refCount       int
+	// we keep a reference to the stdin of the cleaner so that Go doesn't garbage collect it.
+	cleanerFD any
 }
 
 func (b *Broker) Create(t TBSubset, opts ...OpenOption) (ConnectionParams, error) {
@@ -142,7 +145,16 @@ func (b *Broker) init(t TBSubset) error {
 		return xerrors.Errorf("ping '%s' database: %w", CoderTestingDBName, err)
 	}
 	b.coderTestingDB = coderTestingDB
-	b.uuid = uuid.New()
+
+	if b.uuid == uuid.Nil {
+		b.uuid = uuid.New()
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		b.cleanerFD, err = startCleaner(ctx, b.uuid, coderTestingParams.DSN())
+		if err != nil {
+			return xerrors.Errorf("start test db cleaner: %w", err)
+		}
+	}
 	return nil
 }
 
