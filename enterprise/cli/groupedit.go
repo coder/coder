@@ -24,19 +24,21 @@ func (r *RootCmd) groupEdit() *serpent.Command {
 		rmUsers     []string
 		orgContext  = agpl.NewOrganizationContext()
 	)
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "edit <name>",
 		Short: "Edit a user group",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			var (
 				ctx       = inv.Context()
 				groupName = inv.Args[0]
 			)
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {
