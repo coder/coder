@@ -140,7 +140,7 @@ wait_agentapi_stable() {
 }
 
 archive() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME DESTINATION_PREFIX
+	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME BUCKET_PREFIX
 	ssh_config
 
 	# We want the heredoc to be expanded locally and not remotely.
@@ -153,7 +153,7 @@ archive() {
 				set -euo pipefail
 				ARCHIVE_PATH=\$(coder-archive-create)
 				ARCHIVE_NAME=\$(basename "\${ARCHIVE_PATH}")
-				ARCHIVE_DEST="${DESTINATION_PREFIX%%/}/\${ARCHIVE_NAME}"
+				ARCHIVE_DEST="${BUCKET_PREFIX%%/}/\${ARCHIVE_NAME}"
 				if [[ ! -f "\${ARCHIVE_PATH}" ]]; then
 					echo "FATAL: Archive not found at expected path: \${ARCHIVE_PATH}"
 					exit 1
@@ -216,13 +216,13 @@ delete() {
 }
 
 resume() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME
+	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME BUCKET_PREFIX
 
 	# Note: WORKSPACE_NAME here is really the 'context key'.
 	# Files are uploaded to the GCS bucket under this key.
 	# This just happens to be the same as the workspace name.
 
-	src="gs://coder-traiage-outputs/traiage/${WORKSPACE_NAME}.tar.gz"
+	src="${BUCKET_PREFIX%%/}/${WORKSPACE_NAME}.tar.gz"
 	dest="${TEMPDIR}/${WORKSPACE_NAME}.tar.gz"
 	gcloud storage cp "${src}" "${dest}"
 	if [[ ! -f "${dest}" ]]; then

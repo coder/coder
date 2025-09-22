@@ -125,6 +125,7 @@ jobs:
           CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
           WORKSPACE_NAME: ${{ steps.create-workspace.outputs.workspace_name }}
           ARCHIVE_URL: ${{ steps.create-archive.outputs.archive_url }}
+          BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
         run: |
           {
             echo "## TrAIage Results";
@@ -136,7 +137,7 @@ jobs:
             echo "To fetch the output to your own workspace:";
             echo '';
             echo '```bash';
-            echo "WORKSPACE_NAME=${WORKSPACE_NAME} ./scripts/traiage.sh resume";
+            echo "BUCKET_PREFIX=${BUCKET_PREFIX} WORKSPACE_NAME=${WORKSPACE_NAME} ./scripts/traiage.sh resume";
             echo '```'
           } >> "${GITHUB_STEP_SUMMARY}"
 
