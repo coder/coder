@@ -203,7 +203,9 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ task }) => {
 								});
 							}}
 						>
-							{mutateStartWorkspace.isPending ? "Starting workspace..." : "Start workspace"}
+							{mutateStartWorkspace.isPending
+								? "Starting workspace..."
+								: "Start workspace"}
 						</Button>
 					</div>
 				</div>
