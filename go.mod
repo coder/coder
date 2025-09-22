@@ -478,7 +478,7 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.12.0
 	github.com/brianvoe/gofakeit/v7 v7.7.1
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
-	github.com/coder/aibridge v0.0.0
+	github.com/coder/aibridge v0.0.0-20250924143139-6f2113f274a0 // TODO: replace with published tag.
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/preview v1.0.4
 	github.com/dgraph-io/ristretto/v2 v2.3.0
@@ -487,9 +487,6 @@ require (
 	github.com/icholy/replace v0.6.0
 	github.com/mark3labs/mcp-go v0.38.0
 )
-
-// aibridge-related deps and directives. // TODO: replace with published tag.
-replace github.com/coder/aibridge v0.0.0 => /home/coder/aibridge
 
 require (
 	cel.dev/expr v0.24.0 // indirect
@@ -535,7 +532,6 @@ require (
 	github.com/moby/sys/user v0.4.0 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/openai/openai-go v1.12.0 // indirect
-	github.com/openai/openai-go/v2 v2.7.0 // indirect
 	github.com/package-url/packageurl-go v0.1.3 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect

@@ -122,7 +122,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 				// Should pass authorization.
 				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
 				// But fail when acquiring a pool instance.
-				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil, xerrors.New("oops"))
+				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil, xerrors.New("oops"))
 			},
 			expectedErr:    aibridged.ErrAcquireRequestHandler,
 			expectedStatus: http.StatusInternalServerError,
