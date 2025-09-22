@@ -10,21 +10,13 @@ on:
       template_name:
         description: 'Coder template to use for workspace'
         required: true
-        default: 'ai-workspace'
+        default: 'traiage'
         type: string
       prefix:
         description: 'Prefix for workspace name'
         required: false
         default: 'traiage'
         type: string
-      persistence_mode:
-        description: 'Persistence mode (push or archive)'
-        required: false
-        type: choice
-        options:
-          - push
-          - archive
-        default: 'archive'
 
 jobs:
   traiage:
@@ -51,6 +43,7 @@ jobs:
         id: extract-context
         env:
           ISSUE_URL: ${{ inputs.issue_url }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           issue_number="$(gh issue view "${ISSUE_URL}" --json number --jq '.number')"
           context_key="gh-${issue_number}"
@@ -94,6 +87,7 @@ jobs:
         env:
           WORKSPACE_NAME: ${{ steps.create-workspace.outputs.workspace_name }}
           ISSUE_URL: ${{ inputs.issue_url }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           PROMPT_FILE=/tmp/prompt.txt
           trap 'rm -f "${PROMPT_FILE}"' EXIT
@@ -116,22 +110,14 @@ jobs:
           # and exit once the agent has completed the task.
           PROMPT=$(cat $PROMPT_FILE) ./scripts/traiage.sh prompt
 
-      - name: Commit and push changes
-        id: commit-push
-        if: ${{ inputs.persistence_mode == 'push' }}
-        run: |
-          echo "Committing and pushing changes in workspace: $WORKSPACE_NAME"
-          ./scripts/traiage.sh commit-push
-
       - name: Create and upload archive
         id: create-archive
-        if: ${{ inputs.persistence_mode == 'archive' }}
         env:
-          DESTINATION_PREFIX: ${{ secrets.TRAIAGE_DESTINATION_PREFIX }}
+          BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
         run: |
           echo "Creating archive for workspace: $WORKSPACE_NAME"
           ./scripts/traiage.sh archive
-          echo "archive_url=${DESTINATION_PREFIX%%/}/$WORKSPACE_NAME.tar.gz" >> "${GITHUB_OUTPUT}"
+          echo "archive_url=${BUCKET_PREFIX%%/}/$WORKSPACE_NAME.tar.gz" >> "${GITHUB_OUTPUT}"
 
       - name: Report results
         env:
@@ -139,17 +125,24 @@ jobs:
           CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
           WORKSPACE_NAME: ${{ steps.create-workspace.outputs.workspace_name }}
           ARCHIVE_URL: ${{ steps.create-archive.outputs.archive_url }}
+          BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
         run: |
           {
             echo "## TrAIage Results";
             echo "- **Issue URL:** ${ISSUE_URL}";
             echo "- **Context Key:** ${CONTEXT_KEY}";
             echo "- **Workspace:** ${WORKSPACE_NAME}";
-            echo "- **Archive URL:** ${ARCHIVE_URL}"
+            echo "- **Archive URL:** ${ARCHIVE_URL}";
+
+            echo "To fetch the output to your own workspace:";
+            echo '';
+            echo '```bash';
+            echo "BUCKET_PREFIX=${BUCKET_PREFIX} WORKSPACE_NAME=${WORKSPACE_NAME} ./scripts/traiage.sh resume";
+            echo '```'
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Cleanup workspace
-        if: steps.create-workspace.outputs.workspace_name != '' && (inputs.persistence_mode == 'archive' && steps.create-archive.outputs.archive_url != '')
+        if: steps.create-workspace.outputs.workspace_name != '' && steps.create-archive.outputs.archive_url != ''
         run: |
           echo "Cleaning up workspace: $WORKSPACE_NAME"
           ./scripts/traiage.sh delete || true
