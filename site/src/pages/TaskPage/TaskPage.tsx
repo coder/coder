@@ -178,10 +178,9 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ task }) => {
 		},
 	});
 
-	const apiError =
-		mutateStartWorkspace.isError && isApiError(mutateStartWorkspace.error)
-			? mutateStartWorkspace.error
-			: undefined;
+	const apiError = isApiError(mutateStartWorkspace.error)
+		? mutateStartWorkspace.error
+		: undefined;
 
 	return (
 		<Margins>
