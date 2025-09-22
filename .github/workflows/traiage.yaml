@@ -113,11 +113,11 @@ jobs:
       - name: Create and upload archive
         id: create-archive
         env:
-          DESTINATION_PREFIX: ${{ secrets.TRAIAGE_DESTINATION_PREFIX }}
+          BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
         run: |
           echo "Creating archive for workspace: $WORKSPACE_NAME"
           ./scripts/traiage.sh archive
-          echo "archive_url=${DESTINATION_PREFIX%%/}/$WORKSPACE_NAME.tar.gz" >> "${GITHUB_OUTPUT}"
+          echo "archive_url=${BUCKET_PREFIX%%/}/$WORKSPACE_NAME.tar.gz" >> "${GITHUB_OUTPUT}"
 
       - name: Report results
         env:
