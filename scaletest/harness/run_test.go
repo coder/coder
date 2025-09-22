@@ -17,9 +17,15 @@ type testFns struct {
 	RunFn func(ctx context.Context, id string, logs io.Writer) error
 	// CleanupFn is optional if no cleanup is required.
 	CleanupFn func(ctx context.Context, id string, logs io.Writer) error
-	// getBytesTransferred is optional if byte transfer tracking is required.
-	getBytesTransferred func() (int64, int64)
+	// GetMetricsFn is optional if no metric collection is required.
+	GetMetricsFn func() map[string]any
 }
+
+var (
+	_ harness.Runnable    = &testFns{}
+	_ harness.Cleanable   = &testFns{}
+	_ harness.Collectable = &testFns{}
+)
 
 // Run implements Runnable.
 func (fns testFns) Run(ctx context.Context, id string, logs io.Writer) error {
@@ -27,12 +33,12 @@ func (fns testFns) Run(ctx context.Context, id string, logs io.Writer) error {
 }
 
 // GetBytesTransferred implements Collectable.
-func (fns testFns) GetBytesTransferred() (bytesRead int64, bytesWritten int64) {
-	if fns.getBytesTransferred == nil {
-		return 0, 0
+func (fns testFns) GetMetrics() map[string]any {
+	if fns.GetMetricsFn == nil {
+		return nil
 	}
 
-	return fns.getBytesTransferred()
+	return fns.GetMetricsFn()
 }
 
 // Cleanup implements Cleanable.
@@ -65,9 +71,9 @@ func Test_TestRun(t *testing.T) {
 					atomic.AddInt64(&cleanupCalled, 1)
 					return nil
 				},
-				getBytesTransferred: func() (int64, int64) {
+				GetMetricsFn: func() map[string]any {
 					atomic.AddInt64(&collectableCalled, 1)
-					return 0, 0
+					return nil
 				},
 			}
 		)
@@ -132,7 +138,7 @@ func Test_TestRun(t *testing.T) {
 				RunFn: func(ctx context.Context, id string, logs io.Writer) error {
 					return nil
 				},
-				getBytesTransferred: nil,
+				GetMetricsFn: nil,
 			})
 
 			err := run.Run(context.Background())
