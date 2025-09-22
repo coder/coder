@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -107,7 +106,7 @@ func (h *Handler) handleStreamRequest(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Handle websocket upgrade for clients that use it
-	if strings.EqualFold(r.Header.Get("connection"), "upgrade") && strings.EqualFold(r.Header.Get("upgrade"), codersdk.HeaderUpgradeImmortalStream) {
+	if httpapi.IsWebsocketUpgrade(r) {
 		h.handleUpgrade(w, r)
 		return
 	}
@@ -180,6 +179,7 @@ func (h *Handler) handleUpgrade(w http.ResponseWriter, r *http.Request) {
 	// Upgrade to WebSocket
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		CompressionMode: websocket.CompressionDisabled,
+		Subprotocols:    []string{codersdk.HeaderUpgradeImmortalStream},
 	})
 	if err != nil {
 		h.logger.Error(ctx, "failed to accept websocket", slog.Error(err))
