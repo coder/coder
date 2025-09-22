@@ -8,7 +8,7 @@ import {
 import { Spinner } from "components/Spinner/Spinner";
 import { useProxy } from "contexts/ProxyContext";
 import { EllipsisVertical, ExternalLinkIcon, HouseIcon } from "lucide-react";
-import { type AppLink, useAppLink } from "modules/apps/useAppLink";
+import { useAppLink } from "modules/apps/useAppLink";
 import type { Task, WorkspaceAppWithAgent } from "modules/tasks/tasks";
 import { type FC, useRef } from "react";
 import { Link as RouterLink } from "react-router";
@@ -32,7 +32,6 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 	});
 	const proxy = useProxy();
 	const frameRef = useRef<HTMLIFrameElement>(null);
-	const frameSrc = parseIframeSrc(link);
 	const shouldDisplayWildcardWarning =
 		app.subdomain && !proxy.proxy?.preferredWildcardHostname;
 
@@ -54,7 +53,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 						onClick={(e) => {
 							e.preventDefault();
 							if (frameRef.current?.contentWindow) {
-								frameRef.current.contentWindow.location.href = frameSrc;
+								frameRef.current.contentWindow.location.href = link.href;
 							}
 						}}
 					>
@@ -75,7 +74,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem asChild>
-								<RouterLink to={frameSrc} target="_blank">
+								<RouterLink to={link.href} target="_blank">
 									<ExternalLinkIcon />
 									Open app in new tab
 								</RouterLink>
@@ -90,7 +89,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 			app.health === "unhealthy" ? (
 				<iframe
 					ref={frameRef}
-					src={frameSrc}
+					src={link.href}
 					title={link.label}
 					loading="eager"
 					className={"w-full h-full border-0"}
@@ -113,13 +112,3 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 		</div>
 	);
 };
-
-function parseIframeSrc(link: AppLink) {
-	try {
-		const url = new URL(link.href, location.href);
-		return url.toString();
-	} catch (err) {
-		console.warn(`Failed to parse URL ${link.href}`, err);
-		return link.href;
-	}
-}

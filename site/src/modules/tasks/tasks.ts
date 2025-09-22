@@ -18,8 +18,7 @@ export type WorkspaceAppWithAgent = WorkspaceApp & {
 export function getTaskApps(task: Task): WorkspaceAppWithAgent[] {
 	return (
 		task.workspace.latest_build.resources
-			.flatMap((r) => r.agents)
-			.filter((a) => a !== undefined)
+			.flatMap((r) => r.agents ?? [])
 			.flatMap((agent) =>
 				agent.apps.map((app) => ({
 					...app,
