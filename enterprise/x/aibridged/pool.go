@@ -14,6 +14,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/aibridge"
+	"github.com/coder/aibridge/mcp"
 )
 
 const (
@@ -23,7 +24,7 @@ const (
 // Pooler describes a pool of [*aibridge.RequestBridge] instances from which instances can be retrieved.
 // One [*aibridge.RequestBridge] instance is created per given key.
 type Pooler interface {
-	Acquire(ctx context.Context, req Request, clientFn ClientFunc) (http.Handler, error)
+	Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpBootstrapper MCPProxyBuilder) (http.Handler, error)
 	Shutdown(ctx context.Context) error
 }
 
@@ -102,7 +103,7 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 //
 // Each returned [*aibridge.RequestBridge] is safe for concurrent use.
 // Each [*aibridge.RequestBridge] is stateful because it has MCP clients which maintain sessions to the configured MCP server.
-func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn ClientFunc) (http.Handler, error) {
+func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpProxyFactory MCPProxyBuilder) (http.Handler, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, xerrors.Errorf("acquire: %w", err)
 	}
@@ -141,7 +142,25 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 	// Creating an *aibridge.RequestBridge may take some time, so gate all subsequent callers behind the initial request and return the resulting value.
 	// TODO: track startup time since it adds latency to first request (histogram count will also help us see how often this occurs).
 	instance, err, _ := p.singleflight.Do(req.InitiatorID.String(), func() (*aibridge.RequestBridge, error) {
-		bridge, err := aibridge.NewRequestBridge(ctx, p.providers, p.logger, recorder, nil)
+		var (
+			mcpServers mcp.ServerProxier
+			err        error
+		)
+
+		mcpServers, err = mcpProxyFactory.Build(ctx, req)
+		if err != nil {
+			p.logger.Warn(ctx, "failed to create MCP server proxiers", slog.Error(err))
+			// Don't fail here; MCP server injection can gracefully degrade.
+		}
+
+		if mcpServers != nil {
+			// This will block while connections are established with upstream MCP server(s), and tools are listed.
+			if err := mcpServers.Init(ctx); err != nil {
+				p.logger.Warn(ctx, "failed to initialize MCP server proxier(s)", slog.Error(err))
+			}
+		}
+
+		bridge, err := aibridge.NewRequestBridge(ctx, p.providers, p.logger, recorder, mcpServers)
 		if err != nil {
 			return nil, xerrors.Errorf("create new request bridge: %w", err)
 		}

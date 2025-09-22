@@ -399,7 +399,7 @@ func getCoderMCPServerConfig(experiments codersdk.Experiments, accessURL string)
 	}
 
 	return &proto.MCPServerConfig{
-		Id:  "coder",
+		Id:  aibridged.InternalMCPServerID,
 		Url: u,
 	}, nil
 }
