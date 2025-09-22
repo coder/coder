@@ -20,7 +20,7 @@ type UseAppLinkParams = {
 	agent: WorkspaceAgent;
 };
 
-export type AppLink = {
+type AppLink = {
 	href: string;
 	onClick: (e: React.MouseEvent) => void;
 	label: string;
