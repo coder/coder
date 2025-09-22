@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"math"
 	"net"
 	"strconv"
 	"sync"
@@ -36,6 +37,10 @@ func TestManager_CreateStream(t *testing.T) {
 		defer listener.Close()
 
 		port := listener.Addr().(*net.TCPAddr).Port
+		if port < 0 || port > int(math.MaxUint16) {
+			t.Fatalf("listener port out of range: %d", port)
+		}
+		uport := uint16(port) //nolint:gosec
 
 		// Accept connections in the background
 		go func() {
@@ -56,11 +61,11 @@ func TestManager_CreateStream(t *testing.T) {
 		manager := immortalstreams.New(logger, dialer)
 		defer manager.Close()
 
-		stream, err := manager.CreateStream(ctx, uint16(port))
+		stream, err := manager.CreateStream(ctx, uport)
 		require.NoError(t, err)
 		require.NotEmpty(t, stream.ID)
 		require.NotEmpty(t, stream.Name) // Name is randomly generated
-		require.Equal(t, uint16(port), stream.TCPPort)
+		require.Equal(t, uport, stream.TCPPort)
 		require.False(t, stream.CreatedAt.IsZero())
 		require.False(t, stream.LastConnectionAt.IsZero())
 	})
@@ -92,6 +97,10 @@ func TestManager_CreateStream(t *testing.T) {
 		defer listener.Close()
 
 		port := listener.Addr().(*net.TCPAddr).Port
+		if port < 0 || port > int(math.MaxUint16) {
+			t.Fatalf("listener port out of range: %d", port)
+		}
+		uport := uint16(port) //nolint:gosec
 
 		// Accept connections in the background and keep them alive
 		go func() {
@@ -121,7 +130,7 @@ func TestManager_CreateStream(t *testing.T) {
 		// Create MaxStreams connections
 		streams := make([]uuid.UUID, 0, immortalstreams.MaxStreams)
 		for i := 0; i < immortalstreams.MaxStreams; i++ {
-			stream, err := manager.CreateStream(ctx, uint16(port))
+			stream, err := manager.CreateStream(ctx, uport)
 			require.NoError(t, err)
 			streams = append(streams, stream.ID)
 		}
@@ -144,7 +153,7 @@ func TestManager_CreateStream(t *testing.T) {
 		}
 
 		// All streams should be connected, so creating another should fail
-		_, err = manager.CreateStream(ctx, uint16(port))
+		_, err = manager.CreateStream(ctx, uport)
 		require.Error(t, err)
 		require.True(t, errors.Is(err, immortalstreams.ErrTooManyStreams))
 
@@ -153,7 +162,7 @@ func TestManager_CreateStream(t *testing.T) {
 		require.NoError(t, err)
 
 		// Now we should be able to create a new one
-		stream, err := manager.CreateStream(ctx, uint16(port))
+		stream, err := manager.CreateStream(ctx, uport)
 		require.NoError(t, err)
 		require.NotEmpty(t, stream.ID)
 	})
@@ -195,10 +204,10 @@ func TestManager_ListStreams(t *testing.T) {
 	require.Empty(t, streams)
 
 	// Create some streams
-	stream1, err := manager.CreateStream(ctx, uint16(port))
+	stream1, err := manager.CreateStream(ctx, uint16(port)) //nolint:gosec
 	require.NoError(t, err)
 
-	stream2, err := manager.CreateStream(ctx, uint16(port))
+	stream2, err := manager.CreateStream(ctx, uint16(port)) //nolint:gosec
 	require.NoError(t, err)
 
 	// List should return both
@@ -226,6 +235,7 @@ func TestManager_DeleteStream(t *testing.T) {
 	defer listener.Close()
 
 	port := listener.Addr().(*net.TCPAddr).Port
+	uport := uint16(port) //nolint:gosec
 
 	// Accept connections in the background
 	go func() {
@@ -246,7 +256,7 @@ func TestManager_DeleteStream(t *testing.T) {
 	defer manager.Close()
 
 	// Create a stream
-	stream, err := manager.CreateStream(ctx, uint16(port))
+	stream, err := manager.CreateStream(ctx, uport)
 	require.NoError(t, err)
 
 	// Delete it
@@ -275,6 +285,7 @@ func TestManager_GetStream(t *testing.T) {
 	defer listener.Close()
 
 	port := listener.Addr().(*net.TCPAddr).Port
+	uport := uint16(port) //nolint:gosec
 
 	// Accept connections in the background
 	go func() {
@@ -295,7 +306,7 @@ func TestManager_GetStream(t *testing.T) {
 	defer manager.Close()
 
 	// Create a stream
-	created, err := manager.CreateStream(ctx, uint16(port))
+	created, err := manager.CreateStream(ctx, uport)
 	require.NoError(t, err)
 
 	// Get it
@@ -320,6 +331,7 @@ func TestManager_Eviction(t *testing.T) {
 	defer listener.Close()
 
 	port := listener.Addr().(*net.TCPAddr).Port
+	uport := uint16(port) //nolint:gosec
 
 	// Track accepted connections
 	var connMu sync.Mutex
@@ -359,7 +371,7 @@ func TestManager_Eviction(t *testing.T) {
 	// Create MaxStreams-1 streams
 	streams := make([]uuid.UUID, 0, immortalstreams.MaxStreams-1)
 	for i := 0; i < immortalstreams.MaxStreams-1; i++ {
-		stream, err := manager.CreateStream(ctx, uint16(port))
+		stream, err := manager.CreateStream(ctx, uport)
 		require.NoError(t, err)
 		streams = append(streams, stream.ID)
 	}
@@ -401,12 +413,12 @@ func TestManager_Eviction(t *testing.T) {
 	require.False(t, firstStream.IsConnected(), "First stream should be disconnected")
 
 	// Create one more stream - should work
-	stream1, err := manager.CreateStream(ctx, uint16(port))
+	stream1, err := manager.CreateStream(ctx, uport)
 	require.NoError(t, err)
 	require.NotEmpty(t, stream1.ID)
 
 	// Create another - should evict the oldest disconnected
-	stream2, err := manager.CreateStream(ctx, uint16(port))
+	stream2, err := manager.CreateStream(ctx, uport)
 	require.NoError(t, err)
 	require.NotEmpty(t, stream2.ID)
 

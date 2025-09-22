@@ -43,7 +43,7 @@ func TestLocalDialer_LocalDial(t *testing.T) {
 	}
 
 	// Test local dial
-	conn, err := dialer.DialPort(ctx, uint16(port))
+	conn, err := dialer.DialPort(ctx, uint16(port)) //nolint:gosec
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	require.NoError(t, conn.Close())

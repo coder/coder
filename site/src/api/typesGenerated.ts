@@ -1242,14 +1242,11 @@ export interface HTTPCookieConfig {
 }
 
 // From codersdk/immortalstreams.go
-export const HeaderConnection = "Connection";
-
-// From codersdk/immortalstreams.go
 export const HeaderImmortalStreamSequenceNum =
 	"X-Coder-Immortal-Stream-Sequence-Num";
 
 // From codersdk/immortalstreams.go
-export const HeaderUpgrade = "Upgrade";
+export const HeaderUpgradeImmortalStream = "coder-immortal-stream";
 
 // From health/model.go
 export type HealthCode =
@@ -3413,9 +3410,6 @@ export interface UpdateWorkspaceRequest {
 export interface UpdateWorkspaceTTLRequest {
 	readonly ttl_ms: number | null;
 }
-
-// From codersdk/immortalstreams.go
-export const UpgradeImmortalStream = "coder-immortal-stream";
 
 // From codersdk/files.go
 export interface UploadResponse {

@@ -38,7 +38,6 @@ func TestImmortalStreamsHandler_CreateStream(t *testing.T) {
 		defer listener.Close()
 
 		port := listener.Addr().(*net.TCPAddr).Port
-
 		// Accept connections in the background
 		go func() {
 			for {
@@ -64,6 +63,7 @@ func TestImmortalStreamsHandler_CreateStream(t *testing.T) {
 
 		// Create request
 		req := codersdk.CreateImmortalStreamRequest{
+			//nolint:gosec
 			TCPPort: uint16(port),
 		}
 		body, err := json.Marshal(req)
@@ -86,6 +86,7 @@ func TestImmortalStreamsHandler_CreateStream(t *testing.T) {
 
 		assert.NotEmpty(t, stream.ID)
 		assert.NotEmpty(t, stream.Name) // Name is generated randomly
+		//nolint:gosec
 		assert.Equal(t, uint16(port), stream.TCPPort)
 		assert.False(t, stream.CreatedAt.IsZero())
 		assert.False(t, stream.LastConnectionAt.IsZero())
@@ -144,6 +145,7 @@ func TestImmortalStreamsHandler_ListStreams(t *testing.T) {
 	defer listener.Close()
 
 	port := listener.Addr().(*net.TCPAddr).Port
+	uport := uint16(port) //nolint:gosec
 
 	// Accept connections in the background
 	go func() {
@@ -183,10 +185,10 @@ func TestImmortalStreamsHandler_ListStreams(t *testing.T) {
 	assert.Empty(t, streams)
 
 	// Create some streams
-	stream1, err := manager.CreateStream(ctx, uint16(port))
+	stream1, err := manager.CreateStream(ctx, uport)
 	require.NoError(t, err)
 
-	stream2, err := manager.CreateStream(ctx, uint16(port))
+	stream2, err := manager.CreateStream(ctx, uport)
 	require.NoError(t, err)
 
 	// List again
@@ -223,6 +225,7 @@ func TestImmortalStreamsHandler_GetStream(t *testing.T) {
 	defer listener.Close()
 
 	port := listener.Addr().(*net.TCPAddr).Port
+	uport := uint16(port) //nolint:gosec
 
 	// Accept connections in the background
 	go func() {
@@ -248,7 +251,7 @@ func TestImmortalStreamsHandler_GetStream(t *testing.T) {
 	router.Mount("/api/v0/immortal-stream", handler.Routes())
 
 	// Create a stream
-	stream, err := manager.CreateStream(ctx, uint16(port))
+	stream, err := manager.CreateStream(ctx, uport)
 	require.NoError(t, err)
 
 	// Get the stream
@@ -290,6 +293,7 @@ func TestImmortalStreamsHandler_DeleteStream(t *testing.T) {
 	defer listener.Close()
 
 	port := listener.Addr().(*net.TCPAddr).Port
+	uport := uint16(port) //nolint:gosec
 
 	// Accept connections in the background
 	go func() {
@@ -315,7 +319,7 @@ func TestImmortalStreamsHandler_DeleteStream(t *testing.T) {
 	router.Mount("/api/v0/immortal-stream", handler.Routes())
 
 	// Create a stream
-	stream, err := manager.CreateStream(ctx, uint16(port))
+	stream, err := manager.CreateStream(ctx, uport)
 	require.NoError(t, err)
 
 	// Delete the stream

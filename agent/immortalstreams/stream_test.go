@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"os"
 	"runtime"
@@ -498,7 +499,11 @@ func TestStream_ReconnectionScenarios(t *testing.T) {
 		_ = localConn.Close()
 	})
 
-	stream := immortalstreams.NewStream(uuid.New(), "test-stream", uint16(port), logger)
+	if port < 0 || port > int(math.MaxUint16) {
+		t.Fatalf("listener port out of range: %d", port)
+	}
+	uport := uint16(port) //nolint:gosec
+	stream := immortalstreams.NewStream(uuid.New(), "test-stream", uport, logger)
 
 	// Start the stream
 	err = stream.Start(localConn)
@@ -516,7 +521,11 @@ func TestStream_ReconnectionScenarios(t *testing.T) {
 			_ = localConn2.Close()
 		}()
 
-		stream2 := immortalstreams.NewStream(uuid.New(), "test-stream-basic", uint16(port), logger)
+		if port < 0 || port > int(math.MaxUint16) {
+			t.Fatalf("listener port out of range: %d", port)
+		}
+		uport2 := uint16(port) //nolint:gosec
+		stream2 := immortalstreams.NewStream(uuid.New(), "test-stream-basic", uport2, logger)
 		err = stream2.Start(localConn2)
 		require.NoError(t, err)
 		defer func() {
@@ -623,7 +632,11 @@ func TestStream_ReconnectionScenarios(t *testing.T) {
 			_ = localConn3.Close()
 		}()
 
-		stream3 := immortalstreams.NewStream(uuid.New(), "test-stream-multi", uint16(port), logger)
+		if port < 0 || port > int(math.MaxUint16) {
+			t.Fatalf("listener port out of range: %d", port)
+		}
+		uport3 := uint16(port) //nolint:gosec
+		stream3 := immortalstreams.NewStream(uuid.New(), "test-stream-multi", uport3, logger)
 		err = stream3.Start(localConn3)
 		require.NoError(t, err)
 		defer func() {
@@ -712,7 +725,11 @@ func TestStream_SequenceNumberReconnection_WithSequenceNumbers(t *testing.T) {
 		_ = localConn.Close()
 	}()
 
-	stream := immortalstreams.NewStream(uuid.New(), "test-stream", uint16(testPort), logger)
+	if testPort < 0 || testPort > int(math.MaxUint16) {
+		t.Fatalf("listener port out of range: %d", testPort)
+	}
+	utp := uint16(testPort) //nolint:gosec
+	stream := immortalstreams.NewStream(uuid.New(), "test-stream", utp, logger)
 
 	// Start the stream
 	err = stream.Start(localConn)
@@ -859,7 +876,11 @@ func TestStream_SequenceNumberReconnection_WithDataLoss(t *testing.T) {
 		_ = localConn.Close()
 	}()
 
-	stream := immortalstreams.NewStream(uuid.New(), "test-stream", uint16(testPort), logger)
+	if testPort < 0 || testPort > int(math.MaxUint16) {
+		t.Fatalf("listener port out of range: %d", testPort)
+	}
+	utp2 := uint16(testPort) //nolint:gosec
+	stream := immortalstreams.NewStream(uuid.New(), "test-stream", utp2, logger)
 
 	// Start the stream
 	err = stream.Start(localConn)
