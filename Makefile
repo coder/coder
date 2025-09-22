@@ -872,7 +872,7 @@ codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/m
 	touch "$@"
 
 codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scopes_catalog.go coderd/rbac/scopes.go
-	# Generate SDK constants for public low-level API key scopes.
+	# Generate SDK constants for external API key scopes.
 	go run ./scripts/apikeyscopesgen > /tmp/apikey_scopes_gen.go
 	mv /tmp/apikey_scopes_gen.go codersdk/apikey_scopes_gen.go
 	touch "$@"

@@ -57,7 +57,8 @@ var externalLowLevel = map[ScopeName]struct{}{
 // low-level resource:action scopes.
 func IsExternalScope(name ScopeName) bool {
 	switch name {
-	case ScopeAll, ScopeApplicationConnect:
+	// Include `all` and `application_connect` for backward compatibility.
+	case "all", ScopeAll, "application_connect", ScopeApplicationConnect:
 		return true
 	}
 	if _, ok := externalLowLevel[name]; ok {

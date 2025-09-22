@@ -11254,7 +11254,6 @@ const docTemplate = `{
                 "last_used",
                 "lifetime_seconds",
                 "login_type",
-                "scope",
                 "token_name",
                 "updated_at",
                 "user_id"
@@ -11292,6 +11291,7 @@ const docTemplate = `{
                     ]
                 },
                 "scope": {
+                    "description": "Deprecated: use Scopes instead.",
                     "enum": [
                         "all",
                         "application_connect"
@@ -11301,6 +11301,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.APIKeyScope"
                         }
                     ]
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.APIKeyScope"
+                    }
                 },
                 "token_name": {
                     "type": "string"
@@ -11319,12 +11325,14 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "all",
+                "application_connect",
                 "api_key:*",
                 "api_key:create",
                 "api_key:delete",
                 "api_key:read",
                 "api_key:update",
-                "application_connect",
+                "coder:all",
+                "coder:application_connect",
                 "file:*",
                 "file:create",
                 "file:read",
@@ -11353,12 +11361,14 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "APIKeyScopeAll",
+                "APIKeyScopeApplicationConnect",
                 "APIKeyScopeApiKeyAll",
                 "APIKeyScopeApiKeyCreate",
                 "APIKeyScopeApiKeyDelete",
                 "APIKeyScopeApiKeyRead",
                 "APIKeyScopeApiKeyUpdate",
-                "APIKeyScopeApplicationConnect",
+                "APIKeyScopeCoderAll",
+                "APIKeyScopeCoderApplicationConnect",
                 "APIKeyScopeFileAll",
                 "APIKeyScopeFileCreate",
                 "APIKeyScopeFileRead",
@@ -12453,7 +12463,18 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "scope": {
-                    "$ref": "#/definitions/codersdk.APIKeyScope"
+                    "description": "Deprecated: use Scopes instead.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.APIKeyScope"
+                        }
+                    ]
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.APIKeyScope"
+                    }
                 },
                 "token_name": {
                     "type": "string"

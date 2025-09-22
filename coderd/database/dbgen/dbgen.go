@@ -185,7 +185,7 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey, munge ...func
 		CreatedAt:       takeFirst(seed.CreatedAt, dbtime.Now()),
 		UpdatedAt:       takeFirst(seed.UpdatedAt, dbtime.Now()),
 		LoginType:       takeFirst(seed.LoginType, database.LoginTypePassword),
-		Scopes:          takeFirstSlice([]database.APIKeyScope(seed.Scopes), []database.APIKeyScope{database.APIKeyScopeAll}),
+		Scopes:          takeFirstSlice([]database.APIKeyScope(seed.Scopes), []database.APIKeyScope{database.ApiKeyScopeCoderAll}),
 		AllowList:       takeFirstSlice(seed.AllowList, database.AllowList{database.AllowListWildcard()}),
 		TokenName:       takeFirst(seed.TokenName),
 	}

@@ -25,13 +25,12 @@ type CreateParams struct {
 	// Optional.
 	ExpiresAt       time.Time
 	LifetimeSeconds int64
+
 	// Scope is legacy single-scope input kept for backward compatibility.
 	//
-	// Deprecated: Prefer Scopes for new code.
+	// Deprecated: use Scopes instead.
 	Scope database.APIKeyScope
 	// Scopes is the full list of scopes to attach to the key.
-	// If empty and Scope is set, the generator will use [Scope].
-	// If both are empty, the generator will default to [APIKeyScopeAll].
 	Scopes     database.APIKeyScopes
 	TokenName  string
 	RemoteAddr string
@@ -74,9 +73,19 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 	case len(params.Scopes) > 0:
 		scopes = params.Scopes
 	case params.Scope != "":
-		scopes = database.APIKeyScopes{params.Scope}
+		var scope database.APIKeyScope
+		switch params.Scope {
+		case "all":
+			scope = database.ApiKeyScopeCoderAll
+		case "application_connect":
+			scope = database.ApiKeyScopeCoderApplicationConnect
+		default:
+			scope = params.Scope
+		}
+		scopes = database.APIKeyScopes{scope}
 	default:
-		scopes = database.APIKeyScopes{database.APIKeyScopeAll}
+		// Default to coder:all scope for backward compatibility.
+		scopes = database.APIKeyScopes{database.ApiKeyScopeCoderAll}
 	}
 
 	for _, s := range scopes {

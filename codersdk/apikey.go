@@ -12,16 +12,17 @@ import (
 
 // APIKey: do not ever return the HashedSecret
 type APIKey struct {
-	ID              string      `json:"id" validate:"required"`
-	UserID          uuid.UUID   `json:"user_id" validate:"required" format:"uuid"`
-	LastUsed        time.Time   `json:"last_used" validate:"required" format:"date-time"`
-	ExpiresAt       time.Time   `json:"expires_at" validate:"required" format:"date-time"`
-	CreatedAt       time.Time   `json:"created_at" validate:"required" format:"date-time"`
-	UpdatedAt       time.Time   `json:"updated_at" validate:"required" format:"date-time"`
-	LoginType       LoginType   `json:"login_type" validate:"required" enums:"password,github,oidc,token"`
-	Scope           APIKeyScope `json:"scope" validate:"required" enums:"all,application_connect"`
-	TokenName       string      `json:"token_name" validate:"required"`
-	LifetimeSeconds int64       `json:"lifetime_seconds" validate:"required"`
+	ID              string        `json:"id" validate:"required"`
+	UserID          uuid.UUID     `json:"user_id" validate:"required" format:"uuid"`
+	LastUsed        time.Time     `json:"last_used" validate:"required" format:"date-time"`
+	ExpiresAt       time.Time     `json:"expires_at" validate:"required" format:"date-time"`
+	CreatedAt       time.Time     `json:"created_at" validate:"required" format:"date-time"`
+	UpdatedAt       time.Time     `json:"updated_at" validate:"required" format:"date-time"`
+	LoginType       LoginType     `json:"login_type" validate:"required" enums:"password,github,oidc,token"`
+	Scope           APIKeyScope   `json:"scope" enums:"all,application_connect"` // Deprecated: use Scopes instead.
+	Scopes          []APIKeyScope `json:"scopes"`
+	TokenName       string        `json:"token_name" validate:"required"`
+	LifetimeSeconds int64         `json:"lifetime_seconds" validate:"required"`
 }
 
 // LoginType is the type of login used to create the API key.
@@ -44,7 +45,8 @@ type APIKeyScope string
 
 type CreateTokenRequest struct {
 	Lifetime  time.Duration `json:"lifetime"`
-	Scope     APIKeyScope   `json:"scope"`
+	Scope     APIKeyScope   `json:"scope,omitempty"` // Deprecated: use Scopes instead.
+	Scopes    []APIKeyScope `json:"scopes,omitempty"`
 	TokenName string        `json:"token_name"`
 }
 

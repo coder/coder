@@ -113,7 +113,7 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 		DefaultLifetime: api.DeploymentValues.Sessions.DefaultDuration.Value(),
 		ExpiresAt:       exp,
 		LifetimeSeconds: lifetimeSeconds,
-		Scope:           database.APIKeyScopeApplicationConnect,
+		Scope:           database.ApiKeyScopeCoderApplicationConnect,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

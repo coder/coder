@@ -158,7 +158,7 @@ func TestAuthorization(t *testing.T) {
 				CreatedAt: now,
 				UpdatedAt: now,
 				LoginType: database.LoginTypePassword,
-				Scopes:    []database.APIKeyScope{database.APIKeyScopeAll},
+				Scopes:    []database.APIKeyScope{database.ApiKeyScopeCoderAll},
 				TokenName: "",
 			}
 			if tc.key == "" {

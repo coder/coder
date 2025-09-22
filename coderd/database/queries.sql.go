@@ -432,7 +432,7 @@ DELETE FROM
 	api_keys
 WHERE
 	user_id = $1 AND
-	'application_connect'::api_key_scope = ANY(scopes)
+	'coder:application_connect'::api_key_scope = ANY(scopes)
 `
 
 func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {

@@ -48,6 +48,7 @@ export interface APIKey {
 	readonly updated_at: string;
 	readonly login_type: LoginType;
 	readonly scope: APIKeyScope;
+	readonly scopes: readonly APIKeyScope[];
 	readonly token_name: string;
 	readonly lifetime_seconds: number;
 }
@@ -61,6 +62,8 @@ export type APIKeyScope =
 	| "api_key:read"
 	| "api_key:update"
 	| "application_connect"
+	| "coder:all"
+	| "coder:application_connect"
 	| "file:*"
 	| "file:create"
 	| "file:read"
@@ -95,6 +98,8 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"api_key:read",
 	"api_key:update",
 	"application_connect",
+	"coder:all",
+	"coder:application_connect",
 	"file:*",
 	"file:create",
 	"file:read",
@@ -632,7 +637,8 @@ export interface CreateTestAuditLogRequest {
 // From codersdk/apikey.go
 export interface CreateTokenRequest {
 	readonly lifetime: number;
-	readonly scope: APIKeyScope;
+	readonly scope?: APIKeyScope;
+	readonly scopes?: readonly APIKeyScope[];
 	readonly token_name: string;
 }
 

@@ -251,7 +251,7 @@ func (s *MethodTestSuite) TestAPIKey() {
 	}))
 	s.Run("InsertAPIKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		arg := database.InsertAPIKeyParams{UserID: u.ID, LoginType: database.LoginTypePassword, Scopes: database.APIKeyScopes{database.APIKeyScopeAll}, IPAddress: defaultIPAddress()}
+		arg := database.InsertAPIKeyParams{UserID: u.ID, LoginType: database.LoginTypePassword, Scopes: database.APIKeyScopes{database.ApiKeyScopeCoderAll}, IPAddress: defaultIPAddress()}
 		ret := testutil.Fake(s.T(), faker, database.APIKey{UserID: u.ID, LoginType: database.LoginTypePassword})
 		dbm.EXPECT().InsertAPIKey(gomock.Any(), arg).Return(ret, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceApiKey.WithOwner(u.ID.String()), policy.ActionCreate)
@@ -265,7 +265,7 @@ func (s *MethodTestSuite) TestAPIKey() {
 		check.Args(arg).Asserts(a, policy.ActionUpdate).Returns()
 	}))
 	s.Run("DeleteApplicationConnectAPIKeysByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		a := testutil.Fake(s.T(), faker, database.APIKey{Scopes: database.APIKeyScopes{database.APIKeyScopeApplicationConnect}})
+		a := testutil.Fake(s.T(), faker, database.APIKey{Scopes: database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect}})
 		dbm.EXPECT().DeleteApplicationConnectAPIKeysByUserID(gomock.Any(), a.UserID).Return(nil).AnyTimes()
 		check.Args(a.UserID).Asserts(rbac.ResourceApiKey.WithOwner(a.UserID.String()), policy.ActionDelete).Returns()
 	}))

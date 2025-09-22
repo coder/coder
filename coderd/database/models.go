@@ -19,8 +19,8 @@ import (
 type APIKeyScope string
 
 const (
-	APIKeyScopeAll                                 APIKeyScope = "all"
-	APIKeyScopeApplicationConnect                  APIKeyScope = "application_connect"
+	ApiKeyScopeCoderAll                            APIKeyScope = "coder:all"
+	ApiKeyScopeCoderApplicationConnect             APIKeyScope = "coder:application_connect"
 	ApiKeyScopeAibridgeInterceptionCreate          APIKeyScope = "aibridge_interception:create"
 	ApiKeyScopeAibridgeInterceptionRead            APIKeyScope = "aibridge_interception:read"
 	ApiKeyScopeAibridgeInterceptionUpdate          APIKeyScope = "aibridge_interception:update"
@@ -198,8 +198,8 @@ func (ns NullAPIKeyScope) Value() (driver.Value, error) {
 
 func (e APIKeyScope) Valid() bool {
 	switch e {
-	case APIKeyScopeAll,
-		APIKeyScopeApplicationConnect,
+	case ApiKeyScopeCoderAll,
+		ApiKeyScopeCoderApplicationConnect,
 		ApiKeyScopeAibridgeInterceptionCreate,
 		ApiKeyScopeAibridgeInterceptionRead,
 		ApiKeyScopeAibridgeInterceptionUpdate,
@@ -345,8 +345,8 @@ func (e APIKeyScope) Valid() bool {
 
 func AllAPIKeyScopeValues() []APIKeyScope {
 	return []APIKeyScope{
-		APIKeyScopeAll,
-		APIKeyScopeApplicationConnect,
+		ApiKeyScopeCoderAll,
+		ApiKeyScopeCoderApplicationConnect,
 		ApiKeyScopeAibridgeInterceptionCreate,
 		ApiKeyScopeAibridgeInterceptionRead,
 		ApiKeyScopeAibridgeInterceptionUpdate,

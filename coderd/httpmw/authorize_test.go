@@ -172,7 +172,7 @@ func addUser(t *testing.T, db database.Store, roles ...string) (database.User, s
 		LastUsed:     dbtime.Now(),
 		ExpiresAt:    dbtime.Now().Add(time.Minute),
 		LoginType:    database.LoginTypePassword,
-		Scopes:       database.APIKeyScopes{database.APIKeyScopeAll},
+		Scopes:       database.APIKeyScopes{database.ApiKeyScopeCoderAll},
 		AllowList:    database.AllowList{database.AllowListWildcard()},
 		IPAddress: pqtype.Inet{
 			IPNet: net.IPNet{

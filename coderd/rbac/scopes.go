@@ -61,8 +61,8 @@ func WorkspaceAgentScope(params WorkspaceAgentScopeParams) Scope {
 }
 
 const (
-	ScopeAll                ScopeName = "all"
-	ScopeApplicationConnect ScopeName = "application_connect"
+	ScopeAll                ScopeName = "coder:all"
+	ScopeApplicationConnect ScopeName = "coder:application_connect"
 	ScopeNoUserData         ScopeName = "no_user_data"
 )
 
