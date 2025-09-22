@@ -183,9 +183,6 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ task }) => {
 			? mutateStartWorkspace.error
 			: undefined;
 
-	const isMutationRunning =
-		!mutateStartWorkspace.isIdle && !mutateStartWorkspace.isError;
-
 	return (
 		<Margins>
 			<div className="w-full min-h-80 flex items-center justify-center">
@@ -199,14 +196,14 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ task }) => {
 					<div className="flex flex-row mt-4 gap-4">
 						<Button
 							size="sm"
-							disabled={isMutationRunning}
+							disabled={mutateStartWorkspace.isPending}
 							onClick={() => {
 								mutateStartWorkspace.mutate({
 									buildParameters: parameters?.buildParameters,
 								});
 							}}
 						>
-							{isMutationRunning ? "Starting workspace..." : "Start workspace"}
+							{mutateStartWorkspace.isPending ? "Starting workspace..." : "Start workspace"}
 						</Button>
 					</div>
 				</div>
