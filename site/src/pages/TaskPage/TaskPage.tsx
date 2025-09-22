@@ -214,7 +214,7 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ task }) => {
 				open={apiError !== undefined}
 				error={apiError}
 				onClose={mutateStartWorkspace.reset}
-				showDetail={task.workspace.template_use_classic_parameter_flow}
+				showDetail={true}
 				workspaceOwner={task.workspace.owner_name}
 				workspaceName={task.workspace.name}
 				templateVersionId={task.workspace.latest_build.template_version_id}
