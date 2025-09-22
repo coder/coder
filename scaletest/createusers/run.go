@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
-	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 )
 
@@ -22,15 +21,9 @@ type Runner struct {
 	client *codersdk.Client
 	cfg    Config
 
-	userID       uuid.UUID
 	sessionToken string
 	user         codersdk.User
 }
-
-var (
-	_ harness.Runnable  = &Runner{}
-	_ harness.Cleanable = &Runner{}
-)
 
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
@@ -39,7 +32,7 @@ func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	}
 }
 
-func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
+func (r *Runner) RunReturningUser(ctx context.Context, id string, logs io.Writer) (codersdk.User, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -51,7 +44,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	if r.cfg.Username == "" || r.cfg.Email == "" {
 		genUsername, genEmail, err := loadtestutil.GenerateUserIdentifier(id)
 		if err != nil {
-			return xerrors.Errorf("generate user identifier: %w", err)
+			return codersdk.User{}, xerrors.Errorf("generate user identifier: %w", err)
 		}
 		if r.cfg.Username == "" {
 			r.cfg.Username = genUsername
@@ -64,7 +57,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	_, _ = fmt.Fprintln(logs, "Generating user password...")
 	password, err := cryptorand.String(16)
 	if err != nil {
-		return xerrors.Errorf("generate random password for user: %w", err)
+		return codersdk.User{}, xerrors.Errorf("generate random password for user: %w", err)
 	}
 
 	_, _ = fmt.Fprintln(logs, "Creating user:")
@@ -75,9 +68,8 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		Password:        password,
 	})
 	if err != nil {
-		return xerrors.Errorf("create user: %w", err)
+		return codersdk.User{}, xerrors.Errorf("create user: %w", err)
 	}
-	r.userID = user.ID
 	r.user = user
 
 	_, _ = fmt.Fprintln(logs, "\nLogging in as new user...")
@@ -87,7 +79,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		Password: password,
 	})
 	if err != nil {
-		return xerrors.Errorf("login as new user: %w", err)
+		return codersdk.User{}, xerrors.Errorf("login as new user: %w", err)
 	}
 	r.sessionToken = loginRes.SessionToken
 
@@ -96,14 +88,14 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	_, _ = fmt.Fprintf(logs, "\tEmail:    %s\n", user.Email)
 	_, _ = fmt.Fprintf(logs, "\tPassword: ****************\n")
 
-	return nil
+	return user, nil
 }
 
 func (r *Runner) Cleanup(ctx context.Context, _ string, logs io.Writer) error {
-	if r.userID != uuid.Nil {
-		err := r.client.DeleteUser(ctx, r.userID)
+	if r.user.ID != uuid.Nil {
+		err := r.client.DeleteUser(ctx, r.user.ID)
 		if err != nil {
-			_, _ = fmt.Fprintf(logs, "failed to delete user %q: %v\n", r.userID.String(), err)
+			_, _ = fmt.Fprintf(logs, "failed to delete user %q: %v\n", r.user.ID.String(), err)
 			return xerrors.Errorf("delete user: %w", err)
 		}
 	}
@@ -112,8 +104,4 @@ func (r *Runner) Cleanup(ctx context.Context, _ string, logs io.Writer) error {
 
 func (r *Runner) SessionToken() string {
 	return r.sessionToken
-}
-
-func (r *Runner) User() codersdk.User {
-	return r.user
 }
