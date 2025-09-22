@@ -32,11 +32,11 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
-	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/scaletest/agentconn"
 	"github.com/coder/coder/v2/scaletest/createworkspaces"
 	"github.com/coder/coder/v2/scaletest/dashboard"
 	"github.com/coder/coder/v2/scaletest/harness"
+	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/scaletest/reconnectingpty"
 	"github.com/coder/coder/v2/scaletest/workspacebuild"
 	"github.com/coder/coder/v2/scaletest/workspacetraffic"
@@ -647,16 +647,6 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 
 				if useHostUser {
 					config.User.SessionToken = client.SessionToken()
-				} else {
-					config.User.Username, config.User.Email, err = newScaleTestUser(id)
-					if err != nil {
-						return xerrors.Errorf("create scaletest username and email: %w", err)
-					}
-				}
-
-				config.Workspace.Request.Name, err = newScaleTestWorkspace(id)
-				if err != nil {
-					return xerrors.Errorf("create scaletest workspace name: %w", err)
 				}
 
 				if runCommand != "" {
@@ -1408,31 +1398,6 @@ func (r *runnableTraceWrapper) Cleanup(ctx context.Context, id string, logs io.W
 	return c.Cleanup(ctx, id, logs)
 }
 
-// newScaleTestUser returns a random username and email address that can be used
-// for scale testing. The returned username is prefixed with "scaletest-" and
-// the returned email address is suffixed with "@scaletest.local".
-func newScaleTestUser(id string) (username string, email string, err error) {
-	randStr, err := cryptorand.String(8)
-	return fmt.Sprintf("scaletest-%s-%s", randStr, id), fmt.Sprintf("%s-%s@scaletest.local", randStr, id), err
-}
-
-// newScaleTestWorkspace returns a random workspace name that can be used for
-// scale testing. The returned workspace name is prefixed with "scaletest-" and
-// suffixed with the given id.
-func newScaleTestWorkspace(id string) (name string, err error) {
-	randStr, err := cryptorand.String(8)
-	return fmt.Sprintf("scaletest-%s-%s", randStr, id), err
-}
-
-func isScaleTestUser(user codersdk.User) bool {
-	return strings.HasSuffix(user.Email, "@scaletest.local")
-}
-
-func isScaleTestWorkspace(workspace codersdk.Workspace) bool {
-	return strings.HasPrefix(workspace.OwnerName, "scaletest-") ||
-		strings.HasPrefix(workspace.Name, "scaletest-")
-}
-
 func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client, owner, template string) ([]codersdk.Workspace, int, error) {
 	var (
 		pageNumber = 0
@@ -1471,7 +1436,7 @@ func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client, owner,
 
 		pageWorkspaces := make([]codersdk.Workspace, 0, len(page.Workspaces))
 		for _, w := range page.Workspaces {
-			if !isScaleTestWorkspace(w) {
+			if !loadtestutil.IsScaleTestWorkspace(w.Name, w.OwnerName) {
 				continue
 			}
 			if noOwnerAccess && w.OwnerID != me.ID {
@@ -1511,7 +1476,7 @@ func getScaletestUsers(ctx context.Context, client *codersdk.Client) ([]codersdk
 
 		pageUsers := make([]codersdk.User, 0, len(page.Users))
 		for _, u := range page.Users {
-			if isScaleTestUser(u) {
+			if loadtestutil.IsScaleTestUser(u.Username, u.Email) {
 				pageUsers = append(pageUsers, u)
 			}
 		}
