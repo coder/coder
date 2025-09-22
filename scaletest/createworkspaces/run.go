@@ -73,13 +73,13 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 			return xerrors.Errorf("validate create user config: %w", err)
 		}
 		r.createUserRunner = createusers.NewRunner(r.client, createUserConfig)
-		user, err = r.createUserRunner.RunReturningUser(ctx, id, logs)
+		newUser, err := r.createUserRunner.RunReturningUser(ctx, id, logs)
 		if err != nil {
 			return xerrors.Errorf("create user: %w", err)
 		}
-
+		user = newUser.User
 		client = codersdk.New(r.client.URL)
-		client.SetSessionToken(r.createUserRunner.SessionToken())
+		client.SetSessionToken(newUser.SessionToken)
 	}
 
 	_, _ = fmt.Fprintln(logs, "\nCreating workspace...")

@@ -25,6 +25,11 @@ type Runner struct {
 	user         codersdk.User
 }
 
+type User struct {
+	codersdk.User
+	SessionToken string
+}
+
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
 		client: client,
@@ -32,7 +37,7 @@ func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	}
 }
 
-func (r *Runner) RunReturningUser(ctx context.Context, id string, logs io.Writer) (codersdk.User, error) {
+func (r *Runner) RunReturningUser(ctx context.Context, id string, logs io.Writer) (User, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -44,7 +49,7 @@ func (r *Runner) RunReturningUser(ctx context.Context, id string, logs io.Writer
 	if r.cfg.Username == "" || r.cfg.Email == "" {
 		genUsername, genEmail, err := loadtestutil.GenerateUserIdentifier(id)
 		if err != nil {
-			return codersdk.User{}, xerrors.Errorf("generate user identifier: %w", err)
+			return User{}, xerrors.Errorf("generate user identifier: %w", err)
 		}
 		if r.cfg.Username == "" {
 			r.cfg.Username = genUsername
@@ -57,7 +62,7 @@ func (r *Runner) RunReturningUser(ctx context.Context, id string, logs io.Writer
 	_, _ = fmt.Fprintln(logs, "Generating user password...")
 	password, err := cryptorand.String(16)
 	if err != nil {
-		return codersdk.User{}, xerrors.Errorf("generate random password for user: %w", err)
+		return User{}, xerrors.Errorf("generate random password for user: %w", err)
 	}
 
 	_, _ = fmt.Fprintln(logs, "Creating user:")
@@ -68,7 +73,7 @@ func (r *Runner) RunReturningUser(ctx context.Context, id string, logs io.Writer
 		Password:        password,
 	})
 	if err != nil {
-		return codersdk.User{}, xerrors.Errorf("create user: %w", err)
+		return User{}, xerrors.Errorf("create user: %w", err)
 	}
 	r.user = user
 
@@ -79,7 +84,7 @@ func (r *Runner) RunReturningUser(ctx context.Context, id string, logs io.Writer
 		Password: password,
 	})
 	if err != nil {
-		return codersdk.User{}, xerrors.Errorf("login as new user: %w", err)
+		return User{}, xerrors.Errorf("login as new user: %w", err)
 	}
 	r.sessionToken = loginRes.SessionToken
 
@@ -88,7 +93,7 @@ func (r *Runner) RunReturningUser(ctx context.Context, id string, logs io.Writer
 	_, _ = fmt.Fprintf(logs, "\tEmail:    %s\n", user.Email)
 	_, _ = fmt.Fprintf(logs, "\tPassword: ****************\n")
 
-	return user, nil
+	return User{User: user, SessionToken: r.sessionToken}, nil
 }
 
 func (r *Runner) Cleanup(ctx context.Context, _ string, logs io.Writer) error {
@@ -100,8 +105,4 @@ func (r *Runner) Cleanup(ctx context.Context, _ string, logs io.Writer) error {
 		}
 	}
 	return nil
-}
-
-func (r *Runner) SessionToken() string {
-	return r.sessionToken
 }
