@@ -514,7 +514,7 @@ func TestBackedReader_CloseWhileBlockedOnUnderlyingReader(t *testing.T) {
 	select {
 	case <-closeDone:
 		t.Fatal("Close should be blocked until underlying read completes")
-	case <-time.After(10 * time.Millisecond):
+	case <-time.After(testutil.IntervalFast):
 		// Good, Close is blocked
 	}
 

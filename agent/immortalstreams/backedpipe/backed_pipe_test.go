@@ -378,7 +378,7 @@ func TestBackedPipe_WriteBeforeConnect(t *testing.T) {
 	select {
 	case <-writeComplete:
 		t.Fatal("Write should have blocked when disconnected")
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(testutil.IntervalMedium):
 		// Expected - write is blocked
 	}
 

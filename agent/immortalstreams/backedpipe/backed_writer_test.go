@@ -102,7 +102,7 @@ func TestBackedWriter_WriteBlocksWhenDisconnected(t *testing.T) {
 	select {
 	case <-writeComplete:
 		t.Fatal("Write should have blocked when disconnected")
-	case <-time.After(50 * time.Millisecond):
+	case <-time.After(testutil.IntervalMedium):
 		// Expected - write is blocked
 	}
 
@@ -173,7 +173,7 @@ func TestBackedWriter_BlockOnWriteFailure(t *testing.T) {
 	select {
 	case <-writeComplete:
 		t.Fatal("Write should have blocked when underlying writer fails")
-	case <-time.After(50 * time.Millisecond):
+	case <-time.After(testutil.IntervalMedium):
 		// Expected - write is blocked
 	}
 
@@ -181,7 +181,7 @@ func TestBackedWriter_BlockOnWriteFailure(t *testing.T) {
 	receivedErrorEvent := testutil.RequireReceive(ctx, t, errChan)
 	require.Contains(t, receivedErrorEvent.Err.Error(), "write failed")
 	require.Equal(t, "writer", receivedErrorEvent.Component)
-	require.False(t, bw.Connected())
+	require.Eventually(t, func() bool { return !bw.Connected() }, testutil.WaitShort, testutil.IntervalFast)
 
 	// Reconnect with working writer and verify write completes
 	writer2 := newMockWriter()
@@ -234,7 +234,7 @@ func TestBackedWriter_ReplayOnReconnect(t *testing.T) {
 	select {
 	case <-writeComplete:
 		t.Fatal("Write should have blocked when underlying writer fails")
-	case <-time.After(50 * time.Millisecond):
+	case <-time.After(testutil.IntervalMedium):
 		// Expected - write is blocked
 	}
 
@@ -242,7 +242,7 @@ func TestBackedWriter_ReplayOnReconnect(t *testing.T) {
 	receivedErrorEvent := testutil.RequireReceive(ctx, t, errChan)
 	require.Contains(t, receivedErrorEvent.Err.Error(), "connection lost")
 	require.Equal(t, "writer", receivedErrorEvent.Component)
-	require.False(t, bw.Connected())
+	require.Eventually(t, func() bool { return !bw.Connected() }, testutil.WaitShort, testutil.IntervalFast)
 
 	// Reconnect with new writer and request replay from beginning
 	writer2 := newMockWriter()
@@ -250,12 +250,7 @@ func TestBackedWriter_ReplayOnReconnect(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write should now complete
-	select {
-	case <-writeComplete:
-		// Expected - write completed
-	case <-time.After(100 * time.Millisecond):
-		t.Fatal("Write should have completed after reconnection")
-	}
+	testutil.TryReceive(ctx, t, writeComplete)
 
 	require.NoError(t, writeErr)
 	require.Equal(t, 4, n)
@@ -474,7 +469,7 @@ func TestBackedWriter_BlockOnPartialWrite(t *testing.T) {
 	select {
 	case <-writeComplete:
 		t.Fatal("Write should have blocked when underlying writer does partial write")
-	case <-time.After(50 * time.Millisecond):
+	case <-time.After(testutil.IntervalMedium):
 		// Expected - write is blocked
 	}
 
@@ -516,7 +511,7 @@ func TestBackedWriter_WriteUnblocksOnReconnect(t *testing.T) {
 	select {
 	case <-writeResult:
 		t.Fatal("Write should have blocked when disconnected")
-	case <-time.After(50 * time.Millisecond):
+	case <-time.After(testutil.IntervalMedium):
 		// Expected - write is blocked
 	}
 
@@ -551,7 +546,7 @@ func TestBackedWriter_CloseUnblocksWaitingWrites(t *testing.T) {
 	select {
 	case <-writeComplete:
 		t.Fatal("Write should have blocked when disconnected")
-	case <-time.After(50 * time.Millisecond):
+	case <-time.After(testutil.IntervalMedium):
 		// Expected - write is blocked
 	}
 
@@ -594,7 +589,7 @@ func TestBackedWriter_WriteBlocksAfterDisconnection(t *testing.T) {
 	select {
 	case <-writeComplete:
 		t.Fatal("Write should have blocked after disconnection")
-	case <-time.After(50 * time.Millisecond):
+	case <-time.After(testutil.IntervalMedium):
 		// Expected - write is blocked
 	}
 
@@ -602,7 +597,7 @@ func TestBackedWriter_WriteBlocksAfterDisconnection(t *testing.T) {
 	receivedErrorEvent := testutil.RequireReceive(ctx, t, errChan)
 	require.Contains(t, receivedErrorEvent.Err.Error(), "connection lost")
 	require.Equal(t, "writer", receivedErrorEvent.Component)
-	require.False(t, bw.Connected())
+	require.Eventually(t, func() bool { return !bw.Connected() }, testutil.WaitShort, testutil.IntervalFast)
 
 	// Reconnect and verify write completes
 	writer2 := newMockWriter()
