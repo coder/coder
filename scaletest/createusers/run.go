@@ -21,8 +21,7 @@ type Runner struct {
 	client *codersdk.Client
 	cfg    Config
 
-	sessionToken string
-	user         codersdk.User
+	user codersdk.User
 }
 
 type User struct {
@@ -86,14 +85,13 @@ func (r *Runner) RunReturningUser(ctx context.Context, id string, logs io.Writer
 	if err != nil {
 		return User{}, xerrors.Errorf("login as new user: %w", err)
 	}
-	r.sessionToken = loginRes.SessionToken
 
 	_, _ = fmt.Fprintf(logs, "\tOrg ID:   %s\n", r.cfg.OrganizationID.String())
 	_, _ = fmt.Fprintf(logs, "\tUsername: %s\n", user.Username)
 	_, _ = fmt.Fprintf(logs, "\tEmail:    %s\n", user.Email)
 	_, _ = fmt.Fprintf(logs, "\tPassword: ****************\n")
 
-	return User{User: user, SessionToken: r.sessionToken}, nil
+	return User{User: user, SessionToken: loginRes.SessionToken}, nil
 }
 
 func (r *Runner) Cleanup(ctx context.Context, _ string, logs io.Writer) error {
