@@ -1,10 +1,5 @@
 import { API } from "api/api";
-import {
-	type ApiError,
-	getErrorDetail,
-	getErrorMessage,
-	isApiError,
-} from "api/errors";
+import { getErrorDetail, getErrorMessage, isApiError } from "api/errors";
 import { template as templateQueryOptions } from "api/queries/templates";
 import { startWorkspace } from "api/queries/workspaces";
 import type {
@@ -25,13 +20,7 @@ import { useAgentLogs } from "modules/resources/useAgentLogs";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import {
-	type FC,
-	type ReactNode,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { type FC, type ReactNode, useLayoutEffect, useRef } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
