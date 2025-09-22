@@ -180,28 +180,19 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ task }) => {
 		queryFn: () => API.getWorkspaceParameters(task.workspace),
 	});
 
-	const [workspaceErrorDialog, setWorkspaceErrorDialog] = useState<{
-		open: boolean;
-		error?: ApiError;
-	}>({ open: false });
-
-	const handleError = (error: unknown) => {
-		if (isApiError(error)) {
-			setWorkspaceErrorDialog({
-				open: true,
-				error: error,
-			});
-		} else {
-			displayError(getErrorMessage(error, "Failed to build workspace."));
-		}
-	};
-
 	const mutateStartWorkspace = useMutation({
 		...startWorkspace(task?.workspace, queryClient),
 		onError: (error: unknown) => {
-			handleError(error);
+			if (!isApiError(error)) {
+				displayError(getErrorMessage(error, "Failed to build workspace."));
+			}
 		},
 	});
+
+	const apiError =
+		mutateStartWorkspace.isError && isApiError(mutateStartWorkspace.error)
+			? mutateStartWorkspace.error
+			: undefined;
 
 	const isMutationRunning =
 		!mutateStartWorkspace.isIdle && !mutateStartWorkspace.isError;
@@ -233,9 +224,9 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ task }) => {
 			</div>
 
 			<WorkspaceErrorDialog
-				open={workspaceErrorDialog.open}
-				error={workspaceErrorDialog.error}
-				onClose={() => setWorkspaceErrorDialog({ open: false })}
+				open={apiError !== undefined}
+				error={apiError}
+				onClose={mutateStartWorkspace.reset}
 				showDetail={task.workspace.template_use_classic_parameter_flow}
 				workspaceOwner={task.workspace.owner_name}
 				workspaceName={task.workspace.name}
@@ -319,7 +310,7 @@ type TaskStartingAgentProps = {
 };
 
 const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ agent }) => {
-	const logs = useAgentLogs(agent, true);
+	const logs = useAgentLogs({ agentId: agent.id });
 	const listRef = useRef<FixedSizeList>(null);
 
 	useLayoutEffect(() => {
@@ -344,6 +335,11 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ agent }) => {
 					<div className="w-full max-w-screen-lg flex flex-col gap-4 overflow-hidden">
 						<div className="h-96 border border-solid border-border rounded-lg">
 							<AgentLogs
+								ref={listRef}
+								sources={agent.log_sources}
+								height={96 * 4}
+								width="100%"
+								overflowed={agent.logs_overflowed}
 								logs={logs.map((l) => ({
 									id: l.id,
 									level: l.level,
@@ -351,10 +347,6 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ agent }) => {
 									sourceId: l.source_id,
 									time: l.created_at,
 								}))}
-								sources={agent.log_sources}
-								height={96 * 4}
-								width="100%"
-								ref={listRef}
 							/>
 						</div>
 					</div>

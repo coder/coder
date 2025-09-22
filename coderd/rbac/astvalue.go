@@ -182,9 +182,25 @@ func (s Scope) regoValue() ast.Value {
 	if !ok {
 		panic("developer error: role is not an object")
 	}
+
+	terms := make([]*ast.Term, len(s.AllowIDList))
+	for i, v := range s.AllowIDList {
+		terms[i] = ast.NewTerm(ast.NewObject(
+			[2]*ast.Term{
+				ast.StringTerm("type"),
+				ast.StringTerm(v.Type),
+			},
+			[2]*ast.Term{
+				ast.StringTerm("id"),
+				ast.StringTerm(v.ID),
+			},
+		),
+		)
+	}
+
 	r.Insert(
 		ast.StringTerm("allow_list"),
-		ast.NewTerm(regoSliceString(s.AllowIDList...)),
+		ast.NewTerm(ast.NewArray(terms...)),
 	)
 	return r
 }

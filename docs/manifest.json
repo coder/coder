@@ -771,6 +771,11 @@
 							"state": ["premium"]
 						},
 						{
+							"title": "Wildcard Access URL",
+							"description": "Learn about wildcard access URL in Coder deployments",
+							"path": "./admin/networking/wildcard-access-url.md"
+						},
+						{
 							"title": "Troubleshooting",
 							"description": "Troubleshoot networking issues in Coder",
 							"path": "./admin/networking/troubleshooting.md"

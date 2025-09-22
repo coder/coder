@@ -2,7 +2,7 @@ import { useTheme } from "@emotion/react";
 import type { ProvisionerJobLog } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { type FC, useEffect, useRef } from "react";
+import type { FC } from "react";
 
 interface WorkspaceBuildLogsSectionProps {
 	logs?: ProvisionerJobLog[];
@@ -11,21 +11,7 @@ interface WorkspaceBuildLogsSectionProps {
 export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
 	logs,
 }) => {
-	const scrollRef = useRef<HTMLDivElement>(null);
 	const theme = useTheme();
-
-	// biome-ignore lint/correctness/useExhaustiveDependencies: reset scroll when logs change
-	useEffect(() => {
-		// Auto scrolling makes hard to snapshot test using Chromatic
-		if (process.env.STORYBOOK === "true") {
-			return;
-		}
-
-		const scrollEl = scrollRef.current;
-		if (scrollEl) {
-			scrollEl.scrollTop = scrollEl.scrollHeight;
-		}
-	}, [logs]);
 
 	return (
 		<div
@@ -50,7 +36,7 @@ export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
 			>
 				Build logs
 			</header>
-			<div ref={scrollRef} css={{ height: "400px", overflowY: "auto" }}>
+			<div css={{ height: "400px", overflowY: "auto" }}>
 				{logs ? (
 					<WorkspaceBuildLogs
 						sticky

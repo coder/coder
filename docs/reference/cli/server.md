@@ -932,6 +932,17 @@ The maximum lifetime duration administrators can specify when creating an API to
 
 The default lifetime duration for API tokens. This value is used when creating a token without specifying a duration, such as when authenticating the CLI or an IDE plugin.
 
+### --default-oauth-refresh-lifetime
+
+|             |                                                    |
+|-------------|----------------------------------------------------|
+| Type        | <code>duration</code>                              |
+| Environment | <code>$CODER_DEFAULT_OAUTH_REFRESH_LIFETIME</code> |
+| YAML        | <code>defaultOAuthRefreshLifetime</code>           |
+| Default     | <code>720h0m0s</code>                              |
+
+The default lifetime duration for OAuth2 refresh tokens. This controls how long refresh tokens remain valid after issuance or rotation.
+
 ### --swagger-enable
 
 |             |                                    |

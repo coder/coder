@@ -960,6 +960,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "Git"
                 ],
@@ -977,7 +980,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DeleteExternalAuthByIDResponse"
+                        }
                     }
                 }
             }
@@ -10115,6 +10121,33 @@ const docTemplate = `{
                     }
                 }
             },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Completely clears the workspace's user and group ACLs.",
+                "operationId": "completely-clears-the-workspaces-user-and-group-acls",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            },
             "patch": {
                 "security": [
                     {
@@ -11145,6 +11178,50 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ReducedUser"
                     }
+                }
+            }
+        },
+        "codersdk.AIBridgeAnthropicConfig": {
+            "type": "object",
+            "properties": {
+                "base_url": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBridgeConfig": {
+            "type": "object",
+            "properties": {
+                "anthropic": {
+                    "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "openai": {
+                    "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
+                }
+            }
+        },
+        "codersdk.AIBridgeOpenAIConfig": {
+            "type": "object",
+            "properties": {
+                "base_url": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIConfig": {
+            "type": "object",
+            "properties": {
+                "bridge": {
+                    "$ref": "#/definitions/codersdk.AIBridgeConfig"
                 }
             }
         },
@@ -12699,6 +12776,18 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DeleteExternalAuthByIDResponse": {
+            "type": "object",
+            "properties": {
+                "token_revocation_error": {
+                    "type": "string"
+                },
+                "token_revoked": {
+                    "description": "TokenRevoked set to true if token revocation was attempted and was successful",
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.DeleteWebpushSubscription": {
             "type": "object",
             "properties": {
@@ -12783,6 +12872,9 @@ const docTemplate = `{
                 },
                 "agent_stat_refresh_interval": {
                     "type": "integer"
+                },
+                "ai": {
+                    "$ref": "#/definitions/codersdk.AIConfig"
                 },
                 "allow_workspace_renames": {
                     "type": "boolean"
@@ -13111,9 +13203,11 @@ const docTemplate = `{
                 "web-push",
                 "oauth2",
                 "mcp-server-http",
-                "workspace-sharing"
+                "workspace-sharing",
+                "aibridge"
             ],
             "x-enum-comments": {
+                "ExperimentAIBridge": "Enables AI Bridge functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -13131,7 +13225,8 @@ const docTemplate = `{
                 "ExperimentWebPush",
                 "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP",
-                "ExperimentWorkspaceSharing"
+                "ExperimentWorkspaceSharing",
+                "ExperimentAIBridge"
             ]
         },
         "codersdk.ExternalAgentCredentials": {
@@ -13171,6 +13266,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ExternalAuthAppInstallation"
                     }
+                },
+                "supports_revocation": {
+                    "type": "boolean"
                 },
                 "user": {
                     "description": "User is the user that authenticated with the provider.",
@@ -13229,11 +13327,23 @@ const docTemplate = `{
                     "description": "ID is a unique identifier for the auth config.\nIt defaults to ` + "`" + `type` + "`" + ` when not provided.",
                     "type": "string"
                 },
+                "mcp_tool_allow_regex": {
+                    "type": "string"
+                },
+                "mcp_tool_deny_regex": {
+                    "type": "string"
+                },
+                "mcp_url": {
+                    "type": "string"
+                },
                 "no_refresh": {
                     "type": "boolean"
                 },
                 "regex": {
                     "description": "Regex allows API requesters to match an auth config by\na string (e.g. coder.com) instead of by it's type.\n\nGit clone makes use of this by parsing the URL from:\n'Username for \"https://github.com\":'\nAnd sending it to the Coder server to match against the Regex.",
+                    "type": "string"
+                },
+                "revoke_url": {
                     "type": "string"
                 },
                 "scopes": {
@@ -15915,6 +16025,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "*",
+                "aibridge_interception",
                 "api_key",
                 "assign_org_role",
                 "assign_role",
@@ -15957,6 +16068,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ResourceWildcard",
+                "ResourceAibridgeInterception",
                 "ResourceApiKey",
                 "ResourceAssignOrgRole",
                 "ResourceAssignRole",
@@ -16396,6 +16508,10 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "max_token_lifetime": {
+                    "type": "integer"
+                },
+                "refresh_default_duration": {
+                    "description": "RefreshDefaultDuration is the default lifetime for OAuth2 refresh tokens.\nThis should generally be longer than access token lifetimes to allow\nrefreshing after access token expiry.",
                     "type": "integer"
                 }
             }

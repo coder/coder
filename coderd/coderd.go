@@ -1457,6 +1457,7 @@ func New(options *Options) *API {
 
 					r.Get("/", api.workspaceACL)
 					r.Patch("/", api.patchWorkspaceACL)
+					r.Delete("/", api.deleteWorkspaceACL)
 				})
 			})
 		})

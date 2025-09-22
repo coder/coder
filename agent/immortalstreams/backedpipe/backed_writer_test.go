@@ -177,17 +177,11 @@ func TestBackedWriter_BlockOnWriteFailure(t *testing.T) {
 		// Expected - write is blocked
 	}
 
-	// Should be disconnected
+	// Wait for error event which implies writer was marked disconnected
+	receivedErrorEvent := testutil.RequireReceive(ctx, t, errChan)
+	require.Contains(t, receivedErrorEvent.Err.Error(), "write failed")
+	require.Equal(t, "writer", receivedErrorEvent.Component)
 	require.False(t, bw.Connected())
-
-	// Error should be sent to error channel
-	select {
-	case receivedErrorEvent := <-errChan:
-		require.Contains(t, receivedErrorEvent.Err.Error(), "write failed")
-		require.Equal(t, "writer", receivedErrorEvent.Component)
-	default:
-		t.Fatal("Expected error to be sent to error channel")
-	}
 
 	// Reconnect with working writer and verify write completes
 	writer2 := newMockWriter()
@@ -205,6 +199,7 @@ func TestBackedWriter_BlockOnWriteFailure(t *testing.T) {
 
 func TestBackedWriter_ReplayOnReconnect(t *testing.T) {
 	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
 
 	errChan := make(chan backedpipe.ErrorEvent, 1)
 	bw := backedpipe.NewBackedWriter(backedpipe.DefaultBufferSize, errChan)
@@ -243,6 +238,10 @@ func TestBackedWriter_ReplayOnReconnect(t *testing.T) {
 		// Expected - write is blocked
 	}
 
+	// Wait for error event which implies writer was marked disconnected
+	receivedErrorEvent := testutil.RequireReceive(ctx, t, errChan)
+	require.Contains(t, receivedErrorEvent.Err.Error(), "connection lost")
+	require.Equal(t, "writer", receivedErrorEvent.Component)
 	require.False(t, bw.Connected())
 
 	// Reconnect with new writer and request replay from beginning
@@ -479,17 +478,11 @@ func TestBackedWriter_BlockOnPartialWrite(t *testing.T) {
 		// Expected - write is blocked
 	}
 
-	// Should be disconnected
+	// Wait for error event which implies writer was marked disconnected
+	receivedErrorEvent := testutil.RequireReceive(ctx, t, errChan)
+	require.Contains(t, receivedErrorEvent.Err.Error(), "short write")
+	require.Equal(t, "writer", receivedErrorEvent.Component)
 	require.False(t, bw.Connected())
-
-	// Error should be sent to error channel
-	select {
-	case receivedErrorEvent := <-errChan:
-		require.Contains(t, receivedErrorEvent.Err.Error(), "short write")
-		require.Equal(t, "writer", receivedErrorEvent.Component)
-	default:
-		t.Fatal("Expected error to be sent to error channel")
-	}
 
 	// Reconnect with working writer and verify write completes
 	writer2 := newMockWriter()
@@ -605,7 +598,10 @@ func TestBackedWriter_WriteBlocksAfterDisconnection(t *testing.T) {
 		// Expected - write is blocked
 	}
 
-	// Should be disconnected
+	// Wait for error event which implies writer was marked disconnected
+	receivedErrorEvent := testutil.RequireReceive(ctx, t, errChan)
+	require.Contains(t, receivedErrorEvent.Err.Error(), "connection lost")
+	require.Equal(t, "writer", receivedErrorEvent.Component)
 	require.False(t, bw.Connected())
 
 	// Reconnect and verify write completes
@@ -910,7 +906,7 @@ func TestBackedWriter_MultipleWritesDuringReconnect(t *testing.T) {
 	<-writesReadyTimer.C
 
 	// Start reconnection with controlled replay
-	replayStarted := make(chan struct{})
+	replayStarted := make(chan struct{}, 1)
 	replayCanComplete := make(chan struct{})
 	writer2 := &mockWriter{
 		writeFunc: func(p []byte) (int, error) {
