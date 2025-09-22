@@ -94,11 +94,11 @@
 		"lucide-react": "0.474.0",
 		"monaco-editor": "0.52.2",
 		"pretty-bytes": "6.1.1",
-		"react": "18.3.1",
+		"react": "19.1.1",
 		"react-color": "2.19.3",
 		"react-confetti": "6.2.2",
 		"react-date-range": "1.4.0",
-		"react-dom": "18.3.1",
+		"react-dom": "19.1.1",
 		"react-helmet-async": "2.0.5",
 		"react-markdown": "9.0.3",
 		"react-query": "npm:@tanstack/react-query@5.77.0",
@@ -114,7 +114,7 @@
 		"semver": "7.6.2",
 		"tailwind-merge": "2.6.0",
 		"tailwindcss-animate": "1.0.7",
-		"tzdata": "1.0.44",
+		"tzdata": "1.0.46",
 		"ua-parser-js": "1.0.40",
 		"ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
 		"undici": "6.21.2",
@@ -127,7 +127,7 @@
 		"@biomejs/biome": "2.2.0",
 		"@chromatic-com/storybook": "4.1.0",
 		"@octokit/types": "12.3.0",
-		"@playwright/test": "1.47.0",
+		"@playwright/test": "1.50.1",
 		"@storybook/addon-docs": "9.1.2",
 		"@storybook/addon-links": "9.1.2",
 		"@storybook/addon-themes": "9.1.2",
@@ -146,10 +146,10 @@
 		"@types/jest": "29.5.14",
 		"@types/lodash": "4.17.15",
 		"@types/node": "20.17.16",
-		"@types/react": "18.3.12",
+		"@types/react": "19.1.13",
 		"@types/react-color": "3.0.13",
 		"@types/react-date-range": "1.4.4",
-		"@types/react-dom": "18.3.1",
+		"@types/react-dom": "19.1.9",
 		"@types/react-syntax-highlighter": "15.5.13",
 		"@types/react-virtualized-auto-sizer": "1.0.4",
 		"@types/react-window": "1.8.8",
@@ -195,7 +195,7 @@
 	},
 	"engines": {
 		"pnpm": ">=10.0.0 <11.0.0",
-		"node": ">=18.0.0 <21.0.0"
+		"node": ">=18.0.0 <23.0.0"
 	},
 	"pnpm": {
 		"overrides": {

@@ -22,8 +22,6 @@ import {
 } from "react";
 import { cn } from "utils/cn";
 
-const SIDE_PADDING = 16;
-
 export const SelectMenu = Popover;
 
 export const SelectMenuTrigger = PopoverTrigger;
@@ -37,13 +35,20 @@ type SelectMenuButtonProps = ButtonProps & {
 export const SelectMenuButton = forwardRef<
 	HTMLButtonElement,
 	SelectMenuButtonProps
->((props, ref) => {
-	const { startIcon, ...restProps } = props;
+>(({ className, startIcon, children, ...props }, ref) => {
 	return (
-		<Button variant="outline" size="lg" ref={ref} {...restProps}>
+		<Button
+			variant="outline"
+			size="lg"
+			ref={ref}
+			// Shrink padding right slightly to account for visual weight of
+			// the chevron
+			className={cn("flex flex-row gap-2 pr-1.5", className)}
+			{...props}
+		>
 			{startIcon}
 			<span className="text-left block overflow-hidden text-ellipsis flex-grow">
-				{props.children}
+				{children}
 			</span>
 			<ChevronDownIcon />
 		</Button>
@@ -55,22 +60,7 @@ export const SelectMenuSearch: FC<SearchFieldProps> = (props) => {
 		<SearchField
 			fullWidth
 			size="medium"
-			css={(theme) => ({
-				borderBottom: `1px solid ${theme.palette.divider}`,
-				"& input": {
-					fontSize: 14,
-				},
-				"& fieldset": {
-					border: 0,
-					borderRadius: 0,
-				},
-				"& .MuiInputBase-root": {
-					padding: `12px ${SIDE_PADDING}px`,
-				},
-				"& .MuiInputAdornment-positionStart": {
-					marginRight: SIDE_PADDING,
-				},
-			})}
+			className="border border-solid border-border [&_input]:text-sm [&_fieldset]:border-0 [&_fieldset]:rounded-none [&_.MuiInputBase-root]:px-4 [&_.MuiInputBase-root]:py-3"
 			{...props}
 			inputProps={{ autoFocus: true, ...props.inputProps }}
 		/>

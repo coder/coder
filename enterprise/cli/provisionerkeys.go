@@ -37,16 +37,18 @@ func (r *RootCmd) provisionerKeysCreate() *serpent.Command {
 		rawTags    []string
 	)
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "create <name>",
 		Short: "Create a new provisioner key",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {
@@ -100,17 +102,19 @@ func (r *RootCmd) provisionerKeysList() *serpent.Command {
 		)
 	)
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:     "list",
 		Short:   "List provisioner keys in an organization",
 		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {
@@ -147,16 +151,18 @@ func (r *RootCmd) provisionerKeysList() *serpent.Command {
 func (r *RootCmd) provisionerKeysDelete() *serpent.Command {
 	orgContext := agpl.NewOrganizationContext()
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "delete <name>",
 		Short: "Delete a provisioner key",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {

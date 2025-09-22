@@ -56,7 +56,7 @@
 
         formatter = pkgs.nixfmt-rfc-style;
 
-        nodejs = pkgs.nodejs_20;
+        nodejs = unstablePkgs.nodejs_22;
         pnpm = pkgs.pnpm_10.override {
           inherit nodejs; # Ensure it points to the above nodejs version
         };
@@ -147,7 +147,6 @@
             less
             mockgen
             moreutils
-            neovim
             nfpm
             nix-prefetch-git
             nodejs
@@ -242,7 +241,9 @@
           (pkgs.lib.importJSON ./site/package.json).devDependencies."@playwright/test"
           == pkgs.playwright-driver.version
         )
-        "There is a mismatch between the playwright versions in the ./nix.flake and the ./site/package.json file. Please make sure that they use the exact same version.";
+        "There is a mismatch between the playwright versions in the ./nix.flake (${pkgs.playwright-driver.version}) and the ./site/package.json (${
+          (pkgs.lib.importJSON ./site/package.json).devDependencies."@playwright/test"
+        }) file. Please make sure that they use the exact same version.";
       rec {
         inherit formatter;
 

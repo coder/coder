@@ -335,6 +335,86 @@
 | `groups` | array of [codersdk.Group](#codersdkgroup)             | false    |              |             |
 | `users`  | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |             |
 
+## codersdk.AIBridgeAnthropicConfig
+
+```json
+{
+  "base_url": "string",
+  "key": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `base_url` | string | false    |              |             |
+| `key`      | string | false    |              |             |
+
+## codersdk.AIBridgeConfig
+
+```json
+{
+  "anthropic": {
+    "base_url": "string",
+    "key": "string"
+  },
+  "enabled": true,
+  "openai": {
+    "base_url": "string",
+    "key": "string"
+  }
+}
+```
+
+### Properties
+
+| Name        | Type                                                                 | Required | Restrictions | Description |
+|-------------|----------------------------------------------------------------------|----------|--------------|-------------|
+| `anthropic` | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |             |
+| `enabled`   | boolean                                                              | false    |              |             |
+| `openai`    | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
+
+## codersdk.AIBridgeOpenAIConfig
+
+```json
+{
+  "base_url": "string",
+  "key": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `base_url` | string | false    |              |             |
+| `key`      | string | false    |              |             |
+
+## codersdk.AIConfig
+
+```json
+{
+  "bridge": {
+    "anthropic": {
+      "base_url": "string",
+      "key": "string"
+    },
+    "enabled": true,
+    "openai": {
+      "base_url": "string",
+      "key": "string"
+    }
+  }
+}
+```
+
+### Properties
+
+| Name     | Type                                               | Required | Restrictions | Description |
+|----------|----------------------------------------------------|----------|--------------|-------------|
+| `bridge` | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig) | false    |              |             |
+
 ## codersdk.APIKey
 
 ```json
@@ -2116,6 +2196,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `allow_path_app_sharing`           | boolean | false    |              |             |
 | `allow_path_app_site_owner_access` | boolean | false    |              |             |
 
+## codersdk.DeleteExternalAuthByIDResponse
+
+```json
+{
+  "token_revocation_error": "string",
+  "token_revoked": true
+}
+```
+
+### Properties
+
+| Name                     | Type    | Required | Restrictions | Description                                                                    |
+|--------------------------|---------|----------|--------------|--------------------------------------------------------------------------------|
+| `token_revocation_error` | string  | false    |              |                                                                                |
+| `token_revoked`          | boolean | false    |              | Token revoked set to true if token revocation was attempted and was successful |
+
 ## codersdk.DeleteWebpushSubscription
 
 ```json
@@ -2185,6 +2281,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
+    "ai": {
+      "bridge": {
+        "anthropic": {
+          "base_url": "string",
+          "key": "string"
+        },
+        "enabled": true,
+        "openai": {
+          "base_url": "string",
+          "key": "string"
+        }
+      }
+    },
     "allow_workspace_renames": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
@@ -2265,8 +2374,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "display_icon": "string",
           "display_name": "string",
           "id": "string",
+          "mcp_tool_allow_regex": "string",
+          "mcp_tool_deny_regex": "string",
+          "mcp_url": "string",
           "no_refresh": true,
           "regex": "string",
+          "revoke_url": "string",
           "scopes": [
             "string"
           ],
@@ -2673,6 +2786,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "user": {}
   },
   "agent_stat_refresh_interval": 0,
+  "ai": {
+    "bridge": {
+      "anthropic": {
+        "base_url": "string",
+        "key": "string"
+      },
+      "enabled": true,
+      "openai": {
+        "base_url": "string",
+        "key": "string"
+      }
+    }
+  },
   "allow_workspace_renames": true,
   "autobuild_poll_interval": 0,
   "browser_only": true,
@@ -2753,8 +2879,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "display_icon": "string",
         "display_name": "string",
         "id": "string",
+        "mcp_tool_allow_regex": "string",
+        "mcp_tool_deny_regex": "string",
+        "mcp_url": "string",
         "no_refresh": true,
         "regex": "string",
+        "revoke_url": "string",
         "scopes": [
           "string"
         ],
@@ -3052,6 +3182,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `address`                            | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Deprecated: Use HTTPAddress or TLS.Address instead.                |
 | `agent_fallback_troubleshooting_url` | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                              | false    |              |                                                                    |
+| `ai`                                 | [codersdk.AIConfig](#codersdkaiconfig)                                                               | false    |              |                                                                    |
 | `allow_workspace_renames`            | boolean                                                                                              | false    |              |                                                                    |
 | `autobuild_poll_interval`            | integer                                                                                              | false    |              |                                                                    |
 | `browser_only`                       | boolean                                                                                              | false    |              |                                                                    |
@@ -3356,6 +3487,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `oauth2`               |
 | `mcp-server-http`      |
 | `workspace-sharing`    |
+| `aibridge`             |
 
 ## codersdk.ExternalAgentCredentials
 
@@ -3395,6 +3527,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "id": 0
     }
   ],
+  "supports_revocation": true,
   "user": {
     "avatar_url": "string",
     "id": 0,
@@ -3407,15 +3540,16 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name              | Type                                                                                  | Required | Restrictions | Description                                                             |
-|-------------------|---------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
-| `app_install_url` | string                                                                                | false    |              | App install URL is the URL to install the app.                          |
-| `app_installable` | boolean                                                                               | false    |              | App installable is true if the request for app installs was successful. |
-| `authenticated`   | boolean                                                                               | false    |              |                                                                         |
-| `device`          | boolean                                                                               | false    |              |                                                                         |
-| `display_name`    | string                                                                                | false    |              |                                                                         |
-| `installations`   | array of [codersdk.ExternalAuthAppInstallation](#codersdkexternalauthappinstallation) | false    |              | Installations are the installations that the user has access to.        |
-| `user`            | [codersdk.ExternalAuthUser](#codersdkexternalauthuser)                                | false    |              | User is the user that authenticated with the provider.                  |
+| Name                  | Type                                                                                  | Required | Restrictions | Description                                                             |
+|-----------------------|---------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
+| `app_install_url`     | string                                                                                | false    |              | App install URL is the URL to install the app.                          |
+| `app_installable`     | boolean                                                                               | false    |              | App installable is true if the request for app installs was successful. |
+| `authenticated`       | boolean                                                                               | false    |              |                                                                         |
+| `device`              | boolean                                                                               | false    |              |                                                                         |
+| `display_name`        | string                                                                                | false    |              |                                                                         |
+| `installations`       | array of [codersdk.ExternalAuthAppInstallation](#codersdkexternalauthappinstallation) | false    |              | Installations are the installations that the user has access to.        |
+| `supports_revocation` | boolean                                                                               | false    |              |                                                                         |
+| `user`                | [codersdk.ExternalAuthUser](#codersdkexternalauthuser)                                | false    |              | User is the user that authenticated with the provider.                  |
 
 ## codersdk.ExternalAuthAppInstallation
 
@@ -3454,8 +3588,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "display_icon": "string",
   "display_name": "string",
   "id": "string",
+  "mcp_tool_allow_regex": "string",
+  "mcp_tool_deny_regex": "string",
+  "mcp_url": "string",
   "no_refresh": true,
   "regex": "string",
+  "revoke_url": "string",
   "scopes": [
     "string"
   ],
@@ -3478,9 +3616,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `display_icon`          | string  | false    |              | Display icon is a URL to an icon to display in the UI.                                  |
 | `display_name`          | string  | false    |              | Display name is shown in the UI to identify the auth config.                            |
 | `id`                    | string  | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided. |
+| `mcp_tool_allow_regex`  | string  | false    |              |                                                                                         |
+| `mcp_tool_deny_regex`   | string  | false    |              |                                                                                         |
+| `mcp_url`               | string  | false    |              |                                                                                         |
 | `no_refresh`            | boolean | false    |              |                                                                                         |
 |`regex`|string|false||Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type.
 Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the Coder server to match against the Regex.|
+|`revoke_url`|string|false|||
 |`scopes`|array of string|false|||
 |`token_url`|string|false|||
 |`type`|string|false||Type is the type of external auth config.|
@@ -6399,6 +6541,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | Value                              |
 |------------------------------------|
 | `*`                                |
+| `aibridge_interception`            |
 | `api_key`                          |
 | `assign_org_role`                  |
 | `assign_role`                      |
@@ -12742,8 +12885,12 @@ None
       "display_icon": "string",
       "display_name": "string",
       "id": "string",
+      "mcp_tool_allow_regex": "string",
+      "mcp_tool_deny_regex": "string",
+      "mcp_url": "string",
       "no_refresh": true,
       "regex": "string",
+      "revoke_url": "string",
       "scopes": [
         "string"
       ],

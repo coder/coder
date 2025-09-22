@@ -28,16 +28,17 @@ func (r *RootCmd) state() *serpent.Command {
 
 func (r *RootCmd) statePull() *serpent.Command {
 	var buildNumber int64
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "pull <workspace> [file]",
 		Short: "Pull a Terraform state file from a workspace.",
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(1, 2),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			var err error
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			var build codersdk.WorkspaceBuild
 			if buildNumber == 0 {
 				workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
@@ -86,15 +87,17 @@ func buildNumberOption(n *int64) serpent.Option {
 
 func (r *RootCmd) statePush() *serpent.Command {
 	var buildNumber int64
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "push <workspace> <file>",
 		Short: "Push a Terraform state file to a workspace.",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(2),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err

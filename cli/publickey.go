@@ -14,13 +14,15 @@ import (
 
 func (r *RootCmd) publickey() *serpent.Command {
 	var reset bool
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
-		Use:        "publickey",
-		Aliases:    []string{"pubkey"},
-		Short:      "Output your Coder public key used for Git operations",
-		Middleware: r.InitClient(client),
+		Use:     "publickey",
+		Aliases: []string{"pubkey"},
+		Short:   "Output your Coder public key used for Git operations",
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			if reset {
 				// Confirm prompt if using --reset. We don't want to accidentally
 				// reset our public key.

@@ -38,7 +38,6 @@ func (r *RootCmd) taskList() *serpent.Command {
 		user         string
 		quiet        bool
 
-		client    = new(codersdk.Client)
 		formatter = cliui.NewOutputFormatter(
 			cliui.TableFormat(
 				[]taskListRow{},
@@ -73,7 +72,6 @@ func (r *RootCmd) taskList() *serpent.Command {
 		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Options: serpent.OptionSet{
 			{
@@ -108,6 +106,11 @@ func (r *RootCmd) taskList() *serpent.Command {
 			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			ctx := inv.Context()
 			exp := codersdk.NewExperimentalClient(client)
 

@@ -6,6 +6,30 @@ export interface ACLAvailable {
 	readonly groups: readonly Group[];
 }
 
+// From codersdk/deployment.go
+export interface AIBridgeAnthropicConfig {
+	readonly base_url: string;
+	readonly key: string;
+}
+
+// From codersdk/deployment.go
+export interface AIBridgeConfig {
+	readonly enabled: boolean;
+	readonly openai: AIBridgeOpenAIConfig;
+	readonly anthropic: AIBridgeAnthropicConfig;
+}
+
+// From codersdk/deployment.go
+export interface AIBridgeOpenAIConfig {
+	readonly base_url: string;
+	readonly key: string;
+}
+
+// From codersdk/deployment.go
+export interface AIConfig {
+	readonly bridge?: AIBridgeConfig;
+}
+
 // From codersdk/aitasks.go
 export const AITaskPromptParameterName = "AI Prompt";
 
@@ -751,6 +775,12 @@ export interface DatabaseReport extends BaseReport {
 	readonly threshold_ms: number;
 }
 
+// From codersdk/externalauth.go
+export interface DeleteExternalAuthByIDResponse {
+	readonly token_revoked: boolean;
+	readonly token_revocation_error?: string;
+}
+
 // From codersdk/notifications.go
 export interface DeleteWebpushSubscription {
 	readonly endpoint: string;
@@ -839,6 +869,7 @@ export interface DeploymentValues {
 	readonly workspace_hostname_suffix?: string;
 	readonly workspace_prebuilds?: PrebuildsConfig;
 	readonly hide_ai_tasks?: boolean;
+	readonly ai?: AIConfig;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	readonly address?: string;
@@ -930,6 +961,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
+	| "aibridge"
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
@@ -940,6 +972,7 @@ export type Experiment =
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
+	"aibridge",
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
@@ -961,6 +994,7 @@ export interface ExternalAuth {
 	readonly authenticated: boolean;
 	readonly device: boolean;
 	readonly display_name: string;
+	readonly supports_revocation: boolean;
 	readonly user: ExternalAuthUser | null;
 	readonly app_installable: boolean;
 	readonly installations: readonly ExternalAuthAppInstallation[];
@@ -982,12 +1016,16 @@ export interface ExternalAuthConfig {
 	readonly auth_url: string;
 	readonly token_url: string;
 	readonly validate_url: string;
+	readonly revoke_url: string;
 	readonly app_install_url: string;
 	readonly app_installations_url: string;
 	readonly no_refresh: boolean;
 	readonly scopes: readonly string[];
 	readonly device_flow: boolean;
 	readonly device_code_url: string;
+	readonly mcp_url: string;
+	readonly mcp_tool_allow_regex: string;
+	readonly mcp_tool_deny_regex: string;
 	readonly regex: string;
 	readonly display_name: string;
 	readonly display_icon: string;
@@ -1027,6 +1065,7 @@ export interface ExternalAuthLinkProvider {
 	readonly display_icon: string;
 	readonly allow_refresh: boolean;
 	readonly allow_validate: boolean;
+	readonly supports_revocation: boolean;
 }
 
 // From codersdk/externalauth.go
@@ -2385,6 +2424,7 @@ export const RBACActions: RBACAction[] = [
 
 // From codersdk/rbacresources_gen.go
 export type RBACResource =
+	| "aibridge_interception"
 	| "api_key"
 	| "assign_org_role"
 	| "assign_role"
@@ -2427,6 +2467,7 @@ export type RBACResource =
 	| "workspace_proxy";
 
 export const RBACResources: RBACResource[] = [
+	"aibridge_interception",
 	"api_key",
 	"assign_org_role",
 	"assign_role",

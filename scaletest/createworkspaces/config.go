@@ -13,9 +13,9 @@ import (
 type UserConfig struct {
 	// OrganizationID is the ID of the organization to add the user to.
 	OrganizationID uuid.UUID `json:"organization_id"`
-	// Username is the username of the new user.
+	// Username is the username of the new user. Generated if empty.
 	Username string `json:"username"`
-	// Email is the email of the new user.
+	// Email is the email of the new user. Generated if empty.
 	Email string `json:"email"`
 	// SessionToken is the session token of an already existing user. If set, no
 	// user will be created.
@@ -26,12 +26,12 @@ func (c UserConfig) Validate() error {
 	if c.OrganizationID == uuid.Nil {
 		return xerrors.New("organization_id must not be a nil UUID")
 	}
-	if c.SessionToken == "" {
-		if c.Username == "" {
-			return xerrors.New("username must be set")
+	if c.SessionToken != "" {
+		if c.Username != "" {
+			return xerrors.New("username must be empty when session_token is set")
 		}
-		if c.Email == "" {
-			return xerrors.New("email must be set")
+		if c.Email != "" {
+			return xerrors.New("email must be empty when session_token is set")
 		}
 	}
 

@@ -90,16 +90,18 @@ func (r *RootCmd) scheduleShow() *serpent.Command {
 			cliui.JSONFormat(),
 		)
 	)
-	client := new(codersdk.Client)
 	showCmd := &serpent.Command{
 		Use:   "show <workspace | --search <query> | --all>",
 		Short: "Show workspace schedules",
 		Long:  scheduleShowDescriptionLong,
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			// To preserve existing behavior, if an argument is passed we will
 			// only show the schedule for that workspace.
 			// This will clobber the search query if one is passed.
@@ -137,7 +139,6 @@ func (r *RootCmd) scheduleShow() *serpent.Command {
 }
 
 func (r *RootCmd) scheduleStart() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use: "start <workspace-name> { <start-time> [day-of-week] [location] | manual }",
 		Long: scheduleStartDescriptionLong + "\n" + FormatExamples(
@@ -149,9 +150,12 @@ func (r *RootCmd) scheduleStart() *serpent.Command {
 		Short: "Edit workspace start schedule",
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(2, 4),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
@@ -193,7 +197,6 @@ func (r *RootCmd) scheduleStart() *serpent.Command {
 }
 
 func (r *RootCmd) scheduleStop() *serpent.Command {
-	client := new(codersdk.Client)
 	return &serpent.Command{
 		Use: "stop <workspace-name> { <duration> | manual }",
 		Long: scheduleStopDescriptionLong + "\n" + FormatExamples(
@@ -204,9 +207,12 @@ func (r *RootCmd) scheduleStop() *serpent.Command {
 		Short: "Edit workspace stop schedule",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(2),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
@@ -244,7 +250,6 @@ func (r *RootCmd) scheduleStop() *serpent.Command {
 }
 
 func (r *RootCmd) scheduleExtend() *serpent.Command {
-	client := new(codersdk.Client)
 	extendCmd := &serpent.Command{
 		Use:     "extend <workspace-name> <duration from now>",
 		Aliases: []string{"override-stop"},
@@ -256,9 +261,12 @@ func (r *RootCmd) scheduleExtend() *serpent.Command {
 		),
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(2),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			extendDuration, err := parseDuration(inv.Args[1])
 			if err != nil {
 				return err

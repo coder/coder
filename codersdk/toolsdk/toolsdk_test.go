@@ -3,6 +3,7 @@ package toolsdk_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -35,10 +36,10 @@ import (
 
 // setupWorkspaceForAgent creates a workspace setup exactly like main SSH tests
 // nolint:gocritic // This is in a test package and does not end up in the build
-func setupWorkspaceForAgent(t *testing.T) (*codersdk.Client, database.WorkspaceTable, string) {
+func setupWorkspaceForAgent(t *testing.T, opts *coderdtest.Options) (*codersdk.Client, database.WorkspaceTable, string) {
 	t.Helper()
 
-	client, store := coderdtest.NewWithDatabase(t, nil)
+	client, store := coderdtest.NewWithDatabase(t, opts)
 	client.SetLogger(testutil.Logger(t).Named("client"))
 	first := coderdtest.CreateFirstUser(t, client)
 	userClient, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
@@ -405,7 +406,7 @@ func TestTools(t *testing.T) {
 			t.Skip("WorkspaceSSHExec is not supported on Windows")
 		}
 		// Setup workspace exactly like main SSH tests
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
 		// Start agent and wait for it to be ready (following main SSH test pattern)
 		_ = agenttest.New(t, client.URL, agentToken)
@@ -457,7 +458,7 @@ func TestTools(t *testing.T) {
 	t.Run("WorkspaceLS", func(t *testing.T) {
 		t.Parallel()
 
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 		fs := afero.NewMemMapFs()
 		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
 			opts.Filesystem = fs
@@ -503,7 +504,7 @@ func TestTools(t *testing.T) {
 	t.Run("WorkspaceReadFile", func(t *testing.T) {
 		t.Parallel()
 
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 		fs := afero.NewMemMapFs()
 		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
 			opts.Filesystem = fs
@@ -606,7 +607,7 @@ func TestTools(t *testing.T) {
 	t.Run("WorkspaceWriteFile", func(t *testing.T) {
 		t.Parallel()
 
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 		fs := afero.NewMemMapFs()
 		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
 			opts.Filesystem = fs
@@ -615,14 +616,17 @@ func TestTools(t *testing.T) {
 		tb, err := toolsdk.NewDeps(client)
 		require.NoError(t, err)
 
+		tmpdir := os.TempDir()
+		filePath := filepath.Join(tmpdir, "write")
+
 		_, err = testTool(t, toolsdk.WorkspaceWriteFile, tb, toolsdk.WorkspaceWriteFileArgs{
 			Workspace: workspace.Name,
-			Path:      "/test/some/path",
+			Path:      filePath,
 			Content:   []byte("content"),
 		})
 		require.NoError(t, err)
 
-		b, err := afero.ReadFile(fs, "/test/some/path")
+		b, err := afero.ReadFile(fs, filePath)
 		require.NoError(t, err)
 		require.Equal(t, []byte("content"), b)
 	})
@@ -630,7 +634,7 @@ func TestTools(t *testing.T) {
 	t.Run("WorkspaceEditFile", func(t *testing.T) {
 		t.Parallel()
 
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 		fs := afero.NewMemMapFs()
 		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
 			opts.Filesystem = fs
@@ -670,7 +674,7 @@ func TestTools(t *testing.T) {
 	t.Run("WorkspaceEditFiles", func(t *testing.T) {
 		t.Parallel()
 
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 		fs := afero.NewMemMapFs()
 		_ = agenttest.New(t, client.URL, agentToken, func(opts *agent.Options) {
 			opts.Filesystem = fs
@@ -726,6 +730,66 @@ func TestTools(t *testing.T) {
 		b, err = afero.ReadFile(fs, filePath2)
 		require.NoError(t, err)
 		require.Equal(t, "bar2 bar2", string(b))
+	})
+
+	t.Run("WorkspacePortForward", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name      string
+			workspace string
+			host      string
+			port      int
+			expect    string
+			error     string
+		}{
+			{
+				name:      "OK",
+				workspace: "myuser/myworkspace",
+				port:      1234,
+				host:      "*.test.coder.com",
+				expect:    "%s://1234--dev--myworkspace--myuser.test.coder.com:%s",
+			},
+			{
+				name:      "NonExistentWorkspace",
+				workspace: "doesnotexist",
+				port:      1234,
+				host:      "*.test.coder.com",
+				error:     "failed to find workspace",
+			},
+			{
+				name:      "NoAppHost",
+				host:      "",
+				workspace: "myuser/myworkspace",
+				port:      1234,
+				error:     "no app host",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				client, workspace, agentToken := setupWorkspaceForAgent(t, &coderdtest.Options{
+					AppHostname: tt.host,
+				})
+				_ = agenttest.New(t, client.URL, agentToken)
+				coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+				tb, err := toolsdk.NewDeps(client)
+				require.NoError(t, err)
+
+				res, err := testTool(t, toolsdk.WorkspacePortForward, tb, toolsdk.WorkspacePortForwardArgs{
+					Workspace: tt.workspace,
+					Port:      tt.port,
+				})
+				if tt.error != "" {
+					require.Error(t, err)
+					require.ErrorContains(t, err, tt.error)
+				} else {
+					require.NoError(t, err)
+					require.Equal(t, fmt.Sprintf(tt.expect, client.URL.Scheme, client.URL.Port()), res.URL)
+				}
+			})
+		}
 	})
 }
 
