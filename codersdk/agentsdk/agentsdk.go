@@ -45,6 +45,9 @@ var ExternalLogSourceID = uuid.MustParse("3b579bf4-1ed8-4b99-87a8-e9a1e3410410")
 // @typescript-ignore SessionTokenSetup
 type SessionTokenSetup func(client *codersdk.Client) RefreshableSessionTokenProvider
 
+// New creates a new *Client which can be used by an agent to connect to Coderd. Use a SessionTokenSetup function
+// to define the session token provider for the Client. This overrides the SessionTokenProvider on the underlying
+// `*codersdk.Client`, so any `codersdk.ClientOptions` passed as `opts` should not set this property.
 func New(serverURL *url.URL, setup SessionTokenSetup, opts ...codersdk.ClientOption) *Client {
 	var provider RefreshableSessionTokenProvider
 	opts = append(opts, func(c *codersdk.Client) {

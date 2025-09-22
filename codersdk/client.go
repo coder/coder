@@ -188,7 +188,7 @@ func (c *Client) SessionToken() string {
 }
 
 // SetSessionToken sets a fixed token for the client.
-// Deprecated: Build a new client using WithSessionToken instead of changing the token after creation.
+// Deprecated: Create a new client using WithSessionToken instead of changing the token after creation.
 func (c *Client) SetSessionToken(token string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
