@@ -30,9 +30,11 @@ var (
 	ErrNoMCPConfigFound           = xerrors.New("no MCP config found")
 )
 
-var _ proto.DRPCAuthorizerServer = &Server{}
-var _ proto.DRPCMCPConfiguratorServer = &Server{}
-var _ proto.DRPCRecorderServer = &Server{}
+var (
+	_ proto.DRPCAuthorizerServer      = &Server{}
+	_ proto.DRPCMCPConfiguratorServer = &Server{}
+	_ proto.DRPCRecorderServer        = &Server{}
+)
 
 type store interface {
 	// Recorder-related queries.
@@ -307,11 +309,10 @@ func (s *Server) GetMCPServerAccessTokensBatch(ctx context.Context, in *proto.Ge
 			go func() {
 				defer wg.Done()
 
-				mu.Lock()
-				defer mu.Unlock()
-
 				// TODO: timeout.
 				valid, _, err := eac.ValidateToken(ctx, link.OAuthToken())
+				mu.Lock()
+				defer mu.Unlock()
 				if !valid {
 					// TODO: attempt refresh.
 					s.logger.Warn(ctx, "invalid/expired access token, cannot auto-configure MCP", slog.F("provider", link.ProviderID), slog.Error(err))

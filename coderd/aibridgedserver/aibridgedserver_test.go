@@ -525,7 +525,7 @@ func TestRecordToolUsage(t *testing.T) {
 	)
 }
 
-// testRecordMethod is a helper that abstracts the common testing pattern for all Record* methods
+// testRecordMethod is a helper that abstracts the common testing pattern for all Record* methods.
 func testRecordMethod[Req any, Resp any](
 	t *testing.T,
 	callMethod func(*aibridgedserver.Server, context.Context, Req) (Resp, error),
