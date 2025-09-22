@@ -498,7 +498,7 @@ func TestStream_ReconnectionScenarios(t *testing.T) {
 		_ = localConn.Close()
 	})
 
-	stream := immortalstreams.NewStream(uuid.New(), "test-stream", port, logger)
+	stream := immortalstreams.NewStream(uuid.New(), "test-stream", uint16(port), logger)
 
 	// Start the stream
 	err = stream.Start(localConn)
@@ -516,7 +516,7 @@ func TestStream_ReconnectionScenarios(t *testing.T) {
 			_ = localConn2.Close()
 		}()
 
-		stream2 := immortalstreams.NewStream(uuid.New(), "test-stream-basic", port, logger)
+		stream2 := immortalstreams.NewStream(uuid.New(), "test-stream-basic", uint16(port), logger)
 		err = stream2.Start(localConn2)
 		require.NoError(t, err)
 		defer func() {
@@ -623,7 +623,7 @@ func TestStream_ReconnectionScenarios(t *testing.T) {
 			_ = localConn3.Close()
 		}()
 
-		stream3 := immortalstreams.NewStream(uuid.New(), "test-stream-multi", port, logger)
+		stream3 := immortalstreams.NewStream(uuid.New(), "test-stream-multi", uint16(port), logger)
 		err = stream3.Start(localConn3)
 		require.NoError(t, err)
 		defer func() {
@@ -712,7 +712,7 @@ func TestStream_SequenceNumberReconnection_WithSequenceNumbers(t *testing.T) {
 		_ = localConn.Close()
 	}()
 
-	stream := immortalstreams.NewStream(uuid.New(), "test-stream", testPort, logger)
+	stream := immortalstreams.NewStream(uuid.New(), "test-stream", uint16(testPort), logger)
 
 	// Start the stream
 	err = stream.Start(localConn)
@@ -859,7 +859,7 @@ func TestStream_SequenceNumberReconnection_WithDataLoss(t *testing.T) {
 		_ = localConn.Close()
 	}()
 
-	stream := immortalstreams.NewStream(uuid.New(), "test-stream", testPort, logger)
+	stream := immortalstreams.NewStream(uuid.New(), "test-stream", uint16(testPort), logger)
 
 	// Start the stream
 	err = stream.Start(localConn)

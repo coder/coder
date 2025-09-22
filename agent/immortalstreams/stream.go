@@ -19,7 +19,7 @@ import (
 type Stream struct {
 	id        uuid.UUID
 	name      string
-	port      int
+	port      uint16
 	createdAt time.Time
 	logger    slog.Logger
 
@@ -46,10 +46,8 @@ type Stream struct {
 	cancel context.CancelFunc
 }
 
-// Removed Reconnector-based handshake; reconnection is provided externally via AcceptReconnection.
-
 // NewStream creates a new immortal stream
-func NewStream(id uuid.UUID, name string, port int, logger slog.Logger) *Stream {
+func NewStream(id uuid.UUID, name string, port uint16, logger slog.Logger) *Stream {
 	// Create a context that will be canceled when the stream is closed
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -99,11 +97,6 @@ func (s *Stream) HandleReconnect(clientConn io.ReadWriteCloser, readSeqNum uint6
 	}
 	pipe := s.pipe
 	s.mu.Unlock()
-
-	if pipe == nil {
-		_ = clientConn.Close()
-		return xerrors.New("backed pipe not initialized")
-	}
 
 	// Attach the new connection and replay outbound data from the client's
 	// acknowledged sequence number.
@@ -160,12 +153,7 @@ func (s *Stream) Close() error {
 
 	// Signal shutdown to any pending reconnect attempts and listeners
 	// Closing the channel wakes all waiters exactly once
-	select {
-	case <-s.shutdownChan:
-		// already closed
-	default:
-		close(s.shutdownChan)
-	}
+	close(s.shutdownChan)
 
 	// No reconnection waiters in the simplified model.
 
@@ -194,11 +182,8 @@ func (s *Stream) Close() error {
 	// Wait for goroutines to finish
 	s.goroutines.Wait()
 
-	// Re-acquire mutex for final cleanup and clear the references
+	// Re-acquire mutex to balance the deferred unlock
 	s.mu.Lock()
-	s.pipe = nil
-	s.localConn = nil
-
 	return nil
 }
 
@@ -279,21 +264,24 @@ func (s *Stream) startCopyingLocked() {
 					// The pipe itself is closed, we're done
 					s.logger.Debug(context.Background(), "pipe closed, exiting copy goroutine")
 					s.SignalDisconnect()
-					return
+					// Keep the goroutine alive to handle future reconnections
+					continue
 				}
 
 				// Check for BackedPipe specific errors
 				if xerrors.Is(err, backedpipe.ErrPipeClosed) {
 					s.logger.Debug(context.Background(), "backed pipe closed, exiting copy goroutine")
 					s.SignalDisconnect()
-					return
+					// Keep the goroutine alive to handle future reconnections
+					continue
 				}
 
 				// Treat EOF as terminal: the pipe is closed and this goroutine should exit
 				if errors.Is(err, io.EOF) {
-					s.logger.Debug(context.Background(), "got EOF from pipe, exiting copy goroutine")
+					s.logger.Debug(context.Background(), "got EOF from pipe, waiting for reconnection")
 					s.SignalDisconnect()
-					return
+					// Keep the goroutine alive to handle future reconnections
+					continue
 				}
 
 				// Log other errors but continue (reconnect will eventually succeed)

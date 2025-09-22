@@ -3,7 +3,6 @@ package immortalstreams
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"strings"
@@ -43,9 +42,9 @@ type Manager struct {
 	dialer Dialer
 }
 
-// Dialer dials a local service
+// Dialer dials a local service by TCP port
 type Dialer interface {
-	DialContext(ctx context.Context, address string) (net.Conn, error)
+	DialPort(ctx context.Context, port uint16) (net.Conn, error)
 }
 
 // New creates a new immortal streams manager
@@ -58,10 +57,9 @@ func New(logger slog.Logger, dialer Dialer) *Manager {
 }
 
 // CreateStream creates a new immortal stream
-func (m *Manager) CreateStream(ctx context.Context, port int) (*codersdk.ImmortalStream, error) {
-	// Always dial localhost; internal listeners are handled by the dialer.
-	addr := fmt.Sprintf("localhost:%d", port)
-	conn, err := m.dialer.DialContext(ctx, addr)
+func (m *Manager) CreateStream(ctx context.Context, port uint16) (*codersdk.ImmortalStream, error) {
+	// Always dial by port; internal listeners are handled by the dialer.
+	conn, err := m.dialer.DialPort(ctx, port)
 	if err != nil {
 		if isConnectionRefused(err) {
 			return nil, ErrConnRefused

@@ -5,11 +5,13 @@ import (
 	"errors"
 	"io"
 	"net"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/stretchr/testify/require"
 
@@ -54,11 +56,11 @@ func TestManager_CreateStream(t *testing.T) {
 		manager := immortalstreams.New(logger, dialer)
 		defer manager.Close()
 
-		stream, err := manager.CreateStream(ctx, port)
+		stream, err := manager.CreateStream(ctx, uint16(port))
 		require.NoError(t, err)
 		require.NotEmpty(t, stream.ID)
 		require.NotEmpty(t, stream.Name) // Name is randomly generated
-		require.Equal(t, port, stream.TCPPort)
+		require.Equal(t, uint16(port), stream.TCPPort)
 		require.False(t, stream.CreatedAt.IsZero())
 		require.False(t, stream.LastConnectionAt.IsZero())
 	})
@@ -119,7 +121,7 @@ func TestManager_CreateStream(t *testing.T) {
 		// Create MaxStreams connections
 		streams := make([]uuid.UUID, 0, immortalstreams.MaxStreams)
 		for i := 0; i < immortalstreams.MaxStreams; i++ {
-			stream, err := manager.CreateStream(ctx, port)
+			stream, err := manager.CreateStream(ctx, uint16(port))
 			require.NoError(t, err)
 			streams = append(streams, stream.ID)
 		}
@@ -142,7 +144,7 @@ func TestManager_CreateStream(t *testing.T) {
 		}
 
 		// All streams should be connected, so creating another should fail
-		_, err = manager.CreateStream(ctx, port)
+		_, err = manager.CreateStream(ctx, uint16(port))
 		require.Error(t, err)
 		require.True(t, errors.Is(err, immortalstreams.ErrTooManyStreams))
 
@@ -151,7 +153,7 @@ func TestManager_CreateStream(t *testing.T) {
 		require.NoError(t, err)
 
 		// Now we should be able to create a new one
-		stream, err := manager.CreateStream(ctx, port)
+		stream, err := manager.CreateStream(ctx, uint16(port))
 		require.NoError(t, err)
 		require.NotEmpty(t, stream.ID)
 	})
@@ -193,10 +195,10 @@ func TestManager_ListStreams(t *testing.T) {
 	require.Empty(t, streams)
 
 	// Create some streams
-	stream1, err := manager.CreateStream(ctx, port)
+	stream1, err := manager.CreateStream(ctx, uint16(port))
 	require.NoError(t, err)
 
-	stream2, err := manager.CreateStream(ctx, port)
+	stream2, err := manager.CreateStream(ctx, uint16(port))
 	require.NoError(t, err)
 
 	// List should return both
@@ -244,7 +246,7 @@ func TestManager_DeleteStream(t *testing.T) {
 	defer manager.Close()
 
 	// Create a stream
-	stream, err := manager.CreateStream(ctx, port)
+	stream, err := manager.CreateStream(ctx, uint16(port))
 	require.NoError(t, err)
 
 	// Delete it
@@ -293,7 +295,7 @@ func TestManager_GetStream(t *testing.T) {
 	defer manager.Close()
 
 	// Create a stream
-	created, err := manager.CreateStream(ctx, port)
+	created, err := manager.CreateStream(ctx, uint16(port))
 	require.NoError(t, err)
 
 	// Get it
@@ -357,7 +359,7 @@ func TestManager_Eviction(t *testing.T) {
 	// Create MaxStreams-1 streams
 	streams := make([]uuid.UUID, 0, immortalstreams.MaxStreams-1)
 	for i := 0; i < immortalstreams.MaxStreams-1; i++ {
-		stream, err := manager.CreateStream(ctx, port)
+		stream, err := manager.CreateStream(ctx, uint16(port))
 		require.NoError(t, err)
 		streams = append(streams, stream.ID)
 	}
@@ -399,12 +401,12 @@ func TestManager_Eviction(t *testing.T) {
 	require.False(t, firstStream.IsConnected(), "First stream should be disconnected")
 
 	// Create one more stream - should work
-	stream1, err := manager.CreateStream(ctx, port)
+	stream1, err := manager.CreateStream(ctx, uint16(port))
 	require.NoError(t, err)
 	require.NotEmpty(t, stream1.ID)
 
 	// Create another - should evict the oldest disconnected
-	stream2, err := manager.CreateStream(ctx, port)
+	stream2, err := manager.CreateStream(ctx, uint16(port))
 	require.NoError(t, err)
 	require.NotEmpty(t, stream2.ID)
 
@@ -417,7 +419,7 @@ func TestManager_Eviction(t *testing.T) {
 	require.False(t, ok, "First stream should have been evicted")
 }
 
-func TestManager_SmartAddressResolution(t *testing.T) {
+func TestManager_SmartPortResolution(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, nil)
@@ -428,33 +430,31 @@ func TestManager_SmartAddressResolution(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	// Test SSH port: manager should dial localhost
+	// Test SSH port: manager should dial the SSH port
 	_, err := manager.CreateStream(ctx, workspacesdk.AgentSSHPort)
 	require.Error(t, err)
 	require.Len(t, recordingDialer.calls, 1)
-	require.Equal(t, "localhost:1", recordingDialer.calls[0].address,
-		"Manager should dial localhost for SSH port")
+	require.Equal(t, uint16(workspacesdk.AgentSSHPort), recordingDialer.calls[0].port,
+		"Manager should dial SSH port")
 
 	// Test a user port (should use localhost)
 	recordingDialer.calls = nil // Reset
 	_, err = manager.CreateStream(ctx, 8080)
 	require.Error(t, err)
 	require.Len(t, recordingDialer.calls, 1)
-	require.Equal(t, "localhost:8080", recordingDialer.calls[0].address,
-		"User ports should use localhost")
+	require.Equal(t, uint16(8080), recordingDialer.calls[0].port,
+		"User ports should use given port")
 
 	// Test reconnecting PTY port: manager should dial localhost
 	recordingDialer.calls = nil // Reset
 	_, err = manager.CreateStream(ctx, workspacesdk.AgentReconnectingPTYPort)
 	require.Error(t, err)
 	require.Len(t, recordingDialer.calls, 1)
-	require.Equal(t, "localhost:2", recordingDialer.calls[0].address,
-		"Manager should dial localhost for PTY port")
+	require.Equal(t, uint16(workspacesdk.AgentReconnectingPTYPort), recordingDialer.calls[0].port,
+		"Manager should dial PTY port")
 }
 
-func TestManager_IPv4AddressFormatting(t *testing.T) {
-	// This test is no longer applicable since manager always dials localhost.
-	// Keeping a minimal check to ensure localhost is used.
+func TestManager_UsesGivenPort(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, nil)
@@ -465,15 +465,15 @@ func TestManager_IPv4AddressFormatting(t *testing.T) {
 	_, err := manager.CreateStream(ctx, workspacesdk.AgentSSHPort)
 	require.Error(t, err)
 	require.Len(t, recordingDialer.calls, 1)
-	require.Equal(t, "localhost:1", recordingDialer.calls[0].address)
+	require.Equal(t, uint16(workspacesdk.AgentSSHPort), recordingDialer.calls[0].port)
 }
 
 // Test helpers
 
 type testDialer struct{}
 
-func (*testDialer) DialContext(_ context.Context, address string) (net.Conn, error) {
-	return net.Dial("tcp", address)
+func (*testDialer) DialPort(_ context.Context, port uint16) (net.Conn, error) {
+	return net.Dial("tcp", net.JoinHostPort("localhost", strconv.Itoa(int(port))))
 }
 
 type recordingDialer struct {
@@ -481,16 +481,11 @@ type recordingDialer struct {
 }
 
 type dialCall struct {
-	address string
+	port uint16
 }
 
-func (r *recordingDialer) DialContext(_ context.Context, address string) (net.Conn, error) {
-	r.calls = append(r.calls, dialCall{address: address})
-	// Return a connection refused error to simulate the service not being available
-	return nil, &net.OpError{
-		Op:   "dial",
-		Net:  "tcp",
-		Addr: &net.TCPAddr{},
-		Err:  &net.DNSError{Name: address, IsNotFound: true},
-	}
+func (r *recordingDialer) DialPort(_ context.Context, port uint16) (net.Conn, error) {
+	r.calls = append(r.calls, dialCall{port: port})
+	// Return a connection refused-style error without triggering nil deref in err.Error()
+	return nil, xerrors.New("connection refused")
 }

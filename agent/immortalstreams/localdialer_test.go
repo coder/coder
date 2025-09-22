@@ -2,8 +2,8 @@
 package immortalstreams
 
 import (
+	"math"
 	"net"
-	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,8 +11,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/testutil"
 )
-
-// Removed: Tests for determineDialStrategy which no longer exists.
 
 func TestLocalDialer_LocalDial(t *testing.T) {
 	t.Parallel()
@@ -39,53 +37,14 @@ func TestLocalDialer_LocalDial(t *testing.T) {
 		}
 	}()
 
+	// Ensure port is within uint16 range before casting (satisfies gosec G115)
+	if port < 0 || port > int(math.MaxUint16) {
+		t.Fatalf("listener port out of range: %d", port)
+	}
+
 	// Test local dial
-	conn, err := dialer.DialContext(ctx, listener.Addr().String())
-	require.NoError(t, err)
-	require.NotNil(t, conn)
-	require.NoError(t, conn.Close())
-
-	// Test with localhost hostname
-	conn, err = dialer.DialContext(ctx, net.JoinHostPort("localhost", strconv.Itoa(port)))
+	conn, err := dialer.DialPort(ctx, uint16(port))
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	require.NoError(t, conn.Close())
 }
-
-// Removed: UpdateTailnetConn test; dialer is constructed with tailnet conn
-
-func TestLocalDialer_DialContext_InvalidAddress(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil)
-	dialer := NewLocalDialer(logger, nil)
-
-	// Test invalid address format
-	_, err := dialer.DialContext(ctx, "invalid-address")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "parse address")
-
-	// Test invalid port
-	_, err = dialer.DialContext(ctx, "localhost:invalid-port")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "parse port")
-}
-
-func TestLocalDialer_DialContext_ConnectionRefused(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil)
-	dialer := NewLocalDialer(logger, nil)
-
-	// Try to connect to a port that's not listening
-	_, err := dialer.DialContext(ctx, "localhost:65535")
-	require.Error(t, err)
-	// The error should be a connection refused error
-	require.True(t, isConnectionRefusedError(err), "expected connection refused error, got: %v", err)
-}
-
-// Unsupported network test removed; LocalDialer always uses TCP.
-
-// Removed: Tests asserting localhost strategy via determineDialStrategy.

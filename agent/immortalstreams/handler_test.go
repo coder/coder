@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -63,7 +64,7 @@ func TestImmortalStreamsHandler_CreateStream(t *testing.T) {
 
 		// Create request
 		req := codersdk.CreateImmortalStreamRequest{
-			TCPPort: port,
+			TCPPort: uint16(port),
 		}
 		body, err := json.Marshal(req)
 		require.NoError(t, err)
@@ -85,7 +86,7 @@ func TestImmortalStreamsHandler_CreateStream(t *testing.T) {
 
 		assert.NotEmpty(t, stream.ID)
 		assert.NotEmpty(t, stream.Name) // Name is generated randomly
-		assert.Equal(t, port, stream.TCPPort)
+		assert.Equal(t, uint16(port), stream.TCPPort)
 		assert.False(t, stream.CreatedAt.IsZero())
 		assert.False(t, stream.LastConnectionAt.IsZero())
 		assert.Nil(t, stream.LastDisconnectionAt)
@@ -182,10 +183,10 @@ func TestImmortalStreamsHandler_ListStreams(t *testing.T) {
 	assert.Empty(t, streams)
 
 	// Create some streams
-	stream1, err := manager.CreateStream(ctx, port)
+	stream1, err := manager.CreateStream(ctx, uint16(port))
 	require.NoError(t, err)
 
-	stream2, err := manager.CreateStream(ctx, port)
+	stream2, err := manager.CreateStream(ctx, uint16(port))
 	require.NoError(t, err)
 
 	// List again
@@ -247,7 +248,7 @@ func TestImmortalStreamsHandler_GetStream(t *testing.T) {
 	router.Mount("/api/v0/immortal-stream", handler.Routes())
 
 	// Create a stream
-	stream, err := manager.CreateStream(ctx, port)
+	stream, err := manager.CreateStream(ctx, uint16(port))
 	require.NoError(t, err)
 
 	// Get the stream
@@ -314,7 +315,7 @@ func TestImmortalStreamsHandler_DeleteStream(t *testing.T) {
 	router.Mount("/api/v0/immortal-stream", handler.Routes())
 
 	// Create a stream
-	stream, err := manager.CreateStream(ctx, port)
+	stream, err := manager.CreateStream(ctx, uint16(port))
 	require.NoError(t, err)
 
 	// Delete the stream
@@ -344,6 +345,6 @@ func TestImmortalStreamsHandler_DeleteStream(t *testing.T) {
 
 type handlerTestDialer struct{}
 
-func (*handlerTestDialer) DialContext(_ context.Context, address string) (net.Conn, error) {
-	return net.Dial("tcp", address)
+func (*handlerTestDialer) DialPort(_ context.Context, port uint16) (net.Conn, error) {
+	return net.Dial("tcp", net.JoinHostPort("localhost", strconv.Itoa(int(port))))
 }
