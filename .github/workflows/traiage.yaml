@@ -51,6 +51,7 @@ jobs:
         id: extract-context
         env:
           ISSUE_URL: ${{ inputs.issue_url }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           issue_number="$(gh issue view "${ISSUE_URL}" --json number --jq '.number')"
           context_key="gh-${issue_number}"
@@ -94,6 +95,7 @@ jobs:
         env:
           WORKSPACE_NAME: ${{ steps.create-workspace.outputs.workspace_name }}
           ISSUE_URL: ${{ inputs.issue_url }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           PROMPT_FILE=/tmp/prompt.txt
           trap 'rm -f "${PROMPT_FILE}"' EXIT
