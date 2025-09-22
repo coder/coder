@@ -21,13 +21,36 @@ import (
 const (
 	cleanerRespOK        = "OK"
 	envCleanerParentUUID = "DB_CLEANER_PARENT_UUID"
+	envCleanerDSN        = "DB_CLEANER_DSN"
 )
+
+var (
+	originalWorkingDir   string
+	errGettingWorkingDir error
+)
+
+func init() {
+	// We expect our tests to run from somewhere in the project tree where `go run` below in `startCleaner` will
+	// be able to resolve the command package. However, some of the tests modify the working directory during the run.
+	// So, we grab the working directory during package init, before tests are run, and then set that work dir on the
+	// subcommand process before it starts.
+	originalWorkingDir, errGettingWorkingDir = os.Getwd()
+}
 
 // startCleaner starts the cleaner in a subprocess. holdThis is an opaque reference that needs to be kept from being
 // garbage collected until we are done with all test databases (e.g. the end of the process).
-func startCleaner(ctx context.Context, parentUUID uuid.UUID) (holdThis any, err error) {
-	cmd := exec.Command("go", "run", "github.com/coder/coder/v2/cmd/dbtestcleaner")
-	cmd.Env = append(os.Environ(), fmt.Sprintf("%s=%s", envCleanerParentUUID, parentUUID.String()))
+func startCleaner(ctx context.Context, parentUUID uuid.UUID, dsn string) (holdThis any, err error) {
+	cmd := exec.Command("go", "run", "github.com/coder/coder/v2/coderd/database/dbtestutil/cleanercmd")
+	cmd.Env = append(os.Environ(),
+		fmt.Sprintf("%s=%s", envCleanerParentUUID, parentUUID.String()),
+		fmt.Sprintf("%s=%s", envCleanerDSN, dsn),
+	)
+
+	// c.f. comment on `func init()` in this file.
+	if errGettingWorkingDir != nil {
+		return nil, xerrors.Errorf("failed to get working directory during init: %w", errGettingWorkingDir)
+	}
+	cmd.Dir = originalWorkingDir
 
 	// Here we don't actually use the reference to the stdin pipe, because we never write anything to it. When this
 	// process exits, the pipe is closed by the OS and this triggers the cleaner to do its cleaning work. But, we do
@@ -79,6 +102,10 @@ type cleaner struct {
 
 func (c *cleaner) init(ctx context.Context) error {
 	var err error
+	dsn := os.Getenv(envCleanerDSN)
+	if dsn == "" {
+		return xerrors.Errorf("DSN not set via env %s: %w", envCleanerDSN, err)
+	}
 	parentUUIDStr := os.Getenv(envCleanerParentUUID)
 	c.parentUUID, err = uuid.Parse(parentUUIDStr)
 	if err != nil {
@@ -89,8 +116,6 @@ func (c *cleaner) init(ctx context.Context) error {
 		Leveled(slog.LevelDebug).
 		With(slog.F("parent_uuid", parentUUIDStr))
 
-	// TODO: support configurable username, password & port if required
-	dsn := fmt.Sprintf("postgres://postgres:postgres@localhost:5432/%s?sslmode=disable", CoderTestingDBName)
 	c.db, err = sql.Open("postgres", dsn)
 	if err != nil {
 		return xerrors.Errorf("couldn't open DB: %w", err)

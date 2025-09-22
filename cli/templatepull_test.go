@@ -263,13 +263,8 @@ func TestTemplatePull_ToDir(t *testing.T) {
 	// nolint: paralleltest // These tests change the current working dir, and is therefore unsuitable for parallelisation.
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// create coderd first, because our postgres cloning code needs to be run from somewhere in the package
-			// hierarchy, before we change directories.
-			client := coderdtest.New(t, &coderdtest.Options{
-				IncludeProvisionerDaemon: true,
-			})
-
 			dir := t.TempDir()
+
 			cwd, err := os.Getwd()
 			require.NoError(t, err)
 			t.Cleanup(func() {
@@ -287,6 +282,9 @@ func TestTemplatePull_ToDir(t *testing.T) {
 				actualDest = filepath.Join(dir, "actual")
 			}
 
+			client := coderdtest.New(t, &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			})
 			owner := coderdtest.CreateFirstUser(t, client)
 			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 

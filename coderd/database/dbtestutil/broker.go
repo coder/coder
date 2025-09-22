@@ -150,7 +150,7 @@ func (b *Broker) init(t TBSubset) error {
 		b.uuid = uuid.New()
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
-		b.cleanerFD, err = startCleaner(ctx, b.uuid)
+		b.cleanerFD, err = startCleaner(ctx, b.uuid, coderTestingParams.DSN())
 		if err != nil {
 			return xerrors.Errorf("start test db cleaner: %w", err)
 		}
