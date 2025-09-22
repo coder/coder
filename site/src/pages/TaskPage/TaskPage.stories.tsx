@@ -24,6 +24,7 @@ import type {
 	WorkspaceResource,
 } from "api/typesGenerated";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import TaskPage, { data, WorkspaceDoesNotHaveAITaskError } from "./TaskPage";
 
 const meta: Meta<typeof TaskPage> = {
@@ -360,19 +361,42 @@ export const ActivePreview: Story = {
 export const WorkspaceStartFailure: Story = {
 	decorators: [withGlobalSnackbar],
 	beforeEach: () => {
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: MockStoppedWorkspace,
-		});
-
-		spyOn(API, "getWorkspaceParameters").mockResolvedValue({
-			templateVersionRichParameters: [],
-			buildParameters: [],
-		});
-
 		spyOn(API, "startWorkspace").mockRejectedValue(
 			new Error("Some unexpected error"),
 		);
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					username: MockStoppedWorkspace.owner_name,
+					workspace: MockStoppedWorkspace.name,
+				},
+			},
+			routing: {
+				path: "/tasks/:username/:workspace",
+			},
+		}),
+		queries: [
+			{
+				key: [
+					"tasks",
+					MockStoppedWorkspace.owner_name,
+					MockStoppedWorkspace.name,
+				],
+				data: {
+					prompt: "Create competitors page",
+					workspace: MockStoppedWorkspace,
+				},
+			},
+			{
+				key: ["workspace", MockStoppedWorkspace.id, "parameters"],
+				data: {
+					templateVersionRichParameters: [],
+					buildParameters: [],
+				},
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -391,16 +415,6 @@ export const WorkspaceStartFailure: Story = {
 
 export const WorkspaceStartFailureWithDialog: Story = {
 	beforeEach: () => {
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: MockStoppedWorkspace,
-		});
-
-		spyOn(API, "getWorkspaceParameters").mockResolvedValue({
-			templateVersionRichParameters: [],
-			buildParameters: [],
-		});
-
 		spyOn(API, "startWorkspace").mockRejectedValue({
 			...mockApiError({
 				message: "Bad Request",
@@ -408,6 +422,39 @@ export const WorkspaceStartFailureWithDialog: Story = {
 			}),
 			code: "ERR_BAD_REQUEST",
 		});
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					username: MockStoppedWorkspace.owner_name,
+					workspace: MockStoppedWorkspace.name,
+				},
+			},
+			routing: {
+				path: "/tasks/:username/:workspace",
+			},
+		}),
+		queries: [
+			{
+				key: [
+					"tasks",
+					MockStoppedWorkspace.owner_name,
+					MockStoppedWorkspace.name,
+				],
+				data: {
+					prompt: "Create competitors page",
+					workspace: MockStoppedWorkspace,
+				},
+			},
+			{
+				key: ["workspace", MockStoppedWorkspace.id, "parameters"],
+				data: {
+					templateVersionRichParameters: [],
+					buildParameters: [],
+				},
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
