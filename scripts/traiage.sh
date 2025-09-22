@@ -215,6 +215,27 @@ delete() {
 	exit 0
 }
 
+resume() {
+	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME DESTINATION_PREFIX
+
+	# Note: WORKSPACE_NAME here is really the 'context key'.
+	# Files are uploaded to the GCS bucket under this key.
+	# This just happens to be the same as the workspace name.
+
+	src="${DESTINATION_PREFIX%%/}/${WORKSPACE_NAME}.tar.gz"
+	dest="${TEMPDIR}/${WORKSPACE_NAME}.tar.gz"
+	gcloud storage cp "${src}" "${dest}"
+	if [[ ! -f "${dest}" ]]; then
+		echo "FATAL: Failed to download archive from ${src}"
+		exit 1
+	fi
+
+	resume_dest="${HOME}/workspaces/${WORKSPACE_NAME}"
+	mkdir -p "${resume_dest}"
+	tar -xzvf "${dest}" -C "${resume_dest}" || exit 1
+	echo "Workspace restored to ${resume_dest}"
+}
+
 main() {
 	dependencies coder
 
@@ -240,6 +261,9 @@ main() {
 		;;
 	wait-agentapi-stable)
 		wait_agentapi_stable
+		;;
+	resume)
+		resume
 		;;
 	*)
 		echo "Unknown option: $1"
