@@ -10,7 +10,7 @@ on:
       template_name:
         description: 'Coder template to use for workspace'
         required: true
-        default: 'ai-workspace'
+        default: 'traiage'
         type: string
       prefix:
         description: 'Prefix for workspace name'
