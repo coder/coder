@@ -216,13 +216,13 @@ delete() {
 }
 
 resume() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME DESTINATION_PREFIX
+	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME
 
 	# Note: WORKSPACE_NAME here is really the 'context key'.
 	# Files are uploaded to the GCS bucket under this key.
 	# This just happens to be the same as the workspace name.
 
-	src="${DESTINATION_PREFIX%%/}/${WORKSPACE_NAME}.tar.gz"
+	src="gs://coder-traiage-outputs/traiage/${WORKSPACE_NAME}.tar.gz"
 	dest="${TEMPDIR}/${WORKSPACE_NAME}.tar.gz"
 	gcloud storage cp "${src}" "${dest}"
 	if [[ ! -f "${dest}" ]]; then
