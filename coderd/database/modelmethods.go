@@ -2,8 +2,10 @@ package database
 
 import (
 	"encoding/hex"
+	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -137,8 +139,92 @@ func (s APIKeyScope) ToRBAC() rbac.ScopeName {
 	case APIKeyScopeApplicationConnect:
 		return rbac.ScopeApplicationConnect
 	default:
-		panic("developer error: unknown scope type " + string(s))
+		// Allow low-level resource:action scopes to flow through to RBAC for
+		// expansion via rbac.ExpandScope.
+		return rbac.ScopeName(s)
 	}
+}
+
+// APIKeyScopes allows expanding multiple API key scopes into a single
+// RBAC scope for authorization. This implements rbac.ExpandableScope so
+// callers can pass the list directly without deriving a single scope.
+type APIKeyScopes []APIKeyScope
+
+var _ rbac.ExpandableScope = APIKeyScopes{}
+
+// Has returns true if the slice contains the provided scope.
+func (s APIKeyScopes) Has(target APIKeyScope) bool {
+	return slices.Contains(s, target)
+}
+
+// Expand merges the permissions of all scopes in the list into a single scope.
+// If the list is empty, it defaults to rbac.ScopeAll.
+func (s APIKeyScopes) Expand() (rbac.Scope, error) {
+	// Default to ScopeAll for backward compatibility when no scopes provided.
+	if len(s) == 0 {
+		return rbac.ScopeAll.Expand()
+	}
+
+	var merged rbac.Scope
+	merged.Role = rbac.Role{
+		// Identifier is informational; not used in policy evaluation.
+		Identifier: rbac.RoleIdentifier{Name: "Scope_Multiple"},
+		Site:       nil,
+		Org:        map[string][]rbac.Permission{},
+		User:       nil,
+	}
+
+	// Track allow list union, collapsing to wildcard if any child is wildcard.
+	allowAll := false
+	allowSet := make(map[string]rbac.AllowListElement)
+
+	for _, s := range s {
+		expanded, err := s.ToRBAC().Expand()
+		if err != nil {
+			return rbac.Scope{}, err
+		}
+
+		// Merge role permissions: union by simple concatenation.
+		merged.Site = append(merged.Site, expanded.Site...)
+		for orgID, perms := range expanded.Org {
+			merged.Org[orgID] = append(merged.Org[orgID], perms...)
+		}
+		merged.User = append(merged.User, expanded.User...)
+
+		// Merge allow lists.
+		for _, e := range expanded.AllowIDList {
+			if e.ID == policy.WildcardSymbol && e.Type == policy.WildcardSymbol {
+				allowAll = true
+				// No need to track other entries once wildcard is present.
+				continue
+			}
+			key := e.String()
+			allowSet[key] = e
+		}
+	}
+
+	if allowAll || len(allowSet) == 0 {
+		merged.AllowIDList = []rbac.AllowListElement{rbac.AllowListAll()}
+	} else {
+		merged.AllowIDList = make([]rbac.AllowListElement, 0, len(allowSet))
+		for _, v := range allowSet {
+			merged.AllowIDList = append(merged.AllowIDList, v)
+		}
+	}
+
+	return merged, nil
+}
+
+// Name returns a human-friendly identifier for tracing/logging.
+func (s APIKeyScopes) Name() rbac.RoleIdentifier {
+	if len(s) == 0 {
+		return rbac.RoleIdentifier{Name: string(APIKeyScopeAll)}
+	}
+	names := make([]string, 0, len(s))
+	for _, s := range s {
+		names = append(names, string(s))
+	}
+	return rbac.RoleIdentifier{Name: "scopes[" + strings.Join(names, "+") + "]"}
 }
 
 func (k APIKey) RBACObject() rbac.Object {

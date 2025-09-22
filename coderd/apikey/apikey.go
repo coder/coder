@@ -92,7 +92,8 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 		UpdatedAt:    dbtime.Now(),
 		HashedSecret: hashed[:],
 		LoginType:    params.LoginType,
-		Scope:        scope,
+		Scopes:       database.APIKeyScopes{scope},
+		AllowList:    database.AllowList{database.AllowListWildcard()},
 		TokenName:    params.TokenName,
 	}, token, nil
 }
