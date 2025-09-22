@@ -17,14 +17,6 @@ on:
         required: false
         default: 'traiage'
         type: string
-      persistence_mode:
-        description: 'Persistence mode (push or archive)'
-        required: false
-        type: choice
-        options:
-          - push
-          - archive
-        default: 'archive'
 
 jobs:
   traiage:
@@ -118,16 +110,8 @@ jobs:
           # and exit once the agent has completed the task.
           PROMPT=$(cat $PROMPT_FILE) ./scripts/traiage.sh prompt
 
-      - name: Commit and push changes
-        id: commit-push
-        if: ${{ inputs.persistence_mode == 'push' }}
-        run: |
-          echo "Committing and pushing changes in workspace: $WORKSPACE_NAME"
-          ./scripts/traiage.sh commit-push
-
       - name: Create and upload archive
         id: create-archive
-        if: ${{ inputs.persistence_mode == 'archive' }}
         env:
           DESTINATION_PREFIX: ${{ secrets.TRAIAGE_DESTINATION_PREFIX }}
         run: |
@@ -151,7 +135,7 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Cleanup workspace
-        if: steps.create-workspace.outputs.workspace_name != '' && (inputs.persistence_mode == 'archive' && steps.create-archive.outputs.archive_url != '')
+        if: steps.create-workspace.outputs.workspace_name != '' && steps.create-archive.outputs.archive_url != ''
         run: |
           echo "Cleaning up workspace: $WORKSPACE_NAME"
           ./scripts/traiage.sh delete || true
