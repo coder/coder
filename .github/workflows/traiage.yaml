@@ -131,7 +131,13 @@ jobs:
             echo "- **Issue URL:** ${ISSUE_URL}";
             echo "- **Context Key:** ${CONTEXT_KEY}";
             echo "- **Workspace:** ${WORKSPACE_NAME}";
-            echo "- **Archive URL:** ${ARCHIVE_URL}"
+            echo "- **Archive URL:** ${ARCHIVE_URL}";
+
+            echo "To fetch the output to your own workspace:";
+            echo '';
+            echo '```bash';
+            echo "WORKSPACE_NAME=${WORKSPACE_NAME} ./scripts/traiage.sh resume";
+            echo '```'
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Cleanup workspace
