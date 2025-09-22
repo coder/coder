@@ -146,25 +146,34 @@ resource "coder_env" "anthropic_api_key" {
 }
 ```
 
+Breaking down this snippit:
+- You see a `module "claude-code"`. Modules are Terraform's method for providing consistent, repeatable inputs to a given directory; like a package you're importing. This module pulls in Claude Code, but Coder's Registry supports many other agent modules like [OpenAI's Codex](https://registry.coder.com/modules/coder-labs/codex) or [Gemini CLI](https://registry.coder.com/modules/coder-labs/gemini)
+- Each module define's its own specific inputs. Claude Code expects the `CODER_MCP_CLAUDE_API_KEY` environment variable to exist, but OpenAI based agents expect `OPENAI_API_KEY` for example. You'll want to check the specific module's defined variables to know what exactly needs to be defined
+- You can define specific scripts to run at startup of the Task. For example, you could define a setup scrip that calls to AWS S3 and pulls specific files you want your agent to have access to
+
+In other words, task templates are highly flexible: you can swap out modules depending on which agent you want to run, adjust their inputs based on the provider’s requirements, and layer on custom setup scripts to tailor the environment to your workflow. Whether that means using a different LLM, pointing to a new API key, or pulling files from S3 at startup, the template structure makes it easy to adapt Tasks without having to rebuild everything from scratch.
+
+TODO -- Need to explain what all this is, and how you could sub things in n out for other stuff
+
 ## Task Template Design Principles
-- Reusability  
-- Composability (can be chained or combined)  
-- Transparency (clear inputs/outputs)  
-- Portability (works across environments)  
+
+Coder Tasks, being based in a given Workspace, operate on very similar principles: 
+- **Specificity & Refinability:** Tasks, just like templates, are made to address a specific problem and evolve with that problem and your team over time
+- **Security:** Because Tasks are defined through templates, you can define and restrict what access an agent running inside a Task has access to
+- **Frugality:** Tasks only consume resources when running. You should design your Task Template to provide just enough compute and storage so that your task can effectively complete its job, reducing infrastructure cost
+- **Model Applicability:** Task Templates can specifiy which model is most appropriate, meaning you can fine tune your Task based on it's job, be that a code-focused model for fixing bugs or a generalized LLM to write summaries and updates on Pull Requests
+- **Automation:** Coder Tasks provide a comprehensive set of built-in APIs, status monitoring, and notification systems. This allows for you and your team to build seamless integrations with externation automation workflows
+
+Together, these principles make up the core idea of designing Task Templates. Tasks are programmable, secure, and cost-efficient agents that integrate seamlessly into your team's workflow. By treating Task Templates as as living and adaptable designs, you can evolve them with your team and needs without sacrificing clarity or control. The result is a system where automation, resource management, and secuirty are baked into the foundation letting developers focus less on orchestration details and more on solving the problems that matter.
+
+These design principles aren’t just technical guidelines, however; they’re the lens through which to understand what Tasks are and how to use them effectively. By grounding Tasks in specificity, security, frugality, applicability, and automation, you ensure they remain reliable building blocks for both individual workflows and larger team processes.
+
+TODO above feels fake
+
+### Task Best Practices
+
+TODO Is this needed
 
 ## How Tasks Fit Into Coder
-- Place in the overall system (workspaces, environments, AI Coder)  
-- How tasks interact with other features (e.g., provisioning, configuration)
 
-## Best Practices for Authoring Tasks
-- Keep them modular and focused
-- Use clear naming and documentation
-- Handle errors and edge cases gracefully
-
-## Looking Ahead
-- How tasks and templates may evolve
-- Vision for tasks as part of the broader developer workflow
-
-
-
-
+TODO fill this in
