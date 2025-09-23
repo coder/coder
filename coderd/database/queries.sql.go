@@ -403,6 +403,133 @@ func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIB
 	return err
 }
 
+const listAIBridgeInterceptions = `-- name: ListAIBridgeInterceptions :many
+SELECT
+	aibridge_interceptions.id,
+	aibridge_interceptions.initiator_id,
+	aibridge_interceptions.provider,
+	aibridge_interceptions.model,
+	aibridge_interceptions.started_at,
+	aibridge_user_prompts.prompt,
+	COALESCE(aibridge_token_usages.input_tokens, 0) AS input_tokens,
+	COALESCE(aibridge_token_usages.output_tokens, 0) AS output_tokens,
+	aibridge_tool_usages.server_url,
+	aibridge_tool_usages.tool,
+	aibridge_tool_usages.input
+FROM (
+	SELECT
+		aibridge_interceptions.id,
+		aibridge_interceptions.initiator_id,
+		aibridge_interceptions.provider,
+		aibridge_interceptions.model,
+		aibridge_interceptions.started_at
+	FROM aibridge_interceptions
+	WHERE
+    -- Filter by time frame
+	CASE
+		WHEN $1::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at >= $1::timestamptz
+		ELSE true
+	END
+	AND CASE
+		WHEN $2::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at < $2::timestamptz
+		ELSE true
+	END
+	-- Filter cursor (time, uuid)
+	AND CASE
+		WHEN $3::timestamptz != '0001-01-01 00:00:00+00'::timestamptz AND $4::uuid != '00000000-0000-0000-0000-000000000000'::uuid
+		    THEN (aibridge_interceptions.started_at = $3::timestamptz AND aibridge_interceptions.id < $4::uuid)
+			     OR aibridge_interceptions.started_at < $3::timestamptz
+		ELSE true
+	END
+	-- Filter initiator_id
+	AND CASE
+		WHEN $5::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = $5::uuid
+		ELSE true
+	END
+    ORDER BY aibridge_interceptions.started_at DESC, aibridge_interceptions.id DESC
+    LIMIT COALESCE(NULLIF($6::int, 0), 100)
+) AS aibridge_interceptions
+
+LEFT JOIN (
+	SELECT
+		aibridge_token_usages.interception_id,
+	    SUM(aibridge_token_usages.input_tokens) AS input_tokens,
+		SUM(aibridge_token_usages.output_tokens) AS output_tokens
+	FROM aibridge_token_usages
+	GROUP BY aibridge_token_usages.interception_id
+) AS aibridge_token_usages ON aibridge_interceptions.id = aibridge_token_usages.interception_id
+
+LEFT JOIN aibridge_tool_usages ON aibridge_interceptions.id = aibridge_tool_usages.interception_id
+LEFT JOIN aibridge_user_prompts ON aibridge_interceptions.id = aibridge_user_prompts.interception_id
+
+ORDER BY aibridge_interceptions.started_at DESC, aibridge_interceptions.id DESC, aibridge_tool_usages.created_at DESC
+`
+
+type ListAIBridgeInterceptionsParams struct {
+	PeriodStart time.Time `db:"period_start" json:"period_start"`
+	PeriodEnd   time.Time `db:"period_end" json:"period_end"`
+	CursorTime  time.Time `db:"cursor_time" json:"cursor_time"`
+	CursorID    uuid.UUID `db:"cursor_id" json:"cursor_id"`
+	InitiatorID uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	LimitOpt    int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+type ListAIBridgeInterceptionsRow struct {
+	ID           uuid.UUID      `db:"id" json:"id"`
+	InitiatorID  uuid.UUID      `db:"initiator_id" json:"initiator_id"`
+	Provider     string         `db:"provider" json:"provider"`
+	Model        string         `db:"model" json:"model"`
+	StartedAt    time.Time      `db:"started_at" json:"started_at"`
+	Prompt       sql.NullString `db:"prompt" json:"prompt"`
+	InputTokens  int64          `db:"input_tokens" json:"input_tokens"`
+	OutputTokens int64          `db:"output_tokens" json:"output_tokens"`
+	ServerUrl    sql.NullString `db:"server_url" json:"server_url"`
+	Tool         sql.NullString `db:"tool" json:"tool"`
+	Input        sql.NullString `db:"input" json:"input"`
+}
+
+func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBridgeInterceptionsParams) ([]ListAIBridgeInterceptionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeInterceptions,
+		arg.PeriodStart,
+		arg.PeriodEnd,
+		arg.CursorTime,
+		arg.CursorID,
+		arg.InitiatorID,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAIBridgeInterceptionsRow
+	for rows.Next() {
+		var i ListAIBridgeInterceptionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InitiatorID,
+			&i.Provider,
+			&i.Model,
+			&i.StartedAt,
+			&i.Prompt,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.ServerUrl,
+			&i.Tool,
+			&i.Input,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
 DELETE FROM
 	api_keys

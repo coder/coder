@@ -4334,6 +4334,12 @@ func TestInsertAPIKey_AsPrebuildsUser(t *testing.T) {
 }
 
 func (s *MethodTestSuite) TestAIBridge() {
+	s.Run("ListAIBridgeInterceptions", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.ListAIBridgeInterceptionsParams{}
+		db.EXPECT().ListAIBridgeInterceptions(gomock.Any(), params).Return([]database.ListAIBridgeInterceptionsRow{}, nil).AnyTimes()
+		check.Args(params).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead)
+	}))
+
 	s.Run("GetAIBridgeInterceptionByID", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		intID := uuid.UUID{2}
 		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intID})

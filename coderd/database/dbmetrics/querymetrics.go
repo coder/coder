@@ -2665,6 +2665,13 @@ func (m queryMetricsStore) InsertWorkspaceResourceMetadata(ctx context.Context, 
 	return metadata, err
 }
 
+func (m queryMetricsStore) ListAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams) ([]database.ListAIBridgeInterceptionsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeInterceptions(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAIBridgeInterceptions").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListProvisionerKeysByOrganization(ctx, organizationID)

@@ -1007,6 +1007,12 @@ func New(options *Options) *API {
 		// See enterprise/x/aibridged/http.go.
 		r.Group(func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
+			r.Route("/aibridge", func(r chi.Router) {
+				r.Use(
+					httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAIBridge),
+				)
+				r.Get("/interceptions", api.aiBridgeListInterceptions)
+			})
 			r.Route("/aitasks", func(r chi.Router) {
 				r.Get("/prompts", api.aiTasksPrompts)
 			})
