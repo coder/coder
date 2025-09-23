@@ -150,12 +150,12 @@ jobs:
             echo ''
           } >> "${SUMMARY_FILE}"
 
-          if [[ "${ISSUE_URL}" == "${GITHUB_REPOSITORY}"* ]]; then
+          if [[ "${ISSUE_URL}" == "https://github.com/${GITHUB_REPOSITORY}"* ]]; then
             gh issue comment "${ISSUE_URL}" --body-file "${SUMMARY_FILE}" --create-if-none --edit-last
           else
             echo "Skipping comment on other repo."
           fi
-          cat < "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}"
+          cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Cleanup workspace
         if: steps.create-workspace.outputs.workspace_name != '' && steps.create-archive.outputs.archive_url != ''
