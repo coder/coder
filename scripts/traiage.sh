@@ -26,7 +26,7 @@ create() {
 		--token "${CODER_SESSION_TOKEN}" \
 		list \
 		--search "owner:me name:${WORKSPACE_NAME}" \
-		--output json |\
+		--output json |
 		jq -r '. | length')
 	if [[ "${exists}" -eq "1" ]]; then
 		echo "Workspace ${WORKSPACE_NAME} already exists."
