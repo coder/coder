@@ -65,7 +65,7 @@ func TestRun(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 	barrier := harness.NewBarrier(numUsers)
-	metrics := coderconnect.NewMetrics(prometheus.NewRegistry(), "num_workspaces", "username")
+	metrics := coderconnect.NewMetrics(prometheus.NewRegistry())
 
 	th := harness.NewTestHarness(harness.ConcurrentExecutionStrategy{}, harness.ConcurrentExecutionStrategy{})
 	for i := range numUsers {
@@ -83,9 +83,7 @@ func TestRun(t *testing.T) {
 			WorkspaceCount:          int64(userWorkspaces),
 			DialTimeout:             testutil.WaitMedium,
 			WorkspaceUpdatesTimeout: testutil.WaitLong,
-			NoCleanup:               false,
 			Metrics:                 metrics,
-			MetricLabelValues:       []string{"1", "fake-username"},
 			DialBarrier:             barrier,
 		}
 		err := cfg.Validate()
@@ -95,13 +93,16 @@ func TestRun(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	// Run the tests
 	err := th.Run(ctx)
 	require.NoError(t, err)
 
+	res := th.Results()
+	require.Len(t, res.Runs, numUsers)
+	require.Equal(t, 0, res.TotalFail)
+
 	users, err := client.Users(ctx, codersdk.UsersRequest{})
 	require.NoError(t, err)
-	require.Len(t, users.Users, numUsers+1) // owner + created users
+	require.Len(t, users.Users, 1+numUsers) // owner + created users
 
 	workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
@@ -126,6 +127,8 @@ func TestRun(t *testing.T) {
 		require.Contains(t, th.Results().Runs, "coderconnect/"+id)
 		metrics := th.Results().Runs["coderconnect/"+id].Metrics
 		require.Contains(t, metrics, coderconnect.WorkspaceUpdatesLatencyMetric)
+		require.Len(t, metrics[coderconnect.WorkspaceUpdatesLatencyMetric], userWorkspaces)
 		require.Contains(t, metrics, coderconnect.WorkspaceUpdatesErrorsTotal)
+		require.EqualValues(t, 0, metrics[coderconnect.WorkspaceUpdatesErrorsTotal])
 	}
 }

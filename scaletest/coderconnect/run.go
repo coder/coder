@@ -15,6 +15,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/scaletest/createusers"
@@ -32,8 +33,14 @@ type Runner struct {
 	createUserRunner      *createusers.Runner
 	workspacebuildRunners []*workspacebuild.Runner
 
-	// startTime records when workspace builds begin (for metrics timing)
-	startTime time.Time
+	// workspace name to workspace
+	workspaces *syncmap.Map[string, *workspace]
+}
+
+type workspace struct {
+	workspaceID    uuid.UUID
+	buildStartTime time.Time
+	updateLatency  time.Duration
 }
 
 var (
@@ -44,8 +51,9 @@ var (
 
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
-		client: client,
-		cfg:    cfg,
+		client:     client,
+		cfg:        cfg,
+		workspaces: syncmap.New[string, *workspace](),
 	}
 }
 
@@ -113,24 +121,32 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 	completionCh := make(chan error, 1)
 	go func() {
-		completionCh <- r.watchWorkspaceUpdates(watchCtx, clients, logs)
+		completionCh <- r.watchWorkspaceUpdates(watchCtx, clients, user, logs)
 	}()
 
 	reachedBarrier = true
 	r.cfg.DialBarrier.Wait()
 
-	r.startTime = time.Now()
-
 	workspaceRunners := make([]*workspacebuild.Runner, 0, r.cfg.WorkspaceCount)
 	for i := range r.cfg.WorkspaceCount {
+		workspaceName, err := loadtestutil.GenerateWorkspaceName(id)
+		if err != nil {
+			return xerrors.Errorf("generate random name for workspace: %w", err)
+		}
 		workspaceBuildConfig := r.cfg.Workspace
 		workspaceBuildConfig.OrganizationID = r.cfg.User.OrganizationID
 		workspaceBuildConfig.UserID = user.ID.String()
+		workspaceBuildConfig.Request.Name = workspaceName
 
 		runner := workspacebuild.NewRunner(client, workspaceBuildConfig)
 		workspaceRunners = append(workspaceRunners, runner)
 
 		_, _ = fmt.Fprintf(logs, "Creating workspace %d/%d...\n", i+1, r.cfg.WorkspaceCount)
+
+		// Record build start time before running the workspace build
+		r.workspaces.Store(workspaceName, &workspace{
+			buildStartTime: time.Now(),
+		})
 		err = runner.Run(ctx, fmt.Sprintf("%s-%d", id, i), logs)
 		if err != nil {
 			return xerrors.Errorf("create workspace %d: %w", i, err)
@@ -163,7 +179,7 @@ func (r *Runner) dialCoderConnect(ctx context.Context, client *codersdk.Client, 
 	u, err := client.URL.Parse("/api/v2/tailnet")
 	if err != nil {
 		logger.Error(ctx, "failed to parse tailnet URL", slog.Error(err))
-		r.cfg.Metrics.AddError(append(r.cfg.MetricLabelValues, "parse_url")...)
+		r.cfg.Metrics.AddError(user.Username, r.cfg.WorkspaceCount, "parse_url")
 		return nil, xerrors.Errorf("parse tailnet URL: %w", err)
 	}
 
@@ -183,7 +199,7 @@ func (r *Runner) dialCoderConnect(ctx context.Context, client *codersdk.Client, 
 	clients, err := dialer.Dial(ctx, nil)
 	if err != nil {
 		logger.Error(ctx, "failed to dial workspace updates", slog.Error(err))
-		r.cfg.Metrics.AddError(append(r.cfg.MetricLabelValues, "dial")...)
+		r.cfg.Metrics.AddError(user.Username, r.cfg.WorkspaceCount, "dial")
 		return nil, xerrors.Errorf("dial workspace updates: %w", err)
 	}
 
@@ -192,21 +208,22 @@ func (r *Runner) dialCoderConnect(ctx context.Context, client *codersdk.Client, 
 
 // watchWorkspaceUpdates processes workspace updates and returns error or nil
 // once all expected workspaces and agents are seen.
-func (r *Runner) watchWorkspaceUpdates(ctx context.Context, clients *tailnet.ControlProtocolClients, logs io.Writer) error {
+func (r *Runner) watchWorkspaceUpdates(ctx context.Context, clients *tailnet.ControlProtocolClients, user codersdk.User, logs io.Writer) error {
 	defer clients.Closer.Close()
 
-	seenWorkspaces := make(map[uuid.UUID]bool)
-	seenAgents := make(map[uuid.UUID]bool)
 	expectedWorkspaces := r.cfg.WorkspaceCount
-	expectedAgents := expectedWorkspaces
+	seenWorkspaces := 0
+	// Workspace ID to agent update arrival time.
+	// At the end, we reconcile to see which took longer, and mark that as the
+	// latency.
+	agents := make(map[uuid.UUID]time.Time)
 
-	_, _ = fmt.Fprintf(logs, "Waiting for %d workspaces and %d agents\n", expectedWorkspaces, expectedAgents)
-
+	_, _ = fmt.Fprintf(logs, "Waiting for %d workspaces and their agents\n", expectedWorkspaces)
 	for {
 		select {
 		case <-ctx.Done():
 			_, _ = fmt.Fprintf(logs, "Context canceled while waiting for workspace updates: %v\n", ctx.Err())
-			r.cfg.Metrics.AddError(append(r.cfg.MetricLabelValues, "context_done")...)
+			r.cfg.Metrics.AddError(user.Username, r.cfg.WorkspaceCount, "context_done")
 			return ctx.Err()
 		default:
 		}
@@ -214,7 +231,7 @@ func (r *Runner) watchWorkspaceUpdates(ctx context.Context, clients *tailnet.Con
 		update, err := clients.WorkspaceUpdates.Recv()
 		if err != nil {
 			_, _ = fmt.Fprintf(logs, "Workspace updates stream error: %v\n", err)
-			r.cfg.Metrics.AddError(append(r.cfg.MetricLabelValues, "recv")...)
+			r.cfg.Metrics.AddError(user.Username, r.cfg.WorkspaceCount, "recv")
 			return xerrors.Errorf("receive workspace update: %w", err)
 		}
 
@@ -222,33 +239,55 @@ func (r *Runner) watchWorkspaceUpdates(ctx context.Context, clients *tailnet.Con
 			wsID, err := uuid.FromBytes(ws.Id)
 			if err != nil {
 				_, _ = fmt.Fprintf(logs, "Invalid workspace ID in update: %v\n", err)
-				r.cfg.Metrics.AddError(append(r.cfg.MetricLabelValues, "bad_workspace_id")...)
+				r.cfg.Metrics.AddError(user.Username, r.cfg.WorkspaceCount, "bad_workspace_id")
 				continue
 			}
-			if !seenWorkspaces[wsID] {
-				seenWorkspaces[wsID] = true
-				_, _ = fmt.Fprintf(logs, "Received workspace update: %s (%d/%d)\n", wsID, len(seenWorkspaces), expectedWorkspaces)
+
+			if tracking, ok := r.workspaces.Load(ws.GetName()); ok {
+				if tracking.updateLatency == 0 {
+					r.workspaces.Store(ws.GetName(), &workspace{
+						workspaceID:    wsID,
+						buildStartTime: tracking.buildStartTime,
+						updateLatency:  time.Since(tracking.buildStartTime),
+					})
+					seenWorkspaces++
+				}
+			} else if !ok {
+				return xerrors.Errorf("received update for unknown workspace %q (id: %s)", ws.GetName(), wsID)
 			}
 		}
 
 		for _, agent := range update.UpsertedAgents {
-			agentID, err := uuid.FromBytes(agent.Id)
+			wsID, err := uuid.FromBytes(agent.WorkspaceId)
 			if err != nil {
-				_, _ = fmt.Fprintf(logs, "Invalid agent ID in update: %v\n", err)
-				r.cfg.Metrics.AddError(append(r.cfg.MetricLabelValues, "bad_agent_id")...)
+				_, _ = fmt.Fprintf(logs, "Invalid workspace ID in agent update: %v\n", err)
+				r.cfg.Metrics.AddError(user.Username, r.cfg.WorkspaceCount, "bad_agent_workspace_id")
 				continue
 			}
-			if !seenAgents[agentID] {
-				seenAgents[agentID] = true
-				_, _ = fmt.Fprintf(logs, "Received agent update: %s (%d/%d)\n", agentID, len(seenAgents), expectedAgents)
+
+			if _, ok := agents[wsID]; !ok {
+				agents[wsID] = time.Now()
 			}
 		}
 
-		if len(seenWorkspaces) >= int(expectedWorkspaces) && len(seenAgents) >= int(expectedAgents) {
-			elapsed := time.Since(r.startTime)
-			_, _ = fmt.Fprintf(logs, "All expected workspaces (%d) and agents (%d) received in %v\n",
-				len(seenWorkspaces), len(seenAgents), elapsed)
-			r.cfg.Metrics.RecordCompletion(elapsed, r.cfg.MetricLabelValues...)
+		if seenWorkspaces == int(expectedWorkspaces) && len(agents) == int(expectedWorkspaces) {
+			// For each workspace, record the latency from build start to
+			// workspace update, or agent update, whichever is later.
+			r.workspaces.Range(func(wsName string, ws *workspace) bool {
+				if agentTime, ok := agents[ws.workspaceID]; ok {
+					agentLatency := agentTime.Sub(ws.buildStartTime)
+					if agentLatency > ws.updateLatency {
+						// Update in-place, so GetMetrics is accurate.
+						ws.updateLatency = agentLatency
+					}
+				} else {
+					// Unreachable, recorded for debugging
+					r.cfg.Metrics.AddError(user.Username, r.cfg.WorkspaceCount, "missing_agent")
+				}
+				r.cfg.Metrics.RecordCompletion(ws.updateLatency, user.Username, r.cfg.WorkspaceCount, wsName)
+				return true
+			})
+			_, _ = fmt.Fprintf(logs, "Updates received for all %d workspaces and agents\n", expectedWorkspaces)
 			return nil
 		}
 	}
@@ -260,9 +299,14 @@ const (
 )
 
 func (r *Runner) GetMetrics() map[string]any {
+	latencyMap := make(map[string]float64)
+	r.workspaces.Range(func(wsName string, ws *workspace) bool {
+		latencyMap[wsName] = ws.updateLatency.Seconds()
+		return true
+	})
 	return map[string]any{
 		WorkspaceUpdatesErrorsTotal:   r.cfg.Metrics.numErrors.Load(),
-		WorkspaceUpdatesLatencyMetric: r.cfg.Metrics.completionDuration.Seconds(),
+		WorkspaceUpdatesLatencyMetric: latencyMap,
 	}
 }
 

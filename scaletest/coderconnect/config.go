@@ -64,8 +64,6 @@ type Config struct {
 
 	Metrics *Metrics `json:"-"`
 
-	MetricLabelValues []string `json:"metric_label_values"`
-
 	// DialBarrier is used to ensure all runners have dialed the Coder Connect
 	// endpoint before creating their workspace(s).
 	DialBarrier *harness.Barrier `json:"-"`
@@ -80,6 +78,14 @@ func (c Config) Validate() error {
 	c.Workspace.UserID = codersdk.Me
 	if err := c.Workspace.Validate(); err != nil {
 		return xerrors.Errorf("workspace config: %w", err)
+	}
+
+	if c.Workspace.Request.Name != "" {
+		return xerrors.New("workspace name cannot be overridden")
+	}
+
+	if c.WorkspaceCount <= 0 {
+		return xerrors.New("workspace_count must be greater than 0")
 	}
 
 	if c.DialBarrier == nil {

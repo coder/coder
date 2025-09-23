@@ -1,6 +1,7 @@
 package coderconnect
 
 import (
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -11,24 +12,23 @@ type Metrics struct {
 	WorkspaceUpdatesLatencySeconds prometheus.HistogramVec
 	WorkspaceUpdatesErrorsTotal    prometheus.CounterVec
 
-	numErrors          atomic.Int64
-	completionDuration time.Duration
+	numErrors atomic.Int64
 }
 
-func NewMetrics(reg prometheus.Registerer, labelNames ...string) *Metrics {
+func NewMetrics(reg prometheus.Registerer) *Metrics {
 	m := &Metrics{
 		WorkspaceUpdatesLatencySeconds: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "workspace_updates_latency_seconds",
-			Help:      "Time until all expected workspaces and agents are seen via workspace updates",
-		}, labelNames),
+			Help:      "Time between starting a workspace build and receiving both the agent update and workspace update",
+		}, []string{"username", "owned_workspaces", "workspace"}),
 		WorkspaceUpdatesErrorsTotal: *prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "workspace_updates_errors_total",
 			Help:      "Total number of workspace updates errors",
-		}, append(labelNames, "action")),
+		}, []string{"username", "owned_workspaces", "action"}),
 	}
 
 	reg.MustRegister(m.WorkspaceUpdatesLatencySeconds)
@@ -36,12 +36,11 @@ func NewMetrics(reg prometheus.Registerer, labelNames ...string) *Metrics {
 	return m
 }
 
-func (m *Metrics) AddError(labelValues ...string) {
-	m.numErrors.Add(1)
-	m.WorkspaceUpdatesErrorsTotal.WithLabelValues(labelValues...).Inc()
+func (m *Metrics) RecordCompletion(elapsed time.Duration, username string, ownedWorkspaces int64, workspace string) {
+	m.WorkspaceUpdatesLatencySeconds.WithLabelValues(username, strconv.Itoa(int(ownedWorkspaces)), workspace).Observe(elapsed.Seconds())
 }
 
-func (m *Metrics) RecordCompletion(elapsed time.Duration, labelValues ...string) {
-	m.completionDuration = elapsed
-	m.WorkspaceUpdatesLatencySeconds.WithLabelValues(labelValues...).Observe(elapsed.Seconds())
+func (m *Metrics) AddError(username string, ownedWorkspaces int64, action string) {
+	m.numErrors.Add(1)
+	m.WorkspaceUpdatesErrorsTotal.WithLabelValues(username, strconv.Itoa(int(ownedWorkspaces)), action).Inc()
 }
