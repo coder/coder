@@ -4,18 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       issue_url:
-        description: 'GitHub Issue URL to process'
+        description: "GitHub Issue URL to process"
         required: true
         type: string
       template_name:
-        description: 'Coder template to use for workspace'
+        description: "Coder template to use for workspace"
         required: true
-        default: 'traiage'
+        default: "traiage"
         type: string
       prefix:
-        description: 'Prefix for workspace name'
+        description: "Prefix for workspace name"
         required: false
-        default: 'traiage'
+        default: "traiage"
         type: string
 
 jobs:
@@ -89,7 +89,7 @@ jobs:
           ISSUE_URL: ${{ inputs.issue_url }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          PROMPT_FILE=/tmp/prompt.txt
+          PROMPT_FILE=$(mktemp)
           trap 'rm -f "${PROMPT_FILE}"' EXIT
 
           # Fetch issue description using `gh` CLI
@@ -108,7 +108,7 @@ jobs:
           echo "WORKSPACE_NAME: ${WORKSPACE_NAME}"
           # This command will run the prompt inside the workspace
           # and exit once the agent has completed the task.
-          PROMPT=$(cat $PROMPT_FILE) ./scripts/traiage.sh prompt
+          PROMPT=$(cat "${PROMPT_FILE}") ./scripts/traiage.sh prompt
 
       - name: Create and upload archive
         id: create-archive
@@ -140,6 +140,27 @@ jobs:
             echo "BUCKET_PREFIX=${BUCKET_PREFIX} WORKSPACE_NAME=${WORKSPACE_NAME} ./scripts/traiage.sh resume";
             echo '```'
           } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Generate a summary of the changes and post a comment on GitHub.
+        id: generate-summary
+        env:
+          WORKSPACE_NAME: ${{ steps.create-workspace.outputs.workspace_name }}
+          ISSUE_URL: ${{ inputs.issue_url }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          SUMMARY_FILE=$(mktemp)
+          trap 'rm -f "${SUMMARY_FILE}"' EXIT
+
+          ./scripts/traiage.sh summary > "${SUMMARY_FILE}"
+          {
+            echo '';
+            echo "To fetch the output to your own workspace:";
+            echo '';
+            echo '```bash';
+            echo "BUCKET_PREFIX=${BUCKET_PREFIX} WORKSPACE_NAME=${WORKSPACE_NAME} ./scripts/traiage.sh resume";
+            echo '```'
+          } >> "${SUMMARY_FILE}"
+          gh pr comment "${ISSUE_URL}" --body-file "${SUMMARY_FILE}"
 
       - name: Cleanup workspace
         if: steps.create-workspace.outputs.workspace_name != '' && steps.create-archive.outputs.archive_url != ''
