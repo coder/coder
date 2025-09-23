@@ -160,7 +160,7 @@ jobs:
             echo "BUCKET_PREFIX=${BUCKET_PREFIX} WORKSPACE_NAME=${WORKSPACE_NAME} ./scripts/traiage.sh resume";
             echo '```'
           } >> "${SUMMARY_FILE}"
-          gh pr comment "${ISSUE_URL}" --body-file "${SUMMARY_FILE}"
+          gh issue comment "${ISSUE_URL}" --body-file "${SUMMARY_FILE}" --create-if-none --edit-last
 
       - name: Cleanup workspace
         if: steps.create-workspace.outputs.workspace_name != '' && steps.create-archive.outputs.archive_url != ''
