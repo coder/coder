@@ -84,7 +84,7 @@ data "coder_parameter" "three" {
 
   name         = "Three"
   display_name = "Level Three"
-  description  = "This is the first level."
+  description  = "This is the third level."
 
   type      = "string"
   form_type = "radio"
@@ -109,11 +109,11 @@ data "coder_parameter" "four" {
 
   type      = "string"
   form_type = "radio"
-  default   = "a_fake_value_to_satify_import"
+  default   = "a_fake_value_to_satisfy_import"
 
   option {
     name  = format("%s-%s", local.username, data.coder_parameter.three.value)
-    value = "a_fake_value_to_satify_import"
+    value = "a_fake_value_to_satisfy_import"
   }
 
   dynamic "option" {

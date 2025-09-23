@@ -16,22 +16,16 @@ func TemplateContent() (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	// Parse the template
 	tmpl, err := template.New("workspace-template").Parse(templateContent)
 	if err != nil {
 		return "", err
 	}
-
-	// Execute the template with the random string
 	var result strings.Builder
 	err = tmpl.Execute(&result, map[string]string{
 		"RandomString": randomString,
 	})
 	if err != nil {
-		// Return the original template if execution fails
 		return "", err
 	}
-
 	return result.String(), nil
 }

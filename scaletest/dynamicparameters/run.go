@@ -64,7 +64,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (retErr erro
 		if !slices.ContainsFunc(resp.Parameters, func(p codersdk.PreviewParameter) bool {
 			return p.Name == "zero"
 		}) {
-			return xerrors.Errorf("mising expected parameter: 'zero'")
+			return xerrors.Errorf("missing expected parameter: 'zero'")
 		}
 		if err := checkNoDiagnostics(resp); err != nil {
 			return xerrors.Errorf("unexpected initial response diagnostics: %w", err)
