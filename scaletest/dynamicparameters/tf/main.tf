@@ -11,12 +11,14 @@ terraform {
 locals {
   one_options = {
     "A" = ["AA", "AB"]
+    # spellchecker:ignore-next-line
     "B" = ["BA", "BB"]
   }
 
   three_options = {
     "AA" = ["AAA", "AAB"]
     "AB" = ["ABA", "ABB"]
+    # spellchecker:ignore-next-line
     "BA" = ["BAA", "BAB"]
     "BB" = ["BBA", "BBB"]
   }
