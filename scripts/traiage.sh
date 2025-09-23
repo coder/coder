@@ -20,6 +20,18 @@ usage() {
 
 create() {
 	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME TEMPLATE_NAME TEMPLATE_PARAMETERS
+	# Check if a workspace already exists
+	exists=$("${CODER_BIN}" \
+		--url "${CODER_URL}" \
+		--token "${CODER_SESSION_TOKEN}" \
+		list \
+		--search "owner:me name:"${WORKSPACE_NAME}" \
+		--output json \|
+		jq -r '. | length')
+	if [[ "${exists}" -eq "1" ]]; then
+		echo "Workspace ${WORKSPACE_NAME} already exists."
+		exit 0
+	fi
 	"${CODER_BIN}" \
 		--url "${CODER_URL}" \
 		--token "${CODER_SESSION_TOKEN}" \
