@@ -8,17 +8,13 @@ Tasks is Coder's platform for managing coding agents and other AI-enabled tools.
 
 - Connect an AI Agent like Claude Code or OpenAI's Codex to your IDE to assist in day-to-day development and building
 - Kick off AI-enabled workflows such as upgrading a vulnerable package and automatically opening a GitHub Pull Requests with the patch
-- Facilitate an automated agent to detect a failure in your CI/CD pipeline, spin up a Coder Workspace, apply a fix, and prepare a PR _without_ manual input
+- Configure a background operation where an automated agent to detect a failure in your CI/CD pipeline, spin up a Coder Workspace, apply a fix, and prepare a PR _without_ manual input
 
 ![Tasks UI](../images/guides/ai-agents/tasks-ui.png)Coder Tasks Dashboard view to see all available tasks.
 
 Coder Tasks allows you and your organization to build and automate workflows to fully leverage AI. Tasks operate through Coder Workspaces, so developers can [connect via an IDE](../user-guides/workspace-access) to jump in and guide development and fully interact with the agent.
 
 ## Why Use Tasks?
-
-- The problems they solve (consistency, reproducibility, reducing manual setup)
-- How they fit into the Coder mental model
-- Relation to developer productivity and environment setup
 
 Coder Tasks make both developer-driven _and_ autonomous agentic workflows first-class citizens within your organization. Without Tasks, teams will fall back to ad-hoc scripts, one-off commands, or manual checklists to perform simpler operations that LLMs can easily automate. These work arounds can help a single engineer, but don't scale or provide consistency across an organization that is attempting to use AI as a true force multiplier. 
 
@@ -72,9 +68,6 @@ flowchart LR
 ```
 
 ## How to Make a Task Template
-- Define what a “task template” is
-- How a template differs from a single-use task
-- Lifecycle: draft → reusable template
 
 ### Refresher: What are Templates
 
@@ -93,7 +86,7 @@ Coder templates also supports standard Terraform providers for connecting to ext
 Task templates are regular Coder Templates, with a few specific resources defined additionally. These resources prime the template and corresponding workspaces for automated execution and AI-driven workfows rather than development environments for developers and builders. 
 
 The specific resources that turn a template into a task template include:
-* `coder_ai_task`: Core resource that defines the AI-powered tasks and automation
+* **AgentAPI Module:** Coder's task execution engine that provides Web UI integration, task reporting, and agent lifecycle management that makes any module compatible with Coder Tasks
 * `coder_parameter` named _ai_prompt_: Define the AI prompt input so users can define/specify what tasks need to run
 
 The following code snippit can be dropped into any existing template to modify it into a Claude-Code enabled task template. This snippit also includes space for a setup script that will prime the agent for execution.
@@ -146,14 +139,20 @@ resource "coder_env" "anthropic_api_key" {
 }
 ```
 
-Breaking down this snippit:
-- You see a `module "claude-code"`. Modules are Terraform's method for providing consistent, repeatable inputs to a given directory; like a package you're importing. This module pulls in Claude Code, but Coder's Registry supports many other agent modules like [OpenAI's Codex](https://registry.coder.com/modules/coder-labs/codex) or [Gemini CLI](https://registry.coder.com/modules/coder-labs/gemini)
+Let's break down this snippit:
+- You aren't seeing the **AgentAPI Module**. That's because the AgentAPI module is it's own resource that other modules can pull in
+- The `module "claude-code"` sets up the Task template to use Claude Code, but Coder's Registry supports many other agent modules like [OpenAI's Codex](https://registry.coder.com/modules/coder-labs/codex) or [Gemini CLI](https://registry.coder.com/modules/coder-labs/gemini)
 - Each module define's its own specific inputs. Claude Code expects the `CODER_MCP_CLAUDE_API_KEY` environment variable to exist, but OpenAI based agents expect `OPENAI_API_KEY` for example. You'll want to check the specific module's defined variables to know what exactly needs to be defined
 - You can define specific scripts to run at startup of the Task. For example, you could define a setup scrip that calls to AWS S3 and pulls specific files you want your agent to have access to
 
-In other words, task templates are highly flexible: you can swap out modules depending on which agent you want to run, adjust their inputs based on the provider’s requirements, and layer on custom setup scripts to tailor the environment to your workflow. Whether that means using a different LLM, pointing to a new API key, or pulling files from S3 at startup, the template structure makes it easy to adapt Tasks without having to rebuild everything from scratch.
+Given this, you can easily build your own Task Template. All you need to do is identify the existing agent you want access to in our [Registry](https://registry.coder.com/modules), and then
+1. Add the agent's module to your existing template 
+1. Define the module's required inputs
+3. Define the `coder_parameter`
 
-TODO -- Need to explain what all this is, and how you could sub things in n out for other stuff
+and you're all set to go! If you want to build your own custom agent, read up on our [Custom Agents](https://coder.com/docs/ai-coder/custom-agents) documentation. 
+
+In summary, task templates are highly flexible. You can swap out modules depending on which agent you want to run, adjust their inputs based on the provider’s requirements, and layer on custom setup scripts to tailor the environment to your workflow. Whether that means using a different LLM, pointing to a new API key, or pulling files from S3 at startup, the template structure makes it easy to adapt Tasks without having to rebuild everything from scratch.
 
 ## Task Template Design Principles
 
@@ -164,16 +163,29 @@ Coder Tasks, being based in a given Workspace, operate on very similar principle
 - **Model Applicability:** Task Templates can specifiy which model is most appropriate, meaning you can fine tune your Task based on it's job, be that a code-focused model for fixing bugs or a generalized LLM to write summaries and updates on Pull Requests
 - **Automation:** Coder Tasks provide a comprehensive set of built-in APIs, status monitoring, and notification systems. This allows for you and your team to build seamless integrations with externation automation workflows
 
-Together, these principles make up the core idea of designing Task Templates. Tasks are programmable, secure, and cost-efficient agents that integrate seamlessly into your team's workflow. By treating Task Templates as as living and adaptable designs, you can evolve them with your team and needs without sacrificing clarity or control. The result is a system where automation, resource management, and secuirty are baked into the foundation letting developers focus less on orchestration details and more on solving the problems that matter.
+Together, these principles make up the core idea of designing Task Templates. Tasks are programmable, secure, and cost-efficient agents that integrate seamlessly into your team's workflow. By treating Task Templates as living and adaptable designs, you can evolve them with your team and needs without sacrificing clarity or control. The result is a system where automation, resource management, and secuirty are baked into the foundation letting developers focus less on orchestration details and more on solving the problems that matter.
 
-These design principles aren’t just technical guidelines, however; they’re the lens through which to understand what Tasks are and how to use them effectively. By grounding Tasks in specificity, security, frugality, applicability, and automation, you ensure they remain reliable building blocks for both individual workflows and larger team processes.
-
-TODO above feels fake
-
-### Task Best Practices
-
-TODO Is this needed
+These design principles aren’t just technical guidelines, however. They're the lens through which to understand what Tasks are and how to use them effectively. By grounding Tasks in specificity, security, frugality, applicability, and automation, you ensure they remain reliable building blocks for both individual workflows and larger team processes.
 
 ## How Tasks Fit Into Coder
 
-TODO fill this in
+Coder's platform is built around three core concepts that work together:
+
+**Templates** define the infrastructure and tool configurations taht can be reused across your organization. They're the "blueprint" that ensures consistentcy and captures your team's working preferences.
+
+**Workspaces** are the individual development environments that are spun up from templates. They provide developers with consistent, reproducible environments to perform their job.
+
+**Tasks** extend this model to AI agents and automated workflows. The same template-driven approach is now optimized to allow for autonomous execution that can be independent from human interaction.
+
+### Platform Integration
+
+Tasks aren't a separate system bolted onto Coder, but a natural extension of your existing infrastructure.
+- **Security:** Tasks inherit the same access controls, secrets management, and network policies as developer workspaces
+- **Resoruce Management:** Tasks have access to the same compute pools, storage, and scaling policies you've already configured
+- **Observability:** Tasks use the same underlying infrastructure for monitoring, and appear in their own custom task-specific dashboards
+
+### Developer Experience Continuity
+
+Coder understand that every team is in a different place in it's AI adoption plan. Some teams are still working to AI assistants to speed up development, while other teams are adopting background tasks to automate PR reviews and small bug fixes.
+
+Naturally, your team might want to jump into a Task, for example when the agent encounters an issue or needs human input. With Tasks, you're able to jump into the existing Coder Workspace environment backing up the Task exectuion so that you can push the work forward. There's no context switching between tools; it's the same Workspace you're already used to and the agent's work becomes yours.
