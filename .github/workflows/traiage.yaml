@@ -126,6 +126,7 @@ jobs:
           BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
           CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
           GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           ISSUE_URL: ${{ inputs.issue_url }}
           WORKSPACE_NAME: ${{ steps.create-workspace.outputs.workspace_name }}
         run: |
@@ -149,19 +150,12 @@ jobs:
             echo ''
           } >> "${SUMMARY_FILE}"
 
-          ./scripts/traiage.sh summary >> "${SUMMARY_FILE}"
-          SUMMARY=$(<"${SUMMARY_FILE}")
-          echo "${SUMMARY}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "summary=${SUMMARY}" >> "${GITHUB_OUTPUT}"
-
-      - name: Comment on Issue (only for coder/coder)
-        id: comment-issue
-        if: ${{ startsWith(github.event.inputs.issue_url, format('https://github.com/{0}/', github.repository)) }}
-        env:
-          ISSUE_URL: ${{ inputs.issue_url }}
-          SUMMARY: ${{ steps.generate-summary.outputs.summary }}
-        run: |
-          gh issue comment "${ISSUE_URL}" --body-file "${SUMMARY}" --create-if-none --edit-last
+          if [[ "${ISSUE_URL}" == "${GITHUB_REPOSITORY}"* ]]; then
+            gh issue comment "${ISSUE_URL}" --body-file "${SUMMARY_FILE}" --create-if-none --edit-last
+          else
+            echo "Skipping comment on other repo."
+          fi
+          cat < "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Cleanup workspace
         if: steps.create-workspace.outputs.workspace_name != '' && steps.create-archive.outputs.archive_url != ''
