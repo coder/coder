@@ -244,7 +244,12 @@ export const CreateTaskSuccessfully: Story = {
 		}),
 	},
 	beforeEach: () => {
+		const activeVersionId = `${MockTemplate.active_version_id}-latest`;
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API, "getTemplate").mockResolvedValue({
+			...MockTemplate,
+			active_version_id: activeVersionId,
+		});
 		spyOn(API.experimental, "getTasks")
 			.mockResolvedValueOnce(MockTasks)
 			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
@@ -259,6 +264,17 @@ export const CreateTaskSuccessfully: Story = {
 			const submitButton = canvas.getByRole("button", { name: /run task/i });
 			await waitFor(() => expect(submitButton).toBeEnabled());
 			await userEvent.click(submitButton);
+		});
+
+		await step("Uses latest template version", () => {
+			expect(API.experimental.createTask).toHaveBeenCalledWith(
+				MockUserOwner.id,
+				{
+					prompt: MockNewTaskData.prompt,
+					template_version_id: `${MockTemplate.active_version_id}-latest`,
+					template_version_preset_id: undefined,
+				},
+			);
 		});
 
 		await step("Redirects to the task page", async () => {
