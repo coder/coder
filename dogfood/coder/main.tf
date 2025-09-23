@@ -409,11 +409,12 @@ module "vscode-web" {
 module "jetbrains" {
   count         = contains(jsondecode(data.coder_parameter.ide_choices.value), "jetbrains") ? data.coder_workspace.me.start_count : 0
   source        = "dev.registry.coder.com/coder/jetbrains/coder"
-  version       = "1.0.3"
+  version       = "1.1.0"
   agent_id      = coder_agent.dev.id
   agent_name    = "dev"
   folder        = local.repo_dir
   major_version = "latest"
+  tooltip       = "You need to [Install Coder Desktop](https://coder.com/docs/user-guides/desktop#install-coder-desktop) to use this button."
 }
 
 module "filebrowser" {
@@ -953,15 +954,4 @@ resource "coder_app" "preview" {
     interval  = 5
     threshold = 15
   }
-}
-
-resource "coder_app" "terminal_tooltip" {
-  count        = data.coder_workspace.me.start_count
-  agent_id     = coder_agent.dev.id
-  slug         = "terminal"
-  display_name = "Terminal (w/tooltip)"
-  icon         = "/icon/terminal.svg"
-  share        = "authenticated"
-  order        = 2
-  tooltip      = "This is a tooltip with Markdown support: **bold**, _italic_, and [link](https://coder.com/docs)"
 }
