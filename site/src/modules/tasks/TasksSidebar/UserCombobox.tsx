@@ -58,7 +58,7 @@ export const UserCombobox: FC<UserComboboxProps> = ({
 					disabled={!isFetched}
 					role="combobox"
 					aria-expanded={open}
-					className="justify-between rounded-full bg-surface-tertiary border border-border hover:bg-surface-quaternary text-content-primary pl-3 w-full"
+					className="justify-between rounded-full bg-surface-tertiary border border-border hover:bg-surface-quaternary text-content-primary pl-3 w-fit"
 					size="sm"
 				>
 					{isFetched ? (
