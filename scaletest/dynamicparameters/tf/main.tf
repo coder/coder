@@ -66,18 +66,10 @@ data "coder_parameter" "one" {
   }
 }
 
-data "coder_parameter" "two" {
+module "two" {
+  source = "./modules/two"
 
-  name         = "Two"
-  display_name = "Level Two"
-  description  = "This is the second level."
-
-  type      = "string"
-  form_type = "textarea"
-  order     = 3
-  mutable   = true
-
-  default = trim(data.coder_parameter.one.value, "[\"]")
+  one_value = data.coder_parameter.one.value
 }
 
 data "coder_parameter" "three" {
@@ -90,10 +82,10 @@ data "coder_parameter" "three" {
   form_type = "radio"
   order     = 4
   mutable   = true
-  default   = local.three_options[data.coder_parameter.two.value][0]
+  default   = local.three_options[module.two.two_value][0]
 
   dynamic "option" {
-    for_each = local.three_options[data.coder_parameter.two.value]
+    for_each = local.three_options[module.two.two_value]
     content {
       name  = option.value
       value = option.value

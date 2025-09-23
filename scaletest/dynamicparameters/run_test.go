@@ -7,6 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/scaletest/dynamicparameters"
 	"github.com/coder/coder/v2/testutil"
@@ -17,6 +18,7 @@ func TestRun(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	client.SetLogger(testutil.Logger(t).Leveled(slog.LevelDebug))
 	first := coderdtest.CreateFirstUser(t, client)
 	userClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 	orgID := first.OrganizationID
@@ -29,6 +31,7 @@ func TestRun(t *testing.T) {
 		Plan:           nil,
 		ModulesArchive: nil,
 		StaticParams:   nil,
+		ExtraFiles:     dynamicparameters.GetModuleFiles(),
 	})
 
 	reg := prometheus.NewRegistry()
