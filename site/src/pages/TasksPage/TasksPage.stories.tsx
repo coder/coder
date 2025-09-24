@@ -226,6 +226,7 @@ export const LoadedTasksWaitingForInputTab: Story = {
 };
 
 export const CreateTaskSuccessfully: Story = {
+	decorators: [withGlobalSnackbar],
 	parameters: {
 		reactRouter: reactRouterParameters({
 			location: {
@@ -261,8 +262,17 @@ export const CreateTaskSuccessfully: Story = {
 			await userEvent.click(submitButton);
 		});
 
-		await step("Redirects to the task page", async () => {
-			await canvas.findByText(/task page/i);
+		await step("Displays success message", async () => {
+			const body = within(canvasElement.ownerDocument.body);
+			const successMessage = await body.findByText(/task created/i);
+			expect(successMessage).toBeInTheDocument();
+		});
+
+		await step("Find task in the table", async () => {
+			const table = canvasElement.querySelector("table");
+			await waitFor(() => {
+				expect(table).toHaveTextContent(MockNewTaskData.prompt);
+			});
 		});
 	},
 };
