@@ -22,7 +22,6 @@ type NotificationsProps = {
 	items: NotificationItem[];
 	severity: ThemeRole;
 	icon: ReactNode;
-	isTooltipOpen: boolean;
 };
 
 export const Notifications: FC<NotificationsProps> = ({
@@ -66,7 +65,11 @@ export const Notifications: FC<NotificationsProps> = ({
 	);
 };
 
-const NotificationPill: FC<NotificationsProps> = ({
+type NotificationPillProps = NotificationsProps & {
+	isTooltipOpen: boolean;
+};
+
+const NotificationPill: FC<NotificationPillProps> = ({
 	items,
 	severity,
 	icon,
