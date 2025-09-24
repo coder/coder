@@ -4,9 +4,11 @@ import type { FC } from "react";
 import { Link } from "../Link/Link";
 import { Alert, AlertDetail, type AlertProps } from "./Alert";
 
-export const ErrorAlert: FC<
+type ErrorAlertProps = Readonly<
 	Omit<AlertProps, "severity" | "children"> & { error: unknown }
-> = ({ error, ...alertProps }) => {
+>;
+
+export const ErrorAlert: FC<ErrorAlertProps> = ({ error, ...alertProps }) => {
 	const message = getErrorMessage(error, "Something went wrong.");
 	const detail = getErrorDetail(error);
 	const status = getErrorStatus(error);

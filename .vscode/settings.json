@@ -54,6 +54,7 @@
 		}
 	},
 
+	"tailwindCSS.classFunctions": ["cva", "cn"],
 	"[css][html][markdown][yaml]": {
 		"editor.defaultFormatter": "esbenp.prettier-vscode"
 	},

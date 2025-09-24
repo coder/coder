@@ -26,16 +26,15 @@ import (
 func TestSharingShare(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-
 	t.Run("ShareWithGroups_Simple", func(t *testing.T) {
 		t.Parallel()
 
 		var (
 			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
-					DeploymentValues: dv,
+					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+						dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{
@@ -86,7 +85,9 @@ func TestSharingShare(t *testing.T) {
 		var (
 			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
-					DeploymentValues: dv,
+					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+						dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{
@@ -140,7 +141,9 @@ func TestSharingShare(t *testing.T) {
 			var (
 				client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 					Options: &coderdtest.Options{
-						DeploymentValues: dv,
+						DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+							dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+						}),
 					},
 					LicenseOptions: &coderdenttest.LicenseOptions{
 						Features: license.Features{
@@ -190,16 +193,15 @@ func TestSharingShare(t *testing.T) {
 func TestSharingStatus(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-
 	t.Run("ListSharedUsers", func(t *testing.T) {
 		t.Parallel()
 
 		var (
 			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
-					DeploymentValues: dv,
+					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+						dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{
@@ -248,16 +250,15 @@ func TestSharingStatus(t *testing.T) {
 func TestSharingRemove(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-
 	t.Run("RemoveSharedGroup_Single", func(t *testing.T) {
 		t.Parallel()
 
 		var (
 			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
-					DeploymentValues: dv,
+					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+						dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{
@@ -328,7 +329,9 @@ func TestSharingRemove(t *testing.T) {
 		var (
 			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
-					DeploymentValues: dv,
+					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+						dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{

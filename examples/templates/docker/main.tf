@@ -137,10 +137,11 @@ module "code-server" {
 module "jetbrains" {
   count      = data.coder_workspace.me.start_count
   source     = "registry.coder.com/coder/jetbrains/coder"
-  version    = "~> 1.0"
+  version    = "~> 1.1"
   agent_id   = coder_agent.main.id
   agent_name = "main"
   folder     = "/home/coder"
+  tooltip    = "You need to [Install Coder Desktop](https://coder.com/docs/user-guides/desktop#install-coder-desktop) to use this button."
 }
 
 resource "docker_volume" "home_volume" {

@@ -12,7 +12,145 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
 
 CREATE TYPE api_key_scope AS ENUM (
     'all',
-    'application_connect'
+    'application_connect',
+    'aibridge_interception:create',
+    'aibridge_interception:read',
+    'aibridge_interception:update',
+    'api_key:create',
+    'api_key:delete',
+    'api_key:read',
+    'api_key:update',
+    'assign_org_role:assign',
+    'assign_org_role:create',
+    'assign_org_role:delete',
+    'assign_org_role:read',
+    'assign_org_role:unassign',
+    'assign_org_role:update',
+    'assign_role:assign',
+    'assign_role:read',
+    'assign_role:unassign',
+    'audit_log:create',
+    'audit_log:read',
+    'connection_log:read',
+    'connection_log:update',
+    'crypto_key:create',
+    'crypto_key:delete',
+    'crypto_key:read',
+    'crypto_key:update',
+    'debug_info:read',
+    'deployment_config:read',
+    'deployment_config:update',
+    'deployment_stats:read',
+    'file:create',
+    'file:read',
+    'group:create',
+    'group:delete',
+    'group:read',
+    'group:update',
+    'group_member:read',
+    'idpsync_settings:read',
+    'idpsync_settings:update',
+    'inbox_notification:create',
+    'inbox_notification:read',
+    'inbox_notification:update',
+    'license:create',
+    'license:delete',
+    'license:read',
+    'notification_message:create',
+    'notification_message:delete',
+    'notification_message:read',
+    'notification_message:update',
+    'notification_preference:read',
+    'notification_preference:update',
+    'notification_template:read',
+    'notification_template:update',
+    'oauth2_app:create',
+    'oauth2_app:delete',
+    'oauth2_app:read',
+    'oauth2_app:update',
+    'oauth2_app_code_token:create',
+    'oauth2_app_code_token:delete',
+    'oauth2_app_code_token:read',
+    'oauth2_app_secret:create',
+    'oauth2_app_secret:delete',
+    'oauth2_app_secret:read',
+    'oauth2_app_secret:update',
+    'organization:create',
+    'organization:delete',
+    'organization:read',
+    'organization:update',
+    'organization_member:create',
+    'organization_member:delete',
+    'organization_member:read',
+    'organization_member:update',
+    'prebuilt_workspace:delete',
+    'prebuilt_workspace:update',
+    'provisioner_daemon:create',
+    'provisioner_daemon:delete',
+    'provisioner_daemon:read',
+    'provisioner_daemon:update',
+    'provisioner_jobs:create',
+    'provisioner_jobs:read',
+    'provisioner_jobs:update',
+    'replicas:read',
+    'system:create',
+    'system:delete',
+    'system:read',
+    'system:update',
+    'tailnet_coordinator:create',
+    'tailnet_coordinator:delete',
+    'tailnet_coordinator:read',
+    'tailnet_coordinator:update',
+    'template:create',
+    'template:delete',
+    'template:read',
+    'template:update',
+    'template:use',
+    'template:view_insights',
+    'usage_event:create',
+    'usage_event:read',
+    'usage_event:update',
+    'user:create',
+    'user:delete',
+    'user:read',
+    'user:read_personal',
+    'user:update',
+    'user:update_personal',
+    'user_secret:create',
+    'user_secret:delete',
+    'user_secret:read',
+    'user_secret:update',
+    'webpush_subscription:create',
+    'webpush_subscription:delete',
+    'webpush_subscription:read',
+    'workspace:application_connect',
+    'workspace:create',
+    'workspace:create_agent',
+    'workspace:delete',
+    'workspace:delete_agent',
+    'workspace:read',
+    'workspace:ssh',
+    'workspace:start',
+    'workspace:stop',
+    'workspace:update',
+    'workspace_agent_devcontainers:create',
+    'workspace_agent_resource_monitor:create',
+    'workspace_agent_resource_monitor:read',
+    'workspace_agent_resource_monitor:update',
+    'workspace_dormant:application_connect',
+    'workspace_dormant:create',
+    'workspace_dormant:create_agent',
+    'workspace_dormant:delete',
+    'workspace_dormant:delete_agent',
+    'workspace_dormant:read',
+    'workspace_dormant:ssh',
+    'workspace_dormant:start',
+    'workspace_dormant:stop',
+    'workspace_dormant:update',
+    'workspace_proxy:create',
+    'workspace_proxy:delete',
+    'workspace_proxy:read',
+    'workspace_proxy:update'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -847,6 +985,68 @@ BEGIN
 END;
 $$;
 
+CREATE TABLE aibridge_interceptions (
+    id uuid NOT NULL,
+    initiator_id uuid NOT NULL,
+    provider text NOT NULL,
+    model text NOT NULL,
+    started_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
+
+COMMENT ON COLUMN aibridge_interceptions.initiator_id IS 'Relates to a users record, but FK is elided for performance.';
+
+CREATE TABLE aibridge_token_usages (
+    id uuid NOT NULL,
+    interception_id uuid NOT NULL,
+    provider_response_id text NOT NULL,
+    input_tokens bigint NOT NULL,
+    output_tokens bigint NOT NULL,
+    metadata jsonb,
+    created_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE aibridge_token_usages IS 'Audit log of tokens used by intercepted requests in AI Bridge';
+
+COMMENT ON COLUMN aibridge_token_usages.provider_response_id IS 'The ID for the response in which the tokens were used, produced by the provider.';
+
+CREATE TABLE aibridge_tool_usages (
+    id uuid NOT NULL,
+    interception_id uuid NOT NULL,
+    provider_response_id text NOT NULL,
+    server_url text,
+    tool text NOT NULL,
+    input text NOT NULL,
+    injected boolean DEFAULT false NOT NULL,
+    invocation_error text,
+    metadata jsonb,
+    created_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE aibridge_tool_usages IS 'Audit log of tool calls in intercepted requests in AI Bridge';
+
+COMMENT ON COLUMN aibridge_tool_usages.provider_response_id IS 'The ID for the response in which the tools were used, produced by the provider.';
+
+COMMENT ON COLUMN aibridge_tool_usages.server_url IS 'The name of the MCP server against which this tool was invoked. May be NULL, in which case the tool was defined by the client, not injected.';
+
+COMMENT ON COLUMN aibridge_tool_usages.injected IS 'Whether this tool was injected; i.e. Bridge injected these tools into the request from an MCP server. If false it means a tool was defined by the client and already existed in the request (MCP or built-in).';
+
+COMMENT ON COLUMN aibridge_tool_usages.invocation_error IS 'Only injected tools are invoked.';
+
+CREATE TABLE aibridge_user_prompts (
+    id uuid NOT NULL,
+    interception_id uuid NOT NULL,
+    provider_response_id text NOT NULL,
+    prompt text NOT NULL,
+    metadata jsonb,
+    created_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE aibridge_user_prompts IS 'Audit log of prompts used by intercepted requests in AI Bridge';
+
+COMMENT ON COLUMN aibridge_user_prompts.provider_response_id IS 'The ID for the response to the given prompt, produced by the provider.';
+
 CREATE TABLE api_keys (
     id text NOT NULL,
     hashed_secret bytea NOT NULL,
@@ -858,8 +1058,9 @@ CREATE TABLE api_keys (
     login_type login_type NOT NULL,
     lifetime_seconds bigint DEFAULT 86400 NOT NULL,
     ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL,
-    scope api_key_scope DEFAULT 'all'::api_key_scope NOT NULL,
-    token_name text DEFAULT ''::text NOT NULL
+    token_name text DEFAULT ''::text NOT NULL,
+    scopes api_key_scope[] NOT NULL,
+    allow_list text[] NOT NULL
 );
 
 COMMENT ON COLUMN api_keys.hashed_secret IS 'hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.';
@@ -891,7 +1092,7 @@ CREATE TABLE connection_logs (
     workspace_name text NOT NULL,
     agent_name text NOT NULL,
     type connection_type NOT NULL,
-    ip inet NOT NULL,
+    ip inet,
     code integer,
     user_agent text,
     user_id uuid,
@@ -2597,6 +2798,18 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY aibridge_interceptions
+    ADD CONSTRAINT aibridge_interceptions_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY aibridge_token_usages
+    ADD CONSTRAINT aibridge_token_usages_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY aibridge_tool_usages
+    ADD CONSTRAINT aibridge_tool_usages_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY aibridge_user_prompts
+    ADD CONSTRAINT aibridge_user_prompts_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_pkey PRIMARY KEY (id);
 
@@ -2895,6 +3108,20 @@ COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys querie
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
+
+CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions USING btree (initiator_id);
+
+CREATE INDEX idx_aibridge_token_usages_interception_id ON aibridge_token_usages USING btree (interception_id);
+
+CREATE INDEX idx_aibridge_token_usages_provider_response_id ON aibridge_token_usages USING btree (provider_response_id);
+
+CREATE INDEX idx_aibridge_tool_usages_interception_id ON aibridge_tool_usages USING btree (interception_id);
+
+CREATE INDEX idx_aibridge_tool_usagesprovider_response_id ON aibridge_tool_usages USING btree (provider_response_id);
+
+CREATE INDEX idx_aibridge_user_prompts_interception_id ON aibridge_user_prompts USING btree (interception_id);
+
+CREATE INDEX idx_aibridge_user_prompts_provider_response_id ON aibridge_user_prompts USING btree (provider_response_id);
 
 CREATE UNIQUE INDEX idx_api_key_name ON api_keys USING btree (user_id, token_name) WHERE (login_type = 'token'::login_type);
 

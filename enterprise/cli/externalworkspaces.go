@@ -77,10 +77,12 @@ func (r *RootCmd) externalWorkspaceCreate() *serpent.Command {
 	cmd := r.Create(opts)
 	cmd.Use = "create [workspace]"
 	cmd.Short = "Create a new external workspace"
-	cmd.Middleware = serpent.Chain(
-		cmd.Middleware,
-		serpent.RequireNArgs(1),
-	)
+	newMiddlewares := []serpent.MiddlewareFunc{}
+	if cmd.Middleware != nil {
+		newMiddlewares = append(newMiddlewares, cmd.Middleware)
+	}
+	newMiddlewares = append(newMiddlewares, serpent.RequireNArgs(1))
+	cmd.Middleware = serpent.Chain(newMiddlewares...)
 
 	for i := range cmd.Options {
 		if cmd.Options[i].Flag == "template" {
@@ -93,7 +95,6 @@ func (r *RootCmd) externalWorkspaceCreate() *serpent.Command {
 
 // externalWorkspaceAgentInstructions prints the instructions for an external agent.
 func (r *RootCmd) externalWorkspaceAgentInstructions() *serpent.Command {
-	client := new(codersdk.Client)
 	formatter := cliui.NewOutputFormatter(
 		cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
 			agent, ok := data.(externalAgent)
@@ -109,8 +110,13 @@ func (r *RootCmd) externalWorkspaceAgentInstructions() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:        "agent-instructions [user/]workspace[.agent]",
 		Short:      "Get the instructions for an external agent",
-		Middleware: serpent.Chain(r.InitClient(client), serpent.RequireNArgs(1)),
+		Middleware: serpent.Chain(serpent.RequireNArgs(1)),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			workspace, workspaceAgent, _, err := agpl.GetWorkspaceAndAgent(inv.Context(), inv, client, false, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("find workspace and agent: %w", err)
@@ -162,7 +168,6 @@ func (r *RootCmd) externalWorkspaceList() *serpent.Command {
 			cliui.JSONFormat(),
 		)
 	)
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: map[string]string{
 			"workspaces": "",
@@ -172,9 +177,13 @@ func (r *RootCmd) externalWorkspaceList() *serpent.Command {
 		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			baseFilter := filter.Filter()
 
 			if baseFilter.FilterQuery == "" {

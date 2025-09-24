@@ -31,16 +31,17 @@ func (r *RootCmd) organizationMembers(orgContext *OrganizationContext) *serpent.
 }
 
 func (r *RootCmd) removeOrganizationMember(orgContext *OrganizationContext) *serpent.Command {
-	client := new(codersdk.Client)
-
 	cmd := &serpent.Command{
 		Use:   "remove <username | user_id>",
 		Short: "Remove a new member to the current organization",
 		Middleware: serpent.Chain(
-			r.InitClient(client),
 			serpent.RequireNArgs(1),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			ctx := inv.Context()
 			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
@@ -62,16 +63,17 @@ func (r *RootCmd) removeOrganizationMember(orgContext *OrganizationContext) *ser
 }
 
 func (r *RootCmd) addOrganizationMember(orgContext *OrganizationContext) *serpent.Command {
-	client := new(codersdk.Client)
-
 	cmd := &serpent.Command{
 		Use:   "add <username | user_id>",
 		Short: "Add a new member to the current organization",
 		Middleware: serpent.Chain(
-			r.InitClient(client),
 			serpent.RequireNArgs(1),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			ctx := inv.Context()
 			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
@@ -93,16 +95,15 @@ func (r *RootCmd) addOrganizationMember(orgContext *OrganizationContext) *serpen
 }
 
 func (r *RootCmd) assignOrganizationRoles(orgContext *OrganizationContext) *serpent.Command {
-	client := new(codersdk.Client)
-
 	cmd := &serpent.Command{
 		Use:     "edit-roles <username | user_id> [roles...]",
 		Aliases: []string{"edit-role"},
 		Short:   "Edit organization member's roles",
-		Middleware: serpent.Chain(
-			r.InitClient(client),
-		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			ctx := inv.Context()
 			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
@@ -141,15 +142,18 @@ func (r *RootCmd) listOrganizationMembers(orgContext *OrganizationContext) *serp
 		cliui.JSONFormat(),
 	)
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "list",
 		Short: "List all organization members",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			ctx := inv.Context()
 			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
