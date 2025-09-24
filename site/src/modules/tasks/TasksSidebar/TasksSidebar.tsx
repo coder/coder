@@ -3,6 +3,8 @@ import { getErrorMessage } from "api/errors";
 import { cva } from "class-variance-authority";
 import { Button } from "components/Button/Button";
 import { CoderIcon } from "components/Icons/CoderIcon";
+import { ScrollArea } from "components/ScrollArea/ScrollArea";
+import { Skeleton } from "components/Skeleton/Skeleton";
 import {
 	Tooltip,
 	TooltipContent,
@@ -14,7 +16,7 @@ import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { EditIcon, PanelLeftIcon } from "lucide-react";
 import type { Task } from "modules/tasks/tasks";
 import { type FC, useState } from "react";
-import { keepPreviousData, useQuery } from "react-query";
+import { useQuery } from "react-query";
 import { Link as RouterLink, useParams } from "react-router";
 import { cn } from "utils/cn";
 import { UserCombobox } from "./UserCombobox";
@@ -43,7 +45,7 @@ export const TasksSidebar: FC = () => {
 						variant="subtle"
 						className={cn([
 							"size-8 p-0 transition-[margin,opacity]",
-							"group-data-[collapsible=icon]:-ml-10 group-data-[collapsible=icon]:opacity-0",
+							"group-data-[collapsible=icon]:-ml-10",
 						])}
 					>
 						<CoderIcon className="fill-content-primary !size-6 !p-0" />
@@ -129,36 +131,34 @@ const TasksSidebarGroup: FC<TasksSidebarGroupProps> = ({ username }) => {
 	});
 
 	return (
-		<div className="flex flex-col flex-1 gap-2 min-h-0 transition-[opacity] group-data-[collapsible=icon]:opacity-0">
-			<div className="text-content-secondary text-xs">Tasks</div>
-			<div className="flex flex-col flex-1 gap-1 min-h-0 overflow-y-auto">
-				{tasksQuery.data ? (
-					tasksQuery.data.length > 0 ? (
-						tasksQuery.data.map((t) => (
-							<TaskSidebarMenuItem key={t.workspace.id} task={t} />
-						))
-					) : (
+		<ScrollArea>
+			<div className="flex flex-col gap-2">
+				<div className="text-content-secondary text-xs">Tasks</div>
+				<div className="flex flex-col flex-1 gap-1">
+					{tasksQuery.data ? (
+						tasksQuery.data.length > 0 ? (
+							tasksQuery.data.map((t) => (
+								<TaskSidebarMenuItem key={t.workspace.id} task={t} />
+							))
+						) : (
+							<div className="text-content-secondary text-xs p-4 border-border border-solid rounded text-center">
+								No tasks found
+							</div>
+						)
+					) : tasksQuery.error ? (
 						<div className="text-content-secondary text-xs p-4 border-border border-solid rounded text-center">
-							No tasks found
+							{getErrorMessage(tasksQuery.error, "Failed to load tasks")}
 						</div>
-					)
-				) : tasksQuery.error ? (
-					<div className="text-content-secondary text-xs p-4 border-border border-solid rounded text-center">
-						{getErrorMessage(tasksQuery.error, "Failed to load tasks")}
-					</div>
-				) : (
-					<div className="flex flex-col gap-1">
-						{Array.from({ length: 5 }).map((_, index) => (
-							<div
-								key={index}
-								aria-hidden={true}
-								className="h-8 w-full rounded-lg bg-surface-tertiary animate-pulse"
-							/>
-						))}
-					</div>
-				)}
+					) : (
+						<div className="flex flex-col gap-1">
+							{Array.from({ length: 5 }).map((_, index) => (
+								<Skeleton className="h-8 w-full" key={index} />
+							))}
+						</div>
+					)}
+				</div>
 			</div>
-		</div>
+		</ScrollArea>
 	);
 };
 
