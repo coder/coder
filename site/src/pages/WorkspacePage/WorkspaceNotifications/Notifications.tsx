@@ -1,4 +1,4 @@
-import { useTheme, type Interpolation, type Theme } from "@emotion/react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import type { AlertProps } from "components/Alert/Alert";
 import { Button, type ButtonProps } from "components/Button/Button";
 import { Pill } from "components/Pill/Pill";
@@ -8,7 +8,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { useState, type FC, type ReactNode } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import type { ThemeRole } from "theme/roles";
 
 export type NotificationItem = {

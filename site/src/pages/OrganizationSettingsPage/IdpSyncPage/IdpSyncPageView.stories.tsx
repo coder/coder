@@ -1,13 +1,13 @@
 import {
 	MockGroup,
 	MockGroup2,
+	MockGroup3,
 	MockGroupSyncSettings,
 	MockGroupSyncSettings2,
-	MockMultipleOverflowGroupSyncSettings,
 	MockLegacyMappingGroupSyncSettings,
+	MockMultipleOverflowGroupSyncSettings,
 	MockOrganization,
 	MockRoleSyncSettings,
-	MockGroup3,
 } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent } from "storybook/test";
