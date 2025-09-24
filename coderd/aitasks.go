@@ -22,6 +22,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -732,7 +733,8 @@ func (api *API) authAndDoWithTaskSidebarAppClient(
 			agentIDs = append(agentIDs, agent.ID)
 		}
 	}
-	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(ctx, agentIDs)
+	// TODO(mafredri): Can we avoid dbauthz.AsSystemRestricted(ctx)?
+	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace apps.",

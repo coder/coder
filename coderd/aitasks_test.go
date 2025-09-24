@@ -415,11 +415,9 @@ func TestTasks(t *testing.T) {
 		t.Run("OK", func(t *testing.T) {
 			t.Parallel()
 
-			coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			t.Cleanup(func() { _ = closer.Close() })
-			user := coderdtest.CreateFirstUser(t, coderClient)
-			client := coderClient
-			ctx := testutil.Context(t, testutil.WaitLong)
+			client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+			userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 			// Start a fake AgentAPI that accepts POST /message with 200 OK.
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -433,10 +431,10 @@ func TestTasks(t *testing.T) {
 
 			// Create an AI-capable template whose sidebar app points to our fake AgentAPI.
 			authToken := uuid.NewString()
-			template := createAITemplate(t, client, user, withSidebarURL(srv.URL), withAgentToken(authToken))
+			template := createAITemplate(t, client, owner, withSidebarURL(srv.URL), withAgentToken(authToken))
 
 			// Create a workspace (task) from the AI-capable template.
-			ws := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+			ws := coderdtest.CreateWorkspace(t, userClient, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
 				req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
 					{Name: codersdk.AITaskPromptParameterName, Value: "send a message"},
 				}
@@ -449,6 +447,8 @@ func TestTasks(t *testing.T) {
 				o.Client = agentClient
 			})
 			coderdtest.NewWorkspaceAgentWaiter(t, client, ws.ID).WaitFor(coderdtest.AgentsReady)
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			// Lookup the sidebar app ID.
 			w, err := client.Workspace(ctx, ws.ID)
@@ -473,7 +473,7 @@ func TestTasks(t *testing.T) {
 			require.NoError(t, err)
 
 			// Send task input to the tasks sidebar app and expect 204.
-			exp := codersdk.NewExperimentalClient(client)
+			exp := codersdk.NewExperimentalClient(userClient)
 			err = exp.TaskSend(ctx, "me", ws.ID, codersdk.TaskSendRequest{
 				Input: "Hello, Agent!",
 			})
