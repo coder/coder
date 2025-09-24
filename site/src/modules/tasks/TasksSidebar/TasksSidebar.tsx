@@ -43,10 +43,7 @@ export const TasksSidebar: FC = () => {
 					<Button
 						size="icon"
 						variant="subtle"
-						className={cn([
-							"size-8 p-0 transition-[margin,opacity]",
-							"group-data-[collapsible=icon]:-ml-10",
-						])}
+						className={cn(["size-8 p-0 transition-[margin,opacity]"])}
 					>
 						<CoderIcon className="fill-content-primary !size-6 !p-0" />
 					</Button>
