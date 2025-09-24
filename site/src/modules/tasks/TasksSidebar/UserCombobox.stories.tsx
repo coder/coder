@@ -34,9 +34,12 @@ export const Loading: Story = {
 	},
 };
 
-export const AllUsers: Story = {
-	parameters: {
-		queries: [{ key: ["users"], data: MockUsers }],
+export const Loaded: Story = {
+	beforeEach: () => {
+		spyOn(API, "getUsers").mockResolvedValue({
+			count: MockUsers.length,
+			users: MockUsers,
+		});
 	},
 };
 

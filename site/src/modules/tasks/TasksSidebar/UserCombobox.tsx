@@ -43,6 +43,9 @@ export const UserCombobox: FC<UserComboboxProps> = ({
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
 	const debouncedSearch = useDebouncedValue(search, 250);
+	// By default, this combobox filters by the authenticated user.
+	// To ensure consistent behavior, we must always include the
+	// authenticated user in the list of options.
 	const { user } = useAuthenticated();
 	const { data: options, isFetched } = useQuery({
 		...users({ q: debouncedSearch }),
@@ -58,7 +61,7 @@ export const UserCombobox: FC<UserComboboxProps> = ({
 					disabled={!isFetched}
 					role="combobox"
 					aria-expanded={open}
-					className="justify-between rounded-full bg-surface-tertiary border border-border hover:bg-surface-quaternary text-content-primary pl-3 w-full"
+					className="justify-between rounded-full bg-surface-tertiary border border-border hover:bg-surface-quaternary text-content-primary pl-3 w-fit"
 					size="sm"
 				>
 					{isFetched ? (
