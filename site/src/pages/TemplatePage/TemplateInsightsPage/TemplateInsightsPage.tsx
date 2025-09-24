@@ -29,9 +29,9 @@ import { Avatar } from "components/Avatar/Avatar";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
@@ -310,7 +310,7 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 				<PanelTitle css={{ display: "flex", alignItems: "center", gap: 8 }}>
 					Latency by user
 					<HelpTooltip>
-						<HelpTooltipTrigger size="small" />
+						<HelpTooltipIconTrigger size="small" />
 						<HelpTooltipContent>
 							<HelpTooltipTitle>How is latency calculated?</HelpTooltipTitle>
 							<HelpTooltipText>
@@ -378,7 +378,7 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 				<PanelTitle css={{ display: "flex", alignItems: "center", gap: 8 }}>
 					Activity by user
 					<HelpTooltip>
-						<HelpTooltipTrigger size="small" />
+						<HelpTooltipIconTrigger size="small" />
 						<HelpTooltipContent>
 							<HelpTooltipTitle>How is activity calculated?</HelpTooltipTitle>
 							<HelpTooltipText>

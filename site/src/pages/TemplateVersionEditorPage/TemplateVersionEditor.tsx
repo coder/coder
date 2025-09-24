@@ -21,7 +21,7 @@ import {
 	TopbarDivider,
 	TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
-import { displayError } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import {
 	ChevronLeftIcon,
@@ -37,6 +37,7 @@ import {
 	ProvisionerAlert,
 } from "modules/provisioners/ProvisionerAlert";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
+import { WildcardHostnameWarning } from "modules/resources/WildcardHostnameWarning";
 import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
 import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
 import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
@@ -173,7 +174,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	}, [triggerPreview]);
 
 	// Automatically switch to the template preview tab when the build succeeds.
-	const previousVersion = useRef<TemplateVersion>();
+	const previousVersion = useRef<TemplateVersion>(undefined);
 	useEffect(() => {
 		if (!previousVersion.current) {
 			previousVersion.current = templateVersion;
@@ -185,6 +186,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 			templateVersion.job.status === "succeeded"
 		) {
 			setDirty(false);
+			displaySuccess(
+				`Template version "${previousVersion.current.name}" built successfully.`,
+			);
 		}
 		previousVersion.current = templateVersion;
 	}, [templateVersion]);
@@ -192,15 +196,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	const editorValue = activePath ? getFileText(activePath, fileTree) : "";
 	const isEditorValueBinary =
 		typeof editorValue === "string" ? isBinaryData(editorValue) : false;
-
-	// Auto scroll
-	const logsContentRef = useRef<HTMLDivElement>(null);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
-	useEffect(() => {
-		if (logsContentRef.current) {
-			logsContentRef.current.scrollTop = logsContentRef.current.scrollHeight;
-		}
-	}, [buildLogs]);
 
 	useLeaveSiteWarning(dirty);
 
@@ -592,10 +587,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							</div>
 
 							{selectedTab === "logs" && (
-								<div
-									css={[styles.logs, styles.tabContent]}
-									ref={logsContentRef}
-								>
+								<div css={[styles.logs, styles.tabContent]}>
 									{templateVersion.job.error ? (
 										<div>
 											<ProvisionerAlert
@@ -626,6 +618,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 											hideTimestamps
 											logs={buildLogs}
 										/>
+									)}
+
+									{resources && (
+										<WildcardHostnameWarning resources={resources} />
 									)}
 								</div>
 							)}

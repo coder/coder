@@ -20,16 +20,18 @@ func (r *RootCmd) groupList() *serpent.Command {
 	)
 	orgContext := agpl.NewOrganizationContext()
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "list",
 		Short: "List user groups",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {

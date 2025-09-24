@@ -5,17 +5,22 @@ import RadioGroup from "@mui/material/RadioGroup";
 import { API } from "api/api";
 import type { Template, TemplateVersionParameter } from "api/typesGenerated";
 import { FormSection, VerticalForm } from "components/Form/Form";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
 import { Loader } from "components/Loader/Loader";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { useDebouncedFunction } from "hooks/debounce";
 import { useClipboard } from "hooks/useClipboard";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useEffect, useId, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
+import { nameValidator } from "utils/formUtils";
 import { pageTitle } from "utils/page";
 import { getInitialRichParameterValues } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
+import { ValidationError } from "yup";
 
 type ButtonValues = Record<string, string>;
 
@@ -47,18 +52,24 @@ interface TemplateEmbedPageViewProps {
 	templateParameters?: TemplateVersionParameter[];
 }
 
+const deploymentUrl = `${window.location.protocol}//${window.location.host}`;
+
 function getClipboardCopyContent(
 	templateName: string,
 	organization: string,
 	buttonValues: ButtonValues | undefined,
 ): string {
-	const deploymentUrl = `${window.location.protocol}//${window.location.host}`;
 	const createWorkspaceUrl = `${deploymentUrl}/templates/${organization}/${templateName}/workspace`;
 	const createWorkspaceParams = new URLSearchParams(buttonValues);
+	if (createWorkspaceParams.get("name") === "") {
+		createWorkspaceParams.delete("name"); // no default workspace name if empty
+	}
 	const buttonUrl = `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`;
 
 	return `[![Open in Coder](${deploymentUrl}/open-in-coder.svg)](${buttonUrl})`;
 }
+
+const workspaceNameValidator = nameValidator("Workspace name");
 
 export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 	template,
@@ -79,6 +90,7 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 		if (templateParameters && !buttonValues) {
 			const buttonValues: ButtonValues = {
 				mode: "manual",
+				name: "",
 			};
 			for (const parameter of getInitialRichParameterValues(
 				templateParameters,
@@ -88,6 +100,27 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 			setButtonValues(buttonValues);
 		}
 	}, [buttonValues, templateParameters]);
+
+	const [workspaceNameError, setWorkspaceNameError] = useState("");
+	const validateWorkspaceName = (workspaceName: string) => {
+		try {
+			if (workspaceName) {
+				workspaceNameValidator.validateSync(workspaceName);
+			}
+			setWorkspaceNameError("");
+		} catch (e) {
+			if (e instanceof ValidationError) {
+				setWorkspaceNameError(e.message);
+			}
+		}
+	};
+	const { debounced: debouncedValidateWorkspaceName } = useDebouncedFunction(
+		validateWorkspaceName,
+		500,
+	);
+
+	const hookId = useId();
+	const defaultWorkspaceNameID = `${hookId}-default-workspace-name`;
 
 	return (
 		<>
@@ -125,6 +158,29 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 									/>
 								</RadioGroup>
 							</FormSection>
+
+							<div className="flex flex-col gap-1">
+								<Label className="text-md" htmlFor={defaultWorkspaceNameID}>
+									Workspace name
+								</Label>
+								<div className="text-sm text-content-secondary pb-3">
+									Default name for the new workspace
+								</div>
+								<Input
+									id={defaultWorkspaceNameID}
+									value={buttonValues.name}
+									onChange={(event) => {
+										debouncedValidateWorkspaceName(event.target.value);
+										setButtonValues((buttonValues) => ({
+											...buttonValues,
+											name: event.target.value,
+										}));
+									}}
+								/>
+								<div className="text-sm text-highlight-red mt-1" role="alert">
+									{workspaceNameError}
+								</div>
+							</div>
 
 							{templateParameters.length > 0 && (
 								<div

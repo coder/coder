@@ -10,16 +10,19 @@ import (
 )
 
 func (r *RootCmd) whoami() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "whoami",
 		Short:       "Fetch authenticated user info for Coder deployment",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			ctx := inv.Context()
 			// Fetch the user info
 			resp, err := client.User(ctx, codersdk.Me)

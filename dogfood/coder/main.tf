@@ -364,6 +364,8 @@ module "git-config" {
   source   = "dev.registry.coder.com/coder/git-config/coder"
   version  = "1.0.31"
   agent_id = coder_agent.dev.id
+  # If you prefer to commit with a different email, this allows you to do so.
+  allow_email_change = true
 }
 
 module "git-clone" {
@@ -407,11 +409,12 @@ module "vscode-web" {
 module "jetbrains" {
   count         = contains(jsondecode(data.coder_parameter.ide_choices.value), "jetbrains") ? data.coder_workspace.me.start_count : 0
   source        = "dev.registry.coder.com/coder/jetbrains/coder"
-  version       = "1.0.3"
+  version       = "1.1.0"
   agent_id      = coder_agent.dev.id
   agent_name    = "dev"
   folder        = local.repo_dir
   major_version = "latest"
+  tooltip       = "You need to [Install Coder Desktop](https://coder.com/docs/user-guides/desktop#install-coder-desktop) to use this button."
 }
 
 module "filebrowser" {

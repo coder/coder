@@ -4,6 +4,7 @@ import { PopoverClose } from "@radix-ui/react-popover";
 import { Button } from "components/Button/Button";
 import {
 	Popover,
+	PopoverClose,
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";

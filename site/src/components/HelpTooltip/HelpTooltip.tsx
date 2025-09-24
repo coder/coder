@@ -5,12 +5,12 @@ import {
 	type Theme,
 } from "@emotion/react";
 import Link from "@mui/material/Link";
-import type { TooltipProps } from "@radix-ui/react-tooltip";
 import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
 	type TooltipContentProps,
+	type TooltipProps,
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
@@ -27,6 +27,8 @@ import { cn } from "utils/cn";
 type Icon = typeof CircleHelpIcon;
 
 type Size = "small" | "medium";
+
+export const HelpTooltipTrigger = TooltipTrigger;
 
 export const HelpTooltipIcon = CircleHelpIcon;
 
@@ -46,6 +48,7 @@ export const HelpTooltipContent: FC<TooltipContentProps> = ({
 		<TooltipContent
 			side="bottom"
 			align="start"
+			collisionPadding={16}
 			{...props}
 			className={cn(
 				"w-[320px] p-5 bg-surface-secondary border-surface-quaternary text-sm",
@@ -55,14 +58,14 @@ export const HelpTooltipContent: FC<TooltipContentProps> = ({
 	);
 };
 
-type HelpTooltipTriggerProps = HTMLAttributes<HTMLButtonElement> & {
+type HelpTooltipIconTriggerProps = HTMLAttributes<HTMLButtonElement> & {
 	size?: Size;
 	hoverEffect?: boolean;
 };
 
-export const HelpTooltipTrigger = forwardRef<
+export const HelpTooltipIconTrigger = forwardRef<
 	HTMLButtonElement,
-	HelpTooltipTriggerProps
+	HelpTooltipIconTriggerProps
 >((props, ref) => {
 	const {
 		size = "medium",
@@ -79,7 +82,7 @@ export const HelpTooltipTrigger = forwardRef<
 	});
 
 	return (
-		<TooltipTrigger asChild>
+		<HelpTooltipTrigger asChild>
 			<button
 				{...buttonProps}
 				aria-label="More info"
@@ -105,7 +108,7 @@ export const HelpTooltipTrigger = forwardRef<
 			>
 				{children}
 			</button>
-		</TooltipTrigger>
+		</HelpTooltipTrigger>
 	);
 });
 

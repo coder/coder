@@ -47,7 +47,7 @@ export const WithOpenBuildParameters: Story = {
 	},
 	play: async ({ step }) => {
 		await step("open popover", async () => {
-			await userEvent.click(screen.getByTestId("build-parameters-button"));
+			await userEvent.click(screen.getByText("Retry with build parameters"));
 			await waitFor(() =>
 				expect(screen.getByText("Build Options")).toBeInTheDocument(),
 			);
@@ -73,14 +73,12 @@ export const WithOpenEphemeralBuildParameters: Story = {
 	},
 	play: async ({ step }) => {
 		await step("open popover", async () => {
-			await userEvent.click(screen.getByTestId("build-parameters-button"));
-			await waitFor(() =>
-				expect(
-					screen.getByText(
-						"These parameters only apply for a single workspace start.",
-					),
-				).toBeInTheDocument(),
-			);
+			await userEvent.click(screen.getByText("Retry with build parameters"));
+			expect(
+				await screen.findByText(
+					"These parameters only apply for a single workspace start.",
+				),
+			).toBeInTheDocument();
 		});
 	},
 };
@@ -107,14 +105,12 @@ export const WithOpenEphemeralBuildParametersNotClassic: Story = {
 	},
 	play: async ({ step }) => {
 		await step("open popover", async () => {
-			await userEvent.click(screen.getByTestId("build-parameters-button"));
-			await waitFor(() =>
-				expect(
-					screen.getByText(
-						"This workspace has ephemeral parameters which may use a temporary value on workspace start. Configure the following parameters in workspace settings.",
-					),
-				).toBeInTheDocument(),
-			);
+			await userEvent.click(screen.getByText("Retry with build parameters"));
+			expect(
+				await screen.findByText(
+					"This workspace has ephemeral parameters which may use a temporary value on workspace start. Configure the following parameters in workspace settings.",
+				),
+			).toBeInTheDocument();
 		});
 	},
 };

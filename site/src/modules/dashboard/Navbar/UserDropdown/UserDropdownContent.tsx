@@ -22,7 +22,7 @@ import {
 	MonitorDownIcon,
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
-import type { FC } from "react";
+import type { FC, JSX } from "react";
 import { Link } from "react-router";
 
 export const Language = {
@@ -133,23 +133,11 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 				</Tooltip>
 
 				{buildInfo?.deployment_id && (
-					<div
-						css={css`
-							font-size: 12px;
-							display: flex;
-							align-items: center;
-						`}
-					>
+					<div className="flex items-center text-xs">
 						<Tooltip title="Deployment Identifier">
-							<div
-								css={css`
-									white-space: nowrap;
-									overflow: hidden;
-									text-overflow: ellipsis;
-								`}
-							>
+							<span className="whitespace-nowrap overflow-hidden text-ellipsis">
 								{buildInfo.deployment_id}
-							</div>
+							</span>
 						</Tooltip>
 						<CopyButton
 							text={buildInfo.deployment_id}

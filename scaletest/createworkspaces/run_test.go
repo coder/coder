@@ -257,14 +257,14 @@ func Test_Runner(t *testing.T) {
 			err := runner.Run(runnerCtx, "1", logs)
 			logsStr := logs.String()
 			t.Log("Runner logs:\n\n" + logsStr)
-			require.ErrorIs(t, err, context.Canceled)
+			assert.ErrorIs(t, err, context.Canceled)
 			close(done)
 		}()
 
 		// Wait for the workspace build job to be picked up.
 		checkJobStartedCtx := testutil.Context(t, testutil.WaitLong)
 		jobCh := make(chan codersdk.ProvisionerJob, 1)
-		require.Eventually(t, func() bool {
+		testutil.Eventually(checkJobStartedCtx, t, func(ctx context.Context) bool {
 			workspaces, err := client.Workspaces(checkJobStartedCtx, codersdk.WorkspaceFilter{})
 			if err != nil {
 				return false
@@ -286,7 +286,7 @@ func Test_Runner(t *testing.T) {
 			}
 			jobCh <- ws.LatestBuild.Job
 			return true
-		}, testutil.WaitLong, testutil.IntervalSlow)
+		}, testutil.IntervalSlow)
 
 		t.Log("canceling scaletest workspace creation")
 		runnerCancel()
@@ -308,9 +308,8 @@ func Test_Runner(t *testing.T) {
 		}()
 
 		// Ensure the job has been marked as canceled
-		checkJobCanceledCtx := testutil.Context(t, testutil.WaitLong)
-		require.Eventually(t, func() bool {
-			pj, err := client.OrganizationProvisionerJob(checkJobCanceledCtx, runningJob.OrganizationID, runningJob.ID)
+		testutil.Eventually(cleanupCtx, t, func(ctx context.Context) bool {
+			pj, err := client.OrganizationProvisionerJob(ctx, runningJob.OrganizationID, runningJob.ID)
 			if !assert.NoError(t, err) {
 				return false
 			}
@@ -324,7 +323,7 @@ func Test_Runner(t *testing.T) {
 			}
 
 			return true
-		}, testutil.WaitLong, testutil.IntervalSlow)
+		}, testutil.IntervalSlow)
 		cleanupCancel()
 		<-done
 		cleanupLogsStr := cleanupLogs.String()
@@ -561,8 +560,7 @@ func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *coder
 
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(agentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(agentToken))
 		agentCloser := agent.New(agent.Options{
 			Client: agentClient,
 			Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).

@@ -8,24 +8,23 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) logout() *serpent.Command {
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "logout",
 		Short: "Unauthenticate your local session",
-		Middleware: serpent.Chain(
-			r.InitClient(client),
-		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			var errors []error
 
 			config := r.createConfig()
 
-			var err error
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      "Are you sure you want to log out?",
 				IsConfirm: true,

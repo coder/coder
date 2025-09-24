@@ -9,10 +9,10 @@ import {
 	HelpTooltip,
 	HelpTooltipAction,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { InfoIcon, RotateCcwIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
@@ -23,25 +23,27 @@ import {
 	WorkspaceUpdateDialogs,
 } from "../WorkspaceUpdateDialogs";
 
-interface TooltipProps {
+interface WorkspaceOutdatedTooltipProps {
 	workspace: Workspace;
 }
 
-export const WorkspaceOutdatedTooltip: FC<TooltipProps> = (props) => {
+export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = (
+	props,
+) => {
 	const [isOpen, setIsOpen] = useState(false);
 
 	return (
 		<HelpTooltip open={isOpen} onOpenChange={setIsOpen}>
-			<HelpTooltipTrigger size="small" hoverEffect={false}>
+			<HelpTooltipIconTrigger size="small" hoverEffect={false}>
 				<InfoIcon css={styles.icon} />
 				<span className="sr-only">Outdated info</span>
-			</HelpTooltipTrigger>
+			</HelpTooltipIconTrigger>
 			<WorkspaceOutdatedTooltipContent isOpen={isOpen} {...props} />
 		</HelpTooltip>
 	);
 };
 
-type TooltipContentProps = TooltipProps & { isOpen: boolean };
+type TooltipContentProps = WorkspaceOutdatedTooltipProps & { isOpen: boolean };
 
 const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 	workspace,
@@ -51,7 +53,6 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 	const theme = useTheme();
 	const { data: activeVersion } = useQuery({
 		...templateVersion(workspace.template_active_version_id),
-		// TODO is making the parent HelpTooltip a controlled component the only way to track whether the tooltip is open?
 		enabled: isOpen,
 	});
 	const updateWorkspace = useWorkspaceUpdate({

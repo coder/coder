@@ -500,6 +500,7 @@ type DeploymentValues struct {
 	WorkspaceHostnameSuffix         serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
 	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 	HideAITasks                     serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
+	AI                              AIConfig                             `json:"ai,omitempty"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -565,6 +566,11 @@ type SessionLifetime struct {
 
 	// DefaultDuration is only for browser, workspace app and oauth sessions.
 	DefaultDuration serpent.Duration `json:"default_duration" typescript:",notnull"`
+
+	// RefreshDefaultDuration is the default lifetime for OAuth2 refresh tokens.
+	// This should generally be longer than access token lifetimes to allow
+	// refreshing after access token expiry.
+	RefreshDefaultDuration serpent.Duration `json:"refresh_default_duration,omitempty" typescript:",notnull"`
 
 	DefaultTokenDuration serpent.Duration `json:"default_token_lifetime,omitempty" typescript:",notnull"`
 
@@ -729,6 +735,7 @@ type ExternalAuthConfig struct {
 	AuthURL             string   `json:"auth_url" yaml:"auth_url"`
 	TokenURL            string   `json:"token_url" yaml:"token_url"`
 	ValidateURL         string   `json:"validate_url" yaml:"validate_url"`
+	RevokeURL           string   `json:"revoke_url" yaml:"revoke_url"`
 	AppInstallURL       string   `json:"app_install_url" yaml:"app_install_url"`
 	AppInstallationsURL string   `json:"app_installations_url" yaml:"app_installations_url"`
 	NoRefresh           bool     `json:"no_refresh" yaml:"no_refresh"`
@@ -736,6 +743,9 @@ type ExternalAuthConfig struct {
 	ExtraTokenKeys      []string `json:"-" yaml:"extra_token_keys"`
 	DeviceFlow          bool     `json:"device_flow" yaml:"device_flow"`
 	DeviceCodeURL       string   `json:"device_code_url" yaml:"device_code_url"`
+	MCPURL              string   `json:"mcp_url" yaml:"mcp_url"`
+	MCPToolAllowRegex   string   `json:"mcp_tool_allow_regex" yaml:"mcp_tool_allow_regex"`
+	MCPToolDenyRegex    string   `json:"mcp_tool_deny_regex" yaml:"mcp_tool_deny_regex"`
 	// Regex allows API requesters to match an auth config by
 	// a string (e.g. coder.com) instead of by it's type.
 	//
@@ -1157,6 +1167,10 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:   "Inbox",
 			Parent: &deploymentGroupNotifications,
 			YAML:   "inbox",
+		}
+		deploymentGroupAIBridge = serpent.Group{
+			Name: "AIBridge",
+			YAML: "aibridge",
 		}
 	)
 
@@ -2465,6 +2479,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
+			Name:        "Default OAuth Refresh Lifetime",
+			Description: "The default lifetime duration for OAuth2 refresh tokens. This controls how long refresh tokens remain valid after issuance or rotation.",
+			Flag:        "default-oauth-refresh-lifetime",
+			Env:         "CODER_DEFAULT_OAUTH_REFRESH_LIFETIME",
+			Default:     (30 * 24 * time.Hour).String(),
+			Value:       &c.Sessions.RefreshDefaultDuration,
+			YAML:        "defaultOAuthRefreshLifetime",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
 			Name:        "Enable swagger endpoint",
 			Description: "Expose the swagger endpoint via /swagger.",
 			Flag:        "swagger-enable",
@@ -3208,9 +3232,86 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupClient,
 			YAML:        "hideAITasks",
 		},
+
+		// AIBridge Options
+		{
+			Name:        "AIBridge Enabled",
+			Description: fmt.Sprintf("Whether to start an in-memory aibridged instance (%q experiment must be enabled, too).", ExperimentAIBridge),
+			Flag:        "aibridge-enabled",
+			Env:         "CODER_AIBRIDGE_ENABLED",
+			Value:       &c.AI.BridgeConfig.Enabled,
+			Default:     "false",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "enabled",
+			Hidden:      true,
+		},
+		{
+			Name:        "AIBridge OpenAI Base URL",
+			Description: "The base URL of the OpenAI API.",
+			Flag:        "aibridge-openai-base-url",
+			Env:         "CODER_AIBRIDGE_OPENAI_BASE_URL",
+			Value:       &c.AI.BridgeConfig.OpenAI.BaseURL,
+			Default:     "https://api.openai.com/v1/",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "openai_base_url",
+			Hidden:      true,
+		},
+		{
+			Name:        "AIBridge OpenAI Key",
+			Description: "The key to authenticate against the OpenAI API.",
+			Flag:        "aibridge-openai-key",
+			Env:         "CODER_AIBRIDGE_OPENAI_KEY",
+			Value:       &c.AI.BridgeConfig.OpenAI.Key,
+			Default:     "",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "openai_key",
+			Hidden:      true,
+		},
+		{
+			Name:        "AIBridge Anthropic Base URL",
+			Description: "The base URL of the Anthropic API.",
+			Flag:        "aibridge-anthropic-base-url",
+			Env:         "CODER_AIBRIDGE_ANTHROPIC_BASE_URL",
+			Value:       &c.AI.BridgeConfig.Anthropic.BaseURL,
+			Default:     "https://api.anthropic.com/",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "base_url",
+			Hidden:      true,
+		},
+		{
+			Name:        "AIBridge Anthropic KEY",
+			Description: "The key to authenticate against the Anthropic API.",
+			Flag:        "aibridge-anthropic-key",
+			Env:         "CODER_AIBRIDGE_ANTHROPIC_KEY",
+			Value:       &c.AI.BridgeConfig.Anthropic.Key,
+			Default:     "",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "key",
+			Hidden:      true,
+		},
 	}
 
 	return opts
+}
+
+type AIBridgeConfig struct {
+	Enabled   serpent.Bool            `json:"enabled" typescript:",notnull"`
+	OpenAI    AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
+	Anthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
+}
+
+type AIBridgeOpenAIConfig struct {
+	BaseURL serpent.String `json:"base_url" typescript:",notnull"`
+	Key     serpent.String `json:"key" typescript:",notnull"`
+}
+
+type AIBridgeAnthropicConfig struct {
+	BaseURL serpent.String `json:"base_url" typescript:",notnull"`
+	Key     serpent.String `json:"key" typescript:",notnull"`
+}
+
+type AIConfig struct {
+	BridgeConfig AIBridgeConfig `json:"bridge,omitempty"`
 }
 
 type SupportConfig struct {
@@ -3221,6 +3322,30 @@ type LinkConfig struct {
 	Name   string `json:"name" yaml:"name"`
 	Target string `json:"target" yaml:"target"`
 	Icon   string `json:"icon" yaml:"icon" enums:"bug,chat,docs"`
+}
+
+// Validate checks cross-field constraints for deployment values.
+// It must be called after all values are loaded from flags/env/YAML.
+func (c *DeploymentValues) Validate() error {
+	// For OAuth2, access tokens (API keys) issued via the authorization code/refresh flows
+	// use Sessions.DefaultDuration as their lifetime, while refresh tokens use
+	// Sessions.RefreshDefaultDuration (falling back to DefaultDuration when set to 0).
+	// Enforce that refresh token lifetime is strictly greater than the access token lifetime.
+	access := c.Sessions.DefaultDuration.Value()
+	refresh := c.Sessions.RefreshDefaultDuration.Value()
+
+	// Check if values appear uninitialized
+	if access == 0 {
+		return xerrors.New("developer error: sessions configuration appears uninitialized - ensure all values are loaded before validation")
+	}
+
+	if refresh <= access {
+		return xerrors.Errorf(
+			"default OAuth refresh lifetime (%s) must be strictly greater than session duration (%s); set --default-oauth-refresh-lifetime to a value greater than --session-duration",
+			refresh, access,
+		)
+	}
+	return nil
 }
 
 // DeploymentOptionsWithoutSecrets returns a copy of the OptionSet with secret values omitted.
@@ -3436,6 +3561,7 @@ const (
 	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
+	ExperimentAIBridge           Experiment = "aibridge"             // Enables AI Bridge functionality.
 )
 
 func (e Experiment) DisplayName() string {
@@ -3456,6 +3582,8 @@ func (e Experiment) DisplayName() string {
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceSharing:
 		return "Workspace Sharing"
+	case ExperimentAIBridge:
+		return "AI Bridge"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
@@ -3474,6 +3602,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
 	ExperimentWorkspaceSharing,
+	ExperimentAIBridge,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

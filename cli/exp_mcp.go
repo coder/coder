@@ -56,7 +56,7 @@ func (r *RootCmd) mcpConfigure() *serpent.Command {
 		},
 		Children: []*serpent.Command{
 			r.mcpConfigureClaudeDesktop(),
-			r.mcpConfigureClaudeCode(),
+			mcpConfigureClaudeCode(),
 			r.mcpConfigureCursor(),
 		},
 	}
@@ -117,7 +117,7 @@ func (*RootCmd) mcpConfigureClaudeDesktop() *serpent.Command {
 	return cmd
 }
 
-func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
+func mcpConfigureClaudeCode() *serpent.Command {
 	var (
 		claudeAPIKey     string
 		claudeConfigPath string
@@ -131,6 +131,7 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 
 		deprecatedCoderMCPClaudeAPIKey string
 	)
+	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use:   "claude-code <project-directory>",
 		Short: "Configure the Claude Code server. You will need to run this command for each project you want to use. Specify the project directory as the first argument.",
@@ -148,7 +149,7 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				binPath = testBinaryName
 			}
 			configureClaudeEnv := map[string]string{}
-			agentClient, err := r.createAgentClient()
+			agentClient, err := agentAuth.CreateClient()
 			if err != nil {
 				cliui.Warnf(inv.Stderr, "failed to create agent client: %s", err)
 			} else {
@@ -292,6 +293,7 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 			},
 		},
 	}
+	agentAuth.AttachOptions(cmd, false)
 	return cmd
 }
 
@@ -397,15 +399,20 @@ type mcpServer struct {
 
 func (r *RootCmd) mcpServer() *serpent.Command {
 	var (
-		client        = new(codersdk.Client)
 		instructions  string
 		allowedTools  []string
 		appStatusSlug string
 		aiAgentAPIURL url.URL
 	)
-	return &serpent.Command{
+	agentAuth := &AgentAuth{}
+	cmd := &serpent.Command{
 		Use: "server",
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.TryInitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			var lastReport taskReport
 			// Create a queue that skips duplicates and preserves summaries.
 			queue := cliutil.NewQueue[taskReport](512).WithPredicate(func(report taskReport) (taskReport, bool) {
@@ -494,7 +501,7 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 			}
 
 			// Try to create an agent client for status reporting.  Not validated.
-			agentClient, err := r.createAgentClient()
+			agentClient, err := agentAuth.CreateClient()
 			if err == nil {
 				cliui.Infof(inv.Stderr, "Agent URL      : %s", agentClient.SDK.URL.String())
 				srv.agentClient = agentClient
@@ -545,9 +552,6 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 			return srv.startServer(ctx, inv, instructions, allowedTools)
 		},
 		Short: "Start the Coder MCP server.",
-		Middleware: serpent.Chain(
-			r.TryInitClient(client),
-		),
 		Options: []serpent.Option{
 			{
 				Name:        "instructions",
@@ -579,6 +583,8 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 			},
 		},
 	}
+	agentAuth.AttachOptions(cmd, false)
+	return cmd
 }
 
 func (s *mcpServer) startReporter(ctx context.Context, inv *serpent.Invocation) {

@@ -1,8 +1,13 @@
-import type { WorkspaceApp } from "api/typesGenerated";
 import { Spinner } from "components/Spinner/Spinner";
-import type { Task } from "modules/tasks/tasks";
+import { useProxy } from "contexts/ProxyContext";
+import {
+	getTaskApps,
+	type Task,
+	type WorkspaceAppWithAgent,
+} from "modules/tasks/tasks";
 import type { FC } from "react";
 import { TaskAppIFrame } from "./TaskAppIframe";
+import { TaskWildcardWarning } from "./TaskWildcardWarning";
 
 type TaskSidebarProps = {
 	task: Task;
@@ -10,7 +15,9 @@ type TaskSidebarProps = {
 
 type SidebarAppStatus = "error" | "loading" | "healthy";
 
-const getSidebarApp = (task: Task): [WorkspaceApp | null, SidebarAppStatus] => {
+const getSidebarApp = (
+	task: Task,
+): [WorkspaceAppWithAgent | null, SidebarAppStatus] => {
 	const sidebarAppId = task.workspace.latest_build.ai_task_sidebar_app_id;
 	// a task workspace with a finished build must have a sidebar app id
 	if (!sidebarAppId && task.workspace.latest_build.job.completed_at) {
@@ -21,10 +28,7 @@ const getSidebarApp = (task: Task): [WorkspaceApp | null, SidebarAppStatus] => {
 		return [null, "error"];
 	}
 
-	const sidebarApp = task.workspace.latest_build.resources
-		.flatMap((r) => r.agents)
-		.flatMap((a) => a?.apps)
-		.find((a) => a?.id === sidebarAppId);
+	const sidebarApp = getTaskApps(task).find((a) => a.id === sidebarAppId);
 
 	if (!task.workspace.latest_build.job.completed_at) {
 		// while the workspace build is running, we don't have a sidebar app yet
@@ -64,21 +68,28 @@ const getSidebarApp = (task: Task): [WorkspaceApp | null, SidebarAppStatus] => {
 };
 
 export const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
+	const proxy = useProxy();
 	const [sidebarApp, sidebarAppStatus] = getSidebarApp(task);
+	const shouldDisplayWildcardWarning =
+		sidebarApp?.subdomain && proxy.proxy?.preferredWildcardHostname === "";
 
 	return (
 		<aside className="flex flex-col h-full shrink-0 w-full">
-			{sidebarAppStatus === "healthy" && sidebarApp ? (
+			{sidebarAppStatus === "loading" ? (
+				<div className="flex-1 flex flex-col items-center justify-center pb-4">
+					<Spinner loading />
+				</div>
+			) : shouldDisplayWildcardWarning ? (
+				<div className="flex-1 flex flex-col items-center justify-center pb-4">
+					<TaskWildcardWarning />
+				</div>
+			) : sidebarAppStatus === "healthy" && sidebarApp ? (
 				<TaskAppIFrame
 					active
 					key={sidebarApp.id}
 					app={sidebarApp}
 					task={task}
 				/>
-			) : sidebarAppStatus === "loading" ? (
-				<div className="flex-1 flex flex-col items-center justify-center">
-					<Spinner loading className="mb-4" />
-				</div>
 			) : (
 				<div className="flex-1 flex flex-col items-center justify-center">
 					<h3 className="m-0 font-medium text-content-primary text-base">

@@ -350,6 +350,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("access-url must include a scheme (e.g. 'http://' or 'https://)")
 			}
 
+			// Cross-field configuration validation after initial parsing.
+			if err := vals.Validate(); err != nil {
+				return err
+			}
+
 			// Disable rate limits if the `--dangerous-disable-rate-limits` flag
 			// was specified.
 			loginRateLimit := 60
@@ -969,23 +974,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}
 
-			client := codersdk.New(localURL)
-			if localURL.Scheme == "https" && IsLocalhost(localURL.Hostname()) {
-				// The certificate will likely be self-signed or for a different
-				// hostname, so we need to skip verification.
-				client.HTTPClient.Transport = &http.Transport{
-					TLSClientConfig: &tls.Config{
-						//nolint:gosec
-						InsecureSkipVerify: true,
-					},
-				}
-			}
-			defer client.HTTPClient.CloseIdleConnections()
-
 			// This is helpful for tests, but can be silently ignored.
 			// Coder may be ran as users that don't have permission to write in the homedir,
 			// such as via the systemd service.
-			err = config.URL().Write(client.URL.String())
+			err = config.URL().Write(localURL.String())
 			if err != nil && flag.Lookup("test.v") != nil {
 				return xerrors.Errorf("write config url: %w", err)
 			}
@@ -2687,6 +2679,8 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 			provider.AuthURL = v.Value
 		case "TOKEN_URL":
 			provider.TokenURL = v.Value
+		case "REVOKE_URL":
+			provider.RevokeURL = v.Value
 		case "VALIDATE_URL":
 			provider.ValidateURL = v.Value
 		case "REGEX":
@@ -2717,6 +2711,12 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 			provider.DisplayName = v.Value
 		case "DISPLAY_ICON":
 			provider.DisplayIcon = v.Value
+		case "MCP_URL":
+			provider.MCPURL = v.Value
+		case "MCP_TOOL_ALLOW_REGEX":
+			provider.MCPToolAllowRegex = v.Value
+		case "MCP_TOOL_DENY_REGEX":
+			provider.MCPToolDenyRegex = v.Value
 		}
 		providers[providerNum] = provider
 	}
