@@ -200,9 +200,9 @@ summary() {
 				echo "Generating a summary failed."
 				echo "Here is a short overview of the changes:"
 				echo
-				echo "$()$("
-				echo "$(git diff --stat)"
-				echo ")$()"
+				echo ""
+				echo "\$(git diff --stat)"
+				echo ""
 				exit 0
 			fi
 			echo "\${summary}"
