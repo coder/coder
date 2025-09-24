@@ -95,6 +95,12 @@ export interface AITasksPromptsResponse {
 	readonly prompts: Record<string, string>;
 }
 
+// From codersdk/allowlist.go
+export interface APIAllowListTarget {
+	readonly Type: RBACResource | "*";
+	readonly ID: string | "*";
+}
+
 // From codersdk/apikey.go
 export interface APIKey {
 	readonly id: string;
@@ -711,6 +717,7 @@ export interface CreateTokenRequest {
 	readonly scope?: APIKeyScope;
 	readonly scopes?: readonly APIKeyScope[];
 	readonly token_name: string;
+	readonly allow_list?: readonly APIAllowListTarget[];
 }
 
 // From codersdk/users.go

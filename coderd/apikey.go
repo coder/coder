@@ -116,6 +116,45 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		TokenName:       tokenName,
 	}
 
+	if len(createToken.AllowList) > 0 {
+		rbacAllowListElements := make([]rbac.AllowListElement, 0, len(createToken.AllowList))
+		for _, t := range createToken.AllowList {
+			entry, err := rbac.NewAllowListElement(t.Type.String(), t.ID.String())
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Failed to create API key.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			rbacAllowListElements = append(rbacAllowListElements, entry)
+		}
+
+		rbacAllowList, err := rbac.ProcessAllowList(rbacAllowListElements, 128)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Failed to create API key.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		dbAllowList := make(database.AllowList, 0, len(rbacAllowList))
+		for _, e := range rbacAllowList {
+			target, err := database.NewAllowListTarget(e.Type, e.ID)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Failed to create API key.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			dbAllowList = append(dbAllowList, target)
+		}
+
+		params.AllowList = dbAllowList
+	}
+
 	if createToken.Lifetime != 0 {
 		err := api.validateAPIKeyLifetime(ctx, user.ID, createToken.Lifetime)
 		if err != nil {
