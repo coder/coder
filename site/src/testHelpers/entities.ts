@@ -267,6 +267,7 @@ export const MockOwnerRole: TypesGen.Role = {
 	site_permissions: [],
 	organization_permissions: [],
 	user_permissions: [],
+	organization_member_permissions: [],
 	organization_id: "",
 };
 
@@ -276,6 +277,7 @@ export const MockUserAdminRole: TypesGen.Role = {
 	site_permissions: [],
 	organization_permissions: [],
 	user_permissions: [],
+	organization_member_permissions: [],
 	organization_id: "",
 };
 
@@ -285,6 +287,7 @@ export const MockTemplateAdminRole: TypesGen.Role = {
 	site_permissions: [],
 	organization_permissions: [],
 	user_permissions: [],
+	organization_member_permissions: [],
 	organization_id: "",
 };
 
@@ -294,6 +297,7 @@ export const MockAuditorRole: TypesGen.Role = {
 	site_permissions: [],
 	organization_permissions: [],
 	user_permissions: [],
+	organization_member_permissions: [],
 	organization_id: "",
 };
 
@@ -303,6 +307,7 @@ export const MockWorkspaceCreationBanRole: TypesGen.Role = {
 	site_permissions: [],
 	organization_permissions: [],
 	user_permissions: [],
+	organization_member_permissions: [],
 	organization_id: "",
 };
 
@@ -317,6 +322,7 @@ export const MockOrganizationAdminRole: TypesGen.Role = {
 	site_permissions: [],
 	organization_permissions: [],
 	user_permissions: [],
+	organization_member_permissions: [],
 	organization_id: MockOrganization.id,
 };
 
@@ -326,6 +332,7 @@ export const MockOrganizationUserAdminRole: TypesGen.Role = {
 	site_permissions: [],
 	organization_permissions: [],
 	user_permissions: [],
+	organization_member_permissions: [],
 	organization_id: MockOrganization.id,
 };
 
@@ -335,6 +342,7 @@ export const MockOrganizationTemplateAdminRole: TypesGen.Role = {
 	site_permissions: [],
 	organization_permissions: [],
 	user_permissions: [],
+	organization_member_permissions: [],
 	organization_id: MockOrganization.id,
 };
 
@@ -346,6 +354,7 @@ export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
 	site_permissions: [],
 	organization_permissions: [],
 	user_permissions: [],
+	organization_member_permissions: [],
 	organization_id: MockOrganization.id,
 };
 
@@ -439,6 +448,7 @@ export const MockRoleWithOrgPermissions: TypesGen.AssignableRoles = {
 		},
 	],
 	user_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockRole2WithOrgPermissions: TypesGen.Role = {
@@ -454,6 +464,7 @@ export const MockRole2WithOrgPermissions: TypesGen.Role = {
 		},
 	],
 	user_permissions: [],
+	organization_member_permissions: [],
 };
 
 // assignableRole takes a role and a boolean. The boolean implies if the
