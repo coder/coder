@@ -100,8 +100,8 @@ prompt() {
 	last_msg=$(curl \
 		--header "Content-Type: application/json" \
 		--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
-		"${CODER_URL}/@${username}/${TASK_NAME}/apps/${APP_SLUG}/messages" |\
-		 jq -r 'last(.messages[] | select(.role=="agent") | [.])')
+		"${CODER_URL}/@${username}/${TASK_NAME}/apps/${APP_SLUG}/messages" |
+		jq -r 'last(.messages[] | select(.role=="agent") | [.])')
 	echo "${last_msg}"
 }
 
@@ -122,8 +122,8 @@ wait() {
 			--url "${CODER_URL}" \
 			--token "${CODER_SESSION_TOKEN}" \
 			exp tasks status "${TASK_NAME}" \
-			--output json \
-			| jq -r '.status')
+			--output json |
+			jq -r '.status')
 		echo "Task status is ${task_status}"
 		if [[ "${task_status}" != "running" ]]; then
 			echo "Waiting for task status to be running (attempt ${attempt}/120)"
@@ -136,8 +136,8 @@ wait() {
 			--url "${CODER_URL}" \
 			--token "${CODER_SESSION_TOKEN}" \
 			exp tasks status "${TASK_NAME}" \
-			--output json \
-			| jq -r '.workspace_agent_health.healthy')
+			--output json |
+			jq -r '.workspace_agent_health.healthy')
 		if [[ "${healthy}" == "true" ]]; then
 			echo "Workspace agent is healthy"
 		else
