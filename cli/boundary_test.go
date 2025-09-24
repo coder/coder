@@ -3,11 +3,12 @@ package cli_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	boundarycli "github.com/coder/boundary/cli"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/stretchr/testify/assert"
 )
 
 // Actually testing the functionality of coder/boundary takes place in the
