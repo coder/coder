@@ -1,6 +1,5 @@
 import { css, type Interpolation, type Theme } from "@emotion/react";
 import MenuItem from "@mui/material/MenuItem";
-import { PopoverClose } from "@radix-ui/react-popover";
 import { Button } from "components/Button/Button";
 import {
 	Popover,
