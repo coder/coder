@@ -760,15 +760,15 @@ func findWorkspaceAndAgentByHostname(
 	ws, agent, otherAgents, err := GetWorkspaceAndAgent(ctx, inv, client, !disableAutostart, hostname)
 	if err != nil && strings.Contains(err.Error(), "multiple agents found") {
 		var errorMsg strings.Builder
-		errorMsg.WriteString(fmt.Sprintf("%s\nTry running:\n", err.Error()))
+		_, _ = errorMsg.WriteString(fmt.Sprintf("%s\nTry running:\n", err.Error()))
 		for _, agent := range otherAgents {
 			switch {
 			case config.HostnameSuffix != "":
-				errorMsg.WriteString(fmt.Sprintf("	%s\n", cliui.Code(fmt.Sprintf("$ ssh %s.%s.%s.%s", agent.Name, ws.Name, ws.OwnerName, config.HostnameSuffix))))
+				_, _ = errorMsg.WriteString(fmt.Sprintf("	%s\n", cliui.Code(fmt.Sprintf("$ ssh %s.%s.%s.%s", agent.Name, ws.Name, ws.OwnerName, config.HostnameSuffix))))
 			case config.HostnamePrefix != "":
-				errorMsg.WriteString(fmt.Sprintf("	%s\n", cliui.Code(fmt.Sprintf("$ ssh %s%s.%s.%s", config.HostnamePrefix, agent.Name, ws.Name, ws.OwnerName))))
+				_, _ = errorMsg.WriteString(fmt.Sprintf("	%s\n", cliui.Code(fmt.Sprintf("$ ssh %s%s.%s.%s", config.HostnamePrefix, agent.Name, ws.Name, ws.OwnerName))))
 			default:
-				errorMsg.WriteString(fmt.Sprintf("	%s\n", cliui.Code(fmt.Sprintf("$ ssh %s.%s.%s", agent.Name, ws.Name, ws.OwnerName))))
+				_, _ = errorMsg.WriteString(fmt.Sprintf("	%s\n", cliui.Code(fmt.Sprintf("$ ssh %s.%s.%s", agent.Name, ws.Name, ws.OwnerName))))
 			}
 		}
 		return ws, agent, xerrors.New(errorMsg.String())
