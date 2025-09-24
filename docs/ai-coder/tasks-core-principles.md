@@ -14,7 +14,7 @@ Coder Tasks allows you and your organization to build and automate workflows to 
 
 ## Why Use Tasks?
 
-Coder Tasks make both developer-driven _and_ autonomous agentic workflows first-class citizens within your organization. Without Coder Tasks, teams will fall back to ad-hoc scripts, one-off commands, or manual checklists to perform simpler operations that LLMs can easily automate. These work arounds can help a single engineer, but don't scale or provide consistency across an organization that is attempting to use AI as a true force multiplier.
+Coder Tasks make both developer-driven _and_ autonomous agentic workflows first-class citizens within your organization. Without Coder Tasks, teams will fall back to ad-hoc scripts, one-off commands, or manual checklists to perform simpler operations that LLMs can easily automate. These workarounds can help a single engineer, but don't scale or provide consistency across an organization that is attempting to use AI as a true force multiplier.
 
 Coder Tasks exist to solve these types of problems:
 
@@ -117,17 +117,17 @@ Given this, you can easily build your own task template. All you need to do is i
 
 and you're all set to go! If you want to build your own custom agent, read up on our [Custom Agents](https://coder.com/docs/ai-coder/custom-agents) documentation.
 
-In summary, task templates are highly flexible. You can swap out modules depending on which agent you want to run, adjust their inputs based on the provider's requirements, and layer on custom setup scripts to tailor the environment to your workflow. Whether that means using a different LLM, pointing to a new API key, or pulling files from S3 at startup, the template structure makes it easy to adapt tasks without having to rebuild everything from scratch.
+In summary, Task Templates are highly flexible. You can swap out modules depending on which agent you want to run, adjust their inputs based on the provider's requirements, and layer on custom setup scripts to tailor the environment to your workflow. Whether that means using a different LLM, pointing to a new API key, or pulling files from S3 at startup, the template structure makes it easy to adapt tasks without having to rebuild everything from scratch.
 
 ## Task Template Design Principles
 
 Coder Tasks, being based in a given Workspace, operate on very similar principles: 
 
-- **Specificity & Refinability:** Tasks, just like templates, are made to address a specific problem and evolve with that problem and your team over time
+- **Specificity & Refinability:** Tasks, just like Templates, are made to address a specific problem and evolve with that problem and your team over time
 - **Security:** Because Tasks are defined through templates, you can define and restrict what access an agent running inside a Task has access to
 - **Frugality:** Tasks only consume resources when running. You should design your Task Template to provide just enough compute and storage so that your task can effectively complete its job, reducing infrastructure cost
-- **Model Applicability:** Task Templates can specify which model is most appropriate, meaning you can fine tune your Task based on it's job, be that a code-focused model for fixing bugs or a generalized LLM to write summaries and updates on Pull Requests
-- **Automation:** Coder Tasks provide a comprehensive set of built-in APIs, status monitoring, and notification systems. This allows for you and your team to build seamless integrations with externation automation workflows
+- **Model Applicability:** Task Templates can specify which model is most appropriate, meaning you can fine tune your Task based on its job, be that a code-focused model for fixing bugs or a generalized LLM to write summaries and updates on Pull Requests
+- **Automation:** Coder Tasks provide a comprehensive set of built-in APIs, status monitoring, and notification systems. This allows for you and your team to build seamless integrations with external automation workflows
 
 Together, these principles make up the core idea of designing task templates. Tasks are programmable, secure, and cost-efficient agents that integrate seamlessly into your team's workflow. By treating task templates as living and adaptable designs, you can evolve them with your team and needs without sacrificing clarity or control. The result is a system where automation, resource management, and security are baked into the foundation letting developers focus less on orchestration details and more on solving the problems that matter.
 
@@ -137,7 +137,7 @@ These design principles aren’t just technical guidelines, however. They're the
 
 By default, agents running with Coder Tasks always act as the authenticated developer. External auth tokens tie actions directly back to a specific user, so Git operations like cloning, pushing, or creating a PR are executed under the developer's personal OAuth tokens. Workspace SSH keys are generated per user, and external service integrations authenticate with the developer's personal credentials. This preserves audit trails and ensures actions stay traceable. Authentication (who the user is) subsequently stays separate from authorization (what the user can do), with identity providers acting as the source of truth. For human users, OIDC or SSO ensure sessions are consistent, centralized, and easy to govern.
 
-For automated or background use cases, Tasks can also run under service identities. These behave like CI jobs: locked down, narrowly scoped, and managed by the organization. Service accounts or bot identities cover headless API-driven systems, while GitHub Apps enable fine-grained repository access under your organizations control. If long-lived API tokens are needed, they should be tied to service accounts with strict roles and rotation policies. In practice, the default should always be user-context execution for developer workflows while service accounts are reserved for production automation, CI/CD pipelines, and cross-team integrations. This balance keeps developer productivity high while aligning with organizational security requirements.
+For automated or background use cases, Tasks can also run under service identities. These behave like CI jobs: locked down, narrowly scoped, and managed by the organization. Service accounts or bot identities cover headless API-driven systems, while GitHub Apps enable fine-grained repository access under your organization's control. If long-lived API tokens are needed, they should be tied to service accounts with strict roles and rotation policies. In practice, the default should always be user-context execution for developer workflows while service accounts are reserved for production automation, CI/CD pipelines, and cross-team integrations. This balance keeps developer productivity high while aligning with organizational security requirements.
 
 ## How Tasks Fit Into Coder
 
@@ -159,6 +159,6 @@ Tasks aren't a separate system bolted onto Coder, but a natural extension of you
 
 ### Developer Experience Continuity
 
-Coder understands that every team is in a different place in its AI adoption plan. Some teams are still working to AI assistants to speed up development, while other teams are adopting background tasks to automate PR reviews and small bug fixes.
+Coder understands that every team is in a different place in its AI adoption plan. Some teams are still working with AI assistants to speed up development, while other teams are adopting background tasks to automate PR reviews and small bug fixes.
 
-Naturally, your team might want to jump into a task, for example when the agent encounters an issue or needs human input. With Coder Tasks, you're able to jump into the existing Coder Workspace environment backing up the task execution so that you can push the work forward. There's no context switching between tools; it's the same workspace you're already used to and the agent's work becomes yours.
+Naturally, your team might want to jump into a task, for example when the agent encounters an issue or needs human input. With Coder Tasks, you're able to jump into the existing Coder Workspace environment backing the task execution so that you can push the work forward. There's no context switching between tools; it's the same workspace you're already used to and the agent's work becomes yours.
