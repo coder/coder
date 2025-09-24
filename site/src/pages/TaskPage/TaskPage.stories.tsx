@@ -278,7 +278,7 @@ export const Active: Story = {
 		const zedIframe = await canvas.findByTitle("Zed");
 		const claudeIframe = await canvas.findByTitle("Claude Code");
 
-		expect(vscodeIframe).not.toBeVisible();
+		expect(vscodeIframe).toBeVisible();
 		expect(zedIframe).not.toBeVisible();
 		expect(claudeIframe).toBeVisible();
 	},
