@@ -2,7 +2,7 @@
 
 TODO: need to be consistent with capitlization of tasks, templates, workspaces, etc
 
-## What is a Task? 
+## What is a Task?
 
 Tasks is Coder's platform for managing coding agents and other AI-enabled tools. With Coder Tasks, you can
 
@@ -16,7 +16,7 @@ Coder Tasks allows you and your organization to build and automate workflows to 
 
 ## Why Use Tasks?
 
-Coder Tasks make both developer-driven _and_ autonomous agentic workflows first-class citizens within your organization. Without Tasks, teams will fall back to ad-hoc scripts, one-off commands, or manual checklists to perform simpler operations that LLMs can easily automate. These work arounds can help a single engineer, but don't scale or provide consistency across an organization that is attempting to use AI as a true force multiplier. 
+Coder Tasks make both developer-driven _and_ autonomous agentic workflows first-class citizens within your organization. Without Tasks, teams will fall back to ad-hoc scripts, one-off commands, or manual checklists to perform simpler operations that LLMs can easily automate. These work arounds can help a single engineer, but don't scale or provide consistency across an organization that is attempting to use AI as a true force multiplier.
 
 Tasks exist to solve these types of problems:
 
@@ -24,7 +24,7 @@ Tasks exist to solve these types of problems:
 - **Reproducability:** Every Task runs from a Coder Workspace, so results are reliable
 - **Productivity:** Eliminate manual processes from developer processes enabling them to focus on less defined and harder-to-do issues
 - **Scalability:** Once a workflow is captured in a Task, it can be reused by other teams within your organization scaling with you as you grow
-- **Flexibility:** Support both developer *AND* autonomous agentic workflows
+- **Flexibility:** Support both developer _AND_ autonomous agentic workflows
 
 ### Example Task Workflow
 
@@ -73,21 +73,23 @@ flowchart LR
 
 As a quick refresher, a template defines the underlying infrastructure that a Coder workspace runs on. Templates themself are writtin in Terraform managed as a `main.tf` file that defines the contents of the workspace and the resources it requires to run. Templates can also pull in Dockerfiles, other build files, and startup scripts or config files to specially configure.
 
-Within this configuration, Coder specifically looks for 
-* `coder_agent`: Coder's fundamental resource that runs inside a workspace to enable connectivity to external systems
-* `coder_workspace`: Defines the workspace owner, state, etc. 
-* `coder_provisioner`: Defines basic system information like system architecture, OS, etc.
-* `coder_app`: Pull in IDE or other applications like VS Code, terminals, web apps
+Within this configuration, Coder specifically looks for
+
+- `coder_agent`: Coder's fundamental resource that runs inside a workspace to enable connectivity to external systems
+- `coder_workspace`: Defines the workspace owner, state, etc.
+- `coder_provisioner`: Defines basic system information like system architecture, OS, etc.
+- `coder_app`: Pull in IDE or other applications like VS Code, terminals, web apps
 
 Coder templates also supports standard Terraform providers for connecting to external systems like AWS/Azure/GCP.
 
 ### What Makes a Task Template
 
-Task templates are regular Coder Templates, with a few specific resources defined additionally. These resources prime the template and corresponding workspaces for automated execution and AI-driven workfows rather than development environments for developers and builders. 
+Task templates are regular Coder Templates, with a few specific resources defined additionally. These resources prime the template and corresponding workspaces for automated execution and AI-driven workfows rather than development environments for developers and builders.
 
 The specific resources that turn a template into a task template include:
-* **AgentAPI Module:** Coder's task execution engine that provides Web UI integration, task reporting, and agent lifecycle management that makes any module compatible with Coder Tasks
-* `coder_parameter` named _ai_prompt_: Define the AI prompt input so users can define/specify what tasks need to run
+
+- **AgentAPI Module:** Coder's task execution engine that provides Web UI integration, task reporting, and agent lifecycle management that makes any module compatible with Coder Tasks
+- `coder_parameter` named _ai_prompt_: Define the AI prompt input so users can define/specify what tasks need to run
 
 The following code snippit can be dropped into any existing template to modify it into a Claude-Code enabled task template. This snippit also includes space for a setup script that will prime the agent for execution.
 
@@ -140,23 +142,26 @@ resource "coder_env" "anthropic_api_key" {
 ```
 
 Let's break down this snippit:
+
 - You aren't seeing the **AgentAPI Module**. That's because the AgentAPI module is it's own resource that other modules can pull in
 - The `module "claude-code"` sets up the Task template to use Claude Code, but Coder's Registry supports many other agent modules like [OpenAI's Codex](https://registry.coder.com/modules/coder-labs/codex) or [Gemini CLI](https://registry.coder.com/modules/coder-labs/gemini)
 - Each module define's its own specific inputs. Claude Code expects the `CODER_MCP_CLAUDE_API_KEY` environment variable to exist, but OpenAI based agents expect `OPENAI_API_KEY` for example. You'll want to check the specific module's defined variables to know what exactly needs to be defined
 - You can define specific scripts to run at startup of the Task. For example, you could define a setup scrip that calls to AWS S3 and pulls specific files you want your agent to have access to
 
 Given this, you can easily build your own Task Template. All you need to do is identify the existing agent you want access to in our [Registry](https://registry.coder.com/modules), and then
-1. Add the agent's module to your existing template 
-1. Define the module's required inputs
-3. Define the `coder_parameter`
 
-and you're all set to go! If you want to build your own custom agent, read up on our [Custom Agents](https://coder.com/docs/ai-coder/custom-agents) documentation. 
+1. Add the agent's module to your existing template
+1. Define the module's required inputs
+1. Define the `coder_parameter`
+
+and you're all set to go! If you want to build your own custom agent, read up on our [Custom Agents](https://coder.com/docs/ai-coder/custom-agents) documentation.
 
 In summary, task templates are highly flexible. You can swap out modules depending on which agent you want to run, adjust their inputs based on the provider’s requirements, and layer on custom setup scripts to tailor the environment to your workflow. Whether that means using a different LLM, pointing to a new API key, or pulling files from S3 at startup, the template structure makes it easy to adapt Tasks without having to rebuild everything from scratch.
 
 ## Task Template Design Principles
 
-Coder Tasks, being based in a given Workspace, operate on very similar principles: 
+Coder Tasks, being based in a given Workspace, operate on very similar principles:
+
 - **Specificity & Refinability:** Tasks, just like templates, are made to address a specific problem and evolve with that problem and your team over time
 - **Security:** Because Tasks are defined through templates, you can define and restrict what access an agent running inside a Task has access to
 - **Frugality:** Tasks only consume resources when running. You should design your Task Template to provide just enough compute and storage so that your task can effectively complete its job, reducing infrastructure cost
@@ -186,6 +191,7 @@ Coder's platform is built around three core concepts that work together:
 ### Platform Integration
 
 Tasks aren't a separate system bolted onto Coder, but a natural extension of your existing infrastructure.
+
 - **Security:** Tasks inherit the same access controls, secrets management, and network policies as developer workspaces
 - **Resoruce Management:** Tasks have access to the same compute pools, storage, and scaling policies you've already configured
 - **Observability:** Tasks use the same underlying infrastructure for monitoring, and appear in their own custom task-specific dashboards
