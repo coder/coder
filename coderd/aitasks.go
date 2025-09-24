@@ -719,7 +719,7 @@ func (api *API) authAndDoWithTaskSidebarAppClient(
 		return httperror.ErrResourceNotFound
 	}
 	build := data.builds[0]
-	if build.HasAITask == nil || !*build.HasAITask || build.AITaskSidebarAppID == nil || !(*build.AITaskSidebarAppID != uuid.Nil) {
+	if build.HasAITask == nil || !*build.HasAITask || build.AITaskSidebarAppID == nil || *build.AITaskSidebarAppID == uuid.Nil {
 		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 			Message: "Task is not configured with a sidebar app.",
 		})
