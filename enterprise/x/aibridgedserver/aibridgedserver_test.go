@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/url"
@@ -20,8 +21,6 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/coder/coder/v2/aibridged/proto"
-	"github.com/coder/coder/v2/coderd/aibridgedserver"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -29,6 +28,8 @@ import (
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/enterprise/x/aibridged/proto"
+	"github.com/coder/coder/v2/enterprise/x/aibridgedserver"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -135,8 +136,6 @@ func TestAuthorization(t *testing.T) {
 				LastSeenAt: now,
 			}
 
-			// Mock the call to insert an API key since dbgen seems to be the
-			// best util to use to generate and fake an API key.
 			keyID, _ := cryptorand.String(10)
 			keySecret, _ := cryptorand.String(22)
 			token := fmt.Sprintf("%s-%s", keyID, keySecret)
@@ -368,23 +367,19 @@ func TestRecordInterception(t *testing.T) {
 					initiatorID, err := uuid.Parse(req.GetInitiatorId())
 					assert.NoError(t, err, "parse interception initiator UUID")
 
-					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
-						if !assert.NotEqual(t, uuid.Nil, p.ID, "ID") ||
-							!assert.Equal(t, interceptionID, p.ID, "interception ID") ||
-							!assert.Equal(t, initiatorID, p.InitiatorID, "initiator ID") ||
-							!assert.Equal(t, req.GetProvider(), p.Provider, "provider") ||
-							!assert.Equal(t, req.GetModel(), p.Model, "model") ||
-							!assert.JSONEq(t, metadataJSON, string(p.Metadata), "metadata") ||
-							!assert.WithinDuration(t, req.GetStartedAt().AsTime(), p.StartedAt, time.Second, "started at") {
-							return false
-						}
-						return true
-					})).Return(database.AIBridgeInterception{
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
 						ID:          interceptionID,
 						InitiatorID: initiatorID,
 						Provider:    req.GetProvider(),
 						Model:       req.GetModel(),
-						StartedAt:   req.GetStartedAt().AsTime(),
+						Metadata:    json.RawMessage(metadataJSON),
+						StartedAt:   req.StartedAt.AsTime().UTC(),
+					}).Return(database.AIBridgeInterception{
+						ID:          interceptionID,
+						InitiatorID: initiatorID,
+						Provider:    req.GetProvider(),
+						Model:       req.GetModel(),
+						StartedAt:   req.StartedAt.AsTime().UTC(),
 					}, nil)
 				},
 			},

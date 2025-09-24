@@ -18,7 +18,6 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -26,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/x/aibridged/proto"
 )
 
 var (
@@ -75,9 +75,7 @@ type Server struct {
 	lifecycleCtx        context.Context
 	store               store
 	logger              slog.Logger
-	accessURL           string
 	externalAuthConfigs map[string]*externalauth.Config
-	experiments         codersdk.Experiments
 
 	coderMCPConfig *proto.MCPServerConfig // may be nil if not available
 }
@@ -102,9 +100,7 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 		lifecycleCtx:        lifecycleCtx,
 		store:               store,
 		logger:              logger.Named("aibridgedserver"),
-		accessURL:           accessURL,
 		externalAuthConfigs: eac,
-		experiments:         experiments,
 		coderMCPConfig:      coderMCPConfig,
 	}, nil
 }
