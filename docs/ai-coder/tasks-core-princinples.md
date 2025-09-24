@@ -167,6 +167,12 @@ Together, these principles make up the core idea of designing Task Templates. Ta
 
 These design principles aren’t just technical guidelines, however. They're the lens through which to understand what Tasks are and how to use them effectively. By grounding Tasks in specificity, security, frugality, applicability, and automation, you ensure they remain reliable building blocks for both individual workflows and larger team processes.
 
+### Identity, Security, and Access
+
+Agents running with Coder Tasks always act as the authenticated developer. External auth tokens tie actions directly back to a specific user, so Git operations like cloning, pushing, or creating a PR are executed under the developer's personal OAuth tokens. Workspace SSH keys are generated per user, and external service integrations authenticate with the developer's personal credentials. This preserves audit trails and ensures actions stay traceable. Authentication (who the user is) subsequently stays separate from authorization (what the user can do), with identitiy providers acting as the soruce of truth. For human users, OIDC or SSO ensure sessions are consistent, centralized, and easy to govern.
+
+For automated or background use cases, Tasks ca also run under service identities. These behave like CI jobs: locked down, narrowly scoped, and managed by the organization. Service accounts or bot identities cover headless API-driven systems, while GitHub Apps enable fine-grained repository access under your organizations control. If long-lived API tokens are needed, they should be tied to service accounts with strict roles and rotation policies. In practice, the default should always be user-context execution for developer workflows while service accounts are reserved for production automation, CI/CD pipelines, and cross-team integrations. This balance keeps developer productivity high while aligning with organizational security requirements.
+
 ## How Tasks Fit Into Coder
 
 Coder's platform is built around three core concepts that work together:
