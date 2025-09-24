@@ -121,7 +121,7 @@ In summary, Task Templates are highly flexible. You can swap out modules dependi
 
 ## Task Template Design Principles
 
-Coder Tasks, being based in a given Workspace, operate on very similar principles: 
+Coder Tasks, being based in a given Workspace, operate on very similar principles:
 
 - **Specificity & Refinability:** Tasks, just like Templates, are made to address a specific problem and evolve with that problem and your team over time
 - **Security:** Because Tasks are defined through templates, you can define and restrict what access an agent running inside a Task has access to
