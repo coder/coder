@@ -20,6 +20,18 @@ usage() {
 
 create() {
 	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME TEMPLATE_NAME TEMPLATE_PARAMETERS
+	# Check if a workspace already exists
+	exists=$("${CODER_BIN}" \
+		--url "${CODER_URL}" \
+		--token "${CODER_SESSION_TOKEN}" \
+		list \
+		--search "owner:me" \
+		--output json |
+		jq -r --arg name "${WORKSPACE_NAME}" 'any(.[]; select(.name == $name))')
+	if [[ "${exists}" == "true" ]]; then
+		echo "Workspace ${WORKSPACE_NAME} already exists."
+		exit 0
+	fi
 	"${CODER_BIN}" \
 		--url "${CODER_URL}" \
 		--token "${CODER_SESSION_TOKEN}" \
@@ -54,7 +66,8 @@ ssh_config() {
 		--url "${CODER_URL}" \
 		--token "${CODER_SESSION_TOKEN}" \
 		--ssh-config-file="${OPENSSH_CONFIG_FILE}" \
-		--yes
+		--yes \
+		>/dev/null 2>&1
 	export OPENSSH_CONFIG_FILE
 }
 
@@ -169,6 +182,34 @@ archive() {
 	exit 0
 }
 
+summary() {
+	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME
+	ssh_config
+
+	# We want the heredoc to be expanded locally and not remotely.
+	# shellcheck disable=SC2087
+	ssh \
+		-F "${OPENSSH_CONFIG_FILE}" \
+		"${WORKSPACE_NAME}.coder" \
+		-- \
+		bash <<-EOF
+			#!/usr/bin/env bash
+			set -eu
+			summary=\$(echo -n 'You are a CLI utility that generates a human-readable Markdown summary for the currently staged AND unstaged changes. Print ONLY the summary and nothing else.' | \${HOME}/.local/bin/claude --print)
+			if [[ -z "\${summary}" ]]; then
+				echo "Generating a summary failed."
+				echo "Here is a short overview of the changes:"
+				echo
+				echo ""
+				echo "\$(git diff --stat)"
+				echo ""
+				exit 0
+			fi
+			echo "\${summary}"
+			exit 0
+		EOF
+}
+
 commit_push() {
 	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME
 	ssh_config
@@ -264,6 +305,9 @@ main() {
 		;;
 	resume)
 		resume
+		;;
+	summary)
+		summary
 		;;
 	*)
 		echo "Unknown option: $1"

@@ -17,6 +17,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 	var (
 		orgContext = NewOrganizationContext()
 
+		taskName            string
 		templateName        string
 		templateVersionName string
 		presetName          string
@@ -31,6 +32,14 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 			serpent.RequireRangeArgs(0, 1),
 		),
 		Options: serpent.OptionSet{
+			{
+				Name:        "name",
+				Flag:        "name",
+				Description: "Specify the name of the task. If you do not specify one, a name will be generated for you.",
+				Value:       serpent.StringOf(&taskName),
+				Required:    false,
+				Default:     "",
+			},
 			{
 				Name:  "template",
 				Flag:  "template",
@@ -169,6 +178,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 			}
 
 			task, err := expClient.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+				Name:                    taskName,
 				TemplateVersionID:       templateVersionID,
 				TemplateVersionPresetID: templateVersionPresetID,
 				Prompt:                  taskInput,

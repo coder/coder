@@ -10,7 +10,7 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { displayError } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Link } from "components/Link/Link";
 import {
 	Select,
@@ -33,7 +33,6 @@ import { RedoIcon, RotateCcwIcon, SendIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME } from "modules/tasks/tasks";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
 import { docs } from "utils/docs";
 
@@ -50,8 +49,6 @@ export const TaskPrompt: FC<TaskPromptProps> = ({
 	error,
 	onRetry,
 }) => {
-	const navigate = useNavigate();
-
 	if (error) {
 		return <TaskPromptLoadingError error={error} onRetry={onRetry} />;
 	}
@@ -64,8 +61,8 @@ export const TaskPrompt: FC<TaskPromptProps> = ({
 	return (
 		<CreateTaskForm
 			templates={templates}
-			onSuccess={(task) => {
-				navigate(`/tasks/${task.owner_name}/${task.name}`);
+			onSuccess={() => {
+				displaySuccess("Task created successfully");
 			}}
 		/>
 	);
@@ -196,9 +193,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 				selectedPresetId,
 			),
 		onSuccess: async (task) => {
-			await queryClient.invalidateQueries({
-				queryKey: ["tasks"],
-			});
+			await queryClient.invalidateQueries({ queryKey: ["tasks"] });
 			onSuccess(task);
 		},
 	});
