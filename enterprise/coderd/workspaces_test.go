@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -2241,13 +2242,14 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, sched.Next(prebuild.LatestBuild.CreatedAt))
+
 		// Wait for provisioner to be available for this specific workspace
-		coderdtest.MustWaitForProvisionersAvailable(t, db, prebuild)
+		coderdtest.MustWaitForProvisionersAvailable(t, db, prebuild, sched.Next(prebuild.LatestBuild.CreatedAt))
 
 		tickTime := sched.Next(prebuild.LatestBuild.CreatedAt).Add(time.Minute)
-		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
 		require.NoError(t, err)
-		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 
 		// Tick at the next scheduled time after the prebuild’s LatestBuild.CreatedAt,
 		// since the next allowed autostart is calculated starting from that point.
@@ -2873,6 +2875,142 @@ func TestPrebuildActivityBump(t *testing.T) {
 	require.Zero(t, workspace.LatestBuild.MaxDeadline)
 }
 
+func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
+	t.Parallel()
+
+	// Setup
+	clock := quartz.NewMock(t)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	db, pb := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	logger := testutil.Logger(t)
+	reg := prometheus.NewRegistry()
+	provisionerdserverMetrics := provisionerdserver.NewMetrics(logger)
+	err := provisionerdserverMetrics.Register(reg)
+	require.NoError(t, err)
+	client, _, api, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			Database:                  db,
+			Pubsub:                    pb,
+			IncludeProvisionerDaemon:  true,
+			Clock:                     clock,
+			ProvisionerdServerMetrics: provisionerdserverMetrics,
+		},
+	})
+
+	// Setup Prebuild reconciler
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	reconciler := prebuilds.NewStoreReconciler(
+		db, pb, cache,
+		codersdk.PrebuildsConfig{},
+		logger,
+		clock,
+		prometheus.NewRegistry(),
+		notifications.NewNoopEnqueuer(),
+		api.AGPL.BuildUsageChecker,
+	)
+	var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+	api.AGPL.PrebuildsClaimer.Store(&claimer)
+
+	organizationName, err := client.Organization(ctx, owner.OrganizationID)
+	require.NoError(t, err)
+	userClient, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleMember())
+
+	// Setup template and template version with a preset with 1 prebuild instance
+	versionPrebuild := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithAgentAndPresetsWithPrebuilds(1))
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, versionPrebuild.ID)
+	templatePrebuild := coderdtest.CreateTemplate(t, client, owner.OrganizationID, versionPrebuild.ID)
+	presetsPrebuild, err := client.TemplateVersionPresets(ctx, versionPrebuild.ID)
+	require.NoError(t, err)
+	require.Len(t, presetsPrebuild, 1)
+
+	// Setup template and template version with a preset without prebuild instances
+	versionNoPrebuild := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithAgentAndPresetsWithPrebuilds(0))
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, versionNoPrebuild.ID)
+	templateNoPrebuild := coderdtest.CreateTemplate(t, client, owner.OrganizationID, versionNoPrebuild.ID)
+	presetsNoPrebuild, err := client.TemplateVersionPresets(ctx, versionNoPrebuild.ID)
+	require.NoError(t, err)
+	require.Len(t, presetsNoPrebuild, 1)
+
+	// Given: no histogram value for prebuilt workspaces creation
+	prebuildCreationMetric := promhelp.MetricValue(t, reg, "coderd_workspace_creation_duration_seconds", prometheus.Labels{
+		"organization_name": organizationName.Name,
+		"template_name":     templatePrebuild.Name,
+		"preset_name":       presetsPrebuild[0].Name,
+		"type":              "prebuild",
+	})
+	require.Nil(t, prebuildCreationMetric)
+
+	// Given: reconciliation loop runs and starts prebuilt workspace
+	coderdenttest.MustRunReconciliationLoopForPreset(ctx, t, db, reconciler, presetsPrebuild[0])
+	runningPrebuilds := coderdenttest.GetRunningPrebuilds(ctx, t, db, 1)
+	require.Len(t, runningPrebuilds, 1)
+
+	// Then: the histogram value for prebuilt workspace creation should be updated
+	prebuildCreationHistogram := promhelp.HistogramValue(t, reg, "coderd_workspace_creation_duration_seconds", prometheus.Labels{
+		"organization_name": organizationName.Name,
+		"template_name":     templatePrebuild.Name,
+		"preset_name":       presetsPrebuild[0].Name,
+		"type":              "prebuild",
+	})
+	require.NotNil(t, prebuildCreationHistogram)
+	require.Equal(t, uint64(1), prebuildCreationHistogram.GetSampleCount())
+
+	// Given: a running prebuilt workspace, ready to be claimed
+	prebuild := coderdtest.MustWorkspace(t, client, runningPrebuilds[0].ID)
+	require.Equal(t, codersdk.WorkspaceTransitionStart, prebuild.LatestBuild.Transition)
+	require.Nil(t, prebuild.DormantAt)
+	require.Nil(t, prebuild.DeletingAt)
+
+	// Given: no histogram value for prebuilt workspaces claim
+	prebuildClaimMetric := promhelp.MetricValue(t, reg, "coderd_prebuilt_workspace_claim_duration_seconds", prometheus.Labels{
+		"organization_name": organizationName.Name,
+		"template_name":     templatePrebuild.Name,
+		"preset_name":       presetsPrebuild[0].Name,
+	})
+	require.Nil(t, prebuildClaimMetric)
+
+	// Given: the prebuilt workspace is claimed by a user
+	workspace := coderdenttest.MustClaimPrebuild(ctx, t, client, userClient, user.Username, versionPrebuild, presetsPrebuild[0].ID)
+	require.Equal(t, prebuild.ID, workspace.ID)
+
+	// Then: the histogram value for prebuilt workspace claim should be updated
+	prebuildClaimHistogram := promhelp.HistogramValue(t, reg, "coderd_prebuilt_workspace_claim_duration_seconds", prometheus.Labels{
+		"organization_name": organizationName.Name,
+		"template_name":     templatePrebuild.Name,
+		"preset_name":       presetsPrebuild[0].Name,
+	})
+	require.NotNil(t, prebuildClaimHistogram)
+	require.Equal(t, uint64(1), prebuildClaimHistogram.GetSampleCount())
+
+	// Given: no histogram value for regular workspaces creation
+	regularWorkspaceHistogramMetric := promhelp.MetricValue(t, reg, "coderd_workspace_creation_duration_seconds", prometheus.Labels{
+		"organization_name": organizationName.Name,
+		"template_name":     templateNoPrebuild.Name,
+		"preset_name":       presetsNoPrebuild[0].Name,
+		"type":              "regular",
+	})
+	require.Nil(t, regularWorkspaceHistogramMetric)
+
+	// Given: a user creates a regular workspace (without prebuild pool)
+	regularWorkspace, err := client.CreateUserWorkspace(ctx, user.ID.String(), codersdk.CreateWorkspaceRequest{
+		TemplateVersionID:       versionNoPrebuild.ID,
+		TemplateVersionPresetID: presetsNoPrebuild[0].ID,
+		Name:                    coderdtest.RandomUsername(t),
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, regularWorkspace.LatestBuild.ID)
+
+	// Then: the histogram value for regular workspace creation should be updated
+	regularWorkspaceHistogram := promhelp.HistogramValue(t, reg, "coderd_workspace_creation_duration_seconds", prometheus.Labels{
+		"organization_name": organizationName.Name,
+		"template_name":     templateNoPrebuild.Name,
+		"preset_name":       presetsNoPrebuild[0].Name,
+		"type":              "regular",
+	})
+	require.NotNil(t, regularWorkspaceHistogram)
+	require.Equal(t, uint64(1), regularWorkspaceHistogram.GetSampleCount())
+}
+
 // TestWorkspaceTemplateParamsChange tests a workspace with a parameter that
 // validation changes on apply. The params used in create workspace are invalid
 // according to the static params on import.
@@ -3437,6 +3575,264 @@ func TestWorkspacesFiltering(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("SharedWithGroup", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
+		var (
+			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					DeploymentValues: dv,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureTemplateRBAC: 1,
+					},
+				},
+			})
+			_, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			sharedWorkspace   = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			ctx = testutil.Context(t, testutil.WaitMedium)
+		)
+
+		group, err := client.CreateGroup(ctx, orgOwner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "wibble",
+		})
+		require.NoError(t, err, "create group")
+
+		client.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Shared: ptr.Ref(true),
+		})
+		require.NoError(t, err, "fetch workspaces")
+		require.Equal(t, 1, workspaces.Count, "expected only one workspace")
+		require.Equal(t, workspaces.Workspaces[0].ID, sharedWorkspace.ID)
+	})
+
+	t.Run("SharedWithUserAndGroup", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
+		var (
+			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					DeploymentValues: dv,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureTemplateRBAC: 1,
+					},
+				},
+			})
+			_, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			sharedWorkspace   = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_, toShareWithUser = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+			ctx                = testutil.Context(t, testutil.WaitMedium)
+		)
+
+		group, err := client.CreateGroup(ctx, orgOwner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "wibble",
+		})
+		require.NoError(t, err, "create group")
+
+		client.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				toShareWithUser.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Shared: ptr.Ref(true),
+		})
+		require.NoError(t, err, "fetch workspaces")
+		require.Equal(t, 1, workspaces.Count, "expected only one workspace")
+		require.Equal(t, workspaces.Workspaces[0].ID, sharedWorkspace.ID)
+	})
+
+	t.Run("NotSharedWithGroup", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
+		var (
+			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					DeploymentValues: dv,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureTemplateRBAC: 1,
+					},
+				},
+			})
+			_, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			sharedWorkspace   = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			notSharedWorkspace = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			ctx = testutil.Context(t, testutil.WaitMedium)
+		)
+
+		group, err := client.CreateGroup(ctx, orgOwner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "wibble",
+		})
+		require.NoError(t, err, "create group")
+
+		client.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Shared: ptr.Ref(false),
+		})
+		require.NoError(t, err, "fetch workspaces")
+		require.Equal(t, 1, workspaces.Count, "expected only one workspace")
+		require.Equal(t, workspaces.Workspaces[0].ID, notSharedWorkspace.ID)
+	})
+
+	t.Run("SharedWithGroupByID", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
+		var (
+			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					DeploymentValues: dv,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureTemplateRBAC: 1,
+					},
+				},
+			})
+			_, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			sharedWorkspace   = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			ctx = testutil.Context(t, testutil.WaitMedium)
+		)
+
+		group, err := client.CreateGroup(ctx, orgOwner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "wibble",
+		})
+		require.NoError(t, err, "create group")
+		err = client.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			SharedWithGroup: group.ID.String(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, workspaces.Count)
+		require.Equal(t, sharedWorkspace.ID, workspaces.Workspaces[0].ID)
+	})
+
+	t.Run("SharedWithGroupFilter", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
+		var (
+			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					DeploymentValues: dv,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureTemplateRBAC: 1,
+					},
+				},
+			})
+			_, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			sharedWorkspace   = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			ctx = testutil.Context(t, testutil.WaitMedium)
+		)
+
+		group, err := client.CreateGroup(ctx, orgOwner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "wibble",
+		})
+		require.NoError(t, err, "create group")
+		err = client.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		workspacesByID, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			SharedWithGroup: group.ID.String(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, workspacesByID.Count)
+		require.Equal(t, sharedWorkspace.ID, workspacesByID.Workspaces[0].ID)
+
+		workspacesByName, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			SharedWithGroup: group.Name,
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, workspacesByName.Count)
+		require.Equal(t, sharedWorkspace.ID, workspacesByName.Workspaces[0].ID)
+
+		workspacesByOrgAndName, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			SharedWithGroup: fmt.Sprintf("coder/%s", group.Name),
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, workspacesByOrgAndName.Count)
+		require.Equal(t, sharedWorkspace.ID, workspacesByOrgAndName.Workspaces[0].ID)
+	})
 }
 
 // TestWorkspacesWithoutTemplatePerms creates a workspace for a user, then drops
@@ -3909,13 +4305,22 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		err := client.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
 			UserRoles: map[string]codersdk.WorkspaceRole{
-				friend.ID.String(): codersdk.WorkspaceRoleAdmin,
+				friend.ID.String(): codersdk.WorkspaceRoleUse,
 			},
 			GroupRoles: map[string]codersdk.WorkspaceRole{
 				group.ID.String(): codersdk.WorkspaceRoleAdmin,
 			},
 		})
 		require.NoError(t, err)
+
+		workspaceACL, err := client.WorkspaceACL(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Len(t, workspaceACL.Users, 1)
+		require.Equal(t, workspaceACL.Users[0].ID, friend.ID)
+		require.Equal(t, workspaceACL.Users[0].Role, codersdk.WorkspaceRoleUse)
+		require.Len(t, workspaceACL.Groups, 1)
+		require.Equal(t, workspaceACL.Groups[0].ID, group.ID)
+		require.Equal(t, workspaceACL.Groups[0].Role, codersdk.WorkspaceRoleAdmin)
 	})
 
 	t.Run("UnknownIDs", func(t *testing.T) {
@@ -3953,5 +4358,102 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		require.Len(t, cerr.Validations, 2)
 		require.Equal(t, cerr.Validations[0].Field, "group_roles")
 		require.Equal(t, cerr.Validations[1].Field, "user_roles")
+	})
+}
+
+func TestDeleteWorkspaceACL(t *testing.T) {
+	t.Parallel()
+
+	t.Run("WorkspaceOwnerCanDelete_Groups", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			client, db, admin = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+						dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+					}),
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureTemplateRBAC: 1,
+					},
+				},
+			})
+			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.ScopedRoleOrgAuditor(admin.OrganizationID))
+			workspace                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: admin.OrganizationID,
+			}).Do().Workspace
+		)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		group, err := client.CreateGroup(ctx, admin.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "wibble",
+		})
+		require.NoError(t, err)
+		err = workspaceOwnerClient.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		err = workspaceOwnerClient.DeleteWorkspaceACL(ctx, workspace.ID)
+		require.NoError(t, err)
+
+		acl, err := workspaceOwnerClient.WorkspaceACL(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Empty(t, acl.Groups)
+	})
+
+	t.Run("SharedGroupUsersCannotDelete", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			client, db, admin = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+						dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+					}),
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureTemplateRBAC: 1,
+					},
+				},
+			})
+			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.ScopedRoleOrgAuditor(admin.OrganizationID))
+			workspace                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: admin.OrganizationID,
+			}).Do().Workspace
+			sharedClient, toShareWithUser = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		group, err := client.CreateGroup(ctx, admin.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "wibble",
+		})
+		require.NoError(t, err)
+		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{toShareWithUser.ID.String()},
+		})
+		require.NoError(t, err)
+		err = workspaceOwnerClient.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		err = sharedClient.DeleteWorkspaceACL(ctx, workspace.ID)
+		require.Error(t, err)
+
+		acl, err := workspaceOwnerClient.WorkspaceACL(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Equal(t, acl.Groups[0].ID, group.ID)
 	})
 }

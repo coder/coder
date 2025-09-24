@@ -254,7 +254,7 @@ data "coder_parameter" "ai_prompt" {
   name        = "AI Prompt"
   default     = ""
   description = "Prompt for Claude Code"
-  mutable     = false
+  mutable     = true // Workaround for issue with claiming a prebuild from a preset that does not include this parameter.
 }
 
 provider "docker" {
@@ -359,6 +359,15 @@ module "dotfiles" {
   agent_id = coder_agent.dev.id
 }
 
+module "git-config" {
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/coder/git-config/coder"
+  version  = "1.0.31"
+  agent_id = coder_agent.dev.id
+  # If you prefer to commit with a different email, this allows you to do so.
+  allow_email_change = true
+}
+
 module "git-clone" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/git-clone/coder"
@@ -388,7 +397,7 @@ module "code-server" {
 module "vscode-web" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode-web") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
-  version                 = "1.3.1"
+  version                 = "1.4.1"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   extensions              = ["github.copilot"]
@@ -400,11 +409,12 @@ module "vscode-web" {
 module "jetbrains" {
   count         = contains(jsondecode(data.coder_parameter.ide_choices.value), "jetbrains") ? data.coder_workspace.me.start_count : 0
   source        = "dev.registry.coder.com/coder/jetbrains/coder"
-  version       = "1.0.3"
+  version       = "1.1.0"
   agent_id      = coder_agent.dev.id
   agent_name    = "dev"
   folder        = local.repo_dir
   major_version = "latest"
+  tooltip       = "You need to [Install Coder Desktop](https://coder.com/docs/user-guides/desktop#install-coder-desktop) to use this button."
 }
 
 module "filebrowser" {
@@ -418,14 +428,14 @@ module "filebrowser" {
 module "coder-login" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/coder-login/coder"
-  version  = "1.0.31"
+  version  = "1.1.0"
   agent_id = coder_agent.dev.id
 }
 
 module "cursor" {
   count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "cursor") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/cursor/coder"
-  version  = "1.3.0"
+  version  = "1.3.2"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
@@ -433,7 +443,7 @@ module "cursor" {
 module "windsurf" {
   count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "windsurf") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/windsurf/coder"
-  version  = "1.1.1"
+  version  = "1.2.0"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
@@ -466,7 +476,7 @@ module "devcontainers-cli" {
 module "claude-code" {
   count               = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "2.0.7"
+  version             = "2.2.0"
   agent_id            = coder_agent.dev.id
   folder              = local.repo_dir
   install_claude_code = true
@@ -735,6 +745,8 @@ resource "docker_container" "workspace" {
       name,
       hostname,
       labels,
+      env,
+      entrypoint
     ]
   }
   count = data.coder_workspace.me.start_count

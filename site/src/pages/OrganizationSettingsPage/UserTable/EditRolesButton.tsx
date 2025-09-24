@@ -4,18 +4,18 @@ import type { SlimRole } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { CollapsibleSummary } from "components/CollapsibleSummary/CollapsibleSummary";
 import {
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipIconTrigger,
+	HelpTooltipText,
+	HelpTooltipTitle,
+} from "components/HelpTooltip/HelpTooltip";
+import { EditSquare } from "components/Icons/EditSquare";
+import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
-import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipText,
-	HelpTooltipTitle,
-	HelpTooltipTrigger,
-} from "components/HelpTooltip/HelpTooltip";
-import { EditSquare } from "components/Icons/EditSquare";
+} from "components/Popover/Popover";
 import { UserIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 
@@ -83,7 +83,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = (props) => {
 	if (!canSetRoles) {
 		return (
 			<HelpTooltip>
-				<HelpTooltipTrigger size="small" />
+				<HelpTooltipIconTrigger size="small" />
 				<HelpTooltipContent>
 					<HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
 					<HelpTooltipText>
@@ -130,7 +130,7 @@ const EnabledEditRolesButton: FC<EditRolesButtonProps> = ({
 
 	return (
 		<Popover>
-			<PopoverTrigger>
+			<PopoverTrigger asChild>
 				<Tooltip title="Edit user roles">
 					<Button
 						variant="subtle"
@@ -143,7 +143,10 @@ const EnabledEditRolesButton: FC<EditRolesButtonProps> = ({
 				</Tooltip>
 			</PopoverTrigger>
 
-			<PopoverContent className="w-96" disablePortal={false}>
+			<PopoverContent
+				align="start"
+				className="w-96 bg-surface-secondary border-surface-quaternary"
+			>
 				<fieldset
 					className="border-0 m-0 p-0 disabled:opacity-50"
 					disabled={isLoading}

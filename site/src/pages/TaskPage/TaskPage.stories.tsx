@@ -2,15 +2,23 @@ import {
 	MockFailedWorkspace,
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
-	MockTemplate,
+	MockTasks,
+	MockUserOwner,
 	MockWorkspace,
-	MockWorkspaceAgent,
+	MockWorkspaceAgentLogSource,
+	MockWorkspaceAgentReady,
+	MockWorkspaceAgentStarting,
 	MockWorkspaceApp,
 	MockWorkspaceAppStatus,
 	MockWorkspaceResource,
 	mockApiError,
 } from "testHelpers/entities";
-import { withProxyProvider } from "testHelpers/storybook";
+import {
+	withAuthProvider,
+	withGlobalSnackbar,
+	withProxyProvider,
+	withWebSocket,
+} from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import type {
@@ -18,15 +26,28 @@ import type {
 	WorkspaceApp,
 	WorkspaceResource,
 } from "api/typesGenerated";
-import { expect, spyOn, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import TaskPage, { data, WorkspaceDoesNotHaveAITaskError } from "./TaskPage";
 
 const meta: Meta<typeof TaskPage> = {
 	title: "pages/TaskPage",
 	component: TaskPage,
-	decorators: [withProxyProvider()],
+	decorators: [withProxyProvider(), withAuthProvider],
+	beforeEach: () => {
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+	},
 	parameters: {
 		layout: "fullscreen",
+		user: MockUserOwner,
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					workspace: MockTasks[0].workspace.name,
+				},
+			},
+			routing: { path: "/tasks/:workspace" },
+		}),
 	},
 };
 
@@ -61,28 +82,6 @@ export const WaitingOnBuild: Story = {
 	},
 };
 
-export const WaitingOnBuildWithTemplate: Story = {
-	beforeEach: () => {
-		spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: MockStartingWorkspace,
-		});
-	},
-};
-
-export const WaitingOnStatus: Story = {
-	beforeEach: () => {
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: {
-				...MockWorkspace,
-				latest_app_status: null,
-			},
-		});
-	},
-};
-
 export const FailedBuild: Story = {
 	beforeEach: () => {
 		spyOn(data, "fetchTask").mockResolvedValue({
@@ -110,6 +109,65 @@ export const TerminatedBuildWithStatus: Story = {
 				latest_app_status: MockWorkspaceAppStatus,
 			},
 		});
+	},
+};
+
+export const WaitingOnStatus: Story = {
+	beforeEach: () => {
+		spyOn(data, "fetchTask").mockResolvedValue({
+			prompt: "Create competitors page",
+			workspace: {
+				...MockWorkspace,
+				latest_app_status: null,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					resources: [
+						{ ...MockWorkspaceResource, agents: [MockWorkspaceAgentReady] },
+					],
+				},
+			},
+		});
+	},
+};
+
+export const WaitingStartupScripts: Story = {
+	beforeEach: () => {
+		spyOn(data, "fetchTask").mockResolvedValue({
+			prompt: "Create competitors page",
+			workspace: {
+				...MockWorkspace,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					has_ai_task: true,
+					resources: [
+						{ ...MockWorkspaceResource, agents: [MockWorkspaceAgentStarting] },
+					],
+				},
+			},
+		});
+	},
+	decorators: [withWebSocket],
+	parameters: {
+		webSocket: [
+			{
+				event: "message",
+				data: JSON.stringify(
+					[
+						"\x1b[91mCloning Git repository...",
+						"\x1b[2;37;41mStarting Docker Daemon...",
+						"\x1b[1;95mAdding some 🧙magic🧙...",
+						"Starting VS Code...",
+						"\r  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\r100  1475    0  1475    0     0   4231      0 --:--:-- --:--:-- --:--:--  4238",
+					].map((line, index) => ({
+						id: index,
+						level: "info",
+						output: line,
+						source_id: MockWorkspaceAgentLogSource.id,
+						created_at: new Date("2024-01-01T12:00:00Z").toISOString(),
+					})),
+				),
+			},
+		],
 	},
 };
 
@@ -223,7 +281,7 @@ const mockResources = (
 		...MockWorkspaceResource,
 		agents: [
 			{
-				...MockWorkspaceAgent,
+				...MockWorkspaceAgentReady,
 				apps: [
 					...(props?.apps ?? []),
 					{
@@ -311,6 +369,120 @@ export const ActivePreview: Story = {
 					display_name: "Preview",
 				},
 			]),
+		});
+	},
+};
+
+export const WorkspaceStartFailure: Story = {
+	decorators: [withGlobalSnackbar],
+	beforeEach: () => {
+		spyOn(API, "startWorkspace").mockRejectedValue(
+			new Error("Some unexpected error"),
+		);
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					username: MockStoppedWorkspace.owner_name,
+					workspace: MockStoppedWorkspace.name,
+				},
+			},
+			routing: {
+				path: "/tasks/:username/:workspace",
+			},
+		}),
+		queries: [
+			{
+				key: [
+					"tasks",
+					MockStoppedWorkspace.owner_name,
+					MockStoppedWorkspace.name,
+				],
+				data: {
+					prompt: "Create competitors page",
+					workspace: MockStoppedWorkspace,
+				},
+			},
+			{
+				key: ["workspace", MockStoppedWorkspace.id, "parameters"],
+				data: {
+					templateVersionRichParameters: [],
+					buildParameters: [],
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const startButton = await canvas.findByText("Start workspace");
+		expect(startButton).toBeInTheDocument();
+
+		await userEvent.click(startButton);
+
+		await waitFor(async () => {
+			const errorMessage = await canvas.findByText("Some unexpected error");
+			expect(errorMessage).toBeInTheDocument();
+		});
+	},
+};
+
+export const WorkspaceStartFailureWithDialog: Story = {
+	beforeEach: () => {
+		spyOn(API, "startWorkspace").mockRejectedValue({
+			...mockApiError({
+				message: "Bad Request",
+				detail: "Invalid build parameters provided",
+			}),
+			code: "ERR_BAD_REQUEST",
+		});
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					username: MockStoppedWorkspace.owner_name,
+					workspace: MockStoppedWorkspace.name,
+				},
+			},
+			routing: {
+				path: "/tasks/:username/:workspace",
+			},
+		}),
+		queries: [
+			{
+				key: [
+					"tasks",
+					MockStoppedWorkspace.owner_name,
+					MockStoppedWorkspace.name,
+				],
+				data: {
+					prompt: "Create competitors page",
+					workspace: MockStoppedWorkspace,
+				},
+			},
+			{
+				key: ["workspace", MockStoppedWorkspace.id, "parameters"],
+				data: {
+					templateVersionRichParameters: [],
+					buildParameters: [],
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const startButton = await canvas.findByText("Start workspace");
+		expect(startButton).toBeInTheDocument();
+
+		await userEvent.click(startButton);
+
+		await waitFor(async () => {
+			const body = within(canvasElement.ownerDocument.body);
+			const dialogTitle = await body.findByText("Error building workspace");
+			expect(dialogTitle).toBeInTheDocument();
 		});
 	},
 };

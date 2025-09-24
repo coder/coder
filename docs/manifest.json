@@ -154,9 +154,9 @@
 					]
 				},
 				{
-					"title": "Offline Deployments",
-					"description": "Run Coder in offline / air-gapped environments",
-					"path": "./install/offline.md",
+					"title": "Air-gapped Deployments",
+					"description": "Run Coder in air-gapped / disconnected / offline environments",
+					"path": "./install/airgap.md",
 					"icon_path": "./images/icons/lan.svg"
 				},
 				{
@@ -537,6 +537,12 @@
 									"title": "Workspace Scheduling",
 									"description": "Learn how to control how workspaces are started and stopped",
 									"path": "./admin/templates/managing-templates/schedule.md"
+								},
+								{
+									"title": "External Workspaces",
+									"description": "Learn how to manage external workspaces",
+									"path": "./admin/templates/managing-templates/external-workspaces.md",
+									"state": ["premium", "early access"]
 								}
 							]
 						},
@@ -763,6 +769,11 @@
 							"description": "Learn how to configure Coder for High Availability",
 							"path": "./admin/networking/high-availability.md",
 							"state": ["premium"]
+						},
+						{
+							"title": "Wildcard Access URL",
+							"description": "Learn about wildcard access URL in Coder deployments",
+							"path": "./admin/networking/wildcard-access-url.md"
 						},
 						{
 							"title": "Troubleshooting",
@@ -1280,6 +1291,11 @@
 							"title": "notifications",
 							"description": "Manage Coder notifications",
 							"path": "reference/cli/notifications.md"
+						},
+						{
+							"title": "notifications custom",
+							"description": "Send a custom notification",
+							"path": "reference/cli/notifications_custom.md"
 						},
 						{
 							"title": "notifications pause",

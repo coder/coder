@@ -48,6 +48,9 @@ const (
 	// SubdomainAppSessionTokenCookie is the name of the cookie that stores an
 	// application-scoped API token on subdomain app domains (both the primary
 	// and proxies).
+	//
+	// To avoid conflicts between multiple proxies, we append an underscore and
+	// a hash suffix to the cookie name.
 	//nolint:gosec
 	SubdomainAppSessionTokenCookie = "coder_subdomain_app_session_token"
 	// SignedAppTokenCookie is the name of the cookie that stores a temporary
@@ -105,12 +108,19 @@ var loggableMimeTypes = map[string]struct{}{
 	"text/html": {},
 }
 
+type ClientOption func(*Client)
+
 // New creates a Coder client for the provided URL.
-func New(serverURL *url.URL) *Client {
-	return &Client{
-		URL:        serverURL,
-		HTTPClient: &http.Client{},
+func New(serverURL *url.URL, opts ...ClientOption) *Client {
+	client := &Client{
+		URL:                  serverURL,
+		HTTPClient:           &http.Client{},
+		SessionTokenProvider: FixedSessionTokenProvider{},
 	}
+	for _, opt := range opts {
+		opt(client)
+	}
+	return client
 }
 
 // Client is an HTTP caller for methods to the Coder API.
@@ -118,29 +128,28 @@ func New(serverURL *url.URL) *Client {
 type Client struct {
 	// mu protects the fields sessionToken, logger, and logBodies. These
 	// need to be safe for concurrent access.
-	mu           sync.RWMutex
-	sessionToken string
-	logger       slog.Logger
-	logBodies    bool
+	mu                   sync.RWMutex
+	SessionTokenProvider SessionTokenProvider
+	logger               slog.Logger
+	logBodies            bool
 
 	HTTPClient *http.Client
 	URL        *url.URL
 
-	// SessionTokenHeader is an optional custom header to use for setting tokens. By
-	// default 'Coder-Session-Token' is used.
-	SessionTokenHeader string
-
 	// PlainLogger may be set to log HTTP traffic in a human-readable form.
 	// It uses the LogBodies option.
+	// Deprecated: Use WithPlainLogger to set this.
 	PlainLogger io.Writer
 
 	// Trace can be enabled to propagate tracing spans to the Coder API.
 	// This is useful for tracking a request end-to-end.
+	// Deprecated: Use WithTrace to set this.
 	Trace bool
 
 	// DisableDirectConnections forces any connections to workspaces to go
 	// through DERP, regardless of the BlockEndpoints setting on each
 	// connection.
+	// Deprecated: Use WithDisableDirectConnections to set this.
 	DisableDirectConnections bool
 }
 
@@ -152,6 +161,7 @@ func (c *Client) Logger() slog.Logger {
 }
 
 // SetLogger sets the logger for the client.
+// Deprecated: Use WithLogger to set this.
 func (c *Client) SetLogger(logger slog.Logger) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -166,6 +176,7 @@ func (c *Client) LogBodies() bool {
 }
 
 // SetLogBodies sets whether to log request and response bodies.
+// Deprecated: Use WithLogBodies to set this.
 func (c *Client) SetLogBodies(logBodies bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -176,14 +187,15 @@ func (c *Client) SetLogBodies(logBodies bool) {
 func (c *Client) SessionToken() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.sessionToken
+	return c.SessionTokenProvider.GetSessionToken()
 }
 
-// SetSessionToken returns the currently set token for the client.
+// SetSessionToken sets a fixed token for the client.
+// Deprecated: Create a new client using WithSessionToken instead of changing the token after creation.
 func (c *Client) SetSessionToken(token string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.sessionToken = token
+	c.SessionTokenProvider = FixedSessionTokenProvider{SessionToken: token}
 }
 
 func prefixLines(prefix, s []byte) []byte {
@@ -199,6 +211,14 @@ func prefixLines(prefix, s []byte) []byte {
 // Request performs a HTTP request with the body provided. The caller is
 // responsible for closing the response body.
 func (c *Client) Request(ctx context.Context, method, path string, body interface{}, opts ...RequestOption) (*http.Response, error) {
+	opts = append([]RequestOption{c.SessionTokenProvider.AsRequestOption()}, opts...)
+	return c.RequestWithoutSessionToken(ctx, method, path, body, opts...)
+}
+
+// RequestWithoutSessionToken performs a HTTP request. It is similar to Request, but does not set
+// the session token in the request header, nor does it make a call to the SessionTokenProvider.
+// This allows session token providers to call this method without causing reentrancy issues.
+func (c *Client) RequestWithoutSessionToken(ctx context.Context, method, path string, body interface{}, opts ...RequestOption) (*http.Response, error) {
 	if ctx == nil {
 		return nil, xerrors.Errorf("context should not be nil")
 	}
@@ -247,12 +267,6 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	if err != nil {
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
-
-	tokenHeader := c.SessionTokenHeader
-	if tokenHeader == "" {
-		tokenHeader = SessionTokenHeader
-	}
-	req.Header.Set(tokenHeader, c.SessionToken())
 
 	if r != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -345,20 +359,10 @@ func (c *Client) Dial(ctx context.Context, path string, opts *websocket.DialOpti
 		return nil, err
 	}
 
-	tokenHeader := c.SessionTokenHeader
-	if tokenHeader == "" {
-		tokenHeader = SessionTokenHeader
-	}
-
 	if opts == nil {
 		opts = &websocket.DialOptions{}
 	}
-	if opts.HTTPHeader == nil {
-		opts.HTTPHeader = http.Header{}
-	}
-	if opts.HTTPHeader.Get(tokenHeader) == "" {
-		opts.HTTPHeader.Set(tokenHeader, c.SessionToken())
-	}
+	c.SessionTokenProvider.SetDialOption(opts)
 
 	conn, resp, err := websocket.Dial(ctx, u.String(), opts)
 	if resp != nil && resp.Body != nil {
@@ -644,5 +648,49 @@ func (h *HeaderTransport) CloseIdleConnections() {
 	}
 	if tr, ok := h.Transport.(closeIdler); ok {
 		tr.CloseIdleConnections()
+	}
+}
+
+// ClientOptions
+
+func WithSessionToken(token string) ClientOption {
+	return func(c *Client) {
+		c.SessionTokenProvider = FixedSessionTokenProvider{SessionToken: token}
+	}
+}
+
+func WithHTTPClient(httpClient *http.Client) ClientOption {
+	return func(c *Client) {
+		c.HTTPClient = httpClient
+	}
+}
+
+func WithLogger(logger slog.Logger) ClientOption {
+	return func(c *Client) {
+		c.logger = logger
+	}
+}
+
+func WithLogBodies() ClientOption {
+	return func(c *Client) {
+		c.logBodies = true
+	}
+}
+
+func WithPlainLogger(plainLogger io.Writer) ClientOption {
+	return func(c *Client) {
+		c.PlainLogger = plainLogger
+	}
+}
+
+func WithTrace() ClientOption {
+	return func(c *Client) {
+		c.Trace = true
+	}
+}
+
+func WithDisableDirectConnections() ClientOption {
+	return func(c *Client) {
+		c.DisableDirectConnections = true
 	}
 }

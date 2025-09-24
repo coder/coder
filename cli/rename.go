@@ -13,18 +13,20 @@ import (
 )
 
 func (r *RootCmd) rename() *serpent.Command {
-	var appearanceConfig codersdk.AppearanceConfig
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "rename <workspace> <new name>",
 		Short:       "Rename a workspace",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(2),
-			r.InitClient(client),
-			initAppearance(client, &appearanceConfig),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+			appearanceConfig := initAppearance(inv.Context(), client)
+
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)

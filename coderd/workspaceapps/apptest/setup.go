@@ -137,8 +137,7 @@ type Details struct {
 //
 // The client is authenticated as the first user by default.
 func (d *Details) AppClient(t *testing.T) *codersdk.Client {
-	client := codersdk.New(d.PathAppBaseURL)
-	client.SetSessionToken(d.SDKClient.SessionToken())
+	client := codersdk.New(d.PathAppBaseURL, codersdk.WithSessionToken(d.SDKClient.SessionToken()))
 	forceURLTransport(t, client)
 	client.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
@@ -482,8 +481,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 		require.Equal(t, appURL.String(), app.SubdomainName)
 	}
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
 
 	// TODO (@dean): currently, the primary app host is used when generating
 	// the port URL we tell the agent to use. We don't have any plans to change

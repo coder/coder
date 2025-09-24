@@ -320,9 +320,9 @@ export const TemplateInfoPopover: Story = {
 		await step("activate hover trigger", async () => {
 			await userEvent.hover(canvas.getByText(baseWorkspace.name));
 			await waitFor(() =>
-				expect(
-					canvas.getByRole("presentation", { hidden: true }),
-				).toHaveTextContent(MockTemplate.display_name),
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
+					MockTemplate.display_name,
+				),
 			);
 		});
 	},
@@ -346,9 +346,9 @@ export const TemplateInfoPopoverWithoutDisplayName: Story = {
 		await step("activate hover trigger", async () => {
 			await userEvent.hover(canvas.getByText(baseWorkspace.name));
 			await waitFor(() =>
-				expect(
-					canvas.getByRole("presentation", { hidden: true }),
-				).toHaveTextContent(MockTemplate.name),
+				expect(screen.getByRole("tooltip")).toHaveTextContent(
+					MockTemplate.name,
+				),
 			);
 		});
 	},

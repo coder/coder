@@ -1,178 +1,189 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Tooltip from "@mui/material/Tooltip";
+import MuiTooltip from "@mui/material/Tooltip";
 import type { WorkspaceAgentLogSource } from "api/typesGenerated";
+import { Badge } from "components/Badge/Badge";
 import type { Line } from "components/Logs/LogLine";
-import { type ComponentProps, forwardRef, useMemo } from "react";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { type ComponentProps, forwardRef, type JSX } from "react";
 import { FixedSizeList as List } from "react-window";
+import { cn } from "utils/cn";
 import { AGENT_LOG_LINE_HEIGHT, AgentLogLine } from "./AgentLogLine";
+
+// Fallback log used in places where we must always have a valid log source.
+// We need this to support deployments that were made before `coder_script` was
+// created and that haven't restarted their agents yet
+const fallbackLog: WorkspaceAgentLogSource = {
+	created_at: "",
+	display_name: "Logs",
+	icon: "",
+	id: "00000000-0000-0000-0000-000000000000",
+	workspace_agent_id: "",
+};
 
 type AgentLogsProps = Omit<
 	ComponentProps<typeof List>,
-	"children" | "itemSize" | "itemCount"
+	"children" | "itemSize" | "itemCount" | "itemKey"
 > & {
 	logs: readonly Line[];
 	sources: readonly WorkspaceAgentLogSource[];
+	overflowed: boolean;
 };
 
 export const AgentLogs = forwardRef<List, AgentLogsProps>(
-	({ logs, sources, ...listProps }, ref) => {
-		const logSourceByID = useMemo(() => {
-			const sourcesById: { [id: string]: WorkspaceAgentLogSource } = {};
-			for (const source of sources) {
-				sourcesById[source.id] = source;
-			}
-			return sourcesById;
-		}, [sources]);
+	({ logs, sources, overflowed, className, ...listProps }, ref) => {
+		const logSourceById = Object.fromEntries(sources.map((s) => [s.id, s]));
+		const getLogSource = (id: string) => logSourceById[id] || fallbackLog;
 
 		return (
-			<List
-				ref={ref}
-				css={styles.logs}
-				itemCount={logs.length}
-				itemSize={AGENT_LOG_LINE_HEIGHT}
-				{...listProps}
-			>
-				{({ index, style }) => {
-					const log = logs[index];
-					// getLogSource always returns a valid log source.
-					// This is necessary to support deployments before `coder_script`.
-					// Existed that haven't restarted their agents.
-					const getLogSource = (id: string): WorkspaceAgentLogSource => {
-						return (
-							logSourceByID[id] || {
-								created_at: "",
-								display_name: "Logs",
-								icon: "",
-								id: "00000000-0000-0000-0000-000000000000",
-								workspace_agent_id: "",
-							}
-						);
-					};
-					const logSource = getLogSource(log.sourceId);
+			<div className="bg-surface-secondary relative">
+				<List
+					{...listProps}
+					ref={ref}
+					itemCount={logs.length}
+					itemSize={AGENT_LOG_LINE_HEIGHT}
+					itemKey={(index) => logs[index]?.id || index}
+					// We need the div selector to be able to apply the padding
+					// top from startupLogs
+					className={cn(
+						"pt-4 [&>div]:relative bg-surface-secondary",
+						// Add extra padding so that overflow indicator can't
+						// fully cover up lines of text
+						overflowed && "pb-10",
+						className,
+					)}
+				>
+					{({ index, style }) => {
+						const log = logs[index];
+						const logSource = getLogSource(log.sourceId);
 
-					let assignedIcon = false;
-					let icon: JSX.Element;
-					// If no icon is specified, we show a deterministic
-					// colored circle to identify unique scripts.
-					if (logSource.icon) {
-						icon = (
-							<img
-								src={logSource.icon}
-								alt=""
-								width={14}
-								height={14}
-								css={{
-									marginRight: 8,
-									flexShrink: 0,
-								}}
-							/>
-						);
-					} else {
-						icon = (
-							<div
-								css={{
-									width: 14,
-									height: 14,
-									marginRight: 8,
-									flexShrink: 0,
-									background: determineScriptDisplayColor(
-										logSource.display_name,
-									),
-									borderRadius: "100%",
-								}}
-							/>
-						);
-						assignedIcon = true;
-					}
-
-					let nextChangesSource = false;
-					if (index < logs.length - 1) {
-						nextChangesSource =
-							getLogSource(logs[index + 1].sourceId).id !== log.sourceId;
-					}
-					// We don't want every line to repeat the icon, because
-					// that is ugly and repetitive. This removes the icon
-					// for subsequent lines of the same source and shows a
-					// line instead, visually indicating they are from the
-					// same source.
-					if (
-						index > 0 &&
-						getLogSource(logs[index - 1].sourceId).id === log.sourceId
-					) {
-						icon = (
-							<div
-								css={{
-									width: 14,
-									height: 14,
-									marginRight: 8,
-									display: "flex",
-									justifyContent: "center",
-									position: "relative",
-									flexShrink: 0,
-								}}
-							>
-								<div
-									className="dashed-line"
-									css={(theme) => ({
-										height: nextChangesSource ? "50%" : "100%",
-										width: 2,
-										background: theme.experimental.l1.outline,
-										borderRadius: 2,
-									})}
+						let assignedIcon = false;
+						let icon: JSX.Element;
+						// If no icon is specified, we show a deterministic
+						// colored circle to identify unique scripts.
+						if (logSource.icon) {
+							icon = (
+								<img
+									src={logSource.icon}
+									alt=""
+									className="size-3.5 mr-2 shrink-0"
 								/>
-								{nextChangesSource && (
-									<div
-										className="dashed-line"
-										css={(theme) => ({
-											height: 2,
-											width: "50%",
-											top: "calc(50% - 2px)",
-											left: "calc(50% - 1px)",
-											background: theme.experimental.l1.outline,
-											borderRadius: 2,
-											position: "absolute",
-										})}
-									/>
-								)}
-							</div>
-						);
-					}
+							);
+						} else {
+							icon = (
+								<div
+									role="presentation"
+									className="size-3.5 mr-2 shrink-0 rounded-full"
+									style={{
+										background: determineScriptDisplayColor(
+											logSource.display_name,
+										),
+									}}
+								/>
+							);
+							assignedIcon = true;
+						}
 
-					return (
-						<AgentLogLine
-							line={logs[index]}
-							number={index + 1}
-							maxLineNumber={logs.length}
-							style={style}
-							sourceIcon={
-								<Tooltip
-									title={
-										<>
-											{logSource.display_name}
-											{assignedIcon && (
-												<i>
-													<br />
-													No icon specified!
-												</i>
-											)}
-										</>
-									}
+						const doesNextLineHaveDifferentSource =
+							index < logs.length - 1 &&
+							getLogSource(logs[index + 1].sourceId).id !== log.sourceId;
+
+						// We don't want every line to repeat the icon, because
+						// that is ugly and repetitive. This removes the icon
+						// for subsequent lines of the same source and shows a
+						// line instead, visually indicating they are from the
+						// same source.
+						const shouldHideSource =
+							index > 0 &&
+							getLogSource(logs[index - 1].sourceId).id === log.sourceId;
+						if (shouldHideSource) {
+							icon = (
+								<div className="size-3.5 mr-2 flex justify-center relative shrink-0">
+									<div
+										// dashed-line class comes from AgentLogLine component
+										className={cn(
+											"dashed-line w-0.5 rounded-[2px] bg-surface-tertiary h-full",
+											doesNextLineHaveDifferentSource && "h-1/2",
+										)}
+									/>
+									{doesNextLineHaveDifferentSource && (
+										<div
+											role="presentation"
+											className="dashed-line h-[2px] w-1/2 top-[calc(50%-2px)] left-[calc(50%-1px)] rounded-[2px] absolute bg-surface-tertiary"
+										/>
+									)}
+								</div>
+							);
+						}
+
+						return (
+							<AgentLogLine
+								line={log}
+								number={index + 1}
+								maxLineNumber={logs.length}
+								style={style}
+								sourceIcon={
+									<MuiTooltip
+										title={
+											<>
+												{logSource.display_name}
+												{assignedIcon && (
+													<i>
+														<br />
+														No icon specified!
+													</i>
+												)}
+											</>
+										}
+									>
+										{icon}
+									</MuiTooltip>
+								}
+							/>
+						);
+					}}
+				</List>
+
+				{overflowed && (
+					<TooltipProvider delayDuration={100}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Badge
+									asChild
+									className="max-w-fit py-1.5 px-3 absolute bottom-3 left-1/2 -translate-x-1/2"
 								>
-									{icon}
-								</Tooltip>
-							}
-						/>
-					);
-				}}
-			</List>
+									<span>Logs overflowed</span>
+								</Badge>
+							</TooltipTrigger>
+							<TooltipContent
+								asChild
+								className="w-full text-sm text-content-secondary bg-surface-primary max-w-prose leading-relaxed m-0 p-4"
+							>
+								<p>
+									Startup logs exceeded the max size of{" "}
+									<span className="tracking-wide font-mono">1MB</span>, and will
+									not continue to be written to the database. Logs will continue
+									to be written to the{" "}
+									<span className="font-mono bg-surface-tertiary rounded-md px-1.5 py-0.5">
+										/tmp/coder-startup-script.log
+									</span>{" "}
+									file in the workspace.
+								</p>
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				)}
+			</div>
 		);
 	},
 );
 
-// These colors were picked at random. Feel free
-// to add more, adjust, or change! Users will not
-// depend on these colors.
-const scriptDisplayColors = [
+// These colors were picked at random. Feel free to add more, adjust, or change!
+// Users will not depend on these colors.
+const scriptDisplayColors: readonly string[] = [
 	"#85A3B2",
 	"#A37EB2",
 	"#C29FDE",
@@ -191,15 +202,3 @@ const determineScriptDisplayColor = (displayName: string): string => {
 	}, 0);
 	return scriptDisplayColors[Math.abs(hash) % scriptDisplayColors.length];
 };
-
-const styles = {
-	logs: (theme) => ({
-		backgroundColor: theme.palette.background.paper,
-		paddingTop: 16,
-
-		// We need this to be able to apply the padding top from startupLogs
-		"& > div": {
-			position: "relative",
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

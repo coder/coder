@@ -6,6 +6,30 @@ export interface ACLAvailable {
 	readonly groups: readonly Group[];
 }
 
+// From codersdk/deployment.go
+export interface AIBridgeAnthropicConfig {
+	readonly base_url: string;
+	readonly key: string;
+}
+
+// From codersdk/deployment.go
+export interface AIBridgeConfig {
+	readonly enabled: boolean;
+	readonly openai: AIBridgeOpenAIConfig;
+	readonly anthropic: AIBridgeAnthropicConfig;
+}
+
+// From codersdk/deployment.go
+export interface AIBridgeOpenAIConfig {
+	readonly base_url: string;
+	readonly key: string;
+}
+
+// From codersdk/deployment.go
+export interface AIConfig {
+	readonly bridge?: AIBridgeConfig;
+}
+
 // From codersdk/aitasks.go
 export const AITaskPromptParameterName = "AI Prompt";
 
@@ -351,7 +375,7 @@ export interface ConnectionLog {
 	readonly workspace_id: string;
 	readonly workspace_name: string;
 	readonly agent_name: string;
-	readonly ip: string;
+	readonly ip?: string;
 	readonly type: ConnectionType;
 	readonly web_info?: ConnectionLogWebInfo;
 	readonly ssh_info?: ConnectionLogSSHInfo;
@@ -481,6 +505,7 @@ export interface CreateTaskRequest {
 	readonly template_version_id: string;
 	readonly template_version_preset_id?: string;
 	readonly prompt: string;
+	readonly name?: string;
 }
 
 // From codersdk/organizations.go
@@ -628,6 +653,17 @@ export const CryptoKeyFeatures: CryptoKeyFeature[] = [
 	"workspace_apps_token",
 ];
 
+// From codersdk/notifications.go
+export interface CustomNotificationContent {
+	readonly title: string;
+	readonly message: string;
+}
+
+// From codersdk/notifications.go
+export interface CustomNotificationRequest {
+	readonly content: CustomNotificationContent | null;
+}
+
 // From codersdk/roles.go
 export interface CustomRoleRequest {
 	readonly name: string;
@@ -739,6 +775,12 @@ export interface DatabaseReport extends BaseReport {
 	readonly threshold_ms: number;
 }
 
+// From codersdk/externalauth.go
+export interface DeleteExternalAuthByIDResponse {
+	readonly token_revoked: boolean;
+	readonly token_revocation_error?: string;
+}
+
 // From codersdk/notifications.go
 export interface DeleteWebpushSubscription {
 	readonly endpoint: string;
@@ -827,6 +869,7 @@ export interface DeploymentValues {
 	readonly workspace_hostname_suffix?: string;
 	readonly workspace_prebuilds?: PrebuildsConfig;
 	readonly hide_ai_tasks?: boolean;
+	readonly ai?: AIConfig;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	readonly address?: string;
@@ -918,6 +961,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
+	| "aibridge"
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
@@ -928,6 +972,7 @@ export type Experiment =
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
+	"aibridge",
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
@@ -949,6 +994,7 @@ export interface ExternalAuth {
 	readonly authenticated: boolean;
 	readonly device: boolean;
 	readonly display_name: string;
+	readonly supports_revocation: boolean;
 	readonly user: ExternalAuthUser | null;
 	readonly app_installable: boolean;
 	readonly installations: readonly ExternalAuthAppInstallation[];
@@ -970,12 +1016,16 @@ export interface ExternalAuthConfig {
 	readonly auth_url: string;
 	readonly token_url: string;
 	readonly validate_url: string;
+	readonly revoke_url: string;
 	readonly app_install_url: string;
 	readonly app_installations_url: string;
 	readonly no_refresh: boolean;
 	readonly scopes: readonly string[];
 	readonly device_flow: boolean;
 	readonly device_code_url: string;
+	readonly mcp_url: string;
+	readonly mcp_tool_allow_regex: string;
+	readonly mcp_tool_deny_regex: string;
 	readonly regex: string;
 	readonly display_name: string;
 	readonly display_icon: string;
@@ -1015,6 +1065,7 @@ export interface ExternalAuthLinkProvider {
 	readonly display_icon: string;
 	readonly allow_refresh: boolean;
 	readonly allow_validate: boolean;
+	readonly supports_revocation: boolean;
 }
 
 // From codersdk/externalauth.go
@@ -1840,6 +1891,9 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 // From codersdk/organizations.go
 export interface OrganizationProvisionerDaemonsOptions {
 	readonly Limit: number;
+	readonly Offline: boolean;
+	readonly Status: readonly ProvisionerDaemonStatus[];
+	readonly MaxAge: number;
 	readonly IDs: readonly string[];
 	readonly Tags: Record<string, string>;
 }
@@ -2370,6 +2424,7 @@ export const RBACActions: RBACAction[] = [
 
 // From codersdk/rbacresources_gen.go
 export type RBACResource =
+	| "aibridge_interception"
 	| "api_key"
 	| "assign_org_role"
 	| "assign_role"
@@ -2412,6 +2467,7 @@ export type RBACResource =
 	| "workspace_proxy";
 
 export const RBACResources: RBACResource[] = [
+	"aibridge_interception",
 	"api_key",
 	"assign_org_role",
 	"assign_role",
@@ -2726,6 +2782,7 @@ export interface SessionCountDeploymentStats {
 export interface SessionLifetime {
 	readonly disable_expiry_refresh?: boolean;
 	readonly default_duration: number;
+	readonly refresh_default_duration?: number;
 	readonly default_token_lifetime?: number;
 	readonly max_token_lifetime?: number;
 	readonly max_admin_token_lifetime?: number;
@@ -2802,6 +2859,51 @@ export interface TailDERPRegion {
 	readonly RegionName: string;
 	readonly Avoid?: boolean;
 	readonly Nodes: readonly TailDERPNode[];
+}
+
+// From codersdk/aitasks.go
+export interface Task {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly owner_id: string;
+	readonly owner_name: string;
+	readonly name: string;
+	readonly template_id: string;
+	readonly template_name: string;
+	readonly template_display_name: string;
+	readonly template_icon: string;
+	readonly workspace_id: string | null;
+	readonly workspace_agent_id: string | null;
+	readonly workspace_agent_lifecycle: WorkspaceAgentLifecycle | null;
+	readonly workspace_agent_health: WorkspaceAgentHealth | null;
+	readonly initial_prompt: string;
+	readonly status: WorkspaceStatus;
+	readonly current_state: TaskStateEntry | null;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/aitasks.go
+export type TaskState = "completed" | "failed" | "idle" | "working";
+
+// From codersdk/aitasks.go
+export interface TaskStateEntry {
+	readonly timestamp: string;
+	readonly state: TaskState;
+	readonly message: string;
+	readonly uri: string;
+}
+
+export const TaskStates: TaskState[] = [
+	"completed",
+	"failed",
+	"idle",
+	"working",
+];
+
+// From codersdk/aitasks.go
+export interface TasksFilter {
+	readonly owner?: string;
 }
 
 // From codersdk/deployment.go
@@ -3530,6 +3632,12 @@ export interface Workspace {
 	readonly is_prebuild: boolean;
 }
 
+// From codersdk/workspaces.go
+export interface WorkspaceACL {
+	readonly users: readonly WorkspaceUser[];
+	readonly group: readonly WorkspaceGroup[];
+}
+
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgent {
 	readonly id: string;
@@ -3793,6 +3901,7 @@ export interface WorkspaceApp {
 	readonly group?: string;
 	readonly hidden: boolean;
 	readonly open_in: WorkspaceAppOpenIn;
+	readonly tooltip?: string;
 	readonly statuses: readonly WorkspaceAppStatus[];
 }
 
@@ -3929,6 +4038,11 @@ export interface WorkspaceFilter {
 }
 
 // From codersdk/workspaces.go
+export interface WorkspaceGroup extends Group {
+	readonly role: WorkspaceRole;
+}
+
+// From codersdk/workspaces.go
 export interface WorkspaceHealth {
 	readonly healthy: boolean;
 	readonly failing_agents: readonly string[];
@@ -4038,6 +4152,11 @@ export const WorkspaceTransitions: WorkspaceTransition[] = [
 ];
 
 // From codersdk/workspaces.go
+export interface WorkspaceUser extends MinimalUser {
+	readonly role: WorkspaceRole;
+}
+
+// From codersdk/workspaces.go
 export interface WorkspacesRequest extends Pagination {
 	readonly q?: string;
 }
@@ -4062,6 +4181,12 @@ export const annotationSecretKey = "secret";
 
 // From codersdk/insights.go
 export const insightsTimeLayout = "2006-01-02T15:04:05Z07:00";
+
+// From codersdk/notifications.go
+export const maxCustomNotificationMessageLen = 2000;
+
+// From codersdk/notifications.go
+export const maxCustomNotificationTitleLen = 120;
 
 // From healthsdk/interfaces.go
 export const safeMTU = 1378;

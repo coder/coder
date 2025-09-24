@@ -29,9 +29,9 @@ import { Avatar } from "components/Avatar/Avatar";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
+	HelpTooltipIconTrigger,
 	HelpTooltipText,
 	HelpTooltipTitle,
-	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
@@ -47,7 +47,7 @@ import {
 } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { useSearchParams } from "react-router";
+import { type SetURLSearchParams, useSearchParams } from "react-router";
 import { getLatencyColor } from "utils/latency";
 import {
 	addTime,
@@ -105,24 +105,13 @@ export default function TemplateInsightsPage() {
 			</Helmet>
 			<TemplateInsightsPageView
 				controls={
-					<>
-						<IntervalMenu
-							value={interval}
-							onChange={(interval) => {
-								// When going from daily to week we need to set a safe week range
-								if (interval === "week") {
-									setDateRange(lastWeeks(DEFAULT_NUMBER_OF_WEEKS));
-								}
-								searchParams.set("interval", interval);
-								setSearchParams(searchParams);
-							}}
-						/>
-						{interval === "day" ? (
-							<DailyPicker value={dateRange} onChange={setDateRange} />
-						) : (
-							<WeekPicker value={dateRange} onChange={setDateRange} />
-						)}
-					</>
+					<TemplateInsightsControls
+						interval={interval}
+						dateRange={dateRange}
+						setDateRange={setDateRange}
+						searchParams={searchParams}
+						setSearchParams={setSearchParams}
+					/>
 				}
 				templateInsights={templateInsights}
 				userLatency={userLatency}
@@ -133,6 +122,43 @@ export default function TemplateInsightsPage() {
 		</>
 	);
 }
+
+interface TemplateInsightsControlsProps {
+	interval: "day" | "week";
+	dateRange: DateRangeValue;
+	setDateRange: (value: DateRangeValue) => void;
+	searchParams: URLSearchParams;
+	setSearchParams: SetURLSearchParams;
+}
+
+export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
+	interval,
+	dateRange,
+	setDateRange,
+	searchParams,
+	setSearchParams,
+}) => {
+	return (
+		<>
+			<IntervalMenu
+				value={interval}
+				onChange={(interval) => {
+					// When going from daily to week we need to set a safe week range
+					if (interval === "week") {
+						setDateRange(lastWeeks(DEFAULT_NUMBER_OF_WEEKS));
+					}
+					searchParams.set("interval", interval);
+					setSearchParams(searchParams);
+				}}
+			/>
+			{interval === "day" ? (
+				<DailyPicker value={dateRange} onChange={setDateRange} />
+			) : (
+				<WeekPicker value={dateRange} onChange={setDateRange} />
+			)}
+		</>
+	);
+};
 
 const getDefaultInterval = (template: Template) => {
 	const now = new Date();
@@ -284,7 +310,7 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 				<PanelTitle css={{ display: "flex", alignItems: "center", gap: 8 }}>
 					Latency by user
 					<HelpTooltip>
-						<HelpTooltipTrigger size="small" />
+						<HelpTooltipIconTrigger size="small" />
 						<HelpTooltipContent>
 							<HelpTooltipTitle>How is latency calculated?</HelpTooltipTitle>
 							<HelpTooltipText>
@@ -352,7 +378,7 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 				<PanelTitle css={{ display: "flex", alignItems: "center", gap: 8 }}>
 					Activity by user
 					<HelpTooltip>
-						<HelpTooltipTrigger size="small" />
+						<HelpTooltipIconTrigger size="small" />
 						<HelpTooltipContent>
 							<HelpTooltipTitle>How is activity calculated?</HelpTooltipTitle>
 							<HelpTooltipText>

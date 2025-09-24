@@ -141,6 +141,20 @@ func (mr *MockAgentConnMockRecorder) DialContext(ctx, network, addr any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DialContext", reflect.TypeOf((*MockAgentConn)(nil).DialContext), ctx, network, addr)
 }
 
+// EditFiles mocks base method.
+func (m *MockAgentConn) EditFiles(ctx context.Context, edits workspacesdk.FileEditRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EditFiles", ctx, edits)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// EditFiles indicates an expected call of EditFiles.
+func (mr *MockAgentConnMockRecorder) EditFiles(ctx, edits any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EditFiles", reflect.TypeOf((*MockAgentConn)(nil).EditFiles), ctx, edits)
+}
+
 // GetPeerDiagnostics mocks base method.
 func (m *MockAgentConn) GetPeerDiagnostics() tailnet.PeerDiagnostics {
 	m.ctrl.T.Helper()
@@ -153,6 +167,21 @@ func (m *MockAgentConn) GetPeerDiagnostics() tailnet.PeerDiagnostics {
 func (mr *MockAgentConnMockRecorder) GetPeerDiagnostics() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPeerDiagnostics", reflect.TypeOf((*MockAgentConn)(nil).GetPeerDiagnostics))
+}
+
+// LS mocks base method.
+func (m *MockAgentConn) LS(ctx context.Context, path string, req workspacesdk.LSRequest) (workspacesdk.LSResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LS", ctx, path, req)
+	ret0, _ := ret[0].(workspacesdk.LSResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LS indicates an expected call of LS.
+func (mr *MockAgentConnMockRecorder) LS(ctx, path, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LS", reflect.TypeOf((*MockAgentConn)(nil).LS), ctx, path, req)
 }
 
 // ListContainers mocks base method.
@@ -230,6 +259,22 @@ func (m *MockAgentConn) PrometheusMetrics(ctx context.Context) ([]byte, error) {
 func (mr *MockAgentConnMockRecorder) PrometheusMetrics(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrometheusMetrics", reflect.TypeOf((*MockAgentConn)(nil).PrometheusMetrics), ctx)
+}
+
+// ReadFile mocks base method.
+func (m *MockAgentConn) ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadFile", ctx, path, offset, limit)
+	ret0, _ := ret[0].(io.ReadCloser)
+	ret1, _ := ret[1].(string)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ReadFile indicates an expected call of ReadFile.
+func (mr *MockAgentConnMockRecorder) ReadFile(ctx, path, offset, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadFile", reflect.TypeOf((*MockAgentConn)(nil).ReadFile), ctx, path, offset, limit)
 }
 
 // ReconnectingPTY mocks base method.
@@ -370,4 +415,18 @@ func (m *MockAgentConn) WatchContainers(ctx context.Context, logger slog.Logger)
 func (mr *MockAgentConnMockRecorder) WatchContainers(ctx, logger any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchContainers", reflect.TypeOf((*MockAgentConn)(nil).WatchContainers), ctx, logger)
+}
+
+// WriteFile mocks base method.
+func (m *MockAgentConn) WriteFile(ctx context.Context, path string, reader io.Reader) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteFile", ctx, path, reader)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteFile indicates an expected call of WriteFile.
+func (mr *MockAgentConnMockRecorder) WriteFile(ctx, path, reader any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteFile", reflect.TypeOf((*MockAgentConn)(nil).WriteFile), ctx, path, reader)
 }

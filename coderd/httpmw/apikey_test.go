@@ -313,7 +313,7 @@ func TestAPIKey(t *testing.T) {
 			_, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
 				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
-				Scope:     database.APIKeyScopeApplicationConnect,
+				Scopes:    database.APIKeyScopes{database.APIKeyScopeApplicationConnect},
 			})
 
 			r  = httptest.NewRequest("GET", "/", nil)
@@ -330,7 +330,7 @@ func TestAPIKey(t *testing.T) {
 		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Checks that it exists on the context!
 			apiKey := httpmw.APIKey(r)
-			assert.Equal(t, database.APIKeyScopeApplicationConnect, apiKey.Scope)
+			assert.Equal(t, database.APIKeyScopeApplicationConnect, apiKey.Scopes[0])
 			assertActorOk(t, r)
 
 			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{

@@ -577,8 +577,7 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 		t.Cleanup(srv.Close)
 
 		// Register a proxy.
-		wsproxyClient := wsproxysdk.New(primaryAccessURL)
-		wsproxyClient.SetSessionToken(token)
+		wsproxyClient := wsproxysdk.New(primaryAccessURL, token)
 		hostname, err := cryptorand.String(6)
 		require.NoError(t, err)
 		replicaID := uuid.New()
@@ -599,6 +598,7 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 	}
 
 	t.Run("ProbeOK", func(t *testing.T) {
+		t.Skip("flaky test: https://github.com/coder/internal/issues/957")
 		t.Parallel()
 
 		deploymentValues := coderdtest.DeploymentValues(t)
@@ -879,8 +879,7 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 		require.Contains(t, respJSON.Warnings[0], "High availability networking")
 
 		// Deregister the other replica.
-		wsproxyClient := wsproxysdk.New(api.AccessURL)
-		wsproxyClient.SetSessionToken(proxy.Options.ProxySessionToken)
+		wsproxyClient := wsproxysdk.New(api.AccessURL, proxy.Options.ProxySessionToken)
 		err = wsproxyClient.DeregisterWorkspaceProxy(ctx, wsproxysdk.DeregisterWorkspaceProxyRequest{
 			ReplicaID: otherReplicaID,
 		})

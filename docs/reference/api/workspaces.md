@@ -177,6 +177,7 @@ of the template will be used.
                 ],
                 "subdomain": true,
                 "subdomain_name": "string",
+                "tooltip": "string",
                 "url": "string"
               }
             ],
@@ -466,6 +467,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
                 ],
                 "subdomain": true,
                 "subdomain_name": "string",
+                "tooltip": "string",
                 "url": "string"
               }
             ],
@@ -780,6 +782,7 @@ of the template will be used.
                 ],
                 "subdomain": true,
                 "subdomain_name": "string",
+                "tooltip": "string",
                 "url": "string"
               }
             ],
@@ -1055,6 +1058,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                     "statuses": [],
                     "subdomain": true,
                     "subdomain_name": "string",
+                    "tooltip": "string",
                     "url": "string"
                   }
                 ],
@@ -1345,6 +1349,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
                 ],
                 "subdomain": true,
                 "subdomain_name": "string",
+                "tooltip": "string",
                 "url": "string"
               }
             ],
@@ -1510,6 +1515,106 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace} \
 |-------------|------|------------------------------------------------------------------------------|----------|-------------------------|
 | `workspace` | path | string(uuid)                                                                 | true     | Workspace ID            |
 | `body`      | body | [codersdk.UpdateWorkspaceRequest](schemas.md#codersdkupdateworkspacerequest) | true     | Metadata update request |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get workspace ACLs
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaces/{workspace}/acl`
+
+### Parameters
+
+| Name        | In   | Type         | Required | Description  |
+|-------------|------|--------------|----------|--------------|
+| `workspace` | path | string(uuid) | true     | Workspace ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "group": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "admin",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "role": "admin",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                   |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceACL](schemas.md#codersdkworkspaceacl) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Completely clears the workspace's user and group ACLs
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /workspaces/{workspace}/acl`
+
+### Parameters
+
+| Name        | In   | Type         | Required | Description  |
+|-------------|------|--------------|----------|--------------|
+| `workspace` | path | string(uuid) | true     | Workspace ID |
 
 ### Responses
 
@@ -1793,6 +1898,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
                 ],
                 "subdomain": true,
                 "subdomain_name": "string",
+                "tooltip": "string",
                 "url": "string"
               }
             ],

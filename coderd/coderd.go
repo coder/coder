@@ -236,6 +236,8 @@ type Options struct {
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
 
+	ProvisionerdServerMetrics *provisionerdserver.Metrics
+
 	// WorkspaceAppAuditSessionTimeout allows changing the timeout for audit
 	// sessions. Raising or lowering this value will directly affect the write
 	// load of the audit log table. This is used for testing. Default 1 hour.
@@ -452,7 +454,7 @@ func New(options *Options) *API {
 	metricsCache := metricscache.New(
 		options.Database,
 		options.Logger.Named("metrics_cache"),
-		options.Clock,
+		quartz.NewReal(),
 		metricscache.Intervals{
 			TemplateBuildTimes: options.MetricsCacheRefreshInterval,
 			DeploymentStats:    options.AgentStatsRefreshInterval,
@@ -482,16 +484,8 @@ func New(options *Options) *API {
 	r := chi.NewRouter()
 	// We add this middleware early, to make sure that authorization checks made
 	// by other middleware get recorded.
-	//nolint:revive,staticcheck // This block will be re-enabled, not going to remove it
 	if buildinfo.IsDev() {
-		// TODO: Find another solution to opt into these checks.
-		//   If the header grows too large, it breaks `fetch()` requests.
-		//   Temporarily disabling this until we can find a better solution.
-		//	 One idea is to include checking the request for `X-Authz-Record=true`
-		//   header. To opt in on a per-request basis.
-		//   Some authz calls (like filtering lists) might be able to be
-		//   summarized better to condense the header payload.
-		// r.Use(httpmw.RecordAuthzChecks)
+		r.Use(httpmw.RecordAuthzChecks)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -779,7 +773,7 @@ func New(options *Options) *API {
 		options.WorkspaceAppsStatsCollectorOptions.Reporter = api.statsReporter
 	}
 
-	api.workspaceAppServer = &workspaceapps.Server{
+	api.workspaceAppServer = workspaceapps.NewServer(workspaceapps.ServerOptions{
 		Logger: workspaceAppsLogger,
 
 		DashboardURL:  api.AccessURL,
@@ -793,9 +787,9 @@ func New(options *Options) *API {
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
 
 		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
-		Cookies:                  options.DeploymentValues.HTTPCookies,
+		CookiesConfig:            options.DeploymentValues.HTTPCookies,
 		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
-	}
+	})
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
@@ -942,9 +936,13 @@ func New(options *Options) *API {
 	}
 
 	// OAuth2 metadata endpoint for RFC 8414 discovery
-	r.Get("/.well-known/oauth-authorization-server", api.oauth2AuthorizationServerMetadata())
+	r.Route("/.well-known/oauth-authorization-server", func(r chi.Router) {
+		r.Get("/*", api.oauth2AuthorizationServerMetadata())
+	})
 	// OAuth2 protected resource metadata endpoint for RFC 9728 discovery
-	r.Get("/.well-known/oauth-protected-resource", api.oauth2ProtectedResourceMetadata())
+	r.Route("/.well-known/oauth-protected-resource", func(r chi.Router) {
+		r.Get("/*", api.oauth2ProtectedResourceMetadata())
+	})
 
 	// fosite oauth2 replacement
 	r.Route("/oauth2", func(r chi.Router) {
@@ -1016,9 +1014,12 @@ func New(options *Options) *API {
 		r.Route("/tasks", func(r chi.Router) {
 			r.Use(apiRateLimiter)
 
+			r.Get("/", api.tasksList)
+
 			r.Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
-
+				r.Get("/{id}", api.taskGet)
+				r.Delete("/{id}", api.taskDelete)
 				r.Post("/", api.tasksCreate)
 			})
 		})
@@ -1454,7 +1455,9 @@ func New(options *Options) *API {
 						httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentWorkspaceSharing),
 					)
 
+					r.Get("/", api.workspaceACL)
 					r.Patch("/", api.patchWorkspaceACL)
+					r.Delete("/", api.deleteWorkspaceACL)
 				})
 			})
 		})
@@ -1576,9 +1579,11 @@ func New(options *Options) *API {
 			r.Put("/settings", api.putNotificationsSettings)
 			r.Route("/templates", func(r chi.Router) {
 				r.Get("/system", api.systemNotificationTemplates)
+				r.Get("/custom", api.customNotificationTemplates)
 			})
 			r.Get("/dispatch-methods", api.notificationDispatchMethods)
 			r.Post("/test", api.postTestNotification)
+			r.Post("/custom", api.postCustomNotification)
 		})
 		r.Route("/tailnet", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -1936,6 +1941,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		},
 		api.NotificationsEnqueuer,
 		&api.PrebuildsReconciler,
+		api.ProvisionerdServerMetrics,
 	)
 	if err != nil {
 		return nil, err

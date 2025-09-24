@@ -31,11 +31,11 @@ type Cleanable interface {
 	Cleanup(ctx context.Context, id string, logs io.Writer) error
 }
 
-// Collectable is an optional extension to Runnable that allows to get metrics from the runner.
+// Collectable is an optional extension to Runnable that exposes additional
+// metrics from the runner.
 type Collectable interface {
 	Runnable
-	// Gets the bytes transferred
-	GetBytesTransferred() (int64, int64)
+	GetMetrics() map[string]any
 }
 
 // AddRun creates a new *TestRun with the given name, ID and Runnable, adds it
@@ -73,13 +73,12 @@ type TestRun struct {
 	id       string
 	runner   Runnable
 
-	logs         *syncBuffer
-	done         chan struct{}
-	started      time.Time
-	duration     time.Duration
-	err          error
-	bytesRead    int64
-	bytesWritten int64
+	logs     *syncBuffer
+	done     chan struct{}
+	started  time.Time
+	duration time.Duration
+	err      error
+	metrics  map[string]any
 }
 
 func NewTestRun(testName string, id string, runner Runnable) *TestRun {
@@ -111,7 +110,7 @@ func (r *TestRun) Run(ctx context.Context) (err error) {
 		if !ok {
 			return
 		}
-		r.bytesRead, r.bytesWritten = c.GetBytesTransferred()
+		r.metrics = c.GetMetrics()
 	}()
 	defer func() {
 		e := recover()

@@ -30,10 +30,28 @@ WHERE
 			LOWER(t.name) = LOWER(@exact_name)
 		ELSE true
 	END
+	-- Filter by exact display name
+	AND CASE
+		WHEN @exact_display_name :: text != '' THEN
+			LOWER(t.display_name) = LOWER(@exact_display_name)
+		ELSE true
+	END
 	-- Filter by name, matching on substring
 	AND CASE
 		WHEN @fuzzy_name :: text != '' THEN
 			lower(t.name) ILIKE '%' || lower(@fuzzy_name) || '%'
+		ELSE true
+	END
+	-- Filter by display_name, matching on substring (fallback to name if display_name is empty)
+	AND CASE
+		WHEN @fuzzy_display_name :: text != '' THEN
+			CASE
+				WHEN t.display_name IS NOT NULL AND t.display_name != '' THEN
+					lower(t.display_name) ILIKE '%' || lower(@fuzzy_display_name) || '%'
+				ELSE
+					-- Remove spaces if present since 't.name' cannot have any spaces
+					lower(t.name) ILIKE '%' || REPLACE(lower(@fuzzy_display_name), ' ', '') || '%'
+			END
 		ELSE true
 	END
 	-- Filter by ids
@@ -203,11 +221,11 @@ JOIN provisioner_jobs pj ON
 WHERE
 	template_versions.template_id = @template_id AND
 		(pj.completed_at IS NOT NULL) AND (pj.started_at IS NOT NULL) AND
-		(pj.started_at > @start_time) AND
 		(pj.canceled_at IS NULL) AND
 		((pj.error IS NULL) OR (pj.error = ''))
 ORDER BY
 	workspace_builds.created_at DESC
+LIMIT 100
 )
 SELECT
 	-- Postgres offers no clear way to DRY this short of a function or other

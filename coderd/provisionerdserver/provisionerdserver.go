@@ -129,6 +129,8 @@ type server struct {
 
 	heartbeatInterval time.Duration
 	heartbeatFn       func(ctx context.Context) error
+
+	metrics *Metrics
 }
 
 // We use the null byte (0x00) in generating a canonical map key for tags, so
@@ -178,6 +180,7 @@ func NewServer(
 	options Options,
 	enqueuer notifications.Enqueuer,
 	prebuildsOrchestrator *atomic.Pointer[prebuilds.ReconciliationOrchestrator],
+	metrics *Metrics,
 ) (proto.DRPCProvisionerDaemonServer, error) {
 	// Fail-fast if pointers are nil
 	if lifecycleCtx == nil {
@@ -248,6 +251,7 @@ func NewServer(
 		heartbeatFn:                 options.HeartbeatFn,
 		PrebuildsOrchestrator:       prebuildsOrchestrator,
 		UsageInserter:               usageInserter,
+		metrics:                     metrics,
 	}
 
 	if s.heartbeatFn == nil {
@@ -1995,6 +1999,37 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			sidebarAppID = uuid.NullUUID{UUID: id, Valid: true}
 		}
 
+		// This is a hacky workaround for the issue with tasks 'disappearing' on stop:
+		// reuse has_ai_task and sidebar_app_id from the previous build.
+		// This workaround should be removed as soon as possible.
+		if workspaceBuild.Transition == database.WorkspaceTransitionStop && workspaceBuild.BuildNumber > 1 {
+			if prevBuild, err := s.Database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
+				WorkspaceID: workspaceBuild.WorkspaceID,
+				BuildNumber: workspaceBuild.BuildNumber - 1,
+			}); err == nil {
+				hasAITask = prevBuild.HasAITask.Bool
+				sidebarAppID = prevBuild.AITaskSidebarAppID
+				warnUnknownSidebarAppID = false
+				s.Logger.Debug(ctx, "task workaround: reused has_ai_task and sidebar_app_id from previous build to keep track of task",
+					slog.F("job_id", job.ID.String()),
+					slog.F("build_number", prevBuild.BuildNumber),
+					slog.F("workspace_id", workspace.ID),
+					slog.F("workspace_build_id", workspaceBuild.ID),
+					slog.F("transition", string(workspaceBuild.Transition)),
+					slog.F("sidebar_app_id", sidebarAppID.UUID),
+					slog.F("has_ai_task", hasAITask),
+				)
+			} else {
+				s.Logger.Error(ctx, "task workaround: tracking via has_ai_task and sidebar_app from previous build failed",
+					slog.Error(err),
+					slog.F("job_id", job.ID.String()),
+					slog.F("workspace_id", workspace.ID),
+					slog.F("workspace_build_id", workspaceBuild.ID),
+					slog.F("transition", string(workspaceBuild.Transition)),
+				)
+			}
+		}
+
 		if warnUnknownSidebarAppID {
 			// Ref: https://github.com/coder/coder/issues/18776
 			// This can happen for a number of reasons:
@@ -2247,6 +2282,50 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		if resourceReplacements := jobType.WorkspaceBuild.ResourceReplacements; orchestrator != nil && len(resourceReplacements) > 0 {
 			// Fire and forget. Bind to the lifecycle of the server so shutdowns are handled gracefully.
 			go (*orchestrator).TrackResourceReplacement(s.lifecycleCtx, workspace.ID, workspaceBuild.ID, resourceReplacements)
+		}
+	}
+
+	// Update workspace (regular and prebuild) timing metrics
+	if s.metrics != nil {
+		// Only consider 'start' workspace builds
+		if workspaceBuild.Transition == database.WorkspaceTransitionStart {
+			// Get the updated job to report the metrics with correct data
+			updatedJob, err := s.Database.GetProvisionerJobByID(ctx, jobID)
+			if err != nil {
+				s.Logger.Error(ctx, "get updated job from database", slog.Error(err))
+			} else
+			// Only consider 'succeeded' provisioner jobs
+			if updatedJob.JobStatus == database.ProvisionerJobStatusSucceeded {
+				presetName := ""
+				if workspaceBuild.TemplateVersionPresetID.Valid {
+					preset, err := s.Database.GetPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
+					if err != nil {
+						if !errors.Is(err, sql.ErrNoRows) {
+							s.Logger.Error(ctx, "get preset by ID for workspace timing metrics", slog.Error(err))
+						}
+					} else {
+						presetName = preset.Name
+					}
+				}
+
+				buildTime := updatedJob.CompletedAt.Time.Sub(updatedJob.StartedAt.Time).Seconds()
+				s.metrics.UpdateWorkspaceTimingsMetrics(
+					ctx,
+					WorkspaceTimingFlags{
+						// Is a prebuilt workspace creation build
+						IsPrebuild: input.PrebuiltWorkspaceBuildStage.IsPrebuild(),
+						// Is a prebuilt workspace claim build
+						IsClaim: input.PrebuiltWorkspaceBuildStage.IsPrebuiltWorkspaceClaim(),
+						// Is a regular workspace creation build
+						// Only consider the first build number for regular workspaces
+						IsFirstBuild: workspaceBuild.BuildNumber == 1,
+					},
+					workspace.OrganizationName,
+					workspace.TemplateName,
+					presetName,
+					buildTime,
+				)
+			}
 		}
 	}
 
@@ -2846,6 +2925,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				DisplayGroup: displayGroup,
 				Hidden:       app.Hidden,
 				OpenIn:       openIn,
+				Tooltip:      app.Tooltip,
 			})
 			if err != nil {
 				return xerrors.Errorf("upsert app: %w", err)
@@ -2876,15 +2956,23 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 	return nil
 }
 
-func workspaceSessionTokenName(workspace database.Workspace) string {
-	return fmt.Sprintf("%s_%s_session_token", workspace.OwnerID, workspace.ID)
+func WorkspaceSessionTokenName(ownerID, workspaceID uuid.UUID) string {
+	return fmt.Sprintf("%s_%s_session_token", ownerID, workspaceID)
 }
 
 func (s *server) regenerateSessionToken(ctx context.Context, user database.User, workspace database.Workspace) (string, error) {
+	// NOTE(Cian): Once a workspace is claimed, there's no reason for the session token to be valid any longer.
+	// Not generating any session token at all for a system user may unintentionally break existing templates,
+	// which we want to avoid. If there's no session token for the workspace belonging to the prebuilds user,
+	// then there's nothing for us to worry about here.
+	// TODO(Cian): Update this to handle _all_ system users. At the time of writing, only one system user exists.
+	if err := deleteSessionTokenForUserAndWorkspace(ctx, s.Database, database.PrebuildsSystemUserID, workspace.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		s.Logger.Error(ctx, "failed to delete prebuilds session token", slog.Error(err), slog.F("workspace_id", workspace.ID))
+	}
 	newkey, sessionToken, err := apikey.Generate(apikey.CreateParams{
 		UserID:          user.ID,
 		LoginType:       user.LoginType,
-		TokenName:       workspaceSessionTokenName(workspace),
+		TokenName:       WorkspaceSessionTokenName(workspace.OwnerID, workspace.ID),
 		DefaultLifetime: s.DeploymentValues.Sessions.DefaultTokenDuration.Value(),
 		LifetimeSeconds: int64(s.DeploymentValues.Sessions.MaximumTokenDuration.Value().Seconds()),
 	})
@@ -2912,10 +3000,14 @@ func (s *server) regenerateSessionToken(ctx context.Context, user database.User,
 }
 
 func deleteSessionToken(ctx context.Context, db database.Store, workspace database.Workspace) error {
+	return deleteSessionTokenForUserAndWorkspace(ctx, db, workspace.OwnerID, workspace.ID)
+}
+
+func deleteSessionTokenForUserAndWorkspace(ctx context.Context, db database.Store, userID, workspaceID uuid.UUID) error {
 	err := db.InTx(func(tx database.Store) error {
 		key, err := tx.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
-			UserID:    workspace.OwnerID,
-			TokenName: workspaceSessionTokenName(workspace),
+			UserID:    userID,
+			TokenName: WorkspaceSessionTokenName(userID, workspaceID),
 		})
 		if err == nil {
 			err = tx.DeleteAPIKeyByID(ctx, key.ID)

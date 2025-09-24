@@ -184,20 +184,24 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 	}, nil
 }
 
+func MinimalUser(user database.User) codersdk.MinimalUser {
+	return codersdk.MinimalUser{
+		ID:        user.ID,
+		Username:  user.Username,
+		AvatarURL: user.AvatarURL,
+	}
+}
+
 func ReducedUser(user database.User) codersdk.ReducedUser {
 	return codersdk.ReducedUser{
-		MinimalUser: codersdk.MinimalUser{
-			ID:        user.ID,
-			Username:  user.Username,
-			AvatarURL: user.AvatarURL,
-		},
-		Email:      user.Email,
-		Name:       user.Name,
-		CreatedAt:  user.CreatedAt,
-		UpdatedAt:  user.UpdatedAt,
-		LastSeenAt: user.LastSeenAt,
-		Status:     codersdk.UserStatus(user.Status),
-		LoginType:  codersdk.LoginType(user.LoginType),
+		MinimalUser: MinimalUser(user),
+		Email:       user.Email,
+		Name:        user.Name,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+		LastSeenAt:  user.LastSeenAt,
+		Status:      codersdk.UserStatus(user.Status),
+		LoginType:   codersdk.LoginType(user.LoginType),
 	}
 }
 
@@ -578,6 +582,7 @@ func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus
 			Group:    dbApp.DisplayGroup.String,
 			Hidden:   dbApp.Hidden,
 			OpenIn:   codersdk.WorkspaceAppOpenIn(dbApp.OpenIn),
+			Tooltip:  dbApp.Tooltip,
 			Statuses: WorkspaceAppStatuses(statuses),
 		})
 	}

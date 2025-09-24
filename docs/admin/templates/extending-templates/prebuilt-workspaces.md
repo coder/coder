@@ -1,18 +1,12 @@
 # Prebuilt workspaces
 
-> [!WARNING]
-> Prebuilds Compatibility Limitations:
-> Prebuilt workspaces currently do not work reliably with [DevContainers feature](../managing-templates/devcontainers/index.md).
-> If your project relies on DevContainer configuration, we recommend disabling prebuilds or carefully testing behavior before enabling them.
->
-> We’re actively working to improve compatibility, but for now, please avoid using prebuilds with this feature to ensure stability and expected behavior.
+Prebuilt workspaces (prebuilds) reduce workspace creation time with an automatically-maintained pool of
+ready-to-use workspaces for specific parameter presets.
 
-Prebuilt workspaces allow template administrators to improve the developer experience by reducing workspace
-creation time with an automatically maintained pool of ready-to-use workspaces for specific parameter presets.
-
-The template administrator configures a template to provision prebuilt workspaces in the background, and then when a developer creates
-a new workspace that matches the preset, Coder assigns them an existing prebuilt instance.
-Prebuilt workspaces significantly reduce wait times, especially for templates with complex provisioning or lengthy startup procedures.
+The template administrator defines the prebuilt workspace's parameters and number of instances to keep provisioned.
+The desired number of workspaces are then provisioned transparently.
+When a developer creates a new workspace that matches the definition, Coder assigns them an existing prebuilt workspace.
+This significantly reduces wait times, especially for templates with complex provisioning or lengthy startup procedures.
 
 Prebuilt workspaces are:
 
@@ -20,6 +14,9 @@ Prebuilt workspaces are:
 - Claimed transparently when developers create workspaces.
 - Monitored and replaced automatically to maintain your desired pool size.
 - Automatically scaled based on time-based schedules to optimize resource usage.
+
+Prebuilt workspaces are a special type of workspace that don't follow the
+[regular workspace scheduling features](../../../user-guides/workspace-scheduling.md) like autostart and autostop. Instead, they have their own reconciliation loop that handles prebuild-specific scheduling features such as TTL and prebuild scheduling.
 
 ## Relationship to workspace presets
 
@@ -53,7 +50,7 @@ instances your Coder deployment should maintain, and optionally configure a `exp
      prebuilds {
        instances = 3   # Number of prebuilt workspaces to maintain
        expiration_policy {
-          ttl = 86400  # Time (in seconds) after which unclaimed prebuilds are expired (1 day)
+          ttl = 86400  # Time (in seconds) after which unclaimed prebuilds are expired (86400 = 1 day)
       }
      }
    }
@@ -159,17 +156,17 @@ data "coder_workspace_preset" "goland" {
 
 **Scheduling configuration:**
 
-- **`timezone`**: The timezone for all cron expressions (required). Only a single timezone is supported per scheduling configuration.
-- **`schedule`**: One or more schedule blocks defining when to scale to specific instance counts.
-  - **`cron`**: Cron expression interpreted as continuous time ranges (required).
-  - **`instances`**: Number of prebuilt workspaces to maintain during this schedule (required).
+- `timezone`: (Required) The timezone for all cron expressions. Only a single timezone is supported per scheduling configuration.
+- `schedule`: One or more schedule blocks defining when to scale to specific instance counts.
+  - `cron`: (Required) Cron expression interpreted as continuous time ranges.
+  - `instances`: (Required) Number of prebuilt workspaces to maintain during this schedule.
 
 **How scheduling works:**
 
 1. The reconciliation loop evaluates all active schedules every reconciliation interval (`CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL`).
-2. The schedule that matches the current time becomes active. Overlapping schedules are disallowed by validation rules.
-3. If no schedules match the current time, the base `instances` count is used.
-4. The reconciliation loop automatically creates or destroys prebuilt workspaces to match the target count.
+1. The schedule that matches the current time becomes active. Overlapping schedules are disallowed by validation rules.
+1. If no schedules match the current time, the base `instances` count is used.
+1. The reconciliation loop automatically creates or destroys prebuilt workspaces to match the target count.
 
 **Cron expression format:**
 
@@ -227,7 +224,7 @@ When a template's active version is updated:
 1. Prebuilt workspaces for old versions are automatically deleted.
 1. New prebuilt workspaces are created for the active template version.
 1. If dependencies change (e.g., an [AMI](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/AMIs.html) update) without a template version change:
-   - You may delete the existing prebuilt workspaces manually.
+   - You can delete the existing prebuilt workspaces manually.
    - Coder will automatically create new prebuilt workspaces with the updated dependencies.
 
 The system always maintains the desired number of prebuilt workspaces for the active template version.
@@ -236,11 +233,17 @@ The system always maintains the desired number of prebuilt workspaces for the ac
 
 ### Managing resource quotas
 
-Prebuilt workspaces can be used in conjunction with [resource quotas](../../users/quotas.md).
+To help prevent unexpected infrastructure costs, prebuilt workspaces can be used in conjunction with [resource quotas](../../users/quotas.md).
 Because unclaimed prebuilt workspaces are owned by the `prebuilds` user, you can:
 
 1. Configure quotas for any group that includes this user.
 1. Set appropriate limits to balance prebuilt workspace availability with resource constraints.
+
+When prebuilt workspaces are configured for an organization, Coder creates a "prebuilds" group in that organization and adds the prebuilds user to it. This group has a default quota allowance of 0, which you should adjust based on your needs:
+
+- **Set a quota allowance** on the "prebuilds" group to control how many prebuilt workspaces can be provisioned
+- **Monitor usage** to ensure the quota is appropriate for your desired number of prebuilt instances
+- **Adjust as needed** based on your template costs and desired prebuilt workspace pool size
 
 If a quota is exceeded, the prebuilt workspace will fail provisioning the same way other workspaces do.
 
@@ -285,13 +288,6 @@ For example, the [`ami`](https://registry.terraform.io/providers/hashicorp/aws/l
 has [`ForceNew`](https://github.com/hashicorp/terraform-provider-aws/blob/main/internal/service/ec2/ec2_instance.go#L75-L81) set,
 since the AMI cannot be changed in-place._
 
-#### Updating claimed prebuilt workspace templates
-
-Once a prebuilt workspace has been claimed, and if its template uses `ignore_changes`, users may run into an issue where the agent
-does not reconnect after a template update. This shortcoming is described in [this issue](https://github.com/coder/coder/issues/17840)
-and will be addressed before the next release (v2.23). In the interim, a simple workaround is to restart the workspace
-when it is in this problematic state.
-
 ### Monitoring and observability
 
 #### Available metrics
@@ -304,6 +300,7 @@ Coder provides several metrics to monitor your prebuilt workspaces:
 - `coderd_prebuilt_workspaces_desired` (gauge): Target number of prebuilt workspaces that should be available.
 - `coderd_prebuilt_workspaces_running` (gauge): Current number of prebuilt workspaces in a `running` state.
 - `coderd_prebuilt_workspaces_eligible` (gauge): Current number of prebuilt workspaces eligible to be claimed.
+- `coderd_prebuilt_workspace_claim_duration_seconds` ([_native histogram_](https://prometheus.io/docs/specs/native_histograms) support): Time to claim a prebuilt workspace from the prebuild pool.
 
 #### Logs
 

@@ -46,6 +46,8 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+type HookRevokeTokenFn func() (httpStatus int, err error)
+
 type token struct {
 	issued time.Time
 	email  string
@@ -196,9 +198,11 @@ type FakeIDP struct {
 	// hookValidRedirectURL can be used to reject a redirect url from the
 	// IDP -> Application. Almost all IDPs have the concept of
 	// "Authorized Redirect URLs". This can be used to emulate that.
-	hookValidRedirectURL func(redirectURL string) error
-	hookUserInfo         func(email string) (jwt.MapClaims, error)
-	hookAccessTokenJWT   func(email string, exp time.Time) jwt.MapClaims
+	hookValidRedirectURL    func(redirectURL string) error
+	hookUserInfo            func(email string) (jwt.MapClaims, error)
+	hookRevokeToken         HookRevokeTokenFn
+	revokeTokenGitHubFormat bool // GitHub doesn't follow token revocation RFC spec
+	hookAccessTokenJWT      func(email string, exp time.Time) jwt.MapClaims
 	// defaultIDClaims is if a new client connects and we didn't preset
 	// some claims.
 	defaultIDClaims jwt.MapClaims
@@ -327,6 +331,19 @@ func WithStaticUserInfo(info jwt.MapClaims) func(*FakeIDP) {
 	}
 }
 
+func WithRevokeTokenRFC(revokeFunc HookRevokeTokenFn) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.hookRevokeToken = revokeFunc
+	}
+}
+
+func WithRevokeTokenGitHub(revokeFunc HookRevokeTokenFn) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.hookRevokeToken = revokeFunc
+		f.revokeTokenGitHubFormat = true
+	}
+}
+
 func WithDefaultIDClaims(claims jwt.MapClaims) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.defaultIDClaims = claims
@@ -358,6 +375,7 @@ type With429Arguments struct {
 	AuthorizePath bool
 	KeysPath      bool
 	UserInfoPath  bool
+	RevokePath    bool
 	DeviceAuth    bool
 	DeviceVerify  bool
 }
@@ -387,6 +405,10 @@ func With429(params With429Arguments) func(*FakeIDP) {
 					http.Error(rw, "429, being manually blocked (userinfo)", http.StatusTooManyRequests)
 					return
 				}
+				if params.RevokePath && strings.Contains(r.URL.Path, revokeTokenPath) {
+					http.Error(rw, "429, being manually blocked (revoke)", http.StatusTooManyRequests)
+					return
+				}
 				if params.DeviceAuth && strings.Contains(r.URL.Path, deviceAuth) {
 					http.Error(rw, "429, being manually blocked (device-auth)", http.StatusTooManyRequests)
 					return
@@ -408,8 +430,10 @@ const (
 	authorizePath = "/oauth2/authorize"
 	keysPath      = "/oauth2/keys"
 	userInfoPath  = "/oauth2/userinfo"
-	deviceAuth    = "/login/device/code"
-	deviceVerify  = "/login/device"
+	// nolint:gosec // It also thinks this is a secret lol
+	revokeTokenPath = "/oauth2/revoke"
+	deviceAuth      = "/login/device/code"
+	deviceVerify    = "/login/device"
 )
 
 func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
@@ -486,6 +510,7 @@ func (f *FakeIDP) updateIssuerURL(t testing.TB, issuer string) {
 		TokenURL:      u.ResolveReference(&url.URL{Path: tokenPath}).String(),
 		JWKSURL:       u.ResolveReference(&url.URL{Path: keysPath}).String(),
 		UserInfoURL:   u.ResolveReference(&url.URL{Path: userInfoPath}).String(),
+		RevokeURL:     u.ResolveReference(&url.URL{Path: revokeTokenPath}).String(),
 		DeviceCodeURL: u.ResolveReference(&url.URL{Path: deviceAuth}).String(),
 		Algorithms: []string{
 			"RS256",
@@ -641,7 +666,7 @@ func (f *FakeIDP) LoginWithClient(t testing.TB, client *codersdk.Client, idToken
 
 // ExternalLogin does the oauth2 flow for external auth providers. This requires
 // an authenticated coder client.
-func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, opts ...func(r *http.Request)) {
+func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, opts ...codersdk.RequestOption) {
 	coderOauthURL, err := client.URL.Parse(fmt.Sprintf("/external-auth/%s/callback", f.externalProviderID))
 	require.NoError(t, err)
 	f.SetRedirect(t, coderOauthURL.String())
@@ -660,11 +685,7 @@ func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, opts ...f
 	req, err := http.NewRequestWithContext(ctx, "GET", coderOauthURL.String(), nil)
 	require.NoError(t, err)
 	// External auth flow requires the user be authenticated.
-	headerName := client.SessionTokenHeader
-	if headerName == "" {
-		headerName = codersdk.SessionTokenHeader
-	}
-	req.Header.Set(headerName, client.SessionToken())
+	opts = append([]codersdk.RequestOption{client.SessionTokenProvider.AsRequestOption()}, opts...)
 	if cli.Jar == nil {
 		cli.Jar, err = cookiejar.New(nil)
 		require.NoError(t, err, "failed to create cookie jar")
@@ -760,6 +781,7 @@ type ProviderJSON struct {
 	TokenURL      string   `json:"token_endpoint"`
 	JWKSURL       string   `json:"jwks_uri"`
 	UserInfoURL   string   `json:"userinfo_endpoint"`
+	RevokeURL     string   `json:"revocation_endpoint"`
 	DeviceCodeURL string   `json:"device_authorization_endpoint"`
 	Algorithms    []string `json:"id_token_signing_alg_values_supported"`
 	// This is custom
@@ -1150,6 +1172,29 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		_ = json.NewEncoder(rw).Encode(claims)
 	}))
 
+	mux.Handle(revokeTokenPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if f.revokeTokenGitHubFormat {
+			u, p, ok := r.BasicAuth()
+			if !ok || !(u == f.clientID && p == f.clientSecret) {
+				httpError(rw, http.StatusForbidden, xerrors.Errorf("basic auth failed"))
+				return
+			}
+		} else {
+			_, ok := validateMW(rw, r)
+			if !ok {
+				httpError(rw, http.StatusForbidden, xerrors.Errorf("token validation failed"))
+				return
+			}
+		}
+
+		code, err := f.hookRevokeToken()
+		if err != nil {
+			httpError(rw, code, xerrors.Errorf("hook err: %w", err))
+			return
+		}
+		httpapi.Write(r.Context(), rw, code, "")
+	}))
+
 	// There is almost no difference between this and /userinfo.
 	// The main tweak is that this route is "mounted" vs "handle" because "/userinfo"
 	// should be strict, and this one needs to handle sub routes.
@@ -1478,12 +1523,16 @@ func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAu
 		DisplayName:              id,
 		InstrumentedOAuth2Config: oauthCfg,
 		ID:                       id,
+		ClientID:                 f.clientID,
+		ClientSecret:             f.clientSecret,
 		// No defaults for these fields by omitting the type
 		Type:        "",
 		DisplayIcon: f.WellknownConfig().UserInfoURL,
 		// Omit the /user for the validate so we can easily append to it when modifying
 		// the cfg for advanced tests.
-		ValidateURL: f.locked.IssuerURL().ResolveReference(&url.URL{Path: "/external-auth-validate/"}).String(),
+		ValidateURL:   f.locked.IssuerURL().ResolveReference(&url.URL{Path: "/external-auth-validate/"}).String(),
+		RevokeURL:     f.locked.IssuerURL().ResolveReference(&url.URL{Path: revokeTokenPath}).String(),
+		RevokeTimeout: 1 * time.Second,
 		DeviceAuth: &externalauth.DeviceAuth{
 			Config:   oauthCfg,
 			ClientID: f.clientID,

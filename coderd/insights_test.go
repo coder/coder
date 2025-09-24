@@ -585,8 +585,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						continue
 					}
 					authToken := uuid.New()
-					agentClient := agentsdk.New(client.URL)
-					agentClient.SetSessionToken(authToken.String())
+					agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken.String()))
 					workspace.agentClient = agentClient
 
 					var apps []*proto.App
@@ -1468,8 +1467,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 				TokenName: "no-password-user-token",
 			})
 			require.NoError(t, err)
-			userClient := codersdk.New(client.URL)
-			userClient.SetSessionToken(token.Key)
+			userClient := codersdk.New(client.URL, codersdk.WithSessionToken(token.Key))
 
 			coderUser, err := userClient.User(context.Background(), user.id.String())
 			require.NoError(t, err)
@@ -1494,8 +1492,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 						continue
 					}
 					authToken := uuid.New()
-					agentClient := agentsdk.New(client.URL)
-					agentClient.SetSessionToken(authToken.String())
+					agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken.String()))
 					workspace.agentClient = agentClient
 
 					var apps []*proto.App

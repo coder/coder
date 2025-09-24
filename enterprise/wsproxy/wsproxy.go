@@ -163,11 +163,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		return nil, err
 	}
 
-	client := wsproxysdk.New(opts.DashboardURL)
-	err := client.SetSessionToken(opts.ProxySessionToken)
-	if err != nil {
-		return nil, xerrors.Errorf("set client token: %w", err)
-	}
+	client := wsproxysdk.New(opts.DashboardURL, opts.ProxySessionToken)
 
 	// Use the configured client if provided.
 	if opts.HTTPClient != nil {
@@ -294,7 +290,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		opts.StatsCollectorOptions.Reporter = &appStatsReporter{Client: client}
 	}
 
-	s.AppServer = &workspaceapps.Server{
+	s.AppServer = workspaceapps.NewServer(workspaceapps.ServerOptions{
 		Logger:        workspaceAppsLogger,
 		DashboardURL:  opts.DashboardURL,
 		AccessURL:     opts.AccessURL,
@@ -312,12 +308,12 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		},
 
 		DisablePathApps: opts.DisablePathApps,
-		Cookies:         opts.CookieConfig,
+		CookiesConfig:   opts.CookieConfig,
 
 		AgentProvider:            agentProvider,
 		StatsCollector:           workspaceapps.NewStatsCollector(opts.StatsCollectorOptions),
 		APIKeyEncryptionKeycache: encryptionCache,
-	}
+	})
 
 	derpHandler := derphttp.Handler(derpServer)
 	derpHandler, s.derpCloseFunc = tailnet.WithWebsocketSupport(derpServer, derpHandler)

@@ -27,15 +27,15 @@ import {
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
-import {
 	HelpTooltipLink,
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
 import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -44,7 +44,6 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
-import { type ClassName, useClassName } from "hooks/useClassName";
 import {
 	ChevronDownIcon,
 	ExternalLinkIcon,
@@ -77,7 +76,6 @@ export const PortForwardButton: FC<PortForwardButtonProps> = ({
 	agent,
 }) => {
 	const { entitlements } = useDashboard();
-	const paper = useClassName(classNames.paper, []);
 
 	const { data: listeningPorts } = useQuery({
 		queryKey: ["portForward", agent.id],
@@ -95,7 +93,7 @@ export const PortForwardButton: FC<PortForwardButtonProps> = ({
 
 	return (
 		<Popover>
-			<PopoverTrigger>
+			<PopoverTrigger asChild>
 				<Button disabled={!listeningPorts} size="sm" variant="subtle">
 					<Spinner loading={!listeningPorts}>
 						<span css={styles.portCount}>{listeningPorts?.length}</span>
@@ -104,7 +102,10 @@ export const PortForwardButton: FC<PortForwardButtonProps> = ({
 					<ChevronDownIcon className="size-4" />
 				</Button>
 			</PopoverTrigger>
-			<PopoverContent horizontal="right" classes={{ paper }}>
+			<PopoverContent
+				align="end"
+				className="p-0 w-[404px] mt-1 text-content-secondary bg-surface-secondary border-surface-quaternary"
+			>
 				<PortForwardPopoverView
 					host={host}
 					agent={agent}
@@ -617,15 +618,6 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 		</>
 	);
 };
-
-const classNames = {
-	paper: (css, theme) => css`
-		padding: 0;
-		width: 404px;
-		color: ${theme.palette.text.secondary};
-		margin-top: 4px;
-	`,
-} satisfies Record<string, ClassName>;
 
 const styles = {
 	portCount: (theme) => ({

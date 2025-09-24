@@ -17,7 +17,6 @@ import (
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 type WorkspaceBashArgs struct {
@@ -94,41 +93,11 @@ Examples:
 		ctx, cancel := context.WithTimeoutCause(ctx, 5*time.Minute, xerrors.New("MCP handler timeout after 5 min"))
 		defer cancel()
 
-		// Normalize workspace input to handle various formats
-		workspaceName := NormalizeWorkspaceInput(args.Workspace)
-
-		// Find workspace and agent
-		_, workspaceAgent, err := findWorkspaceAndAgent(ctx, deps.coderClient, workspaceName)
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
 		if err != nil {
-			return WorkspaceBashResult{}, xerrors.Errorf("failed to find workspace: %w", err)
-		}
-
-		// Wait for agent to be ready
-		if err := cliui.Agent(ctx, io.Discard, workspaceAgent.ID, cliui.AgentOptions{
-			FetchInterval: 0,
-			Fetch:         deps.coderClient.WorkspaceAgent,
-			FetchLogs:     deps.coderClient.WorkspaceAgentLogsAfter,
-			Wait:          true, // Always wait for startup scripts
-		}); err != nil {
-			return WorkspaceBashResult{}, xerrors.Errorf("agent not ready: %w", err)
-		}
-
-		// Create workspace SDK client for agent connection
-		wsClient := workspacesdk.New(deps.coderClient)
-
-		// Dial agent
-		conn, err := wsClient.DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
-			BlockEndpoints: false,
-		})
-		if err != nil {
-			return WorkspaceBashResult{}, xerrors.Errorf("failed to dial agent: %w", err)
+			return WorkspaceBashResult{}, err
 		}
 		defer conn.Close()
-
-		// Wait for connection to be reachable
-		if !conn.AwaitReachable(ctx) {
-			return WorkspaceBashResult{}, xerrors.New("agent connection not reachable")
-		}
 
 		// Create SSH client
 		sshClient, err := conn.SSHClient(ctx)
@@ -321,32 +290,6 @@ func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier str
 	}
 
 	return client.WorkspaceByOwnerAndName(ctx, owner, workspaceName, codersdk.WorkspaceOptions{})
-}
-
-// NormalizeWorkspaceInput converts workspace name input to standard format.
-// Handles the following input formats:
-//   - workspace                    → workspace
-//   - workspace.agent              → workspace.agent
-//   - owner/workspace              → owner/workspace
-//   - owner--workspace             → owner/workspace
-//   - owner/workspace.agent        → owner/workspace.agent
-//   - owner--workspace.agent       → owner/workspace.agent
-//   - agent.workspace.owner        → owner/workspace.agent (Coder Connect format)
-func NormalizeWorkspaceInput(input string) string {
-	// Handle the special Coder Connect format: agent.workspace.owner
-	// This format uses only dots and has exactly 3 parts
-	if strings.Count(input, ".") == 2 && !strings.Contains(input, "/") && !strings.Contains(input, "--") {
-		parts := strings.Split(input, ".")
-		if len(parts) == 3 {
-			// Convert agent.workspace.owner → owner/workspace.agent
-			return fmt.Sprintf("%s/%s.%s", parts[2], parts[1], parts[0])
-		}
-	}
-
-	// Convert -- separator to / separator for consistency
-	normalized := strings.ReplaceAll(input, "--", "/")
-
-	return normalized
 }
 
 // executeCommandWithTimeout executes a command with timeout support

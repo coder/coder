@@ -3,13 +3,13 @@ import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import { visuallyHidden } from "@mui/utils";
 import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { Loader } from "components/Loader/Loader";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { Loader } from "components/Loader/Loader";
+} from "components/Popover/Popover";
 import { ChevronDownIcon } from "lucide-react";
 import { type FC, lazy, Suspense, useState } from "react";
 
@@ -80,24 +80,21 @@ export const IconField: FC<IconFieldProps> = ({
 
 			<Global
 				styles={css`
-          em-emoji-picker {
-            --rgb-background: ${theme.palette.background.paper};
-            --rgb-input: ${theme.palette.primary.main};
-            --rgb-color: ${theme.palette.text.primary};
-
-            // Hack to prevent the right side from being cut off
-            width: 350px;
-          }
-        `}
+					em-emoji-picker {
+						--rgb-background: ${theme.palette.background.paper};
+						--rgb-input: ${theme.palette.primary.main};
+						--rgb-color: ${theme.palette.text.primary};
+					}
+				`}
 			/>
 			<Popover open={open} onOpenChange={setOpen}>
-				<PopoverTrigger>
+				<PopoverTrigger asChild>
 					<Button variant="outline" size="lg" className="flex-shrink-0">
 						Emoji
 						<ChevronDownIcon />
 					</Button>
 				</PopoverTrigger>
-				<PopoverContent id="emoji" horizontal="right">
+				<PopoverContent id="emoji" side="bottom" align="end" className="w-min">
 					<Suspense fallback={<Loader />}>
 						<EmojiPicker
 							onEmojiSelect={(emoji) => {

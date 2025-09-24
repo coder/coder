@@ -23,7 +23,8 @@ const badgeVariants = cva(
 				destructive:
 					"border border-solid border-border-destructive bg-surface-red text-highlight-red shadow",
 				green:
-					"border border-solid border-surface-green bg-surface-green text-highlight-green shadow",
+					"border border-solid border-border-green bg-surface-green text-highlight-green shadow",
+				info: "border border-solid border-border-sky bg-surface-sky text-highlight-sky shadow",
 			},
 			size: {
 				xs: "text-2xs font-regular h-5 [&_svg]:hidden rounded px-1.5",
@@ -49,7 +50,7 @@ const badgeVariants = cva(
 		defaultVariants: {
 			variant: "default",
 			size: "md",
-			border: "solid",
+			border: "none",
 			hover: false,
 		},
 	},

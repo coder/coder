@@ -6,6 +6,7 @@ externalAuthProviders:
     auth_url: https://example.com/auth
     token_url: https://example.com/token
     validate_url: https://example.com/validate
+    revoke_url: https://example.com/revoke
     app_install_url: https://example.com/install
     app_installations_url: https://example.com/installations
     no_refresh: true
@@ -17,6 +18,9 @@ externalAuthProviders:
       - token
     device_flow: true
     device_code_url: https://example.com/device
+    mcp_url: https://api.githubcopilot.com/mcp/
+    mcp_tool_allow_regex: .*
+    mcp_tool_deny_regex: create_gist
     regex: ^https://example.com/.*$
     display_name: GitHub
     display_icon: /static/icons/github.svg

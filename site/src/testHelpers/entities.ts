@@ -912,6 +912,7 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
 	hidden: false,
 	open_in: "slim-window",
 	statuses: [],
+	tooltip: "Test **Tooltip**",
 };
 
 export const MockWorkspaceAgentLogSource: TypesGen.WorkspaceAgentLogSource = {
@@ -992,6 +993,15 @@ export const MockWorkspaceSubAgent: TypesGen.WorkspaceAgent = {
 		"vscode_insiders",
 		"web_terminal",
 	],
+};
+
+const MockWorkspaceUnhealthyAgent: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
+	id: "test-workspace-unhealthy-agent",
+	name: "a-workspace-unhealthy-agent",
+	status: "timeout",
+	lifecycle_state: "start_error",
+	health: { healthy: false },
 };
 
 export const MockWorkspaceAppStatus: TypesGen.WorkspaceAppStatus = {
@@ -1445,6 +1455,20 @@ export const MockStoppingWorkspace: TypesGen.Workspace = {
 		status: "stopping",
 	},
 };
+export const MockUnhealthyWorkspace: TypesGen.Workspace = {
+	...MockWorkspace,
+	id: "test-unhealthy-workspace",
+	health: {
+		healthy: false,
+		failing_agents: [MockWorkspaceUnhealthyAgent.id],
+	},
+	latest_build: {
+		...MockWorkspace.latest_build,
+		resources: [
+			{ ...MockWorkspaceResource, agents: [MockWorkspaceUnhealthyAgent] },
+		],
+	},
+};
 export const MockStartingWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
 	id: "test-starting-workspace",
@@ -1575,6 +1599,12 @@ export const MockPendingWorkspace: TypesGen.Workspace = {
 	},
 };
 
+export const MockNonClassicParameterFlowWorkspace: TypesGen.Workspace = {
+	...MockWorkspace,
+	id: "test-non-classic-parameter-flow-workspace",
+	template_use_classic_parameter_flow: false,
+};
+
 // just over one page of workspaces
 export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
 	workspaces: range(1, 27).map((id: number) => ({
@@ -1671,6 +1701,21 @@ const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter = {
 	required: true,
 	ephemeral: false,
 };
+
+export const MockTemplateVersionParameter6: TypesGen.TemplateVersionParameter =
+	{
+		name: "ephemeral_parameter",
+		type: "string",
+		form_type: "input",
+		description: "This is ephemeral parameter",
+		description_plaintext: "Markdown: This is ephemeral parameter",
+		default_value: "abc",
+		mutable: true,
+		icon: "/icon/folder.svg",
+		options: [],
+		required: true,
+		ephemeral: true,
+	};
 
 export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
 	name: "first_variable",
@@ -4413,6 +4458,7 @@ export const MockGithubExternalProvider: TypesGen.ExternalAuthLinkProvider = {
 	display_name: "GitHub",
 	allow_refresh: true,
 	allow_validate: true,
+	supports_revocation: false,
 };
 
 export const MockGithubAuthLink: TypesGen.ExternalAuthLink = {
@@ -4852,6 +4898,7 @@ export const MockTasks = [
 	{
 		workspace: {
 			...MockWorkspace,
+			name: "create-competitors-page",
 			latest_app_status: MockWorkspaceAppStatus,
 		},
 		prompt: "Create competitors page",
@@ -4860,6 +4907,7 @@ export const MockTasks = [
 		workspace: {
 			...MockWorkspace,
 			id: "workspace-2",
+			name: "fix-avatar-size",
 			latest_app_status: {
 				...MockWorkspaceAppStatus,
 				message: "Avatar size fixed!",
@@ -4871,6 +4919,7 @@ export const MockTasks = [
 		workspace: {
 			...MockWorkspace,
 			id: "workspace-3",
+			name: "fix-accessibility-issues",
 			latest_app_status: {
 				...MockWorkspaceAppStatus,
 				message: "Accessibility issues fixed!",
@@ -4879,6 +4928,32 @@ export const MockTasks = [
 		prompt: "Fix accessibility issues",
 	},
 ];
+
+export const MockTask: TypesGen.Task = {
+	id: "test-task",
+	name: "task-wild-test-123",
+	organization_id: MockOrganization.id,
+	owner_id: MockUserOwner.id,
+	owner_name: MockUserOwner.username,
+	template_id: MockTemplate.id,
+	template_name: MockTemplate.name,
+	template_display_name: MockTemplate.display_name,
+	template_icon: MockTemplate.icon,
+	workspace_id: MockWorkspace.id,
+	workspace_agent_id: MockWorkspaceAgent.id,
+	workspace_agent_lifecycle: MockWorkspaceAgent.lifecycle_state,
+	workspace_agent_health: MockWorkspaceAgent.health,
+	initial_prompt: "Perform some task",
+	status: "running",
+	current_state: {
+		timestamp: "2022-05-17T17:39:01.382927298Z",
+		state: "idle",
+		message: "Should I continue?",
+		uri: "https://dev.coder.com",
+	},
+	created_at: "2022-05-17T17:39:01.382927298Z",
+	updated_at: "2022-05-17T17:39:01.382927298Z",
+};
 
 export const MockNewTaskData = {
 	prompt: "Create a new task",

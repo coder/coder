@@ -41,7 +41,7 @@ RUN apt-get update && \
 	# goimports for updating imports
 	go install golang.org/x/tools/cmd/goimports@v0.31.0 && \
 	# protoc-gen-go is needed to build sysbox from source
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30 && \
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30.0 && \
 	# drpc support for v2
 	go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34 && \
 	# migrate for migration support for v2
@@ -209,7 +209,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 
 # NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.12.2.
 # Installing the same version here to match.
-RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.12.2/terraform_1.12.2_linux_amd64.zip" && \
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.13.0/terraform_1.13.0_linux_amd64.zip" && \
 	unzip /tmp/terraform.zip -d /usr/local/bin && \
 	rm -f /tmp/terraform.zip && \
 	chmod +x /usr/local/bin/terraform && \
@@ -245,7 +245,7 @@ RUN DOCTL_VERSION=$(curl -s "https://api.github.com/repos/digitalocean/doctl/rel
 ARG NVM_INSTALL_SHA=bdea8c52186c4dd12657e77e7515509cda5bf9fa5a2f0046bce749e62645076d
 # Install frontend utilities
 ENV NVM_DIR=/usr/local/nvm
-ENV NODE_VERSION=20.19.4
+ENV NODE_VERSION=22.19.0
 RUN mkdir -p $NVM_DIR
 RUN curl -o nvm_install.sh https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh && \
 	echo "${NVM_INSTALL_SHA}  nvm_install.sh" | sha256sum -c && \

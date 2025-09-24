@@ -7,6 +7,7 @@ type CheckConstraint string
 // CheckConstraint enums.
 const (
 	CheckOneTimePasscodeSet                        CheckConstraint = "one_time_passcode_set"                            // users
+	CheckUsersUsernameMinLength                    CheckConstraint = "users_username_min_length"                        // users
 	CheckMaxProvisionerLogsLength                  CheckConstraint = "max_provisioner_logs_length"                      // provisioner_jobs
 	CheckValidationMonotonicOrder                  CheckConstraint = "validation_monotonic_order"                       // template_version_parameters
 	CheckUsageEventTypeCheck                       CheckConstraint = "usage_event_type_check"                           // usage_events

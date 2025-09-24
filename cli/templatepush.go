@@ -37,15 +37,17 @@ func (r *RootCmd) templatePush() *serpent.Command {
 		activate             bool
 		orgContext           = NewOrganizationContext()
 	)
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "push [template]",
 		Short: "Create or update a template from the current directory or as specified by flag",
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			uploadFlags.setWorkdir(workdir)
 
 			organization, err := orgContext.Selected(inv, client)
@@ -309,8 +311,9 @@ func (pf *templateUploadFlags) stdin(inv *serpent.Invocation) (out bool) {
 			inv.Logger.Info(inv.Context(), "uploading tar read from stdin")
 		}
 	}()
-	// We let the directory override our isTTY check
-	return pf.directory == "-" || (!isTTYIn(inv) && pf.directory == ".")
+	// We read a tar from stdin if the directory is "-" or if we're not in a
+	// TTY and the directory flag is unset.
+	return pf.directory == "-" || (!isTTYIn(inv) && !inv.ParsedFlags().Lookup("directory").Changed)
 }
 
 func (pf *templateUploadFlags) upload(inv *serpent.Invocation, client *codersdk.Client) (*codersdk.UploadResponse, error) {
