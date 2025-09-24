@@ -157,19 +157,20 @@ func TestTasks(t *testing.T) {
 		appURL    string
 		authToken string
 	}
+
 	type aiTemplateOpt func(*aiTemplateOpts)
+
 	withSidebarURL := func(url string) aiTemplateOpt { return func(o *aiTemplateOpts) { o.appURL = url } }
 	withAgentToken := func(token string) aiTemplateOpt { return func(o *aiTemplateOpts) { o.authToken = token } }
+
 	createAITemplate := func(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, opts ...aiTemplateOpt) codersdk.Template {
 		t.Helper()
-		var opt aiTemplateOpts
+
+		opt := aiTemplateOpts{
+			authToken: uuid.New().String(),
+		}
 		for _, o := range opts {
 			o(&opt)
-		}
-		appURL := opt.appURL
-		var agentAuth *proto.Agent_Token
-		if opt.authToken != "" {
-			agentAuth = &proto.Agent_Token{Token: opt.authToken}
 		}
 
 		// Create a template version that supports AI tasks with the AI Prompt parameter.
@@ -198,13 +199,15 @@ func TestTasks(t *testing.T) {
 										{
 											Id:   uuid.NewString(),
 											Name: "example",
-											Auth: agentAuth,
+											Auth: &proto.Agent_Token{
+												Token: opt.authToken,
+											},
 											Apps: []*proto.App{
 												{
 													Id:          taskAppID.String(),
 													Slug:        "task-sidebar",
 													DisplayName: "Task Sidebar",
-													Url:         appURL,
+													Url:         opt.appURL,
 												},
 											},
 										},
