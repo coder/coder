@@ -3575,6 +3575,264 @@ func TestWorkspacesFiltering(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("SharedWithGroup", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
+		var (
+			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					DeploymentValues: dv,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureTemplateRBAC: 1,
+					},
+				},
+			})
+			_, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			sharedWorkspace   = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			ctx = testutil.Context(t, testutil.WaitMedium)
+		)
+
+		group, err := client.CreateGroup(ctx, orgOwner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "wibble",
+		})
+		require.NoError(t, err, "create group")
+
+		client.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Shared: ptr.Ref(true),
+		})
+		require.NoError(t, err, "fetch workspaces")
+		require.Equal(t, 1, workspaces.Count, "expected only one workspace")
+		require.Equal(t, workspaces.Workspaces[0].ID, sharedWorkspace.ID)
+	})
+
+	t.Run("SharedWithUserAndGroup", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
+		var (
+			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					DeploymentValues: dv,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureTemplateRBAC: 1,
+					},
+				},
+			})
+			_, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			sharedWorkspace   = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_, toShareWithUser = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+			ctx                = testutil.Context(t, testutil.WaitMedium)
+		)
+
+		group, err := client.CreateGroup(ctx, orgOwner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "wibble",
+		})
+		require.NoError(t, err, "create group")
+
+		client.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				toShareWithUser.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Shared: ptr.Ref(true),
+		})
+		require.NoError(t, err, "fetch workspaces")
+		require.Equal(t, 1, workspaces.Count, "expected only one workspace")
+		require.Equal(t, workspaces.Workspaces[0].ID, sharedWorkspace.ID)
+	})
+
+	t.Run("NotSharedWithGroup", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
+		var (
+			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					DeploymentValues: dv,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureTemplateRBAC: 1,
+					},
+				},
+			})
+			_, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			sharedWorkspace   = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			notSharedWorkspace = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			ctx = testutil.Context(t, testutil.WaitMedium)
+		)
+
+		group, err := client.CreateGroup(ctx, orgOwner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "wibble",
+		})
+		require.NoError(t, err, "create group")
+
+		client.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Shared: ptr.Ref(false),
+		})
+		require.NoError(t, err, "fetch workspaces")
+		require.Equal(t, 1, workspaces.Count, "expected only one workspace")
+		require.Equal(t, workspaces.Workspaces[0].ID, notSharedWorkspace.ID)
+	})
+
+	t.Run("SharedWithGroupByID", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
+		var (
+			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					DeploymentValues: dv,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureTemplateRBAC: 1,
+					},
+				},
+			})
+			_, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			sharedWorkspace   = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			ctx = testutil.Context(t, testutil.WaitMedium)
+		)
+
+		group, err := client.CreateGroup(ctx, orgOwner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "wibble",
+		})
+		require.NoError(t, err, "create group")
+		err = client.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			SharedWithGroup: group.ID.String(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, workspaces.Count)
+		require.Equal(t, sharedWorkspace.ID, workspaces.Workspaces[0].ID)
+	})
+
+	t.Run("SharedWithGroupFilter", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
+		var (
+			client, db, orgOwner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					DeploymentValues: dv,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureTemplateRBAC: 1,
+					},
+				},
+			})
+			_, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			sharedWorkspace   = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			ctx = testutil.Context(t, testutil.WaitMedium)
+		)
+
+		group, err := client.CreateGroup(ctx, orgOwner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "wibble",
+		})
+		require.NoError(t, err, "create group")
+		err = client.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		workspacesByID, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			SharedWithGroup: group.ID.String(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, workspacesByID.Count)
+		require.Equal(t, sharedWorkspace.ID, workspacesByID.Workspaces[0].ID)
+
+		workspacesByName, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			SharedWithGroup: group.Name,
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, workspacesByName.Count)
+		require.Equal(t, sharedWorkspace.ID, workspacesByName.Workspaces[0].ID)
+
+		workspacesByOrgAndName, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			SharedWithGroup: fmt.Sprintf("coder/%s", group.Name),
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, workspacesByOrgAndName.Count)
+		require.Equal(t, sharedWorkspace.ID, workspacesByOrgAndName.Workspaces[0].ID)
+	})
 }
 
 // TestWorkspacesWithoutTemplatePerms creates a workspace for a user, then drops
@@ -4106,16 +4364,15 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 func TestDeleteWorkspaceACL(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-
 	t.Run("WorkspaceOwnerCanDelete_Groups", func(t *testing.T) {
 		t.Parallel()
 
 		var (
 			client, db, admin = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
-					DeploymentValues: dv,
+					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+						dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{
@@ -4157,7 +4414,9 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 		var (
 			client, db, admin = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
-					DeploymentValues: dv,
+					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+						dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{

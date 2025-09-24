@@ -225,6 +225,9 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	filter.HasAITask = parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task")
 	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
+	filter.Shared = parser.NullableBoolean(values, sql.NullBool{}, "shared")
+	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user")
+	filter.SharedWithGroupID = parseGroup(ctx, db, parser, values, "shared_with_group")
 
 	type paramMatch struct {
 		name  string
@@ -359,6 +362,85 @@ func parseOrganization(ctx context.Context, db database.Store, parser *httpapi.Q
 			return uuid.Nil, xerrors.Errorf("organization %q either does not exist, or you are unauthorized to view it", v)
 		}
 		return organization.ID, nil
+	})
+}
+
+func parseUser(ctx context.Context, db database.Store, parser *httpapi.QueryParamParser, vals url.Values, queryParam string) uuid.UUID {
+	return httpapi.ParseCustom(parser, vals, uuid.Nil, queryParam, func(v string) (uuid.UUID, error) {
+		if v == "" {
+			return uuid.Nil, nil
+		}
+		userID, err := uuid.Parse(v)
+		if err == nil {
+			return userID, nil
+		}
+		user, err := db.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+			Username: v,
+		})
+		if err != nil {
+			return uuid.Nil, xerrors.Errorf("user %q either does not exist, or you are unauthorized to view them", v)
+		}
+		return user.ID, nil
+	})
+}
+
+// Parse a group filter value into a group UUID.
+// Supported formats:
+//   - <group-uuid>
+//   - <organization-name>/<group-name>
+//   - <group-name> (resolved in the default organization)
+func parseGroup(ctx context.Context, db database.Store, parser *httpapi.QueryParamParser, vals url.Values, queryParam string) uuid.UUID {
+	return httpapi.ParseCustom(parser, vals, uuid.Nil, queryParam, func(v string) (uuid.UUID, error) {
+		if v == "" {
+			return uuid.Nil, nil
+		}
+		groupID, err := uuid.Parse(v)
+		if err == nil {
+			return groupID, nil
+		}
+
+		var groupName string
+		var org database.Organization
+		parts := strings.Split(v, "/")
+		switch len(parts) {
+		case 1:
+			dbOrg, err := db.GetDefaultOrganization(ctx)
+			if err != nil {
+				return uuid.Nil, xerrors.New("fetching default organization")
+			}
+			org = dbOrg
+			groupName = parts[0]
+		case 2:
+			orgName := parts[0]
+			if err := codersdk.NameValid(orgName); err != nil {
+				return uuid.Nil, xerrors.Errorf("invalid organization name %w", err)
+			}
+			dbOrg, err := db.GetOrganizationByName(ctx, database.GetOrganizationByNameParams{
+				Name: orgName,
+			})
+			if err != nil {
+				return uuid.Nil, xerrors.Errorf("organization %q either does not exist, or you are unauthorized to view it", orgName)
+			}
+			org = dbOrg
+
+			groupName = parts[1]
+
+		default:
+			return uuid.Nil, xerrors.New("invalid organization or group name, the filter must be in the pattern of <organization name>/<group name>")
+		}
+
+		if err := codersdk.GroupNameValid(groupName); err != nil {
+			return uuid.Nil, xerrors.Errorf("invalid group name %w", err)
+		}
+
+		group, err := db.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
+			OrganizationID: org.ID,
+			Name:           groupName,
+		})
+		if err != nil {
+			return uuid.Nil, xerrors.Errorf("group %q either does not exist, does not belong to the organization %q, or you are unauthorized to view it", groupName, org.Name)
+		}
+		return group.ID, nil
 	})
 }
 

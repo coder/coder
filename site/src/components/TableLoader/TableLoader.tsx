@@ -6,7 +6,7 @@ import { Loader } from "../Loader/Loader";
 export const TableLoader: FC = () => {
 	return (
 		<TableRow>
-			<TableCell colSpan={999} css={{ textAlign: "center", height: 160 }}>
+			<TableCell colSpan={999} className="text-center h-40">
 				<Loader />
 			</TableCell>
 		</TableRow>

@@ -20,10 +20,17 @@ type UseAppLinkParams = {
 	agent: WorkspaceAgent;
 };
 
+type AppLink = {
+	href: string;
+	onClick: (e: React.MouseEvent) => void;
+	label: string;
+	hasToken: boolean;
+};
+
 export const useAppLink = (
 	app: WorkspaceApp,
 	{ agent, workspace }: UseAppLinkParams,
-) => {
+): AppLink => {
 	const label = app.display_name ?? app.slug;
 	const { proxy } = useProxy();
 	const { data: apiKeyResponse } = useQuery({

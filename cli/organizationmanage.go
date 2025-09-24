@@ -12,22 +12,24 @@ import (
 )
 
 func (r *RootCmd) createOrganization() *serpent.Command {
-	client := new(codersdk.Client)
-
 	cmd := &serpent.Command{
 		Use:   "create <organization name>",
 		Short: "Create a new organization.",
 		Middleware: serpent.Chain(
-			r.InitClient(client),
 			serpent.RequireNArgs(1),
 		),
 		Options: serpent.OptionSet{
 			cliui.SkipPromptOption(),
 		},
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			orgName := inv.Args[0]
 
-			err := codersdk.NameValid(orgName)
+			err = codersdk.NameValid(orgName)
 			if err != nil {
 				return xerrors.Errorf("organization name %q is invalid: %w", orgName, err)
 			}

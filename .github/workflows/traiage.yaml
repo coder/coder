@@ -1,0 +1,164 @@
+name: AI Triage Automation
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_url:
+        description: "GitHub Issue URL to process"
+        required: true
+        type: string
+      template_name:
+        description: "Coder template to use for workspace"
+        required: true
+        default: "traiage"
+        type: string
+      prefix:
+        description: "Prefix for workspace name"
+        required: false
+        default: "traiage"
+        type: string
+
+jobs:
+  traiage:
+    name: Triage GitHub Issue with Claude Code
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CODER_URL: ${{ secrets.TRAIAGE_CODER_URL }}
+      CODER_SESSION_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
+      TEMPLATE_NAME: ${{ inputs.template_name }}
+    permissions:
+      contents: read
+      issues: write
+      actions: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Extract context key from issue
+        id: extract-context
+        env:
+          ISSUE_URL: ${{ inputs.issue_url }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          issue_number="$(gh issue view "${ISSUE_URL}" --json number --jq '.number')"
+          context_key="gh-${issue_number}"
+          echo "context_key=${context_key}" >> "${GITHUB_OUTPUT}"
+          echo "CONTEXT_KEY=${context_key}" >> "${GITHUB_ENV}"
+
+      - name: Download and install Coder binary
+        shell: bash
+        env:
+          CODER_URL: ${{ secrets.TRAIAGE_CODER_URL }}
+        run: |
+          if [ "${{ runner.arch }}" == "ARM64" ]; then
+            ARCH="arm64"
+          else
+            ARCH="amd64"
+          fi
+          mkdir -p "${HOME}/.local/bin"
+          curl -fsSL --compressed "$CODER_URL/bin/coder-linux-${ARCH}" -o "${HOME}/.local/bin/coder"
+          chmod +x "${HOME}/.local/bin/coder"
+          export PATH="$HOME/.local/bin:$PATH"
+          coder version
+          coder whoami
+          echo "$HOME/.local/bin" >> "${GITHUB_PATH}"
+
+      - name: Create Coder workspace
+        id: create-workspace
+        env:
+          PREFIX: ${{ inputs.prefix }}
+          CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
+          RUN_ID: ${{ github.run_id }}
+          TEMPLATE_PARAMETERS: ${{ secrets.TRAIAGE_TEMPLATE_PARAMETERS }}
+        run: |
+          export WORKSPACE_NAME="${PREFIX}-${CONTEXT_KEY}-${RUN_ID}"
+          echo "Creating workspace: $WORKSPACE_NAME"
+          ./scripts/traiage.sh create
+          echo "workspace_name=$WORKSPACE_NAME" >> "${GITHUB_OUTPUT}"
+          echo "WORKSPACE_NAME=${WORKSPACE_NAME}" >> "${GITHUB_ENV}"
+
+      - name: Send prompt to AI agent inside workspace
+        id: prepare-prompt
+        env:
+          WORKSPACE_NAME: ${{ steps.create-workspace.outputs.workspace_name }}
+          ISSUE_URL: ${{ inputs.issue_url }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          PROMPT_FILE=$(mktemp)
+          trap 'rm -f "${PROMPT_FILE}"' EXIT
+
+          # Fetch issue description using `gh` CLI
+          issue_description=$(gh issue view "${ISSUE_URL}")
+
+          # Write a prompt to PROMPT_FILE
+          cat > "${PROMPT_FILE}" <<EOF
+          Analyze the below GitHub issue description, understand the root cause, and make appropriate changes to resolve the issue.
+
+          ISSUE URL: ${ISSUE_URL}
+          ISSUE DESCRIPTION BELOW:
+
+          ${issue_description}
+          EOF
+
+          echo "WORKSPACE_NAME: ${WORKSPACE_NAME}"
+          # This command will run the prompt inside the workspace
+          # and exit once the agent has completed the task.
+          PROMPT=$(cat "${PROMPT_FILE}") ./scripts/traiage.sh prompt
+
+      - name: Create and upload archive
+        id: create-archive
+        env:
+          BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
+        run: |
+          echo "Creating archive for workspace: $WORKSPACE_NAME"
+          ./scripts/traiage.sh archive
+          echo "archive_url=${BUCKET_PREFIX%%/}/$WORKSPACE_NAME.tar.gz" >> "${GITHUB_OUTPUT}"
+
+      - name: Generate a summary of the changes and post a comment on GitHub.
+        id: generate-summary
+        env:
+          ARCHIVE_URL: ${{ steps.create-archive.outputs.archive_url }}
+          BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
+          CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ISSUE_URL: ${{ inputs.issue_url }}
+          WORKSPACE_NAME: ${{ steps.create-workspace.outputs.workspace_name }}
+        run: |
+          SUMMARY_FILE=$(mktemp)
+          trap 'rm -f "${SUMMARY_FILE}"' EXIT
+          AUTO_SUMMARY=$(./scripts/traiage.sh summary)
+          {
+            echo "## TrAIage Results"
+            echo "- **Issue URL:** ${ISSUE_URL}"
+            echo "- **Context Key:** ${CONTEXT_KEY}"
+            echo "- **Workspace:** ${WORKSPACE_NAME}"
+            echo "- **Archive URL:** ${ARCHIVE_URL}"
+            echo
+            echo "${AUTO_SUMMARY}"
+            echo
+            echo "To fetch the output to your own workspace:"
+            echo
+            echo '```bash'
+            echo "BUCKET_PREFIX=${BUCKET_PREFIX} WORKSPACE_NAME=${WORKSPACE_NAME} ./scripts/traiage.sh resume"
+            echo '```'
+            echo
+          } >> "${SUMMARY_FILE}"
+
+          if [[ "${ISSUE_URL}" == "https://github.com/${GITHUB_REPOSITORY}"* ]]; then
+            gh issue comment "${ISSUE_URL}" --body-file "${SUMMARY_FILE}" --create-if-none --edit-last
+          else
+            echo "Skipping comment on other repo."
+          fi
+          cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Cleanup workspace
+        if: steps.create-workspace.outputs.workspace_name != '' && steps.create-archive.outputs.archive_url != ''
+        run: |
+          echo "Cleaning up workspace: $WORKSPACE_NAME"
+          ./scripts/traiage.sh delete || true

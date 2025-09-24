@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"runtime/debug"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -47,6 +49,7 @@ const (
 	ToolNameWorkspaceWriteFile          = "coder_workspace_write_file"
 	ToolNameWorkspaceEditFile           = "coder_workspace_edit_file"
 	ToolNameWorkspaceEditFiles          = "coder_workspace_edit_files"
+	ToolNameWorkspacePortForward        = "coder_workspace_port_forward"
 )
 
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
@@ -219,6 +222,7 @@ var All = []GenericTool{
 	WorkspaceWriteFile.Generic(),
 	WorkspaceEditFile.Generic(),
 	WorkspaceEditFiles.Generic(),
+	WorkspacePortForward.Generic(),
 }
 
 type ReportTaskArgs struct {
@@ -1389,6 +1393,8 @@ type WorkspaceLSResponse struct {
 	Contents []WorkspaceLSFile `json:"contents"`
 }
 
+const workspaceDescription = "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used."
+
 var WorkspaceLS = Tool[WorkspaceLSArgs, WorkspaceLSResponse]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceLS,
@@ -1397,7 +1403,7 @@ var WorkspaceLS = Tool[WorkspaceLSArgs, WorkspaceLSResponse]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used.",
+					"description": workspaceDescription,
 				},
 				"path": map[string]any{
 					"type":        "string",
@@ -1454,7 +1460,7 @@ var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used.",
+					"description": workspaceDescription,
 				},
 				"path": map[string]any{
 					"type":        "string",
@@ -1519,7 +1525,7 @@ var WorkspaceWriteFile = Tool[WorkspaceWriteFileArgs, codersdk.Response]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used.",
+					"description": workspaceDescription,
 				},
 				"path": map[string]any{
 					"type":        "string",
@@ -1567,7 +1573,7 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used.",
+					"description": workspaceDescription,
 				},
 				"path": map[string]any{
 					"type":        "string",
@@ -1576,21 +1582,19 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
 				"edits": map[string]any{
 					"type":        "array",
 					"description": "An array of edit operations.",
-					"items": []any{
-						map[string]any{
-							"type": "object",
-							"properties": map[string]any{
-								"search": map[string]any{
-									"type":        "string",
-									"description": "The old string to replace.",
-								},
-								"replace": map[string]any{
-									"type":        "string",
-									"description": "The new string that replaces the old string.",
-								},
+					"items": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"search": map[string]any{
+								"type":        "string",
+								"description": "The old string to replace.",
 							},
-							"required": []string{"search", "replace"},
+							"replace": map[string]any{
+								"type":        "string",
+								"description": "The new string that replaces the old string.",
+							},
 						},
+						"required": []string{"search", "replace"},
 					},
 				},
 			},
@@ -1636,42 +1640,38 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used.",
+					"description": workspaceDescription,
 				},
 				"files": map[string]any{
 					"type":        "array",
 					"description": "An array of files to edit.",
-					"items": []any{
-						map[string]any{
-							"type": "object",
-							"properties": map[string]any{
-								"path": map[string]any{
-									"type":        "string",
-									"description": "The absolute path of the file to write in the workspace.",
-								},
-								"edits": map[string]any{
-									"type":        "array",
-									"description": "An array of edit operations.",
-									"items": []any{
-										map[string]any{
-											"type": "object",
-											"properties": map[string]any{
-												"search": map[string]any{
-													"type":        "string",
-													"description": "The old string to replace.",
-												},
-												"replace": map[string]any{
-													"type":        "string",
-													"description": "The new string that replaces the old string.",
-												},
-											},
-											"required": []string{"search", "replace"},
+					"items": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"path": map[string]any{
+								"type":        "string",
+								"description": "The absolute path of the file to write in the workspace.",
+							},
+							"edits": map[string]any{
+								"type":        "array",
+								"description": "An array of edit operations.",
+								"items": map[string]any{
+									"type": "object",
+									"properties": map[string]any{
+										"search": map[string]any{
+											"type":        "string",
+											"description": "The old string to replace.",
+										},
+										"replace": map[string]any{
+											"type":        "string",
+											"description": "The new string that replaces the old string.",
 										},
 									},
+									"required": []string{"search", "replace"},
 								},
-								"required": []string{"path", "edits"},
 							},
 						},
+						"required": []string{"path", "edits"},
 					},
 				},
 			},
@@ -1693,6 +1693,59 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
 
 		return codersdk.Response{
 			Message: "File(s) edited successfully.",
+		}, nil
+	},
+}
+
+type WorkspacePortForwardArgs struct {
+	Workspace string `json:"workspace"`
+	Port      int    `json:"port"`
+}
+
+type WorkspacePortForwardResponse struct {
+	URL string `json:"url"`
+}
+
+var WorkspacePortForward = Tool[WorkspacePortForwardArgs, WorkspacePortForwardResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameWorkspacePortForward,
+		Description: `Fetch URLs that forward to the specified port.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": workspaceDescription,
+				},
+				"port": map[string]any{
+					"type":        "number",
+					"description": "The port to forward.",
+				},
+			},
+			Required: []string{"workspace", "port"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspacePortForwardArgs) (WorkspacePortForwardResponse, error) {
+		workspaceName := NormalizeWorkspaceInput(args.Workspace)
+		workspace, workspaceAgent, err := findWorkspaceAndAgent(ctx, deps.coderClient, workspaceName)
+		if err != nil {
+			return WorkspacePortForwardResponse{}, xerrors.Errorf("failed to find workspace: %w", err)
+		}
+		res, err := deps.coderClient.AppHost(ctx)
+		if err != nil {
+			return WorkspacePortForwardResponse{}, xerrors.Errorf("failed to get app host: %w", err)
+		}
+		if res.Host == "" {
+			return WorkspacePortForwardResponse{}, xerrors.New("no app host for forwarding has been configured")
+		}
+		url := appurl.ApplicationURL{
+			AppSlugOrPort: strconv.Itoa(args.Port),
+			AgentName:     workspaceAgent.Name,
+			WorkspaceName: workspace.Name,
+			Username:      workspace.OwnerName,
+		}
+		return WorkspacePortForwardResponse{
+			URL: deps.coderClient.URL.Scheme + "://" + strings.Replace(res.Host, "*", url.String(), 1),
 		}, nil
 	},
 }

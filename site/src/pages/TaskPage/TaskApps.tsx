@@ -1,4 +1,3 @@
-import type { WorkspaceAgent, WorkspaceApp } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -9,9 +8,14 @@ import {
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { Link } from "components/Link/Link";
+import { ScrollArea, ScrollBar } from "components/ScrollArea/ScrollArea";
 import { ChevronDownIcon, LayoutGridIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
-import type { Task } from "modules/tasks/tasks";
+import {
+	getTaskApps,
+	type Task,
+	type WorkspaceAppWithAgent,
+} from "modules/tasks/tasks";
 import type React from "react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
@@ -23,77 +27,47 @@ type TaskAppsProps = {
 	task: Task;
 };
 
-type AppWithAgent = {
-	app: WorkspaceApp;
-	agent: WorkspaceAgent;
-};
-
 export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
-	const agents = task.workspace.latest_build.resources
-		.flatMap((r) => r.agents)
-		.filter((a) => !!a);
-
-	// The Chat UI app will be displayed in the sidebar, so we don't want to show
-	// it here
-	const apps = agents
-		.flatMap((agent) =>
-			agent.apps.map((app) => ({
-				app,
-				agent,
-			})),
-		)
-		.filter(
-			({ app }) =>
-				!!app && app.id !== task.workspace.latest_build.ai_task_sidebar_app_id,
-		);
-
-	const embeddedApps = apps.filter(({ app }) => !app.external);
-	const externalApps = apps.filter(({ app }) => app.external);
-
-	const [activeAppId, setActiveAppId] = useState<string | undefined>(
-		embeddedApps[0]?.app.id,
-	);
+	const apps = getTaskApps(task);
+	const [embeddedApps, externalApps] = splitEmbeddedAndExternalApps(apps);
+	const [activeAppId, setActiveAppId] = useState(embeddedApps.at(0)?.id);
 
 	return (
-		<main className="flex flex-col">
+		<main className="flex flex-col h-full">
 			<div className="w-full flex items-center border-0 border-b border-border border-solid">
-				<div className="p-2 pb-0 flex gap-2 items-center">
-					{embeddedApps.map(({ app, agent }) => (
-						<TaskAppTab
-							key={app.id}
-							task={task}
-							app={app}
-							agent={agent}
-							active={app.id === activeAppId}
-							onClick={(e) => {
-								e.preventDefault();
-								setActiveAppId(app.id);
-							}}
-						/>
-					))}
-				</div>
+				<ScrollArea className="max-w-full">
+					<div className="flex w-max gap-2 items-center p-2 pb-0">
+						{embeddedApps.map((app) => (
+							<TaskAppTab
+								key={app.id}
+								task={task}
+								app={app}
+								active={app.id === activeAppId}
+								onClick={(e) => {
+									e.preventDefault();
+									setActiveAppId(app.id);
+								}}
+							/>
+						))}
+					</div>
+					<ScrollBar orientation="horizontal" className="h-2" />
+				</ScrollArea>
 
 				{externalApps.length > 0 && (
-					<TaskExternalAppsDropdown
-						task={task}
-						agents={agents}
-						externalApps={externalApps}
-					/>
+					<ExternalAppsDropdown task={task} externalApps={externalApps} />
 				)}
 			</div>
 
 			{embeddedApps.length > 0 ? (
 				<div className="flex-1">
-					{embeddedApps.map(({ app }) => {
-						return (
-							<TaskAppIFrame
-								key={app.id}
-								active={activeAppId === app.id}
-								app={app}
-								task={task}
-							/>
-						);
-					})}
+					{embeddedApps.map((app) => (
+						<TaskAppIFrame
+							key={app.id}
+							active={activeAppId === app.id}
+							app={app}
+							task={task}
+						/>
+					))}
 				</div>
 			) : (
 				<div className="mx-auto my-auto flex flex-col items-center">
@@ -117,13 +91,12 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	);
 };
 
-type TaskExternalAppsDropdownProps = {
+type ExternalAppsDropdownProps = {
 	task: Task;
-	agents: WorkspaceAgent[];
-	externalApps: AppWithAgent[];
+	externalApps: WorkspaceAppWithAgent[];
 };
 
-const TaskExternalAppsDropdown: FC<TaskExternalAppsDropdownProps> = ({
+const ExternalAppsDropdown: FC<ExternalAppsDropdownProps> = ({
 	task,
 	externalApps,
 }) => {
@@ -137,13 +110,8 @@ const TaskExternalAppsDropdown: FC<TaskExternalAppsDropdownProps> = ({
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent>
-					{externalApps.map(({ app, agent }) => (
-						<ExternalAppMenuItem
-							key={app.id}
-							app={app}
-							agent={agent}
-							task={task}
-						/>
+					{externalApps.map((app) => (
+						<ExternalAppMenuItem key={app.id} app={app} task={task} />
 					))}
 				</DropdownMenuContent>
 			</DropdownMenu>
@@ -152,12 +120,11 @@ const TaskExternalAppsDropdown: FC<TaskExternalAppsDropdownProps> = ({
 };
 
 const ExternalAppMenuItem: FC<{
-	app: WorkspaceApp;
-	agent: WorkspaceAgent;
+	app: WorkspaceAppWithAgent;
 	task: Task;
-}> = ({ app, agent, task }) => {
+}> = ({ app, task }) => {
 	const link = useAppLink(app, {
-		agent,
+		agent: app.agent,
 		workspace: task.workspace,
 	});
 
@@ -173,21 +140,14 @@ const ExternalAppMenuItem: FC<{
 
 type TaskAppTabProps = {
 	task: Task;
-	app: WorkspaceApp;
-	agent: WorkspaceAgent;
+	app: WorkspaceAppWithAgent;
 	active: boolean;
 	onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void;
 };
 
-const TaskAppTab: FC<TaskAppTabProps> = ({
-	task,
-	app,
-	agent,
-	active,
-	onClick,
-}) => {
+const TaskAppTab: FC<TaskAppTabProps> = ({ task, app, active, onClick }) => {
 	const link = useAppLink(app, {
-		agent,
+		agent: app.agent,
 		workspace: task.workspace,
 	});
 
@@ -220,3 +180,20 @@ const TaskAppTab: FC<TaskAppTabProps> = ({
 		</Button>
 	);
 };
+
+function splitEmbeddedAndExternalApps(
+	apps: WorkspaceAppWithAgent[],
+): [WorkspaceAppWithAgent[], WorkspaceAppWithAgent[]] {
+	const embeddedApps = [];
+	const externalApps = [];
+
+	for (const app of apps) {
+		if (app.external) {
+			externalApps.push(app);
+		} else {
+			embeddedApps.push(app);
+		}
+	}
+
+	return [embeddedApps, externalApps];
+}
