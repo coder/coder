@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/cryptorand"
 )
 
@@ -34,6 +35,9 @@ type CreateParams struct {
 	Scopes     database.APIKeyScopes
 	TokenName  string
 	RemoteAddr string
+	// AllowList is an optional, normalized allow-list
+	// of resource type and uuid entries. If empty, defaults to wildcard.
+	AllowList database.AllowList
 }
 
 // Generate generates an API key, returning the key as a string as well as the
@@ -59,6 +63,10 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 	}
 	if params.LifetimeSeconds == 0 {
 		params.LifetimeSeconds = int64(time.Until(params.ExpiresAt).Seconds())
+	}
+
+	if len(params.AllowList) == 0 {
+		params.AllowList = database.AllowList{{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol}}
 	}
 
 	ip := net.ParseIP(params.RemoteAddr)
@@ -115,7 +123,7 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 		HashedSecret: hashed[:],
 		LoginType:    params.LoginType,
 		Scopes:       scopes,
-		AllowList:    database.AllowList{database.AllowListWildcard()},
+		AllowList:    params.AllowList,
 		TokenName:    params.TokenName,
 	}, token, nil
 }
