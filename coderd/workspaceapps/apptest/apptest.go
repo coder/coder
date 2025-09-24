@@ -264,14 +264,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.Equal(t, proxyTestAppBody, string(body))
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 
-			var appTokenCookie *http.Cookie
-			for _, c := range resp.Cookies() {
-				if c.Name == codersdk.SignedAppTokenCookie {
-					appTokenCookie = c
-					break
-				}
-			}
-			require.NotNil(t, appTokenCookie, "no signed app token cookie in response")
+			appTokenCookie := mustFindCookie(t, resp.Cookies(), codersdk.SignedAppTokenCookie)
 			require.Equal(t, appTokenCookie.Path, u.Path, "incorrect path on app token cookie")
 
 			// Ensure the signed app token cookie is valid.
@@ -310,14 +303,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.Equal(t, proxyTestAppBody, string(body))
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 
-			var appTokenCookie *http.Cookie
-			for _, c := range resp.Cookies() {
-				if c.Name == codersdk.SignedAppTokenCookie {
-					appTokenCookie = c
-					break
-				}
-			}
-			require.NotNil(t, appTokenCookie, "no signed app token cookie in response")
+			appTokenCookie := mustFindCookie(t, resp.Cookies(), codersdk.SignedAppTokenCookie)
 			require.Equal(t, appTokenCookie.Path, u.Path, "incorrect path on app token cookie")
 
 			// Ensure the signed app token cookie is valid.
@@ -426,8 +412,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.Equal(t, proxyTestAppBody, string(body))
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 
-			appTokenCookie := findCookie(resp.Cookies(), codersdk.SignedAppTokenCookie)
-			require.NotNil(t, appTokenCookie, "no signed app token cookie in response")
+			appTokenCookie := mustFindCookie(t, resp.Cookies(), codersdk.SignedAppTokenCookie)
 			require.Equal(t, appTokenCookie.Path, u.Path, "incorrect path on app token cookie")
 
 			object, err := jose.ParseSigned(appTokenCookie.Value, []jose.SignatureAlgorithm{jwtutils.SigningAlgo})
@@ -467,7 +452,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
 
 			// Since the old token is invalid, the signed app token cookie should have a new value.
-			newTokenCookie := findCookie(resp.Cookies(), codersdk.SignedAppTokenCookie)
+			newTokenCookie := mustFindCookie(t, resp.Cookies(), codersdk.SignedAppTokenCookie)
 			require.NotEqual(t, appTokenCookie.Value, newTokenCookie.Value)
 		})
 	})
@@ -978,15 +963,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 					resp.Body.Close()
 					require.Equal(t, http.StatusSeeOther, resp.StatusCode)
 
-					cookies := resp.Cookies()
-					var cookie *http.Cookie
-					for _, co := range cookies {
-						if co.Name == c.sessionTokenCookieName {
-							cookie = co
-							break
-						}
-					}
-					require.NotNil(t, cookie, "no app session token cookie was set")
+					cookie := mustFindCookie(t, resp.Cookies(), c.sessionTokenCookieName)
 					apiKey := cookie.Value
 
 					// Fetch the API key from the API.
@@ -1102,14 +1079,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 		// Parse the returned signed token to verify that it contains the
 		// prefix.
-		var appTokenCookie *http.Cookie
-		for _, c := range resp.Cookies() {
-			if c.Name == codersdk.SignedAppTokenCookie {
-				appTokenCookie = c
-				break
-			}
-		}
-		require.NotNil(t, appTokenCookie, "no signed app token cookie in response")
+		appTokenCookie := mustFindCookie(t, resp.Cookies(), codersdk.SignedAppTokenCookie)
 
 		// Parse the JWT without verifying it (since we can't access the key
 		// from this test).
@@ -1334,14 +1304,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.Equal(t, proxyTestAppBody, string(body))
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 
-			var appTokenCookie *http.Cookie
-			for _, c := range resp.Cookies() {
-				if c.Name == codersdk.SignedAppTokenCookie {
-					appTokenCookie = c
-					break
-				}
-			}
-			require.NotNil(t, appTokenCookie, "no signed token cookie in response")
+			appTokenCookie := mustFindCookie(t, resp.Cookies(), codersdk.SignedAppTokenCookie)
 			require.Equal(t, appTokenCookie.Path, "/", "incorrect path on signed token cookie")
 
 			// Ensure the signed app token cookie is valid.
@@ -1589,8 +1552,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.Equal(t, proxyTestAppBody, string(body))
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 
-			appTokenCookie := findCookie(resp.Cookies(), codersdk.SignedAppTokenCookie)
-			require.NotNil(t, appTokenCookie, "no signed token cookie in response")
+			appTokenCookie := mustFindCookie(t, resp.Cookies(), codersdk.SignedAppTokenCookie)
 			require.Equal(t, appTokenCookie.Path, "/", "incorrect path on signed token cookie")
 
 			object, err := jose.ParseSigned(appTokenCookie.Value, []jose.SignatureAlgorithm{jwtutils.SigningAlgo})
@@ -1614,7 +1576,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				[]*http.Cookie{
 					appTokenCookie,
 					{
-						Name:  codersdk.SubdomainAppSessionTokenCookie,
+						Name:  codersdk.SessionTokenCookie,
 						Value: apiKey,
 					},
 				},
@@ -1631,7 +1593,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
 
 			// Since the old token is invalid, the signed app token cookie should have a new value.
-			newTokenCookie := findCookie(resp.Cookies(), codersdk.SignedAppTokenCookie)
+			newTokenCookie := mustFindCookie(t, resp.Cookies(), codersdk.SignedAppTokenCookie)
 			require.NotEqual(t, appTokenCookie.Value, newTokenCookie.Value)
 		})
 	})
@@ -2542,11 +2504,15 @@ func generateBadJWT(t *testing.T, claims interface{}) string {
 	return compact
 }
 
-func findCookie(cookies []*http.Cookie, name string) *http.Cookie {
+func mustFindCookie(t *testing.T, cookies []*http.Cookie, prefix string) *http.Cookie {
+	t.Helper()
 	for _, cookie := range cookies {
-		if cookie.Name == name {
+		t.Logf("testing cookie against prefix %q: %q", prefix, cookie.Name)
+		if strings.HasPrefix(cookie.Name, prefix) {
+			t.Logf("cookie %q found", cookie.Name)
 			return cookie
 		}
 	}
+	t.Fatalf("cookie with prefix %q not found", prefix)
 	return nil
 }
