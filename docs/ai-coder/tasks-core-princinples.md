@@ -32,7 +32,7 @@ Tasks exist to solve these types of problems:
 
 ### Refresher: What are Templates
 
-As a quick refresher, a template defines the underlying infrastructure that a Coder workspace runs on. Templates themself are writting in Terraform managed as a `main.tf` file that defines the contents of the workspace and the resources it requires to run. Templates can also pull in Dockerfiles, other build files, and startup scripts or config files to specially configure.
+As a quick refresher, a template defines the underlying infrastructure that a Coder workspace runs on. Templates themself are writing in Terraform managed as a `main.tf` file that defines the contents of the workspace and the resources it requires to run. Templates can also pull in Dockerfiles, other build files, and startup scripts or config files to specially configure.
 
 Within this configuration, Coder specifically looks for 
 * `coder_agent`: Coder's fundamental resource that runs inside a workspace to enable connectivity to external systems
