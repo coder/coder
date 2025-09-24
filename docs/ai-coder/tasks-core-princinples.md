@@ -28,45 +28,6 @@ Tasks exist to solve these types of problems:
 
 ![Example Background Task](../images/guides/ai-agents/background-task-example.png)Example of Background Coder Tasks operation.
 
-<!-- ```mermaid
-flowchart LR
-    A[User Reports Bug] --> B[Coder Task Triggered]
-    B --> C[Spin Up Workspace]
-    C --> D[AI Agent Analyzes Issue]
-    D --> E[Agent Implements Fix]
-    E --> F[Run Tests & Validation]
-    F --> G[Create Pull Request]
-    G --> H[Human Review]
-    H --> I{Approve Changes?}
-    I -->|Yes| J[Merge PR]
-    I -->|No| K[Request Changes]
-    K --> D
-    J --> L[Deploy & Close Issue]
-    
-    subgraph "Phase 1: Setup"
-        B
-        C
-    end
-    
-    subgraph "Phase 2: AI Execution"
-        D
-        E
-        F
-    end
-    
-    subgraph "Phase 3: Human Review"
-        G
-        H
-        I
-    end
-    
-    style A fill:#ff9999
-    style L fill:#99ff99
-    style D fill:#ffcc99
-    style E fill:#ffcc99
-    style F fill:#ffcc99
-``` -->
-
 ## How to Make a Task Template
 
 ### Refresher: What are Templates
