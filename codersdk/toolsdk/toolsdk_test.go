@@ -1147,6 +1147,146 @@ func TestTools(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("WorkspaceListApps", func(t *testing.T) {
+		t.Parallel()
+
+		// nolint:gocritic // This is in a test package and does not end up in the build
+		_ = dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			Name:           "list-app-workspace-one-agent",
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Apps = []*proto.App{
+				{
+					Slug: "zero",
+					Url:  "http://zero.dev.coder.com",
+				},
+			}
+			return agents
+		}).Do()
+
+		// nolint:gocritic // This is in a test package and does not end up in the build
+		_ = dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			Name:           "list-app-workspace-multi-agent",
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Apps = []*proto.App{
+				{
+					Slug: "one",
+					Url:  "http://one.dev.coder.com",
+				},
+				{
+					Slug: "two",
+					Url:  "http://two.dev.coder.com",
+				},
+				{
+					Slug: "three",
+					Url:  "http://three.dev.coder.com",
+				},
+			}
+			agents = append(agents, &proto.Agent{
+				Id:   uuid.NewString(),
+				Name: "dev2",
+				Auth: &proto.Agent_Token{
+					Token: uuid.NewString(),
+				},
+				Env: map[string]string{},
+				Apps: []*proto.App{
+					{
+						Slug: "four",
+						Url:  "http://four.dev.coder.com",
+					},
+				},
+			})
+			return agents
+		}).Do()
+
+		tests := []struct {
+			name     string
+			args     toolsdk.WorkspaceListAppsArgs
+			expected []toolsdk.WorkspaceListApp
+			error    string
+		}{
+			{
+				name: "NonExistentWorkspace",
+				args: toolsdk.WorkspaceListAppsArgs{
+					Workspace: "list-appp-workspace-does-not-exist",
+				},
+				error: "failed to find workspace",
+			},
+			{
+				name: "OneAgentOneApp",
+				args: toolsdk.WorkspaceListAppsArgs{
+					Workspace: "list-app-workspace-one-agent",
+				},
+				expected: []toolsdk.WorkspaceListApp{
+					{
+						Name: "zero",
+						URL:  "http://zero.dev.coder.com",
+					},
+				},
+			},
+			{
+				name: "MultiAgent",
+				args: toolsdk.WorkspaceListAppsArgs{
+					Workspace: "list-app-workspace-multi-agent",
+				},
+				error: "multiple agents found, please specify the agent name",
+			},
+			{
+				name: "MultiAgentOneApp",
+				args: toolsdk.WorkspaceListAppsArgs{
+					Workspace: "list-app-workspace-multi-agent.dev2",
+				},
+				expected: []toolsdk.WorkspaceListApp{
+					{
+						Name: "four",
+						URL:  "http://four.dev.coder.com",
+					},
+				},
+			},
+			{
+				name: "MultiAgentMultiApp",
+				args: toolsdk.WorkspaceListAppsArgs{
+					Workspace: "list-app-workspace-multi-agent.dev",
+				},
+				expected: []toolsdk.WorkspaceListApp{
+					{
+						Name: "one",
+						URL:  "http://one.dev.coder.com",
+					},
+					{
+						Name: "three",
+						URL:  "http://three.dev.coder.com",
+					},
+					{
+						Name: "two",
+						URL:  "http://two.dev.coder.com",
+					},
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				tb, err := toolsdk.NewDeps(memberClient)
+				require.NoError(t, err)
+
+				res, err := testTool(t, toolsdk.WorkspaceListApps, tb, tt.args)
+				if tt.error != "" {
+					require.Error(t, err)
+					require.ErrorContains(t, err, tt.error)
+				} else {
+					require.NoError(t, err)
+					require.Equal(t, tt.expected, res.Apps)
+				}
+			})
+		}
+	})
 }
 
 // TestedTools keeps track of which tools have been tested.

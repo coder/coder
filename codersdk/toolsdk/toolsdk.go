@@ -50,6 +50,7 @@ const (
 	ToolNameWorkspaceEditFile           = "coder_workspace_edit_file"
 	ToolNameWorkspaceEditFiles          = "coder_workspace_edit_files"
 	ToolNameWorkspacePortForward        = "coder_workspace_port_forward"
+	ToolNameWorkspaceListApps           = "coder_workspace_list_apps"
 	ToolNameCreateTask                  = "coder_create_task"
 	ToolNameDeleteTask                  = "coder_delete_task"
 	ToolNameListTasks                   = "coder_list_tasks"
@@ -227,6 +228,7 @@ var All = []GenericTool{
 	WorkspaceEditFile.Generic(),
 	WorkspaceEditFiles.Generic(),
 	WorkspacePortForward.Generic(),
+	WorkspaceListApps.Generic(),
 	CreateTask.Generic(),
 	DeleteTask.Generic(),
 	ListTasks.Generic(),
@@ -1753,6 +1755,57 @@ var WorkspacePortForward = Tool[WorkspacePortForwardArgs, WorkspacePortForwardRe
 		return WorkspacePortForwardResponse{
 			URL: deps.coderClient.URL.Scheme + "://" + strings.Replace(res.Host, "*", url.String(), 1),
 		}, nil
+	},
+}
+
+type WorkspaceListAppsArgs struct {
+	Workspace string `json:"workspace"`
+}
+
+type WorkspaceListApp struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
+type WorkspaceListAppsResponse struct {
+	Apps []WorkspaceListApp `json:"apps"`
+}
+
+var WorkspaceListApps = Tool[WorkspaceListAppsArgs, WorkspaceListAppsResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameWorkspaceListApps,
+		Description: `List the URLs of Coder apps running in a workspace for a single agent.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": workspaceDescription,
+				},
+			},
+			Required: []string{"workspace"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceListAppsArgs) (WorkspaceListAppsResponse, error) {
+		workspaceName := NormalizeWorkspaceInput(args.Workspace)
+		_, workspaceAgent, err := findWorkspaceAndAgent(ctx, deps.coderClient, workspaceName)
+		if err != nil {
+			return WorkspaceListAppsResponse{}, xerrors.Errorf("failed to find workspace: %w", err)
+		}
+
+		var res WorkspaceListAppsResponse
+		for _, app := range workspaceAgent.Apps {
+			name := app.DisplayName
+			if name == "" {
+				name = app.Slug
+			}
+			res.Apps = append(res.Apps, WorkspaceListApp{
+				Name: name,
+				URL:  app.URL,
+			})
+		}
+
+		return res, nil
 	},
 }
 
