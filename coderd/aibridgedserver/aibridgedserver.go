@@ -2,6 +2,8 @@ package aibridgedserver
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/json"
 	"net/url"
@@ -22,12 +24,27 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/codersdk"
 )
 
 var (
 	ErrExpiredOrInvalidOAuthToken = xerrors.New("expired or invalid OAuth2 token")
 	ErrNoMCPConfigFound           = xerrors.New("no MCP config found")
+
+	// These errors are returned by IsAuthorized. Since they're just returned as
+	// a generic dRPC error, it's difficult to tell them apart without string
+	// matching.
+	// TODO: return these errors to the client in a more structured/comparable
+	//       way.
+	ErrInvalidKey  = xerrors.New("invalid key")
+	ErrUnknownKey  = xerrors.New("unknown key")
+	ErrExpired     = xerrors.New("expired")
+	ErrUnknownUser = xerrors.New("unknown user")
+	ErrDeletedUser = xerrors.New("deleted user")
+	ErrSystemUser  = xerrors.New("system user")
+
+	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
 )
 
 var (
@@ -61,6 +78,8 @@ type Server struct {
 	accessURL           string
 	externalAuthConfigs map[string]*externalauth.Config
 	experiments         codersdk.Experiments
+
+	coderMCPConfig *proto.MCPServerConfig // may be nil if not available
 }
 
 func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, accessURL string, externalAuthConfigs []*externalauth.Config, experiments codersdk.Experiments) (*Server, error) {
@@ -74,6 +93,11 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 		eac[cfg.ID] = cfg
 	}
 
+	coderMCPConfig, err := getCoderMCPServerConfig(experiments, accessURL)
+	if err != nil {
+		logger.Warn(lifecycleCtx, "failed to retrieve coder MCP server config, Coder MCP will not be available", slog.Error(err))
+	}
+
 	return &Server{
 		lifecycleCtx:        lifecycleCtx,
 		store:               store,
@@ -81,6 +105,7 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 		accessURL:           accessURL,
 		externalAuthConfigs: eac,
 		experiments:         experiments,
+		coderMCPConfig:      coderMCPConfig,
 	}, nil
 }
 
@@ -126,7 +151,7 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 		ProviderResponseID: in.GetMsgId(),
 		InputTokens:        in.GetInputTokens(),
 		OutputTokens:       in.GetOutputTokens(),
-		Metadata:           s.marshalMetadata(in.GetMetadata()),
+		Metadata:           marshalMetadata(ctx, s.logger, in.GetMetadata()),
 		CreatedAt:          in.GetCreatedAt().AsTime(),
 	})
 	if err != nil {
@@ -149,7 +174,7 @@ func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUs
 		InterceptionID:     intcID,
 		ProviderResponseID: in.GetMsgId(),
 		Prompt:             in.GetPrompt(),
-		Metadata:           s.marshalMetadata(in.GetMetadata()),
+		Metadata:           marshalMetadata(ctx, s.logger, in.GetMetadata()),
 		CreatedAt:          in.GetCreatedAt().AsTime(),
 	})
 	if err != nil {
@@ -175,8 +200,8 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 		Tool:               in.GetTool(),
 		Input:              in.GetInput(),
 		Injected:           in.GetInjected(),
-		InvocationError:    sql.NullString{String: in.GetInvocationError(), Valid: in.GetInvocationError() != ""},
-		Metadata:           s.marshalMetadata(in.GetMetadata()),
+		InvocationError:    sql.NullString{String: in.GetInvocationError(), Valid: in.InvocationError != nil},
+		Metadata:           marshalMetadata(ctx, s.logger, in.GetMetadata()),
 		CreatedAt:          in.GetCreatedAt().AsTime(),
 	})
 	if err != nil {
@@ -185,25 +210,7 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 	return &proto.RecordToolUsageResponse{}, nil
 }
 
-func (s *Server) marshalMetadata(in map[string]*anypb.Any) []byte {
-	mdMap := make(map[string]any, len(in))
-	for k, v := range in {
-		if v == nil {
-			continue
-		}
-		var sv structpb.Value
-		if err := v.UnmarshalTo(&sv); err == nil {
-			mdMap[k] = sv.AsInterface()
-		}
-	}
-	out, err := json.Marshal(mdMap)
-	if err != nil {
-		s.logger.Warn(s.lifecycleCtx, "failed to marshal metadata", slog.Error(err))
-	}
-	return out
-}
-
-func (s *Server) GetMCPServerConfigs(ctx context.Context, _ *proto.GetMCPServerConfigsRequest) (*proto.GetMCPServerConfigsResponse, error) {
+func (s *Server) GetMCPServerConfigs(_ context.Context, _ *proto.GetMCPServerConfigsRequest) (*proto.GetMCPServerConfigsResponse, error) {
 	cfgs := make([]*proto.MCPServerConfig, 0, len(s.externalAuthConfigs))
 	for _, eac := range s.externalAuthConfigs {
 		var allowlist, denylist string
@@ -222,35 +229,9 @@ func (s *Server) GetMCPServerConfigs(ctx context.Context, _ *proto.GetMCPServerC
 		})
 	}
 
-	coderMCPCfg, err := s.getCoderMCPServerConfig()
-	if err != nil {
-		s.logger.Warn(ctx, "failed to retrieve coder MCP server config", slog.Error(err))
-	}
-
 	return &proto.GetMCPServerConfigsResponse{
-		CoderMcpConfig:         coderMCPCfg,
+		CoderMcpConfig:         s.coderMCPConfig, // it's fine if this is nil
 		ExternalAuthMcpConfigs: cfgs,
-	}, nil
-}
-
-func (s *Server) getCoderMCPServerConfig() (*proto.MCPServerConfig, error) {
-	// Both the MCP & OAuth2 experiments are currently required in order to use our
-	// internal MCP server.
-	if !s.experiments.Enabled(codersdk.ExperimentMCPServerHTTP) {
-		return nil, xerrors.Errorf("%q experiment not enabled", codersdk.ExperimentMCPServerHTTP)
-	}
-	if !s.experiments.Enabled(codersdk.ExperimentOAuth2) {
-		return nil, xerrors.Errorf("%q experiment not enabled", codersdk.ExperimentOAuth2)
-	}
-
-	u, err := url.JoinPath(s.accessURL, "/api/experimental/mcp/http")
-	if err != nil {
-		return nil, xerrors.Errorf("build MCP URL with %q: %w", s.accessURL, err)
-	}
-
-	return &proto.MCPServerConfig{
-		Id:  "coder",
-		Url: u,
 	}, nil
 }
 
@@ -259,14 +240,14 @@ func (s *Server) GetMCPServerAccessTokensBatch(ctx context.Context, in *proto.Ge
 		return &proto.GetMCPServerAccessTokensBatchResponse{}, nil
 	}
 
-	id, err := uuid.Parse(in.GetUserId())
+	userID, err := uuid.Parse(in.GetUserId())
 	if err != nil {
 		return nil, xerrors.Errorf("parse user_id: %w", err)
 	}
 
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
-	links, err := s.store.GetExternalAuthLinksByUserID(ctx, id)
+	links, err := s.store.GetExternalAuthLinksByUserID(ctx, userID)
 	if err != nil {
 		return nil, xerrors.Errorf("fetch external auth links: %w", err)
 	}
@@ -289,6 +270,7 @@ func (s *Server) GetMCPServerAccessTokensBatch(ctx context.Context, in *proto.Ge
 		tokenErrs = make(map[string]string)
 	)
 
+externalAuthLoop:
 	for _, id := range ids {
 		eac, ok := s.externalAuthConfigs[id]
 		if !ok {
@@ -310,26 +292,32 @@ func (s *Server) GetMCPServerAccessTokensBatch(ctx context.Context, in *proto.Ge
 				defer wg.Done()
 
 				// TODO: timeout.
-				valid, _, err := eac.ValidateToken(ctx, link.OAuthToken())
+				valid, _, validateErr := eac.ValidateToken(ctx, link.OAuthToken())
 				mu.Lock()
 				defer mu.Unlock()
 				if !valid {
 					// TODO: attempt refresh.
-					s.logger.Warn(ctx, "invalid/expired access token, cannot auto-configure MCP", slog.F("provider", link.ProviderID), slog.Error(err))
+					s.logger.Warn(ctx, "invalid/expired access token, cannot auto-configure MCP", slog.F("provider", link.ProviderID), slog.Error(validateErr))
 					tokenErrs[id] = ErrExpiredOrInvalidOAuthToken.Error()
 					return
 				}
 
-				if err != nil {
-					errs = multierror.Append(errs, err)
-					tokenErrs[id] = err.Error()
+				if validateErr != nil {
+					errs = multierror.Append(errs, validateErr)
+					tokenErrs[id] = validateErr.Error()
 				} else {
 					tokens[id] = link.OAuthAccessToken
 				}
 			}()
 
-			break
+			continue externalAuthLoop
 		}
+
+		// No link found for this external auth config, so include a generic
+		// error.
+		mu.Lock()
+		tokenErrs[id] = ErrNoExternalAuthLinkFound.Error()
+		mu.Unlock()
 	}
 
 	wg.Wait()
@@ -357,16 +345,15 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	ctx = dbauthz.AsAIBridged(ctx)
 
 	// Key matches expected format.
-	id, _, err := httpmw.SplitAPIToken(in.GetKey())
+	keyID, keySecret, err := httpmw.SplitAPIToken(in.GetKey())
 	if err != nil {
-		s.logger.Warn(ctx, "invalid key provided", slog.Error(err))
 		return nil, ErrInvalidKey
 	}
 
 	// Key exists.
-	key, err := s.store.GetAPIKeyByID(ctx, id)
+	key, err := s.store.GetAPIKeyByID(ctx, keyID)
 	if err != nil {
-		s.logger.Warn(ctx, "failed to retrieve API key by id", slog.F("id", id), slog.Error(err))
+		s.logger.Warn(ctx, "failed to retrieve API key by id", slog.F("key_id", keyID), slog.Error(err))
 		return nil, ErrUnknownKey
 	}
 
@@ -376,10 +363,16 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		return nil, ErrExpired
 	}
 
+	// Key secret matches.
+	hashedSecret := sha256.Sum256([]byte(keySecret))
+	if subtle.ConstantTimeCompare(key.HashedSecret, hashedSecret[:]) != 1 {
+		return nil, ErrInvalidKey
+	}
+
 	// User exists.
 	user, err := s.store.GetUserByID(ctx, key.UserID)
 	if err != nil {
-		s.logger.Warn(ctx, "failed to retrieve API key user", slog.F("user_id", key.UserID), slog.Error(err))
+		s.logger.Warn(ctx, "failed to retrieve API key user", slog.F("key_id", keyID), slog.F("user_id", key.UserID), slog.Error(err))
 		return nil, ErrUnknownUser
 	}
 
@@ -396,11 +389,45 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}, nil
 }
 
-var (
-	ErrInvalidKey  = xerrors.New("invalid key format")
-	ErrUnknownKey  = xerrors.New("unknown key")
-	ErrExpired     = xerrors.New("expired")
-	ErrUnknownUser = xerrors.New("unknown user")
-	ErrDeletedUser = xerrors.New("deleted user")
-	ErrSystemUser  = xerrors.New("system user")
-)
+func getCoderMCPServerConfig(experiments codersdk.Experiments, accessURL string) (*proto.MCPServerConfig, error) {
+	// Both the MCP & OAuth2 experiments are currently required in order to use our
+	// internal MCP server.
+	if !experiments.Enabled(codersdk.ExperimentMCPServerHTTP) {
+		return nil, xerrors.Errorf("%q experiment not enabled", codersdk.ExperimentMCPServerHTTP)
+	}
+	if !experiments.Enabled(codersdk.ExperimentOAuth2) {
+		return nil, xerrors.Errorf("%q experiment not enabled", codersdk.ExperimentOAuth2)
+	}
+
+	u, err := url.JoinPath(accessURL, codermcp.MCPEndpoint)
+	if err != nil {
+		return nil, xerrors.Errorf("build MCP URL with %q: %w", accessURL, err)
+	}
+
+	return &proto.MCPServerConfig{
+		Id:  "coder",
+		Url: u,
+	}, nil
+}
+
+// marshalMetadata attempts to marshal the given metadata map into a
+// JSON-encoded byte slice. If the marshaling fails, the function logs a
+// warning and returns nil. The supplied context is only used for logging.
+func marshalMetadata(ctx context.Context, logger slog.Logger, in map[string]*anypb.Any) []byte {
+	mdMap := make(map[string]any, len(in))
+	for k, v := range in {
+		if v == nil {
+			continue
+		}
+		var sv structpb.Value
+		if err := v.UnmarshalTo(&sv); err == nil {
+			mdMap[k] = sv.AsInterface()
+		}
+	}
+	out, err := json.Marshal(mdMap)
+	if err != nil {
+		logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
+		return nil
+	}
+	return out
+}

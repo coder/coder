@@ -2,11 +2,17 @@ package aibridgedserver_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"fmt"
+	"net"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	protobufproto "google.golang.org/protobuf/proto"
@@ -17,11 +23,12 @@ import (
 	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/aibridgedserver"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -36,9 +43,12 @@ func TestAuthorization(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name        string
-		key         string
-		mocksFn     func(db *dbmock.MockStore, keyID string, userID uuid.UUID)
+		name string
+		// Key will be set to the same key passed to mocksFn if unset.
+		key string
+		// mocksFn is called with a valid API key and user. If the test needs
+		// invalid values, it should just mutate them directly.
+		mocksFn     func(db *dbmock.MockStore, apiKey database.APIKey, user database.User)
 		expectedErr error
 	}{
 		{
@@ -49,47 +59,55 @@ func TestAuthorization(t *testing.T) {
 		{
 			name:        "unknown key",
 			expectedErr: aibridgedserver.ErrUnknownKey,
-			mocksFn: func(db *dbmock.MockStore, keyID string, userID uuid.UUID) {
-				db.EXPECT().GetAPIKeyByID(gomock.Any(), keyID).MinTimes(1).Return(database.APIKey{}, sql.ErrNoRows)
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(database.APIKey{}, sql.ErrNoRows)
 			},
 		},
 		{
 			name:        "expired",
 			expectedErr: aibridgedserver.ErrExpired,
-			mocksFn: func(db *dbmock.MockStore, keyID string, userID uuid.UUID) {
-				now := dbtime.Now()
-				db.EXPECT().GetAPIKeyByID(gomock.Any(), keyID).MinTimes(1).Return(database.APIKey{ID: keyID, ExpiresAt: now.Add(-time.Hour)}, nil)
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				apiKey.ExpiresAt = dbtime.Now().Add(-time.Hour)
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+			},
+		},
+		{
+			name:        "invalid key secret",
+			expectedErr: aibridgedserver.ErrInvalidKey,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				apiKey.HashedSecret = []byte("differentsecret")
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
 			},
 		},
 		{
 			name:        "unknown user",
 			expectedErr: aibridgedserver.ErrUnknownUser,
-			mocksFn: func(db *dbmock.MockStore, keyID string, userID uuid.UUID) {
-				db.EXPECT().GetAPIKeyByID(gomock.Any(), keyID).MinTimes(1).Return(database.APIKey{ID: keyID, UserID: userID, ExpiresAt: dbtime.Now().Add(time.Hour)}, nil)
-				db.EXPECT().GetUserByID(gomock.Any(), userID).MinTimes(1).Return(database.User{}, sql.ErrNoRows)
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(database.User{}, sql.ErrNoRows)
 			},
 		},
 		{
 			name:        "deleted user",
 			expectedErr: aibridgedserver.ErrDeletedUser,
-			mocksFn: func(db *dbmock.MockStore, keyID string, userID uuid.UUID) {
-				db.EXPECT().GetAPIKeyByID(gomock.Any(), keyID).MinTimes(1).Return(database.APIKey{ID: keyID, UserID: userID, ExpiresAt: dbtime.Now().Add(time.Hour)}, nil)
-				db.EXPECT().GetUserByID(gomock.Any(), userID).MinTimes(1).Return(database.User{ID: userID, Deleted: true}, nil)
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(database.User{ID: user.ID, Deleted: true}, nil)
 			},
 		},
 		{
 			name:        "system user",
 			expectedErr: aibridgedserver.ErrSystemUser,
-			mocksFn: func(db *dbmock.MockStore, keyID string, userID uuid.UUID) {
-				db.EXPECT().GetAPIKeyByID(gomock.Any(), keyID).MinTimes(1).Return(database.APIKey{ID: keyID, UserID: userID, ExpiresAt: dbtime.Now().Add(time.Hour)}, nil)
-				db.EXPECT().GetUserByID(gomock.Any(), userID).MinTimes(1).Return(database.User{ID: userID, IsSystem: true}, nil)
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(database.User{ID: user.ID, IsSystem: true}, nil)
 			},
 		},
 		{
 			name: "valid",
-			mocksFn: func(db *dbmock.MockStore, keyID string, userID uuid.UUID) {
-				db.EXPECT().GetAPIKeyByID(gomock.Any(), keyID).MinTimes(1).Return(database.APIKey{ID: keyID, UserID: userID, ExpiresAt: dbtime.Now().Add(time.Hour)}, nil)
-				db.EXPECT().GetUserByID(gomock.Any(), userID).MinTimes(1).Return(database.User{ID: userID}, nil)
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
 			},
 		},
 	}
@@ -102,28 +120,54 @@ func TestAuthorization(t *testing.T) {
 			db := dbmock.NewMockStore(ctrl)
 			logger := testutil.Logger(t)
 
-			// Mock the call to insert an API key since dbgen seems to be the best util to use to fake an API key.
-			db.EXPECT().InsertAPIKey(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(func(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
-				return database.APIKey{ID: arg.ID}, nil
-			})
-			// Key is empty, generate one.
+			// Make a fake user and an API key for the mock calls.
+			now := dbtime.Now()
+			user := database.User{
+				ID:         uuid.New(),
+				Email:      "test@coder.com",
+				Username:   "test",
+				Name:       "Test User",
+				CreatedAt:  now,
+				UpdatedAt:  now,
+				RBACRoles:  []string{},
+				LoginType:  database.LoginTypePassword,
+				Status:     database.UserStatusActive,
+				LastSeenAt: now,
+			}
 
-			key, token := dbgen.APIKey(t, db, database.APIKey{})
+			// Mock the call to insert an API key since dbgen seems to be the
+			// best util to use to generate and fake an API key.
+			keyID, _ := cryptorand.String(10)
+			keySecret, _ := cryptorand.String(22)
+			token := fmt.Sprintf("%s-%s", keyID, keySecret)
+			keySecretHashed := sha256.Sum256([]byte(keySecret))
+			apiKey := database.APIKey{
+				ID:              keyID,
+				LifetimeSeconds: 86400, // default in db
+				HashedSecret:    keySecretHashed[:],
+				IPAddress: pqtype.Inet{
+					IPNet: net.IPNet{
+						IP:   net.IPv4(127, 0, 0, 1),
+						Mask: net.IPv4Mask(255, 255, 255, 255),
+					},
+					Valid: true,
+				},
+				UserID:    user.ID,
+				LastUsed:  now,
+				ExpiresAt: now.Add(time.Hour),
+				CreatedAt: now,
+				UpdatedAt: now,
+				LoginType: database.LoginTypePassword,
+				Scope:     database.APIKeyScopeAll,
+				TokenName: "",
+			}
 			if tc.key == "" {
 				tc.key = token
 			}
 
-			db.EXPECT().InsertUser(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(func(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
-				return database.User{ID: arg.ID}, nil
-			})
-			db.EXPECT().UpdateUserStatus(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(func(ctx context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
-				return database.User{ID: arg.ID}, nil
-			})
-			user := dbgen.User(t, db, database.User{})
-
 			// Define any case-specific mocks.
 			if tc.mocksFn != nil {
-				tc.mocksFn(db, key.ID, user.ID)
+				tc.mocksFn(db, apiKey, user)
 			}
 
 			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", nil, requiredExperiments)
@@ -200,7 +244,8 @@ func TestGetMCPServerConfigs(t *testing.T) {
 			db := dbmock.NewMockStore(ctrl)
 			logger := testutil.Logger(t)
 
-			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", tc.externalAuthConfigs, tc.experiments)
+			accessURL := "https://my-cool-deployment.com"
+			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, accessURL, tc.externalAuthConfigs, tc.experiments)
 			require.NoError(t, err)
 			require.NotNil(t, srv)
 
@@ -209,7 +254,14 @@ func TestGetMCPServerConfigs(t *testing.T) {
 			require.NotNil(t, resp)
 
 			if tc.expectCoderMCP {
-				require.NotNil(t, resp.GetCoderMcpConfig())
+				coderConfig := resp.CoderMcpConfig
+				require.NotNil(t, coderConfig)
+				require.Equal(t, "coder", coderConfig.GetId())
+				expectedURL, err := url.JoinPath(accessURL, codermcp.MCPEndpoint)
+				require.NoError(t, err)
+				require.Equal(t, expectedURL, coderConfig.GetUrl())
+				require.Empty(t, coderConfig.GetToolAllowRegex())
+				require.Empty(t, coderConfig.GetToolDenyRegex())
 			} else {
 				require.Empty(t, resp.GetCoderMcpConfig())
 			}
@@ -292,12 +344,7 @@ func TestRecordInterception(t *testing.T) {
 		func(srv *aibridgedserver.Server, ctx context.Context, req *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
 			return srv.RecordInterception(ctx, req)
 		},
-		[]struct {
-			name        string
-			request     *proto.RecordInterceptionRequest
-			setupMocks  func(*dbmock.MockStore)
-			expectedErr string
-		}{
+		[]testRecordMethodCase[*proto.RecordInterceptionRequest]{
 			{
 				name: "valid interception",
 				request: &proto.RecordInterceptionRequest{
@@ -307,8 +354,29 @@ func TestRecordInterception(t *testing.T) {
 					Model:       "claude-4-opus",
 					StartedAt:   timestamppb.Now(),
 				},
-				setupMocks: func(db *dbmock.MockStore) {
-					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Any()).Return(database.AIBridgeInterception{}, nil)
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					interceptionID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse interception UUID")
+					initiatorID, err := uuid.Parse(req.GetInitiatorId())
+					assert.NoError(t, err, "parse interception initiator UUID")
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
+						if !assert.NotEqual(t, uuid.Nil, p.ID, "ID") ||
+							!assert.Equal(t, interceptionID, p.ID, "interception ID") ||
+							!assert.Equal(t, initiatorID, p.InitiatorID, "initiator ID") ||
+							!assert.Equal(t, req.GetProvider(), p.Provider, "provider") ||
+							!assert.Equal(t, req.GetModel(), p.Model, "model") ||
+							!assert.WithinDuration(t, req.GetStartedAt().AsTime(), p.StartedAt, time.Second, "started at") {
+							return false
+						}
+						return true
+					})).Return(database.AIBridgeInterception{
+						ID:          interceptionID,
+						InitiatorID: initiatorID,
+						Provider:    req.GetProvider(),
+						Model:       req.GetModel(),
+						StartedAt:   req.GetStartedAt().AsTime(),
+					}, nil)
 				},
 			},
 			{
@@ -342,7 +410,7 @@ func TestRecordInterception(t *testing.T) {
 					Model:       "claude-4-opus",
 					StartedAt:   timestamppb.Now(),
 				},
-				setupMocks: func(db *dbmock.MockStore) {
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Any()).Return(database.AIBridgeInterception{}, sql.ErrConnDone)
 				},
 				expectedErr: "start interception",
@@ -354,16 +422,18 @@ func TestRecordInterception(t *testing.T) {
 func TestRecordTokenUsage(t *testing.T) {
 	t.Parallel()
 
+	var (
+		metadataProto = map[string]*anypb.Any{
+			"key": mustMarshalAny(t, &structpb.Value{Kind: &structpb.Value_StringValue{StringValue: "value"}}),
+		}
+		metadataJSON = `{"key":"value"}`
+	)
+
 	testRecordMethod(t,
 		func(srv *aibridgedserver.Server, ctx context.Context, req *proto.RecordTokenUsageRequest) (*proto.RecordTokenUsageResponse, error) {
 			return srv.RecordTokenUsage(ctx, req)
 		},
-		[]struct {
-			name        string
-			request     *proto.RecordTokenUsageRequest
-			setupMocks  func(*dbmock.MockStore)
-			expectedErr string
-		}{
+		[]testRecordMethodCase[*proto.RecordTokenUsageRequest]{
 			{
 				name: "valid token usage",
 				request: &proto.RecordTokenUsageRequest{
@@ -371,13 +441,25 @@ func TestRecordTokenUsage(t *testing.T) {
 					MsgId:          "msg_123",
 					InputTokens:    100,
 					OutputTokens:   200,
-					Metadata: map[string]*anypb.Any{
-						"key": mustMarshalAny(t, &structpb.Value{Kind: &structpb.Value_StringValue{StringValue: "value"}}),
-					},
-					CreatedAt: timestamppb.Now(),
+					Metadata:       metadataProto,
+					CreatedAt:      timestamppb.Now(),
 				},
-				setupMocks: func(db *dbmock.MockStore) {
-					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).Return(nil)
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordTokenUsageRequest) {
+					interceptionID, err := uuid.Parse(req.GetInterceptionId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
+						if !assert.NotEqual(t, uuid.Nil, p.ID, "ID") ||
+							!assert.Equal(t, interceptionID, p.InterceptionID, "interception ID") ||
+							!assert.Equal(t, req.GetMsgId(), p.ProviderResponseID, "provider response ID") ||
+							!assert.Equal(t, req.GetInputTokens(), p.InputTokens, "input tokens") ||
+							!assert.Equal(t, req.GetOutputTokens(), p.OutputTokens, "output tokens") ||
+							!assert.JSONEq(t, metadataJSON, string(p.Metadata), "metadata") ||
+							!assert.WithinDuration(t, req.GetCreatedAt().AsTime(), p.CreatedAt, time.Second, "created at") {
+							return false
+						}
+						return true
+					})).Return(nil)
 				},
 			},
 			{
@@ -400,7 +482,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					OutputTokens:   200,
 					CreatedAt:      timestamppb.Now(),
 				},
-				setupMocks: func(db *dbmock.MockStore) {
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordTokenUsageRequest) {
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).Return(sql.ErrConnDone)
 				},
 				expectedErr: "insert token usage",
@@ -412,29 +494,42 @@ func TestRecordTokenUsage(t *testing.T) {
 func TestRecordPromptUsage(t *testing.T) {
 	t.Parallel()
 
+	var (
+		metadataProto = map[string]*anypb.Any{
+			"key": mustMarshalAny(t, &structpb.Value{Kind: &structpb.Value_StringValue{StringValue: "value"}}),
+		}
+		metadataJSON = `{"key":"value"}`
+	)
+
 	testRecordMethod(t,
 		func(srv *aibridgedserver.Server, ctx context.Context, req *proto.RecordPromptUsageRequest) (*proto.RecordPromptUsageResponse, error) {
 			return srv.RecordPromptUsage(ctx, req)
 		},
-		[]struct {
-			name        string
-			request     *proto.RecordPromptUsageRequest
-			setupMocks  func(*dbmock.MockStore)
-			expectedErr string
-		}{
+		[]testRecordMethodCase[*proto.RecordPromptUsageRequest]{
 			{
 				name: "valid prompt usage",
 				request: &proto.RecordPromptUsageRequest{
 					InterceptionId: uuid.NewString(),
 					MsgId:          "msg_123",
 					Prompt:         "yo",
-					Metadata: map[string]*anypb.Any{
-						"model": mustMarshalAny(t, &structpb.Value{Kind: &structpb.Value_StringValue{StringValue: "claude-4-opus"}}),
-					},
-					CreatedAt: timestamppb.Now(),
+					Metadata:       metadataProto,
+					CreatedAt:      timestamppb.Now(),
 				},
-				setupMocks: func(db *dbmock.MockStore) {
-					db.EXPECT().InsertAIBridgeUserPrompt(gomock.Any(), gomock.Any()).Return(nil)
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordPromptUsageRequest) {
+					interceptionID, err := uuid.Parse(req.GetInterceptionId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					db.EXPECT().InsertAIBridgeUserPrompt(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeUserPromptParams) bool {
+						if !assert.NotEqual(t, uuid.Nil, p.ID, "ID") ||
+							!assert.Equal(t, interceptionID, p.InterceptionID, "interception ID") ||
+							!assert.Equal(t, req.GetMsgId(), p.ProviderResponseID, "provider response ID") ||
+							!assert.Equal(t, req.GetPrompt(), p.Prompt, "prompt") ||
+							!assert.JSONEq(t, metadataJSON, string(p.Metadata), "metadata") ||
+							!assert.WithinDuration(t, req.GetCreatedAt().AsTime(), p.CreatedAt, time.Second, "created at") {
+							return false
+						}
+						return true
+					})).Return(nil)
 				},
 			},
 			{
@@ -455,7 +550,7 @@ func TestRecordPromptUsage(t *testing.T) {
 					Prompt:         "yo",
 					CreatedAt:      timestamppb.Now(),
 				},
-				setupMocks: func(db *dbmock.MockStore) {
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordPromptUsageRequest) {
 					db.EXPECT().InsertAIBridgeUserPrompt(gomock.Any(), gomock.Any()).Return(sql.ErrConnDone)
 				},
 				expectedErr: "insert user prompt",
@@ -467,16 +562,18 @@ func TestRecordPromptUsage(t *testing.T) {
 func TestRecordToolUsage(t *testing.T) {
 	t.Parallel()
 
+	var (
+		metadataProto = map[string]*anypb.Any{
+			"key": mustMarshalAny(t, &structpb.Value{Kind: &structpb.Value_NumberValue{NumberValue: 123.45}}),
+		}
+		metadataJSON = `{"key":123.45}`
+	)
+
 	testRecordMethod(t,
 		func(srv *aibridgedserver.Server, ctx context.Context, req *proto.RecordToolUsageRequest) (*proto.RecordToolUsageResponse, error) {
 			return srv.RecordToolUsage(ctx, req)
 		},
-		[]struct {
-			name        string
-			request     *proto.RecordToolUsageRequest
-			setupMocks  func(*dbmock.MockStore)
-			expectedErr string
-		}{
+		[]testRecordMethodCase[*proto.RecordToolUsageRequest]{
 			{
 				name: "valid tool usage with all fields",
 				request: &proto.RecordToolUsageRequest{
@@ -487,13 +584,40 @@ func TestRecordToolUsage(t *testing.T) {
 					Input:           `{"path": "/etc/hosts"}`,
 					Injected:        false,
 					InvocationError: strPtr("permission denied"),
-					Metadata: map[string]*anypb.Any{
-						"duration": mustMarshalAny(t, &structpb.Value{Kind: &structpb.Value_NumberValue{NumberValue: 123.45}}),
-					},
-					CreatedAt: timestamppb.Now(),
+					Metadata:        metadataProto,
+					CreatedAt:       timestamppb.Now(),
 				},
-				setupMocks: func(db *dbmock.MockStore) {
-					db.EXPECT().InsertAIBridgeToolUsage(gomock.Any(), gomock.Any()).Return(nil)
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordToolUsageRequest) {
+					interceptionID, err := uuid.Parse(req.GetInterceptionId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					dbServerURL := sql.NullString{}
+					if req.ServerUrl != nil {
+						dbServerURL.String = *req.ServerUrl
+						dbServerURL.Valid = true
+					}
+
+					dbInvocationError := sql.NullString{}
+					if req.InvocationError != nil {
+						dbInvocationError.String = *req.InvocationError
+						dbInvocationError.Valid = true
+					}
+
+					db.EXPECT().InsertAIBridgeToolUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeToolUsageParams) bool {
+						if !assert.NotEqual(t, uuid.Nil, p.ID, "ID") ||
+							!assert.Equal(t, interceptionID, p.InterceptionID, "interception ID") ||
+							!assert.Equal(t, req.GetMsgId(), p.ProviderResponseID, "provider response ID") ||
+							!assert.Equal(t, req.GetTool(), p.Tool, "tool") ||
+							!assert.Equal(t, dbServerURL, p.ServerUrl, "server URL") ||
+							!assert.Equal(t, req.GetInput(), p.Input, "input") ||
+							!assert.Equal(t, req.GetInjected(), p.Injected, "injected") ||
+							!assert.Equal(t, dbInvocationError, p.InvocationError, "invocation error") ||
+							!assert.JSONEq(t, metadataJSON, string(p.Metadata), "metadata") ||
+							!assert.WithinDuration(t, req.GetCreatedAt().AsTime(), p.CreatedAt, time.Second, "created at") {
+							return false
+						}
+						return true
+					})).Return(nil)
 				},
 			},
 			{
@@ -516,7 +640,7 @@ func TestRecordToolUsage(t *testing.T) {
 					Input:          `{"path": "/etc/hosts"}`,
 					CreatedAt:      timestamppb.Now(),
 				},
-				setupMocks: func(db *dbmock.MockStore) {
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordToolUsageRequest) {
 					db.EXPECT().InsertAIBridgeToolUsage(gomock.Any(), gomock.Any()).Return(sql.ErrConnDone)
 				},
 				expectedErr: "insert tool usage",
@@ -525,16 +649,19 @@ func TestRecordToolUsage(t *testing.T) {
 	)
 }
 
+type testRecordMethodCase[Req any] struct {
+	name    string
+	request Req
+	// setupMocks is called with the mock store and the above request.
+	setupMocks  func(t *testing.T, db *dbmock.MockStore, req Req)
+	expectedErr string
+}
+
 // testRecordMethod is a helper that abstracts the common testing pattern for all Record* methods.
 func testRecordMethod[Req any, Resp any](
 	t *testing.T,
-	callMethod func(*aibridgedserver.Server, context.Context, Req) (Resp, error),
-	cases []struct {
-		name        string
-		request     Req
-		setupMocks  func(*dbmock.MockStore)
-		expectedErr string
-	},
+	callMethod func(srv *aibridgedserver.Server, ctx context.Context, req Req) (Resp, error),
+	cases []testRecordMethodCase[Req],
 ) {
 	t.Helper()
 
@@ -547,13 +674,14 @@ func testRecordMethod[Req any, Resp any](
 			logger := testutil.Logger(t)
 
 			if tc.setupMocks != nil {
-				tc.setupMocks(db)
+				tc.setupMocks(t, db, tc.request)
 			}
 
-			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", nil, requiredExperiments)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", nil, requiredExperiments)
 			require.NoError(t, err)
 
-			resp, err := callMethod(srv, t.Context(), tc.request)
+			resp, err := callMethod(srv, ctx, tc.request)
 			if tc.expectedErr != "" {
 				require.Error(t, err, "Expected error for test case: %s", tc.name)
 				require.Contains(t, err.Error(), tc.expectedErr)
