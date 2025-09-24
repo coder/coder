@@ -5,7 +5,7 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 source "${SCRIPT_DIR}/lib.sh"
 
 CODER_BIN=${CODER_BIN:-"$(which coder)"}
-AGENTAPI_SLUG=${AGENTAPI_SLUG:-""}
+APP_SLUG=${APP_SLUG:-""}
 
 TEMPDIR=$(mktemp -d)
 trap 'rm -rf "${TEMPDIR}"' EXIT
@@ -19,41 +19,31 @@ usage() {
 }
 
 create() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME TEMPLATE_NAME TEMPLATE_PARAMETERS
-	# Check if a workspace already exists
-	exists=$("${CODER_BIN}" \
+	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME TEMPLATE_NAME TEMPLATE_PRESET PROMPT
+	# Check if a task already exists
+	if "${CODER_BIN}" \
 		--url "${CODER_URL}" \
 		--token "${CODER_SESSION_TOKEN}" \
-		list \
-		--search "owner:me" \
-		--output json |
-		jq -r --arg name "${WORKSPACE_NAME}" 'any(.[]; select(.name == $name))')
-	if [[ "${exists}" == "true" ]]; then
-		echo "Workspace ${WORKSPACE_NAME} already exists."
+		exp tasks status "${TASK_NAME}" >/dev/null 2>&1; then
+		# TODO(Cian): Send PROMPT to the agent in the existing workspace.
+		echo "Task \"${TASK_NAME}\" already exists."
 		exit 0
 	fi
+
 	"${CODER_BIN}" \
 		--url "${CODER_URL}" \
 		--token "${CODER_SESSION_TOKEN}" \
-		create \
+		exp tasks create \
+		--name "${TASK_NAME}" \
 		--template "${TEMPLATE_NAME}" \
-		--stop-after 30m \
-		--parameter "${TEMPLATE_PARAMETERS}" \
-		--yes \
-		"${WORKSPACE_NAME}"
+		--preset "${TEMPLATE_PRESET}" \
+		--org coder \
+		--stdin <<<"${PROMPT}"
 	exit 0
 }
 
-prompt() {
-	if [[ -z "${AGENTAPI_SLUG}" ]]; then
-		prompt_ssh
-	else
-		prompt_agentapi
-	fi
-}
-
 ssh_config() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME
+	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME
 
 	if [[ -n "${OPENSSH_CONFIG_FILE:-}" ]]; then
 		echo "Using existing SSH config file: ${OPENSSH_CONFIG_FILE}"
@@ -71,26 +61,10 @@ ssh_config() {
 	export OPENSSH_CONFIG_FILE
 }
 
-prompt_ssh() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME PROMPT
+prompt() {
+	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME APP_SLUG PROMPT
 
-	ssh_config
-
-	# Execute claude over SSH and provide prompt via stdin
-	# Note: use of cat to work around claude-code#7357
-	ssh \
-		-F "${OPENSSH_CONFIG_FILE}" \
-		"${WORKSPACE_NAME}.coder" \
-		-- \
-		"cat | \"\${HOME}\"/.local/bin/claude --dangerously-skip-permissions --print --verbose --output-format=stream-json" \
-		<<<"${PROMPT}"
-	exit 0
-}
-
-prompt_agentapi() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME AGENTAPI_SLUG PROMPT
-
-	wait_agentapi_stable
+	wait
 
 	username=$(curl \
 		--fail \
@@ -114,17 +88,25 @@ prompt_agentapi() {
 		--request POST \
 		--show-error \
 		--silent \
-		"${CODER_URL}/@${username}/${WORKSPACE_NAME}/apps/${AGENTAPI_SLUG}/message" | jq -r '.ok')
+		"${CODER_URL}/@${username}/${TASK_NAME}/apps/${APP_SLUG}/message" | jq -r '.ok')
 	if [[ "${response}" != "true" ]]; then
 		echo "Failed to send prompt"
 		exit 1
 	fi
 
-	wait_agentapi_stable
+	# Wait for agentapi to process the response and return the last agent message
+	wait
+
+	last_msg=$(curl \
+		--header "Content-Type: application/json" \
+		--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
+		"${CODER_URL}/@${username}/${TASK_NAME}/apps/${APP_SLUG}/messages" |\
+		 jq -r 'last(.messages[] | select(.role=="agent") | [.])')
+	echo "${last_msg}"
 }
 
-wait_agentapi_stable() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME PROMPT
+wait() {
+	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME APP_SLUG
 	username=$(curl \
 		--fail \
 		--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
@@ -133,34 +115,85 @@ wait_agentapi_stable() {
 		--silent \
 		"${CODER_URL}/api/v2/users/me" | jq -r '.username')
 
+	set +o pipefail
 	for attempt in {1..120}; do
-		response=$(curl \
-			--fail \
+		# First wait for task to start
+		task_status=$("${CODER_BIN}" \
+			--url "${CODER_URL}" \
+			--token "${CODER_SESSION_TOKEN}" \
+			exp tasks status "${TASK_NAME}" \
+			--output json \
+			| jq -r '.status')
+		echo "Task status is ${task_status}"
+		if [[ "${task_status}" != "running" ]]; then
+			echo "Waiting for task status to be running (attempt ${attempt}/120)"
+			sleep 5
+			continue
+		fi
+
+		# Workspace agent must be healthy
+		healthy=$("${CODER_BIN}" \
+			--url "${CODER_URL}" \
+			--token "${CODER_SESSION_TOKEN}" \
+			exp tasks status "${TASK_NAME}" \
+			--output json \
+			| jq -r '.workspace_agent_health.healthy')
+		if [[ "${healthy}" == "true" ]]; then
+			echo "Workspace agent is healthy"
+		else
+			echo "Workspace agent not yet healthy (attempt ${attempt}/120)"
+			sleep 5
+			continue
+		fi
+
+		# AgentAPI application should not be 404'ing
+		agentapi_app_status_code=$(curl \
 			--header "Content-Type: application/json" \
 			--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
 			--location \
 			--request GET \
 			--show-error \
 			--silent \
-			"${CODER_URL}/@${username}/${WORKSPACE_NAME}/apps/agentapi/status" | jq -r '.status')
-		if [[ "${response}" == "stable" ]]; then
-			echo "AgentAPI stable"
-			break
+			--output /dev/null \
+			--write-out '%{http_code}' \
+			"${CODER_URL}/@${username}/${TASK_NAME}/apps/${APP_SLUG}/status")
+		echo "Workspace app ${APP_SLUG} returned ${agentapi_app_status_code}"
+		if [[ "${agentapi_app_status_code}" != "200" ]]; then
+			echo "Agentapi not yet running (attempt ${attempt}/120)"
+			sleep 5
+			continue
 		fi
-		echo "Waiting for AgentAPI to report stable status (attempt ${attempt}/120)"
-		sleep 5
+
+		# AgentAPI must be stable
+		agentapi_status=$(curl \
+			--header "Content-Type: application/json" \
+			--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
+			--location \
+			--request GET \
+			--show-error \
+			--silent \
+			"${CODER_URL}/@${username}/${TASK_NAME}/apps/${APP_SLUG}/status" | jq -r '.status')
+		if [[ "${agentapi_status}" == "stable" ]]; then
+			echo "AgentAPI stable"
+		else
+			echo "Waiting for AgentAPI to report stable status (attempt ${attempt}/120)"
+			sleep 5
+			continue
+		fi
+		exit 0
 	done
+	set -o pipefail
 }
 
 archive() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME BUCKET_PREFIX
+	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME BUCKET_PREFIX
 	ssh_config
 
 	# We want the heredoc to be expanded locally and not remotely.
 	# shellcheck disable=SC2087
 	ARCHIVE_DEST=$(
 		ssh -F "${OPENSSH_CONFIG_FILE}" \
-			"${WORKSPACE_NAME}.coder" \
+			"${TASK_NAME}.coder" \
 			bash <<-EOF
 				#!/usr/bin/env bash
 				set -euo pipefail
@@ -183,14 +216,14 @@ archive() {
 }
 
 summary() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME
+	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME APP_SLUG
 	ssh_config
 
 	# We want the heredoc to be expanded locally and not remotely.
 	# shellcheck disable=SC2087
 	ssh \
 		-F "${OPENSSH_CONFIG_FILE}" \
-		"${WORKSPACE_NAME}.coder" \
+		"${TASK_NAME}.coder" \
 		-- \
 		bash <<-EOF
 			#!/usr/bin/env bash
@@ -211,19 +244,19 @@ summary() {
 }
 
 commit_push() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME
+	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME
 	ssh_config
 
 	# We want the heredoc to be expanded locally and not remotely.
 	# shellcheck disable=SC2087
 	ssh \
 		-F "${OPENSSH_CONFIG_FILE}" \
-		"${WORKSPACE_NAME}.coder" \
+		"${TASK_NAME}.coder" \
 		-- \
 		bash <<-EOF
 			#!/usr/bin/env bash
 			set -euo pipefail
-			BRANCH="traiage/${WORKSPACE_NAME}"
+			BRANCH="traiage/${TASK_NAME}"
 			if [[ \$(git branch --show-current) != "\${BRANCH}" ]]; then
 				git checkout -b "\${BRANCH}"
 			fi
@@ -245,36 +278,37 @@ commit_push() {
 	exit $?
 }
 
+# TODO(Cian): Update this to delete the task when available.
 delete() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME
+	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME
 	"${CODER_BIN}" \
 		--url "${CODER_URL}" \
 		--token "${CODER_SESSION_TOKEN}" \
 		delete \
-		"${WORKSPACE_NAME}" \
+		"${TASK_NAME}" \
 		--yes
 	exit 0
 }
 
 resume() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN WORKSPACE_NAME BUCKET_PREFIX
+	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME BUCKET_PREFIX
 
-	# Note: WORKSPACE_NAME here is really the 'context key'.
+	# Note: TASK_NAME here is really the 'context key'.
 	# Files are uploaded to the GCS bucket under this key.
 	# This just happens to be the same as the workspace name.
 
-	src="${BUCKET_PREFIX%%/}/${WORKSPACE_NAME}.tar.gz"
-	dest="${TEMPDIR}/${WORKSPACE_NAME}.tar.gz"
+	src="${BUCKET_PREFIX%%/}/${TASK_NAME}.tar.gz"
+	dest="${TEMPDIR}/${TASK_NAME}.tar.gz"
 	gcloud storage cp "${src}" "${dest}"
 	if [[ ! -f "${dest}" ]]; then
 		echo "FATAL: Failed to download archive from ${src}"
 		exit 1
 	fi
 
-	resume_dest="${HOME}/workspaces/${WORKSPACE_NAME}"
+	resume_dest="${HOME}/tasks/${TASK_NAME}"
 	mkdir -p "${resume_dest}"
 	tar -xzvf "${dest}" -C "${resume_dest}" || exit 1
-	echo "Workspace restored to ${resume_dest}"
+	echo "Task context restored to ${resume_dest}"
 }
 
 main() {
@@ -300,8 +334,8 @@ main() {
 	delete)
 		delete
 		;;
-	wait-agentapi-stable)
-		wait_agentapi_stable
+	wait)
+		wait
 		;;
 	resume)
 		resume
