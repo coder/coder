@@ -26,44 +26,7 @@ Coder Tasks exist to solve these types of problems:
 
 ### Example Task Workflow
 
-```mermaid
-flowchart LR
-    A[User Reports Bug] --> B[Coder Task Triggered]
-    B --> C[Spin Up Workspace]
-    C --> D[AI Agent Analyzes Issue]
-    D --> E[Agent Implements Fix]
-    E --> F[Run Tests & Validation]
-    F --> G[Create Pull Request]
-    G --> H[Human Review]
-    H --> I{Approve Changes?}
-    I -->|Yes| J[Merge PR]
-    I -->|No| K[Request Changes]
-    K --> D
-    J --> L[Deploy & Close Issue]
-    
-    subgraph "Phase 1: Setup"
-        B
-        C
-    end
-    
-    subgraph "Phase 2: AI Execution"
-        D
-        E
-        F
-    end
-    
-    subgraph "Phase 3: Human Review"
-        G
-        H
-        I
-    end
-    
-    style A fill:#ff9999
-    style L fill:#99ff99
-    style D fill:#ffcc99
-    style E fill:#ffcc99
-    style F fill:#ffcc99
-```
+![Example Background Task](../images/guides/ai-agents/background-task-example.png)Example of Background Coder Tasks operation.
 
 ## How to Make a Task Template
 
@@ -158,11 +121,13 @@ In summary, task templates are highly flexible. You can swap out modules dependi
 
 ## Task Template Design Principles
 
-There are a couple of core principles that we recommend following when designing task templates:
+Coder Tasks, being based in a given Workspace, operate on very similar principles: 
 
-- **Reusability:** Task templates should be flexible enough to handle different types of tasks while maintaining a consistent structure
-- **Frugality:** Tasks only consume resources when running. You should design your task template to provide just enough compute and storage so that your task can effectively complete its job, reducing infrastructure cost
-- **Model Applicability:** Task templates can specify which model is most appropriate, meaning you can fine tune your task based on its job, be that a code-focused model for fixing bugs or a generalized LLM to write summaries and updates on Pull Requests
+- **Specificity & Refinability:** Tasks, just like templates, are made to address a specific problem and evolve with that problem and your team over time
+- **Security:** Because Tasks are defined through templates, you can define and restrict what access an agent running inside a Task has access to
+- **Frugality:** Tasks only consume resources when running. You should design your Task Template to provide just enough compute and storage so that your task can effectively complete its job, reducing infrastructure cost
+- **Model Applicability:** Task Templates can specify which model is most appropriate, meaning you can fine tune your Task based on it's job, be that a code-focused model for fixing bugs or a generalized LLM to write summaries and updates on Pull Requests
+- **Automation:** Coder Tasks provide a comprehensive set of built-in APIs, status monitoring, and notification systems. This allows for you and your team to build seamless integrations with externation automation workflows
 
 Together, these principles make up the core idea of designing task templates. Tasks are programmable, secure, and cost-efficient agents that integrate seamlessly into your team's workflow. By treating task templates as living and adaptable designs, you can evolve them with your team and needs without sacrificing clarity or control. The result is a system where automation, resource management, and security are baked into the foundation letting developers focus less on orchestration details and more on solving the problems that matter.
 
