@@ -159,6 +159,13 @@ const (
 	ApiKeyScopeWorkspaceProxyDelete                APIKeyScope = "workspace_proxy:delete"
 	ApiKeyScopeWorkspaceProxyRead                  APIKeyScope = "workspace_proxy:read"
 	ApiKeyScopeWorkspaceProxyUpdate                APIKeyScope = "workspace_proxy:update"
+	ApiKeyScopeCoderWorkspacescreate               APIKeyScope = "coder:workspaces.create"
+	ApiKeyScopeCoderWorkspacesoperate              APIKeyScope = "coder:workspaces.operate"
+	ApiKeyScopeCoderWorkspacesdelete               APIKeyScope = "coder:workspaces.delete"
+	ApiKeyScopeCoderWorkspacesaccess               APIKeyScope = "coder:workspaces.access"
+	ApiKeyScopeCoderTemplatesbuild                 APIKeyScope = "coder:templates.build"
+	ApiKeyScopeCoderTemplatesauthor                APIKeyScope = "coder:templates.author"
+	ApiKeyScopeCoderApikeysmanageSelf              APIKeyScope = "coder:apikeys.manage_self"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -337,7 +344,14 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeWorkspaceProxyCreate,
 		ApiKeyScopeWorkspaceProxyDelete,
 		ApiKeyScopeWorkspaceProxyRead,
-		ApiKeyScopeWorkspaceProxyUpdate:
+		ApiKeyScopeWorkspaceProxyUpdate,
+		ApiKeyScopeCoderWorkspacescreate,
+		ApiKeyScopeCoderWorkspacesoperate,
+		ApiKeyScopeCoderWorkspacesdelete,
+		ApiKeyScopeCoderWorkspacesaccess,
+		ApiKeyScopeCoderTemplatesbuild,
+		ApiKeyScopeCoderTemplatesauthor,
+		ApiKeyScopeCoderApikeysmanageSelf:
 		return true
 	}
 	return false
@@ -485,6 +499,13 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeWorkspaceProxyDelete,
 		ApiKeyScopeWorkspaceProxyRead,
 		ApiKeyScopeWorkspaceProxyUpdate,
+		ApiKeyScopeCoderWorkspacescreate,
+		ApiKeyScopeCoderWorkspacesoperate,
+		ApiKeyScopeCoderWorkspacesdelete,
+		ApiKeyScopeCoderWorkspacesaccess,
+		ApiKeyScopeCoderTemplatesbuild,
+		ApiKeyScopeCoderTemplatesauthor,
+		ApiKeyScopeCoderApikeysmanageSelf,
 	}
 }
 

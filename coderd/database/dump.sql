@@ -150,7 +150,14 @@ CREATE TYPE api_key_scope AS ENUM (
     'workspace_proxy:create',
     'workspace_proxy:delete',
     'workspace_proxy:read',
-    'workspace_proxy:update'
+    'workspace_proxy:update',
+    'coder:workspaces.create',
+    'coder:workspaces.operate',
+    'coder:workspaces.delete',
+    'coder:workspaces.access',
+    'coder:templates.build',
+    'coder:templates.author',
+    'coder:apikeys.manage_self'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
