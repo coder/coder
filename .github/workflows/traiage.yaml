@@ -82,7 +82,7 @@ jobs:
           PREFIX: ${{ inputs.prefix }}
           RUN_ID: ${{ github.run_id }}
           TEMPLATE_PARAMETERS: ${{ secrets.TRAIAGE_TEMPLATE_PARAMETERS }}
-          TEMPLATE_PRESET: ${{ inputs.template_preset}}
+          TEMPLATE_PRESET: ${{ inputs.template_preset }}
           # TODO: replace with coder exp task command
           APP_SLUG: ccw
         run: |
