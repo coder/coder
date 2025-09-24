@@ -56,6 +56,9 @@ func New(db database.Store) *Storage {
 }
 
 func (s Storage) CreateAuthorizeCodeSession(ctx context.Context, code string, request fosite.Requester) error {
+	client := request.GetClient()
+	session := request.GetSession()
+
 	_, err := s.db.InsertOAuth2ProviderAppCode(ctx, database.InsertOAuth2ProviderAppCodeParams{
 		ID:        uuid.New(),
 		CreatedAt: dbtime.Now(),
