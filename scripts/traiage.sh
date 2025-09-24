@@ -28,7 +28,7 @@ create() {
 		--search "owner:me" \
 		--output json |
 		jq -r --arg name "${WORKSPACE_NAME}" 'any(.[]; select(.name == $name))')
-	if [[ "${exists}" -eq "true" ]]; then
+	if [[ "${exists}" == "true" ]]; then
 		echo "Workspace ${WORKSPACE_NAME} already exists."
 		exit 0
 	fi
