@@ -756,7 +756,23 @@ func findWorkspaceAndAgentByHostname(
 		hostname = strings.TrimSuffix(hostname, qualifiedSuffix)
 	}
 	hostname = normalizeWorkspaceInput(hostname)
-	ws, agent, _, err := GetWorkspaceAndAgent(ctx, inv, client, !disableAutostart, hostname)
+
+	ws, agent, otherAgents, err := GetWorkspaceAndAgent(ctx, inv, client, !disableAutostart, hostname)
+	if err != nil && strings.Contains(err.Error(), "multiple agents found") {
+		var errorMsg strings.Builder
+		errorMsg.WriteString(fmt.Sprintf("%s\nTry running:\n", err.Error()))
+		for _, agent := range otherAgents {
+			switch {
+			case config.HostnameSuffix != "":
+				errorMsg.WriteString(fmt.Sprintf("	%s\n", cliui.Code(fmt.Sprintf("$ ssh %s.%s.%s.%s", agent.Name, ws.Name, ws.OwnerName, config.HostnameSuffix))))
+			case config.HostnamePrefix != "":
+				errorMsg.WriteString(fmt.Sprintf("	%s\n", cliui.Code(fmt.Sprintf("$ ssh %s%s.%s.%s", config.HostnamePrefix, agent.Name, ws.Name, ws.OwnerName))))
+			default:
+				errorMsg.WriteString(fmt.Sprintf("	%s\n", cliui.Code(fmt.Sprintf("$ ssh %s.%s.%s", agent.Name, ws.Name, ws.OwnerName))))
+			}
+		}
+		return ws, agent, xerrors.New(errorMsg.String())
+	}
 	return ws, agent, err
 }
 
@@ -922,7 +938,7 @@ func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 	}
 	workspaceAgent, otherWorkspaceAgents, err := getWorkspaceAgent(workspace, agentName)
 	if err != nil {
-		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, err
+		return workspace, codersdk.WorkspaceAgent{}, otherWorkspaceAgents, err
 	}
 
 	return workspace, workspaceAgent, otherWorkspaceAgents, nil
@@ -958,7 +974,7 @@ func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (workspac
 	if len(agents) == 1 {
 		return agents[0], nil, nil
 	}
-	return codersdk.WorkspaceAgent{}, nil, xerrors.Errorf("multiple agents found, please specify the agent name, available agents: %v", availableNames)
+	return codersdk.WorkspaceAgent{}, agents, xerrors.Errorf("multiple agents found, please specify the agent name, available agents: %v", availableNames)
 }
 
 // Attempt to poll workspace autostop. We write a per-workspace lockfile to
