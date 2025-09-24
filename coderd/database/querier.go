@@ -240,6 +240,7 @@ type sqlcQuerier interface {
 	GetOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error)
 	GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error)
 	GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken sql.NullString) (OAuth2ProviderApp, error)
+	GetOAuth2ProviderAppCodeByCode(ctx context.Context, code string) (OAuth2ProviderAppCode, error)
 	GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error)
 	GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppCode, error)
 	GetOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppSecret, error)
@@ -581,6 +582,7 @@ type sqlcQuerier interface {
 	InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspaceProxyParams) (WorkspaceProxy, error)
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
 	InsertWorkspaceResourceMetadata(ctx context.Context, arg InsertWorkspaceResourceMetadataParams) ([]WorkspaceResourceMetadatum, error)
+	InvalidateOAuth2ProviderAppCodeByCode(ctx context.Context, code string) error
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]UserSecret, error)

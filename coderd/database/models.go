@@ -3738,13 +3738,15 @@ type OAuth2ProviderAppCode struct {
 	// PKCE code challenge for public clients
 	CodeChallenge sql.NullString `db:"code_challenge" json:"code_challenge"`
 	// PKCE challenge method (S256)
-	CodeChallengeMethod sql.NullString `db:"code_challenge_method" json:"code_challenge_method"`
-	SessionID           uuid.UUID      `db:"session_id" json:"session_id"`
-	Code                string         `db:"code" json:"code"`
-	RequestedScopes     []string       `db:"requested_scopes" json:"requested_scopes"`
-	GrantedScopes       []string       `db:"granted_scopes" json:"granted_scopes"`
-	RequestedAudience   []string       `db:"requested_audience" json:"requested_audience"`
-	GrantedAudience     []string       `db:"granted_audience" json:"granted_audience"`
+	CodeChallengeMethod sql.NullString  `db:"code_challenge_method" json:"code_challenge_method"`
+	SessionID           uuid.UUID       `db:"session_id" json:"session_id"`
+	Code                string          `db:"code" json:"code"`
+	RequestedScopes     []string        `db:"requested_scopes" json:"requested_scopes"`
+	GrantedScopes       []string        `db:"granted_scopes" json:"granted_scopes"`
+	RequestedAudience   []string        `db:"requested_audience" json:"requested_audience"`
+	GrantedAudience     []string        `db:"granted_audience" json:"granted_audience"`
+	Active              bool            `db:"active" json:"active"`
+	Form                json.RawMessage `db:"form" json:"form"`
 }
 
 type OAuth2ProviderAppSecret struct {

@@ -5720,8 +5720,38 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context
 	return i, err
 }
 
+const getOAuth2ProviderAppCodeByCode = `-- name: GetOAuth2ProviderAppCodeByCode :one
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, session_id, code, requested_scopes, granted_scopes, requested_audience, granted_audience, active, form FROM oauth2_provider_app_codes WHERE code = $1
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderAppCodeByCode(ctx context.Context, code string) (OAuth2ProviderAppCode, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppCodeByCode, code)
+	var i OAuth2ProviderAppCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.SecretPrefix,
+		&i.HashedSecret,
+		&i.UserID,
+		&i.AppID,
+		&i.ResourceUri,
+		&i.CodeChallenge,
+		&i.CodeChallengeMethod,
+		&i.SessionID,
+		&i.Code,
+		pq.Array(&i.RequestedScopes),
+		pq.Array(&i.GrantedScopes),
+		pq.Array(&i.RequestedAudience),
+		pq.Array(&i.GrantedAudience),
+		&i.Active,
+		&i.Form,
+	)
+	return i, err
+}
+
 const getOAuth2ProviderAppCodeByID = `-- name: GetOAuth2ProviderAppCodeByID :one
-SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, session_id, code, requested_scopes, granted_scopes, requested_audience, granted_audience FROM oauth2_provider_app_codes WHERE id = $1
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, session_id, code, requested_scopes, granted_scopes, requested_audience, granted_audience, active, form FROM oauth2_provider_app_codes WHERE id = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error) {
@@ -5744,12 +5774,14 @@ func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.U
 		pq.Array(&i.GrantedScopes),
 		pq.Array(&i.RequestedAudience),
 		pq.Array(&i.GrantedAudience),
+		&i.Active,
+		&i.Form,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppCodeByPrefix = `-- name: GetOAuth2ProviderAppCodeByPrefix :one
-SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, session_id, code, requested_scopes, granted_scopes, requested_audience, granted_audience FROM oauth2_provider_app_codes WHERE secret_prefix = $1
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, session_id, code, requested_scopes, granted_scopes, requested_audience, granted_audience, active, form FROM oauth2_provider_app_codes WHERE secret_prefix = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppCode, error) {
@@ -5772,6 +5804,8 @@ func (q *sqlQuerier) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secre
 		pq.Array(&i.GrantedScopes),
 		pq.Array(&i.RequestedAudience),
 		pq.Array(&i.GrantedAudience),
+		&i.Active,
+		&i.Form,
 	)
 	return i, err
 }
@@ -6182,7 +6216,8 @@ INSERT INTO oauth2_provider_app_codes (
     requested_scopes,
 	granted_scopes,
 	requested_audience,
-	granted_audience
+	granted_audience,
+    form
 ) VALUES(
     $1,
     $2,
@@ -6199,27 +6234,29 @@ INSERT INTO oauth2_provider_app_codes (
 	$13,
 	$14,
 	$15,
-    $16
-) RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, session_id, code, requested_scopes, granted_scopes, requested_audience, granted_audience
+    $16,
+    $17
+) RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, session_id, code, requested_scopes, granted_scopes, requested_audience, granted_audience, active, form
 `
 
 type InsertOAuth2ProviderAppCodeParams struct {
-	ID                  uuid.UUID      `db:"id" json:"id"`
-	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
-	ExpiresAt           time.Time      `db:"expires_at" json:"expires_at"`
-	SecretPrefix        []byte         `db:"secret_prefix" json:"secret_prefix"`
-	HashedSecret        []byte         `db:"hashed_secret" json:"hashed_secret"`
-	AppID               uuid.UUID      `db:"app_id" json:"app_id"`
-	UserID              uuid.UUID      `db:"user_id" json:"user_id"`
-	ResourceUri         sql.NullString `db:"resource_uri" json:"resource_uri"`
-	CodeChallenge       sql.NullString `db:"code_challenge" json:"code_challenge"`
-	CodeChallengeMethod sql.NullString `db:"code_challenge_method" json:"code_challenge_method"`
-	SessionID           uuid.UUID      `db:"session_id" json:"session_id"`
-	Code                string         `db:"code" json:"code"`
-	RequestedScopes     []string       `db:"requested_scopes" json:"requested_scopes"`
-	GrantedScopes       []string       `db:"granted_scopes" json:"granted_scopes"`
-	RequestedAudience   []string       `db:"requested_audience" json:"requested_audience"`
-	GrantedAudience     []string       `db:"granted_audience" json:"granted_audience"`
+	ID                  uuid.UUID       `db:"id" json:"id"`
+	CreatedAt           time.Time       `db:"created_at" json:"created_at"`
+	ExpiresAt           time.Time       `db:"expires_at" json:"expires_at"`
+	SecretPrefix        []byte          `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret        []byte          `db:"hashed_secret" json:"hashed_secret"`
+	AppID               uuid.UUID       `db:"app_id" json:"app_id"`
+	UserID              uuid.UUID       `db:"user_id" json:"user_id"`
+	ResourceUri         sql.NullString  `db:"resource_uri" json:"resource_uri"`
+	CodeChallenge       sql.NullString  `db:"code_challenge" json:"code_challenge"`
+	CodeChallengeMethod sql.NullString  `db:"code_challenge_method" json:"code_challenge_method"`
+	SessionID           uuid.UUID       `db:"session_id" json:"session_id"`
+	Code                string          `db:"code" json:"code"`
+	RequestedScopes     []string        `db:"requested_scopes" json:"requested_scopes"`
+	GrantedScopes       []string        `db:"granted_scopes" json:"granted_scopes"`
+	RequestedAudience   []string        `db:"requested_audience" json:"requested_audience"`
+	GrantedAudience     []string        `db:"granted_audience" json:"granted_audience"`
+	Form                json.RawMessage `db:"form" json:"form"`
 }
 
 func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg InsertOAuth2ProviderAppCodeParams) (OAuth2ProviderAppCode, error) {
@@ -6240,6 +6277,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg Insert
 		pq.Array(arg.GrantedScopes),
 		pq.Array(arg.RequestedAudience),
 		pq.Array(arg.GrantedAudience),
+		arg.Form,
 	)
 	var i OAuth2ProviderAppCode
 	err := row.Scan(
@@ -6259,6 +6297,8 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg Insert
 		pq.Array(&i.GrantedScopes),
 		pq.Array(&i.RequestedAudience),
 		pq.Array(&i.GrantedAudience),
+		&i.Active,
+		&i.Form,
 	)
 	return i, err
 }
@@ -6373,6 +6413,17 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		&i.UserID,
 	)
 	return i, err
+}
+
+const invalidateOAuth2ProviderAppCodeByCode = `-- name: InvalidateOAuth2ProviderAppCodeByCode :exec
+UPDATE oauth2_provider_app_codes SET
+	active = FALSE
+WHERE code = $1
+`
+
+func (q *sqlQuerier) InvalidateOAuth2ProviderAppCodeByCode(ctx context.Context, code string) error {
+	_, err := q.db.ExecContext(ctx, invalidateOAuth2ProviderAppCodeByCode, code)
+	return err
 }
 
 const updateOAuth2ProviderAppByClientID = `-- name: UpdateOAuth2ProviderAppByClientID :one

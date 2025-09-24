@@ -1411,7 +1411,9 @@ CREATE TABLE oauth2_provider_app_codes (
     requested_scopes text[] DEFAULT '{}'::text[] NOT NULL,
     granted_scopes text[] DEFAULT '{}'::text[] NOT NULL,
     requested_audience text[] DEFAULT '{}'::text[] NOT NULL,
-    granted_audience text[] DEFAULT '{}'::text[] NOT NULL
+    granted_audience text[] DEFAULT '{}'::text[] NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    form jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 COMMENT ON TABLE oauth2_provider_app_codes IS 'Codes are meant to be exchanged for access tokens.';

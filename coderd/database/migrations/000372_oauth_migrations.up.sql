@@ -4,5 +4,7 @@ ALTER TABLE oauth2_provider_app_codes
 	ADD COLUMN requested_scopes TEXT[] NOT NULL DEFAULT '{}',
 	ADD COLUMN granted_scopes TEXT[] NOT NULL DEFAULT '{}',
 	ADD COLUMN requested_audience TEXT[] NOT NULL DEFAULT '{}',
-	ADD COLUMN granted_audience TEXT[] NOT NULL DEFAULT '{}'
+	ADD COLUMN granted_audience TEXT[] NOT NULL DEFAULT '{}',
+	ADD COLUMN active BOOLEAN NOT NULL DEFAULT TRUE,
+	ADD COLUMN form jsonb NOT NULL DEFAULT '{}'
 ;

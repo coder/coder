@@ -2384,6 +2384,10 @@ func (q *querier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, r
 	return q.db.GetOAuth2ProviderAppByRegistrationToken(ctx, registrationAccessToken)
 }
 
+func (q *querier) GetOAuth2ProviderAppCodeByCode(ctx context.Context, code string) (database.OAuth2ProviderAppCode, error) {
+	return fetch(q.log, q.auth, q.db.GetOAuth2ProviderAppCodeByCode)(ctx, code)
+}
+
 func (q *querier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppCode, error) {
 	return fetch(q.log, q.auth, q.db.GetOAuth2ProviderAppCodeByID)(ctx, id)
 }
@@ -4375,6 +4379,13 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 		return nil, err
 	}
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
+}
+
+func (q *querier) InvalidateOAuth2ProviderAppCodeByCode(ctx context.Context, code string) error {
+	fetch := func(ctx context.Context, code string) (database.OAuth2ProviderAppCode, error) {
+		return q.db.GetOAuth2ProviderAppCodeByCode(ctx, code)
+	}
+	return update(q.log, q.auth, fetch, q.db.InvalidateOAuth2ProviderAppCodeByCode)(ctx, code)
 }
 
 func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {

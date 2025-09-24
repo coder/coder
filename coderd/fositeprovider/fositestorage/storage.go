@@ -3,6 +3,8 @@ package fositestorage
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"net/url"
 	"time"
 
 	"github.com/google/uuid"
@@ -71,6 +73,11 @@ func (s Storage) CreateAuthorizeCodeSession(ctx context.Context, code string, re
 
 	s.sessionByID[session.ID] = session
 
+	jsonForm, err := json.Marshal(request.GetRequestForm())
+	if err != nil {
+		return xerrors.Errorf("marshal form: %w", err)
+	}
+
 	_, err = s.db.InsertOAuth2ProviderAppCode(ctx, database.InsertOAuth2ProviderAppCodeParams{
 		AppID:     clientID,
 		ID:        uuid.New(),
@@ -84,6 +91,7 @@ func (s Storage) CreateAuthorizeCodeSession(ctx context.Context, code string, re
 		GrantedScopes:     request.GetGrantedScopes(),
 		RequestedAudience: request.GetRequestedAudience(),
 		GrantedAudience:   request.GetGrantedAudience(),
+		Form:              jsonForm,
 
 		// Not used at the moment, or maybe ever again?
 		SecretPrefix:        nil,
@@ -99,13 +107,50 @@ func (s Storage) CreateAuthorizeCodeSession(ctx context.Context, code string, re
 }
 
 func (s Storage) GetAuthorizeCodeSession(ctx context.Context, code string, session fosite.Session) (request fosite.Requester, err error) {
-	//TODO implement me
-	panic("implement me")
+	result, err := s.db.GetOAuth2ProviderAppCodeByCode(ctx, code)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return nil, fosite.ErrNotFound
+		}
+		return nil, xerrors.Errorf("get oauth code by code: %w", err)
+	}
+
+	cli, err := s.GetClient(ctx, result.AppID.String())
+	if err != nil {
+		return nil, xerrors.Errorf("get client: %w", err)
+	}
+
+	var form url.Values
+	if err := json.Unmarshal(result.Form, &form); err != nil {
+		return nil, xerrors.Errorf("unmarshal form: %w", err)
+	}
+
+	session, ok := s.sessionByID[result.SessionID]
+	if !ok {
+		return nil, xerrors.Errorf("session not found")
+	}
+
+	rq := &fosite.Request{
+		ID:                result.ID.String(),
+		RequestedAt:       result.CreatedAt,
+		Client:            cli,
+		RequestedScope:    result.RequestedScopes,
+		GrantedScope:      result.GrantedScopes,
+		Form:              form,
+		Session:           session,
+		RequestedAudience: result.RequestedAudience,
+		GrantedAudience:   result.GrantedAudience,
+	}
+
+	if !result.Active {
+		return rq, fosite.ErrInvalidatedAuthorizeCode
+	}
+
+	return rq, nil
 }
 
 func (s Storage) InvalidateAuthorizeCodeSession(ctx context.Context, code string) (err error) {
-	//TODO implement me
-	panic("implement me")
+	return s.db.InvalidateOAuth2ProviderAppCodeByCode(ctx, code)
 }
 
 func (s Storage) CreateAccessTokenSession(ctx context.Context, signature string, request fosite.Requester) (err error) {

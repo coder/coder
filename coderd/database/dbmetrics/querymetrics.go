@@ -1062,6 +1062,13 @@ func (m queryMetricsStore) GetOAuth2ProviderAppByRegistrationToken(ctx context.C
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetOAuth2ProviderAppCodeByCode(ctx context.Context, code string) (database.OAuth2ProviderAppCode, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuth2ProviderAppCodeByCode(ctx, code)
+	m.queryLatencies.WithLabelValues("GetOAuth2ProviderAppCodeByCode").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppCode, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOAuth2ProviderAppCodeByID(ctx, id)
@@ -2635,6 +2642,13 @@ func (m queryMetricsStore) InsertWorkspaceResourceMetadata(ctx context.Context, 
 	metadata, err := m.s.InsertWorkspaceResourceMetadata(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceResourceMetadata").Observe(time.Since(start).Seconds())
 	return metadata, err
+}
+
+func (m queryMetricsStore) InvalidateOAuth2ProviderAppCodeByCode(ctx context.Context, code string) (error, error) {
+	start := time.Now()
+	r0, r1 := m.s.InvalidateOAuth2ProviderAppCodeByCode(ctx, code)
+	m.queryLatencies.WithLabelValues("InvalidateOAuth2ProviderAppCodeByCode").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
