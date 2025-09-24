@@ -13,7 +13,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
 
 type fositeStorage interface {
@@ -27,7 +26,8 @@ type fositeStorage interface {
 var _ fositeStorage = (*Storage)(nil)
 
 type Storage struct {
-	db database.Store
+	db          database.Store
+	sessionByID map[uuid.UUID]*CoderSession
 
 	// TODO: Remove the memory store entirely and implement all methods to use the database.
 	//storage.MemoryStore
@@ -51,29 +51,43 @@ func (s Storage) DeletePKCERequestSession(ctx context.Context, signature string)
 func New(db database.Store) *Storage {
 	return &Storage{
 		db: db,
+		// TODO: Persist to the database.
+		sessionByID: map[uuid.UUID]*CoderSession{},
 		//MemoryStore: *storage.NewMemoryStore(),
 	}
 }
 
 func (s Storage) CreateAuthorizeCodeSession(ctx context.Context, code string, request fosite.Requester) error {
 	client := request.GetClient()
-	session := request.GetSession()
+	clientID, err := uuid.Parse(client.GetID())
+	if err != nil {
+		return xerrors.Errorf("parse client id: %w", err)
+	}
 
-	_, err := s.db.InsertOAuth2ProviderAppCode(ctx, database.InsertOAuth2ProviderAppCodeParams{
+	session, ok := request.GetSession().(*CoderSession)
+	if !ok {
+		return xerrors.Errorf("expected *CoderSession, got %T", request.GetSession())
+	}
+
+	s.sessionByID[session.ID] = session
+
+	_, err = s.db.InsertOAuth2ProviderAppCode(ctx, database.InsertOAuth2ProviderAppCodeParams{
+		AppID:     clientID,
 		ID:        uuid.New(),
-		CreatedAt: dbtime.Now(),
-		// TODO: Configurable expiration?  Ten minutes matches GitHub.
-		// This timeout is only for the code that will be exchanged for the
-		// access token, not the access token itself.  It does not need to be
-		// long-lived because normally it will be exchanged immediately after it
-		// is received.  If the application does wait before exchanging the
-		// token (for example suppose they ask the user to confirm and the user
-		// has left) then they can just retry immediately and get a new code.
-		ExpiresAt:           dbtime.Now().Add(time.Duration(10) * time.Minute),
+		CreatedAt: request.GetRequestedAt(),
+		// TODO: Is this expires correct?
+		ExpiresAt:         session.GetExpiresAt(fosite.AuthorizeCode),
+		UserID:            session.UserID,
+		SessionID:         session.ID,
+		Code:              code,
+		RequestedScopes:   request.GetRequestedScopes(),
+		GrantedScopes:     request.GetGrantedScopes(),
+		RequestedAudience: request.GetRequestedAudience(),
+		GrantedAudience:   request.GetGrantedAudience(),
+
+		// Not used at the moment, or maybe ever again?
 		SecretPrefix:        nil,
 		HashedSecret:        nil,
-		AppID:               uuid.UUID{},
-		UserID:              uuid.UUID{},
 		ResourceUri:         sql.NullString{},
 		CodeChallenge:       sql.NullString{},
 		CodeChallengeMethod: sql.NullString{},

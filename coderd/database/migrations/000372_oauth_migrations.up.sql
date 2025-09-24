@@ -1,0 +1,8 @@
+ALTER TABLE oauth2_provider_app_codes
+	ADD COLUMN session_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000' :: uuid,
+	ADD COLUMN code TEXT NOT NULL DEFAULT '',
+	ADD COLUMN requested_scopes TEXT[] NOT NULL DEFAULT '{}',
+	ADD COLUMN granted_scopes TEXT[] NOT NULL DEFAULT '{}',
+	ADD COLUMN requested_audience TEXT[] NOT NULL DEFAULT '{}',
+	ADD COLUMN granted_audience TEXT[] NOT NULL DEFAULT '{}'
+;

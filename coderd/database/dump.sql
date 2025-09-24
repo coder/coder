@@ -1405,7 +1405,13 @@ CREATE TABLE oauth2_provider_app_codes (
     app_id uuid NOT NULL,
     resource_uri text,
     code_challenge text,
-    code_challenge_method text
+    code_challenge_method text,
+    session_id uuid DEFAULT '00000000-0000-0000-0000-000000000000'::uuid NOT NULL,
+    code text DEFAULT ''::text NOT NULL,
+    requested_scopes text[] DEFAULT '{}'::text[] NOT NULL,
+    granted_scopes text[] DEFAULT '{}'::text[] NOT NULL,
+    requested_audience text[] DEFAULT '{}'::text[] NOT NULL,
+    granted_audience text[] DEFAULT '{}'::text[] NOT NULL
 );
 
 COMMENT ON TABLE oauth2_provider_app_codes IS 'Codes are meant to be exchanged for access tokens.';
