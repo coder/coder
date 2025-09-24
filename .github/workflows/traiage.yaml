@@ -78,6 +78,7 @@ jobs:
         id: create-task
         env:
           CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
+          GITHUB_TOKEN: ${{ github.token }}
           ISSUE_URL: ${{ inputs.issue_url }}
           PREFIX: ${{ inputs.prefix }}
           RUN_ID: ${{ github.run_id }}
