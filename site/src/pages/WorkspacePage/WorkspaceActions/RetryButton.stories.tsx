@@ -74,13 +74,11 @@ export const WithOpenEphemeralBuildParameters: Story = {
 	play: async ({ step }) => {
 		await step("open popover", async () => {
 			await userEvent.click(screen.getByText("Retry with build parameters"));
-			await waitFor(() =>
-				expect(
-					screen.getByText(
-						"These parameters only apply for a single workspace start.",
-					),
-				).toBeInTheDocument(),
-			);
+			expect(
+				await screen.findByText(
+					"These parameters only apply for a single workspace start.",
+				),
+			).toBeInTheDocument();
 		});
 	},
 };
@@ -108,13 +106,11 @@ export const WithOpenEphemeralBuildParametersNotClassic: Story = {
 	play: async ({ step }) => {
 		await step("open popover", async () => {
 			await userEvent.click(screen.getByText("Retry with build parameters"));
-			await waitFor(() =>
-				expect(
-					screen.getByText(
-						"This workspace has ephemeral parameters which may use a temporary value on workspace start. Configure the following parameters in workspace settings.",
-					),
-				).toBeInTheDocument(),
-			);
+			expect(
+				await screen.findByText(
+					"This workspace has ephemeral parameters which may use a temporary value on workspace start. Configure the following parameters in workspace settings.",
+				),
+			).toBeInTheDocument();
 		});
 	},
 };
