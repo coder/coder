@@ -598,6 +598,7 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 	}
 
 	t.Run("ProbeOK", func(t *testing.T) {
+		t.Skip("flaky test: https://github.com/coder/internal/issues/957")
 		t.Parallel()
 
 		deploymentValues := coderdtest.DeploymentValues(t)

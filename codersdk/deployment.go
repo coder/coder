@@ -735,6 +735,7 @@ type ExternalAuthConfig struct {
 	AuthURL             string   `json:"auth_url" yaml:"auth_url"`
 	TokenURL            string   `json:"token_url" yaml:"token_url"`
 	ValidateURL         string   `json:"validate_url" yaml:"validate_url"`
+	RevokeURL           string   `json:"revoke_url" yaml:"revoke_url"`
 	AppInstallURL       string   `json:"app_install_url" yaml:"app_install_url"`
 	AppInstallationsURL string   `json:"app_installations_url" yaml:"app_installations_url"`
 	NoRefresh           bool     `json:"no_refresh" yaml:"no_refresh"`

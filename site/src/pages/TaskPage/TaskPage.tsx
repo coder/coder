@@ -1,6 +1,7 @@
 import { API } from "api/api";
-import { getErrorDetail, getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage, isApiError } from "api/errors";
 import { template as templateQueryOptions } from "api/queries/templates";
+import { startWorkspace } from "api/queries/workspaces";
 import type {
 	Workspace,
 	WorkspaceAgent,
@@ -8,6 +9,7 @@ import type {
 } from "api/typesGenerated";
 import isChromatic from "chromatic/isChromatic";
 import { Button } from "components/Button/Button";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
@@ -15,11 +17,19 @@ import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { ArrowLeftIcon, RotateCcwIcon } from "lucide-react";
 import { AgentLogs } from "modules/resources/AgentLogs/AgentLogs";
 import { useAgentLogs } from "modules/resources/useAgentLogs";
+import { TasksSidebar } from "modules/tasks/TasksSidebar/TasksSidebar";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
+import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { type FC, type ReactNode, useLayoutEffect, useRef } from "react";
+import {
+	type FC,
+	type PropsWithChildren,
+	type ReactNode,
+	useLayoutEffect,
+	useRef,
+} from "react";
 import { Helmet } from "react-helmet-async";
-import { useQuery } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Link as RouterLink, useParams } from "react-router";
 import type { FixedSizeList } from "react-window";
@@ -31,6 +41,15 @@ import {
 import { TaskApps } from "./TaskApps";
 import { TaskSidebar } from "./TaskSidebar";
 import { TaskTopbar } from "./TaskTopbar";
+
+const TaskPageLayout: FC<PropsWithChildren> = ({ children }) => {
+	return (
+		<div className="flex items-stretch h-full">
+			<TasksSidebar />
+			<div className="flex flex-col h-full flex-1">{children}</div>
+		</div>
+	);
+};
 
 const TaskPage = () => {
 	const { workspace: workspaceName, username } = useParams() as {
@@ -51,7 +70,7 @@ const TaskPage = () => {
 
 	if (error) {
 		return (
-			<>
+			<TaskPageLayout>
 				<Helmet>
 					<title>{pageTitle("Error loading task")}</title>
 				</Helmet>
@@ -78,18 +97,18 @@ const TaskPage = () => {
 						</div>
 					</div>
 				</div>
-			</>
+			</TaskPageLayout>
 		);
 	}
 
 	if (!task) {
 		return (
-			<>
+			<TaskPageLayout>
 				<Helmet>
 					<title>{pageTitle("Loading task")}</title>
 				</Helmet>
-				<Loader fullscreen />
-			</>
+				<Loader className="w-full h-full" />
+			</TaskPageLayout>
 		);
 	}
 
@@ -119,27 +138,7 @@ const TaskPage = () => {
 			</div>
 		);
 	} else if (task.workspace.latest_build.status !== "running") {
-		content = (
-			<Margins>
-				<div className="w-full min-h-80 flex items-center justify-center">
-					<div className="flex flex-col items-center">
-						<h3 className="m-0 font-medium text-content-primary text-base">
-							Workspace is not running
-						</h3>
-						<span className="text-content-secondary text-sm">
-							Apps and previous statuses are not available
-						</span>
-						<Button size="sm" className="mt-4" asChild>
-							<RouterLink
-								to={`/@${task.workspace.owner_name}/${task.workspace.name}`}
-							>
-								View workspace
-							</RouterLink>
-						</Button>
-					</div>
-				</div>
-			</Margins>
-		);
+		content = <WorkspaceNotRunning task={task} />;
 	} else if (agent && ["created", "starting"].includes(agent.lifecycle_state)) {
 		content = <TaskStartingAgent agent={agent} />;
 	} else {
@@ -159,20 +158,85 @@ const TaskPage = () => {
 	}
 
 	return (
-		<>
+		<TaskPageLayout>
 			<Helmet>
 				<title>{pageTitle(task.workspace.name)}</title>
 			</Helmet>
 
-			<div className="flex flex-col h-full">
-				<TaskTopbar task={task} />
-				{content}
-			</div>
-		</>
+			<TaskTopbar task={task} />
+			{content}
+		</TaskPageLayout>
 	);
 };
 
 export default TaskPage;
+
+type WorkspaceNotRunningProps = {
+	task: Task;
+};
+
+const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ task }) => {
+	const queryClient = useQueryClient();
+
+	const { data: parameters } = useQuery({
+		queryKey: ["workspace", task.workspace.id, "parameters"],
+		queryFn: () => API.getWorkspaceParameters(task.workspace),
+	});
+
+	const mutateStartWorkspace = useMutation({
+		...startWorkspace(task?.workspace, queryClient),
+		onError: (error: unknown) => {
+			if (!isApiError(error)) {
+				displayError(getErrorMessage(error, "Failed to build workspace."));
+			}
+		},
+	});
+
+	const apiError = isApiError(mutateStartWorkspace.error)
+		? mutateStartWorkspace.error
+		: undefined;
+
+	return (
+		<Margins>
+			<div className="w-full min-h-80 flex items-center justify-center">
+				<div className="flex flex-col items-center">
+					<h3 className="m-0 font-medium text-content-primary text-base">
+						Workspace is not running
+					</h3>
+					<span className="text-content-secondary text-sm">
+						Apps and previous statuses are not available
+					</span>
+					<div className="flex flex-row mt-4 gap-4">
+						<Button
+							size="sm"
+							disabled={mutateStartWorkspace.isPending}
+							onClick={() => {
+								mutateStartWorkspace.mutate({
+									buildParameters: parameters?.buildParameters,
+								});
+							}}
+						>
+							{mutateStartWorkspace.isPending
+								? "Starting workspace..."
+								: "Start workspace"}
+						</Button>
+					</div>
+				</div>
+			</div>
+
+			<WorkspaceErrorDialog
+				open={apiError !== undefined}
+				error={apiError}
+				onClose={mutateStartWorkspace.reset}
+				showDetail={true}
+				workspaceOwner={task.workspace.owner_name}
+				workspaceName={task.workspace.name}
+				templateVersionId={task.workspace.latest_build.template_version_id}
+				isDeleting={false}
+			/>
+		</Margins>
+	);
+};
 
 type TaskBuildingWorkspaceProps = { task: Task };
 
@@ -247,7 +311,7 @@ type TaskStartingAgentProps = {
 };
 
 const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ agent }) => {
-	const logs = useAgentLogs(agent, true);
+	const logs = useAgentLogs({ agentId: agent.id });
 	const listRef = useRef<FixedSizeList>(null);
 
 	useLayoutEffect(() => {
@@ -272,6 +336,11 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ agent }) => {
 					<div className="w-full max-w-screen-lg flex flex-col gap-4 overflow-hidden">
 						<div className="h-96 border border-solid border-border rounded-lg">
 							<AgentLogs
+								ref={listRef}
+								sources={agent.log_sources}
+								height={96 * 4}
+								width="100%"
+								overflowed={agent.logs_overflowed}
 								logs={logs.map((l) => ({
 									id: l.id,
 									level: l.level,
@@ -279,10 +348,6 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ agent }) => {
 									sourceId: l.source_id,
 									time: l.created_at,
 								}))}
-								sources={agent.log_sources}
-								height={96 * 4}
-								width="100%"
-								ref={listRef}
 							/>
 						</div>
 					</div>

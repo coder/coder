@@ -245,7 +245,7 @@ RUN DOCTL_VERSION=$(curl -s "https://api.github.com/repos/digitalocean/doctl/rel
 ARG NVM_INSTALL_SHA=bdea8c52186c4dd12657e77e7515509cda5bf9fa5a2f0046bce749e62645076d
 # Install frontend utilities
 ENV NVM_DIR=/usr/local/nvm
-ENV NODE_VERSION=20.19.4
+ENV NODE_VERSION=22.19.0
 RUN mkdir -p $NVM_DIR
 RUN curl -o nvm_install.sh https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh && \
 	echo "${NVM_INSTALL_SHA}  nvm_install.sh" | sha256sum -c && \

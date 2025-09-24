@@ -3,6 +3,7 @@ package dbtestutil_test
 import (
 	"database/sql"
 	"testing"
+	"time"
 
 	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/require"
@@ -109,4 +110,28 @@ func TestOpen_ValidDBFrom(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, rows.Next())
 	require.NoError(t, rows.Close())
+}
+
+func TestOpen_Panic(t *testing.T) {
+	t.Skip("unskip this to manually test that we don't leak a database into postgres")
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("this test requires postgres")
+	}
+
+	_, err := dbtestutil.Open(t)
+	require.NoError(t, err)
+	panic("now check SELECT datname FROM pg_database;")
+}
+
+func TestOpen_Timeout(t *testing.T) {
+	t.Skip("unskip this and set a short timeout to manually test that we don't leak a database into postgres")
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("this test requires postgres")
+	}
+
+	_, err := dbtestutil.Open(t)
+	require.NoError(t, err)
+	time.Sleep(11 * time.Minute)
 }

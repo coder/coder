@@ -16,20 +16,21 @@ import (
 )
 
 func (r *RootCmd) taskDelete() *serpent.Command {
-	client := new(codersdk.Client)
-
 	cmd := &serpent.Command{
 		Use:   "delete <task> [<task> ...]",
 		Short: "Delete experimental tasks",
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(1, -1),
-			r.InitClient(client),
 		),
 		Options: serpent.OptionSet{
 			cliui.SkipPromptOption(),
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			exp := codersdk.NewExperimentalClient(client)
 
 			type toDelete struct {
@@ -70,7 +71,7 @@ func (r *RootCmd) taskDelete() *serpent.Command {
 			for _, it := range items {
 				displayList = append(displayList, it.Display)
 			}
-			_, err := cliui.Prompt(inv, cliui.PromptOptions{
+			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      fmt.Sprintf("Delete these tasks: %s?", pretty.Sprint(cliui.DefaultStyles.Code, strings.Join(displayList, ", "))),
 				IsConfirm: true,
 				Default:   cliui.ConfirmNo,

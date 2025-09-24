@@ -55,6 +55,7 @@ For proof-of-concept deployments, you can use Bitnami Helm chart to install Post
 ```console
 helm repo add bitnami https://charts.bitnami.com/bitnami
 helm install coder-db bitnami/postgresql \
+    --set image.repository=bitnamilegacy/postgresql \
     --namespace coder \
     --set auth.username=coder \
     --set auth.password=coder \
