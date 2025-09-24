@@ -1,6 +1,6 @@
 module github.com/coder/coder/v2
 
-go 1.24.6
+go 1.25
 
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
@@ -479,7 +479,7 @@ require (
 	github.com/brianvoe/gofakeit/v7 v7.5.1
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
 	github.com/coder/aisdk-go v0.0.9
-	github.com/coder/jail v1.0.1-0.20250912153404-1e687be21fb5
+	github.com/coder/boundary v1.0.1-0.20250922215716-0e868c9e5fcf
 	github.com/coder/preview v1.0.4
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-git/go-git/v5 v5.16.2

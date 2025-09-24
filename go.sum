@@ -909,6 +909,8 @@ github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225 h1:tRIViZ5JR
 github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225/go.mod h1:rNLVpYgEVeu1Zk29K64z6Od8RBP9DwqCu9OfCzh8MR4=
 github.com/coder/aisdk-go v0.0.9 h1:Vzo/k2qwVGLTR10ESDeP2Ecek1SdPfZlEjtTfMveiVo=
 github.com/coder/aisdk-go v0.0.9/go.mod h1:KF6/Vkono0FJJOtWtveh5j7yfNrSctVTpwgweYWSp5M=
+github.com/coder/boundary v1.0.1-0.20250922215716-0e868c9e5fcf h1:f6OV4NZRhQwZ78jNXs9oY6Tv8BShQ6Cca7/84QzXg2E=
+github.com/coder/boundary v1.0.1-0.20250922215716-0e868c9e5fcf/go.mod h1:d1AMFw81rUgrGHuZzWdPNhkY0G8w7pvLNLYF0e3ceC4=
 github.com/coder/bubbletea v1.2.2-0.20241212190825-007a1cdb2c41 h1:SBN/DA63+ZHwuWwPHPYoCZ/KLAjHv5g4h2MS4f2/MTI=
 github.com/coder/bubbletea v1.2.2-0.20241212190825-007a1cdb2c41/go.mod h1:I9ULxr64UaOSUv7hcb3nX4kowodJCVS7vt7VVJk/kW4=
 github.com/coder/clistat v1.0.0 h1:MjiS7qQ1IobuSSgDnxcCSyBPESs44hExnh2TEqMcGnA=
@@ -922,10 +924,6 @@ github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136 h1:0RgB61LcNs
 github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136/go.mod h1:VkD1P761nykiq75dz+4iFqIQIZka189tx1BQLOp0Skc=
 github.com/coder/guts v1.5.0 h1:a94apf7xMf5jDdg1bIHzncbRiTn3+BvBZgrFSDbUnyI=
 github.com/coder/guts v1.5.0/go.mod h1:0Sbv5Kp83u1Nl7MIQiV2zmacJ3o02I341bkWkjWXSUQ=
-github.com/coder/jail v1.0.1-0.20250911203532-70677f27857e h1:hvqfdtxBJL3FavB0pb0H3JXmj8uFGRCxreHd5HyztdM=
-github.com/coder/jail v1.0.1-0.20250911203532-70677f27857e/go.mod h1:JrRS7QEvzNFLPjUcgVs9IjewlJmk4Ia9c4CatZfl0A8=
-github.com/coder/jail v1.0.1-0.20250912153404-1e687be21fb5 h1:CmGiqeVtb1tNlLxwlNKAGbGKwOfIBoeyFJCwONYZxf4=
-github.com/coder/jail v1.0.1-0.20250912153404-1e687be21fb5/go.mod h1:JrRS7QEvzNFLPjUcgVs9IjewlJmk4Ia9c4CatZfl0A8=
 github.com/coder/pq v1.10.5-0.20250807075151-6ad9b0a25151 h1:YAxwg3lraGNRwoQ18H7R7n+wsCqNve7Brdvj0F1rDnU=
 github.com/coder/pq v1.10.5-0.20250807075151-6ad9b0a25151/go.mod h1:AlVN5x4E4T544tWzH6hKfbfQvm3HdbOxrmggDNAPY9o=
 github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0 h1:3A0ES21Ke+FxEM8CXx9n47SZOKOpgSE1bbJzlE4qPVs=
