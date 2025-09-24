@@ -54,7 +54,7 @@ export const CommandInput = forwardRef<
 			ref={ref}
 			className={cn(
 				`flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none border-none
-				placeholder:text-content-secondary
+				placeholder:text-content-secondary text-content-primary
 				disabled:cursor-not-allowed disabled:opacity-50`,
 				className,
 			)}

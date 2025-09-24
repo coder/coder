@@ -4893,6 +4893,7 @@ export const MockTasks = [
 	{
 		workspace: {
 			...MockWorkspace,
+			name: "create-competitors-page",
 			latest_app_status: MockWorkspaceAppStatus,
 		},
 		prompt: "Create competitors page",
@@ -4901,6 +4902,7 @@ export const MockTasks = [
 		workspace: {
 			...MockWorkspace,
 			id: "workspace-2",
+			name: "fix-avatar-size",
 			latest_app_status: {
 				...MockWorkspaceAppStatus,
 				message: "Avatar size fixed!",
@@ -4912,6 +4914,7 @@ export const MockTasks = [
 		workspace: {
 			...MockWorkspace,
 			id: "workspace-3",
+			name: "fix-accessibility-issues",
 			latest_app_status: {
 				...MockWorkspaceAppStatus,
 				message: "Accessibility issues fixed!",
