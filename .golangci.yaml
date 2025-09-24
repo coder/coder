@@ -2,6 +2,21 @@
 # Over time we should try tightening some of these.
 
 linters-settings:
+  depguard:
+    rules:
+      experimental:
+        list-mode: lax
+        deny:
+          - pkg: "github.com/coder/coder/v2/x"
+            desc: "experimental packages must have a reason for being imported"
+          - pkg: "github.com/coder/coder/v2/cli/x"
+            desc: "experimental packages must have a reason for being imported"
+          - pkg: "github.com/coder/coder/v2/coderd/x"
+            desc: "experimental packages must have a reason for being imported"
+          - pkg: "github.com/coder/coder/v2/codersdk/x"
+            desc: "experimental packages must have a reason for being imported"
+          - pkg: "github.com/coder/coder/v2/enterprise/x"
+            desc: "experimental packages must have a reason for being imported"
   dupl:
     # goal: 100
     threshold: 412
@@ -217,6 +232,7 @@ linters:
     - asciicheck
     - bidichk
     - bodyclose
+    - depguard
     - dogsled
     - errcheck
     - errname
