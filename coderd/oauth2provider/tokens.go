@@ -92,9 +92,8 @@ func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []c
 }
 
 // Tokens
-// TODO: the sessions lifetime config passed is for coder api tokens.
-// Should there be a separate config for oauth2 tokens? They are related,
-// but they are not the same.
+// Uses Sessions.DefaultDuration for access token (API key) TTL and
+// Sessions.RefreshDefaultDuration for refresh token TTL.
 func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -280,6 +279,13 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	}
 
 	// Do the actual token exchange in the database.
+	// Determine refresh token expiry independently from the access token.
+	refreshLifetime := lifetimes.RefreshDefaultDuration.Value()
+	if refreshLifetime == 0 {
+		refreshLifetime = lifetimes.DefaultDuration.Value()
+	}
+	refreshExpiresAt := dbtime.Now().Add(refreshLifetime)
+
 	err = db.InTx(func(tx database.Store) error {
 		ctx := dbauthz.As(ctx, actor)
 		err = tx.DeleteOAuth2ProviderAppCodeByID(ctx, dbCode.ID)
@@ -307,7 +313,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		_, err = tx.InsertOAuth2ProviderAppToken(ctx, database.InsertOAuth2ProviderAppTokenParams{
 			ID:          uuid.New(),
 			CreatedAt:   dbtime.Now(),
-			ExpiresAt:   key.ExpiresAt,
+			ExpiresAt:   refreshExpiresAt,
 			HashPrefix:  []byte(refreshToken.Prefix),
 			RefreshHash: []byte(refreshToken.Hashed),
 			AppSecretID: dbSecret.ID,
@@ -401,6 +407,13 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	}
 
 	// Replace the token.
+	// Determine refresh token expiry independently from the access token.
+	refreshLifetime := lifetimes.RefreshDefaultDuration.Value()
+	if refreshLifetime == 0 {
+		refreshLifetime = lifetimes.DefaultDuration.Value()
+	}
+	refreshExpiresAt := dbtime.Now().Add(refreshLifetime)
+
 	err = db.InTx(func(tx database.Store) error {
 		ctx := dbauthz.As(ctx, actor)
 		err = tx.DeleteAPIKeyByID(ctx, prevKey.ID) // This cascades to the token.
@@ -416,7 +429,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 		_, err = tx.InsertOAuth2ProviderAppToken(ctx, database.InsertOAuth2ProviderAppTokenParams{
 			ID:          uuid.New(),
 			CreatedAt:   dbtime.Now(),
-			ExpiresAt:   key.ExpiresAt,
+			ExpiresAt:   refreshExpiresAt,
 			HashPrefix:  []byte(refreshToken.Prefix),
 			RefreshHash: []byte(refreshToken.Hashed),
 			AppSecretID: dbToken.AppSecretID,

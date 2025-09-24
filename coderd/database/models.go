@@ -19,8 +19,146 @@ import (
 type APIKeyScope string
 
 const (
-	APIKeyScopeAll                APIKeyScope = "all"
-	APIKeyScopeApplicationConnect APIKeyScope = "application_connect"
+	APIKeyScopeAll                                 APIKeyScope = "all"
+	APIKeyScopeApplicationConnect                  APIKeyScope = "application_connect"
+	ApiKeyScopeAibridgeInterceptionCreate          APIKeyScope = "aibridge_interception:create"
+	ApiKeyScopeAibridgeInterceptionRead            APIKeyScope = "aibridge_interception:read"
+	ApiKeyScopeAibridgeInterceptionUpdate          APIKeyScope = "aibridge_interception:update"
+	ApiKeyScopeApiKeyCreate                        APIKeyScope = "api_key:create"
+	ApiKeyScopeApiKeyDelete                        APIKeyScope = "api_key:delete"
+	ApiKeyScopeApiKeyRead                          APIKeyScope = "api_key:read"
+	ApiKeyScopeApiKeyUpdate                        APIKeyScope = "api_key:update"
+	ApiKeyScopeAssignOrgRoleAssign                 APIKeyScope = "assign_org_role:assign"
+	ApiKeyScopeAssignOrgRoleCreate                 APIKeyScope = "assign_org_role:create"
+	ApiKeyScopeAssignOrgRoleDelete                 APIKeyScope = "assign_org_role:delete"
+	ApiKeyScopeAssignOrgRoleRead                   APIKeyScope = "assign_org_role:read"
+	ApiKeyScopeAssignOrgRoleUnassign               APIKeyScope = "assign_org_role:unassign"
+	ApiKeyScopeAssignOrgRoleUpdate                 APIKeyScope = "assign_org_role:update"
+	ApiKeyScopeAssignRoleAssign                    APIKeyScope = "assign_role:assign"
+	ApiKeyScopeAssignRoleRead                      APIKeyScope = "assign_role:read"
+	ApiKeyScopeAssignRoleUnassign                  APIKeyScope = "assign_role:unassign"
+	ApiKeyScopeAuditLogCreate                      APIKeyScope = "audit_log:create"
+	ApiKeyScopeAuditLogRead                        APIKeyScope = "audit_log:read"
+	ApiKeyScopeConnectionLogRead                   APIKeyScope = "connection_log:read"
+	ApiKeyScopeConnectionLogUpdate                 APIKeyScope = "connection_log:update"
+	ApiKeyScopeCryptoKeyCreate                     APIKeyScope = "crypto_key:create"
+	ApiKeyScopeCryptoKeyDelete                     APIKeyScope = "crypto_key:delete"
+	ApiKeyScopeCryptoKeyRead                       APIKeyScope = "crypto_key:read"
+	ApiKeyScopeCryptoKeyUpdate                     APIKeyScope = "crypto_key:update"
+	ApiKeyScopeDebugInfoRead                       APIKeyScope = "debug_info:read"
+	ApiKeyScopeDeploymentConfigRead                APIKeyScope = "deployment_config:read"
+	ApiKeyScopeDeploymentConfigUpdate              APIKeyScope = "deployment_config:update"
+	ApiKeyScopeDeploymentStatsRead                 APIKeyScope = "deployment_stats:read"
+	ApiKeyScopeFileCreate                          APIKeyScope = "file:create"
+	ApiKeyScopeFileRead                            APIKeyScope = "file:read"
+	ApiKeyScopeGroupCreate                         APIKeyScope = "group:create"
+	ApiKeyScopeGroupDelete                         APIKeyScope = "group:delete"
+	ApiKeyScopeGroupRead                           APIKeyScope = "group:read"
+	ApiKeyScopeGroupUpdate                         APIKeyScope = "group:update"
+	ApiKeyScopeGroupMemberRead                     APIKeyScope = "group_member:read"
+	ApiKeyScopeIdpsyncSettingsRead                 APIKeyScope = "idpsync_settings:read"
+	ApiKeyScopeIdpsyncSettingsUpdate               APIKeyScope = "idpsync_settings:update"
+	ApiKeyScopeInboxNotificationCreate             APIKeyScope = "inbox_notification:create"
+	ApiKeyScopeInboxNotificationRead               APIKeyScope = "inbox_notification:read"
+	ApiKeyScopeInboxNotificationUpdate             APIKeyScope = "inbox_notification:update"
+	ApiKeyScopeLicenseCreate                       APIKeyScope = "license:create"
+	ApiKeyScopeLicenseDelete                       APIKeyScope = "license:delete"
+	ApiKeyScopeLicenseRead                         APIKeyScope = "license:read"
+	ApiKeyScopeNotificationMessageCreate           APIKeyScope = "notification_message:create"
+	ApiKeyScopeNotificationMessageDelete           APIKeyScope = "notification_message:delete"
+	ApiKeyScopeNotificationMessageRead             APIKeyScope = "notification_message:read"
+	ApiKeyScopeNotificationMessageUpdate           APIKeyScope = "notification_message:update"
+	ApiKeyScopeNotificationPreferenceRead          APIKeyScope = "notification_preference:read"
+	ApiKeyScopeNotificationPreferenceUpdate        APIKeyScope = "notification_preference:update"
+	ApiKeyScopeNotificationTemplateRead            APIKeyScope = "notification_template:read"
+	ApiKeyScopeNotificationTemplateUpdate          APIKeyScope = "notification_template:update"
+	ApiKeyScopeOauth2AppCreate                     APIKeyScope = "oauth2_app:create"
+	ApiKeyScopeOauth2AppDelete                     APIKeyScope = "oauth2_app:delete"
+	ApiKeyScopeOauth2AppRead                       APIKeyScope = "oauth2_app:read"
+	ApiKeyScopeOauth2AppUpdate                     APIKeyScope = "oauth2_app:update"
+	ApiKeyScopeOauth2AppCodeTokenCreate            APIKeyScope = "oauth2_app_code_token:create"
+	ApiKeyScopeOauth2AppCodeTokenDelete            APIKeyScope = "oauth2_app_code_token:delete"
+	ApiKeyScopeOauth2AppCodeTokenRead              APIKeyScope = "oauth2_app_code_token:read"
+	ApiKeyScopeOauth2AppSecretCreate               APIKeyScope = "oauth2_app_secret:create"
+	ApiKeyScopeOauth2AppSecretDelete               APIKeyScope = "oauth2_app_secret:delete"
+	ApiKeyScopeOauth2AppSecretRead                 APIKeyScope = "oauth2_app_secret:read"
+	ApiKeyScopeOauth2AppSecretUpdate               APIKeyScope = "oauth2_app_secret:update"
+	ApiKeyScopeOrganizationCreate                  APIKeyScope = "organization:create"
+	ApiKeyScopeOrganizationDelete                  APIKeyScope = "organization:delete"
+	ApiKeyScopeOrganizationRead                    APIKeyScope = "organization:read"
+	ApiKeyScopeOrganizationUpdate                  APIKeyScope = "organization:update"
+	ApiKeyScopeOrganizationMemberCreate            APIKeyScope = "organization_member:create"
+	ApiKeyScopeOrganizationMemberDelete            APIKeyScope = "organization_member:delete"
+	ApiKeyScopeOrganizationMemberRead              APIKeyScope = "organization_member:read"
+	ApiKeyScopeOrganizationMemberUpdate            APIKeyScope = "organization_member:update"
+	ApiKeyScopePrebuiltWorkspaceDelete             APIKeyScope = "prebuilt_workspace:delete"
+	ApiKeyScopePrebuiltWorkspaceUpdate             APIKeyScope = "prebuilt_workspace:update"
+	ApiKeyScopeProvisionerDaemonCreate             APIKeyScope = "provisioner_daemon:create"
+	ApiKeyScopeProvisionerDaemonDelete             APIKeyScope = "provisioner_daemon:delete"
+	ApiKeyScopeProvisionerDaemonRead               APIKeyScope = "provisioner_daemon:read"
+	ApiKeyScopeProvisionerDaemonUpdate             APIKeyScope = "provisioner_daemon:update"
+	ApiKeyScopeProvisionerJobsCreate               APIKeyScope = "provisioner_jobs:create"
+	ApiKeyScopeProvisionerJobsRead                 APIKeyScope = "provisioner_jobs:read"
+	ApiKeyScopeProvisionerJobsUpdate               APIKeyScope = "provisioner_jobs:update"
+	ApiKeyScopeReplicasRead                        APIKeyScope = "replicas:read"
+	ApiKeyScopeSystemCreate                        APIKeyScope = "system:create"
+	ApiKeyScopeSystemDelete                        APIKeyScope = "system:delete"
+	ApiKeyScopeSystemRead                          APIKeyScope = "system:read"
+	ApiKeyScopeSystemUpdate                        APIKeyScope = "system:update"
+	ApiKeyScopeTailnetCoordinatorCreate            APIKeyScope = "tailnet_coordinator:create"
+	ApiKeyScopeTailnetCoordinatorDelete            APIKeyScope = "tailnet_coordinator:delete"
+	ApiKeyScopeTailnetCoordinatorRead              APIKeyScope = "tailnet_coordinator:read"
+	ApiKeyScopeTailnetCoordinatorUpdate            APIKeyScope = "tailnet_coordinator:update"
+	ApiKeyScopeTemplateCreate                      APIKeyScope = "template:create"
+	ApiKeyScopeTemplateDelete                      APIKeyScope = "template:delete"
+	ApiKeyScopeTemplateRead                        APIKeyScope = "template:read"
+	ApiKeyScopeTemplateUpdate                      APIKeyScope = "template:update"
+	ApiKeyScopeTemplateUse                         APIKeyScope = "template:use"
+	ApiKeyScopeTemplateViewInsights                APIKeyScope = "template:view_insights"
+	ApiKeyScopeUsageEventCreate                    APIKeyScope = "usage_event:create"
+	ApiKeyScopeUsageEventRead                      APIKeyScope = "usage_event:read"
+	ApiKeyScopeUsageEventUpdate                    APIKeyScope = "usage_event:update"
+	ApiKeyScopeUserCreate                          APIKeyScope = "user:create"
+	ApiKeyScopeUserDelete                          APIKeyScope = "user:delete"
+	ApiKeyScopeUserRead                            APIKeyScope = "user:read"
+	ApiKeyScopeUserReadPersonal                    APIKeyScope = "user:read_personal"
+	ApiKeyScopeUserUpdate                          APIKeyScope = "user:update"
+	ApiKeyScopeUserUpdatePersonal                  APIKeyScope = "user:update_personal"
+	ApiKeyScopeUserSecretCreate                    APIKeyScope = "user_secret:create"
+	ApiKeyScopeUserSecretDelete                    APIKeyScope = "user_secret:delete"
+	ApiKeyScopeUserSecretRead                      APIKeyScope = "user_secret:read"
+	ApiKeyScopeUserSecretUpdate                    APIKeyScope = "user_secret:update"
+	ApiKeyScopeWebpushSubscriptionCreate           APIKeyScope = "webpush_subscription:create"
+	ApiKeyScopeWebpushSubscriptionDelete           APIKeyScope = "webpush_subscription:delete"
+	ApiKeyScopeWebpushSubscriptionRead             APIKeyScope = "webpush_subscription:read"
+	ApiKeyScopeWorkspaceApplicationConnect         APIKeyScope = "workspace:application_connect"
+	ApiKeyScopeWorkspaceCreate                     APIKeyScope = "workspace:create"
+	ApiKeyScopeWorkspaceCreateAgent                APIKeyScope = "workspace:create_agent"
+	ApiKeyScopeWorkspaceDelete                     APIKeyScope = "workspace:delete"
+	ApiKeyScopeWorkspaceDeleteAgent                APIKeyScope = "workspace:delete_agent"
+	ApiKeyScopeWorkspaceRead                       APIKeyScope = "workspace:read"
+	ApiKeyScopeWorkspaceSsh                        APIKeyScope = "workspace:ssh"
+	ApiKeyScopeWorkspaceStart                      APIKeyScope = "workspace:start"
+	ApiKeyScopeWorkspaceStop                       APIKeyScope = "workspace:stop"
+	ApiKeyScopeWorkspaceUpdate                     APIKeyScope = "workspace:update"
+	ApiKeyScopeWorkspaceAgentDevcontainersCreate   APIKeyScope = "workspace_agent_devcontainers:create"
+	ApiKeyScopeWorkspaceAgentResourceMonitorCreate APIKeyScope = "workspace_agent_resource_monitor:create"
+	ApiKeyScopeWorkspaceAgentResourceMonitorRead   APIKeyScope = "workspace_agent_resource_monitor:read"
+	ApiKeyScopeWorkspaceAgentResourceMonitorUpdate APIKeyScope = "workspace_agent_resource_monitor:update"
+	ApiKeyScopeWorkspaceDormantApplicationConnect  APIKeyScope = "workspace_dormant:application_connect"
+	ApiKeyScopeWorkspaceDormantCreate              APIKeyScope = "workspace_dormant:create"
+	ApiKeyScopeWorkspaceDormantCreateAgent         APIKeyScope = "workspace_dormant:create_agent"
+	ApiKeyScopeWorkspaceDormantDelete              APIKeyScope = "workspace_dormant:delete"
+	ApiKeyScopeWorkspaceDormantDeleteAgent         APIKeyScope = "workspace_dormant:delete_agent"
+	ApiKeyScopeWorkspaceDormantRead                APIKeyScope = "workspace_dormant:read"
+	ApiKeyScopeWorkspaceDormantSsh                 APIKeyScope = "workspace_dormant:ssh"
+	ApiKeyScopeWorkspaceDormantStart               APIKeyScope = "workspace_dormant:start"
+	ApiKeyScopeWorkspaceDormantStop                APIKeyScope = "workspace_dormant:stop"
+	ApiKeyScopeWorkspaceDormantUpdate              APIKeyScope = "workspace_dormant:update"
+	ApiKeyScopeWorkspaceProxyCreate                APIKeyScope = "workspace_proxy:create"
+	ApiKeyScopeWorkspaceProxyDelete                APIKeyScope = "workspace_proxy:delete"
+	ApiKeyScopeWorkspaceProxyRead                  APIKeyScope = "workspace_proxy:read"
+	ApiKeyScopeWorkspaceProxyUpdate                APIKeyScope = "workspace_proxy:update"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -61,7 +199,145 @@ func (ns NullAPIKeyScope) Value() (driver.Value, error) {
 func (e APIKeyScope) Valid() bool {
 	switch e {
 	case APIKeyScopeAll,
-		APIKeyScopeApplicationConnect:
+		APIKeyScopeApplicationConnect,
+		ApiKeyScopeAibridgeInterceptionCreate,
+		ApiKeyScopeAibridgeInterceptionRead,
+		ApiKeyScopeAibridgeInterceptionUpdate,
+		ApiKeyScopeApiKeyCreate,
+		ApiKeyScopeApiKeyDelete,
+		ApiKeyScopeApiKeyRead,
+		ApiKeyScopeApiKeyUpdate,
+		ApiKeyScopeAssignOrgRoleAssign,
+		ApiKeyScopeAssignOrgRoleCreate,
+		ApiKeyScopeAssignOrgRoleDelete,
+		ApiKeyScopeAssignOrgRoleRead,
+		ApiKeyScopeAssignOrgRoleUnassign,
+		ApiKeyScopeAssignOrgRoleUpdate,
+		ApiKeyScopeAssignRoleAssign,
+		ApiKeyScopeAssignRoleRead,
+		ApiKeyScopeAssignRoleUnassign,
+		ApiKeyScopeAuditLogCreate,
+		ApiKeyScopeAuditLogRead,
+		ApiKeyScopeConnectionLogRead,
+		ApiKeyScopeConnectionLogUpdate,
+		ApiKeyScopeCryptoKeyCreate,
+		ApiKeyScopeCryptoKeyDelete,
+		ApiKeyScopeCryptoKeyRead,
+		ApiKeyScopeCryptoKeyUpdate,
+		ApiKeyScopeDebugInfoRead,
+		ApiKeyScopeDeploymentConfigRead,
+		ApiKeyScopeDeploymentConfigUpdate,
+		ApiKeyScopeDeploymentStatsRead,
+		ApiKeyScopeFileCreate,
+		ApiKeyScopeFileRead,
+		ApiKeyScopeGroupCreate,
+		ApiKeyScopeGroupDelete,
+		ApiKeyScopeGroupRead,
+		ApiKeyScopeGroupUpdate,
+		ApiKeyScopeGroupMemberRead,
+		ApiKeyScopeIdpsyncSettingsRead,
+		ApiKeyScopeIdpsyncSettingsUpdate,
+		ApiKeyScopeInboxNotificationCreate,
+		ApiKeyScopeInboxNotificationRead,
+		ApiKeyScopeInboxNotificationUpdate,
+		ApiKeyScopeLicenseCreate,
+		ApiKeyScopeLicenseDelete,
+		ApiKeyScopeLicenseRead,
+		ApiKeyScopeNotificationMessageCreate,
+		ApiKeyScopeNotificationMessageDelete,
+		ApiKeyScopeNotificationMessageRead,
+		ApiKeyScopeNotificationMessageUpdate,
+		ApiKeyScopeNotificationPreferenceRead,
+		ApiKeyScopeNotificationPreferenceUpdate,
+		ApiKeyScopeNotificationTemplateRead,
+		ApiKeyScopeNotificationTemplateUpdate,
+		ApiKeyScopeOauth2AppCreate,
+		ApiKeyScopeOauth2AppDelete,
+		ApiKeyScopeOauth2AppRead,
+		ApiKeyScopeOauth2AppUpdate,
+		ApiKeyScopeOauth2AppCodeTokenCreate,
+		ApiKeyScopeOauth2AppCodeTokenDelete,
+		ApiKeyScopeOauth2AppCodeTokenRead,
+		ApiKeyScopeOauth2AppSecretCreate,
+		ApiKeyScopeOauth2AppSecretDelete,
+		ApiKeyScopeOauth2AppSecretRead,
+		ApiKeyScopeOauth2AppSecretUpdate,
+		ApiKeyScopeOrganizationCreate,
+		ApiKeyScopeOrganizationDelete,
+		ApiKeyScopeOrganizationRead,
+		ApiKeyScopeOrganizationUpdate,
+		ApiKeyScopeOrganizationMemberCreate,
+		ApiKeyScopeOrganizationMemberDelete,
+		ApiKeyScopeOrganizationMemberRead,
+		ApiKeyScopeOrganizationMemberUpdate,
+		ApiKeyScopePrebuiltWorkspaceDelete,
+		ApiKeyScopePrebuiltWorkspaceUpdate,
+		ApiKeyScopeProvisionerDaemonCreate,
+		ApiKeyScopeProvisionerDaemonDelete,
+		ApiKeyScopeProvisionerDaemonRead,
+		ApiKeyScopeProvisionerDaemonUpdate,
+		ApiKeyScopeProvisionerJobsCreate,
+		ApiKeyScopeProvisionerJobsRead,
+		ApiKeyScopeProvisionerJobsUpdate,
+		ApiKeyScopeReplicasRead,
+		ApiKeyScopeSystemCreate,
+		ApiKeyScopeSystemDelete,
+		ApiKeyScopeSystemRead,
+		ApiKeyScopeSystemUpdate,
+		ApiKeyScopeTailnetCoordinatorCreate,
+		ApiKeyScopeTailnetCoordinatorDelete,
+		ApiKeyScopeTailnetCoordinatorRead,
+		ApiKeyScopeTailnetCoordinatorUpdate,
+		ApiKeyScopeTemplateCreate,
+		ApiKeyScopeTemplateDelete,
+		ApiKeyScopeTemplateRead,
+		ApiKeyScopeTemplateUpdate,
+		ApiKeyScopeTemplateUse,
+		ApiKeyScopeTemplateViewInsights,
+		ApiKeyScopeUsageEventCreate,
+		ApiKeyScopeUsageEventRead,
+		ApiKeyScopeUsageEventUpdate,
+		ApiKeyScopeUserCreate,
+		ApiKeyScopeUserDelete,
+		ApiKeyScopeUserRead,
+		ApiKeyScopeUserReadPersonal,
+		ApiKeyScopeUserUpdate,
+		ApiKeyScopeUserUpdatePersonal,
+		ApiKeyScopeUserSecretCreate,
+		ApiKeyScopeUserSecretDelete,
+		ApiKeyScopeUserSecretRead,
+		ApiKeyScopeUserSecretUpdate,
+		ApiKeyScopeWebpushSubscriptionCreate,
+		ApiKeyScopeWebpushSubscriptionDelete,
+		ApiKeyScopeWebpushSubscriptionRead,
+		ApiKeyScopeWorkspaceApplicationConnect,
+		ApiKeyScopeWorkspaceCreate,
+		ApiKeyScopeWorkspaceCreateAgent,
+		ApiKeyScopeWorkspaceDelete,
+		ApiKeyScopeWorkspaceDeleteAgent,
+		ApiKeyScopeWorkspaceRead,
+		ApiKeyScopeWorkspaceSsh,
+		ApiKeyScopeWorkspaceStart,
+		ApiKeyScopeWorkspaceStop,
+		ApiKeyScopeWorkspaceUpdate,
+		ApiKeyScopeWorkspaceAgentDevcontainersCreate,
+		ApiKeyScopeWorkspaceAgentResourceMonitorCreate,
+		ApiKeyScopeWorkspaceAgentResourceMonitorRead,
+		ApiKeyScopeWorkspaceAgentResourceMonitorUpdate,
+		ApiKeyScopeWorkspaceDormantApplicationConnect,
+		ApiKeyScopeWorkspaceDormantCreate,
+		ApiKeyScopeWorkspaceDormantCreateAgent,
+		ApiKeyScopeWorkspaceDormantDelete,
+		ApiKeyScopeWorkspaceDormantDeleteAgent,
+		ApiKeyScopeWorkspaceDormantRead,
+		ApiKeyScopeWorkspaceDormantSsh,
+		ApiKeyScopeWorkspaceDormantStart,
+		ApiKeyScopeWorkspaceDormantStop,
+		ApiKeyScopeWorkspaceDormantUpdate,
+		ApiKeyScopeWorkspaceProxyCreate,
+		ApiKeyScopeWorkspaceProxyDelete,
+		ApiKeyScopeWorkspaceProxyRead,
+		ApiKeyScopeWorkspaceProxyUpdate:
 		return true
 	}
 	return false
@@ -71,6 +347,144 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 	return []APIKeyScope{
 		APIKeyScopeAll,
 		APIKeyScopeApplicationConnect,
+		ApiKeyScopeAibridgeInterceptionCreate,
+		ApiKeyScopeAibridgeInterceptionRead,
+		ApiKeyScopeAibridgeInterceptionUpdate,
+		ApiKeyScopeApiKeyCreate,
+		ApiKeyScopeApiKeyDelete,
+		ApiKeyScopeApiKeyRead,
+		ApiKeyScopeApiKeyUpdate,
+		ApiKeyScopeAssignOrgRoleAssign,
+		ApiKeyScopeAssignOrgRoleCreate,
+		ApiKeyScopeAssignOrgRoleDelete,
+		ApiKeyScopeAssignOrgRoleRead,
+		ApiKeyScopeAssignOrgRoleUnassign,
+		ApiKeyScopeAssignOrgRoleUpdate,
+		ApiKeyScopeAssignRoleAssign,
+		ApiKeyScopeAssignRoleRead,
+		ApiKeyScopeAssignRoleUnassign,
+		ApiKeyScopeAuditLogCreate,
+		ApiKeyScopeAuditLogRead,
+		ApiKeyScopeConnectionLogRead,
+		ApiKeyScopeConnectionLogUpdate,
+		ApiKeyScopeCryptoKeyCreate,
+		ApiKeyScopeCryptoKeyDelete,
+		ApiKeyScopeCryptoKeyRead,
+		ApiKeyScopeCryptoKeyUpdate,
+		ApiKeyScopeDebugInfoRead,
+		ApiKeyScopeDeploymentConfigRead,
+		ApiKeyScopeDeploymentConfigUpdate,
+		ApiKeyScopeDeploymentStatsRead,
+		ApiKeyScopeFileCreate,
+		ApiKeyScopeFileRead,
+		ApiKeyScopeGroupCreate,
+		ApiKeyScopeGroupDelete,
+		ApiKeyScopeGroupRead,
+		ApiKeyScopeGroupUpdate,
+		ApiKeyScopeGroupMemberRead,
+		ApiKeyScopeIdpsyncSettingsRead,
+		ApiKeyScopeIdpsyncSettingsUpdate,
+		ApiKeyScopeInboxNotificationCreate,
+		ApiKeyScopeInboxNotificationRead,
+		ApiKeyScopeInboxNotificationUpdate,
+		ApiKeyScopeLicenseCreate,
+		ApiKeyScopeLicenseDelete,
+		ApiKeyScopeLicenseRead,
+		ApiKeyScopeNotificationMessageCreate,
+		ApiKeyScopeNotificationMessageDelete,
+		ApiKeyScopeNotificationMessageRead,
+		ApiKeyScopeNotificationMessageUpdate,
+		ApiKeyScopeNotificationPreferenceRead,
+		ApiKeyScopeNotificationPreferenceUpdate,
+		ApiKeyScopeNotificationTemplateRead,
+		ApiKeyScopeNotificationTemplateUpdate,
+		ApiKeyScopeOauth2AppCreate,
+		ApiKeyScopeOauth2AppDelete,
+		ApiKeyScopeOauth2AppRead,
+		ApiKeyScopeOauth2AppUpdate,
+		ApiKeyScopeOauth2AppCodeTokenCreate,
+		ApiKeyScopeOauth2AppCodeTokenDelete,
+		ApiKeyScopeOauth2AppCodeTokenRead,
+		ApiKeyScopeOauth2AppSecretCreate,
+		ApiKeyScopeOauth2AppSecretDelete,
+		ApiKeyScopeOauth2AppSecretRead,
+		ApiKeyScopeOauth2AppSecretUpdate,
+		ApiKeyScopeOrganizationCreate,
+		ApiKeyScopeOrganizationDelete,
+		ApiKeyScopeOrganizationRead,
+		ApiKeyScopeOrganizationUpdate,
+		ApiKeyScopeOrganizationMemberCreate,
+		ApiKeyScopeOrganizationMemberDelete,
+		ApiKeyScopeOrganizationMemberRead,
+		ApiKeyScopeOrganizationMemberUpdate,
+		ApiKeyScopePrebuiltWorkspaceDelete,
+		ApiKeyScopePrebuiltWorkspaceUpdate,
+		ApiKeyScopeProvisionerDaemonCreate,
+		ApiKeyScopeProvisionerDaemonDelete,
+		ApiKeyScopeProvisionerDaemonRead,
+		ApiKeyScopeProvisionerDaemonUpdate,
+		ApiKeyScopeProvisionerJobsCreate,
+		ApiKeyScopeProvisionerJobsRead,
+		ApiKeyScopeProvisionerJobsUpdate,
+		ApiKeyScopeReplicasRead,
+		ApiKeyScopeSystemCreate,
+		ApiKeyScopeSystemDelete,
+		ApiKeyScopeSystemRead,
+		ApiKeyScopeSystemUpdate,
+		ApiKeyScopeTailnetCoordinatorCreate,
+		ApiKeyScopeTailnetCoordinatorDelete,
+		ApiKeyScopeTailnetCoordinatorRead,
+		ApiKeyScopeTailnetCoordinatorUpdate,
+		ApiKeyScopeTemplateCreate,
+		ApiKeyScopeTemplateDelete,
+		ApiKeyScopeTemplateRead,
+		ApiKeyScopeTemplateUpdate,
+		ApiKeyScopeTemplateUse,
+		ApiKeyScopeTemplateViewInsights,
+		ApiKeyScopeUsageEventCreate,
+		ApiKeyScopeUsageEventRead,
+		ApiKeyScopeUsageEventUpdate,
+		ApiKeyScopeUserCreate,
+		ApiKeyScopeUserDelete,
+		ApiKeyScopeUserRead,
+		ApiKeyScopeUserReadPersonal,
+		ApiKeyScopeUserUpdate,
+		ApiKeyScopeUserUpdatePersonal,
+		ApiKeyScopeUserSecretCreate,
+		ApiKeyScopeUserSecretDelete,
+		ApiKeyScopeUserSecretRead,
+		ApiKeyScopeUserSecretUpdate,
+		ApiKeyScopeWebpushSubscriptionCreate,
+		ApiKeyScopeWebpushSubscriptionDelete,
+		ApiKeyScopeWebpushSubscriptionRead,
+		ApiKeyScopeWorkspaceApplicationConnect,
+		ApiKeyScopeWorkspaceCreate,
+		ApiKeyScopeWorkspaceCreateAgent,
+		ApiKeyScopeWorkspaceDelete,
+		ApiKeyScopeWorkspaceDeleteAgent,
+		ApiKeyScopeWorkspaceRead,
+		ApiKeyScopeWorkspaceSsh,
+		ApiKeyScopeWorkspaceStart,
+		ApiKeyScopeWorkspaceStop,
+		ApiKeyScopeWorkspaceUpdate,
+		ApiKeyScopeWorkspaceAgentDevcontainersCreate,
+		ApiKeyScopeWorkspaceAgentResourceMonitorCreate,
+		ApiKeyScopeWorkspaceAgentResourceMonitorRead,
+		ApiKeyScopeWorkspaceAgentResourceMonitorUpdate,
+		ApiKeyScopeWorkspaceDormantApplicationConnect,
+		ApiKeyScopeWorkspaceDormantCreate,
+		ApiKeyScopeWorkspaceDormantCreateAgent,
+		ApiKeyScopeWorkspaceDormantDelete,
+		ApiKeyScopeWorkspaceDormantDeleteAgent,
+		ApiKeyScopeWorkspaceDormantRead,
+		ApiKeyScopeWorkspaceDormantSsh,
+		ApiKeyScopeWorkspaceDormantStart,
+		ApiKeyScopeWorkspaceDormantStop,
+		ApiKeyScopeWorkspaceDormantUpdate,
+		ApiKeyScopeWorkspaceProxyCreate,
+		ApiKeyScopeWorkspaceProxyDelete,
+		ApiKeyScopeWorkspaceProxyRead,
+		ApiKeyScopeWorkspaceProxyUpdate,
 	}
 }
 
@@ -1201,6 +1615,7 @@ type NotificationTemplateKind string
 
 const (
 	NotificationTemplateKindSystem NotificationTemplateKind = "system"
+	NotificationTemplateKindCustom NotificationTemplateKind = "custom"
 )
 
 func (e *NotificationTemplateKind) Scan(src interface{}) error {
@@ -1240,7 +1655,8 @@ func (ns NullNotificationTemplateKind) Value() (driver.Value, error) {
 
 func (e NotificationTemplateKind) Valid() bool {
 	switch e {
-	case NotificationTemplateKindSystem:
+	case NotificationTemplateKindSystem,
+		NotificationTemplateKindCustom:
 		return true
 	}
 	return false
@@ -1249,6 +1665,7 @@ func (e NotificationTemplateKind) Valid() bool {
 func AllNotificationTemplateKindValues() []NotificationTemplateKind {
 	return []NotificationTemplateKind{
 		NotificationTemplateKindSystem,
+		NotificationTemplateKindCustom,
 	}
 }
 
@@ -2952,20 +3369,72 @@ func AllWorkspaceTransitionValues() []WorkspaceTransition {
 	}
 }
 
+// Audit log of requests intercepted by AI Bridge
+type AIBridgeInterception struct {
+	ID uuid.UUID `db:"id" json:"id"`
+	// Relates to a users record, but FK is elided for performance.
+	InitiatorID uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	Provider    string    `db:"provider" json:"provider"`
+	Model       string    `db:"model" json:"model"`
+	StartedAt   time.Time `db:"started_at" json:"started_at"`
+}
+
+// Audit log of tokens used by intercepted requests in AI Bridge
+type AIBridgeTokenUsage struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	InterceptionID uuid.UUID `db:"interception_id" json:"interception_id"`
+	// The ID for the response in which the tokens were used, produced by the provider.
+	ProviderResponseID string                `db:"provider_response_id" json:"provider_response_id"`
+	InputTokens        int64                 `db:"input_tokens" json:"input_tokens"`
+	OutputTokens       int64                 `db:"output_tokens" json:"output_tokens"`
+	Metadata           pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
+}
+
+// Audit log of tool calls in intercepted requests in AI Bridge
+type AIBridgeToolUsage struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	InterceptionID uuid.UUID `db:"interception_id" json:"interception_id"`
+	// The ID for the response in which the tools were used, produced by the provider.
+	ProviderResponseID string `db:"provider_response_id" json:"provider_response_id"`
+	// The name of the MCP server against which this tool was invoked. May be NULL, in which case the tool was defined by the client, not injected.
+	ServerUrl sql.NullString `db:"server_url" json:"server_url"`
+	Tool      string         `db:"tool" json:"tool"`
+	Input     string         `db:"input" json:"input"`
+	// Whether this tool was injected; i.e. Bridge injected these tools into the request from an MCP server. If false it means a tool was defined by the client and already existed in the request (MCP or built-in).
+	Injected bool `db:"injected" json:"injected"`
+	// Only injected tools are invoked.
+	InvocationError sql.NullString        `db:"invocation_error" json:"invocation_error"`
+	Metadata        pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt       time.Time             `db:"created_at" json:"created_at"`
+}
+
+// Audit log of prompts used by intercepted requests in AI Bridge
+type AIBridgeUserPrompt struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	InterceptionID uuid.UUID `db:"interception_id" json:"interception_id"`
+	// The ID for the response to the given prompt, produced by the provider.
+	ProviderResponseID string                `db:"provider_response_id" json:"provider_response_id"`
+	Prompt             string                `db:"prompt" json:"prompt"`
+	Metadata           pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
+}
+
 type APIKey struct {
 	ID string `db:"id" json:"id"`
 	// hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.
-	HashedSecret    []byte      `db:"hashed_secret" json:"hashed_secret"`
-	UserID          uuid.UUID   `db:"user_id" json:"user_id"`
-	LastUsed        time.Time   `db:"last_used" json:"last_used"`
-	ExpiresAt       time.Time   `db:"expires_at" json:"expires_at"`
-	CreatedAt       time.Time   `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time   `db:"updated_at" json:"updated_at"`
-	LoginType       LoginType   `db:"login_type" json:"login_type"`
-	LifetimeSeconds int64       `db:"lifetime_seconds" json:"lifetime_seconds"`
-	IPAddress       pqtype.Inet `db:"ip_address" json:"ip_address"`
-	Scope           APIKeyScope `db:"scope" json:"scope"`
-	TokenName       string      `db:"token_name" json:"token_name"`
+	HashedSecret    []byte       `db:"hashed_secret" json:"hashed_secret"`
+	UserID          uuid.UUID    `db:"user_id" json:"user_id"`
+	LastUsed        time.Time    `db:"last_used" json:"last_used"`
+	ExpiresAt       time.Time    `db:"expires_at" json:"expires_at"`
+	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time    `db:"updated_at" json:"updated_at"`
+	LoginType       LoginType    `db:"login_type" json:"login_type"`
+	LifetimeSeconds int64        `db:"lifetime_seconds" json:"lifetime_seconds"`
+	IPAddress       pqtype.Inet  `db:"ip_address" json:"ip_address"`
+	TokenName       string       `db:"token_name" json:"token_name"`
+	Scopes          APIKeyScopes `db:"scopes" json:"scopes"`
+	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
 }
 
 type AuditLog struct {
@@ -3498,6 +3967,26 @@ type TailnetTunnel struct {
 	SrcID         uuid.UUID `db:"src_id" json:"src_id"`
 	DstID         uuid.UUID `db:"dst_id" json:"dst_id"`
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type Task struct {
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	OrganizationID     uuid.UUID       `db:"organization_id" json:"organization_id"`
+	OwnerID            uuid.UUID       `db:"owner_id" json:"owner_id"`
+	Name               string          `db:"name" json:"name"`
+	WorkspaceID        uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID  uuid.UUID       `db:"template_version_id" json:"template_version_id"`
+	TemplateParameters json.RawMessage `db:"template_parameters" json:"template_parameters"`
+	Prompt             string          `db:"prompt" json:"prompt"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+	DeletedAt          sql.NullTime    `db:"deleted_at" json:"deleted_at"`
+}
+
+type TaskWorkspaceApp struct {
+	TaskID           uuid.UUID `db:"task_id" json:"task_id"`
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	WorkspaceAppID   uuid.UUID `db:"workspace_app_id" json:"workspace_app_id"`
 }
 
 type TelemetryItem struct {
@@ -4104,6 +4593,8 @@ type WorkspaceApp struct {
 	Hidden       bool               `db:"hidden" json:"hidden"`
 	OpenIn       WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
 	DisplayGroup sql.NullString     `db:"display_group" json:"display_group"`
+	// Markdown text that is displayed when hovering over workspace apps.
+	Tooltip string `db:"tooltip" json:"tooltip"`
 }
 
 // Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.

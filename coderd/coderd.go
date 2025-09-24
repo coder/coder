@@ -785,7 +785,7 @@ func New(options *Options) *API {
 		options.WorkspaceAppsStatsCollectorOptions.Reporter = api.statsReporter
 	}
 
-	api.workspaceAppServer = &workspaceapps.Server{
+	api.workspaceAppServer = workspaceapps.NewServer(workspaceapps.ServerOptions{
 		Logger: workspaceAppsLogger,
 
 		DashboardURL:  api.AccessURL,
@@ -799,9 +799,9 @@ func New(options *Options) *API {
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
 
 		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
-		Cookies:                  options.DeploymentValues.HTTPCookies,
+		CookiesConfig:            options.DeploymentValues.HTTPCookies,
 		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
-	}
+	})
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
@@ -1457,6 +1457,7 @@ func New(options *Options) *API {
 
 					r.Get("/", api.workspaceACL)
 					r.Patch("/", api.patchWorkspaceACL)
+					r.Delete("/", api.deleteWorkspaceACL)
 				})
 			})
 		})
@@ -1578,9 +1579,11 @@ func New(options *Options) *API {
 			r.Put("/settings", api.putNotificationsSettings)
 			r.Route("/templates", func(r chi.Router) {
 				r.Get("/system", api.systemNotificationTemplates)
+				r.Get("/custom", api.customNotificationTemplates)
 			})
 			r.Get("/dispatch-methods", api.notificationDispatchMethods)
 			r.Post("/test", api.postTestNotification)
+			r.Post("/custom", api.postCustomNotification)
 		})
 		r.Route("/tailnet", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

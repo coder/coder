@@ -35,6 +35,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
@@ -1258,6 +1259,20 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				Data: map[string]any{},
 			},
 		},
+		{
+			name: "TemplateCustomNotification",
+			id:   notifications.TemplateCustomNotification,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"custom_title":   "Custom Title",
+					"custom_message": "Custom Message",
+				},
+				Data: map[string]any{},
+			},
+		},
 	}
 
 	// We must have a test case for every notification_template. This is enforced below:
@@ -1640,7 +1655,8 @@ func TestDisabledByDefaultBeforeEnqueue(t *testing.T) {
 
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
-	logger := testutil.Logger(t)
+	logbuf := strings.Builder{}
+	logger := testutil.Logger(t).AppendSinks(sloghuman.Sink(&logbuf)).Leveled(slog.LevelDebug)
 
 	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
 	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
@@ -1648,10 +1664,12 @@ func TestDisabledByDefaultBeforeEnqueue(t *testing.T) {
 	user := createSampleUser(t, store)
 
 	// We want to try enqueuing a notification on a template that is disabled
-	// by default. We expect this to fail.
+	// by default. We expect this to be a no-op that produces a debug log.
 	templateID := notifications.TemplateWorkspaceManuallyUpdated
-	_, err = enq.Enqueue(ctx, user.ID, templateID, map[string]string{}, "test")
-	require.ErrorIs(t, err, notifications.ErrCannotEnqueueDisabledNotification, "enqueuing did not fail with expected error")
+	notifIDs, err := enq.Enqueue(ctx, user.ID, templateID, map[string]string{}, "test")
+	require.NoError(t, err)
+	require.Contains(t, logbuf.String(), notifications.ErrCannotEnqueueDisabledNotification.Error())
+	require.Empty(t, notifIDs)
 }
 
 // TestDisabledBeforeEnqueue ensures that notifications cannot be enqueued once a user has disabled that notification template
@@ -1665,7 +1683,8 @@ func TestDisabledBeforeEnqueue(t *testing.T) {
 
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
-	logger := testutil.Logger(t)
+	logbuf := strings.Builder{}
+	logger := testutil.Logger(t).AppendSinks(sloghuman.Sink(&logbuf)).Leveled(slog.LevelDebug)
 
 	// GIVEN: an enqueuer & a sample user
 	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
@@ -1683,9 +1702,12 @@ func TestDisabledBeforeEnqueue(t *testing.T) {
 	require.NoError(t, err, "failed to set preferences")
 	require.EqualValues(t, 1, n, "unexpected number of affected rows")
 
-	// THEN: enqueuing the "workspace deleted" notification should fail with an error
-	_, err = enq.Enqueue(ctx, user.ID, templateID, map[string]string{}, "test")
-	require.ErrorIs(t, err, notifications.ErrCannotEnqueueDisabledNotification, "enqueueing did not fail with expected error")
+	// THEN: enqueuing the "workspace deleted" notification should fail be
+	// a no-op that produces a debug log
+	notifIDs, err := enq.Enqueue(ctx, user.ID, templateID, map[string]string{}, "test")
+	require.NoError(t, err)
+	require.Contains(t, logbuf.String(), notifications.ErrCannotEnqueueDisabledNotification.Error())
+	require.Empty(t, notifIDs)
 }
 
 // TestDisabledAfterEnqueue ensures that notifications enqueued before a notification template was disabled will not be
@@ -1895,7 +1917,8 @@ func TestNotificationDuplicates(t *testing.T) {
 
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
-	logger := testutil.Logger(t)
+	logbuf := strings.Builder{}
+	logger := testutil.Logger(t).AppendSinks(sloghuman.Sink(&logbuf)).Leveled(slog.LevelDebug)
 
 	method := database.NotificationMethodSmtp
 	cfg := defaultNotificationsConfig(method)
@@ -1919,10 +1942,12 @@ func TestNotificationDuplicates(t *testing.T) {
 		map[string]string{"initiator": "danny"}, "test", user.ID)
 	require.NoError(t, err)
 
-	// WHEN: the second is enqueued, the enqueuer will reject the request.
-	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted,
+	// WHEN: the second is enqueued, the enqueuer will reject it as a duplicate.
+	ids, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted,
 		map[string]string{"initiator": "danny"}, "test", user.ID)
-	require.ErrorIs(t, err, notifications.ErrDuplicate)
+	require.NoError(t, err)
+	require.Contains(t, logbuf.String(), notifications.ErrDuplicate.Error())
+	require.Empty(t, ids)
 
 	// THEN: when the clock is advanced 24h, the notification will be accepted.
 	// NOTE: the time is used in the dedupe hash, so by advancing 24h we're creating a distinct notification from the one

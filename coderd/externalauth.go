@@ -85,20 +85,37 @@ func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
 // @ID delete-external-auth-user-link-by-id
 // @Security CoderSessionToken
 // @Tags Git
-// @Success 200
+// @Produce json
 // @Param externalauth path string true "Git Provider ID" format(string)
+// @Success 200 {object} codersdk.DeleteExternalAuthByIDResponse
 // @Router /external-auth/{externalauth} [delete]
 func (api *API) deleteExternalAuthByID(w http.ResponseWriter, r *http.Request) {
 	config := httpmw.ExternalAuthParam(r)
 	apiKey := httpmw.APIKey(r)
 	ctx := r.Context()
 
-	err := api.Database.DeleteExternalAuthLink(ctx, database.DeleteExternalAuthLinkParams{
+	link, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 		ProviderID: config.ID,
 		UserID:     apiKey.UserID,
 	})
 	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.ResourceNotFound(w)
+			return
+		}
+		httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get external auth link during deletion.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	err = api.Database.DeleteExternalAuthLink(ctx, database.DeleteExternalAuthLinkParams{
+		ProviderID: config.ID,
+		UserID:     apiKey.UserID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.ResourceNotFound(w)
 			return
 		}
@@ -109,7 +126,13 @@ func (api *API) deleteExternalAuthByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, w, http.StatusOK, "OK")
+	ok, err := config.RevokeToken(ctx, link)
+	resp := codersdk.DeleteExternalAuthByIDResponse{TokenRevoked: ok}
+
+	if err != nil {
+		resp.TokenRevocationError = err.Error()
+	}
+	httpapi.Write(ctx, w, http.StatusOK, resp)
 }
 
 // @Summary Post external auth device by ID
@@ -394,13 +417,14 @@ func ExternalAuthConfigs(auths []*externalauth.Config) []codersdk.ExternalAuthLi
 
 func ExternalAuthConfig(cfg *externalauth.Config) codersdk.ExternalAuthLinkProvider {
 	return codersdk.ExternalAuthLinkProvider{
-		ID:            cfg.ID,
-		Type:          cfg.Type,
-		Device:        cfg.DeviceAuth != nil,
-		DisplayName:   cfg.DisplayName,
-		DisplayIcon:   cfg.DisplayIcon,
-		AllowRefresh:  !cfg.NoRefresh,
-		AllowValidate: cfg.ValidateURL != "",
+		ID:                 cfg.ID,
+		Type:               cfg.Type,
+		Device:             cfg.DeviceAuth != nil,
+		DisplayName:        cfg.DisplayName,
+		DisplayIcon:        cfg.DisplayIcon,
+		AllowRefresh:       !cfg.NoRefresh,
+		AllowValidate:      cfg.ValidateURL != "",
+		SupportsRevocation: cfg.RevokeURL != "",
 	}
 }
 

@@ -490,6 +490,7 @@ func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *htt
 		return
 	}
 	userReq.Header.Set(codersdk.SessionTokenHeader, req.SessionToken)
+	userReq.RemoteAddr = r.Header.Get(wsproxysdk.CoderWorkspaceProxyRealIPHeader)
 
 	// Exchange the token.
 	token, tokenStr, ok := api.AGPL.WorkspaceAppsProvider.Issue(ctx, rw, userReq, req)

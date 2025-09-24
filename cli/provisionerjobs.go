@@ -38,7 +38,6 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 	}
 
 	var (
-		client     = new(codersdk.Client)
 		orgContext = NewOrganizationContext()
 		formatter  = cliui.NewOutputFormatter(
 			cliui.TableFormat([]provisionerJobRow{}, []string{"created at", "id", "type", "template display name", "status", "queue", "tags"}),
@@ -54,10 +53,13 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return xerrors.Errorf("current organization: %w", err)
@@ -129,19 +131,19 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 }
 
 func (r *RootCmd) provisionerJobsCancel() *serpent.Command {
-	var (
-		client     = new(codersdk.Client)
-		orgContext = NewOrganizationContext()
-	)
+	orgContext := NewOrganizationContext()
 	cmd := &serpent.Command{
 		Use:   "cancel <job_id>",
 		Short: "Cancel a provisioner job",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return xerrors.Errorf("current organization: %w", err)

@@ -5,8 +5,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"runtime/debug"
+	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -14,7 +17,10 @@ import (
 	"github.com/coder/aisdk-go"
 
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 // Tool name constants to avoid hardcoded strings
@@ -38,6 +44,12 @@ const (
 	ToolNameWorkspaceBash               = "coder_workspace_bash"
 	ToolNameChatGPTSearch               = "search"
 	ToolNameChatGPTFetch                = "fetch"
+	ToolNameWorkspaceLS                 = "coder_workspace_ls"
+	ToolNameWorkspaceReadFile           = "coder_workspace_read_file"
+	ToolNameWorkspaceWriteFile          = "coder_workspace_write_file"
+	ToolNameWorkspaceEditFile           = "coder_workspace_edit_file"
+	ToolNameWorkspaceEditFiles          = "coder_workspace_edit_files"
+	ToolNameWorkspacePortForward        = "coder_workspace_port_forward"
 )
 
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
@@ -205,6 +217,12 @@ var All = []GenericTool{
 	WorkspaceBash.Generic(),
 	ChatGPTSearch.Generic(),
 	ChatGPTFetch.Generic(),
+	WorkspaceLS.Generic(),
+	WorkspaceReadFile.Generic(),
+	WorkspaceWriteFile.Generic(),
+	WorkspaceEditFile.Generic(),
+	WorkspaceEditFiles.Generic(),
+	WorkspacePortForward.Generic(),
 }
 
 type ReportTaskArgs struct {
@@ -1359,4 +1377,436 @@ type MinimalTemplate struct {
 	Description     string    `json:"description"`
 	ActiveVersionID uuid.UUID `json:"active_version_id"`
 	ActiveUserCount int       `json:"active_user_count"`
+}
+
+type WorkspaceLSArgs struct {
+	Workspace string `json:"workspace"`
+	Path      string `json:"path"`
+}
+
+type WorkspaceLSFile struct {
+	Path  string `json:"path"`
+	IsDir bool   `json:"is_dir"`
+}
+
+type WorkspaceLSResponse struct {
+	Contents []WorkspaceLSFile `json:"contents"`
+}
+
+const workspaceDescription = "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used."
+
+var WorkspaceLS = Tool[WorkspaceLSArgs, WorkspaceLSResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameWorkspaceLS,
+		Description: `List directories in a workspace.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": workspaceDescription,
+				},
+				"path": map[string]any{
+					"type":        "string",
+					"description": "The absolute path of the directory in the workspace to list.",
+				},
+			},
+			Required: []string{"path", "workspace"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceLSArgs) (WorkspaceLSResponse, error) {
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		if err != nil {
+			return WorkspaceLSResponse{}, err
+		}
+		defer conn.Close()
+
+		res, err := conn.LS(ctx, args.Path, workspacesdk.LSRequest{})
+		if err != nil {
+			return WorkspaceLSResponse{}, err
+		}
+
+		contents := make([]WorkspaceLSFile, len(res.Contents))
+		for i, f := range res.Contents {
+			contents[i] = WorkspaceLSFile{
+				Path:  f.AbsolutePathString,
+				IsDir: f.IsDir,
+			}
+		}
+		return WorkspaceLSResponse{Contents: contents}, nil
+	},
+}
+
+type WorkspaceReadFileArgs struct {
+	Workspace string `json:"workspace"`
+	Path      string `json:"path"`
+	Offset    int64  `json:"offset"`
+	Limit     int64  `json:"limit"`
+}
+
+type WorkspaceReadFileResponse struct {
+	// Content is the base64-encoded bytes from the file.
+	Content  []byte `json:"content"`
+	MimeType string `json:"mimeType"`
+}
+
+const maxFileLimit = 1 << 20 // 1MiB
+
+var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameWorkspaceReadFile,
+		Description: `Read from a file in a workspace.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": workspaceDescription,
+				},
+				"path": map[string]any{
+					"type":        "string",
+					"description": "The absolute path of the file to read in the workspace.",
+				},
+				"offset": map[string]any{
+					"type":        "integer",
+					"description": "A byte offset indicating where in the file to start reading. Defaults to zero. An empty string indicates the end of the file has been reached.",
+				},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "The number of bytes to read. Cannot exceed 1 MiB. Defaults to the full size of the file or 1 MiB, whichever is lower.",
+				},
+			},
+			Required: []string{"path", "workspace"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceReadFileArgs) (WorkspaceReadFileResponse, error) {
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		if err != nil {
+			return WorkspaceReadFileResponse{}, err
+		}
+		defer conn.Close()
+
+		// Ideally we could stream this all the way back, but it looks like the MCP
+		// interfaces only allow returning full responses which means the whole
+		// thing has to be read into memory.  So, add a maximum limit to compensate.
+		limit := args.Limit
+		if limit == 0 {
+			limit = maxFileLimit
+		} else if limit > maxFileLimit {
+			return WorkspaceReadFileResponse{}, xerrors.Errorf("limit must be %d or less, got %d", maxFileLimit, limit)
+		}
+
+		reader, mimeType, err := conn.ReadFile(ctx, args.Path, args.Offset, limit)
+		if err != nil {
+			return WorkspaceReadFileResponse{}, err
+		}
+		defer reader.Close()
+
+		bs, err := io.ReadAll(reader)
+		if err != nil {
+			return WorkspaceReadFileResponse{}, xerrors.Errorf("read response body: %w", err)
+		}
+
+		return WorkspaceReadFileResponse{Content: bs, MimeType: mimeType}, nil
+	},
+}
+
+type WorkspaceWriteFileArgs struct {
+	Workspace string `json:"workspace"`
+	Path      string `json:"path"`
+	Content   []byte `json:"content"`
+}
+
+var WorkspaceWriteFile = Tool[WorkspaceWriteFileArgs, codersdk.Response]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameWorkspaceWriteFile,
+		Description: `Write a file in a workspace.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": workspaceDescription,
+				},
+				"path": map[string]any{
+					"type":        "string",
+					"description": "The absolute path of the file to write in the workspace.",
+				},
+				"content": map[string]any{
+					"type":        "string",
+					"description": "The base64-encoded bytes to write to the file.",
+				},
+			},
+			Required: []string{"path", "workspace", "content"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceWriteFileArgs) (codersdk.Response, error) {
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		if err != nil {
+			return codersdk.Response{}, err
+		}
+		defer conn.Close()
+
+		reader := bytes.NewReader(args.Content)
+		err = conn.WriteFile(ctx, args.Path, reader)
+		if err != nil {
+			return codersdk.Response{}, err
+		}
+
+		return codersdk.Response{
+			Message: "File written successfully.",
+		}, nil
+	},
+}
+
+type WorkspaceEditFileArgs struct {
+	Workspace string                  `json:"workspace"`
+	Path      string                  `json:"path"`
+	Edits     []workspacesdk.FileEdit `json:"edits"`
+}
+
+var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameWorkspaceEditFile,
+		Description: `Edit a file in a workspace.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": workspaceDescription,
+				},
+				"path": map[string]any{
+					"type":        "string",
+					"description": "The absolute path of the file to write in the workspace.",
+				},
+				"edits": map[string]any{
+					"type":        "array",
+					"description": "An array of edit operations.",
+					"items": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"search": map[string]any{
+								"type":        "string",
+								"description": "The old string to replace.",
+							},
+							"replace": map[string]any{
+								"type":        "string",
+								"description": "The new string that replaces the old string.",
+							},
+						},
+						"required": []string{"search", "replace"},
+					},
+				},
+			},
+			Required: []string{"path", "workspace", "edits"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFileArgs) (codersdk.Response, error) {
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		if err != nil {
+			return codersdk.Response{}, err
+		}
+		defer conn.Close()
+
+		err = conn.EditFiles(ctx, workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{
+				{
+					Path:  args.Path,
+					Edits: args.Edits,
+				},
+			},
+		})
+		if err != nil {
+			return codersdk.Response{}, err
+		}
+
+		return codersdk.Response{
+			Message: "File edited successfully.",
+		}, nil
+	},
+}
+
+type WorkspaceEditFilesArgs struct {
+	Workspace string                   `json:"workspace"`
+	Files     []workspacesdk.FileEdits `json:"files"`
+}
+
+var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameWorkspaceEditFiles,
+		Description: `Edit one or more files in a workspace.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": workspaceDescription,
+				},
+				"files": map[string]any{
+					"type":        "array",
+					"description": "An array of files to edit.",
+					"items": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"path": map[string]any{
+								"type":        "string",
+								"description": "The absolute path of the file to write in the workspace.",
+							},
+							"edits": map[string]any{
+								"type":        "array",
+								"description": "An array of edit operations.",
+								"items": map[string]any{
+									"type": "object",
+									"properties": map[string]any{
+										"search": map[string]any{
+											"type":        "string",
+											"description": "The old string to replace.",
+										},
+										"replace": map[string]any{
+											"type":        "string",
+											"description": "The new string that replaces the old string.",
+										},
+									},
+									"required": []string{"search", "replace"},
+								},
+							},
+						},
+						"required": []string{"path", "edits"},
+					},
+				},
+			},
+			Required: []string{"workspace", "files"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFilesArgs) (codersdk.Response, error) {
+		conn, err := newAgentConn(ctx, deps.coderClient, args.Workspace)
+		if err != nil {
+			return codersdk.Response{}, err
+		}
+		defer conn.Close()
+
+		err = conn.EditFiles(ctx, workspacesdk.FileEditRequest{Files: args.Files})
+		if err != nil {
+			return codersdk.Response{}, err
+		}
+
+		return codersdk.Response{
+			Message: "File(s) edited successfully.",
+		}, nil
+	},
+}
+
+type WorkspacePortForwardArgs struct {
+	Workspace string `json:"workspace"`
+	Port      int    `json:"port"`
+}
+
+type WorkspacePortForwardResponse struct {
+	URL string `json:"url"`
+}
+
+var WorkspacePortForward = Tool[WorkspacePortForwardArgs, WorkspacePortForwardResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameWorkspacePortForward,
+		Description: `Fetch URLs that forward to the specified port.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"workspace": map[string]any{
+					"type":        "string",
+					"description": workspaceDescription,
+				},
+				"port": map[string]any{
+					"type":        "number",
+					"description": "The port to forward.",
+				},
+			},
+			Required: []string{"workspace", "port"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args WorkspacePortForwardArgs) (WorkspacePortForwardResponse, error) {
+		workspaceName := NormalizeWorkspaceInput(args.Workspace)
+		workspace, workspaceAgent, err := findWorkspaceAndAgent(ctx, deps.coderClient, workspaceName)
+		if err != nil {
+			return WorkspacePortForwardResponse{}, xerrors.Errorf("failed to find workspace: %w", err)
+		}
+		res, err := deps.coderClient.AppHost(ctx)
+		if err != nil {
+			return WorkspacePortForwardResponse{}, xerrors.Errorf("failed to get app host: %w", err)
+		}
+		if res.Host == "" {
+			return WorkspacePortForwardResponse{}, xerrors.New("no app host for forwarding has been configured")
+		}
+		url := appurl.ApplicationURL{
+			AppSlugOrPort: strconv.Itoa(args.Port),
+			AgentName:     workspaceAgent.Name,
+			WorkspaceName: workspace.Name,
+			Username:      workspace.OwnerName,
+		}
+		return WorkspacePortForwardResponse{
+			URL: deps.coderClient.URL.Scheme + "://" + strings.Replace(res.Host, "*", url.String(), 1),
+		}, nil
+	},
+}
+
+// NormalizeWorkspaceInput converts workspace name input to standard format.
+// Handles the following input formats:
+//   - workspace                    → workspace
+//   - workspace.agent              → workspace.agent
+//   - owner/workspace              → owner/workspace
+//   - owner--workspace             → owner/workspace
+//   - owner/workspace.agent        → owner/workspace.agent
+//   - owner--workspace.agent       → owner/workspace.agent
+//   - agent.workspace.owner        → owner/workspace.agent (Coder Connect format)
+func NormalizeWorkspaceInput(input string) string {
+	// Handle the special Coder Connect format: agent.workspace.owner
+	// This format uses only dots and has exactly 3 parts
+	if strings.Count(input, ".") == 2 && !strings.Contains(input, "/") && !strings.Contains(input, "--") {
+		parts := strings.Split(input, ".")
+		if len(parts) == 3 {
+			// Convert agent.workspace.owner → owner/workspace.agent
+			return fmt.Sprintf("%s/%s.%s", parts[2], parts[1], parts[0])
+		}
+	}
+
+	// Convert -- separator to / separator for consistency
+	normalized := strings.ReplaceAll(input, "--", "/")
+
+	return normalized
+}
+
+// newAgentConn returns a connection to the agent specified by the workspace,
+// which must be in the format [owner/]workspace[.agent].
+func newAgentConn(ctx context.Context, client *codersdk.Client, workspace string) (workspacesdk.AgentConn, error) {
+	workspaceName := NormalizeWorkspaceInput(workspace)
+	_, workspaceAgent, err := findWorkspaceAndAgent(ctx, client, workspaceName)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to find workspace: %w", err)
+	}
+
+	// Wait for agent to be ready.
+	if err := cliui.Agent(ctx, io.Discard, workspaceAgent.ID, cliui.AgentOptions{
+		FetchInterval: 0,
+		Fetch:         client.WorkspaceAgent,
+		FetchLogs:     client.WorkspaceAgentLogsAfter,
+		Wait:          true, // Always wait for startup scripts
+	}); err != nil {
+		return nil, xerrors.Errorf("agent not ready: %w", err)
+	}
+
+	wsClient := workspacesdk.New(client)
+
+	conn, err := wsClient.DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
+		BlockEndpoints: false,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("failed to dial agent: %w", err)
+	}
+
+	if !conn.AwaitReachable(ctx) {
+		conn.Close()
+		return nil, xerrors.New("agent connection not reachable")
+	}
+	return conn, nil
 }

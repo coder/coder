@@ -845,8 +845,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		require.NoError(t, err)
 	}
 
-	other := codersdk.New(client.URL)
-	other.SetSessionToken(sessionToken)
+	other := codersdk.New(client.URL, codersdk.WithSessionToken(sessionToken))
 	t.Cleanup(func() {
 		other.HTTPClient.CloseIdleConnections()
 	})
@@ -1589,7 +1588,7 @@ func (nopcloser) Close() error { return nil }
 // SDKError coerces err into an SDK error.
 func SDKError(t testing.TB, err error) *codersdk.Error {
 	var cerr *codersdk.Error
-	require.True(t, errors.As(err, &cerr))
+	require.True(t, errors.As(err, &cerr), "should be SDK error, got %w", err)
 	return cerr
 }
 

@@ -22,7 +22,7 @@ import {
 	MonitorDownIcon,
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
-import type { FC } from "react";
+import type { FC, JSX } from "react";
 import { Link } from "react-router";
 
 export const Language = {
