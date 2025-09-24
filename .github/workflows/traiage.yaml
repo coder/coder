@@ -134,20 +134,20 @@ jobs:
           trap 'rm -f "${SUMMARY_FILE}"' EXIT
           AUTO_SUMMARY=$(./scripts/traiage.sh summary)
           {
-            echo "## TrAIage Results";
-            echo "- **Issue URL:** ${ISSUE_URL}";
-            echo "- **Context Key:** ${CONTEXT_KEY}";
-            echo "- **Workspace:** ${WORKSPACE_NAME}";
-            echo "- **Archive URL:** ${ARCHIVE_URL}";
-            echo "";
-            echo "${AUTO_SUMMARY}";
-            echo "";
-            echo "To fetch the output to your own workspace:";
-            echo '';
-            echo '```bash';
-            echo "BUCKET_PREFIX=${BUCKET_PREFIX} WORKSPACE_NAME=${WORKSPACE_NAME} ./scripts/traiage.sh resume";
-            echo '```';
-            echo ''
+            echo "## TrAIage Results"
+            echo "- **Issue URL:** ${ISSUE_URL}"
+            echo "- **Context Key:** ${CONTEXT_KEY}"
+            echo "- **Workspace:** ${WORKSPACE_NAME}"
+            echo "- **Archive URL:** ${ARCHIVE_URL}"
+            echo
+            echo "${AUTO_SUMMARY}"
+            echo
+            echo "To fetch the output to your own workspace:"
+            echo
+            echo '```bash'
+            echo "BUCKET_PREFIX=${BUCKET_PREFIX} WORKSPACE_NAME=${WORKSPACE_NAME} ./scripts/traiage.sh resume"
+            echo '```'
+            echo
           } >> "${SUMMARY_FILE}"
 
           if [[ "${ISSUE_URL}" == "https://github.com/${GITHUB_REPOSITORY}"* ]]; then

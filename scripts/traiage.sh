@@ -25,10 +25,10 @@ create() {
 		--url "${CODER_URL}" \
 		--token "${CODER_SESSION_TOKEN}" \
 		list \
-		--search "owner:me name:${WORKSPACE_NAME}" \
+		--search "owner:me" \
 		--output json |
-		jq -r '. | length')
-	if [[ "${exists}" -eq "1" ]]; then
+		jq -r --arg name "${WORKSPACE_NAME}" 'any(.[]; select(.name == $name))')
+	if [[ "${exists}" -eq "true" ]]; then
 		echo "Workspace ${WORKSPACE_NAME} already exists."
 		exit 0
 	fi
@@ -194,10 +194,16 @@ summary() {
 		-- \
 		bash <<-EOF
 			#!/usr/bin/env bash
-			set -euo pipefail
+			set -eu
 			summary=\$(echo -n 'You are a CLI utility that generates a human-readable Markdown summary for the currently staged AND unstaged changes. Print ONLY the summary and nothing else.' | \${HOME}/.local/bin/claude --print)
 			if [[ -z "\${summary}" ]]; then
-				summary="Generating a summary failed. Here is a short overview:\n\$(git diff --stat)"
+				echo "Generating a summary failed."
+				echo "Here is a short overview of the changes:"
+				echo
+				echo "$()$("
+				echo "$(git diff --stat)"
+				echo ")$()"
+				exit 0
 			fi
 			echo "\${summary}"
 			exit 0
