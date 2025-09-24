@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"sort"
 
 	"golang.org/x/xerrors"
 
@@ -32,9 +33,10 @@ func main() {
 	// Serpent has some types referenced in the codersdk.
 	// We want the referenced types generated.
 	referencePackages := map[string]string{
-		"github.com/coder/preview/types": "Preview",
-		"github.com/coder/serpent":       "Serpent",
-		"tailscale.com/derp":             "",
+		"github.com/coder/preview/types":       "Preview",
+		"github.com/coder/serpent":             "Serpent",
+		"github.com/coder/coder/v2/x/wildcard": "Wildcard",
+		"tailscale.com/derp":                   "",
 		// Conflicting name "DERPRegion"
 		"tailscale.com/tailcfg":      "Tail",
 		"tailscale.com/net/netcheck": "Netcheck",
@@ -56,21 +58,23 @@ func main() {
 		log.Fatalf("to typescript: %v", err)
 	}
 
-	TsMutations(ts)
+	TSMutations(ts)
 
-	output, err := ts.Serialize()
+	output, err := SerializeTypes(ts)
 	if err != nil {
 		log.Fatalf("serialize: %v", err)
 	}
 	_, _ = fmt.Println(output)
 }
 
-func TsMutations(ts *guts.Typescript) {
+func TSMutations(ts *guts.Typescript) {
 	ts.ApplyMutations(
 		// TODO: Remove 'NotNullMaps'. This is hiding potential bugs
 		//   of referencing maps that are actually null.
 		config.NotNullMaps,
 		FixSerpentStruct,
+		// Render wildcard.Value[T] as a friendly union T | "*"
+		FixWildcardAsUnion,
 		// Prefer enums as types
 		config.EnumAsTypes,
 		// Enum list generator
@@ -170,5 +174,71 @@ func FixSerpentStruct(gen *guts.Typescript) {
 				Source: isInterface.Source,
 			})
 		}
+	})
+}
+
+// FixWildcardAsUnion rewrites WildcardValue<T> usages to `T | "*"` without emitting a declaration.
+func FixWildcardAsUnion(ts *guts.Typescript) {
+	ts.ForEach(func(key string, originalNode bindings.Node) {
+		iface, ok := originalNode.(*bindings.Interface)
+		if !ok {
+			return
+		}
+		changed := false
+		for _, f := range iface.Fields {
+			if ref, ok := f.Type.(*bindings.ReferenceType); ok {
+				if ref.Name.Ref() == "WildcardValue" && len(ref.Arguments) == 1 {
+					f.Type = bindings.Union(ref.Arguments[0], &bindings.LiteralType{Value: "*"})
+					changed = true
+				}
+			}
+		}
+		if changed {
+			ts.ReplaceNode(key, iface)
+		}
+	})
+}
+
+// SerializeTypes serializes the generated TS in a stable order and filters
+// out declarations we do not want to emit (e.g., WildcardValue).
+func SerializeTypes(ts *guts.Typescript) (string, error) {
+	return ts.SerializeInOrder(func(nodes map[string]bindings.Node) []bindings.Node {
+		type pair struct {
+			name string
+			node bindings.Node
+		}
+		list := make([]pair, 0, len(nodes))
+		for _, n := range nodes {
+			var name string
+			switch v := n.(type) {
+			case *bindings.Interface:
+				if v.Name.Ref() == "WildcardValue" {
+					continue
+				}
+				name = v.Name.Ref()
+			case *bindings.Alias:
+				if v.Name.Ref() == "WildcardValue" {
+					continue
+				}
+				name = v.Name.Ref()
+			case *bindings.Enum:
+				name = v.Name.Ref()
+			case *bindings.VariableStatement:
+				if v.Declarations != nil && len(v.Declarations.Declarations) > 0 {
+					name = v.Declarations.Declarations[0].Name.Ref()
+				} else {
+					name = "var:"
+				}
+			default:
+				name = fmt.Sprintf("%T", n)
+			}
+			list = append(list, pair{name: name, node: n})
+		}
+		sort.Slice(list, func(i, j int) bool { return list[i].name < list[j].name })
+		out := make([]bindings.Node, 0, len(list))
+		for _, p := range list {
+			out = append(out, p.node)
+		}
+		return out
 	})
 }

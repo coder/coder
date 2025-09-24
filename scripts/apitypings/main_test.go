@@ -42,15 +42,33 @@ func TestGeneration(t *testing.T) {
 			err = gen.IncludeGenerate("./" + dir)
 			require.NoError(t, err)
 
+			// Include minimal references needed for tests that use external types.
+			for pkg, prefix := range map[string]string{
+				"../../x/wildcard":       "Wildcard",
+				"github.com/google/uuid": "",
+			} {
+				require.NoError(t, gen.IncludeReference(pkg, prefix))
+			}
+
 			err = TypeMappings(gen)
 			require.NoError(t, err)
 
 			ts, err := gen.ToTypescript()
 			require.NoError(t, err)
 
-			TsMutations(ts)
+			// Sanity: ensure reference packages are registered (especially for wildcarduse).
+			if f.Name() == "wildcarduse" {
+				_, hasWildcard := gen.Pkgs["github.com/coder/coder/v2/x/wildcard"]
+				keys := make([]string, 0, len(gen.Pkgs))
+				for k := range gen.Pkgs {
+					keys = append(keys, k)
+				}
+				t.Logf("hasWildcard=%v, pkgs=%d, keys=%v", hasWildcard, len(gen.Pkgs), keys)
+			}
 
-			output, err := ts.Serialize()
+			TSMutations(ts)
+
+			output, err := SerializeTypes(ts)
 			require.NoError(t, err)
 
 			golden := filepath.Join(dir, f.Name()+".ts")

@@ -67,7 +67,7 @@ func TestWorkspaceParam(t *testing.T) {
 			ExpiresAt:    dbtime.Now().Add(time.Minute),
 			LoginType:    database.LoginTypePassword,
 			Scopes:       database.APIKeyScopes{database.ApiKeyScopeCoderAll},
-			AllowList:    database.AllowList{database.AllowListWildcard()},
+			AllowList:    database.AllowList{},
 			IPAddress: pqtype.Inet{
 				IPNet: net.IPNet{
 					IP:   net.IPv4(127, 0, 0, 1),

@@ -235,6 +235,41 @@ func (s APIKeyScopes) Name() rbac.RoleIdentifier {
 	return rbac.RoleIdentifier{Name: "scopes[" + strings.Join(names, "+") + "]"}
 }
 
+// APIKeyEffectiveScope merges expanded scopes with the API key's DB allow_list.
+// If the DB allow_list is a wildcard or empty, the merged scope's allow list is unchanged.
+// Otherwise, the DB allow_list overrides the merged AllowIDList to enforce the token's
+// resource scoping consistently across all permissions.
+type APIKeyEffectiveScope struct {
+	Scopes    APIKeyScopes
+	AllowList AllowList
+}
+
+func (e APIKeyEffectiveScope) Name() rbac.RoleIdentifier { return e.Scopes.Name() }
+
+func (e APIKeyEffectiveScope) Expand() (rbac.Scope, error) {
+	merged, err := e.Scopes.Expand()
+	if err != nil {
+		return rbac.Scope{}, err
+	}
+	if len(e.AllowList) == 0 {
+		return merged, nil
+	}
+
+	// If allow list contains a single wildcard (*:*), keep merged allow list as-is
+	for _, entry := range e.AllowList {
+		if entry.Type.IsAny() && entry.ID.IsAny() {
+			return merged, nil
+		}
+	}
+
+	out := make([]rbac.AllowListElement, 0, len(e.AllowList))
+	for _, t := range e.AllowList {
+		out = append(out, rbac.AllowListElement{Type: t.Type.String(), ID: t.ID.String()})
+	}
+	merged.AllowIDList = out
+	return merged, nil
+}
+
 func (k APIKey) RBACObject() rbac.Object {
 	return rbac.ResourceApiKey.WithIDString(k.ID).
 		WithOwner(k.UserID.String())

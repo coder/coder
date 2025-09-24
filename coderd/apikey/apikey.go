@@ -34,6 +34,9 @@ type CreateParams struct {
 	Scopes     database.APIKeyScopes
 	TokenName  string
 	RemoteAddr string
+	// AllowList is an optional, normalized allow-list
+	// of resource type and uuid entries. If empty, defaults to wildcard.
+	AllowList database.AllowList
 }
 
 // Generate generates an API key, returning the key as a string as well as the
@@ -115,7 +118,7 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 		HashedSecret: hashed[:],
 		LoginType:    params.LoginType,
 		Scopes:       scopes,
-		AllowList:    database.AllowList{database.AllowListWildcard()},
+		AllowList:    params.AllowList,
 		TokenName:    params.TokenName,
 	}, token, nil
 }
