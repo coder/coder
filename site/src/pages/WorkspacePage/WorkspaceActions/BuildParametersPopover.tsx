@@ -89,7 +89,7 @@ interface BuildParametersPopoverContentProps {
 	ephemeralParameters?: TemplateVersionParameter[];
 	buildParameters?: WorkspaceBuildParameter[];
 	onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
-	setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
+	setIsOpen: (newOpen: boolean) => void;
 }
 
 const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
