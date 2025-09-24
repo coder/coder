@@ -734,6 +734,7 @@ func (api *API) authAndDoWithTaskSidebarAppClient(
 		}
 	}
 	// TODO(mafredri): Can we avoid dbauthz.AsSystemRestricted(ctx)?
+	//nolint:gocritic // GetWorkspaceAppsByAgentIDs requires system restricted context.
 	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
