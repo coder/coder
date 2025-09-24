@@ -6,7 +6,7 @@ Coder Tasks is Coder's platform for managing coding agents and other AI-enabled 
 
 - Connect an AI Agent like Claude Code or OpenAI's Codex to your IDE to assist in day-to-day development and building
 - Kick off AI-enabled workflows such as upgrading a vulnerable package and automatically opening a GitHub Pull Requests with the patch
-- Configure a background operation where an automated agent to detect a failure in your CI/CD pipeline, spin up a Coder Workspace, apply a fix, and prepare a PR _without_ manual input
+- Configure a background operation where an automated agent can detect a failure in your CI/CD pipeline, spin up a Coder Workspace, apply a fix, and prepare a PR _without_ manual input
 
 ![Tasks UI](../images/guides/ai-agents/tasks-ui.png)Coder Tasks Dashboard view to see all available tasks.
 
@@ -19,7 +19,7 @@ Coder Tasks make both developer-driven _and_ autonomous agentic workflows first-
 Coder Tasks exist to solve these types of problems:
 
 - **Consistency:** Capture a known, safe, & secure workflow once that can then be run anywhere
-- **Reproducability:** Every task runs from a Coder Workspace, so results are reliable
+- **Reproducibility:** Every task runs from a Coder Workspace, so results are reliable
 - **Productivity:** Eliminate manual processes from developer processes enabling them to focus on less defined and harder-to-do issues
 - **Scalability:** Once a workflow is captured in a task, it can be reused by other teams within your organization scaling with you as you grow
 - **Flexibility:** Support both developer _AND_ autonomous agentic workflows
@@ -69,7 +69,7 @@ flowchart LR
 
 ### Refresher: What are Templates
 
-As a quick refresher, a template defines the underlying infrastructure that a Coder workspace runs on. Templates themselves are written in Terraform managed as a `main.tf` file that defines the contents of the workspace and the resources it requires to run. Templates can also pull in Dockerfiles, other build files, and startup scripts or config files to specially configure.
+As a quick refresher, a template defines the underlying infrastructure that a Coder workspace runs on. Templates themselves are written in Terraform managed as a `main.tf` file that defines the contents of the workspace and the resources it requires to run. Templates can also pull in Dockerfiles, other build files, and startup scripts or config files for special configuration.
 
 Within this configuration, Coder specifically looks for
 
@@ -139,12 +139,12 @@ resource "coder_env" "anthropic_api_key" {
 }
 ```
 
-Let's break down this snippit:
+Let's break down this snippet:
 
-- You aren't seeing the **AgentAPI Module**. That's because the AgentAPI module is it's own resource that other modules can pull in
+- You aren't seeing the **AgentAPI Module**. That's because the AgentAPI module is its own resource that other modules can pull in
 - The `module "claude-code"` sets up the Task template to use Claude Code, but Coder's Registry supports many other agent modules like [OpenAI's Codex](https://registry.coder.com/modules/coder-labs/codex) or [Gemini CLI](https://registry.coder.com/modules/coder-labs/gemini)
-- Each module define's its own specific inputs. Claude Code expects the `CODER_MCP_CLAUDE_API_KEY` environment variable to exist, but OpenAI based agents expect `OPENAI_API_KEY` for example. You'll want to check the specific module's defined variables to know what exactly needs to be defined
-- You can define specific scripts to run at startup of the Task. For example, you could define a setup scrip that calls to AWS S3 and pulls specific files you want your agent to have access to
+- Each module defines its own specific inputs. Claude Code expects the `CODER_MCP_CLAUDE_API_KEY` environment variable to exist, but OpenAI based agents expect `OPENAI_API_KEY` for example. You'll want to check the specific module's defined variables to know what exactly needs to be defined
+- You can define specific scripts to run at startup of the Task. For example, you could define a setup script that calls to AWS S3 and pulls specific files you want your agent to have access to
 
 Given this, you can easily build your own task template. All you need to do is identify the existing agent you want access to in our [Registry](https://registry.coder.com/modules), and then
 
