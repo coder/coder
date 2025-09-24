@@ -41,12 +41,43 @@ func New(ctx context.Context, logger slog.Logger, db database.Store) *Provider {
 	config := &fosite.Config{
 		GlobalSecret:        []byte("some-cool-secret-that-is-32bytes"),
 		ClientSecretsHasher: clientSecretHasher{},
+		EnforcePKCE:         true,
 		// TODO: Configure http client
 	}
 
 	// TODO: Persist storage in the database
 	store := fositestorage.New(db)
-	provider := compose.ComposeAllEnabled(config, store, privateKey)
+	keyGetter := func(context.Context) (interface{}, error) {
+		return privateKey, nil
+	}
+	provider := compose.Compose(config, store,
+		&compose.CommonStrategy{
+			CoreStrategy:               compose.NewOAuth2HMACStrategy(config),
+			RFC8628CodeStrategy:        compose.NewDeviceStrategy(config),
+			OpenIDConnectTokenStrategy: compose.NewOpenIDConnectStrategy(keyGetter, config),
+			Signer:                     &jwt.DefaultSigner{GetPrivateKey: keyGetter},
+		},
+		compose.OAuth2AuthorizeExplicitFactory,
+		compose.OAuth2AuthorizeImplicitFactory,
+		compose.OAuth2ClientCredentialsGrantFactory,
+		compose.OAuth2RefreshTokenGrantFactory,
+		compose.OAuth2ResourceOwnerPasswordCredentialsFactory,
+		compose.RFC7523AssertionGrantFactory,
+		compose.RFC8628DeviceFactory,
+		compose.RFC8628DeviceAuthorizationTokenFactory,
+
+		compose.OpenIDConnectExplicitFactory,
+		compose.OpenIDConnectImplicitFactory,
+		compose.OpenIDConnectHybridFactory,
+		compose.OpenIDConnectRefreshFactory,
+		compose.OpenIDConnectDeviceFactory,
+
+		compose.OAuth2TokenIntrospectionFactory,
+		compose.OAuth2TokenRevocationFactory,
+
+		compose.OAuth2PKCEFactory,
+		compose.PushedAuthorizeHandlerFactory,
+	)
 
 	return &Provider{
 		logger:   logger.Named("oauth2_provider"),
@@ -66,7 +97,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store) *Provider {
 // Usually, you could do:
 //
 //	session = new(fosite.DefaultSession)
-func (p *Provider) newSession(key database.APIKey) *openid.DefaultSession {
+func (p *Provider) newSession(key database.APIKey) fosite.Session {
 	return &openid.DefaultSession{
 		Claims: &jwt.IDTokenClaims{
 			Issuer:      "https://fosite.my-application.com",

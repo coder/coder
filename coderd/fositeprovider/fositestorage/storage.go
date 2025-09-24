@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
+	"github.com/ory/fosite/handler/pkce"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -18,6 +19,7 @@ import (
 type fositeStorage interface {
 	fosite.ClientManager
 	oauth2.CoreStorage
+	pkce.PKCERequestStorage
 	// TODO: Add support for database transactions.
 	//storage.Transactional
 }
@@ -29,6 +31,21 @@ type Storage struct {
 
 	// TODO: Remove the memory store entirely and implement all methods to use the database.
 	//storage.MemoryStore
+}
+
+func (s Storage) GetPKCERequestSession(ctx context.Context, signature string, session fosite.Session) (fosite.Requester, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s Storage) CreatePKCERequestSession(ctx context.Context, signature string, requester fosite.Requester) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s Storage) DeletePKCERequestSession(ctx context.Context, signature string) error {
+	//TODO implement me
+	panic("implement me")
 }
 
 func New(db database.Store) *Storage {
