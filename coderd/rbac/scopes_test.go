@@ -37,7 +37,7 @@ func TestExpandScope(t *testing.T) {
 				require.Empty(t, s.Org)
 				require.Empty(t, s.User)
 
-				require.Len(t, s.AllowIDList, 0)
+				require.Equal(t, []rbac.AllowListElement{rbac.AllowListAll()}, s.AllowIDList)
 			})
 		}
 	})
