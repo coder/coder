@@ -203,7 +203,23 @@ export const verifyParameters = async (
 			const value = await parameterField.inputValue();
 			expect(value).toEqual(buildParameter.value);
 		} else if (richParameter.type === "list(string)") {
-			throw new Error("not implemented yet"); // FIXME
+			// Expect value to be a JSON-encoded string array
+			let expected: string[] = [];
+			try {
+				expected = JSON.parse(buildParameter.value) as string[];
+			} catch (e) {
+				throw new Error(
+					`invalid list(string) value, expected JSON array: ${buildParameter.value}`,
+				);
+			}
+
+			const listField = await parameterLabel.waitForSelector(
+				`[data-testid='parameter-field-list-of-string']`,
+			);
+			// Chips render the values. Verify that each expected value is present.
+			for (const value of expected) {
+				await expect(listField.getByText(value, { exact: true })).toBeVisible();
+			}
 		} else {
 			// text or number
 			const parameterField = await parameterLabel.waitForSelector(
@@ -920,7 +936,25 @@ const fillParameters = async (
 				.locator(`.MuiRadio-root input[value='${buildParameter.value}']`);
 			await parameterField.click();
 		} else if (richParameter.type === "list(string)") {
-			throw new Error("not implemented yet"); // FIXME
+			// Expect JSON-encoded array. Fill TagInput by typing values separated by comma.
+			let values: string[] = [];
+			try {
+				values = JSON.parse(buildParameter.value) as string[];
+			} catch (e) {
+				throw new Error(
+					`invalid list(string) value, expected JSON array: ${buildParameter.value}`,
+				);
+			}
+
+			const listField = parameterLabel.getByTestId(
+				"parameter-field-list-of-string",
+			);
+			await expect(listField).toBeVisible();
+			const input = listField.locator("input");
+			for (const v of values) {
+				await input.fill(v);
+				await input.press(",");
+			}
 		} else {
 			// text or number
 			const parameterField = parameterLabel
