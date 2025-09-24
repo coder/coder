@@ -43,7 +43,7 @@ export const WithOpenBuildParameters: Story = {
 	},
 	play: async ({ step }) => {
 		await step("open popover", async () => {
-			await userEvent.click(screen.getByTestId("build-parameters-button"));
+			await userEvent.click(screen.getByText("Debug with build parameters"));
 			await waitFor(() =>
 				expect(screen.getByText("Build Options")).toBeInTheDocument(),
 			);
