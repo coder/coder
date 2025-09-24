@@ -133,21 +133,9 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 				</Tooltip>
 
 				{buildInfo?.deployment_id && (
-					<div
-						css={css`
-							font-size: 12px;
-							display: flex;
-							align-items: center;
-						`}
-					>
+					<div className="flex items-center text-xs">
 						<Tooltip title="Deployment Identifier">
-							<div
-								css={css`
-									white-space: nowrap;
-									overflow: hidden;
-									text-overflow: ellipsis;
-								`}
-							>
+							<div className="whitespace-nowrap overflow-hidden text-ellipsis">
 								{buildInfo.deployment_id}
 							</div>
 						</Tooltip>
