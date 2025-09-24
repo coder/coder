@@ -158,7 +158,7 @@ func TestAuthorization(t *testing.T) {
 				CreatedAt: now,
 				UpdatedAt: now,
 				LoginType: database.LoginTypePassword,
-				Scope:     database.APIKeyScopeAll,
+				Scopes:    []database.APIKeyScope{database.APIKeyScopeAll},
 				TokenName: "",
 			}
 			if tc.key == "" {
@@ -340,6 +340,13 @@ func TestGetMCPServerAccessTokensBatch(t *testing.T) {
 func TestRecordInterception(t *testing.T) {
 	t.Parallel()
 
+	var (
+		metadataProto = map[string]*anypb.Any{
+			"key": mustMarshalAny(t, &structpb.Value{Kind: &structpb.Value_StringValue{StringValue: "value"}}),
+		}
+		metadataJSON = `{"key":"value"}`
+	)
+
 	testRecordMethod(t,
 		func(srv *aibridgedserver.Server, ctx context.Context, req *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
 			return srv.RecordInterception(ctx, req)
@@ -352,6 +359,7 @@ func TestRecordInterception(t *testing.T) {
 					InitiatorId: uuid.NewString(),
 					Provider:    "anthropic",
 					Model:       "claude-4-opus",
+					Metadata:    metadataProto,
 					StartedAt:   timestamppb.Now(),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
@@ -366,6 +374,7 @@ func TestRecordInterception(t *testing.T) {
 							!assert.Equal(t, initiatorID, p.InitiatorID, "initiator ID") ||
 							!assert.Equal(t, req.GetProvider(), p.Provider, "provider") ||
 							!assert.Equal(t, req.GetModel(), p.Model, "model") ||
+							!assert.JSONEq(t, metadataJSON, string(p.Metadata), "metadata") ||
 							!assert.WithinDuration(t, req.GetStartedAt().AsTime(), p.StartedAt, time.Second, "started at") {
 							return false
 						}

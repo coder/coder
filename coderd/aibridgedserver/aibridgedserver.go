@@ -127,6 +127,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		InitiatorID: initID,
 		Provider:    in.Provider,
 		Model:       in.Model,
+		Metadata:    marshalMetadata(ctx, s.logger, in.GetMetadata()),
 		StartedAt:   in.StartedAt.AsTime(),
 	})
 	if err != nil {

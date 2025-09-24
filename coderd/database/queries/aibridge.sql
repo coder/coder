@@ -1,6 +1,6 @@
 -- name: InsertAIBridgeInterception :one
-INSERT INTO aibridge_interceptions (id, initiator_id, provider, model, started_at)
-VALUES (@id::uuid, @initiator_id::uuid, @provider, @model, @started_at)
+INSERT INTO aibridge_interceptions (id, initiator_id, provider, model, metadata, started_at)
+VALUES (@id::uuid, @initiator_id::uuid, @provider, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at)
 RETURNING *;
 
 -- name: InsertAIBridgeTokenUsage :exec
