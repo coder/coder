@@ -14,7 +14,7 @@ import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { EditIcon, PanelLeftIcon } from "lucide-react";
 import type { Task } from "modules/tasks/tasks";
 import { type FC, useState } from "react";
-import { useQuery } from "react-query";
+import { keepPreviousData, useQuery } from "react-query";
 import { Link as RouterLink, useParams } from "react-router";
 import { cn } from "utils/cn";
 import { UserCombobox } from "./UserCombobox";
@@ -33,7 +33,7 @@ export const TasksSidebar: FC = () => {
 			className={cn(
 				"h-full flex flex-col flex-1 min-h-0 gap-6 bg-surface-secondary max-w-80",
 				"border-solid border-0 border-r transition-all p-3",
-				{ "max-w-16 items-center": isCollapsed },
+				{ "max-w-14": isCollapsed },
 			)}
 		>
 			<div className="flex items-center place-content-between">
