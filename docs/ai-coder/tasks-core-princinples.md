@@ -26,7 +26,9 @@ Tasks exist to solve these types of problems:
 
 ### Example Task Workflow
 
-```mermaid
+![Example Background Task](../images/guides/ai-agents/background-task-example.png)Example of Background Coder Tasks operation.
+
+<!-- ```mermaid
 flowchart LR
     A[User Reports Bug] --> B[Coder Task Triggered]
     B --> C[Spin Up Workspace]
@@ -63,7 +65,7 @@ flowchart LR
     style D fill:#ffcc99
     style E fill:#ffcc99
     style F fill:#ffcc99
-```
+``` -->
 
 ## How to Make a Task Template
 
