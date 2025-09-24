@@ -18,14 +18,35 @@ import {
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
-import type {
-	Workspace,
-	WorkspaceApp,
-	WorkspaceResource,
-} from "api/typesGenerated";
+import type { Workspace, WorkspaceApp } from "api/typesGenerated";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import TaskPage, { data, WorkspaceDoesNotHaveAITaskError } from "./TaskPage";
+
+const MockClaudeCodeApp: WorkspaceApp = {
+	...MockWorkspaceApp,
+	id: "claude-code",
+	display_name: "Claude Code",
+	slug: "claude-code",
+	icon: "/icon/claude.svg",
+	statuses: [
+		MockWorkspaceAppStatus,
+		{
+			...MockWorkspaceAppStatus,
+			id: "2",
+			message: "Planning changes",
+			state: "working",
+		},
+	],
+};
+
+const MockVSCodeApp: WorkspaceApp = {
+	...MockWorkspaceApp,
+	id: "vscode",
+	slug: "vscode",
+	display_name: "VS Code Web",
+	icon: "/icon/code.svg",
+};
 
 const meta: Meta<typeof TaskPage> = {
 	title: "pages/TaskPage",
@@ -97,24 +118,6 @@ export const TerminatedBuildWithStatus: Story = {
 	},
 };
 
-export const WaitingOnStatus: Story = {
-	beforeEach: () => {
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: {
-				...MockWorkspace,
-				latest_app_status: null,
-				latest_build: {
-					...MockWorkspace.latest_build,
-					resources: [
-						{ ...MockWorkspaceResource, agents: [MockWorkspaceAgentReady] },
-					],
-				},
-			},
-		});
-	},
-};
-
 export const WaitingStartupScripts: Story = {
 	beforeEach: () => {
 		spyOn(data, "fetchTask").mockResolvedValue({
@@ -156,44 +159,48 @@ export const WaitingStartupScripts: Story = {
 	},
 };
 
-export const SidebarAppHealthDisabled: Story = {
+export const SidebarAppNotFound: Story = {
 	beforeEach: () => {
+		const workspace = mockTaskWorkspace(MockClaudeCodeApp, MockVSCodeApp);
 		spyOn(data, "fetchTask").mockResolvedValue({
 			prompt: "Create competitors page",
 			workspace: {
-				...MockWorkspace,
+				...workspace,
 				latest_build: {
-					...MockWorkspace.latest_build,
-					has_ai_task: true,
-					ai_task_sidebar_app_id: "claude-code",
-					resources: mockResources({
-						claudeCodeAppOverrides: {
-							health: "disabled",
-						},
-					}),
+					...workspace.latest_build,
+					ai_task_sidebar_app_id: "non-existent-app-id",
 				},
 			},
 		});
 	},
 };
 
-export const SidebarAppLoading: Story = {
+export const SidebarAppHealthDisabled: Story = {
 	beforeEach: () => {
 		spyOn(data, "fetchTask").mockResolvedValue({
 			prompt: "Create competitors page",
-			workspace: {
-				...MockWorkspace,
-				latest_build: {
-					...MockWorkspace.latest_build,
-					has_ai_task: true,
-					ai_task_sidebar_app_id: "claude-code",
-					resources: mockResources({
-						claudeCodeAppOverrides: {
-							health: "initializing",
-						},
-					}),
+			workspace: mockTaskWorkspace(
+				{
+					...MockClaudeCodeApp,
+					health: "disabled",
 				},
-			},
+				MockVSCodeApp,
+			),
+		});
+	},
+};
+
+export const SidebarAppInitializing: Story = {
+	beforeEach: () => {
+		spyOn(data, "fetchTask").mockResolvedValue({
+			prompt: "Create competitors page",
+			workspace: mockTaskWorkspace(
+				{
+					...MockClaudeCodeApp,
+					health: "initializing",
+				},
+				MockVSCodeApp,
+			),
 		});
 	},
 };
@@ -202,19 +209,28 @@ export const SidebarAppHealthy: Story = {
 	beforeEach: () => {
 		spyOn(data, "fetchTask").mockResolvedValue({
 			prompt: "Create competitors page",
-			workspace: {
-				...MockWorkspace,
-				latest_build: {
-					...MockWorkspace.latest_build,
-					has_ai_task: true,
-					ai_task_sidebar_app_id: "claude-code",
-					resources: mockResources({
-						claudeCodeAppOverrides: {
-							health: "healthy",
-						},
-					}),
+			workspace: mockTaskWorkspace(
+				{
+					...MockClaudeCodeApp,
+					health: "healthy",
 				},
-			},
+				MockVSCodeApp,
+			),
+		});
+	},
+};
+
+export const SidebarAppUnhealthy: Story = {
+	beforeEach: () => {
+		spyOn(data, "fetchTask").mockResolvedValue({
+			prompt: "Create competitors page",
+			workspace: mockTaskWorkspace(
+				{
+					...MockClaudeCodeApp,
+					health: "unhealthy",
+				},
+				MockVSCodeApp,
+			),
 		});
 	},
 };
@@ -223,17 +239,10 @@ const mainAppHealthStory = (health: WorkspaceApp["health"]) => ({
 	beforeEach: () => {
 		spyOn(data, "fetchTask").mockResolvedValue({
 			prompt: "Create competitors page",
-			workspace: {
-				...MockWorkspace,
-				latest_build: {
-					...MockWorkspace.latest_build,
-					resources: mockResources({
-						claudeCodeAppOverrides: {
-							health,
-						},
-					}),
-				},
-			},
+			workspace: mockTaskWorkspace(MockClaudeCodeApp, {
+				...MockVSCodeApp,
+				health,
+			}),
 		});
 	},
 });
@@ -254,78 +263,12 @@ export const BuildNoAITask: Story = {
 	},
 };
 
-interface MockResourcesProps {
-	apps?: WorkspaceApp[];
-	claudeCodeAppOverrides?: Partial<WorkspaceApp>;
-}
-
-const mockResources = (
-	props?: MockResourcesProps,
-): readonly WorkspaceResource[] => [
-	{
-		...MockWorkspaceResource,
-		agents: [
-			{
-				...MockWorkspaceAgentReady,
-				apps: [
-					...(props?.apps ?? []),
-					{
-						...MockWorkspaceApp,
-						id: "claude-code",
-						display_name: "Claude Code",
-						slug: "claude-code",
-						icon: "/icon/claude.svg",
-						statuses: [
-							MockWorkspaceAppStatus,
-							{
-								...MockWorkspaceAppStatus,
-								id: "2",
-								message: "Planning changes",
-								state: "working",
-							},
-						],
-						...(props?.claudeCodeAppOverrides ?? {}),
-					},
-					{
-						...MockWorkspaceApp,
-						id: "vscode",
-						slug: "vscode",
-						display_name: "VS Code Web",
-						icon: "/icon/code.svg",
-					},
-					{
-						...MockWorkspaceApp,
-						slug: "zed",
-						id: "zed",
-						display_name: "Zed",
-						icon: "/icon/zed.svg",
-					},
-				],
-			},
-		],
-	},
-];
-
-const activeWorkspace = (apps: WorkspaceApp[]): Workspace => {
-	return {
-		...MockWorkspace,
-		latest_build: {
-			...MockWorkspace.latest_build,
-			resources: mockResources({ apps }),
-		},
-		latest_app_status: {
-			...MockWorkspaceAppStatus,
-			app_id: "claude-code",
-		},
-	};
-};
-
 export const Active: Story = {
 	decorators: [withProxyProvider()],
 	beforeEach: () => {
 		spyOn(data, "fetchTask").mockResolvedValue({
 			prompt: "Create competitors page",
-			workspace: activeWorkspace([]),
+			workspace: mockTaskWorkspace(MockClaudeCodeApp, MockVSCodeApp),
 		});
 	},
 	play: async ({ canvasElement }) => {
@@ -346,15 +289,13 @@ export const ActivePreview: Story = {
 	beforeEach: () => {
 		spyOn(data, "fetchTask").mockResolvedValue({
 			prompt: "Create competitors page",
-			workspace: activeWorkspace([
-				{
-					...MockWorkspaceApp,
-					slug: "preview",
-					id: "preview",
-					display_name: "Preview",
-				},
-			]),
+			workspace: mockTaskWorkspace(MockClaudeCodeApp, MockVSCodeApp),
 		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const button = await canvas.findByText("Preview", { exact: false });
+		userEvent.click(button);
 	},
 };
 
@@ -471,3 +412,44 @@ export const WorkspaceStartFailureWithDialog: Story = {
 		});
 	},
 };
+
+function mockTaskWorkspace(
+	sidebarApp: WorkspaceApp,
+	activeApp: WorkspaceApp,
+): Workspace {
+	return {
+		...MockWorkspace,
+		latest_build: {
+			...MockWorkspace.latest_build,
+			has_ai_task: true,
+			ai_task_sidebar_app_id: sidebarApp.id,
+			resources: [
+				{
+					...MockWorkspaceResource,
+					agents: [
+						{
+							...MockWorkspaceAgentReady,
+							apps: [
+								sidebarApp,
+								activeApp,
+								{
+									...MockWorkspaceApp,
+									slug: "zed",
+									id: "zed",
+									display_name: "Zed",
+									icon: "/icon/zed.svg",
+								},
+								{
+									...MockWorkspaceApp,
+									slug: "preview",
+									id: "preview",
+									display_name: "Preview",
+								},
+							],
+						},
+					],
+				},
+			],
+		},
+	};
+}

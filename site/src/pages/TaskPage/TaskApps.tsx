@@ -12,7 +12,7 @@ import { ScrollArea, ScrollBar } from "components/ScrollArea/ScrollArea";
 import { ChevronDownIcon, LayoutGridIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import {
-	getTaskApps,
+	getTaskWebApps,
 	type Task,
 	type WorkspaceAppWithAgent,
 } from "modules/tasks/tasks";
@@ -28,7 +28,7 @@ type TaskAppsProps = {
 };
 
 export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
-	const apps = getTaskApps(task);
+	const apps = getTaskWebApps(task);
 	const [embeddedApps, externalApps] = splitEmbeddedAndExternalApps(apps);
 	const [activeAppId, setActiveAppId] = useState(embeddedApps.at(0)?.id);
 
