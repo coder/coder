@@ -130,7 +130,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 }
 
 const getAIBridgeInterceptions = `-- name: GetAIBridgeInterceptions :many
-SELECT id, initiator_id, provider, model, started_at FROM aibridge_interceptions
+SELECT id, initiator_id, provider, model, started_at, metadata FROM aibridge_interceptions
 `
 
 func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeInterception, error) {
@@ -148,6 +148,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 			&i.Provider,
 			&i.Model,
 			&i.StartedAt,
+			&i.Metadata,
 		); err != nil {
 			return nil, err
 		}
