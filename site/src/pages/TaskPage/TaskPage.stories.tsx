@@ -2,6 +2,7 @@ import {
 	MockFailedWorkspace,
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
+	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgentLogSource,
 	MockWorkspaceAgentReady,
@@ -12,6 +13,7 @@ import {
 	mockApiError,
 } from "testHelpers/entities";
 import {
+	withAuthProvider,
 	withGlobalSnackbar,
 	withProxyProvider,
 	withWebSocket,
@@ -30,9 +32,10 @@ import TaskPage, { data, WorkspaceDoesNotHaveAITaskError } from "./TaskPage";
 const meta: Meta<typeof TaskPage> = {
 	title: "pages/TaskPage",
 	component: TaskPage,
-	decorators: [withProxyProvider()],
+	decorators: [withProxyProvider(), withAuthProvider],
 	parameters: {
 		layout: "fullscreen",
+		user: MockUserOwner,
 	},
 };
 
