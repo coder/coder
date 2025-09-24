@@ -33,7 +33,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/scaletest/agentconn"
-	"github.com/coder/coder/v2/scaletest/coderconnect"
+	"github.com/coder/coder/v2/scaletest/createusers"
 	"github.com/coder/coder/v2/scaletest/createworkspaces"
 	"github.com/coder/coder/v2/scaletest/dashboard"
 	"github.com/coder/coder/v2/scaletest/harness"
@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/scaletest/reconnectingpty"
 	"github.com/coder/coder/v2/scaletest/workspacebuild"
 	"github.com/coder/coder/v2/scaletest/workspacetraffic"
+	"github.com/coder/coder/v2/scaletest/workspaceupdates"
 	"github.com/coder/serpent"
 )
 
@@ -57,7 +58,7 @@ func (r *RootCmd) scaletestCmd() *serpent.Command {
 			r.scaletestCleanup(),
 			r.scaletestDashboard(),
 			r.scaletestCreateWorkspaces(),
-			r.scaletestCoderConnect(),
+			r.scaletestWorkspaceUpdates(),
 			r.scaletestWorkspaceTraffic(),
 		},
 	}
@@ -856,7 +857,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 	return cmd
 }
 
-func (r *RootCmd) scaletestCoderConnect() *serpent.Command {
+func (r *RootCmd) scaletestWorkspaceUpdates() *serpent.Command {
 	var (
 		workspaceCount          int64
 		powerUserWorkspaces     int64
@@ -865,7 +866,6 @@ func (r *RootCmd) scaletestCoderConnect() *serpent.Command {
 		dialTimeout             time.Duration
 		template                string
 		noCleanup               bool
-		noWaitForAgents         bool
 
 		parameterFlags workspaceParameterFlags
 		tracingFlags   = &scaletestTracingFlags{}
@@ -877,8 +877,8 @@ func (r *RootCmd) scaletestCoderConnect() *serpent.Command {
 	)
 
 	cmd := &serpent.Command{
-		Use:   "coder-connect",
-		Short: "Simulate the load of Coder Desktop clients",
+		Use:   "workspace-updates",
+		Short: "Simulate the load of Coder Desktop clients receiving workspace updates",
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 			client, err := r.TryInitClient(inv)
@@ -921,13 +921,14 @@ func (r *RootCmd) scaletestCoderConnect() *serpent.Command {
 			powerUserCount := powerUserWorkspaceCount / powerUserWorkspaces
 			regularWorkspaceCount := workspaceCount - powerUserWorkspaceCount
 			regularUserCount := regularWorkspaceCount
+			regularUserWorkspaceCount := 1
 
 			_, _ = fmt.Fprintf(inv.Stderr, "Distribution plan:\n")
 			_, _ = fmt.Fprintf(inv.Stderr, "  Total workspaces: %d\n", workspaceCount)
 			_, _ = fmt.Fprintf(inv.Stderr, "  Power users: %d (each owning %d workspaces = %d total)\n",
 				powerUserCount, powerUserWorkspaces, powerUserWorkspaceCount)
-			_, _ = fmt.Fprintf(inv.Stderr, "  Regular users: %d (each owning 1 workspace = %d total)\n",
-				regularUserCount, regularWorkspaceCount)
+			_, _ = fmt.Fprintf(inv.Stderr, "  Regular users: %d (each owning %d workspace = %d total)\n",
+				regularUserCount, regularUserWorkspaceCount, regularWorkspaceCount)
 
 			outputs, err := output.parse()
 			if err != nil {
@@ -951,7 +952,6 @@ func (r *RootCmd) scaletestCoderConnect() *serpent.Command {
 				RichParameterFile: parameterFlags.richParameterFile,
 				RichParameters:    cliRichParameters,
 			})
-			_ = richParameters
 			if err != nil {
 				return xerrors.Errorf("prepare build: %w", err)
 			}
@@ -963,7 +963,7 @@ func (r *RootCmd) scaletestCoderConnect() *serpent.Command {
 			tracer := tracerProvider.Tracer(scaletestTracerName)
 
 			reg := prometheus.NewRegistry()
-			metrics := coderconnect.NewMetrics(reg)
+			metrics := workspaceupdates.NewMetrics(reg)
 
 			logger := inv.Logger
 			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
@@ -981,13 +981,14 @@ func (r *RootCmd) scaletestCoderConnect() *serpent.Command {
 
 			_, _ = fmt.Fprintln(inv.Stderr, "Creating users...")
 
-			dialBarrier := harness.NewBarrier(int(powerUserCount + regularUserCount))
+			dialBarrier := new(sync.WaitGroup)
+			dialBarrier.Add(int(powerUserCount + regularUserCount))
 
-			configs := make([]coderconnect.Config, 0, powerUserCount+regularUserCount)
+			configs := make([]workspaceupdates.Config, 0, powerUserCount+regularUserCount)
 
-			for i := int64(0); i < powerUserCount; i++ {
-				config := coderconnect.Config{
-					User: coderconnect.UserConfig{
+			for range powerUserCount {
+				config := workspaceupdates.Config{
+					User: createusers.Config{
 						OrganizationID: me.OrganizationIDs[0],
 					},
 					Workspace: workspacebuild.Config{
@@ -996,13 +997,12 @@ func (r *RootCmd) scaletestCoderConnect() *serpent.Command {
 							TemplateID:          tpl.ID,
 							RichParameterValues: richParameters,
 						},
-						NoWaitForAgents: noWaitForAgents,
+						NoWaitForAgents: true,
 					},
 					WorkspaceCount:          powerUserWorkspaces,
 					WorkspaceUpdatesTimeout: workspaceUpdatesTimeout,
 					DialTimeout:             dialTimeout,
 					Metrics:                 metrics,
-					NoCleanup:               noCleanup,
 					DialBarrier:             dialBarrier,
 				}
 				if err := config.Validate(); err != nil {
@@ -1011,10 +1011,9 @@ func (r *RootCmd) scaletestCoderConnect() *serpent.Command {
 				configs = append(configs, config)
 			}
 
-			for i := int64(0); i < regularUserCount; i++ {
-				workspaceCount := 1
-				config := coderconnect.Config{
-					User: coderconnect.UserConfig{
+			for range regularUserCount {
+				config := workspaceupdates.Config{
+					User: createusers.Config{
 						OrganizationID: me.OrganizationIDs[0],
 					},
 					Workspace: workspacebuild.Config{
@@ -1023,13 +1022,12 @@ func (r *RootCmd) scaletestCoderConnect() *serpent.Command {
 							TemplateID:          tpl.ID,
 							RichParameterValues: richParameters,
 						},
-						NoWaitForAgents: noWaitForAgents,
+						NoWaitForAgents: true,
 					},
-					WorkspaceCount:          int64(workspaceCount),
+					WorkspaceCount:          int64(regularUserWorkspaceCount),
 					WorkspaceUpdatesTimeout: workspaceUpdatesTimeout,
 					DialTimeout:             dialTimeout,
 					Metrics:                 metrics,
-					NoCleanup:               noCleanup,
 					DialBarrier:             dialBarrier,
 				}
 				if err := config.Validate(); err != nil {
@@ -1040,16 +1038,9 @@ func (r *RootCmd) scaletestCoderConnect() *serpent.Command {
 
 			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
 			for i, config := range configs {
-				name := fmt.Sprintf("coderconnect-%dw", config.WorkspaceCount)
+				name := fmt.Sprintf("workspaceupdates-%dw", config.WorkspaceCount)
 				id := strconv.Itoa(i)
-				username, email, err := loadtestutil.GenerateUserIdentifier(id)
-				if err != nil {
-					return xerrors.Errorf("generate user identifier: %w", err)
-				}
-				config.User.Username = username
-				config.User.Email = email
-
-				var runner harness.Runnable = coderconnect.NewRunner(client, config)
+				var runner harness.Runnable = workspaceupdates.NewRunner(client, config)
 				if tracingEnabled {
 					runner = &runnableTraceWrapper{
 						tracer:   tracer,
@@ -1061,7 +1052,7 @@ func (r *RootCmd) scaletestCoderConnect() *serpent.Command {
 				th.AddRun(name, id, runner)
 			}
 
-			_, _ = fmt.Fprintln(inv.Stderr, "Running Coder Connect scaletest...")
+			_, _ = fmt.Fprintln(inv.Stderr, "Running workspace updates scaletest...")
 			testCtx, testCancel := strategy.toContext(ctx)
 			defer testCancel()
 			err = th.Run(testCtx)
@@ -1082,12 +1073,14 @@ func (r *RootCmd) scaletestCoderConnect() *serpent.Command {
 				}
 			}
 
-			_, _ = fmt.Fprintln(inv.Stderr, "\nCleaning up...")
-			cleanupCtx, cleanupCancel := cleanupStrategy.toContext(ctx)
-			defer cleanupCancel()
-			err = th.Cleanup(cleanupCtx)
-			if err != nil {
-				return xerrors.Errorf("cleanup tests: %w", err)
+			if !noCleanup {
+				_, _ = fmt.Fprintln(inv.Stderr, "\nCleaning up...")
+				cleanupCtx, cleanupCancel := cleanupStrategy.toContext(ctx)
+				defer cleanupCancel()
+				err = th.Cleanup(cleanupCtx)
+				if err != nil {
+					return xerrors.Errorf("cleanup tests: %w", err)
+				}
 			}
 
 			if res.TotalFail > 0 {
@@ -1105,6 +1098,7 @@ func (r *RootCmd) scaletestCoderConnect() *serpent.Command {
 			Env:           "CODER_SCALETEST_WORKSPACE_COUNT",
 			Description:   "Required: Total number of workspaces to create.",
 			Value:         serpent.Int64Of(&workspaceCount),
+			Required:      true,
 		},
 		{
 			Flag:        "power-user-workspaces",
@@ -1131,7 +1125,7 @@ func (r *RootCmd) scaletestCoderConnect() *serpent.Command {
 			Flag:        "dial-timeout",
 			Env:         "CODER_SCALETEST_DIAL_TIMEOUT",
 			Default:     "2m",
-			Description: "Timeout for dialing the Coder Connect endpoint.",
+			Description: "Timeout for dialing the tailnet endpoint.",
 			Value:       serpent.DurationOf(&dialTimeout),
 		},
 		{
@@ -1141,12 +1135,6 @@ func (r *RootCmd) scaletestCoderConnect() *serpent.Command {
 			Description:   "Required: Name or ID of the template to use for workspaces.",
 			Value:         serpent.StringOf(&template),
 			Required:      true,
-		},
-		{
-			Flag:        "no-wait-for-agents",
-			Env:         "CODER_SCALETEST_NO_WAIT_FOR_AGENTS",
-			Description: `Do not wait for agents to start before marking the test as succeeded. This can be useful if you are running the test against a template that does not start the agent quickly.`,
-			Value:       serpent.BoolOf(&noWaitForAgents),
 		},
 		{
 			Flag:        "no-cleanup",
