@@ -19,7 +19,7 @@ Coder Tasks make both developer-driven _and_ autonomous agentic workflows first-
 Tasks exist to solve these types of problems:
 
 - **Consistency:** Capture a known, safe, & secure workflow once that can then be run anywhere
-- **Reproducability:** Every Task runs from a Coder Workspace, so results are reliable
+- **Reproducibility:** Every Task runs from a Coder Workspace, so results are reliable
 - **Productivity:** Eliminate manual processes from developer processes enabling them to focus on less defined and harder-to-do issues
 - **Scalability:** Once a workflow is captured in a Task, it can be reused by other teams within your organization scaling with you as you grow
 - **Flexibility:** Support both developer *AND* autonomous agentic workflows
@@ -69,7 +69,7 @@ flowchart LR
 
 ### Refresher: What are Templates
 
-As a quick refresher, a template defines the underlying infrastructure that a Coder workspace runs on. Templates themself are writtin in Terraform managed as a `main.tf` file that defines the contents of the workspace and the resources it requires to run. Templates can also pull in Dockerfiles, other build files, and startup scripts or config files to specially configure.
+As a quick refresher, a template defines the underlying infrastructure that a Coder workspace runs on. Templates themself are writting in Terraform managed as a `main.tf` file that defines the contents of the workspace and the resources it requires to run. Templates can also pull in Dockerfiles, other build files, and startup scripts or config files to specially configure.
 
 Within this configuration, Coder specifically looks for 
 * `coder_agent`: Coder's fundamental resource that runs inside a workspace to enable connectivity to external systems
@@ -81,7 +81,7 @@ Coder templates also supports standard Terraform providers for connecting to ext
 
 ### What Makes a Task Template
 
-Task templates are regular Coder Templates, with a few specific resources defined additionally. These resources prime the template and corresponding workspaces for automated execution and AI-driven workfows rather than development environments for developers and builders. 
+Task templates are regular Coder Templates, with a few specific resources defined additionally. These resources prime the template and corresponding workspaces for automated execution and AI-driven workflows rather than development environments for developers and builders. 
 
 The specific resources that turn a template into a task template include:
 * **AgentAPI Module:** Coder's task execution engine that provides Web UI integration, task reporting, and agent lifecycle management that makes any module compatible with Coder Tasks
@@ -158,16 +158,16 @@ Coder Tasks, being based in a given Workspace, operate on very similar principle
 - **Specificity & Refinability:** Tasks, just like templates, are made to address a specific problem and evolve with that problem and your team over time
 - **Security:** Because Tasks are defined through templates, you can define and restrict what access an agent running inside a Task has access to
 - **Frugality:** Tasks only consume resources when running. You should design your Task Template to provide just enough compute and storage so that your task can effectively complete its job, reducing infrastructure cost
-- **Model Applicability:** Task Templates can specifiy which model is most appropriate, meaning you can fine tune your Task based on it's job, be that a code-focused model for fixing bugs or a generalized LLM to write summaries and updates on Pull Requests
+- **Model Applicability:** Task Templates can specify which model is most appropriate, meaning you can fine tune your Task based on it's job, be that a code-focused model for fixing bugs or a generalized LLM to write summaries and updates on Pull Requests
 - **Automation:** Coder Tasks provide a comprehensive set of built-in APIs, status monitoring, and notification systems. This allows for you and your team to build seamless integrations with externation automation workflows
 
-Together, these principles make up the core idea of designing Task Templates. Tasks are programmable, secure, and cost-efficient agents that integrate seamlessly into your team's workflow. By treating Task Templates as living and adaptable designs, you can evolve them with your team and needs without sacrificing clarity or control. The result is a system where automation, resource management, and secuirty are baked into the foundation letting developers focus less on orchestration details and more on solving the problems that matter.
+Together, these principles make up the core idea of designing Task Templates. Tasks are programmable, secure, and cost-efficient agents that integrate seamlessly into your team's workflow. By treating Task Templates as living and adaptable designs, you can evolve them with your team and needs without sacrificing clarity or control. The result is a system where automation, resource management, and security are baked into the foundation letting developers focus less on orchestration details and more on solving the problems that matter.
 
 These design principles aren’t just technical guidelines, however. They're the lens through which to understand what Tasks are and how to use them effectively. By grounding Tasks in specificity, security, frugality, applicability, and automation, you ensure they remain reliable building blocks for both individual workflows and larger team processes.
 
 ### Identity, Security, and Access
 
-Agents running with Coder Tasks always act as the authenticated developer. External auth tokens tie actions directly back to a specific user, so Git operations like cloning, pushing, or creating a PR are executed under the developer's personal OAuth tokens. Workspace SSH keys are generated per user, and external service integrations authenticate with the developer's personal credentials. This preserves audit trails and ensures actions stay traceable. Authentication (who the user is) subsequently stays separate from authorization (what the user can do), with identitiy providers acting as the soruce of truth. For human users, OIDC or SSO ensure sessions are consistent, centralized, and easy to govern.
+Agents running with Coder Tasks always act as the authenticated developer. External auth tokens tie actions directly back to a specific user, so Git operations like cloning, pushing, or creating a PR are executed under the developer's personal OAuth tokens. Workspace SSH keys are generated per user, and external service integrations authenticate with the developer's personal credentials. This preserves audit trails and ensures actions stay traceable. Authentication (who the user is) subsequently stays separate from authorization (what the user can do), with identity providers acting as the source of truth. For human users, OIDC or SSO ensure sessions are consistent, centralized, and easy to govern.
 
 For automated or background use cases, Tasks ca also run under service identities. These behave like CI jobs: locked down, narrowly scoped, and managed by the organization. Service accounts or bot identities cover headless API-driven systems, while GitHub Apps enable fine-grained repository access under your organizations control. If long-lived API tokens are needed, they should be tied to service accounts with strict roles and rotation policies. In practice, the default should always be user-context execution for developer workflows while service accounts are reserved for production automation, CI/CD pipelines, and cross-team integrations. This balance keeps developer productivity high while aligning with organizational security requirements.
 
@@ -175,7 +175,7 @@ For automated or background use cases, Tasks ca also run under service identitie
 
 Coder's platform is built around three core concepts that work together:
 
-**Templates** define the infrastructure and tool configurations taht can be reused across your organization. They're the "blueprint" that ensures consistentcy and captures your team's working preferences.
+**Templates** define the infrastructure and tool configurations that can be reused across your organization. They're the "blueprint" that ensures consistency and captures your team's working preferences.
 
 **Workspaces** are the individual development environments that are spun up from templates. They provide developers with consistent, reproducible environments to perform their job.
 
@@ -185,11 +185,11 @@ Coder's platform is built around three core concepts that work together:
 
 Tasks aren't a separate system bolted onto Coder, but a natural extension of your existing infrastructure.
 - **Security:** Tasks inherit the same access controls, secrets management, and network policies as developer workspaces
-- **Resoruce Management:** Tasks have access to the same compute pools, storage, and scaling policies you've already configured
+- **Resource Management:** Tasks have access to the same compute pools, storage, and scaling policies you've already configured
 - **Observability:** Tasks use the same underlying infrastructure for monitoring, and appear in their own custom task-specific dashboards
 
 ### Developer Experience Continuity
 
 Coder understand that every team is in a different place in it's AI adoption plan. Some teams are still working to AI assistants to speed up development, while other teams are adopting background tasks to automate PR reviews and small bug fixes.
 
-Naturally, your team might want to jump into a Task, for example when the agent encounters an issue or needs human input. With Tasks, you're able to jump into the existing Coder Workspace environment backing up the Task exectuion so that you can push the work forward. There's no context switching between tools; it's the same Workspace you're already used to and the agent's work becomes yours.
+Naturally, your team might want to jump into a Task, for example when the agent encounters an issue or needs human input. With Tasks, you're able to jump into the existing Coder Workspace environment backing up the Task execution so that you can push the work forward. There's no context switching between tools; it's the same Workspace you're already used to and the agent's work becomes yours.
