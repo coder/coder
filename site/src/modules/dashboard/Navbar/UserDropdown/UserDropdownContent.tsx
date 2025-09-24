@@ -135,9 +135,9 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 				{buildInfo?.deployment_id && (
 					<div className="flex items-center text-xs">
 						<Tooltip title="Deployment Identifier">
-							<div className="whitespace-nowrap overflow-hidden text-ellipsis">
+							<span className="whitespace-nowrap overflow-hidden text-ellipsis">
 								{buildInfo.deployment_id}
-							</div>
+							</span>
 						</Tooltip>
 						<CopyButton
 							text={buildInfo.deployment_id}
