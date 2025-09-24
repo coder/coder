@@ -287,6 +287,7 @@ export const CreateTaskError: Story = {
 	decorators: [withGlobalSnackbar],
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
 		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
 		spyOn(API.experimental, "createTask").mockRejectedValue(
 			mockApiError({
