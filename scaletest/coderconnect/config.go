@@ -1,13 +1,13 @@
 package coderconnect
 
 import (
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/workspacebuild"
 )
 
@@ -66,7 +66,7 @@ type Config struct {
 
 	// DialBarrier is used to ensure all runners have dialed the Coder Connect
 	// endpoint before creating their workspace(s).
-	DialBarrier *harness.Barrier `json:"-"`
+	DialBarrier *sync.WaitGroup `json:"-"`
 }
 
 func (c Config) Validate() error {

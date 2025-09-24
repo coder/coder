@@ -64,7 +64,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	reachedBarrier := false
 	defer func() {
 		if !reachedBarrier {
-			r.cfg.DialBarrier.Cancel()
+			r.cfg.DialBarrier.Done()
 		}
 	}()
 
@@ -125,6 +125,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	}()
 
 	reachedBarrier = true
+	r.cfg.DialBarrier.Done()
 	r.cfg.DialBarrier.Wait()
 
 	workspaceRunners := make([]*workspacebuild.Runner, 0, r.cfg.WorkspaceCount)

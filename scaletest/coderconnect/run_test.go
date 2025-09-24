@@ -3,6 +3,7 @@ package coderconnect_test
 import (
 	"bytes"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -64,7 +65,8 @@ func TestRun(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
-	barrier := harness.NewBarrier(numUsers)
+	barrier := new(sync.WaitGroup)
+	barrier.Add(numUsers)
 	metrics := coderconnect.NewMetrics(prometheus.NewRegistry())
 
 	th := harness.NewTestHarness(harness.ConcurrentExecutionStrategy{}, harness.ConcurrentExecutionStrategy{})
