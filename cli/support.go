@@ -68,16 +68,18 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 	var coderURLOverride string
 	var workspacesTotalCap64 int64 = 1000
 	var templateName string
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "bundle <workspace> [<agent>]",
 		Short: "Generate a support bundle to troubleshoot issues connecting to a workspace.",
 		Long:  `This command generates a file containing detailed troubleshooting information about the Coder deployment and workspace connections. You must specify a single workspace (and optionally an agent name).`,
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 2),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			var cliLogBuf bytes.Buffer
 			cliLogW := sloghuman.Sink(&cliLogBuf)
 			cliLog := slog.Make(cliLogW).Leveled(slog.LevelDebug)
@@ -187,18 +189,6 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			}
 			zwr := zip.NewWriter(w)
 			defer zwr.Close()
-
-			if templateName != "" {
-				tmpl, err := namedTemplate(inv.Context(), client, templateName)
-				if err != nil {
-					return xerrors.Errorf("invalid template: %w", err)
-				}
-				cliLog.Debug(inv.Context(), "found template",
-					slog.F("template_name", tmpl.Name),
-					slog.F("template_id", tmpl.ID),
-				)
-				templateID = tmpl.ID
-			}
 
 			clientLog := slog.Make().Leveled(slog.LevelDebug)
 			if r.verbose {
