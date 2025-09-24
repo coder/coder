@@ -127,10 +127,10 @@ You can make use of `.gitconfig` to configure the identity of the agent. For exa
 resource "coder_agent" "main" {
     ...
     env = {
-        GIT_AUTHOR_NAME = "AI Bot"
-        GIT_AUTHOR_EMAIL = "ai.bot@example.com"
-        GIT_COMMITTER_NAME = "Jane Doe"
-        GIT_COMMITTER_EMAIL = "jane.doe@example.com"
+        GIT_AUTHOR_NAME = "Jane Doe"
+        GIT_AUTHOR_EMAIL = "jane.doe@example.com"
+        GIT_COMMITTER_NAME = "AI Bot"
+        GIT_COMMITTER_EMAIL = "ai.bot@example.com"
     }
 }
 ```
