@@ -637,13 +637,11 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		var reqBody struct {
-			Body struct {
-				Content string `json:"content"`
-				Type    string `json:"type"`
-			} `json:"body"`
+			Content string `json:"content"`
+			Type    string `json:"type"`
 		}
-		reqBody.Body.Content = req.Input
-		reqBody.Body.Type = "user"
+		reqBody.Content = req.Input
+		reqBody.Type = "user"
 
 		req, err := agentapiNewRequest(ctx, http.MethodPost, appURL, "message", reqBody)
 		if err != nil {
@@ -666,6 +664,24 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 				Detail:  fmt.Sprintf("Upstream status: %d; Body: %s", resp.StatusCode, body),
 			})
 		}
+
+		// {"$schema":"http://localhost:3284/schemas/MessageResponseBody.json","ok":true}
+		// {"$schema":"http://localhost:3284/schemas/ErrorModel.json","title":"Unprocessable Entity","status":422,"detail":"validation failed","errors":[{"location":"body.type","value":"oof"}]}
+		var respBody map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
+			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+				Message: "Failed to decode task app response body.",
+				Detail:  err.Error(),
+			})
+		}
+
+		if v, ok := respBody["status"].(string); !ok || v != "ok" {
+			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+				Message: "Task app rejected the message.",
+				Detail:  fmt.Sprintf("Upstream response: %v", respBody),
+			})
+		}
+
 		return nil
 	}); err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
@@ -851,10 +867,9 @@ func agentapiDoStatusRequest(ctx context.Context, client *http.Client, appURL *u
 		})
 	}
 
+	// {"$schema":"http://localhost:3284/schemas/StatusResponseBody.json","status":"stable"}
 	var respBody struct {
-		Body struct {
-			Status string `json:"status"`
-		} `json:"body"`
+		Status string `json:"status"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
@@ -864,5 +879,5 @@ func agentapiDoStatusRequest(ctx context.Context, client *http.Client, appURL *u
 		})
 	}
 
-	return respBody.Body.Status, nil
+	return respBody.Status, nil
 }

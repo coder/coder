@@ -423,16 +423,32 @@ func TestTasks(t *testing.T) {
 			owner := coderdtest.CreateFirstUser(t, client)
 			userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
+			createStatusResponse := func(status string) string {
+				return `
+					{
+						"$schema": "http://localhost:3284/schemas/StatusResponseBody.json",
+						"status": "` + status + `"
+					}
+				`
+			}
+			statusResponse := createStatusResponse("stable")
+
 			// Start a fake AgentAPI that accepts GET /status and POST /message.
-			statusResponse := `{"body":{"status":"stable"}}`
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodGet && r.URL.Path == "/status" {
-					_, _ = fmt.Fprint(w, statusResponse)
+					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusOK)
+					_, _ = fmt.Fprint(w, statusResponse)
 					return
 				}
 				if r.Method == http.MethodPost && r.URL.Path == "/message" {
+					w.Header().Set("Content-Type", "application/json")
+
+					b, _ := io.ReadAll(r.Body)
+					assert.Equal(t, `{"content":"Hello, Agent!","type":"user"}`, string(b), "expected message content")
+
 					w.WriteHeader(http.StatusOK)
+					io.WriteString(w, `{"status": "ok"}`)
 					return
 				}
 				w.WriteHeader(http.StatusInternalServerError)
@@ -495,14 +511,14 @@ func TestTasks(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			statusResponse = `{"body":{"status":"bad"}}`
+			statusResponse = createStatusResponse("bad")
 
 			err = exp.TaskSend(ctx, "me", ws.ID, codersdk.TaskSendRequest{
 				Input: "Hello, Agent!",
 			})
 			require.Error(t, err, "wanted error due to bad status")
 
-			statusResponse = `{"body":{"status":"stable"}}`
+			statusResponse = createStatusResponse("stable")
 
 			// Send task input to the tasks sidebar app and expect 204.e
 			err = exp.TaskSend(ctx, "me", ws.ID, codersdk.TaskSendRequest{
