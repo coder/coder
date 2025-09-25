@@ -64,7 +64,7 @@ ssh_config() {
 prompt() {
 	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME APP_SLUG PROMPT
 
-	wait
+	wait_agentapi_stable
 
 	username=$(curl \
 		--fail \
@@ -95,7 +95,7 @@ prompt() {
 	fi
 
 	# Wait for agentapi to process the response and return the last agent message
-	wait
+	wait_agentapi_stable
 
 	last_msg=$(curl \
 		--header "Content-Type: application/json" \
@@ -105,7 +105,7 @@ prompt() {
 	echo "${last_msg}"
 }
 
-wait() {
+wait_agentapi_stable() {
 	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME APP_SLUG
 	username=$(curl \
 		--fail \
@@ -115,37 +115,44 @@ wait() {
 		--silent \
 		"${CODER_URL}/api/v2/users/me" | jq -r '.username')
 
-	set +o pipefail
 	for attempt in {1..120}; do
 		# First wait for task to start
+		set +o pipefail
 		task_status=$("${CODER_BIN}" \
 			--url "${CODER_URL}" \
 			--token "${CODER_SESSION_TOKEN}" \
 			exp tasks status "${TASK_NAME}" \
 			--output json |
 			jq -r '.status')
+		set -o pipefail
 		echo "Task status is ${task_status}"
-		if [[ "${task_status}" != "running" ]]; then
-			echo "Waiting for task status to be running (attempt ${attempt}/120)"
-			sleep 5
-			continue
+		if [[ "${task_status}" == "running" ]]; then
+			echo "Task is running"
+			break
 		fi
+		echo "Waiting for task status to be running (attempt ${attempt}/120)"
+		sleep 5
+	done
 
+	for attempt in {1..120}; do
 		# Workspace agent must be healthy
+		set +o pipefail
 		healthy=$("${CODER_BIN}" \
 			--url "${CODER_URL}" \
 			--token "${CODER_SESSION_TOKEN}" \
 			exp tasks status "${TASK_NAME}" \
 			--output json |
 			jq -r '.workspace_agent_health.healthy')
+		set -o pipefail
 		if [[ "${healthy}" == "true" ]]; then
 			echo "Workspace agent is healthy"
-		else
-			echo "Workspace agent not yet healthy (attempt ${attempt}/120)"
-			sleep 5
-			continue
+			break
 		fi
+		echo "Workspace agent not yet healthy (attempt ${attempt}/120)"
+		sleep 5
+	done
 
+	for attempt in {1..120}; do
 		# AgentAPI application should not be 404'ing
 		agentapi_app_status_code=$(curl \
 			--header "Content-Type: application/json" \
@@ -158,13 +165,17 @@ wait() {
 			--write-out '%{http_code}' \
 			"${CODER_URL}/@${username}/${TASK_NAME}/apps/${APP_SLUG}/status")
 		echo "Workspace app ${APP_SLUG} returned ${agentapi_app_status_code}"
-		if [[ "${agentapi_app_status_code}" != "200" ]]; then
-			echo "Agentapi not yet running (attempt ${attempt}/120)"
-			sleep 5
-			continue
+		if [[ "${agentapi_app_status_code}" == "200" ]]; then
+			echo "Agentapi is running"
+			break
 		fi
+		echo "Agentapi not yet running (attempt ${attempt}/120)"
+		sleep 5
+	done
 
+	for attempt in {1..120}; do
 		# AgentAPI must be stable
+		set +o pipefail
 		agentapi_status=$(curl \
 			--header "Content-Type: application/json" \
 			--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
@@ -173,14 +184,13 @@ wait() {
 			--show-error \
 			--silent \
 			"${CODER_URL}/@${username}/${TASK_NAME}/apps/${APP_SLUG}/status" | jq -r '.status')
+		set -o pipefail
 		if [[ "${agentapi_status}" == "stable" ]]; then
 			echo "AgentAPI stable"
-		else
-			echo "Waiting for AgentAPI to report stable status (attempt ${attempt}/120)"
-			sleep 5
-			continue
+			break
 		fi
-		exit 0
+		echo "Waiting for AgentAPI to report stable status (attempt ${attempt}/120)"
+		sleep 5
 	done
 	set -o pipefail
 }
@@ -335,7 +345,7 @@ main() {
 		delete
 		;;
 	wait)
-		wait
+		wait_agentapi_stable
 		;;
 	resume)
 		resume

@@ -106,7 +106,7 @@ jobs:
           echo "Creating task: $TASK_NAME"
           ./scripts/traiage.sh create
           ./scripts/traiage.sh wait
-          echo "TASK_NAME=$TASK_NAME" >> "${GITHUB_OUTPUT}"
+          echo "TASK_NAME=${TASK_NAME}" >> "${GITHUB_OUTPUT}"
           echo "TASK_NAME=${TASK_NAME}" >> "${GITHUB_ENV}"
 
       - name: Create and upload archive
