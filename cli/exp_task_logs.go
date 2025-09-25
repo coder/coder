@@ -1,16 +1,28 @@
 package cli
 
 import (
-	"encoding/json"
+	"fmt"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) taskLogs() *serpent.Command {
+	formatter := cliui.NewOutputFormatter(
+		cliui.TableFormat(
+			[]codersdk.TaskLogEntry{},
+			[]string{
+				"type",
+				"content",
+			},
+		),
+		cliui.JSONFormat(),
+	)
+
 	cmd := &serpent.Command{
 		Use:   "logs <task>",
 		Short: "Show a task's logs",
@@ -46,16 +58,16 @@ func (r *RootCmd) taskLogs() *serpent.Command {
 				return xerrors.Errorf("get task logs: %w", err)
 			}
 
-			enc := json.NewEncoder(inv.Stdout)
-			for _, log := range logs.Logs {
-				if err := enc.Encode(log); err != nil {
-					return xerrors.Errorf("encode task log: %w", err)
-				}
+			out, err := formatter.Format(ctx, logs.Logs)
+			if err != nil {
+				return xerrors.Errorf("format task logs: %w", err)
 			}
 
+			_, _ = fmt.Fprintln(inv.Stdout, out)
 			return nil
 		},
 	}
 
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }

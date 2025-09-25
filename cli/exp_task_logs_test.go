@@ -16,7 +16,6 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -48,12 +47,13 @@ func Test_TaskLogs(t *testing.T) {
 
 	tests := []struct {
 		args        []string
+		expectTable string
 		expectLogs  []codersdk.TaskLogEntry
 		expectError string
 		handler     func(t *testing.T, ctx context.Context) http.HandlerFunc
 	}{
 		{
-			args:       []string{taskName},
+			args:       []string{taskName, "--output", "json"},
 			expectLogs: taskLogs,
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
@@ -73,8 +73,27 @@ func Test_TaskLogs(t *testing.T) {
 			},
 		},
 		{
-			args:       []string{taskID.String()},
+			args:       []string{taskID.String(), "--output", "json"},
 			expectLogs: taskLogs,
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case fmt.Sprintf("/api/experimental/tasks/me/%s/logs", taskID.String()):
+						httpapi.Write(ctx, w, http.StatusOK, codersdk.TaskLogsResponse{
+							Logs: taskLogs,
+						})
+					default:
+						t.Errorf("unexpected path: %s", r.URL.Path)
+					}
+				}
+			},
+		},
+		{
+			args: []string{taskID.String()},
+			expectTable: `
+TYPE    CONTENT
+input   What is 1 + 1?
+output  2`,
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
@@ -163,21 +182,18 @@ func Test_TaskLogs(t *testing.T) {
 				assert.ErrorContains(t, err, tt.expectError)
 			}
 
-			if tt.expectLogs != nil {
-				lines := strings.Split(stdout.String(), "\n")
-				lines = slice.Filter(lines, func(s string) bool {
-					return s != ""
-				})
-
-				require.Len(t, lines, len(tt.expectLogs))
-
-				for i, line := range lines {
-					var log codersdk.TaskLogEntry
-					err = json.NewDecoder(strings.NewReader(line)).Decode(&log)
-					require.NoError(t, err)
-
-					assert.Equal(t, tt.expectLogs[i], log)
+			if tt.expectTable != "" {
+				if diff := tableDiff(tt.expectTable, stdout.String()); diff != "" {
+					t.Errorf("unexpected output diff (-want +got):\n%s", diff)
 				}
+			}
+
+			if tt.expectLogs != nil {
+				var logs []codersdk.TaskLogEntry
+				err = json.NewDecoder(strings.NewReader(stdout.String())).Decode(&logs)
+				require.NoError(t, err)
+
+				assert.Equal(t, tt.expectLogs, logs)
 			}
 		})
 	}
