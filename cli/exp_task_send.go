@@ -21,7 +21,7 @@ func (r *RootCmd) taskSend() *serpent.Command {
 			{
 				Name:        "stdin",
 				Flag:        "stdin",
-				Description: "Reads from stdin for the message.",
+				Description: "Reads the input from stdin.",
 				Value:       serpent.BoolOf(&stdin),
 			},
 		},
