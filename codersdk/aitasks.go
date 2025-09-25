@@ -79,10 +79,10 @@ func (c *ExperimentalClient) CreateTask(ctx context.Context, user string, reques
 type TaskState string
 
 const (
-	TaskStateWorking   TaskState = "working"
-	TaskStateIdle      TaskState = "idle"
-	TaskStateCompleted TaskState = "completed"
-	TaskStateFailed    TaskState = "failed"
+	TaskStateWorking  TaskState = "working"
+	TaskStateIdle     TaskState = "idle"
+	TaskStateComplete TaskState = "complete"
+	TaskStateFailed   TaskState = "failed"
 )
 
 // Task represents a task.

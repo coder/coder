@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -269,19 +270,39 @@ func TestTasks(t *testing.T) {
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
+		var (
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			ctx        = testutil.Context(t, testutil.WaitLong)
+			user       = coderdtest.CreateFirstUser(t, client)
+			template   = createAITemplate(t, client, user)
+			// Create a workspace (task) with a specific prompt.
+			wantPrompt = "review my code"
+			workspace  = coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+				req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+					{Name: codersdk.AITaskPromptParameterName, Value: wantPrompt},
+				}
+			})
+		)
 
-		template := createAITemplate(t, client, user)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
+		// Assert invariant: the workspace has exactly one resource with one agent with one app.
+		require.Len(t, ws.LatestBuild.Resources, 1)
+		require.Len(t, ws.LatestBuild.Resources[0].Agents, 1)
+		agentID := ws.LatestBuild.Resources[0].Agents[0].ID
+		taskAppID := ws.LatestBuild.Resources[0].Agents[0].Apps[0].ID
 
-		// Create a workspace (task) with a specific prompt.
-		wantPrompt := "review my code"
-		workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
-			req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
-				{Name: codersdk.AITaskPromptParameterName, Value: wantPrompt},
-			}
+		// Insert an app status for the workspace
+		_, err := db.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
+			ID:          uuid.New(),
+			WorkspaceID: workspace.ID,
+			CreatedAt:   dbtime.Now(),
+			AgentID:     agentID,
+			AppID:       taskAppID,
+			State:       database.WorkspaceAppStatusStateComplete,
+			Message:     "all done",
 		})
+		require.NoError(t, err)
 
 		// Fetch the task by ID via experimental API and verify fields.
 		exp := codersdk.NewExperimentalClient(client)
@@ -293,6 +314,24 @@ func TestTasks(t *testing.T) {
 		assert.Equal(t, wantPrompt, task.InitialPrompt, "task prompt should match the AI Prompt parameter")
 		assert.Equal(t, workspace.ID, task.WorkspaceID.UUID, "workspace id should match")
 		assert.NotEmpty(t, task.Status, "task status should not be empty")
+
+		// Stop the workspace
+		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+
+		// Verify that the previous status still remains
+		updated, err := exp.TaskByID(ctx, workspace.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, updated.CurrentState, "current state should not be nil")
+		assert.Equal(t, "all done", updated.CurrentState.Message)
+		assert.Equal(t, codersdk.TaskStateComplete, updated.CurrentState.State)
+
+		// Start the workspace again
+		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStop, codersdk.WorkspaceTransitionStart)
+
+		// Verify that the status from the previous build is no longer present
+		updated, err = exp.TaskByID(ctx, workspace.ID)
+		require.NoError(t, err)
+		assert.Nil(t, updated.CurrentState, "current state should be nil")
 	})
 
 	t.Run("Delete", func(t *testing.T) {
