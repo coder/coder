@@ -26,6 +26,16 @@ Coder Tasks exist to solve these types of problems:
 
 ### Example Task Workflow
 
+Envision you're an engineer hopping onto work in the morning. You review your team's backlog of bugs or issues, and see a small bug was submitted overnight. It's not too complicated. 
+
+You go to your GitHub repository, and open up the issue. You comment on it `@Coder`, and a Task-enabled Workspace automatically spins up. 
+
+Claude Code starts analyzing the issue, and determines a recent PR introduced an untested regression. The agent analyzes the code, determines how to fix it, then opens a PR and runs your tests and other validation steps. 
+
+You're then notified that a PR has been opened and is ready for your review. This all happened while you were on your team's daily standup, preparing for your own work. You review the PR, and the bug is squashed. 
+
+This is the power of Coder Tasks.
+
 ![Example Background Task](../images/guides/ai-agents/background-task-example.png)Example of Background Coder Tasks operation.
 
 ## How to Make a Task Template
