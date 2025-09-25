@@ -1,4 +1,3 @@
-import EditIcon from "@mui/icons-material/Edit";
 import Button from "@mui/material/Button";
 import type { TemplateVersion } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -11,7 +10,7 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { Stats, StatsItem } from "components/Stats/Stats";
-import { PlusIcon } from "lucide-react";
+import { EditIcon, PlusIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";

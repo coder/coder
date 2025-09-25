@@ -1,6 +1,6 @@
-import ComputerIcon from "@mui/icons-material/Computer";
 import type { WorkspaceApp } from "api/typesGenerated";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { ComputerIcon } from "lucide-react";
 import type { FC } from "react";
 
 interface BaseIconProps {
