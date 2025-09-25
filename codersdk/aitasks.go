@@ -263,8 +263,8 @@ const (
 type TaskLogEntry struct {
 	ID      int         `json:"id"`
 	Content string      `json:"content"`
-	Type    TaskLogType `json:"type"` // maps from agentapi role
-	Time    time.Time   `json:"time"`
+	Type    TaskLogType `json:"type" enum:"input,output"`
+	Time    time.Time   `json:"time" format:"date-time"`
 }
 
 // TaskLogsResponse contains the logs for a task.
