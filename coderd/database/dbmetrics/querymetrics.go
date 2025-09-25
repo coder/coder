@@ -593,6 +593,34 @@ func (m queryMetricsStore) GetAIBridgeInterceptionByID(ctx context.Context, id u
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIBridgeInterceptions(ctx context.Context) ([]database.AIBridgeInterception, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIBridgeInterceptions(ctx)
+	m.queryLatencies.WithLabelValues("GetAIBridgeInterceptions").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIBridgeTokenUsagesByInterceptionID(ctx, interceptionID)
+	m.queryLatencies.WithLabelValues("GetAIBridgeTokenUsagesByInterceptionID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeToolUsage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIBridgeToolUsagesByInterceptionID(ctx, interceptionID)
+	m.queryLatencies.WithLabelValues("GetAIBridgeToolUsagesByInterceptionID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeUserPrompt, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptionID)
+	m.queryLatencies.WithLabelValues("GetAIBridgeUserPromptsByInterceptionID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	start := time.Now()
 	apiKey, err := m.s.GetAPIKeyByID(ctx, id)

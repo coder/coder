@@ -44,6 +44,8 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
+	"github.com/coder/coder/v2/provisionerd/proto"
+
 	"cdr.dev/slog"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
@@ -95,7 +97,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
-	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
@@ -999,6 +1000,11 @@ func New(options *Options) *API {
 
 	// Experimental routes are not guaranteed to be stable and may change at any time.
 	r.Route("/api/experimental", func(r chi.Router) {
+		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
+
+		// Only this group should be subject to apiKeyMiddleware; aibridged will mount its own
+		// router and handles key validation in a different fashion.
+		// See enterprise/x/aibridged/http.go.
 		r.Group(func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Route("/aitasks", func(r chi.Router) {

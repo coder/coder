@@ -3,6 +3,7 @@ package aibridged
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -13,6 +14,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
 )
+
+var _ io.Closer = &Server{}
 
 // Server provides the AI Bridge functionality.
 // It is responsible for:
@@ -182,4 +185,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.logger.Info(ctx, "gracefully shutdown")
 	})
 	return err
+}
+
+// Close shuts down the server with a timeout of 5s.
+func (s *Server) Close() error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	return s.Shutdown(ctx)
 }

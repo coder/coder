@@ -2,7 +2,6 @@ package aibridged
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"sync"
 	"time"
@@ -73,13 +72,7 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 
 			// Run the eviction in the background since ristretto blocks sets until a free slot is available.
 			go func() {
-				if err := item.Value.Shutdown(shutdownCtx); err != nil {
-					if errors.Is(err, context.DeadlineExceeded) {
-						logger.Debug(shutdownCtx, "bridge shutdown timed out")
-					} else {
-						logger.Debug(shutdownCtx, "bridge shutdown failed", slog.Error(err))
-					}
-				}
+				_ = item.Value.Shutdown(shutdownCtx)
 			}()
 		},
 	})
