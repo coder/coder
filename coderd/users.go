@@ -1596,6 +1596,22 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 		scopes = append(scopes, codersdk.APIKeyScope(s))
 	}
 
+	allowList := make([]codersdk.APIAllowListTarget, 0, len(k.AllowList))
+	if len(k.AllowList) == 0 {
+		allowList = append(allowList, codersdk.AllowAllTarget())
+	} else {
+		for _, entry := range k.AllowList {
+			target := codersdk.AllowAllTarget()
+			if entry.Type != "" {
+				target.Type = codersdk.RBACResource(entry.Type)
+			}
+			if entry.ID != "" {
+				target.ID = entry.ID
+			}
+			allowList = append(allowList, target)
+		}
+	}
+
 	return codersdk.APIKey{
 		ID:              k.ID,
 		UserID:          k.UserID,
@@ -1608,5 +1624,6 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 		Scopes:          scopes,
 		LifetimeSeconds: k.LifetimeSeconds,
 		TokenName:       k.TokenName,
+		AllowList:       allowList,
 	}
 }
