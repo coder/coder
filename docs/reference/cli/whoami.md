@@ -13,10 +13,10 @@ coder whoami [flags]
 
 ### -c, --column
 
-|         |                              |
-|---------|------------------------------|
-| Type    | <code>[URL\|Username]</code> |
-| Default | <code>url,username</code>    |
+|         |                                               |
+|---------|-----------------------------------------------|
+| Type    | <code>[URL\|Username\|ID\|Orgs\|Roles]</code> |
+| Default | <code>url,username,id</code>                  |
 
 Columns to display in table output.
 
