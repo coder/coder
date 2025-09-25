@@ -600,6 +600,133 @@ func TestTasks(t *testing.T) {
 			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		})
 	})
+
+	t.Run("Logs", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			messageResponse := `
+				{
+					"$schema": "http://localhost:3284/schemas/MessagesResponseBody.json",
+					"messages": [
+						{
+							"id": 0,
+							"content": "Welcome, user!",
+							"role": "agent",
+							"time": "2025-09-25T10:42:48.751774125Z"
+						},
+						{
+							"id": 1,
+							"content": "Hello, agent!",
+							"role": "user",
+							"time": "2025-09-25T10:46:42.880996296Z"
+						},
+						{
+							"id": 2,
+							"content": "What would you like to work on today?",
+							"role": "agent",
+							"time": "2025-09-25T10:46:50.747761102Z"
+						}
+					]
+				}
+			`
+
+			// Fake AgentAPI that returns a couple of messages.
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && r.URL.Path == "/messages" {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusOK)
+					io.WriteString(w, messageResponse)
+					return
+				}
+				w.WriteHeader(http.StatusNotFound)
+			}))
+			t.Cleanup(srv.Close)
+
+			// Template pointing sidebar app to our fake AgentAPI.
+			authToken := uuid.NewString()
+			template := createAITemplate(t, client, owner, withSidebarURL(srv.URL), withAgentToken(authToken))
+
+			// Create task workspace.
+			ws := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+				req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+					{Name: codersdk.AITaskPromptParameterName, Value: "show logs"},
+				}
+			})
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+			// Start a fake agent.
+			agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
+			_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
+				o.Client = agentClient
+			})
+			coderdtest.NewWorkspaceAgentWaiter(t, client, ws.ID).WaitFor(coderdtest.AgentsReady)
+
+			// Omit sidebar app health as undefined is OK.
+
+			// Fetch logs.
+			exp := codersdk.NewExperimentalClient(client)
+			resp, err := exp.TaskLogs(ctx, "me", ws.ID)
+			require.NoError(t, err)
+			require.Len(t, resp.Logs, 3)
+			assert.Equal(t, 0, resp.Logs[0].ID)
+			assert.Equal(t, codersdk.TaskLogTypeOutput, resp.Logs[0].Type)
+			assert.Equal(t, "Welcome, user!", resp.Logs[0].Content)
+
+			assert.Equal(t, 1, resp.Logs[1].ID)
+			assert.Equal(t, codersdk.TaskLogTypeInput, resp.Logs[1].Type)
+			assert.Equal(t, "Hello, agent!", resp.Logs[1].Content)
+
+			assert.Equal(t, 2, resp.Logs[2].ID)
+			assert.Equal(t, codersdk.TaskLogTypeOutput, resp.Logs[2].Type)
+			assert.Equal(t, "What would you like to work on today?", resp.Logs[2].Content)
+		})
+
+		t.Run("UpstreamError", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			// Fake AgentAPI that returns 500 for messages.
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = io.WriteString(w, "boom")
+			}))
+			t.Cleanup(srv.Close)
+
+			authToken := uuid.NewString()
+			template := createAITemplate(t, client, owner, withSidebarURL(srv.URL), withAgentToken(authToken))
+			ws := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+				req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+					{Name: codersdk.AITaskPromptParameterName, Value: "show logs"},
+				}
+			})
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+			// Start fake agent.
+			agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
+			_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
+				o.Client = agentClient
+			})
+			coderdtest.NewWorkspaceAgentWaiter(t, client, ws.ID).WaitFor(coderdtest.AgentsReady)
+
+			exp := codersdk.NewExperimentalClient(client)
+			_, err := exp.TaskLogs(ctx, "me", ws.ID)
+
+			var sdkErr *codersdk.Error
+			require.Error(t, err)
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusBadGateway, sdkErr.StatusCode())
+		})
+	})
 }
 
 func TestTasksCreate(t *testing.T) {

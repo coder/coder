@@ -9,18 +9,28 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
+// AITaskPromptParameterName is the name of the parameter used to pass prompts
+// to AI tasks.
+//
+// Experimental: This value is experimental and may change in the future.
 const AITaskPromptParameterName = provider.TaskPromptParameterName
 
+// AITasksPromptsResponse represents the response from the AITaskPrompts method.
+//
+// Experimental: This method is experimental and may change in the future.
 type AITasksPromptsResponse struct {
 	// Prompts is a map of workspace build IDs to prompts.
 	Prompts map[string]string `json:"prompts"`
 }
 
 // AITaskPrompts returns prompts for multiple workspace builds by their IDs.
+//
+// Experimental: This method is experimental and may change in the future.
 func (c *ExperimentalClient) AITaskPrompts(ctx context.Context, buildIDs []uuid.UUID) (AITasksPromptsResponse, error) {
 	if len(buildIDs) == 0 {
 		return AITasksPromptsResponse{
@@ -47,6 +57,9 @@ func (c *ExperimentalClient) AITaskPrompts(ctx context.Context, buildIDs []uuid.
 	return prompts, json.NewDecoder(res.Body).Decode(&prompts)
 }
 
+// CreateTaskRequest represents the request to create a new task.
+//
+// Experimental: This type is experimental and may change in the future.
 type CreateTaskRequest struct {
 	TemplateVersionID       uuid.UUID `json:"template_version_id" format:"uuid"`
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
@@ -54,6 +67,9 @@ type CreateTaskRequest struct {
 	Name                    string    `json:"name,omitempty"`
 }
 
+// CreateTask creates a new task.
+//
+// Experimental: This method is experimental and may change in the future.
 func (c *ExperimentalClient) CreateTask(ctx context.Context, user string, request CreateTaskRequest) (Task, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/tasks/%s", user), request)
 	if err != nil {
@@ -78,6 +94,7 @@ func (c *ExperimentalClient) CreateTask(ctx context.Context, user string, reques
 // Experimental: This type is experimental and may change in the future.
 type TaskState string
 
+// TaskState enums.
 const (
 	TaskStateWorking   TaskState = "working"
 	TaskStateIdle      TaskState = "idle"
@@ -208,11 +225,15 @@ func (c *ExperimentalClient) DeleteTask(ctx context.Context, user string, id uui
 }
 
 // TaskSendRequest is used to send task input to the tasks sidebar app.
+//
+// Experimental: This type is experimental and may change in the future.
 type TaskSendRequest struct {
 	Input string `json:"input"`
 }
 
 // TaskSend submits task input to the tasks sidebar app.
+//
+// Experimental: This method is experimental and may change in the future.
 func (c *ExperimentalClient) TaskSend(ctx context.Context, user string, id uuid.UUID, req TaskSendRequest) error {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/tasks/%s/%s/send", user, id.String()), req)
 	if err != nil {
@@ -223,4 +244,54 @@ func (c *ExperimentalClient) TaskSend(ctx context.Context, user string, id uuid.
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// TaskLogType indicates the source of a task log entry.
+//
+// Experimental: This type is experimental and may change in the future.
+type TaskLogType string
+
+// TaskLogType enums.
+const (
+	TaskLogTypeInput  TaskLogType = "input"
+	TaskLogTypeOutput TaskLogType = "output"
+)
+
+// TaskLogEntry represents a single log entry for a task.
+//
+// Experimental: This type is experimental and may change in the future.
+type TaskLogEntry struct {
+	ID      int         `json:"id"`
+	Content string      `json:"content"`
+	Type    TaskLogType `json:"type"` // maps from agentapi role
+	Time    time.Time   `json:"time"`
+}
+
+// TaskLogsResponse contains the logs for a task.
+//
+// Experimental: This type is experimental and may change in the future.
+type TaskLogsResponse struct {
+	Logs []TaskLogEntry `json:"logs"`
+}
+
+// TaskLogs retrieves logs from the task's sidebar app via the experimental API.
+//
+// Experimental: This method is experimental and may change in the future.
+func (c *ExperimentalClient) TaskLogs(ctx context.Context, user string, id uuid.UUID) (TaskLogsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/tasks/%s/%s/logs", user, id.String()), nil)
+	if err != nil {
+		return TaskLogsResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return TaskLogsResponse{}, ReadBodyAsError(res)
+	}
+
+	var logs TaskLogsResponse
+	if err := json.NewDecoder(res.Body).Decode(&logs); err != nil {
+		return TaskLogsResponse{}, xerrors.Errorf("decoding task logs response: %w", err)
+	}
+
+	return logs, nil
 }

@@ -1013,6 +1013,7 @@ func New(options *Options) *API {
 				r.Get("/{id}", api.taskGet)
 				r.Delete("/{id}", api.taskDelete)
 				r.Post("/{id}/send", api.taskSend)
+				r.Get("/{id}/logs", api.taskLogs)
 				r.Post("/", api.tasksCreate)
 			})
 		})
