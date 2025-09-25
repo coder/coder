@@ -202,7 +202,9 @@ CREATE TYPE api_key_scope AS ENUM (
     'task:read',
     'task:update',
     'task:delete',
-    'task:*'
+    'task:*',
+    'workspace:share',
+    'workspace_dormant:share'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (

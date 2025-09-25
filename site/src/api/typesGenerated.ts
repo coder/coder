@@ -324,6 +324,7 @@ export type APIKeyScope =
 	| "workspace_dormant:delete"
 	| "workspace_dormant:delete_agent"
 	| "workspace_dormant:read"
+	| "workspace_dormant:share"
 	| "workspace_dormant:ssh"
 	| "workspace_dormant:start"
 	| "workspace_dormant:stop"
@@ -334,6 +335,7 @@ export type APIKeyScope =
 	| "workspace_proxy:read"
 	| "workspace_proxy:update"
 	| "workspace:read"
+	| "workspace:share"
 	| "workspace:ssh"
 	| "workspace:start"
 	| "workspace:stop"
@@ -520,6 +522,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"workspace_dormant:delete",
 	"workspace_dormant:delete_agent",
 	"workspace_dormant:read",
+	"workspace_dormant:share",
 	"workspace_dormant:ssh",
 	"workspace_dormant:start",
 	"workspace_dormant:stop",
@@ -530,6 +533,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"workspace_proxy:read",
 	"workspace_proxy:update",
 	"workspace:read",
+	"workspace:share",
 	"workspace:ssh",
 	"workspace:start",
 	"workspace:stop",
@@ -3812,6 +3816,7 @@ export type RBACAction =
 	| "read"
 	| "read_personal"
 	| "ssh"
+	| "share"
 	| "unassign"
 	| "update"
 	| "update_personal"
@@ -3830,6 +3835,7 @@ export const RBACActions: RBACAction[] = [
 	"read",
 	"read_personal",
 	"ssh",
+	"share",
 	"unassign",
 	"update",
 	"update_personal",

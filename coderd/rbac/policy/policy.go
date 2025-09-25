@@ -27,6 +27,8 @@ const (
 
 	ActionCreateAgent Action = "create_agent"
 	ActionDeleteAgent Action = "delete_agent"
+
+	ActionShare Action = "share"
 )
 
 type PermissionDefinition struct {
@@ -61,6 +63,9 @@ var workspaceActions = map[Action]ActionDefinition{
 
 	ActionCreateAgent: "create a new workspace agent",
 	ActionDeleteAgent: "delete an existing workspace agent",
+
+	// Sharing a workspace
+	ActionShare: "share a workspace with other users or groups",
 }
 
 var taskActions = map[Action]ActionDefinition{
