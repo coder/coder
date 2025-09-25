@@ -635,6 +635,10 @@ TAILNETTEST_MOCKS := \
 	tailnet/tailnettest/workspaceupdatesprovidermock.go \
 	tailnet/tailnettest/subscriptionmock.go
 
+AIBRIDGED_MOCKS := \
+	enterprise/x/aibridged/aibridgedmock/clientmock.go \
+	enterprise/x/aibridged/aibridgedmock/poolmock.go
+
 GEN_FILES := \
 	tailnet/proto/tailnet.pb.go \
 	agent/proto/agent.pb.go \
@@ -660,7 +664,8 @@ GEN_FILES := \
 	agent/agentcontainers/acmock/acmock.go \
 	agent/agentcontainers/dcspec/dcspec_gen.go \
 	coderd/httpmw/loggermw/loggermock/loggermock.go \
-	codersdk/workspacesdk/agentconnmock/agentconnmock.go
+	codersdk/workspacesdk/agentconnmock/agentconnmock.go \
+	$(AIBRIDGED_MOCKS)
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: gen/db gen/golden-files $(GEN_FILES)
@@ -713,6 +718,7 @@ gen/mark-fresh:
 		agent/agentcontainers/dcspec/dcspec_gen.go \
 		coderd/httpmw/loggermw/loggermock/loggermock.go \
 		codersdk/workspacesdk/agentconnmock/agentconnmock.go \
+		$(AIBRIDGED_MOCKS) \
 		"
 
 	for file in $$files; do
@@ -758,6 +764,10 @@ coderd/httpmw/loggermw/loggermock/loggermock.go: coderd/httpmw/loggermw/logger.g
 
 codersdk/workspacesdk/agentconnmock/agentconnmock.go: codersdk/workspacesdk/agentconn.go
 	go generate ./codersdk/workspacesdk/agentconnmock/
+	touch "$@"
+
+$(AIBRIDGED_MOCKS): enterprise/x/aibridged/client.go enterprise/x/aibridged/pool.go
+	go generate ./enterprise/x/aibridged/aibridgedmock/
 	touch "$@"
 
 agent/agentcontainers/dcspec/dcspec_gen.go: \

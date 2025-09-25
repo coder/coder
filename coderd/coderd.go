@@ -999,29 +999,31 @@ func New(options *Options) *API {
 
 	// Experimental routes are not guaranteed to be stable and may change at any time.
 	r.Route("/api/experimental", func(r chi.Router) {
-		r.Use(apiKeyMiddleware)
-		r.Route("/aitasks", func(r chi.Router) {
-			r.Get("/prompts", api.aiTasksPrompts)
-		})
-		r.Route("/tasks", func(r chi.Router) {
-			r.Use(apiRateLimiter)
-
-			r.Get("/", api.tasksList)
-
-			r.Route("/{user}", func(r chi.Router) {
-				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
-				r.Get("/{id}", api.taskGet)
-				r.Delete("/{id}", api.taskDelete)
-				r.Post("/{id}/send", api.taskSend)
-				r.Post("/", api.tasksCreate)
+		r.Group(func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Route("/aitasks", func(r chi.Router) {
+				r.Get("/prompts", api.aiTasksPrompts)
 			})
-		})
-		r.Route("/mcp", func(r chi.Router) {
-			r.Use(
-				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP),
-			)
-			// MCP HTTP transport endpoint with mandatory authentication
-			r.Mount("/http", api.mcpHTTPHandler())
+			r.Route("/tasks", func(r chi.Router) {
+				r.Use(apiRateLimiter)
+
+				r.Get("/", api.tasksList)
+
+				r.Route("/{user}", func(r chi.Router) {
+					r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+					r.Get("/{id}", api.taskGet)
+					r.Delete("/{id}", api.taskDelete)
+					r.Post("/{id}/send", api.taskSend)
+					r.Post("/", api.tasksCreate)
+				})
+			})
+			r.Route("/mcp", func(r chi.Router) {
+				r.Use(
+					httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP),
+				)
+				// MCP HTTP transport endpoint with mandatory authentication
+				r.Mount("/http", api.mcpHTTPHandler())
+			})
 		})
 	})
 
