@@ -102,6 +102,10 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 		}
 	}
 
+	if len(params.AllowList) == 0 {
+		panic(fmt.Sprintf("developer error: API key %s has empty allow list", keyID))
+	}
+
 	token := fmt.Sprintf("%s-%s", keyID, keySecret)
 
 	return database.InsertAPIKeyParams{
