@@ -96,9 +96,9 @@ func Test_TaskStatus(t *testing.T) {
 STATE CHANGED  STATUS   STATE  MESSAGE
 4s ago         running
 3s ago         running  working  Reticulating splines...
-2s ago         running  completed  Splines reticulated successfully!
-2s ago         stopping  completed  Splines reticulated successfully!
-2s ago         stopped  completed  Splines reticulated successfully!`,
+2s ago         running  complete  Splines reticulated successfully!
+2s ago         stopping  complete  Splines reticulated successfully!
+2s ago         stopped  complete  Splines reticulated successfully!`,
 			hf: func(ctx context.Context, now time.Time) func(http.ResponseWriter, *http.Request) {
 				var calls atomic.Int64
 				return func(w http.ResponseWriter, r *http.Request) {
