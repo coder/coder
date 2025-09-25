@@ -1596,6 +1596,11 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 		scopes = append(scopes, codersdk.APIKeyScope(s))
 	}
 
+	allowList := db2sdk.List(k.AllowList, db2sdk.APIAllowListTarget)
+	if len(allowList) == 0 {
+		panic(fmt.Sprintf("developer error: API key %s has empty allow list", k.ID))
+	}
+
 	return codersdk.APIKey{
 		ID:              k.ID,
 		UserID:          k.UserID,
@@ -1608,5 +1613,6 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 		Scopes:          scopes,
 		LifetimeSeconds: k.LifetimeSeconds,
 		TokenName:       k.TokenName,
+		AllowList:       allowList,
 	}
 }
