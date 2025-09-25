@@ -3772,7 +3772,8 @@ type OAuth2ProviderAppToken struct {
 	// Token audience binding from resource parameter
 	Audience sql.NullString `db:"audience" json:"audience"`
 	// Denormalized user ID for performance optimization in authorization checks
-	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	Signature string    `db:"signature" json:"signature"`
 }
 
 type Organization struct {

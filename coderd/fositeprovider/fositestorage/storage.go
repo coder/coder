@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"time"
 
@@ -13,8 +14,12 @@ import (
 	"github.com/ory/fosite/handler/pkce"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 )
 
 type fositeStorage interface {
@@ -154,8 +159,82 @@ func (s Storage) InvalidateAuthorizeCodeSession(ctx context.Context, code string
 }
 
 func (s Storage) CreateAccessTokenSession(ctx context.Context, signature string, request fosite.Requester) (err error) {
-	//TODO implement me
-	panic("implement me")
+	client := request.GetClient().(*Client)
+	session := request.GetSession().(*CoderSession)
+
+	exp := session.ExpiresAt[fosite.AccessToken]
+
+	tokenName := fmt.Sprintf("%s_%s_oauth_session_token", session.UserID, client.GetID())
+	key, _, err := apikey.Generate(apikey.CreateParams{
+		UserID:          session.UserID,
+		LoginType:       database.LoginTypeOAuth2ProviderApp,
+		DefaultLifetime: time.Hour * 7, // TODO: Pass in this info. Do we still need this field?
+		ExpiresAt:       exp,
+		LifetimeSeconds: 0,
+		// TODO: Add scopes
+		Scope: database.APIKeyScopeAll,
+		// For now, we only allow one active token per user+app.
+		// TODO: This should be fixed to allow multiple tokens.
+		TokenName: tokenName,
+	})
+
+	// TODO: This is unfortunate. The
+	id, signature := (&TokenStrategy{}).splitPrefix(signature)
+	key.HashedSecret = []byte(signature)
+	key.ID = id
+
+	// Grab the user roles so we can perform the exchange as the user.
+	actor, _, err := httpmw.UserRBACSubject(ctx, s.db, session.UserID, rbac.ScopeAll)
+	if err != nil {
+		return xerrors.Errorf("fetch user actor: %w", err)
+	}
+
+	err = s.db.InTx(func(tx database.Store) error {
+		ctx := dbauthz.As(ctx, actor)
+
+		// Delete the previous key, if any.
+		prevKey, err := tx.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
+			UserID:    session.UserID,
+			TokenName: tokenName,
+		})
+		if err == nil {
+			err = tx.DeleteAPIKeyByID(ctx, prevKey.ID)
+		} else if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("delete api key by name: %w", err)
+		}
+
+		newKey, err := tx.InsertAPIKey(ctx, key)
+		if err != nil {
+			return xerrors.Errorf("insert oauth2 access token: %w", err)
+		}
+
+		// TODO: Is this audience correct?
+		aud := ""
+		if len(request.GetGrantedAudience()) > 0 {
+			aud = request.GetGrantedAudience()[0]
+		}
+
+		_, err = tx.InsertOAuth2ProviderAppToken(ctx, database.InsertOAuth2ProviderAppTokenParams{
+			ID:        uuid.New(),
+			CreatedAt: dbtime.Now(),
+			ExpiresAt: exp,
+			//HashPrefix:  []byte(refreshToken.Prefix),
+			//RefreshHash: []byte(refreshToken.Hashed),
+			AppSecretID: client.Secrets[0].ID, // Why do we have more than 1 secret?
+			APIKeyID:    newKey.ID,
+			UserID:      session.UserID,
+			Audience: sql.NullString{
+				String: aud,
+				Valid:  aud != "",
+			},
+		})
+		if err != nil {
+			return xerrors.Errorf("insert oauth2 refresh token: %w", err)
+		}
+		return nil
+	}, nil)
+
+	return nil
 }
 
 func (s Storage) GetAccessTokenSession(ctx context.Context, signature string, session fosite.Session) (request fosite.Requester, err error) {

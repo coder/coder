@@ -193,7 +193,8 @@ INSERT INTO oauth2_provider_app_tokens (
     app_secret_id,
     api_key_id,
     user_id,
-    audience
+    audience,
+    signature
 ) VALUES(
     $1,
     $2,
@@ -203,7 +204,8 @@ INSERT INTO oauth2_provider_app_tokens (
     $6,
     $7,
     $8,
-    $9
+    $9,
+    $10
 ) RETURNING *;
 
 -- name: GetOAuth2ProviderAppTokenByPrefix :one

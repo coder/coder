@@ -34,7 +34,7 @@ type CreateParams struct {
 // database representation. It is the responsibility of the caller to insert it
 // into the database.
 func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) {
-	keyID, keySecret, err := generateKey()
+	keyID, keySecret, err := GenerateKey()
 	if err != nil {
 		return database.InsertAPIKeyParams{}, "", xerrors.Errorf("generate API key: %w", err)
 	}
@@ -98,8 +98,8 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 	}, token, nil
 }
 
-// generateKey a new ID and secret for an API key.
-func generateKey() (id string, secret string, err error) {
+// GenerateKey a new ID and secret for an API key.
+func GenerateKey() (id string, secret string, err error) {
 	// Length of an API Key ID.
 	id, err = cryptorand.String(10)
 	if err != nil {

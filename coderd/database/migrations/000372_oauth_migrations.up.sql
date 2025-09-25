@@ -8,3 +8,8 @@ ALTER TABLE oauth2_provider_app_codes
 	ADD COLUMN active BOOLEAN NOT NULL DEFAULT TRUE,
 	ADD COLUMN form jsonb NOT NULL DEFAULT '{}'
 ;
+
+--
+-- ALTER TABLE oauth2_provider_app_tokens
+-- 	ADD COLUMN signature TEXT NOT NULL DEFAULT ''
+-- ;
