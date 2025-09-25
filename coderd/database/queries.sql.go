@@ -112,7 +112,7 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 }
 
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
-SELECT id, initiator_id, provider, model, started_at FROM aibridge_interceptions WHERE id = $1::uuid
+SELECT id, initiator_id, provider, model, started_at, metadata FROM aibridge_interceptions WHERE id = $1::uuid
 `
 
 func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (AIBridgeInterception, error) {
@@ -124,22 +124,24 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 		&i.Provider,
 		&i.Model,
 		&i.StartedAt,
+		&i.Metadata,
 	)
 	return i, err
 }
 
 const insertAIBridgeInterception = `-- name: InsertAIBridgeInterception :one
-INSERT INTO aibridge_interceptions (id, initiator_id, provider, model, started_at)
-VALUES ($1::uuid, $2::uuid, $3, $4, $5)
-RETURNING id, initiator_id, provider, model, started_at
+INSERT INTO aibridge_interceptions (id, initiator_id, provider, model, metadata, started_at)
+VALUES ($1::uuid, $2::uuid, $3, $4, COALESCE($5::jsonb, '{}'::jsonb), $6)
+RETURNING id, initiator_id, provider, model, started_at, metadata
 `
 
 type InsertAIBridgeInterceptionParams struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	InitiatorID uuid.UUID `db:"initiator_id" json:"initiator_id"`
-	Provider    string    `db:"provider" json:"provider"`
-	Model       string    `db:"model" json:"model"`
-	StartedAt   time.Time `db:"started_at" json:"started_at"`
+	ID          uuid.UUID       `db:"id" json:"id"`
+	InitiatorID uuid.UUID       `db:"initiator_id" json:"initiator_id"`
+	Provider    string          `db:"provider" json:"provider"`
+	Model       string          `db:"model" json:"model"`
+	Metadata    json.RawMessage `db:"metadata" json:"metadata"`
+	StartedAt   time.Time       `db:"started_at" json:"started_at"`
 }
 
 func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error) {
@@ -148,6 +150,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		arg.InitiatorID,
 		arg.Provider,
 		arg.Model,
+		arg.Metadata,
 		arg.StartedAt,
 	)
 	var i AIBridgeInterception
@@ -157,6 +160,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		&i.Provider,
 		&i.Model,
 		&i.StartedAt,
+		&i.Metadata,
 	)
 	return i, err
 }

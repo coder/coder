@@ -3373,10 +3373,11 @@ func AllWorkspaceTransitionValues() []WorkspaceTransition {
 type AIBridgeInterception struct {
 	ID uuid.UUID `db:"id" json:"id"`
 	// Relates to a users record, but FK is elided for performance.
-	InitiatorID uuid.UUID `db:"initiator_id" json:"initiator_id"`
-	Provider    string    `db:"provider" json:"provider"`
-	Model       string    `db:"model" json:"model"`
-	StartedAt   time.Time `db:"started_at" json:"started_at"`
+	InitiatorID uuid.UUID             `db:"initiator_id" json:"initiator_id"`
+	Provider    string                `db:"provider" json:"provider"`
+	Model       string                `db:"model" json:"model"`
+	StartedAt   time.Time             `db:"started_at" json:"started_at"`
+	Metadata    pqtype.NullRawMessage `db:"metadata" json:"metadata"`
 }
 
 // Audit log of tokens used by intercepted requests in AI Bridge
