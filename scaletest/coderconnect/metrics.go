@@ -22,13 +22,13 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Subsystem: "scaletest",
 			Name:      "workspace_updates_latency_seconds",
 			Help:      "Time between starting a workspace build and receiving both the agent update and workspace update",
-		}, []string{"username", "owned_workspaces", "workspace"}),
+		}, []string{"username", "num_owned_workspaces", "workspace_name"}),
 		WorkspaceUpdatesErrorsTotal: *prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "workspace_updates_errors_total",
 			Help:      "Total number of workspace updates errors",
-		}, []string{"username", "owned_workspaces", "action"}),
+		}, []string{"username", "num_owned_workspaces", "action"}),
 	}
 
 	reg.MustRegister(m.WorkspaceUpdatesLatencySeconds)

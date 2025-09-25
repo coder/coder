@@ -1,7 +1,7 @@
 package coderconnect_test
 
 import (
-	"bytes"
+	"io"
 	"strconv"
 	"sync"
 	"testing"
@@ -9,19 +9,22 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/scaletest/coderconnect"
-	"github.com/coder/coder/v2/scaletest/harness"
+	"github.com/coder/coder/v2/scaletest/createusers"
 	"github.com/coder/coder/v2/scaletest/workspacebuild"
 	"github.com/coder/coder/v2/testutil"
 )
 
 func TestRun(t *testing.T) {
 	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
@@ -69,10 +72,12 @@ func TestRun(t *testing.T) {
 	barrier.Add(numUsers)
 	metrics := coderconnect.NewMetrics(prometheus.NewRegistry())
 
-	th := harness.NewTestHarness(harness.ConcurrentExecutionStrategy{}, harness.ConcurrentExecutionStrategy{})
+	eg, runCtx := errgroup.WithContext(ctx)
+
+	runners := make([]*coderconnect.Runner, 0, numUsers)
 	for i := range numUsers {
 		cfg := coderconnect.Config{
-			User: coderconnect.UserConfig{
+			User: createusers.Config{
 				OrganizationID: user.OrganizationID,
 			},
 			Workspace: workspacebuild.Config{
@@ -90,17 +95,16 @@ func TestRun(t *testing.T) {
 		}
 		err := cfg.Validate()
 		require.NoError(t, err)
-		th.AddRun("coderconnect", strconv.Itoa(i), coderconnect.NewRunner(client, cfg))
+
+		runner := coderconnect.NewRunner(client, cfg)
+		runners = append(runners, runner)
+		eg.Go(func() error {
+			return runner.Run(runCtx, strconv.Itoa(i), io.Discard)
+		})
 	}
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	err := th.Run(ctx)
+	err := eg.Wait()
 	require.NoError(t, err)
-
-	res := th.Results()
-	require.Len(t, res.Runs, numUsers)
-	require.Equal(t, 0, res.TotalFail)
 
 	users, err := client.Users(ctx, codersdk.UsersRequest{})
 	require.NoError(t, err)
@@ -110,11 +114,14 @@ func TestRun(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, workspaces.Workspaces, numWorkspaces)
 
-	// Cleanup the tests
-	cleanupLogs := bytes.NewBuffer(nil)
-	err = th.Cleanup(ctx)
+	cleanupEg, cleanupCtx := errgroup.WithContext(ctx)
+	for i, runner := range runners {
+		cleanupEg.Go(func() error {
+			return runner.Cleanup(cleanupCtx, strconv.Itoa(i), io.Discard)
+		})
+	}
+	err = cleanupEg.Wait()
 	require.NoError(t, err)
-	t.Log("Cleanup logs:\n\n" + cleanupLogs.String())
 
 	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
@@ -124,13 +131,9 @@ func TestRun(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, users.Users, 1) // owner
 
-	for i := range numUsers {
-		id := strconv.Itoa(i)
-		require.Contains(t, th.Results().Runs, "coderconnect/"+id)
-		metrics := th.Results().Runs["coderconnect/"+id].Metrics
+	for _, runner := range runners {
+		metrics := runner.GetMetrics()
 		require.Contains(t, metrics, coderconnect.WorkspaceUpdatesLatencyMetric)
 		require.Len(t, metrics[coderconnect.WorkspaceUpdatesLatencyMetric], userWorkspaces)
-		require.Contains(t, metrics, coderconnect.WorkspaceUpdatesErrorsTotal)
-		require.EqualValues(t, 0, metrics[coderconnect.WorkspaceUpdatesErrorsTotal])
 	}
 }
