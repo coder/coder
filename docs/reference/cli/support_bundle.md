@@ -60,3 +60,12 @@ Maximum number of workspaces to include in the support bundle. Set to 0 or negat
 | Environment | <code>$CODER_SUPPORT_BUNDLE_TEMPLATE</code> |
 
 Template name to include in the support bundle. Use org_name/template_name if template name is reused across multiple organizations.
+
+### --pprof
+
+|             |                                          |
+|-------------|------------------------------------------|
+| Type        | <code>bool</code>                        |
+| Environment | <code>$CODER_SUPPORT_BUNDLE_PPROF</code> |
+
+Collect pprof data from the Coder deployment. Requires CODER_PPROF_ENDPOINT to be set.

@@ -14,6 +14,10 @@ OPTIONS:
           File path for writing the generated support bundle. Defaults to
           coder-support-$(date +%s).zip.
 
+      --pprof bool, $CODER_SUPPORT_BUNDLE_PPROF
+          Collect pprof data from the Coder deployment. Requires
+          CODER_PPROF_ENDPOINT to be set.
+
       --template string, $CODER_SUPPORT_BUNDLE_TEMPLATE
           Template name to include in the support bundle. Use
           org_name/template_name if template name is reused across multiple

@@ -56,6 +56,7 @@ var supportBundleBlurb = cliui.Bold("This will collect the following information
   - Agent network diagnostics
   - Agent logs
   - License status
+  - pprof profiling data (if --pprof is enabled)
 ` + cliui.Bold("Note: ") +
 	cliui.Wrap("While we try to sanitize sensitive data from support bundles, we cannot guarantee that they do not contain information that you or your organization may consider sensitive.\n") +
 	cliui.Bold("Please confirm that you will:\n") +
@@ -68,6 +69,8 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 	var coderURLOverride string
 	var workspacesTotalCap64 int64 = 1000
 	var templateName string
+	var pprof bool
+	var pprofEndpoint string
 	cmd := &serpent.Command{
 		Use:   "bundle <workspace> [<agent>]",
 		Short: "Generate a support bundle to troubleshoot issues connecting to a workspace.",
@@ -76,6 +79,16 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			serpent.RequireRangeArgs(0, 2),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			// Validate pprof configuration
+			if pprof && pprofEndpoint == "" {
+				return xerrors.Errorf("--pprof requires CODER_PPROF_ENDPOINT to be set")
+			}
+			if pprof {
+				if _, err := url.Parse(pprofEndpoint); err != nil {
+					return xerrors.Errorf("invalid CODER_PPROF_ENDPOINT URL: %w", err)
+				}
+			}
+
 			client, err := r.InitClient(inv)
 			if err != nil {
 				return err
@@ -194,6 +207,10 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			if r.verbose {
 				clientLog.AppendSinks(sloghuman.Sink(inv.Stderr))
 			}
+			if pprof {
+				_, _ = fmt.Fprintln(inv.Stderr, "pprof data collection will take approximately 30 seconds...")
+			}
+
 			deps := support.Deps{
 				Client: client,
 				// Support adds a sink so we don't need to supply one ourselves.
@@ -202,6 +219,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				AgentID:            agtID,
 				WorkspacesTotalCap: int(workspacesTotalCap64),
 				TemplateID:         templateID,
+				PprofEndpoint:      pprofEndpoint,
 			}
 
 			bun, err := support.Run(inv.Context(), &deps)
@@ -248,6 +266,19 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			Env:         "CODER_SUPPORT_BUNDLE_TEMPLATE",
 			Description: "Template name to include in the support bundle. Use org_name/template_name if template name is reused across multiple organizations.",
 			Value:       serpent.StringOf(&templateName),
+		},
+		{
+			Flag:        "pprof",
+			Env:         "CODER_SUPPORT_BUNDLE_PPROF",
+			Description: "Collect pprof data from the Coder deployment. Requires CODER_PPROF_ENDPOINT to be set.",
+			Value:       serpent.BoolOf(&pprof),
+		},
+		{
+			Flag:        "pprof-endpoint",
+			Env:         "CODER_PPROF_ENDPOINT",
+			Description: "The pprof server endpoint to collect data from. Required when --pprof is enabled.",
+			Value:       serpent.StringOf(&pprofEndpoint),
+			Hidden:      true,
 		},
 	}
 
@@ -498,9 +529,74 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 			return xerrors.Errorf("write file %q in archive: %w", k, err)
 		}
 	}
+
+	// Write pprof binary data
+	if err := writePprofData(src.Pprof, dest); err != nil {
+		return xerrors.Errorf("write pprof data: %w", err)
+	}
+
 	if err := dest.Close(); err != nil {
 		return xerrors.Errorf("close zip file: %w", err)
 	}
+	return nil
+}
+
+func writePprofData(pprof support.Pprof, dest *zip.Writer) error {
+	// Write server pprof data directly to pprof directory
+	if pprof.Server != nil {
+		if err := writePprofCollection("pprof", pprof.Server, dest); err != nil {
+			return xerrors.Errorf("write server pprof data: %w", err)
+		}
+	}
+
+	// Write agent pprof data
+	if pprof.Agent != nil {
+		if err := writePprofCollection("pprof/agent", pprof.Agent, dest); err != nil {
+			return xerrors.Errorf("write agent pprof data: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func writePprofCollection(basePath string, collection *support.PprofCollection, dest *zip.Writer) error {
+	// Define the pprof files to write with their extensions
+	files := map[string][]byte{
+		"heap.prof.gz":         collection.Heap,
+		"profile.prof.gz":      collection.Profile,
+		"block.prof.gz":        collection.Block,
+		"mutex.prof.gz":        collection.Mutex,
+		"goroutine.prof.gz":    collection.Goroutine,
+		"threadcreate.prof.gz": collection.Threadcreate,
+		"trace.trace.gz":       collection.Trace,
+	}
+
+	// Write binary pprof files
+	for filename, data := range files {
+		if len(data) > 0 {
+			filePath := basePath + "/" + filename
+			f, err := dest.Create(filePath)
+			if err != nil {
+				return xerrors.Errorf("create pprof file %q: %w", filePath, err)
+			}
+			if _, err := f.Write(data); err != nil {
+				return xerrors.Errorf("write pprof file %q: %w", filePath, err)
+			}
+		}
+	}
+
+	// Write cmdline as text file
+	if collection.Cmdline != "" {
+		filePath := basePath + "/cmdline.txt"
+		f, err := dest.Create(filePath)
+		if err != nil {
+			return xerrors.Errorf("create cmdline file %q: %w", filePath, err)
+		}
+		if _, err := f.Write([]byte(collection.Cmdline)); err != nil {
+			return xerrors.Errorf("write cmdline file %q: %w", filePath, err)
+		}
+	}
+
 	return nil
 }
 
