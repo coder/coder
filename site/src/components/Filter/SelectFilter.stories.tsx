@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Avatar } from "components/Avatar/Avatar";
 import { useState } from "react";
 import { action } from "storybook/actions";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, within } from "storybook/test";
 import {
 	SelectFilter,
 	type SelectFilterOption,
@@ -88,7 +88,7 @@ export const SelectingOption: Story = {
 		const canvas = within(canvasElement);
 		const button = canvas.getByRole("button");
 		await userEvent.click(button);
-		const option = canvas.getByText("Option 25");
+		const option = screen.getByText("Option 25");
 		await userEvent.click(option);
 		await expect(button).toHaveTextContent("Option 25");
 	},
@@ -102,7 +102,7 @@ export const UnselectingOption: Story = {
 		const canvas = within(canvasElement);
 		const button = canvas.getByRole("button");
 		await userEvent.click(button);
-		const menu = canvasElement.querySelector<HTMLElement>("[role=menu]")!;
+		const menu = screen.getByRole("menu");
 		const option = within(menu).getByText("Option 26");
 		await userEvent.click(option);
 		await expect(button).toHaveTextContent("All options");
@@ -140,7 +140,7 @@ export const SearchingOption: Story = {
 		const canvas = within(canvasElement);
 		const button = canvas.getByRole("button");
 		await userEvent.click(button);
-		const search = canvas.getByLabelText("Search options");
+		const search = screen.getByLabelText("Search options");
 		await userEvent.type(search, "option-2");
 	},
 };

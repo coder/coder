@@ -48,6 +48,9 @@ const (
 	// SubdomainAppSessionTokenCookie is the name of the cookie that stores an
 	// application-scoped API token on subdomain app domains (both the primary
 	// and proxies).
+	//
+	// To avoid conflicts between multiple proxies, we append an underscore and
+	// a hash suffix to the cookie name.
 	//nolint:gosec
 	SubdomainAppSessionTokenCookie = "coder_subdomain_app_session_token"
 	// SignedAppTokenCookie is the name of the cookie that stores a temporary
