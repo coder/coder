@@ -416,17 +416,18 @@ func TestTasks(t *testing.T) {
 	t.Run("Send", func(t *testing.T) {
 		t.Parallel()
 
-		t.Run("OK", func(t *testing.T) {
+		t.Run("IntegrationOK", func(t *testing.T) {
 			t.Parallel()
 
 			client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			owner := coderdtest.CreateFirstUser(t, client)
 			userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-			// Start a fake AgentAPI that accepts POST /message with 200 OK.
+			// Start a fake AgentAPI that accepts GET /status and POST /message.
+			statusResponse := `{"body":{"status":"stable"}}`
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodGet && r.URL.Path == "/status" {
-					_, _ = fmt.Fprintln(w, `{"body":{"status":"stable"}}`)
+					_, _ = fmt.Fprint(w, statusResponse)
 					w.WriteHeader(http.StatusOK)
 					return
 				}
@@ -434,7 +435,7 @@ func TestTasks(t *testing.T) {
 					w.WriteHeader(http.StatusOK)
 					return
 				}
-				w.WriteHeader(http.StatusOK)
+				w.WriteHeader(http.StatusInternalServerError)
 			}))
 			defer srv.Close()
 
@@ -474,19 +475,40 @@ func TestTasks(t *testing.T) {
 			}
 			require.NotEqual(t, uuid.Nil, sidebarAppID)
 
-			// Make the sidebar app healthy for this test.
+			// Make the sidebar app unhealthy initially.
+			err = api.Database.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
+				ID:     sidebarAppID,
+				Health: database.WorkspaceAppHealthUnhealthy,
+			})
+			require.NoError(t, err)
+
+			exp := codersdk.NewExperimentalClient(userClient)
+			err = exp.TaskSend(ctx, "me", ws.ID, codersdk.TaskSendRequest{
+				Input: "Hello, Agent!",
+			})
+			require.Error(t, err, "wanted error due to unhealthy sidebar app")
+
+			// Make the sidebar app healthy.
 			err = api.Database.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
 				ID:     sidebarAppID,
 				Health: database.WorkspaceAppHealthHealthy,
 			})
 			require.NoError(t, err)
 
-			// Send task input to the tasks sidebar app and expect 204.
-			exp := codersdk.NewExperimentalClient(userClient)
+			statusResponse = `{"body":{"status":"bad"}}`
+
 			err = exp.TaskSend(ctx, "me", ws.ID, codersdk.TaskSendRequest{
 				Input: "Hello, Agent!",
 			})
-			require.NoError(t, err)
+			require.Error(t, err, "wanted error due to bad status")
+
+			statusResponse = `{"body":{"status":"stable"}}`
+
+			// Send task input to the tasks sidebar app and expect 204.e
+			err = exp.TaskSend(ctx, "me", ws.ID, codersdk.TaskSendRequest{
+				Input: "Hello, Agent!",
+			})
+			require.NoError(t, err, "wanted no error due to healthy sidebar app and stable status")
 		})
 
 		t.Run("MissingContent", func(t *testing.T) {
