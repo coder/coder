@@ -181,7 +181,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				Name:                    taskName,
 				TemplateVersionID:       templateVersionID,
 				TemplateVersionPresetID: templateVersionPresetID,
-				Prompt:                  taskInput,
+				Input:                   taskInput,
 			})
 			if err != nil {
 				return xerrors.Errorf("create task: %w", err)

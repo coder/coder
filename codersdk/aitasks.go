@@ -63,7 +63,7 @@ func (c *ExperimentalClient) AITaskPrompts(ctx context.Context, buildIDs []uuid.
 type CreateTaskRequest struct {
 	TemplateVersionID       uuid.UUID `json:"template_version_id" format:"uuid"`
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
-	Prompt                  string    `json:"prompt"`
+	Input                   string    `json:"input"`
 	Name                    string    `json:"name,omitempty"`
 }
 
