@@ -84,9 +84,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 				</div>
 			)}
 
-			{app.health === "healthy" ||
-			app.health === "disabled" ||
-			app.health === "unhealthy" ? (
+			{app.health === "healthy" || app.health === "disabled" ? (
 				<iframe
 					ref={frameRef}
 					src={link.href}
@@ -95,6 +93,15 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 					className={"w-full h-full border-0"}
 					allow="clipboard-read; clipboard-write"
 				/>
+			) : app.health === "unhealthy" ? (
+				<div className="w-full h-full flex flex-col items-center justify-center">
+					<h3 className="m-0 font-medium text-content-primary text-base">
+						App unhealthy
+					</h3>
+					<span className="text-content-secondary text-sm">
+						Check the logs for details
+					</span>
+				</div>
 			) : app.health === "initializing" ? (
 				<div className="w-full h-full flex items-center justify-center">
 					<Spinner loading />
