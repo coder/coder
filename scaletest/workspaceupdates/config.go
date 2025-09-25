@@ -12,7 +12,7 @@ import (
 )
 
 type Config struct {
-	// User is the configuration for the user to create or use.
+	// User is the configuration for the user to create.
 	User createusers.Config `json:"user"`
 
 	// Workspace is the configuration for the workspace to create. The workspace

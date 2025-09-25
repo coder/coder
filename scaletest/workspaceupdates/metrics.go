@@ -2,7 +2,6 @@ package workspaceupdates
 
 import (
 	"strconv"
-	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -11,8 +10,6 @@ import (
 type Metrics struct {
 	WorkspaceUpdatesLatencySeconds prometheus.HistogramVec
 	WorkspaceUpdatesErrorsTotal    prometheus.CounterVec
-
-	numErrors atomic.Int64
 }
 
 func NewMetrics(reg prometheus.Registerer) *Metrics {
@@ -41,6 +38,5 @@ func (m *Metrics) RecordCompletion(elapsed time.Duration, username string, owned
 }
 
 func (m *Metrics) AddError(username string, ownedWorkspaces int64, action string) {
-	m.numErrors.Add(1)
 	m.WorkspaceUpdatesErrorsTotal.WithLabelValues(username, strconv.Itoa(int(ownedWorkspaces)), action).Inc()
 }
