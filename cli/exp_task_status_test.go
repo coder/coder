@@ -143,7 +143,7 @@ STATE CHANGED  STATUS   STATE  MESSAGE
 								CreatedAt: now.Add(-5 * time.Second),
 								UpdatedAt: now.Add(-4 * time.Second),
 								CurrentState: &codersdk.TaskStateEntry{
-									State:     codersdk.TaskStateCompleted,
+									State:     codersdk.TaskStateComplete,
 									Timestamp: now.Add(-2 * time.Second),
 									Message:   "Splines reticulated successfully!",
 								},
@@ -155,7 +155,7 @@ STATE CHANGED  STATUS   STATE  MESSAGE
 								CreatedAt: now.Add(-5 * time.Second),
 								UpdatedAt: now.Add(-1 * time.Second),
 								CurrentState: &codersdk.TaskStateEntry{
-									State:     codersdk.TaskStateCompleted,
+									State:     codersdk.TaskStateComplete,
 									Timestamp: now.Add(-2 * time.Second),
 									Message:   "Splines reticulated successfully!",
 								},
@@ -167,7 +167,7 @@ STATE CHANGED  STATUS   STATE  MESSAGE
 								CreatedAt: now.Add(-5 * time.Second),
 								UpdatedAt: now,
 								CurrentState: &codersdk.TaskStateEntry{
-									State:     codersdk.TaskStateCompleted,
+									State:     codersdk.TaskStateComplete,
 									Timestamp: now.Add(-2 * time.Second),
 									Message:   "Splines reticulated successfully!",
 								},

@@ -2889,7 +2889,7 @@ export interface TaskSendRequest {
 }
 
 // From codersdk/aitasks.go
-export type TaskState = "completed" | "failed" | "idle" | "working";
+export type TaskState = "complete" | "failed" | "idle" | "working";
 
 // From codersdk/aitasks.go
 export interface TaskStateEntry {
@@ -2900,7 +2900,7 @@ export interface TaskStateEntry {
 }
 
 export const TaskStates: TaskState[] = [
-	"completed",
+	"complete",
 	"failed",
 	"idle",
 	"working",
