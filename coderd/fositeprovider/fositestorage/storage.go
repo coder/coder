@@ -32,6 +32,10 @@ type fositeStorage interface {
 	rfc8628.RFC8628CoreStorage
 	// TODO: Add support for database transactions.
 	//storage.Transactional
+
+	// Copied from Ory Keto
+	// https://github.com/ory/hydra/blob/8e3a7b82e1aa54e2f2e9cefd5f9cb26ea7421e56/x/fosite_storer.go#L49-L49
+	UpdateDeviceCodeSessionBySignature(ctx context.Context, requestID string, requester fosite.DeviceRequester) error
 }
 
 var _ fositeStorage = (*Storage)(nil)
@@ -42,6 +46,11 @@ type Storage struct {
 
 	// TODO: Remove the memory store entirely and implement all methods to use the database.
 	//storage.MemoryStore
+}
+
+func (s Storage) UpdateDeviceCodeSessionBySignature(ctx context.Context, requestID string, requester fosite.DeviceRequester) error {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (s Storage) CreateDeviceAuthSession(ctx context.Context, deviceCodeSignature, userCodeSignature string, request fosite.DeviceRequester) (err error) {
