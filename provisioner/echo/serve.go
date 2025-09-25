@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"text/template"
 
@@ -359,8 +360,25 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 			}
 		}
 	}
+	dirs := []string{}
 	for name, content := range responses.ExtraFiles {
 		logger.Debug(ctx, "extra file", slog.F("name", name))
+
+		// We need to add directories before any files that use them. But, we only need to do this
+		// once.
+		dir := filepath.Dir(name)
+		if dir != "." && !slices.Contains(dirs, dir) {
+			logger.Debug(ctx, "adding extra file directory", slog.F("dir", dir))
+			dirs = append(dirs, dir)
+			err := writer.WriteHeader(&tar.Header{
+				Name:     dir,
+				Mode:     0o755,
+				Typeflag: tar.TypeDir,
+			})
+			if err != nil {
+				return nil, err
+			}
+		}
 
 		err := writer.WriteHeader(&tar.Header{
 			Name: name,

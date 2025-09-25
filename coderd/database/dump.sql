@@ -990,7 +990,8 @@ CREATE TABLE aibridge_interceptions (
     initiator_id uuid NOT NULL,
     provider text NOT NULL,
     model text NOT NULL,
-    started_at timestamp with time zone NOT NULL
+    started_at timestamp with time zone NOT NULL,
+    metadata jsonb
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';

@@ -2,6 +2,8 @@ import {
 	MockFailedWorkspace,
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
+	MockTasks,
+	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgentLogSource,
 	MockWorkspaceAgentReady,
@@ -12,6 +14,7 @@ import {
 	mockApiError,
 } from "testHelpers/entities";
 import {
+	withAuthProvider,
 	withGlobalSnackbar,
 	withProxyProvider,
 	withWebSocket,
@@ -51,9 +54,21 @@ const MockVSCodeApp: WorkspaceApp = {
 const meta: Meta<typeof TaskPage> = {
 	title: "pages/TaskPage",
 	component: TaskPage,
-	decorators: [withProxyProvider()],
+	decorators: [withProxyProvider(), withAuthProvider],
+	beforeEach: () => {
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+	},
 	parameters: {
 		layout: "fullscreen",
+		user: MockUserOwner,
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					workspace: MockTasks[0].workspace.name,
+				},
+			},
+			routing: { path: "/tasks/:workspace" },
+		}),
 	},
 };
 
