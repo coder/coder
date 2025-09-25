@@ -326,6 +326,10 @@ func New(options *Options) *API {
 		panic("developer error: options.PrometheusRegistry is nil and not running a unit test")
 	}
 
+	if err := options.DeploymentValues.Validate(); err != nil {
+		panic(fmt.Sprintf("developer error: deployment values are invalid: %s", err))
+	}
+
 	if options.DeploymentValues.DisableOwnerWorkspaceExec {
 		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
 			NoOwnerWorkspaceExec: true,
