@@ -1,3 +1,5 @@
+//go:build !slim
+
 package cli
 
 import (
