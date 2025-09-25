@@ -22,6 +22,7 @@ const (
 type ResolveRequestOptions struct {
 	Logger              slog.Logger
 	SignedTokenProvider SignedTokenProvider
+	Cookies             AppCookies
 	CookieCfg           codersdk.HTTPCookieConfig
 
 	DashboardURL   *url.URL
@@ -58,7 +59,7 @@ func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequest
 		AppRequest:     appReq,
 		PathAppBaseURL: opts.PathAppBaseURL.String(),
 		AppHostname:    opts.AppHostname,
-		SessionToken:   AppConnectSessionTokenFromRequest(r, appReq.AccessMethod),
+		SessionToken:   opts.Cookies.TokenFromRequest(r, appReq.AccessMethod),
 		AppPath:        opts.AppPath,
 		AppQuery:       opts.AppQuery,
 	}

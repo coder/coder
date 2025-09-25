@@ -4,18 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       issue_url:
-        description: 'GitHub Issue URL to process'
+        description: "GitHub Issue URL to process"
         required: true
         type: string
       template_name:
-        description: 'Coder template to use for workspace'
+        description: "Coder template to use for workspace"
         required: true
-        default: 'traiage'
+        default: "traiage"
         type: string
       prefix:
-        description: 'Prefix for workspace name'
+        description: "Prefix for workspace name"
         required: false
-        default: 'traiage'
+        default: "traiage"
         type: string
 
 jobs:
@@ -89,7 +89,7 @@ jobs:
           ISSUE_URL: ${{ inputs.issue_url }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          PROMPT_FILE=/tmp/prompt.txt
+          PROMPT_FILE=$(mktemp)
           trap 'rm -f "${PROMPT_FILE}"' EXIT
 
           # Fetch issue description using `gh` CLI
@@ -108,7 +108,7 @@ jobs:
           echo "WORKSPACE_NAME: ${WORKSPACE_NAME}"
           # This command will run the prompt inside the workspace
           # and exit once the agent has completed the task.
-          PROMPT=$(cat $PROMPT_FILE) ./scripts/traiage.sh prompt
+          PROMPT=$(cat "${PROMPT_FILE}") ./scripts/traiage.sh prompt
 
       - name: Create and upload archive
         id: create-archive
@@ -119,27 +119,43 @@ jobs:
           ./scripts/traiage.sh archive
           echo "archive_url=${BUCKET_PREFIX%%/}/$WORKSPACE_NAME.tar.gz" >> "${GITHUB_OUTPUT}"
 
-      - name: Report results
+      - name: Generate a summary of the changes and post a comment on GitHub.
+        id: generate-summary
         env:
-          ISSUE_URL: ${{ inputs.issue_url }}
-          CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
-          WORKSPACE_NAME: ${{ steps.create-workspace.outputs.workspace_name }}
           ARCHIVE_URL: ${{ steps.create-archive.outputs.archive_url }}
           BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
+          CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ISSUE_URL: ${{ inputs.issue_url }}
+          WORKSPACE_NAME: ${{ steps.create-workspace.outputs.workspace_name }}
         run: |
+          SUMMARY_FILE=$(mktemp)
+          trap 'rm -f "${SUMMARY_FILE}"' EXIT
+          AUTO_SUMMARY=$(./scripts/traiage.sh summary)
           {
-            echo "## TrAIage Results";
-            echo "- **Issue URL:** ${ISSUE_URL}";
-            echo "- **Context Key:** ${CONTEXT_KEY}";
-            echo "- **Workspace:** ${WORKSPACE_NAME}";
-            echo "- **Archive URL:** ${ARCHIVE_URL}";
-
-            echo "To fetch the output to your own workspace:";
-            echo '';
-            echo '```bash';
-            echo "BUCKET_PREFIX=${BUCKET_PREFIX} WORKSPACE_NAME=${WORKSPACE_NAME} ./scripts/traiage.sh resume";
+            echo "## TrAIage Results"
+            echo "- **Issue URL:** ${ISSUE_URL}"
+            echo "- **Context Key:** ${CONTEXT_KEY}"
+            echo "- **Workspace:** ${WORKSPACE_NAME}"
+            echo "- **Archive URL:** ${ARCHIVE_URL}"
+            echo
+            echo "${AUTO_SUMMARY}"
+            echo
+            echo "To fetch the output to your own workspace:"
+            echo
+            echo '```bash'
+            echo "BUCKET_PREFIX=${BUCKET_PREFIX} WORKSPACE_NAME=${WORKSPACE_NAME} ./scripts/traiage.sh resume"
             echo '```'
-          } >> "${GITHUB_STEP_SUMMARY}"
+            echo
+          } >> "${SUMMARY_FILE}"
+
+          if [[ "${ISSUE_URL}" == "https://github.com/${GITHUB_REPOSITORY}"* ]]; then
+            gh issue comment "${ISSUE_URL}" --body-file "${SUMMARY_FILE}" --create-if-none --edit-last
+          else
+            echo "Skipping comment on other repo."
+          fi
+          cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Cleanup workspace
         if: steps.create-workspace.outputs.workspace_name != '' && steps.create-archive.outputs.archive_url != ''
