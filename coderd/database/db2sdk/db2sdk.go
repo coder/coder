@@ -51,6 +51,13 @@ func ListLazy[F any, T any](convert func(F) T) func(list []F) []T {
 	}
 }
 
+func APIAllowListTarget(entry rbac.AllowListElement) codersdk.APIAllowListTarget {
+	return codersdk.APIAllowListTarget{
+		Type: codersdk.RBACResource(entry.Type),
+		ID:   entry.ID,
+	}
+}
+
 type ExternalAuthMeta struct {
 	Authenticated bool
 	ValidateError string
