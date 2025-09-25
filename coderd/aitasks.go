@@ -22,7 +22,6 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -725,25 +724,21 @@ func (api *API) authAndDoWithTaskSidebarAppClient(
 			Message: "Task is not configured with a sidebar app.",
 		})
 	}
-	sidebarAppID := *build.AITaskSidebarAppID
 
 	// Find the sidebar app details to get the URL and validate app health.
-	agentIDs := make([]uuid.UUID, 0, len(build.Resources))
-	for _, res := range build.Resources {
-		for _, agent := range res.Agents {
-			agentIDs = append(agentIDs, agent.ID)
+	sidebarAppID := *build.AITaskSidebarAppID
+	agentID, sidebarApp, ok := func() (uuid.UUID, codersdk.WorkspaceApp, bool) {
+		for _, res := range build.Resources {
+			for _, agent := range res.Agents {
+				for _, app := range agent.Apps {
+					if app.ID == sidebarAppID {
+						return agent.ID, app, true
+					}
+				}
+			}
 		}
-	}
-	// TODO(mafredri): Can we avoid dbauthz.AsSystemRestricted(ctx)?
-	//nolint:gocritic // GetWorkspaceAppsByAgentIDs requires system restricted context.
-	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace apps.",
-			Detail:  err.Error(),
-		})
-	}
-	sidebarApp, ok := slice.Find(apps, func(app database.WorkspaceApp) bool { return app.ID == sidebarAppID })
+		return uuid.Nil, codersdk.WorkspaceApp{}, false
+	}()
 	if !ok {
 		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 			Message: "Task sidebar app not found in latest build.",
@@ -753,25 +748,25 @@ func (api *API) authAndDoWithTaskSidebarAppClient(
 	// Return an informative error if the app isn't healthy rather than trying
 	// and failing.
 	switch sidebarApp.Health {
-	case database.WorkspaceAppHealthDisabled:
+	case codersdk.WorkspaceAppHealthDisabled:
 		// No health check, pass through.
-	case database.WorkspaceAppHealthInitializing:
+	case codersdk.WorkspaceAppHealthInitializing:
 		return httperror.NewResponseError(http.StatusServiceUnavailable, codersdk.Response{
 			Message: "Task sidebar app is initializing. Try again shortly.",
 		})
-	case database.WorkspaceAppHealthUnhealthy:
+	case codersdk.WorkspaceAppHealthUnhealthy:
 		return httperror.NewResponseError(http.StatusServiceUnavailable, codersdk.Response{
 			Message: "Task sidebar app is unhealthy.",
 		})
 	}
 
 	// Build the direct app URL and dial the agent.
-	if !sidebarApp.Url.Valid || sidebarApp.Url.String == "" {
+	if sidebarApp.URL == "" {
 		return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 			Message: "Task sidebar app URL is not configured.",
 		})
 	}
-	parsedURL, err := url.Parse(sidebarApp.Url.String)
+	parsedURL, err := url.Parse(sidebarApp.URL)
 	if err != nil {
 		return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error parsing task app URL.",
@@ -786,7 +781,7 @@ func (api *API) authAndDoWithTaskSidebarAppClient(
 
 	dialCtx, dialCancel := context.WithTimeout(ctx, time.Second*30)
 	defer dialCancel()
-	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, sidebarApp.AgentID)
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agentID)
 	if err != nil {
 		return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
 			Message: "Failed to reach task app endpoint.",
