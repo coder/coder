@@ -691,6 +691,89 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	idStr := chi.URLParam(r, "id")
+	taskID, err := uuid.Parse(idStr)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Invalid UUID %q for task ID.", idStr),
+		})
+		return
+	}
+
+	var out codersdk.TaskLogsResponse
+	if err := api.authAndDoWithTaskSidebarAppClient(r, taskID, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
+		req, err := agentapiNewRequest(ctx, http.MethodGet, appURL, "messages", nil)
+		if err != nil {
+			return err
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+				Message: "Failed to reach task app endpoint.",
+				Detail:  err.Error(),
+			})
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, 128))
+			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+				Message: "Task app rejected the request.",
+				Detail:  fmt.Sprintf("Upstream status: %d; Body: %s", resp.StatusCode, body),
+			})
+		}
+
+		// {"$schema":"http://localhost:3284/schemas/MessagesResponseBody.json","messages":[]}
+		var respBody struct {
+			Messages []struct {
+				ID      int       `json:"id"`
+				Content string    `json:"content"`
+				Role    string    `json:"role"`
+				Time    time.Time `json:"time"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
+			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+				Message: "Failed to decode task app response body.",
+				Detail:  err.Error(),
+			})
+		}
+
+		logs := make([]codersdk.TaskLogEntry, 0, len(respBody.Messages))
+		for _, m := range respBody.Messages {
+			var typ codersdk.TaskLogType
+			switch strings.ToLower(m.Role) {
+			case "user":
+				typ = codersdk.TaskLogTypeInput
+			case "agent":
+				typ = codersdk.TaskLogTypeOutput
+			default:
+				return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+					Message: "Invalid task app response message role.",
+					Detail:  fmt.Sprintf(`Expected "user" or "agent", got %q.`, m.Role),
+				})
+			}
+			logs = append(logs, codersdk.TaskLogEntry{
+				ID:      m.ID,
+				Content: m.Content,
+				Type:    typ,
+				Time:    m.Time,
+			})
+		}
+		out = codersdk.TaskLogsResponse{Logs: logs}
+		return nil
+	}); err != nil {
+		httperror.WriteResponseError(ctx, rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, out)
+}
+
 // authAndDoWithTaskSidebarAppClient centralizes the shared logic to:
 //
 //   - Fetch the task workspace
