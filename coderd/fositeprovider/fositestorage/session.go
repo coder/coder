@@ -14,15 +14,14 @@ type CoderSession struct {
 	ID uuid.UUID
 
 	ExpiresAt map[fosite.TokenType]time.Time
-	Requested time.Time
 	UserID    uuid.UUID
 	Username  string
 }
 
-func NewSession() *CoderSession {
+func NewSession(userID uuid.UUID) *CoderSession {
 	return &CoderSession{
 		ID:        uuid.New(),
-		Requested: time.Now().UTC(),
+		UserID:    userID,
 		ExpiresAt: nil,
 	}
 }

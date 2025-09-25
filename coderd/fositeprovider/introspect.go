@@ -8,7 +8,7 @@ import (
 
 func (p *Provider) IntrospectionEndpoint(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	mySessionData := p.EmptySession()
+	mySessionData := p.NewSession(req)
 	ir, err := p.provider.NewIntrospectionRequest(ctx, req, mySessionData)
 	if err != nil {
 		p.logger.Error(ctx, "error occurred in NewIntrospectionRequest", slog.Error(err))

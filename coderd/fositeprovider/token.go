@@ -12,7 +12,7 @@ func (p *Provider) TokenEndpoint(rw http.ResponseWriter, req *http.Request) {
 
 	// Create an empty session object which will be passed to the request handlers
 	// TODO: Why do we need an empty session here?
-	mySessionData := p.EmptySession()
+	mySessionData := p.NewSession(req)
 
 	// This will create an access request object and iterate through the registered TokenEndpointHandlers to validate the request.
 	accessRequest, err := p.provider.NewAccessRequest(ctx, req, mySessionData)

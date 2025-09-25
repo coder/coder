@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
 	"github.com/ory/fosite/handler/openid"
@@ -14,6 +16,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/fositeprovider/fositestorage"
+	"github.com/coder/coder/v2/coderd/httpmw"
 )
 
 type Provider struct {
@@ -114,18 +117,13 @@ func (p *Provider) newSession(key database.APIKey) fosite.Session {
 	}
 }
 
-func (p *Provider) EmptySession() *openid.DefaultSession {
-	return &openid.DefaultSession{
-		Claims: &jwt.IDTokenClaims{
-			Issuer:      "https://fosite.my-application.com",
-			Audience:    []string{"https://my-client.my-application.com"},
-			ExpiresAt:   time.Now().Add(time.Hour * 6),
-			IssuedAt:    time.Now(),
-			RequestedAt: time.Now(),
-			AuthTime:    time.Now(),
-		},
-		Headers: &jwt.Headers{
-			Extra: make(map[string]interface{}),
-		},
+func (p *Provider) NewSession(r *http.Request) *fositestorage.CoderSession {
+	key := httpmw.APIKey(r)
+	//var _ = fosite.Session()
+	return &fositestorage.CoderSession{
+		ID:        uuid.New(),
+		ExpiresAt: make(map[fosite.TokenType]time.Time),
+		UserID:    key.UserID,
+		Username:  "", // TODO: Fill this in
 	}
 }
