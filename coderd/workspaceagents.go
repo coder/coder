@@ -36,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -414,6 +415,64 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 		WorkspaceID: workspace.ID,
 		AgentID:     &workspaceAgent.ID,
 	})
+
+	// Notify when the app state is 'Working' or 'Idle' and the workspace agent app is configured as an AI task
+	switch req.State {
+	case codersdk.WorkspaceAppStatusStateWorking, codersdk.WorkspaceAppStatusStateIdle:
+		workspaceBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to get workspace build", slog.Error(err))
+			break
+		}
+
+		// Get AI task's initial prompt
+		parameters, err := api.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to get workspace build parameters", slog.Error(err))
+			break
+		}
+		taskName := workspace.Name
+		for _, param := range parameters {
+			if param.Name == codersdk.AITaskPromptParameterName {
+				taskName = param.Value
+			}
+		}
+
+		// Confirm Workspace agent App is an AI Task
+		if workspaceBuild.HasAITask.Valid && workspaceBuild.HasAITask.Bool &&
+			workspaceBuild.AITaskSidebarAppID.Valid && workspaceBuild.AITaskSidebarAppID.UUID == app.ID {
+			// Choose template based on the new state
+			notificationTemplate := notifications.TemplateTaskWorking
+			if req.State == codersdk.WorkspaceAppStatusStateIdle {
+				notificationTemplate = notifications.TemplateTaskIdle
+			}
+
+			if _, err := api.NotificationsEnqueuer.EnqueueWithData(
+				// nolint:gocritic // Need notifier actor to enqueue notifications
+				dbauthz.AsNotifier(ctx),
+				workspace.OwnerID,
+				notificationTemplate,
+				map[string]string{
+					"task":      taskName,
+					"workspace": workspace.Name,
+				},
+				map[string]any{
+					// Include a minute-bucketed timestamp to bypass per-day dedupe,
+					// allowing identical content to resend within the same day
+					// (but not more than once per minute)
+					"dedupe_bypass_ts": api.Clock.Now().UTC().Truncate(time.Minute),
+				},
+				"api-workspace-agent-app-status",
+				// Associate this notification with related entities
+				workspace.ID, workspace.OwnerID, workspace.OrganizationID, app.ID,
+			); err != nil {
+				api.Logger.Warn(ctx, "failed to notify of task state", slog.Error(err))
+				break
+			}
+		}
+	default:
+		// Not a notifiable state, do nothing
+	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
 }
