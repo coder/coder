@@ -126,7 +126,9 @@ export const updateNotificationTemplateMethod = (
 
 			for (const key of keys) {
 				const prev = queryClient.getQueryData<NotificationTemplate[]>(key);
-				if (!prev) continue;
+				if (!prev) {
+					continue;
+				}
 
 				queryClient.setQueryData(
 					key,
