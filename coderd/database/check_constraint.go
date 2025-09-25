@@ -7,6 +7,8 @@ type CheckConstraint string
 // CheckConstraint enums.
 const (
 	CheckAPIKeysAllowListNotEmpty                  CheckConstraint = "api_keys_allow_list_not_empty"                    // api_keys
+	CheckAPIKeysExpiresAtAfterCreated              CheckConstraint = "api_keys_expires_at_after_created"                // api_keys
+	CheckAPIKeysLifetimeSecondsPositive            CheckConstraint = "api_keys_lifetime_seconds_positive"               // api_keys
 	CheckOneTimePasscodeSet                        CheckConstraint = "one_time_passcode_set"                            // users
 	CheckUsersUsernameMinLength                    CheckConstraint = "users_username_min_length"                        // users
 	CheckMaxProvisionerLogsLength                  CheckConstraint = "max_provisioner_logs_length"                      // provisioner_jobs

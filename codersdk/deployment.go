@@ -3422,7 +3422,6 @@ func (c *DeploymentValues) Validate() error {
 	if access == 0 {
 		return xerrors.New("developer error: sessions configuration appears uninitialized - ensure all values are loaded before validation")
 	}
-
 	if refresh <= access {
 		return xerrors.Errorf(
 			"default OAuth refresh lifetime (%s) must be strictly greater than session duration (%s); set --default-oauth-refresh-lifetime to a value greater than --session-duration",

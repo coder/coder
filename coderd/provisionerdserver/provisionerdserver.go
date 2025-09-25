@@ -204,6 +204,9 @@ func NewServer(
 	if deploymentValues == nil {
 		return nil, xerrors.New("deploymentValues is nil")
 	}
+	if err := deploymentValues.Validate(); err != nil {
+		return nil, xerrors.Errorf("invalid deployment values: %w", err)
+	}
 	if acquirer == nil {
 		return nil, xerrors.New("acquirer is nil")
 	}

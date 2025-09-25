@@ -248,6 +248,7 @@ func TestAPIKey(t *testing.T) {
 			user     = dbgen.User(t, db, database.User{})
 			_, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
+				CreatedAt: dbtime.Now().Add(-2 * time.Hour),
 				ExpiresAt: time.Now().Add(time.Hour * -1),
 			})
 
@@ -516,6 +517,7 @@ func TestAPIKey(t *testing.T) {
 			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
 				LastUsed:  dbtime.Now().AddDate(0, 0, -1),
+				CreatedAt: dbtime.Now().AddDate(0, 0, -2),
 				ExpiresAt: dbtime.Now().AddDate(0, 0, -1),
 				LoginType: database.LoginTypeOIDC,
 			})
@@ -566,6 +568,7 @@ func TestAPIKey(t *testing.T) {
 			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
 				LastUsed:  dbtime.Now().AddDate(0, 0, -1),
+				CreatedAt: dbtime.Now().AddDate(0, 0, -2),
 				ExpiresAt: dbtime.Now().AddDate(0, 0, -1),
 				LoginType: database.LoginTypeOIDC,
 			})

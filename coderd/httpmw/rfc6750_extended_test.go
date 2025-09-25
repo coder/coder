@@ -374,6 +374,7 @@ func TestOAuth2WWWAuthenticateCompliance(t *testing.T) {
 		// Create an expired API key
 		_, expiredToken := dbgen.APIKey(t, db, database.APIKey{
 			UserID:    user.ID,
+			CreatedAt: dbtime.Now().Add(-2 * time.Hour),
 			ExpiresAt: dbtime.Now().Add(-time.Hour), // Expired 1 hour ago
 		})
 

@@ -134,7 +134,7 @@ func TestHeartbeat(t *testing.T) {
 		heartbeatInterval: testutil.IntervalFast,
 	})
 
-	for i := 0; i < numBeats; i++ {
+	for range numBeats {
 		testutil.TryReceive(ctx, t, heartbeatChan)
 	}
 	// goleak.VerifyTestMain ensures that the heartbeat goroutine does not leak
@@ -192,11 +192,8 @@ func TestAcquireJob(t *testing.T) {
 				// Set the max session token lifetime so we can assert we
 				// create an API key with an expiration within the bounds of the
 				// deployment config.
-				dv := &codersdk.DeploymentValues{
-					Sessions: codersdk.SessionLifetime{
-						MaximumTokenDuration: serpent.Duration(time.Hour),
-					},
-				}
+				dv := coderdtest.DeploymentValues(t)
+				dv.Sessions.MaximumTokenDuration = serpent.Duration(time.Hour)
 				gitAuthProvider := &sdkproto.ExternalAuthProviderResource{
 					Id: "github",
 				}
@@ -4081,6 +4078,8 @@ func TestServer_ExpirePrebuildsSessionToken(t *testing.T) {
 		existingKey, _ = dbgen.APIKey(t, db, database.APIKey{
 			UserID:    database.PrebuildsSystemUserID,
 			TokenName: provisionerdserver.WorkspaceSessionTokenName(database.PrebuildsSystemUserID, workspace.ID),
+			CreatedAt: dbtime.Now(),
+			ExpiresAt: dbtime.Now().Add(time.Hour),
 		})
 	)
 
@@ -4124,7 +4123,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	defOrg, err := db.GetDefaultOrganization(context.Background())
 	require.NoError(t, err, "default org not found")
 
-	deploymentValues := &codersdk.DeploymentValues{}
+	deploymentValues := coderdtest.DeploymentValues(t)
 	var externalAuthConfigs []*externalauth.Config
 	tss := testTemplateScheduleStore()
 	uqhss := testUserQuietHoursScheduleStore()
@@ -4292,7 +4291,7 @@ func (s *fakeStream) Send(j *proto.AcquiredJob) error {
 func (s *fakeStream) Recv() (*proto.CancelAcquire, error) {
 	s.c.L.Lock()
 	defer s.c.L.Unlock()
-	for !(s.canceled || s.closed) {
+	for !s.canceled && !s.closed {
 		s.c.Wait()
 	}
 	if s.canceled {
@@ -4335,7 +4334,7 @@ func (s *fakeStream) Close() error {
 func (s *fakeStream) waitForJob() (*proto.AcquiredJob, error) {
 	s.c.L.Lock()
 	defer s.c.L.Unlock()
-	for !(s.sendCalled || s.closed) {
+	for !s.sendCalled && !s.closed {
 		s.c.Wait()
 	}
 	if s.sendCalled {

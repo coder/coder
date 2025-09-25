@@ -660,7 +660,7 @@ func TestExpireOldAPIKeys(t *testing.T) {
 			TemplateID: tpl.ID,
 		})
 		createAPIKey = func(userID uuid.UUID, name string) database.APIKey {
-			k, _ := dbgen.APIKey(t, db, database.APIKey{UserID: userID, TokenName: name, ExpiresAt: now.Add(time.Hour)}, func(iap *database.InsertAPIKeyParams) {
+			k, _ := dbgen.APIKey(t, db, database.APIKey{UserID: userID, TokenName: name, CreatedAt: now, ExpiresAt: now.Add(time.Hour)}, func(iap *database.InsertAPIKeyParams) {
 				iap.TokenName = name
 			})
 			return k
