@@ -84,28 +84,28 @@ func (s *pingSummary) Write(w io.Writer) {
 
 func (r *RootCmd) ping() *serpent.Command {
 	var (
-		pingNum          int64
-		pingTimeout      time.Duration
-		pingWait         time.Duration
-		pingTimeLocal    bool
-		pingTimeUTC      bool
-		appearanceConfig codersdk.AppearanceConfig
+		pingNum       int64
+		pingTimeout   time.Duration
+		pingWait      time.Duration
+		pingTimeLocal bool
+		pingTimeUTC   bool
 	)
 
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "ping <workspace>",
 		Short:       "Ping a workspace",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
-			initAppearance(client, &appearanceConfig),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
-
+			appearanceConfig := initAppearance(ctx, client)
 			notifyCtx, notifyCancel := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer notifyCancel()
 

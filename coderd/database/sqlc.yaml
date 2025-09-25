@@ -28,6 +28,12 @@ sql:
         emit_enum_valid_method: true
         emit_all_enum_values: true
         overrides:
+          - column: "api_keys.scopes"
+            go_type:
+              type: "APIKeyScopes"
+          - column: "api_keys.allow_list"
+            go_type:
+              type: "AllowList"
           - db_type: "agent_id_name_pair"
             go_type:
               type: "AgentIDNamePair"

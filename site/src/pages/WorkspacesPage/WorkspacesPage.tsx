@@ -2,7 +2,6 @@ import { getErrorDetail, getErrorMessage } from "api/errors";
 import { workspacePermissionsByOrganization } from "api/queries/organizations";
 import { templates, templateVersionRoot } from "api/queries/templates";
 import { workspaces } from "api/queries/workspaces";
-import type { WorkspaceStatus } from "api/typesGenerated";
 import { useFilter } from "components/Filter/Filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { displayError } from "components/GlobalSnackbar/utils";
@@ -11,6 +10,7 @@ import { useEffectEvent } from "hooks/hookPolyfills";
 import { usePagination } from "hooks/usePagination";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useOrganizationsFilterMenu } from "modules/tableFiltering/options";
+import { ACTIVE_BUILD_STATUSES } from "modules/workspaces/status";
 import { type FC, useMemo, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery, useQueryClient } from "react-query";
@@ -21,19 +21,6 @@ import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
 import { useBatchActions } from "./batchActions";
 import { useStatusFilterMenu, useTemplateFilterMenu } from "./filter/menus";
 import { WorkspacesPageView } from "./WorkspacesPageView";
-
-/**
- * The set of all workspace statuses that indicate that the state for a
- * workspace is in the middle of a transition and will eventually reach a more
- * stable state/status.
- */
-export const ACTIVE_BUILD_STATUSES: readonly WorkspaceStatus[] = [
-	"canceling",
-	"deleting",
-	"pending",
-	"starting",
-	"stopping",
-];
 
 // To reduce the number of fetches, we reduce the fetch interval if there are no
 // active workspace builds.

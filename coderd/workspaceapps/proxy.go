@@ -81,11 +81,7 @@ type AgentProvider interface {
 	Close() error
 }
 
-// Server serves workspace apps endpoints, including:
-// - Path-based apps
-// - Subdomain app middleware
-// - Workspace reconnecting-pty (aka. web terminal)
-type Server struct {
+type ServerOptions struct {
 	Logger slog.Logger
 
 	// DashboardURL should be a url to the coderd dashboard. This can be the
@@ -112,13 +108,30 @@ type Server struct {
 	// Subdomain apps are safer with their cookies scoped to the subdomain, and XSS
 	// calls to the dashboard are not possible due to CORs.
 	DisablePathApps bool
-	Cookies         codersdk.HTTPCookieConfig
+	CookiesConfig   codersdk.HTTPCookieConfig
 
 	AgentProvider  AgentProvider
 	StatsCollector *StatsCollector
+}
+
+// Server serves workspace apps endpoints, including:
+// - Path-based apps
+// - Subdomain app middleware
+// - Workspace reconnecting-pty (aka. web terminal)
+type Server struct {
+	ServerOptions
+
+	cookies AppCookies
 
 	websocketWaitMutex sync.Mutex
 	websocketWaitGroup sync.WaitGroup
+}
+
+func NewServer(options ServerOptions) *Server {
+	return &Server{
+		ServerOptions: options,
+		cookies:       NewAppCookies(options.Hostname),
+	}
 }
 
 // Close waits for all reconnecting-pty WebSocket connections to drain before
@@ -231,8 +244,8 @@ func (s *Server) handleAPIKeySmuggling(rw http.ResponseWriter, r *http.Request, 
 	// We use different cookie names for path apps and for subdomain apps to
 	// avoid both being set and sent to the server at the same time and the
 	// server using the wrong value.
-	http.SetCookie(rw, s.Cookies.Apply(&http.Cookie{
-		Name:     AppConnectSessionTokenCookieName(accessMethod),
+	http.SetCookie(rw, s.CookiesConfig.Apply(&http.Cookie{
+		Name:     s.cookies.CookieNameForAccessMethod(accessMethod),
 		Value:    payload.APIKey,
 		Domain:   domain,
 		Path:     "/",
@@ -299,7 +312,8 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 	// permissions to connect to a workspace.
 	token, ok := ResolveRequest(rw, r, ResolveRequestOptions{
 		Logger:              s.Logger,
-		CookieCfg:           s.Cookies,
+		Cookies:             s.cookies,
+		CookieCfg:           s.CookiesConfig,
 		SignedTokenProvider: s.SignedTokenProvider,
 		DashboardURL:        s.DashboardURL,
 		PathAppBaseURL:      s.AccessURL,
@@ -433,6 +447,8 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 			// Generate a signed token for the request.
 			token, ok := ResolveRequest(rw, r, ResolveRequestOptions{
 				Logger:              s.Logger,
+				Cookies:             s.cookies,
+				CookieCfg:           s.CookiesConfig,
 				SignedTokenProvider: s.SignedTokenProvider,
 				DashboardURL:        s.DashboardURL,
 				PathAppBaseURL:      s.AccessURL,
@@ -666,7 +682,8 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	appToken, ok := ResolveRequest(rw, r, ResolveRequestOptions{
 		Logger:              s.Logger,
-		CookieCfg:           s.Cookies,
+		Cookies:             s.cookies,
+		CookieCfg:           s.CookiesConfig,
 		SignedTokenProvider: s.SignedTokenProvider,
 		DashboardURL:        s.DashboardURL,
 		PathAppBaseURL:      s.AccessURL,

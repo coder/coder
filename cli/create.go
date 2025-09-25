@@ -50,7 +50,6 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 		// shares the same name across multiple organizations.
 		orgContext = NewOrganizationContext()
 	)
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "create [workspace]",
@@ -61,9 +60,12 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 				Command:     "coder create <username>/<workspace_name>",
 			},
 		),
-		Middleware: serpent.Chain(r.InitClient(client)),
 		Handler: func(inv *serpent.Invocation) error {
-			var err error
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			workspaceOwner := codersdk.Me
 			if len(inv.Args) >= 1 {
 				workspaceOwner, workspaceName, err = splitNamedWorkspace(inv.Args[0])

@@ -2,6 +2,8 @@ import {
 	MockFailedWorkspace,
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
+	MockTasks,
+	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgentLogSource,
 	MockWorkspaceAgentReady,
@@ -11,22 +13,41 @@ import {
 	MockWorkspaceResource,
 	mockApiError,
 } from "testHelpers/entities";
-import { withProxyProvider, withWebSocket } from "testHelpers/storybook";
+import {
+	withAuthProvider,
+	withGlobalSnackbar,
+	withProxyProvider,
+	withWebSocket,
+} from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { API } from "api/api";
 import type {
 	Workspace,
 	WorkspaceApp,
 	WorkspaceResource,
 } from "api/typesGenerated";
-import { expect, spyOn, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import TaskPage, { data, WorkspaceDoesNotHaveAITaskError } from "./TaskPage";
 
 const meta: Meta<typeof TaskPage> = {
 	title: "pages/TaskPage",
 	component: TaskPage,
-	decorators: [withProxyProvider()],
+	decorators: [withProxyProvider(), withAuthProvider],
+	beforeEach: () => {
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+	},
 	parameters: {
 		layout: "fullscreen",
+		user: MockUserOwner,
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					workspace: MockTasks[0].workspace.name,
+				},
+			},
+			routing: { path: "/tasks/:workspace" },
+		}),
 	},
 };
 
@@ -348,6 +369,120 @@ export const ActivePreview: Story = {
 					display_name: "Preview",
 				},
 			]),
+		});
+	},
+};
+
+export const WorkspaceStartFailure: Story = {
+	decorators: [withGlobalSnackbar],
+	beforeEach: () => {
+		spyOn(API, "startWorkspace").mockRejectedValue(
+			new Error("Some unexpected error"),
+		);
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					username: MockStoppedWorkspace.owner_name,
+					workspace: MockStoppedWorkspace.name,
+				},
+			},
+			routing: {
+				path: "/tasks/:username/:workspace",
+			},
+		}),
+		queries: [
+			{
+				key: [
+					"tasks",
+					MockStoppedWorkspace.owner_name,
+					MockStoppedWorkspace.name,
+				],
+				data: {
+					prompt: "Create competitors page",
+					workspace: MockStoppedWorkspace,
+				},
+			},
+			{
+				key: ["workspace", MockStoppedWorkspace.id, "parameters"],
+				data: {
+					templateVersionRichParameters: [],
+					buildParameters: [],
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const startButton = await canvas.findByText("Start workspace");
+		expect(startButton).toBeInTheDocument();
+
+		await userEvent.click(startButton);
+
+		await waitFor(async () => {
+			const errorMessage = await canvas.findByText("Some unexpected error");
+			expect(errorMessage).toBeInTheDocument();
+		});
+	},
+};
+
+export const WorkspaceStartFailureWithDialog: Story = {
+	beforeEach: () => {
+		spyOn(API, "startWorkspace").mockRejectedValue({
+			...mockApiError({
+				message: "Bad Request",
+				detail: "Invalid build parameters provided",
+			}),
+			code: "ERR_BAD_REQUEST",
+		});
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					username: MockStoppedWorkspace.owner_name,
+					workspace: MockStoppedWorkspace.name,
+				},
+			},
+			routing: {
+				path: "/tasks/:username/:workspace",
+			},
+		}),
+		queries: [
+			{
+				key: [
+					"tasks",
+					MockStoppedWorkspace.owner_name,
+					MockStoppedWorkspace.name,
+				],
+				data: {
+					prompt: "Create competitors page",
+					workspace: MockStoppedWorkspace,
+				},
+			},
+			{
+				key: ["workspace", MockStoppedWorkspace.id, "parameters"],
+				data: {
+					templateVersionRichParameters: [],
+					buildParameters: [],
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const startButton = await canvas.findByText("Start workspace");
+		expect(startButton).toBeInTheDocument();
+
+		await userEvent.click(startButton);
+
+		await waitFor(async () => {
+			const body = within(canvasElement.ownerDocument.body);
+			const dialogTitle = await body.findByText("Error building workspace");
+			expect(dialogTitle).toBeInTheDocument();
 		});
 	},
 };

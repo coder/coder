@@ -1236,6 +1236,15 @@ func workspaceappsResolveRequest(t testing.TB, connLogger connectionlog.Connecti
 	if opts.SignedTokenProvider != nil && connLogger != nil {
 		opts.SignedTokenProvider = signedTokenProviderWithConnLogger(t, opts.SignedTokenProvider, connLogger, time.Hour)
 	}
+	if opts.Cookies.PathAppSessionToken == "" {
+		opts.Cookies.PathAppSessionToken = codersdk.PathAppSessionTokenCookie
+	}
+	if opts.Cookies.SubdomainAppSessionToken == "" {
+		opts.Cookies.SubdomainAppSessionToken = codersdk.SubdomainAppSessionTokenCookie + "_test"
+	}
+	if opts.Cookies.SignedAppToken == "" {
+		opts.Cookies.SignedAppToken = codersdk.SignedAppTokenCookie
+	}
 
 	tracing.StatusWriterMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		httpmw.AttachRequestID(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

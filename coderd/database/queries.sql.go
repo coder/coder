@@ -287,7 +287,7 @@ DELETE FROM
 	api_keys
 WHERE
 	user_id = $1 AND
-	scope = 'application_connect'::api_key_scope
+	'application_connect'::api_key_scope = ANY(scopes)
 `
 
 func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
@@ -337,7 +337,7 @@ func (q *sqlQuerier) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) 
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
-	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
 FROM
 	api_keys
 WHERE
@@ -360,15 +360,16 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 		&i.LoginType,
 		&i.LifetimeSeconds,
 		&i.IPAddress,
-		&i.Scope,
 		&i.TokenName,
+		&i.Scopes,
+		&i.AllowList,
 	)
 	return i, err
 }
 
 const getAPIKeyByName = `-- name: GetAPIKeyByName :one
 SELECT
-	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
 FROM
 	api_keys
 WHERE
@@ -399,14 +400,15 @@ func (q *sqlQuerier) GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNamePar
 		&i.LoginType,
 		&i.LifetimeSeconds,
 		&i.IPAddress,
-		&i.Scope,
 		&i.TokenName,
+		&i.Scopes,
+		&i.AllowList,
 	)
 	return i, err
 }
 
 const getAPIKeysByLoginType = `-- name: GetAPIKeysByLoginType :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name FROM api_keys WHERE login_type = $1
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list FROM api_keys WHERE login_type = $1
 `
 
 func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType LoginType) ([]APIKey, error) {
@@ -429,8 +431,9 @@ func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType LoginT
 			&i.LoginType,
 			&i.LifetimeSeconds,
 			&i.IPAddress,
-			&i.Scope,
 			&i.TokenName,
+			&i.Scopes,
+			&i.AllowList,
 		); err != nil {
 			return nil, err
 		}
@@ -446,7 +449,7 @@ func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType LoginT
 }
 
 const getAPIKeysByUserID = `-- name: GetAPIKeysByUserID :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name FROM api_keys WHERE login_type = $1 AND user_id = $2
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list FROM api_keys WHERE login_type = $1 AND user_id = $2
 `
 
 type GetAPIKeysByUserIDParams struct {
@@ -474,8 +477,9 @@ func (q *sqlQuerier) GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUse
 			&i.LoginType,
 			&i.LifetimeSeconds,
 			&i.IPAddress,
-			&i.Scope,
 			&i.TokenName,
+			&i.Scopes,
+			&i.AllowList,
 		); err != nil {
 			return nil, err
 		}
@@ -491,7 +495,7 @@ func (q *sqlQuerier) GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUse
 }
 
 const getAPIKeysLastUsedAfter = `-- name: GetAPIKeysLastUsedAfter :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name FROM api_keys WHERE last_used > $1
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list FROM api_keys WHERE last_used > $1
 `
 
 func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error) {
@@ -514,8 +518,9 @@ func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.
 			&i.LoginType,
 			&i.LifetimeSeconds,
 			&i.IPAddress,
-			&i.Scope,
 			&i.TokenName,
+			&i.Scopes,
+			&i.AllowList,
 		); err != nil {
 			return nil, err
 		}
@@ -543,7 +548,8 @@ INSERT INTO
 		created_at,
 		updated_at,
 		login_type,
-		scope,
+		scopes,
+		allow_list,
 		token_name
 	)
 VALUES
@@ -553,22 +559,23 @@ VALUES
 	     WHEN 0 THEN 86400
 		 ELSE $2::bigint
 	 END
-	 , $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
+	 , $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
 `
 
 type InsertAPIKeyParams struct {
-	ID              string      `db:"id" json:"id"`
-	LifetimeSeconds int64       `db:"lifetime_seconds" json:"lifetime_seconds"`
-	HashedSecret    []byte      `db:"hashed_secret" json:"hashed_secret"`
-	IPAddress       pqtype.Inet `db:"ip_address" json:"ip_address"`
-	UserID          uuid.UUID   `db:"user_id" json:"user_id"`
-	LastUsed        time.Time   `db:"last_used" json:"last_used"`
-	ExpiresAt       time.Time   `db:"expires_at" json:"expires_at"`
-	CreatedAt       time.Time   `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time   `db:"updated_at" json:"updated_at"`
-	LoginType       LoginType   `db:"login_type" json:"login_type"`
-	Scope           APIKeyScope `db:"scope" json:"scope"`
-	TokenName       string      `db:"token_name" json:"token_name"`
+	ID              string       `db:"id" json:"id"`
+	LifetimeSeconds int64        `db:"lifetime_seconds" json:"lifetime_seconds"`
+	HashedSecret    []byte       `db:"hashed_secret" json:"hashed_secret"`
+	IPAddress       pqtype.Inet  `db:"ip_address" json:"ip_address"`
+	UserID          uuid.UUID    `db:"user_id" json:"user_id"`
+	LastUsed        time.Time    `db:"last_used" json:"last_used"`
+	ExpiresAt       time.Time    `db:"expires_at" json:"expires_at"`
+	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time    `db:"updated_at" json:"updated_at"`
+	LoginType       LoginType    `db:"login_type" json:"login_type"`
+	Scopes          APIKeyScopes `db:"scopes" json:"scopes"`
+	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
+	TokenName       string       `db:"token_name" json:"token_name"`
 }
 
 func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error) {
@@ -583,7 +590,8 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.LoginType,
-		arg.Scope,
+		arg.Scopes,
+		arg.AllowList,
 		arg.TokenName,
 	)
 	var i APIKey
@@ -598,8 +606,9 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		&i.LoginType,
 		&i.LifetimeSeconds,
 		&i.IPAddress,
-		&i.Scope,
 		&i.TokenName,
+		&i.Scopes,
+		&i.AllowList,
 	)
 	return i, err
 }
@@ -21113,7 +21122,18 @@ WHERE
 			(workspaces.user_acl != '{}'::jsonb OR workspaces.group_acl != '{}'::jsonb) = $21 :: boolean
 		ELSE true
 	END
-
+	-- Filter by shared_with_user_id
+	AND CASE
+		WHEN $22 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.user_acl ? ($22 :: uuid) :: text
+		ELSE true
+	END
+	-- Filter by shared_with_group_id
+	AND CASE
+		WHEN $23 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.group_acl ? ($23 :: uuid) :: text
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ), filtered_workspaces_order AS (
@@ -21123,7 +21143,7 @@ WHERE
 		filtered_workspaces fw
 	ORDER BY
 		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-		CASE WHEN owner_id = $22 AND favorite THEN 0 ELSE 1 END ASC,
+		CASE WHEN owner_id = $24 AND favorite THEN 0 ELSE 1 END ASC,
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
@@ -21132,11 +21152,11 @@ WHERE
 		LOWER(name) ASC
 	LIMIT
 		CASE
-			WHEN $24 :: integer > 0 THEN
-				$24
+			WHEN $26 :: integer > 0 THEN
+				$26
 		END
 	OFFSET
-		$23
+		$25
 ), filtered_workspaces_order_with_summary AS (
 	SELECT
 		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.next_start_at, fwo.group_acl, fwo.user_acl, fwo.owner_avatar_url, fwo.owner_username, fwo.owner_name, fwo.organization_name, fwo.organization_display_name, fwo.organization_icon, fwo.organization_description, fwo.template_name, fwo.template_display_name, fwo.template_icon, fwo.template_description, fwo.template_version_id, fwo.template_version_name, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status, fwo.latest_build_has_ai_task, fwo.latest_build_has_external_agent
@@ -21186,7 +21206,7 @@ WHERE
 		false, -- latest_build_has_ai_task
 		false -- latest_build_has_external_agent
 	WHERE
-		$25 :: boolean = true
+		$27 :: boolean = true
 ), total_count AS (
 	SELECT
 		count(*) AS count
@@ -21224,6 +21244,8 @@ type GetWorkspacesParams struct {
 	HasAITask                             sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
 	HasExternalAgent                      sql.NullBool `db:"has_external_agent" json:"has_external_agent"`
 	Shared                                sql.NullBool `db:"shared" json:"shared"`
+	SharedWithUserID                      uuid.UUID    `db:"shared_with_user_id" json:"shared_with_user_id"`
+	SharedWithGroupID                     uuid.UUID    `db:"shared_with_group_id" json:"shared_with_group_id"`
 	RequesterID                           uuid.UUID    `db:"requester_id" json:"requester_id"`
 	Offset                                int32        `db:"offset_" json:"offset_"`
 	Limit                                 int32        `db:"limit_" json:"limit_"`
@@ -21298,6 +21320,8 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.HasAITask,
 		arg.HasExternalAgent,
 		arg.Shared,
+		arg.SharedWithUserID,
+		arg.SharedWithGroupID,
 		arg.RequesterID,
 		arg.Offset,
 		arg.Limit,

@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
@@ -161,6 +163,29 @@ func (m StringMapOfInt) Value() (driver.Value, error) {
 
 type CustomRolePermissions []CustomRolePermission
 
+// APIKeyScopes implements sql.Scanner and driver.Valuer so it can be read from
+// and written to the Postgres api_key_scope[] enum array column.
+func (s *APIKeyScopes) Scan(src interface{}) error {
+	var arr []string
+	if err := pq.Array(&arr).Scan(src); err != nil {
+		return err
+	}
+	out := make(APIKeyScopes, len(arr))
+	for i, v := range arr {
+		out[i] = APIKeyScope(v)
+	}
+	*s = out
+	return nil
+}
+
+func (s APIKeyScopes) Value() (driver.Value, error) {
+	arr := make([]string, len(s))
+	for i, v := range s {
+		arr[i] = string(v)
+	}
+	return pq.Array(arr).Value()
+}
+
 func (a *CustomRolePermissions) Scan(src interface{}) error {
 	switch v := src.(type) {
 	case string:
@@ -287,4 +312,64 @@ func ParseIP(ipStr string) pqtype.Inet {
 		IPNet: ipNet,
 		Valid: ip != nil,
 	}
+}
+
+// AllowListTarget represents a single scope allow-list entry.
+// It encodes a resource tuple (type, id) and provides helpers for
+// consistent string and JSON representations across the codebase.
+type AllowListTarget struct {
+	Type string `json:"type"`
+	ID   string `json:"id"`
+}
+
+// String returns the canonical database representation "type:id".
+func (t AllowListTarget) String() string {
+	return t.Type + ":" + t.ID
+}
+
+// ParseAllowListTarget parses the canonical string form "type:id".
+func ParseAllowListTarget(s string) (AllowListTarget, error) {
+	targetType, id, ok := rbac.ParseResourceAction(s)
+	if !ok {
+		return AllowListTarget{}, xerrors.Errorf("invalid allow list target: %q", s)
+	}
+	return AllowListTarget{Type: targetType, ID: id}, nil
+}
+
+// AllowListWildcard returns the wildcard allow-list entry {"*","*"}.
+func AllowListWildcard() AllowListTarget { return AllowListTarget{Type: "*", ID: "*"} }
+
+// AllowList is a typed wrapper around a list of AllowListTarget entries.
+// It implements sql.Scanner and driver.Valuer so it can be stored in and
+// loaded from a Postgres text[] column that stores each entry in the
+// canonical form "type:id".
+type AllowList []AllowListTarget
+
+// Scan implements sql.Scanner. It supports inputs that pq.Array can decode
+// into []string, and then converts each element to an AllowListTarget.
+func (a *AllowList) Scan(src any) error {
+	var raw []string
+	if err := pq.Array(&raw).Scan(src); err != nil {
+		return err
+	}
+	out := make([]AllowListTarget, len(raw))
+	for i, s := range raw {
+		t, err := ParseAllowListTarget(s)
+		if err != nil {
+			return err
+		}
+		out[i] = t
+	}
+	*a = out
+	return nil
+}
+
+// Value implements driver.Valuer by converting the list to []string using the
+// canonical "type:id" form and delegating to pq.Array for encoding.
+func (a AllowList) Value() (driver.Value, error) {
+	raw := make([]string, len(a))
+	for i, t := range a {
+		raw[i] = t.String()
+	}
+	return pq.Array(raw).Value()
 }

@@ -259,6 +259,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "mcp_url": "string",
           "no_refresh": true,
           "regex": "string",
+          "revoke_url": "string",
           "scopes": [
             "string"
           ],

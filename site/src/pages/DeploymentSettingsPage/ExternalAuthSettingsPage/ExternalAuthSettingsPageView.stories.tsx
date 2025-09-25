@@ -15,6 +15,7 @@ const meta: Meta<typeof ExternalAuthSettingsPageView> = {
 					auth_url: "",
 					token_url: "",
 					validate_url: "",
+					revoke_url: "",
 					app_install_url: "https://github.com/apps/coder/installations/new",
 					app_installations_url: "",
 					no_refresh: false,

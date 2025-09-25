@@ -33,8 +33,6 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *serpen
 		panic(fmt.Sprintf("%s is not supported", sdkStatus))
 	}
 
-	client := new(codersdk.Client)
-
 	var columns []string
 	allColumns := []string{"username", "email", "created at", "status"}
 	cmd := &serpent.Command{
@@ -48,9 +46,12 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *serpen
 		),
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			identifier := inv.Args[0]
 			if identifier == "" {
 				return xerrors.Errorf("user identifier cannot be an empty string")
