@@ -123,7 +123,8 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
 						// but keep the millisecond value consistent for the parent component
 						let newDurationMs: number;
 						if (unit === "hours") {
-							newDurationMs = hoursToDuration(Number(state.durationFieldValue));
+							// When switching to hours, use the current milliseconds to get exact hours
+							newDurationMs = currentDurationMs;
 						} else {
 							// When switching to days, round up to the nearest day
 							const daysValue = Math.ceil(durationInDays(currentDurationMs));
