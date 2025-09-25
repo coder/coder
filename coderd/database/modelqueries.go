@@ -785,7 +785,7 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, ar
 		arg.InitiatorID,
 		arg.Provider,
 		arg.Model,
-		arg.Offset,
+		arg.AfterID,
 		arg.Limit,
 	)
 	if err != nil {

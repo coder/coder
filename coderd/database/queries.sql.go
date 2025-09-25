@@ -112,7 +112,12 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 }
 
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
-SELECT id, initiator_id, provider, model, started_at, metadata FROM aibridge_interceptions WHERE id = $1::uuid
+SELECT
+	id, initiator_id, provider, model, started_at, metadata
+FROM
+	aibridge_interceptions
+WHERE
+	id = $1::uuid
 `
 
 func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (AIBridgeInterception, error) {
@@ -130,7 +135,10 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 }
 
 const getAIBridgeInterceptions = `-- name: GetAIBridgeInterceptions :many
-SELECT id, initiator_id, provider, model, started_at, metadata FROM aibridge_interceptions
+SELECT
+	id, initiator_id, provider, model, started_at, metadata
+FROM
+	aibridge_interceptions
 `
 
 func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeInterception, error) {
@@ -164,7 +172,13 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 }
 
 const getAIBridgeTokenUsagesByInterceptionID = `-- name: GetAIBridgeTokenUsagesByInterceptionID :many
-SELECT id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at FROM aibridge_token_usages WHERE interception_id = $1::uuid
+SELECT
+	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at
+FROM
+	aibridge_token_usages WHERE interception_id = $1::uuid
+ORDER BY
+	created_at DESC,
+	id DESC
 `
 
 func (q *sqlQuerier) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeTokenUsage, error) {
@@ -199,7 +213,15 @@ func (q *sqlQuerier) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context,
 }
 
 const getAIBridgeToolUsagesByInterceptionID = `-- name: GetAIBridgeToolUsagesByInterceptionID :many
-SELECT id, interception_id, provider_response_id, server_url, tool, input, injected, invocation_error, metadata, created_at FROM aibridge_tool_usages WHERE interception_id = $1::uuid
+SELECT
+	id, interception_id, provider_response_id, server_url, tool, input, injected, invocation_error, metadata, created_at
+FROM
+	aibridge_tool_usages
+WHERE
+	interception_id = $1::uuid
+ORDER BY
+	created_at DESC,
+	id DESC
 `
 
 func (q *sqlQuerier) GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeToolUsage, error) {
@@ -237,7 +259,15 @@ func (q *sqlQuerier) GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, 
 }
 
 const getAIBridgeUserPromptsByInterceptionID = `-- name: GetAIBridgeUserPromptsByInterceptionID :many
-SELECT id, interception_id, provider_response_id, prompt, metadata, created_at FROM aibridge_user_prompts WHERE interception_id = $1::uuid
+SELECT
+	id, interception_id, provider_response_id, prompt, metadata, created_at
+FROM
+	aibridge_user_prompts
+WHERE
+	interception_id = $1::uuid
+ORDER BY
+	created_at DESC,
+	id DESC
 `
 
 func (q *sqlQuerier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeUserPrompt, error) {
@@ -471,13 +501,25 @@ WHERE
 		WHEN $5::text != '' THEN aibridge_interceptions.model = $5::text
 		ELSE true
 	END
+	-- Cursor pagination
+	AND CASE
+		WHEN $6::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+			-- The pagination cursor is the last ID of the previous page.
+			-- The query is ordered by the started_at field, so select all
+			-- rows before the cursor and before the after_id UUID.
+			(aibridge_interceptions.started_at, aibridge_interceptions.id) < (
+				(SELECT started_at FROM aibridge_interceptions WHERE id = $6),
+				$6::uuid
+			)
+		)
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeInterceptions
 	-- @authorize_filter
 ORDER BY
 	aibridge_interceptions.started_at DESC,
 	aibridge_interceptions.id DESC
 LIMIT COALESCE(NULLIF($7::integer, 0), 100)
-OFFSET $6
 `
 
 type ListAIBridgeInterceptionsParams struct {
@@ -486,7 +528,7 @@ type ListAIBridgeInterceptionsParams struct {
 	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
 	Provider      string    `db:"provider" json:"provider"`
 	Model         string    `db:"model" json:"model"`
-	Offset        int32     `db:"offset_" json:"offset_"`
+	AfterID       uuid.UUID `db:"after_id" json:"after_id"`
 	Limit         int32     `db:"limit_" json:"limit_"`
 }
 
@@ -497,7 +539,7 @@ func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBr
 		arg.InitiatorID,
 		arg.Provider,
 		arg.Model,
-		arg.Offset,
+		arg.AfterID,
 		arg.Limit,
 	)
 	if err != nil {
@@ -535,6 +577,9 @@ FROM
 	aibridge_token_usages
 WHERE
 	interception_id = ANY($1::uuid[])
+ORDER BY
+	created_at ASC,
+	id ASC
 `
 
 func (q *sqlQuerier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeTokenUsage, error) {
@@ -575,6 +620,9 @@ FROM
 	aibridge_tool_usages
 WHERE
 	interception_id = ANY($1::uuid[])
+ORDER BY
+	created_at ASC,
+	id ASC
 `
 
 func (q *sqlQuerier) ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error) {
@@ -618,6 +666,9 @@ FROM
 	aibridge_user_prompts
 WHERE
 	interception_id = ANY($1::uuid[])
+ORDER BY
+	created_at ASC,
+	id ASC
 `
 
 func (q *sqlQuerier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error) {

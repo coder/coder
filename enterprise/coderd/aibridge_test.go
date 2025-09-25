@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -129,13 +130,65 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		experimentalClient := codersdk.NewExperimentalClient(client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
+		allInterceptionIDs := make([]uuid.UUID, 0, 20)
+
+		// Create 10 interceptions with the same started_at time. The returned
+		// order for these should still be deterministic.
 		now := dbtime.Now()
-		interception1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			StartedAt: now.Add(-time.Hour),
-		})
-		interception2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			StartedAt: now,
-		})
+		for i := range 10 {
+			interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				ID:        uuid.UUID{byte(i)},
+				StartedAt: now,
+			})
+			allInterceptionIDs = append(allInterceptionIDs, interception.ID)
+		}
+
+		// Create 10 interceptions with a random started_at time.
+		for i := range 10 {
+			randomOffset, err := cryptorand.Intn(10000)
+			require.NoError(t, err)
+			randomOffsetDur := time.Duration(randomOffset) * time.Second
+			interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				ID:        uuid.UUID{byte(i + 10)},
+				StartedAt: now.Add(randomOffsetDur),
+			})
+			allInterceptionIDs = append(allInterceptionIDs, interception.ID)
+		}
+
+		// Get all interceptions one by one from the API using cursor
+		// pagination.
+		getAllInterceptionsOneByOne := func() []uuid.UUID {
+			interceptionIDs := []uuid.UUID{}
+			for {
+				afterID := uuid.Nil
+				if len(interceptionIDs) > 0 {
+					afterID = interceptionIDs[len(interceptionIDs)-1]
+				}
+				res, err := experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
+					Pagination: codersdk.Pagination{
+						AfterID: afterID,
+						Limit:   1,
+					},
+				})
+				require.NoError(t, err)
+				if len(res.Results) == 0 {
+					break
+				}
+				require.Len(t, res.Results, 1)
+				interceptionIDs = append(interceptionIDs, res.Results[0].ID)
+			}
+			return interceptionIDs
+		}
+
+		// First attempt: get all interceptions one by one.
+		gotInterceptionIDs1 := getAllInterceptionsOneByOne()
+		// We should have all of the interceptions returned:
+		require.ElementsMatch(t, allInterceptionIDs, gotInterceptionIDs1)
+
+		// Second attempt: get all interceptions one by one again.
+		gotInterceptionIDs2 := getAllInterceptionsOneByOne()
+		// They should be returned in the exact same order.
+		require.Equal(t, gotInterceptionIDs1, gotInterceptionIDs2)
 
 		// Try to get an invalid limit.
 		res, err := experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
@@ -146,37 +199,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Contains(t, sdkErr.Message, "Invalid pagination limit value.")
-		require.Empty(t, res.Results)
-
-		// Get first page. The newest interception should be the first one.
-		res, err = experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
-			Pagination: codersdk.Pagination{
-				Limit: 1,
-			},
-		})
-		require.NoError(t, err)
-		require.Len(t, res.Results, 1)
-		require.Equal(t, interception2.ID, res.Results[0].ID)
-
-		// Get the second page. The oldest interception should be the first one.
-		res, err = experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
-			Pagination: codersdk.Pagination{
-				Limit:  1,
-				Offset: 1,
-			},
-		})
-		require.NoError(t, err)
-		require.Len(t, res.Results, 1)
-		require.Equal(t, interception1.ID, res.Results[0].ID)
-
-		// Get a non-existent page.
-		res, err = experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
-			Pagination: codersdk.Pagination{
-				Limit:  1,
-				Offset: 2,
-			},
-		})
-		require.NoError(t, err)
 		require.Empty(t, res.Results)
 	})
 

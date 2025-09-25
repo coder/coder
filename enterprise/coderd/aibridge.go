@@ -33,7 +33,7 @@ const (
 // @Tags AIBridge
 // @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, model, started_after, started_before."
 // @Param limit query int false "Page limit"
-// @Param offset query int false "Page offset"
+// @Param after_id query string false "Cursor pagination after ID"
 // @Success 200 {object} codersdk.AIBridgeListInterceptionsResponse
 // @Router /api/experimental/aibridge/interceptions [get]
 func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Request) {
@@ -42,6 +42,13 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 
 	page, ok := coderd.ParsePagination(rw, r)
 	if !ok {
+		return
+	}
+	if page.Offset != 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Offset pagination is not supported.",
+			Detail:  "Offset pagination is not supported for AIBridge interceptions. Use cursor pagination instead with after_id..",
+		})
 		return
 	}
 	if page.Limit == 0 {
@@ -65,8 +72,25 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// This only returns authorized interceptions (when using dbauthz).
-	rows, err := api.Database.ListAIBridgeInterceptions(ctx, filter)
+	var rows []database.AIBridgeInterception
+	err := api.Database.InTx(func(db database.Store) error {
+		// Ensure the after_id interception exists and is visible to the user.
+		if page.AfterID != uuid.Nil {
+			_, err := db.GetAIBridgeInterceptionByID(ctx, page.AfterID)
+			if err != nil {
+				return xerrors.Errorf("get aibridge interception by id %s for cursor pagination: %w", page.AfterID, err)
+			}
+		}
+
+		var err error
+		// This only returns authorized interceptions (when using dbauthz).
+		rows, err = db.ListAIBridgeInterceptions(ctx, filter)
+		if err != nil {
+			return xerrors.Errorf("list aibridge interceptions: %w", err)
+		}
+
+		return nil
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting AIBridge interceptions.",
@@ -90,9 +114,9 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
-func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.Store, rows []database.AIBridgeInterception) ([]codersdk.AIBridgeInterception, error) {
-	ids := make([]uuid.UUID, len(rows))
-	for i, row := range rows {
+func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.Store, dbInterceptions []database.AIBridgeInterception) ([]codersdk.AIBridgeInterception, error) {
+	ids := make([]uuid.UUID, len(dbInterceptions))
+	for i, row := range dbInterceptions {
 		ids[i] = row.ID
 	}
 
@@ -101,7 +125,7 @@ func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.S
 	if err != nil {
 		return nil, xerrors.Errorf("get linked aibridge token usages from database: %w", err)
 	}
-	tokenUsagesMap := make(map[uuid.UUID][]database.AIBridgeTokenUsage)
+	tokenUsagesMap := make(map[uuid.UUID][]database.AIBridgeTokenUsage, len(dbInterceptions))
 	for _, row := range tokenUsagesRows {
 		tokenUsagesMap[row.InterceptionID] = append(tokenUsagesMap[row.InterceptionID], row)
 	}
@@ -111,7 +135,7 @@ func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.S
 	if err != nil {
 		return nil, xerrors.Errorf("get linked aibridge user prompts from database: %w", err)
 	}
-	userPromptsMap := make(map[uuid.UUID][]database.AIBridgeUserPrompt)
+	userPromptsMap := make(map[uuid.UUID][]database.AIBridgeUserPrompt, len(dbInterceptions))
 	for _, row := range userPromptRows {
 		userPromptsMap[row.InterceptionID] = append(userPromptsMap[row.InterceptionID], row)
 	}
@@ -121,13 +145,13 @@ func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.S
 	if err != nil {
 		return nil, xerrors.Errorf("get linked aibridge tool usages from database: %w", err)
 	}
-	toolUsagesMap := make(map[uuid.UUID][]database.AIBridgeToolUsage)
+	toolUsagesMap := make(map[uuid.UUID][]database.AIBridgeToolUsage, len(dbInterceptions))
 	for _, row := range toolUsagesRows {
 		toolUsagesMap[row.InterceptionID] = append(toolUsagesMap[row.InterceptionID], row)
 	}
 
-	items := make([]codersdk.AIBridgeInterception, len(rows))
-	for i, row := range rows {
+	items := make([]codersdk.AIBridgeInterception, len(dbInterceptions))
+	for i, row := range dbInterceptions {
 		items[i] = db2sdk.AIBridgeInterception(row, tokenUsagesMap[row.ID], userPromptsMap[row.ID], toolUsagesMap[row.ID])
 	}
 

@@ -114,9 +114,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Page offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Cursor pagination after ID",
+                        "name": "after_id",
                         "in": "query"
                     }
                 ],

@@ -15,11 +15,11 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/aibridge/intercepti
 
 ### Parameters
 
-| Name     | In    | Type    | Required | Description                                                                                                            |
-|----------|-------|---------|----------|------------------------------------------------------------------------------------------------------------------------|
-| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: initiator, provider, model, started_after, started_before. |
-| `limit`  | query | integer | false    | Page limit                                                                                                             |
-| `offset` | query | integer | false    | Page offset                                                                                                            |
+| Name       | In    | Type    | Required | Description                                                                                                            |
+|------------|-------|---------|----------|------------------------------------------------------------------------------------------------------------------------|
+| `q`        | query | string  | false    | Search query in the format `key:value`. Available keys are: initiator, provider, model, started_after, started_before. |
+| `limit`    | query | integer | false    | Page limit                                                                                                             |
+| `after_id` | query | string  | false    | Cursor pagination after ID                                                                                             |
 
 ### Example responses
 

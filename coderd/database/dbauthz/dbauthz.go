@@ -5802,5 +5802,7 @@ func (q *querier) CountAuthorizedConnectionLogs(ctx context.Context, arg databas
 
 func (q *querier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams, _ rbac.PreparedAuthorized) ([]database.AIBridgeInterception, error) {
 	// TODO: Delete this function, all ListAIBridgeInterceptions should be authorized. For now just call ListAIBridgeInterceptions on the authz querier.
+	// This cannot be deleted for now because it's included in the
+	// database.Store interface, so dbauthz needs to implement it.
 	return q.ListAIBridgeInterceptions(ctx, arg)
 }

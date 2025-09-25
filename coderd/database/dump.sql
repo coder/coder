@@ -3112,6 +3112,12 @@ CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_
 
 CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions USING btree (initiator_id);
 
+CREATE INDEX idx_aibridge_interceptions_model ON aibridge_interceptions USING btree (model);
+
+CREATE INDEX idx_aibridge_interceptions_provider ON aibridge_interceptions USING btree (provider);
+
+CREATE INDEX idx_aibridge_interceptions_started_id_desc ON aibridge_interceptions USING btree (started_at DESC, id DESC);
+
 CREATE INDEX idx_aibridge_token_usages_interception_id ON aibridge_token_usages USING btree (interception_id);
 
 CREATE INDEX idx_aibridge_token_usages_provider_response_id ON aibridge_token_usages USING btree (provider_response_id);

@@ -62,6 +62,8 @@ type AIBridgeListInterceptionsResponse struct {
 // @typescript-ignore AIBridgeListInterceptionsFilter
 type AIBridgeListInterceptionsFilter struct {
 	// Limit defaults to 100, max is 1000.
+	// Offset based pagination is not supported for AIBridge interceptions. Use
+	// cursor pagination instead with after_id.
 	Pagination Pagination `json:"pagination,omitempty"`
 
 	// Initiator is a user ID, username, or "me".

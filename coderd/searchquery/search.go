@@ -308,8 +308,7 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 func AIBridgeInterceptions(ctx context.Context, db database.Store, query string, page codersdk.Pagination, actorID uuid.UUID) (database.ListAIBridgeInterceptionsParams, []codersdk.ValidationError) {
 	// nolint:exhaustruct // Empty values just means "don't filter by that field".
 	filter := database.ListAIBridgeInterceptionsParams{
-		// #nosec G115 - Safe conversion for pagination offset which is expected to be within int32 range
-		Offset: int32(page.Offset),
+		AfterID: page.AfterID,
 		// #nosec G115 - Safe conversion for pagination limit which is expected to be within int32 range
 		Limit: int32(page.Limit),
 	}
