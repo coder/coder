@@ -2,7 +2,7 @@
 
 ## What is a Task?
 
-Coder Tasks is Coder's platform for managing coding agents and other AI-enabled tools. With Coder Tasks, you can
+Coder Tasks is Coder's platform for managing coding agents. With Coder Tasks, you can
 
 - Connect an AI Agent like Claude Code or OpenAI's Codex to your IDE to assist in day-to-day development and building
 - Kick off AI-enabled workflows such as upgrading a vulnerable package and automatically opening a GitHub Pull Requests with the patch
@@ -10,7 +10,7 @@ Coder Tasks is Coder's platform for managing coding agents and other AI-enabled 
 
 ![Tasks UI](../images/guides/ai-agents/tasks-ui.png)Coder Tasks Dashboard view to see all available tasks.
 
-Coder Tasks allows you and your organization to build and automate workflows to fully leverage AI. Tasks operate through Coder Workspaces, so developers can [connect via an IDE](../user-guides/workspace-access) to jump in and guide development and fully interact with the agent.
+Coder Tasks allows you and your organization to build and automate workflows to fully leverage AI. Tasks operate through Coder Workspaces, so developers can [connect via an IDE](../user-guides/workspace-access) to guide development and fully interact with the agent.
 
 ## Why Use Tasks?
 
@@ -30,27 +30,21 @@ Coder Tasks exist to solve these types of problems:
 
 ## How to Make a Task Template
 
-### Refresher: What are Templates
-
-As a quick refresher, a template defines the underlying infrastructure that a Coder workspace runs on. Templates themselves are written in Terraform managed as a `main.tf` file that defines the contents of the workspace and the resources it requires to run. Templates can also pull in Dockerfiles, other build files, and startup scripts or config files for special configuration.
-
-Within this configuration, Coder specifically looks for
-
-- `coder_agent`: Coder's fundamental resource that runs inside a workspace to enable connectivity to external systems
-- `coder_workspace`: Defines the workspace owner, state, etc.
-- `coder_provisioner`: Defines basic system information like system architecture, OS, etc.
-- `coder_app`: Pull in IDE or other applications like VS Code, terminals, web apps
-
-Coder templates also supports standard Terraform providers for connecting to external systems like AWS/Azure/GCP.
+If you need a refresher on Coder Templates, check out our [starting guide here](https://coder.com/docs/tutorials/template-from-scratch). 
 
 ### What Makes a Task Template
 
 Task templates are regular Coder Templates, with a few specific resources defined additionally. These resources prime the template and corresponding workspaces for automated execution and AI-driven workflows rather than development environments for developers and builders.
 
-The specific resources that turn a template into a task template include:
+There are two approaches to turning a Template into a Task Template:
 
-- **AgentAPI Module:** Coder's task execution engine that provides Web UI integration, task reporting, and agent lifecycle management that makes any module compatible with Coder Tasks
+#### Using a Registry Module
+
+You can use a pre-existing agent module that [Coder maintains](https://registry.coder.com/modules). When using an agent module, you must define:
 - `coder_parameter` named _ai_prompt_: Define the AI prompt input so users can define/specify what tasks need to run
+- **Agentic Module** that defines the agent you want to use, e.g. Claude Code, Codex CLI, Gemini CLI
+
+Coder maintains various agentic modules; see [Coder Labs](https://registry.coder.com/contributors/coder-labs). These modules, in addition to defining connection information for the specific agent, reference the [AgentAPI module](https://registry.coder.com/modules/coder/agentapi) which provides connection, reporting, and agent life cycle management operations. The module also defines the `coder_ai_task` resource which allows the Task to be visible in the UI. 
 
 The following code snippet can be dropped into any existing template to modify it into a Claude-Code enabled task template. This snippet also includes space for a setup script that will prime the agent for execution.
 
@@ -71,7 +65,7 @@ data "coder_parameter" "setup_script" {
 }
 
 # The Claude Code module does the automatic task reporting
-# Other agent modules: https://registry.coder.com/modules?search=agent
+# Other agent modules: https://registry.coder.com/modules?search=tag%3Atasks
 # Or use a custom agent:  
 module "claude-code" {
   count               = data.coder_workspace.me.start_count
@@ -104,13 +98,26 @@ resource "coder_env" "anthropic_api_key" {
 
 Let's break down this snippet:
 
-- You aren't seeing the **AgentAPI Module**. That's because the AgentAPI module is its own resource that other modules can pull in
 - The `module "claude-code"` sets up the Task template to use Claude Code, but Coder's Registry supports many other agent modules like [OpenAI's Codex](https://registry.coder.com/modules/coder-labs/codex) or [Gemini CLI](https://registry.coder.com/modules/coder-labs/gemini)
 - Each module defines its own specific inputs. Claude Code expects the `CODER_MCP_CLAUDE_API_KEY` environment variable to exist, but OpenAI based agents expect `OPENAI_API_KEY` for example. You'll want to check the specific module's defined variables to know what exactly needs to be defined
 - You can define specific scripts to run at startup of the Task. For example, you could define a setup script that calls to AWS S3 and pulls specific files you want your agent to have access to
 
-Given this, you can easily build your own task template. All you need to do is identify the existing agent you want access to in our [Registry](https://registry.coder.com/modules), and then
+#### Using a Custom Agent
 
+Coder allows you to define a custom agent. When doing so, you must define:
+
+- `coder_parameter` named _ai_prompt_: Define the AI prompt input so users can define/specify what tasks need to run
+- `coder_ai_task` which registers the task with the UI and allows the task to be visible
+- **AgentAPI binary** which provides runtime execution logistics for the task
+
+You can find the latest [AgentAPI binary here](https://github.com/coder/agentapi/releases). You can alternatively import and use the [AgentAPI module](https://registry.coder.com/modules/coder/agentapi?tab=variables) Coder maintains, which also conveniently defines the `coder_ai_task` resource. 
+
+Read more about [custom agents here](https://coder.com/docs/ai-coder/custom-agents).
+
+#### Putting it all Together
+
+Coder recommends using pre-existing agent modules when making a Task Template. Making a Task Template boils down to:
+1. Identify the existing agent you want access to in our [Registry](https://registry.coder.com/modules)
 1. Add the agent's module to your existing template
 1. Define the module's required inputs
 1. Define the `coder_parameter`
