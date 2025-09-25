@@ -14,7 +14,7 @@ func (r *RootCmd) taskSend() *serpent.Command {
 	var stdin bool
 
 	cmd := &serpent.Command{
-		Use:        "send <task> [<message> | --stdin]",
+		Use:        "send <task> [<input> | --stdin]",
 		Short:      "Send input to a task",
 		Middleware: serpent.RequireRangeArgs(1, 2),
 		Options: serpent.OptionSet{
