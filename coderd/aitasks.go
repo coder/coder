@@ -623,34 +623,34 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type messagePayload struct {
-		Content string `json:"content"`
-		Type    string `json:"type"`
-	}
-	payload, err := json.Marshal(messagePayload{Content: req.Input, Type: "user"})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error encoding request payload.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	if err = api.authAndDoWithTaskSidebarAppClient(r, taskID, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
-		// Build the request to the agent local app (we expect agentapi on the other side).
-		appReqURL := appURL
-		appReqURL.Path = path.Join(appURL.Path, "message")
-
-		newReq, err := http.NewRequestWithContext(ctx, http.MethodPost, appReqURL.String(), bytes.NewReader(payload))
+		status, err := doAgentapiStatusRequest(ctx, client, appURL)
 		if err != nil {
-			return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error creating request to task app.",
-				Detail:  err.Error(),
+			return err
+		}
+
+		if status != "stable" {
+			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+				Message: "Task app is not ready to accept input.",
+				Detail:  fmt.Sprintf("Status: %s", status),
 			})
 		}
-		newReq.Header.Set("Content-Type", "application/json")
 
-		resp, err := client.Do(newReq)
+		var reqBody struct {
+			Body struct {
+				Content string `json:"content"`
+				Type    string `json:"type"`
+			} `json:"body"`
+		}
+		reqBody.Body.Content = req.Input
+		reqBody.Body.Type = "user"
+
+		req, err := newAgentapiRequest(ctx, http.MethodPost, appURL, "message", reqBody)
+		if err != nil {
+			return err
+		}
+
+		resp, err := client.Do(req)
 		if err != nil {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
 				Message: "Failed to reach task app endpoint.",
@@ -798,4 +798,71 @@ func (api *API) authAndDoWithTaskSidebarAppClient(
 		},
 	}
 	return do(ctx, client, parsedURL)
+}
+
+func newAgentapiRequest(ctx context.Context, method string, appURL *url.URL, appURLPath string, body any) (*http.Request, error) {
+	u := *appURL
+	u.Path = path.Join(appURL.Path, appURLPath)
+
+	var bodyReader io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return nil, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+				Message: "Failed to marshal task app request body.",
+				Detail:  err.Error(),
+			})
+		}
+		bodyReader = bytes.NewReader(b)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), bodyReader)
+	if err != nil {
+		return nil, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to create task app request.",
+			Detail:  err.Error(),
+		})
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	return req, nil
+}
+
+func doAgentapiStatusRequest(ctx context.Context, client *http.Client, appURL *url.URL) (string, error) {
+	req, err := newAgentapiRequest(ctx, http.MethodGet, appURL, "status", nil)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+			Message: "Failed to reach task app endpoint.",
+			Detail:  err.Error(),
+		})
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+			Message: "Task app status returned an error.",
+			Detail:  fmt.Sprintf("Status code: %d", resp.StatusCode),
+		})
+	}
+
+	var respBody struct {
+		Body struct {
+			Status string `json:"status"`
+		} `json:"body"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
+		return "", httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+			Message: "Failed to decode task app status response body.",
+			Detail:  err.Error(),
+		})
+	}
+
+	return respBody.Body.Status, nil
 }

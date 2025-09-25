@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -424,6 +425,11 @@ func TestTasks(t *testing.T) {
 
 			// Start a fake AgentAPI that accepts POST /message with 200 OK.
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && r.URL.Path == "/status" {
+					_, _ = fmt.Fprintln(w, `{"body":{"status":"stable"}}`)
+					w.WriteHeader(http.StatusOK)
+					return
+				}
 				if r.Method == http.MethodPost && r.URL.Path == "/message" {
 					w.WriteHeader(http.StatusOK)
 					return
