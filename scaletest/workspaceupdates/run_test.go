@@ -1,4 +1,4 @@
-package coderconnect_test
+package workspaceupdates_test
 
 import (
 	"io"
@@ -15,9 +15,9 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/coder/v2/scaletest/coderconnect"
 	"github.com/coder/coder/v2/scaletest/createusers"
 	"github.com/coder/coder/v2/scaletest/workspacebuild"
+	"github.com/coder/coder/v2/scaletest/workspaceupdates"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -70,13 +70,13 @@ func TestRun(t *testing.T) {
 
 	barrier := new(sync.WaitGroup)
 	barrier.Add(numUsers)
-	metrics := coderconnect.NewMetrics(prometheus.NewRegistry())
+	metrics := workspaceupdates.NewMetrics(prometheus.NewRegistry())
 
 	eg, runCtx := errgroup.WithContext(ctx)
 
-	runners := make([]*coderconnect.Runner, 0, numUsers)
+	runners := make([]*workspaceupdates.Runner, 0, numUsers)
 	for i := range numUsers {
-		cfg := coderconnect.Config{
+		cfg := workspaceupdates.Config{
 			User: createusers.Config{
 				OrganizationID: user.OrganizationID,
 			},
@@ -96,7 +96,7 @@ func TestRun(t *testing.T) {
 		err := cfg.Validate()
 		require.NoError(t, err)
 
-		runner := coderconnect.NewRunner(client, cfg)
+		runner := workspaceupdates.NewRunner(client, cfg)
 		runners = append(runners, runner)
 		eg.Go(func() error {
 			return runner.Run(runCtx, strconv.Itoa(i), io.Discard)
@@ -133,7 +133,7 @@ func TestRun(t *testing.T) {
 
 	for _, runner := range runners {
 		metrics := runner.GetMetrics()
-		require.Contains(t, metrics, coderconnect.WorkspaceUpdatesLatencyMetric)
-		require.Len(t, metrics[coderconnect.WorkspaceUpdatesLatencyMetric], userWorkspaces)
+		require.Contains(t, metrics, workspaceupdates.WorkspaceUpdatesLatencyMetric)
+		require.Len(t, metrics[workspaceupdates.WorkspaceUpdatesLatencyMetric], userWorkspaces)
 	}
 }

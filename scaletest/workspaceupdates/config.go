@@ -1,4 +1,4 @@
-package coderconnect
+package workspaceupdates
 
 import (
 	"sync"

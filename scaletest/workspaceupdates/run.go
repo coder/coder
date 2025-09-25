@@ -1,4 +1,4 @@
-package coderconnect
+package workspaceupdates
 
 import (
 	"context"
@@ -87,9 +87,9 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	defer cancel()
 
 	logger.Info(ctx, "connecting to workspace updates stream")
-	clients, err := r.dialCoderConnect(dialCtx, client, user, logger)
+	clients, err := r.dialTailnet(dialCtx, client, user, logger)
 	if err != nil {
-		return xerrors.Errorf("coder connect dial failed: %w", err)
+		return xerrors.Errorf("tailnet dial failed: %w", err)
 	}
 	logger.Info(ctx, "connected to workspace updates stream")
 	defer clients.Closer.Close()
@@ -152,7 +152,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	}
 }
 
-func (r *Runner) dialCoderConnect(ctx context.Context, client *codersdk.Client, user codersdk.User, logger slog.Logger) (*tailnet.ControlProtocolClients, error) {
+func (r *Runner) dialTailnet(ctx context.Context, client *codersdk.Client, user codersdk.User, logger slog.Logger) (*tailnet.ControlProtocolClients, error) {
 	u, err := client.URL.Parse("/api/v2/tailnet")
 	if err != nil {
 		logger.Error(ctx, "failed to parse tailnet URL", slog.Error(err))
