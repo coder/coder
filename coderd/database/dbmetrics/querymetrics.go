@@ -607,6 +607,13 @@ func (m queryMetricsStore) GetAPIKeyByName(ctx context.Context, arg database.Get
 	return apiKey, err
 }
 
+func (m queryMetricsStore) GetAPIKeyBySignature(ctx context.Context, hashedSecret []byte) (database.APIKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAPIKeyBySignature(ctx, hashedSecret)
+	m.queryLatencies.WithLabelValues("GetAPIKeyBySignature").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAPIKeysByLoginType(ctx context.Context, loginType database.LoginType) ([]database.APIKey, error) {
 	start := time.Now()
 	apiKeys, err := m.s.GetAPIKeysByLoginType(ctx, loginType)

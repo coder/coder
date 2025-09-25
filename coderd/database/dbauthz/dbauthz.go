@@ -1935,6 +1935,10 @@ func (q *querier) GetAPIKeyByName(ctx context.Context, arg database.GetAPIKeyByN
 	return fetch(q.log, q.auth, q.db.GetAPIKeyByName)(ctx, arg)
 }
 
+func (q *querier) GetAPIKeyBySignature(ctx context.Context, hashedSecret []byte) (database.APIKey, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetAPIKeysByLoginType(ctx context.Context, loginType database.LoginType) ([]database.APIKey, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysByLoginType)(ctx, loginType)
 }

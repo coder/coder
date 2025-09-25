@@ -14,8 +14,64 @@ import (
 
 	"github.com/ory/fosite"
 
-	"github.com/coder/coder/v2/coderd/apikey"
+	"github.com/coder/coder/v2/cryptorand"
 )
+
+var _ oauth2.CoreStrategy = (*HashStrategy)(nil)
+
+type HashStrategy struct {
+}
+
+func NewHashStrategy() *HashStrategy {
+	return &HashStrategy{}
+}
+
+func (h HashStrategy) AccessTokenSignature(ctx context.Context, token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(hash[:])
+}
+
+func (h HashStrategy) GenerateAccessToken(ctx context.Context, requester fosite.Requester) (token string, signature string, err error) {
+	secret, err := cryptorand.String(22)
+	if err != nil {
+		return "", "", err
+	}
+
+	return secret, h.AccessTokenSignature(ctx, secret), nil
+}
+
+func (h HashStrategy) ValidateAccessToken(ctx context.Context, requester fosite.Requester, token string) (err error) {
+	// No validation is possible with hashing, so we just return nil here.
+	return nil
+}
+
+func (h HashStrategy) RefreshTokenSignature(ctx context.Context, token string) string {
+	return h.AccessTokenSignature(ctx, token) // Same as access token
+}
+
+func (h HashStrategy) GenerateRefreshToken(ctx context.Context, requester fosite.Requester) (token string, signature string, err error) {
+	return h.GenerateAccessToken(ctx, requester) // Same as access token
+}
+
+func (h HashStrategy) ValidateRefreshToken(ctx context.Context, requester fosite.Requester, token string) (err error) {
+	// No validation is possible with hashing, so we just return nil here.
+	return nil
+}
+
+func (h HashStrategy) AuthorizeCodeSignature(ctx context.Context, token string) string {
+	return h.AccessTokenSignature(ctx, token) // Same as access token
+}
+
+func (h HashStrategy) GenerateAuthorizeCode(ctx context.Context, requester fosite.Requester) (token string, signature string, err error) {
+	return h.GenerateAccessToken(ctx, requester) // Same as access token
+}
+
+func (h HashStrategy) ValidateAuthorizeCode(ctx context.Context, requester fosite.Requester, token string) (err error) {
+	// No validation is possible with hashing, so we just return nil here.
+	return nil
+}
+
+// Using HMAC below
 
 var _ oauth2.CoreStrategy = (*TokenStrategy)(nil)
 
@@ -35,7 +91,7 @@ func (h *TokenStrategy) AuthorizeCodeSignature(ctx context.Context, token string
 	return h.original.AuthorizeCodeSignature(ctx, token)
 }
 
-func NewHMACSHAStrategy(
+func NewTokenStrategy(
 	enigma *enigma.HMACStrategy,
 	config oauth2.LifespanConfigProvider,
 ) *TokenStrategy {
@@ -62,16 +118,12 @@ func (h *TokenStrategy) setPrefix(prefix, token string) string {
 }
 
 func (h *TokenStrategy) GenerateAccessToken(ctx context.Context, r fosite.Requester) (token string, signature string, err error) {
-	id, sec, err := apikey.GenerateKey()
-	if err != nil {
-		return "", "", err
-	}
-	hashed := sha256.Sum256([]byte(sec))
-	return sec, h.setPrefix(id, hex.EncodeToString(hashed[:])), nil
+	token, sig, err := h.original.GenerateAccessToken(ctx, r)
+	return h.setPrefix(token, "at"), sig, err // TODO: Prefix fix
 }
 
 func (h *TokenStrategy) ValidateAccessToken(ctx context.Context, r fosite.Requester, token string) (err error) {
-	return nil // We do not do any special validation here. If the token is in the database, it is valid.
+	return h.original.ValidateAccessToken(ctx, r, token)
 }
 
 func (h *TokenStrategy) GenerateRefreshToken(ctx context.Context, r fosite.Requester) (token string, signature string, err error) {

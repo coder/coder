@@ -52,7 +52,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store) *Provider {
 	}
 	provider := compose.Compose(config, store,
 		&compose.CommonStrategy{
-			CoreStrategy:               compose.NewOAuth2HMACStrategy(config),
+			CoreStrategy:               fositestorage.NewHashStrategy(),
 			RFC8628CodeStrategy:        compose.NewDeviceStrategy(config),
 			OpenIDConnectTokenStrategy: compose.NewOpenIDConnectStrategy(keyGetter, config),
 			Signer:                     &jwt.DefaultSigner{GetPrivateKey: keyGetter},

@@ -12,14 +12,16 @@ import (
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/pkce"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/cryptorand"
 )
 
 type fositeStorage interface {
@@ -159,29 +161,30 @@ func (s Storage) InvalidateAuthorizeCodeSession(ctx context.Context, code string
 }
 
 func (s Storage) CreateAccessTokenSession(ctx context.Context, signature string, request fosite.Requester) (err error) {
+	now := dbtime.Now()
 	client := request.GetClient().(*Client)
 	session := request.GetSession().(*CoderSession)
 
 	exp := session.ExpiresAt[fosite.AccessToken]
 
 	tokenName := fmt.Sprintf("%s_%s_oauth_session_token", session.UserID, client.GetID())
-	key, _, err := apikey.Generate(apikey.CreateParams{
-		UserID:          session.UserID,
-		LoginType:       database.LoginTypeOAuth2ProviderApp,
-		DefaultLifetime: time.Hour * 7, // TODO: Pass in this info. Do we still need this field?
-		ExpiresAt:       exp,
-		LifetimeSeconds: 0,
-		// TODO: Add scopes
-		Scope: database.APIKeyScopeAll,
-		// For now, we only allow one active token per user+app.
-		// TODO: This should be fixed to allow multiple tokens.
-		TokenName: tokenName,
-	})
+	//key, _, err := apikey.Generate(apikey.CreateParams{
+	//	UserID:          session.UserID,
+	//	LoginType:       database.LoginTypeOAuth2ProviderApp,
+	//	DefaultLifetime: time.Hour * 7, // TODO: Pass in this info. Do we still need this field?
+	//	ExpiresAt:       exp,
+	//	LifetimeSeconds: 0,
+	//	// TODO: Add scopes
+	//	Scope: database.APIKeyScopeAll,
+	//	// For now, we only allow one active token per user+app.
+	//	// TODO: This should be fixed to allow multiple tokens.
+	//	TokenName: tokenName,
+	//})
 
 	// TODO: This is unfortunate. The
-	id, signature := (&TokenStrategy{}).splitPrefix(signature)
-	key.HashedSecret = []byte(signature)
-	key.ID = id
+	//id, signature := (&TokenStrategy{}).splitPrefix(signature)
+	//key.HashedSecret = []byte(signature)
+	//key.ID = id
 
 	// Grab the user roles so we can perform the exchange as the user.
 	actor, _, err := httpmw.UserRBACSubject(ctx, s.db, session.UserID, rbac.ScopeAll)
@@ -203,7 +206,27 @@ func (s Storage) CreateAccessTokenSession(ctx context.Context, signature string,
 			return xerrors.Errorf("delete api key by name: %w", err)
 		}
 
-		newKey, err := tx.InsertAPIKey(ctx, key)
+		id, _ := cryptorand.String(10)
+		newKey, err := tx.InsertAPIKey(ctx, database.InsertAPIKeyParams{
+			// TODO: Does the ID really matter now?
+			// Just used to link to the oauth2 token.
+			ID:              id,
+			LifetimeSeconds: 0,
+			// HashedSecret is an hmac and going to be the lookup value for the access token.
+			HashedSecret: []byte(signature),
+			IPAddress:    pqtype.Inet{},
+			UserID:       session.UserID,
+			LastUsed:     time.Time{},
+			ExpiresAt:    exp,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+			LoginType:    database.LoginTypeOAuth2ProviderApp,
+			// TODO: Use scopes from the request.
+			Scopes: []database.APIKeyScope{database.APIKeyScopeAll},
+			// TODO: Use a proper allow list from request
+			AllowList: database.AllowList{database.AllowListWildcard()},
+			TokenName: tokenName,
+		})
 		if err != nil {
 			return xerrors.Errorf("insert oauth2 access token: %w", err)
 		}
@@ -215,6 +238,7 @@ func (s Storage) CreateAccessTokenSession(ctx context.Context, signature string,
 		}
 
 		_, err = tx.InsertOAuth2ProviderAppToken(ctx, database.InsertOAuth2ProviderAppTokenParams{
+			Sessionid: session.ID,
 			ID:        uuid.New(),
 			CreatedAt: dbtime.Now(),
 			ExpiresAt: exp,
@@ -237,9 +261,52 @@ func (s Storage) CreateAccessTokenSession(ctx context.Context, signature string,
 	return nil
 }
 
-func (s Storage) GetAccessTokenSession(ctx context.Context, signature string, session fosite.Session) (request fosite.Requester, err error) {
-	//TODO implement me
-	panic("implement me")
+func (s Storage) GetAccessTokenSession(ctx context.Context, signature string, accessRequest fosite.Session) (request fosite.Requester, err error) {
+	key, err := s.db.GetAPIKeyBySignature(ctx, []byte(signature))
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return nil, fosite.ErrNotFound
+		}
+		return nil, xerrors.Errorf("get api key by signature: %w", err)
+	}
+
+	token, err := s.db.GetOAuth2ProviderAppTokenByAPIKeyID(ctx, key.ID)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return nil, fosite.ErrNotFound
+		}
+		return nil, xerrors.Errorf("get api key by signature: %w", err)
+	}
+
+	secret, err := s.db.GetOAuth2ProviderAppSecretByID(ctx, token.AppSecretID)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return nil, fosite.ErrNotFound
+		}
+		return nil, xerrors.Errorf("get api key by signature: %w", err)
+	}
+
+	client, err := s.GetClient(ctx, secret.AppID.String())
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return nil, fosite.ErrNotFound
+		}
+		return nil, xerrors.Errorf("get api key by signature: %w", err)
+	}
+
+	session := s.sessionByID[token.Sessionid]
+	return &fosite.Request{
+		ID:          token.ID.String(), // TODO: Is this the right ID?
+		RequestedAt: token.CreatedAt,
+		Client:      client,
+		Form:        nil, // TODO
+		Session:     session,
+		// TODO: Fix all this.
+		RequestedAudience: []string{token.Audience.String},
+		GrantedAudience:   []string{token.Audience.String},
+		RequestedScope:    slice.ToStrings(key.Scopes),
+		GrantedScope:      slice.ToStrings(key.Scopes),
+	}, nil
 }
 
 func (s Storage) DeleteAccessTokenSession(ctx context.Context, signature string) (err error) {

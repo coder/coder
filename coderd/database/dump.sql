@@ -1446,7 +1446,7 @@ CREATE TABLE oauth2_provider_app_tokens (
     api_key_id text NOT NULL,
     audience text,
     user_id uuid NOT NULL,
-    signature text DEFAULT ''::text NOT NULL
+    sessionid uuid DEFAULT gen_random_uuid() NOT NULL
 );
 
 COMMENT ON COLUMN oauth2_provider_app_tokens.refresh_hash IS 'Refresh tokens provide a way to refresh an access token (API key). An expired API key can be refreshed if this token is not yet expired, meaning this expiry can outlive an API key.';

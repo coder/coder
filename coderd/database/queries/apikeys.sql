@@ -8,6 +8,16 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetAPIKeyBySignature :one
+SELECT
+	*
+FROM
+	api_keys
+WHERE
+	hashed_secret = $1
+LIMIT
+	1;
+
 -- name: GetAPIKeyByName :one
 SELECT
 	*

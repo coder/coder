@@ -1139,6 +1139,21 @@ func (mr *MockStoreMockRecorder) GetAPIKeyByName(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAPIKeyByName", reflect.TypeOf((*MockStore)(nil).GetAPIKeyByName), ctx, arg)
 }
 
+// GetAPIKeyBySignature mocks base method.
+func (m *MockStore) GetAPIKeyBySignature(ctx context.Context, hashedSecret []byte) (database.APIKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAPIKeyBySignature", ctx, hashedSecret)
+	ret0, _ := ret[0].(database.APIKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAPIKeyBySignature indicates an expected call of GetAPIKeyBySignature.
+func (mr *MockStoreMockRecorder) GetAPIKeyBySignature(ctx, hashedSecret any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAPIKeyBySignature", reflect.TypeOf((*MockStore)(nil).GetAPIKeyBySignature), ctx, hashedSecret)
+}
+
 // GetAPIKeysByLoginType mocks base method.
 func (m *MockStore) GetAPIKeysByLoginType(ctx context.Context, loginType database.LoginType) ([]database.APIKey, error) {
 	m.ctrl.T.Helper()
@@ -2217,6 +2232,21 @@ func (m *MockStore) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context,
 func (mr *MockStoreMockRecorder) GetOAuth2ProviderAppByRegistrationToken(ctx, registrationAccessToken any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderAppByRegistrationToken", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderAppByRegistrationToken), ctx, registrationAccessToken)
+}
+
+// GetOAuth2ProviderAppCodeByCode mocks base method.
+func (m *MockStore) GetOAuth2ProviderAppCodeByCode(ctx context.Context, code string) (database.OAuth2ProviderAppCode, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOAuth2ProviderAppCodeByCode", ctx, code)
+	ret0, _ := ret[0].(database.OAuth2ProviderAppCode)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOAuth2ProviderAppCodeByCode indicates an expected call of GetOAuth2ProviderAppCodeByCode.
+func (mr *MockStoreMockRecorder) GetOAuth2ProviderAppCodeByCode(ctx, code any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderAppCodeByCode", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderAppCodeByCode), ctx, code)
 }
 
 // GetOAuth2ProviderAppCodeByID mocks base method.
@@ -5618,6 +5648,20 @@ func (m *MockStore) InsertWorkspaceResourceMetadata(ctx context.Context, arg dat
 func (mr *MockStoreMockRecorder) InsertWorkspaceResourceMetadata(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceResourceMetadata", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceResourceMetadata), ctx, arg)
+}
+
+// InvalidateOAuth2ProviderAppCodeByCode mocks base method.
+func (m *MockStore) InvalidateOAuth2ProviderAppCodeByCode(ctx context.Context, code string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InvalidateOAuth2ProviderAppCodeByCode", ctx, code)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InvalidateOAuth2ProviderAppCodeByCode indicates an expected call of InvalidateOAuth2ProviderAppCodeByCode.
+func (mr *MockStoreMockRecorder) InvalidateOAuth2ProviderAppCodeByCode(ctx, code any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InvalidateOAuth2ProviderAppCodeByCode", reflect.TypeOf((*MockStore)(nil).InvalidateOAuth2ProviderAppCodeByCode), ctx, code)
 }
 
 // ListProvisionerKeysByOrganization mocks base method.
