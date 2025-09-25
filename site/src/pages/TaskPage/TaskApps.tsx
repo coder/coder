@@ -12,7 +12,7 @@ import { ScrollArea, ScrollBar } from "components/ScrollArea/ScrollArea";
 import { ChevronDownIcon, LayoutGridIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import {
-	getTaskWebApps,
+	getTaskApps,
 	type Task,
 	type WorkspaceAppWithAgent,
 } from "modules/tasks/tasks";
@@ -28,7 +28,11 @@ type TaskAppsProps = {
 };
 
 export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
-	const apps = getTaskWebApps(task);
+	const apps = getTaskApps(task).filter(
+		// The Chat UI app will be displayed in the sidebar, so we don't want to
+		// show it as a web app.
+		(app) => app.id !== task.workspace.latest_build.ai_task_sidebar_app_id,
+	);
 	const [embeddedApps, externalApps] = splitEmbeddedAndExternalApps(apps);
 	const [activeAppId, setActiveAppId] = useState(embeddedApps.at(0)?.id);
 

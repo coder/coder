@@ -25,11 +25,3 @@ export function getTaskApps(task: Task): WorkspaceAppWithAgent[] {
 			})),
 		);
 }
-
-export function getTaskWebApps(task: Task): WorkspaceAppWithAgent[] {
-	// The Chat UI app will be displayed in the sidebar, so we don't want to
-	// show it as a web app.
-	return getTaskApps(task).filter(
-		(app) => app.id !== task.workspace.latest_build.ai_task_sidebar_app_id,
-	);
-}

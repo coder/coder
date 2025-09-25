@@ -130,7 +130,9 @@ const TaskPage = () => {
 	} else if (agent && ["created", "starting"].includes(agent.lifecycle_state)) {
 		content = <TaskStartingAgent agent={agent} />;
 	} else {
-		const chatApp = selectChatApp(task);
+		const chatApp = getTaskApps(task).find(
+			(app) => app.id === task.workspace.latest_build.ai_task_sidebar_app_id,
+		);
 		content = (
 			<PanelGroup autoSaveId="task" direction="horizontal">
 				<Panel defaultSize={25} minSize={20}>
@@ -404,10 +406,4 @@ function selectAgent(task: Task) {
 		.filter((a) => !!a);
 
 	return agents.at(0);
-}
-
-function selectChatApp(task: Task) {
-	return getTaskApps(task).find(
-		(app) => app.id === task.workspace.latest_build.ai_task_sidebar_app_id,
-	);
 }
