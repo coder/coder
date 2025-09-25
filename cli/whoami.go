@@ -9,7 +9,25 @@ import (
 	"github.com/coder/serpent"
 )
 
+type whoamiRow struct {
+	URL      string `json:"url" table:"URL,default_sort"`
+	Username string `json:"username" table:"Username"`
+}
+
+func (r whoamiRow) String() string {
+	return fmt.Sprintf(
+		Caret+"Coder is running at %s, You're authenticated as %s !\n",
+		pretty.Sprint(cliui.DefaultStyles.Keyword, r.URL),
+		pretty.Sprint(cliui.DefaultStyles.Keyword, r.Username),
+	)
+}
+
 func (r *RootCmd) whoami() *serpent.Command {
+	formatter := cliui.NewOutputFormatter(
+		cliui.TextFormat(),
+		cliui.JSONFormat(),
+		cliui.TableFormat([]whoamiRow{}, []string{"url", "username"}),
+	)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "whoami",
@@ -28,14 +46,23 @@ func (r *RootCmd) whoami() *serpent.Command {
 			resp, err := client.User(ctx, codersdk.Me)
 			// Get Coder instance url
 			clientURL := client.URL
-
 			if err != nil {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, Caret+"Coder is running at %s, You're authenticated as %s !\n", pretty.Sprint(cliui.DefaultStyles.Keyword, clientURL), pretty.Sprint(cliui.DefaultStyles.Keyword, resp.Username))
+			out, err := formatter.Format(ctx, []whoamiRow{
+				{
+					URL:      clientURL.String(),
+					Username: resp.Username,
+				},
+			})
+			if err != nil {
+				return err
+			}
+			_, err = inv.Stdout.Write([]byte(out))
 			return err
 		},
 	}
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
