@@ -1,12 +1,19 @@
 package coderd
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -15,50 +22,50 @@ const (
 	defaultListInterceptionsLimit = 100
 )
 
+// aiBridgeListInterceptions returns all AIBridge interceptions a user can read.
+// Optional filters with query params
+//
+// @Summary List AIBridge interceptions
+// @ID list-aibridge-interceptions
+// @Security CoderSessionToken
+// @Produce json
+// @Tags AIBridge
+// @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, model, started_after, started_before."
+// @Param limit query int false "Page limit"
+// @Param offset query int false "Page offset"
+// @Success 200 {object} codersdk.AIBridgeListInterceptionsResponse
+// @Router /api/experimental/aibridge/interceptions [get]
 func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Request) {
-	if !api.Authorize(r, policy.ActionRead, rbac.ResourceAibridgeInterception) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
 	ctx := r.Context()
-	var req codersdk.AIBridgeListInterceptionsRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	apiKey := httpmw.APIKey(r)
+
+	page, ok := ParsePagination(rw, r)
+	if !ok {
 		return
 	}
-
-	if !req.PeriodStart.IsZero() && !req.PeriodEnd.IsZero() && req.PeriodEnd.Before(req.PeriodStart) {
+	if page.Limit == 0 {
+		page.Limit = defaultListInterceptionsLimit
+	}
+	if page.Limit > maxListInterceptionsLimit || page.Limit < 1 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid time frame.",
-			Detail:  "End of the search period must be before start.",
+			Message: "Invalid pagination limit value.",
+			Detail:  fmt.Sprintf("Pagination limit must be in range (0, %d]", maxListInterceptionsLimit),
 		})
 		return
 	}
 
-	if req.Limit == 0 {
-		req.Limit = defaultListInterceptionsLimit
-	}
-
-	if req.Limit > maxListInterceptionsLimit || req.Limit < 1 {
+	queryStr := r.URL.Query().Get("q")
+	filter, errs := searchquery.AIBridgeInterceptions(ctx, api.Database, queryStr, page, apiKey.UserID)
+	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid limit value.",
-			Detail:  "Limit value must be in range <1, 1000>",
+			Message:     "Invalid workspace search query.",
+			Validations: errs,
 		})
 		return
 	}
 
-	// Database returns one row for each tuple (interception, tool, prompt).
-	// Right now there is a single promp per interception although model allows multiple so this could change in the future.
-	// There can be multiple tools used in single interception.
-	// Results are ordered by Interception.StartedAt, Interception.ID, Tool.CreatedAt
-	rows, err := api.Database.ListAIBridgeInterceptions(ctx, database.ListAIBridgeInterceptionsParams{
-		PeriodStart: req.PeriodStart,
-		PeriodEnd:   req.PeriodEnd,
-		CursorTime:  req.Cursor.Time,
-		CursorID:    req.Cursor.ID,
-		InitiatorID: req.InitiatorID,
-		LimitOpt:    req.Limit,
-	})
+	// This only returns authorized interceptions (when using dbauthz).
+	rows, err := api.Database.ListAIBridgeInterceptions(ctx, filter)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting AIBridge interceptions.",
@@ -67,50 +74,61 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	resp := prepareResponse(rows)
-	httpapi.Write(ctx, rw, http.StatusOK, resp)
+	// This fetches the other rows associated with the interceptions.
+	items, err := populatedAndConvertAIBridgeInterceptions(ctx, api.Database, rows)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting database rows to API response.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AIBridgeListInterceptionsResponse{
+		Results: items,
+	})
 }
 
-func prepareResponse(rows []database.ListAIBridgeInterceptionsRow) codersdk.AIBridgeListInterceptionsResponse {
-	resp := codersdk.AIBridgeListInterceptionsResponse{
-		Results: []codersdk.AIBridgeListInterceptionsResult{},
+func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.Store, rows []database.AIBridgeInterception) ([]codersdk.AIBridgeInterception, error) {
+	ids := make([]uuid.UUID, len(rows))
+	for i, row := range rows {
+		ids[i] = row.ID
 	}
 
-	if len(rows) > 0 {
-		resp.Cursor.ID = rows[len(rows)-1].ID
-		resp.Cursor.Time = rows[len(rows)-1].StartedAt.UTC()
+	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AIBridge interception subresources use the same authorization call as their parent.
+	tokenUsagesRows, err := db.ListAIBridgeTokenUsagesByInterceptionIDs(dbauthz.AsSystemRestricted(ctx), ids)
+	if err != nil {
+		return nil, xerrors.Errorf("get linked aibridge token usages from database: %w", err)
+	}
+	tokenUsagesMap := make(map[uuid.UUID][]database.AIBridgeTokenUsage)
+	for _, row := range tokenUsagesRows {
+		tokenUsagesMap[row.InterceptionID] = append(tokenUsagesMap[row.InterceptionID], row)
 	}
 
-	for i := 0; i < len(rows); {
-		row := rows[i]
-		row.StartedAt = row.StartedAt.UTC()
-
-		result := codersdk.AIBridgeListInterceptionsResult{
-			InterceptionID: row.ID,
-			UserID:         row.InitiatorID,
-			Provider:       row.Provider,
-			Model:          row.Model,
-			Prompt:         row.Prompt.String,
-			StartedAt:      row.StartedAt,
-			Tokens: codersdk.AIBridgeListInterceptionsTokens{
-				Input:  row.InputTokens,
-				Output: row.OutputTokens,
-			},
-			Tools: []codersdk.AIBridgeListInterceptionsTool{},
-		}
-
-		interceptionID := row.ID
-		for ; i < len(rows) && interceptionID == rows[i].ID; i++ {
-			if rows[i].ServerUrl.Valid || rows[i].Tool.Valid || rows[i].Input.Valid {
-				result.Tools = append(result.Tools, codersdk.AIBridgeListInterceptionsTool{
-					Server: rows[i].ServerUrl.String,
-					Tool:   rows[i].Tool.String,
-					Input:  rows[i].Input.String,
-				})
-			}
-		}
-
-		resp.Results = append(resp.Results, result)
+	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AIBridge interception subresources use the same authorization call as their parent.
+	userPromptRows, err := db.ListAIBridgeUserPromptsByInterceptionIDs(dbauthz.AsSystemRestricted(ctx), ids)
+	if err != nil {
+		return nil, xerrors.Errorf("get linked aibridge user prompts from database: %w", err)
 	}
-	return resp
+	userPromptsMap := make(map[uuid.UUID][]database.AIBridgeUserPrompt)
+	for _, row := range userPromptRows {
+		userPromptsMap[row.InterceptionID] = append(userPromptsMap[row.InterceptionID], row)
+	}
+
+	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AIBridge interception subresources use the same authorization call as their parent.
+	toolUsagesRows, err := db.ListAIBridgeToolUsagesByInterceptionIDs(dbauthz.AsSystemRestricted(ctx), ids)
+	if err != nil {
+		return nil, xerrors.Errorf("get linked aibridge tool usages from database: %w", err)
+	}
+	toolUsagesMap := make(map[uuid.UUID][]database.AIBridgeToolUsage)
+	for _, row := range toolUsagesRows {
+		toolUsagesMap[row.InterceptionID] = append(toolUsagesMap[row.InterceptionID], row)
+	}
+
+	items := make([]codersdk.AIBridgeInterception, len(rows))
+	for i, row := range rows {
+		items[i] = db2sdk.AIBridgeInterception(row, tokenUsagesMap[row.ID], userPromptsMap[row.ID], toolUsagesMap[row.ID])
+	}
+
+	return items, nil
 }

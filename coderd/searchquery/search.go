@@ -226,7 +226,8 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 	filter.Shared = parser.NullableBoolean(values, sql.NullBool{}, "shared")
-	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user")
+	// TODO: support "me" by passing in the actorID
+	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user", uuid.Nil)
 	filter.SharedWithGroupID = parseGroup(ctx, db, parser, values, "shared_with_group")
 
 	type paramMatch struct {
@@ -304,6 +305,47 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 	return filter, parser.Errors
 }
 
+func AIBridgeInterceptions(ctx context.Context, db database.Store, query string, page codersdk.Pagination, actorID uuid.UUID) (database.ListAIBridgeInterceptionsParams, []codersdk.ValidationError) {
+	// nolint:exhaustruct // Empty values just means "don't filter by that field".
+	filter := database.ListAIBridgeInterceptionsParams{
+		// #nosec G115 - Safe conversion for pagination offset which is expected to be within int32 range
+		Offset: int32(page.Offset),
+		// #nosec G115 - Safe conversion for pagination limit which is expected to be within int32 range
+		Limit: int32(page.Limit),
+	}
+
+	if query == "" {
+		return filter, nil
+	}
+
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		// Default to the initiating user
+		values.Add("user", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return filter, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter.InitiatorID = parseUser(ctx, db, parser, values, "initiator", actorID)
+	filter.Provider = parser.String(values, "", "provider")
+	filter.Model = parser.String(values, "", "model")
+
+	// Time must be between started_after and started_before.
+	filter.StartedAfter = parser.Time3339Nano(values, time.Time{}, "started_after")
+	filter.StartedBefore = parser.Time3339Nano(values, time.Time{}, "started_before")
+	if !filter.StartedBefore.IsZero() && !filter.StartedAfter.IsZero() && !filter.StartedBefore.After(filter.StartedAfter) {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field:  "started_before",
+			Detail: `Query param "started_before" has invalid value: "started_before" must be after "started_after" if set`,
+		})
+	}
+
+	parser.ErrorExcessParams(values)
+	return filter, parser.Errors
+}
+
 func searchTerms(query string, defaultKey func(term string, values url.Values) error) (url.Values, []codersdk.ValidationError) {
 	searchValues := make(url.Values)
 
@@ -365,10 +407,13 @@ func parseOrganization(ctx context.Context, db database.Store, parser *httpapi.Q
 	})
 }
 
-func parseUser(ctx context.Context, db database.Store, parser *httpapi.QueryParamParser, vals url.Values, queryParam string) uuid.UUID {
+func parseUser(ctx context.Context, db database.Store, parser *httpapi.QueryParamParser, vals url.Values, queryParam string, actorID uuid.UUID) uuid.UUID {
 	return httpapi.ParseCustom(parser, vals, uuid.Nil, queryParam, func(v string) (uuid.UUID, error) {
 		if v == "" {
 			return uuid.Nil, nil
+		}
+		if v == codersdk.Me && actorID != uuid.Nil {
+			return actorID, nil
 		}
 		userID, err := uuid.Parse(v)
 		if err == nil {

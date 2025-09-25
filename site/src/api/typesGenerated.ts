@@ -20,55 +20,66 @@ export interface AIBridgeConfig {
 }
 
 // From codersdk/aibridge.go
-export interface AIBridgeListInterceptionsCursor {
+export interface AIBridgeInterception {
 	readonly id: string;
-	readonly time: string;
-}
-
-// From codersdk/aibridge.go
-export interface AIBridgeListInterceptionsRequest {
-	readonly period_start: string;
-	readonly period_end: string;
 	readonly initiator_id: string;
-	readonly limit: number;
-	readonly cursor: AIBridgeListInterceptionsCursor;
+	readonly provider: string;
+	readonly model: string;
+	// empty interface{} type, falling back to unknown
+	readonly metadata: Record<string, unknown>;
+	readonly started_at: string;
+	readonly token_usages: readonly AIBridgeTokenUsage[];
+	readonly user_prompts: readonly AIBridgeUserPrompt[];
+	readonly tool_usages: readonly AIBridgeToolUsage[];
 }
 
 // From codersdk/aibridge.go
 export interface AIBridgeListInterceptionsResponse {
-	readonly results: readonly AIBridgeListInterceptionsResult[];
-	readonly cursor: AIBridgeListInterceptionsCursor;
-}
-
-// From codersdk/aibridge.go
-export interface AIBridgeListInterceptionsResult {
-	readonly interception_id: string;
-	readonly user_id: string;
-	readonly provider: string;
-	readonly model: string;
-	readonly prompt: string;
-	readonly started_at: string;
-	readonly tokens: AIBridgeListInterceptionsTokens;
-	readonly tools: readonly AIBridgeListInterceptionsTool[];
-}
-
-// From codersdk/aibridge.go
-export interface AIBridgeListInterceptionsTokens {
-	readonly input: number;
-	readonly output: number;
-}
-
-// From codersdk/aibridge.go
-export interface AIBridgeListInterceptionsTool {
-	readonly server: string;
-	readonly tool: string;
-	readonly args: string;
+	readonly results: readonly AIBridgeInterception[];
 }
 
 // From codersdk/deployment.go
 export interface AIBridgeOpenAIConfig {
 	readonly base_url: string;
 	readonly key: string;
+}
+
+// From codersdk/aibridge.go
+export interface AIBridgeTokenUsage {
+	readonly id: string;
+	readonly interception_id: string;
+	readonly provider_response_id: string;
+	readonly input_tokens: number;
+	readonly output_tokens: number;
+	// empty interface{} type, falling back to unknown
+	readonly metadata: Record<string, unknown>;
+	readonly created_at: string;
+}
+
+// From codersdk/aibridge.go
+export interface AIBridgeToolUsage {
+	readonly id: string;
+	readonly interception_id: string;
+	readonly provider_response_id: string;
+	readonly server_url: string;
+	readonly tool: string;
+	readonly input: string;
+	readonly injected: boolean;
+	readonly invocation_error: string;
+	// empty interface{} type, falling back to unknown
+	readonly metadata: Record<string, unknown>;
+	readonly created_at: string;
+}
+
+// From codersdk/aibridge.go
+export interface AIBridgeUserPrompt {
+	readonly id: string;
+	readonly interception_id: string;
+	readonly provider_response_id: string;
+	readonly prompt: string;
+	// empty interface{} type, falling back to unknown
+	readonly metadata: Record<string, unknown>;
+	readonly created_at: string;
 }
 
 // From codersdk/deployment.go

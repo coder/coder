@@ -1,9 +1,6 @@
 package coderd_test
 
 import (
-	"context"
-	"database/sql"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -12,476 +9,418 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
-var (
-	uid1 = uuid.MustParse("11111111-0f2b-43e2-b657-d8af99418f79")
-	uid2 = uuid.MustParse("22222222-d0b3-4d77-903b-385e6d0c97e4")
-	uid3 = uuid.MustParse("33333333-085c-4fcd-9ed3-fca502dd0a03")
-	uid4 = uuid.MustParse("44444444-591e-404b-b0cf-a425d74c3e25")
-	uid5 = uuid.MustParse("55555555-848a-4afe-93bb-4af9639a1781")
-	uid6 = uuid.MustParse("66666666-0870-4194-9e84-32c671e0f879")
-	uid7 = uuid.MustParse("77777777-c81f-4cae-a9ac-ae76200f3a9d")
-	uid8 = uuid.MustParse("88888888-9f6f-4cb0-9412-c35b1c30c72a")
-
-	t0 = time.Unix(60, 0).UTC()
-	t1 = time.Unix(50, 0).UTC()
-	t2 = time.Unix(40, 0).UTC()
-	t3 = time.Unix(30, 0).UTC()
-	t4 = time.Unix(20, 0).UTC()
-	t5 = time.Unix(10, 0).UTC()
-)
-
-func TestListInterceptions(t *testing.T) {
+func TestAIBridgeListInterceptions(t *testing.T) {
 	t.Parallel()
+
 	t.Run("EmptyDB", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{})
 		_ = coderdtest.CreateFirstUser(t, client)
 		experimentalClient := codersdk.NewExperimentalClient(client)
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		inters, err := experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsRequest{})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
 		require.NoError(t, err)
-		require.Empty(t, inters.Results)
+		require.Empty(t, res.Results)
 	})
 
-	t.Run("FilteredQueries", func(t *testing.T) {
+	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
 		_ = coderdtest.CreateFirstUser(t, client)
 		experimentalClient := codersdk.NewExperimentalClient(client)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		ctx = dbauthz.AsAIBridged(ctx)
 
-		expect := populateDB(ctx, t, db)
-
-		t.Run("IterateCursor", func(t *testing.T) {
-			t.Parallel()
-			got, err := experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsRequest{
-				Limit: 2,
-			})
-			ex := codersdk.AIBridgeListInterceptionsResponse{
-				Results: []codersdk.AIBridgeListInterceptionsResult{expect[uid4], expect[uid3]},
-				Cursor: codersdk.AIBridgeListInterceptionsCursor{
-					ID:   uid3,
-					Time: t2,
-				},
-			}
-			require.NoError(t, err)
-			require.Equal(t, ex, got)
-
-			got, err = experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsRequest{
-				Cursor: got.Cursor,
-				Limit:  1,
-			})
-			ex = codersdk.AIBridgeListInterceptionsResponse{
-				Results: []codersdk.AIBridgeListInterceptionsResult{expect[uid2]},
-				Cursor: codersdk.AIBridgeListInterceptionsCursor{
-					ID:   uid2,
-					Time: t2,
-				},
-			}
-			require.NoError(t, err)
-			require.Equal(t, ex, got)
-
-			got, err = experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsRequest{
-				Cursor: got.Cursor,
-				Limit:  1,
-			})
-			ex = codersdk.AIBridgeListInterceptionsResponse{
-				Results: []codersdk.AIBridgeListInterceptionsResult{expect[uid1]},
-				Cursor: codersdk.AIBridgeListInterceptionsCursor{
-					ID:   uid1,
-					Time: t2,
-				},
-			}
-			require.NoError(t, err)
-			require.Equal(t, ex, got)
-
-			got, err = experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsRequest{
-				Cursor: got.Cursor,
-				Limit:  2,
-			})
-			ex = codersdk.AIBridgeListInterceptionsResponse{
-				Results: []codersdk.AIBridgeListInterceptionsResult{expect[uid8], expect[uid7]},
-				Cursor: codersdk.AIBridgeListInterceptionsCursor{
-					ID:   uid7,
-					Time: t4,
-				},
-			}
-			require.NoError(t, err)
-			require.Equal(t, ex, got)
-
-			got, err = experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsRequest{
-				Cursor: got.Cursor,
-				Limit:  2,
-			})
-			ex = codersdk.AIBridgeListInterceptionsResponse{
-				Results: []codersdk.AIBridgeListInterceptionsResult{expect[uid6], expect[uid5]},
-				Cursor: codersdk.AIBridgeListInterceptionsCursor{
-					ID:   uid5,
-					Time: t5,
-				},
-			}
-			require.NoError(t, err)
-			require.Equal(t, ex, got)
-
-			got, err = experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsRequest{
-				Cursor: got.Cursor,
-				Limit:  2,
-			})
-			ex = codersdk.AIBridgeListInterceptionsResponse{
-				Results: []codersdk.AIBridgeListInterceptionsResult{},
-				Cursor:  codersdk.AIBridgeListInterceptionsCursor{},
-			}
-			require.NoError(t, err)
-			require.Equal(t, ex, got)
+		// Insert a bunch of test data.
+		now := dbtime.Now()
+		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			StartedAt: now.Add(-time.Hour),
+		})
+		i1tok1 := dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: i1.ID,
+			CreatedAt:      now,
+		})
+		i1tok2 := dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: i1.ID,
+			CreatedAt:      now.Add(-time.Minute),
+		})
+		i1up1 := dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
+			InterceptionID: i1.ID,
+			CreatedAt:      now,
+		})
+		i1up2 := dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
+			InterceptionID: i1.ID,
+			CreatedAt:      now.Add(-time.Minute),
+		})
+		i1tool1 := dbgen.AIBridgeToolUsage(t, db, database.InsertAIBridgeToolUsageParams{
+			InterceptionID: i1.ID,
+			CreatedAt:      now,
+		})
+		i1tool2 := dbgen.AIBridgeToolUsage(t, db, database.InsertAIBridgeToolUsageParams{
+			InterceptionID: i1.ID,
+			CreatedAt:      now.Add(-time.Minute),
+		})
+		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			StartedAt: now,
 		})
 
-		tests := []struct {
-			name        string
-			start       time.Time
-			end         time.Time
-			curTime     time.Time
-			curID       uuid.UUID
-			initiatorID uuid.UUID
-			limit       int32
-			expect      codersdk.AIBridgeListInterceptionsResponse
-			expectErr   string
+		// Convert to SDK types for response comparison.
+		// You may notice that the ordering of the inner arrays are ASC, this is
+		// intentional.
+		i1SDK := db2sdk.AIBridgeInterception(i1, []database.AIBridgeTokenUsage{i1tok2, i1tok1}, []database.AIBridgeUserPrompt{i1up2, i1up1}, []database.AIBridgeToolUsage{i1tool2, i1tool1})
+		i2SDK := db2sdk.AIBridgeInterception(i2, nil, nil, nil)
+
+		res, err := experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Results, 2)
+		require.Equal(t, i2SDK.ID, res.Results[0].ID)
+		require.Equal(t, i1SDK.ID, res.Results[1].ID)
+
+		// Normalize timestamps in the response so we can compare the whole
+		// thing easily.
+		res.Results[0].StartedAt = i2SDK.StartedAt
+		res.Results[1].StartedAt = i1SDK.StartedAt
+		require.Len(t, res.Results[1].TokenUsages, 2)
+		require.Equal(t, i1SDK.TokenUsages[0].ID, res.Results[1].TokenUsages[0].ID)
+		require.Equal(t, i1SDK.TokenUsages[1].ID, res.Results[1].TokenUsages[1].ID)
+		res.Results[1].TokenUsages[0].CreatedAt = i1SDK.TokenUsages[0].CreatedAt
+		res.Results[1].TokenUsages[1].CreatedAt = i1SDK.TokenUsages[1].CreatedAt
+		require.Len(t, res.Results[1].UserPrompts, 2)
+		require.Equal(t, i1SDK.UserPrompts[0].ID, res.Results[1].UserPrompts[0].ID)
+		require.Equal(t, i1SDK.UserPrompts[1].ID, res.Results[1].UserPrompts[1].ID)
+		res.Results[1].UserPrompts[0].CreatedAt = i1SDK.UserPrompts[0].CreatedAt
+		res.Results[1].UserPrompts[1].CreatedAt = i1SDK.UserPrompts[1].CreatedAt
+		require.Len(t, res.Results[1].ToolUsages, 2)
+		require.Equal(t, i1SDK.ToolUsages[0].ID, res.Results[1].ToolUsages[0].ID)
+		require.Equal(t, i1SDK.ToolUsages[1].ID, res.Results[1].ToolUsages[1].ID)
+		res.Results[1].ToolUsages[0].CreatedAt = i1SDK.ToolUsages[0].CreatedAt
+		res.Results[1].ToolUsages[1].CreatedAt = i1SDK.ToolUsages[1].CreatedAt
+
+		require.Equal(t, []codersdk.AIBridgeInterception{i2SDK, i1SDK}, res.Results)
+	})
+
+	t.Run("Pagination", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
+		_ = coderdtest.CreateFirstUser(t, client)
+		experimentalClient := codersdk.NewExperimentalClient(client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		interception1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			StartedAt: now.Add(-time.Hour),
+		})
+		interception2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			StartedAt: now,
+		})
+
+		// Try to get an invalid limit.
+		res, err := experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
+			Pagination: codersdk.Pagination{
+				Limit: 1001,
+			},
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Contains(t, sdkErr.Message, "Invalid pagination limit value.")
+		require.Empty(t, res.Results)
+
+		// Get first page. The newest interception should be the first one.
+		res, err = experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
+			Pagination: codersdk.Pagination{
+				Limit: 1,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Results, 1)
+		require.Equal(t, interception2.ID, res.Results[0].ID)
+
+		// Get the second page. The oldest interception should be the first one.
+		res, err = experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
+			Pagination: codersdk.Pagination{
+				Limit:  1,
+				Offset: 1,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Results, 1)
+		require.Equal(t, interception1.ID, res.Results[0].ID)
+
+		// Get a non-existent page.
+		res, err = experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
+			Pagination: codersdk.Pagination{
+				Limit:  1,
+				Offset: 2,
+			},
+		})
+		require.NoError(t, err)
+		require.Empty(t, res.Results)
+	})
+
+	t.Run("Authorized", func(t *testing.T) {
+		t.Parallel()
+		adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
+		adminExperimentalClient := codersdk.NewExperimentalClient(adminClient)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		secondUserClient, secondUser := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+		secondUserExperimentalClient := codersdk.NewExperimentalClient(secondUserClient)
+
+		now := dbtime.Now()
+		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			StartedAt:   now,
+		})
+		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: secondUser.ID,
+			StartedAt:   now.Add(-time.Hour),
+		})
+
+		// Admin can see all interceptions.
+		res, err := adminExperimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Results, 2)
+		require.Equal(t, i1.ID, res.Results[0].ID)
+		require.Equal(t, i2.ID, res.Results[1].ID)
+
+		// Second user can only see their own interceptions.
+		res, err = secondUserExperimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Results, 1)
+		require.Equal(t, i2.ID, res.Results[0].ID)
+	})
+
+	t.Run("Filter", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		experimentalClient := codersdk.NewExperimentalClient(client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, secondUser := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		// Insert a bunch of test data with varying filterable fields.
+		now := dbtime.Now()
+		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			ID:          uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+			InitiatorID: firstUser.UserID,
+			Provider:    "one",
+			Model:       "one",
+			StartedAt:   now,
+		})
+		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			ID:          uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+			InitiatorID: firstUser.UserID,
+			Provider:    "two",
+			Model:       "two",
+			StartedAt:   now.Add(-time.Hour),
+		})
+		i3 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			ID:          uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+			InitiatorID: secondUser.ID,
+			Provider:    "three",
+			Model:       "three",
+			StartedAt:   now.Add(-2 * time.Hour),
+		})
+
+		// Convert to SDK types for response comparison. We don't care about the
+		// inner arrays for this test.
+		i1SDK := db2sdk.AIBridgeInterception(i1, nil, nil, nil)
+		i2SDK := db2sdk.AIBridgeInterception(i2, nil, nil, nil)
+		i3SDK := db2sdk.AIBridgeInterception(i3, nil, nil, nil)
+
+		cases := []struct {
+			name   string
+			filter codersdk.AIBridgeListInterceptionsFilter
+			want   []codersdk.AIBridgeInterception
 		}{
 			{
-				name:      "too_large_limit",
-				limit:     1001,
-				expectErr: "Invalid limit value",
+				name:   "NoFilter",
+				filter: codersdk.AIBridgeListInterceptionsFilter{},
+				want:   []codersdk.AIBridgeInterception{i1SDK, i2SDK, i3SDK},
 			},
 			{
-				name:      "negative_limit",
-				limit:     -1,
-				expectErr: "Invalid limit value",
+				name:   "Initiator/NoMatch",
+				filter: codersdk.AIBridgeListInterceptionsFilter{Initiator: uuid.New().String()},
+				want:   []codersdk.AIBridgeInterception{},
 			},
 			{
-				name:      "wrong_period",
-				start:     time.Unix(10, 0),
-				end:       time.Unix(5, 0),
-				expectErr: "Invalid time frame",
+				name:   "Initiator/Me",
+				filter: codersdk.AIBridgeListInterceptionsFilter{Initiator: codersdk.Me},
+				want:   []codersdk.AIBridgeInterception{i1SDK, i2SDK},
 			},
 			{
-				name: "no_filter",
-				expect: codersdk.AIBridgeListInterceptionsResponse{
-					Results: []codersdk.AIBridgeListInterceptionsResult{
-						expect[uid4],
-						expect[uid3],
-						expect[uid2],
-						expect[uid1],
-						expect[uid8],
-						expect[uid7],
-						expect[uid6],
-						expect[uid5],
-					},
-					Cursor: codersdk.AIBridgeListInterceptionsCursor{
-						ID:   uid5,
-						Time: t5,
-					},
+				name:   "Initiator/UserID",
+				filter: codersdk.AIBridgeListInterceptionsFilter{Initiator: secondUser.ID.String()},
+				want:   []codersdk.AIBridgeInterception{i3SDK},
+			},
+			{
+				name:   "Initiator/Username",
+				filter: codersdk.AIBridgeListInterceptionsFilter{Initiator: secondUser.Username},
+				want:   []codersdk.AIBridgeInterception{i3SDK},
+			},
+			{
+				name:   "Provider/NoMatch",
+				filter: codersdk.AIBridgeListInterceptionsFilter{Provider: "nonsense"},
+				want:   []codersdk.AIBridgeInterception{},
+			},
+			{
+				name:   "Provider/OK",
+				filter: codersdk.AIBridgeListInterceptionsFilter{Provider: "two"},
+				want:   []codersdk.AIBridgeInterception{i2SDK},
+			},
+			{
+				name:   "Model/NoMatch",
+				filter: codersdk.AIBridgeListInterceptionsFilter{Model: "nonsense"},
+				want:   []codersdk.AIBridgeInterception{},
+			},
+			{
+				name:   "Model/OK",
+				filter: codersdk.AIBridgeListInterceptionsFilter{Model: "three"},
+				want:   []codersdk.AIBridgeInterception{i3SDK},
+			},
+			{
+				name: "StartedAfter/NoMatch",
+				filter: codersdk.AIBridgeListInterceptionsFilter{
+					StartedAfter: i1.StartedAt.Add(10 * time.Minute),
 				},
+				want: []codersdk.AIBridgeInterception{},
 			},
 			{
-				name:  "no_filter_limit",
-				limit: 2,
-				expect: codersdk.AIBridgeListInterceptionsResponse{
-					Results: []codersdk.AIBridgeListInterceptionsResult{expect[uid4], expect[uid3]},
-					Cursor: codersdk.AIBridgeListInterceptionsCursor{
-						ID:   uid3,
-						Time: t2,
-					},
+				name: "StartedAfter/OK",
+				filter: codersdk.AIBridgeListInterceptionsFilter{
+					StartedAfter: i2.StartedAt.Add(-10 * time.Minute),
 				},
+				want: []codersdk.AIBridgeInterception{i1SDK, i2SDK},
 			},
 			{
-				name:  "no_match_time_start",
-				start: time.Unix(1000, 0),
-				expect: codersdk.AIBridgeListInterceptionsResponse{
-					Results: []codersdk.AIBridgeListInterceptionsResult{},
+				name: "StartedBefore/NoMatch",
+				filter: codersdk.AIBridgeListInterceptionsFilter{
+					StartedBefore: i3.StartedAt.Add(-10 * time.Minute),
 				},
+				want: []codersdk.AIBridgeInterception{},
 			},
 			{
-				name: "no_match_time_end",
-				end:  time.Unix(-1000, 0),
-				expect: codersdk.AIBridgeListInterceptionsResponse{
-					Results: []codersdk.AIBridgeListInterceptionsResult{},
+				name: "StartedBefore/OK",
+				filter: codersdk.AIBridgeListInterceptionsFilter{
+					StartedBefore: i3.StartedAt.Add(10 * time.Minute),
 				},
+				want: []codersdk.AIBridgeInterception{i3SDK},
 			},
 			{
-				name:  "match_time",
-				start: t3,
-				end:   t1,
-				expect: codersdk.AIBridgeListInterceptionsResponse{
-					Results: []codersdk.AIBridgeListInterceptionsResult{
-						expect[uid3],
-						expect[uid2],
-						expect[uid1],
-						expect[uid8],
-					},
-					Cursor: codersdk.AIBridgeListInterceptionsCursor{
-						ID:   uid8,
-						Time: t3,
-					},
+				name: "BothBeforeAndAfter/NoMatch",
+				filter: codersdk.AIBridgeListInterceptionsFilter{
+					StartedAfter:  i1.StartedAt.Add(10 * time.Minute),
+					StartedBefore: i1.StartedAt.Add(20 * time.Minute),
 				},
+				want: []codersdk.AIBridgeInterception{},
 			},
 			{
-				name:        "no_match_initiator",
-				initiatorID: uid8,
-				expect: codersdk.AIBridgeListInterceptionsResponse{
-					Results: []codersdk.AIBridgeListInterceptionsResult{},
+				name: "BothBeforeAndAfter/OK",
+				filter: codersdk.AIBridgeListInterceptionsFilter{
+					StartedAfter:  i2.StartedAt.Add(-10 * time.Minute),
+					StartedBefore: i2.StartedAt.Add(10 * time.Minute),
 				},
-			},
-			{
-				name:        "match_initiator",
-				initiatorID: uid1,
-				expect: codersdk.AIBridgeListInterceptionsResponse{
-					Results: []codersdk.AIBridgeListInterceptionsResult{
-						expect[uid4],
-						expect[uid3],
-						expect[uid1],
-						expect[uid8],
-						expect[uid5],
-					},
-					Cursor: codersdk.AIBridgeListInterceptionsCursor{
-						ID:   uid5,
-						Time: t5,
-					},
-				},
-			},
-			{
-				name:        "match_time_and_initiator",
-				initiatorID: uid1,
-				start:       t4,
-				end:         t1,
-				expect: codersdk.AIBridgeListInterceptionsResponse{
-					Results: []codersdk.AIBridgeListInterceptionsResult{
-						expect[uid3],
-						expect[uid1],
-						expect[uid8],
-					},
-					Cursor: codersdk.AIBridgeListInterceptionsCursor{
-						ID:   uid8,
-						Time: t3,
-					},
-				},
-			},
-			{
-				name:    "match_cursor_and_time",
-				start:   t4,
-				end:     t0,
-				curTime: t2,
-				curID:   uid2,
-				expect: codersdk.AIBridgeListInterceptionsResponse{
-					Results: []codersdk.AIBridgeListInterceptionsResult{
-						expect[uid1],
-						expect[uid8],
-						expect[uid7],
-					},
-					Cursor: codersdk.AIBridgeListInterceptionsCursor{
-						ID:   uid7,
-						Time: t4,
-					},
-				},
-			},
-			{
-				name:    "match_cursor_time_limit",
-				start:   t4,
-				end:     t0,
-				curTime: t2,
-				curID:   uid2,
-				limit:   2,
-				expect: codersdk.AIBridgeListInterceptionsResponse{
-					Results: []codersdk.AIBridgeListInterceptionsResult{
-						expect[uid1],
-						expect[uid8],
-					},
-					Cursor: codersdk.AIBridgeListInterceptionsCursor{
-						ID:   uid8,
-						Time: t3,
-					},
-				},
-			},
-			{
-				name:        "match_cursor_time_user_limit",
-				initiatorID: uid2,
-				start:       t4,
-				end:         t0,
-				curTime:     t2,
-				curID:       uid2,
-				limit:       2,
-				expect: codersdk.AIBridgeListInterceptionsResponse{
-					Results: []codersdk.AIBridgeListInterceptionsResult{
-						expect[uid7],
-					},
-					Cursor: codersdk.AIBridgeListInterceptionsCursor{
-						ID:   uid7,
-						Time: t4,
-					},
-				},
+				want: []codersdk.AIBridgeInterception{i2SDK},
 			},
 		}
 
-		for _, tc := range tests {
+		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-
-				got, err := experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsRequest{
-					PeriodStart: tc.start,
-					PeriodEnd:   tc.end,
-					Cursor: codersdk.AIBridgeListInterceptionsCursor{
-						Time: tc.curTime,
-						ID:   tc.curID,
-					},
-					InitiatorID: tc.initiatorID,
-					Limit:       tc.limit,
-				})
-				if tc.expectErr == "" {
-					require.NoError(t, err)
-					require.Equal(t, tc.expect, got)
-				} else {
-					require.Error(t, err)
-					require.Contains(t, err.Error(), tc.expectErr)
+				res, err := experimentalClient.AIBridgeListInterceptions(ctx, tc.filter)
+				require.NoError(t, err)
+				// We just compare UUID strings for the sake of this test.
+				wantIDs := make([]string, len(tc.want))
+				for i, r := range tc.want {
+					wantIDs[i] = r.ID.String()
 				}
+				gotIDs := make([]string, len(res.Results))
+				for i, r := range res.Results {
+					gotIDs[i] = r.ID.String()
+				}
+				require.Equal(t, wantIDs, gotIDs)
 			})
 		}
 	})
-}
 
-type testHelper struct {
-	ctx context.Context
-	db  database.Store
-	t   *testing.T
+	t.Run("FilterErrors", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{})
+		_ = coderdtest.CreateFirstUser(t, client)
+		experimentalClient := codersdk.NewExperimentalClient(client)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
-	expectedResults map[uuid.UUID]codersdk.AIBridgeListInterceptionsResult
-}
+		// No need to insert any test data, we're just testing the filter
+		// errors.
 
-func populateDB(ctx context.Context, t *testing.T, db database.Store) map[uuid.UUID]codersdk.AIBridgeListInterceptionsResult {
-	th := &testHelper{
-		ctx:             ctx,
-		db:              db,
-		t:               t,
-		expectedResults: map[uuid.UUID]codersdk.AIBridgeListInterceptionsResult{},
-	}
+		cases := []struct {
+			name string
+			q    string
+			want []codersdk.ValidationError
+		}{
+			{
+				name: "UnknownUsername",
+				q:    "initiator:unknown",
+				want: []codersdk.ValidationError{
+					{
+						Field:  "initiator",
+						Detail: `Query param "initiator" has invalid value: user "unknown" either does not exist, or you are unauthorized to view them`,
+					},
+				},
+			},
+			{
+				name: "InvalidStartedAfter",
+				q:    "started_after:invalid",
+				want: []codersdk.ValidationError{
+					{
+						Field:  "started_after",
+						Detail: `Query param "started_after" must be a valid date format (2006-01-02T15:04:05.999999999Z07:00): parsing time "INVALID" as "2006-01-02T15:04:05.999999999Z07:00": cannot parse "INVALID" as "2006"`,
+					},
+				},
+			},
+			{
+				name: "InvalidStartedBefore",
+				q:    "started_before:invalid",
+				want: []codersdk.ValidationError{
+					{
+						Field:  "started_before",
+						Detail: `Query param "started_before" must be a valid date format (2006-01-02T15:04:05.999999999Z07:00): parsing time "INVALID" as "2006-01-02T15:04:05.999999999Z07:00": cannot parse "INVALID" as "2006"`,
+					},
+				},
+			},
+			{
+				name: "InvalidBeforeAfterRange",
+				// Before MUST be after After if both are set
+				q: `started_after:"2025-01-01T00:00:00Z" started_before:"2024-01-01T00:00:00Z"`,
+				want: []codersdk.ValidationError{
+					{
+						Field:  "started_before",
+						Detail: `Query param "started_before" has invalid value: "started_before" must be after "started_after" if set`,
+					},
+				},
+			},
+		}
 
-	th.addInterception(t1, uid4, uid1)
-
-	th.addInterception(t2, uid3, uid1)
-	th.addInterception(t2, uid2, uid2)
-	th.addInterception(t2, uid1, uid1)
-
-	th.addInterception(t3, uid8, uid1)
-
-	th.addInterception(t4, uid7, uid2)
-
-	th.addInterception(t5, uid5, uid1)
-	th.addInterception(t5, uid6, uid3)
-
-	th.addToken(uid2, 20, 5)
-	th.addToken(uid2, 30, 3)
-
-	th.addToken(uid3, 20, 1)
-	th.addToken(uid3, 30, 2)
-	th.addToken(uid3, 40, 3)
-	th.addToken(uid3, 50, 4)
-
-	th.addPrompt(uid2, "prompt_i2")
-
-	th.addTool(uid2, t1, sql.NullString{Valid: true, String: "server_i2_t2"}, "tool_i2_t2", "input_i2_t2")
-	th.addTool(uid2, t2, sql.NullString{Valid: false}, "tool_i2_t3", "input_i2_t3")
-	th.addTool(uid2, t3, sql.NullString{Valid: false}, "tool_i2_t1", "input_i2_t1")
-
-	th.addTool(uid3, t4, sql.NullString{Valid: false}, "tool_i3_t1", "input_i3_t1")
-	th.addTool(uid3, t5, sql.NullString{Valid: false}, "tool_i3_t2", "input_i3_t2")
-
-	return th.expectedResults
-}
-
-func (th *testHelper) addInterception(startedAt time.Time, interID, userID uuid.UUID) {
-	i, err := th.db.InsertAIBridgeInterception(th.ctx, database.InsertAIBridgeInterceptionParams{
-		ID:          interID,
-		InitiatorID: userID,
-		Provider:    "provider " + interID.String(),
-		Model:       "model " + interID.String(),
-		StartedAt:   startedAt,
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				res, err := experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
+					FilterQuery: tc.q,
+				})
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, tc.want, sdkErr.Validations)
+				require.Empty(t, res.Results)
+			})
+		}
 	})
-	require.NoError(th.t, err, "failed to insert interception: %v", err)
-
-	th.expectedResults[interID] = codersdk.AIBridgeListInterceptionsResult{
-		InterceptionID: i.ID,
-		UserID:         i.InitiatorID,
-		Provider:       i.Provider,
-		Model:          i.Model,
-		StartedAt:      i.StartedAt.UTC(),
-		Tokens:         codersdk.AIBridgeListInterceptionsTokens{},
-		Tools:          []codersdk.AIBridgeListInterceptionsTool{},
-	}
-}
-
-func (th *testHelper) addToken(interID uuid.UUID, input, output int64) {
-	md, err := json.Marshal(map[string]any{})
-	require.NoError(th.t, err, "failed to prepare insert token metadata")
-
-	err = th.db.InsertAIBridgeTokenUsage(th.ctx, database.InsertAIBridgeTokenUsageParams{
-		ID:                 uuid.New(),
-		InterceptionID:     interID,
-		ProviderResponseID: uuid.NewString(),
-		InputTokens:        input,
-		OutputTokens:       output,
-		Metadata:           md,
-	})
-	require.NoError(th.t, err, "failed to insert tokens: %v", err)
-
-	r := th.expectedResults[interID]
-	r.Tokens.Input += input
-	r.Tokens.Output += output
-	th.expectedResults[interID] = r
-}
-
-func (th *testHelper) addTool(interID uuid.UUID, createdAt time.Time, server sql.NullString, tool, input string) {
-	md, err := json.Marshal(map[string]any{})
-	require.NoError(th.t, err, "failed to prepare insert token metadata")
-
-	params := database.InsertAIBridgeToolUsageParams{
-		ID:             uuid.New(),
-		InterceptionID: interID,
-		Tool:           tool,
-		ServerUrl:      server,
-		Input:          input,
-		CreatedAt:      createdAt,
-		Metadata:       md,
-	}
-	err = th.db.InsertAIBridgeToolUsage(th.ctx, params)
-	require.NoError(th.t, err, "failed to insert tools: %v", err)
-
-	r := th.expectedResults[interID]
-	r.Tools = append(r.Tools, codersdk.AIBridgeListInterceptionsTool{
-		Server: server.String,
-		Tool:   tool,
-		Input:  input,
-	})
-	th.expectedResults[interID] = r
-}
-
-func (th *testHelper) addPrompt(interID uuid.UUID, prompt string) {
-	md, err := json.Marshal(map[string]any{})
-	require.NoError(th.t, err, "failed to prepare insert token metadata")
-
-	err = th.db.InsertAIBridgeUserPrompt(th.ctx, database.InsertAIBridgeUserPromptParams{
-		ID:             uuid.New(),
-		InterceptionID: interID,
-		Prompt:         prompt,
-		Metadata:       md,
-	})
-	require.NoError(th.t, err, "failed to insert prompt: %v", err)
-
-	r := th.expectedResults[interID]
-	r.Prompt = prompt
-	th.expectedResults[interID] = r
 }
