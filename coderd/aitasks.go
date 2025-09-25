@@ -670,6 +670,7 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}); err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
+		return
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
