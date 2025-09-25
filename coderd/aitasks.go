@@ -624,7 +624,7 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if err = api.authAndDoWithTaskSidebarAppClient(r, taskID, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
-		status, err := doAgentapiStatusRequest(ctx, client, appURL)
+		status, err := agentapiDoStatusRequest(ctx, client, appURL)
 		if err != nil {
 			return err
 		}
@@ -645,7 +645,7 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 		reqBody.Body.Content = req.Input
 		reqBody.Body.Type = "user"
 
-		req, err := newAgentapiRequest(ctx, http.MethodPost, appURL, "message", reqBody)
+		req, err := agentapiNewRequest(ctx, http.MethodPost, appURL, "message", reqBody)
 		if err != nil {
 			return err
 		}
@@ -800,7 +800,7 @@ func (api *API) authAndDoWithTaskSidebarAppClient(
 	return do(ctx, client, parsedURL)
 }
 
-func newAgentapiRequest(ctx context.Context, method string, appURL *url.URL, appURLPath string, body any) (*http.Request, error) {
+func agentapiNewRequest(ctx context.Context, method string, appURL *url.URL, appURLPath string, body any) (*http.Request, error) {
 	u := *appURL
 	u.Path = path.Join(appURL.Path, appURLPath)
 
@@ -829,8 +829,8 @@ func newAgentapiRequest(ctx context.Context, method string, appURL *url.URL, app
 	return req, nil
 }
 
-func doAgentapiStatusRequest(ctx context.Context, client *http.Client, appURL *url.URL) (string, error) {
-	req, err := newAgentapiRequest(ctx, http.MethodGet, appURL, "status", nil)
+func agentapiDoStatusRequest(ctx context.Context, client *http.Client, appURL *url.URL) (string, error) {
+	req, err := agentapiNewRequest(ctx, http.MethodGet, appURL, "status", nil)
 	if err != nil {
 		return "", err
 	}
