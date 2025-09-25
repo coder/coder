@@ -12,6 +12,7 @@ import (
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/pkce"
+	"github.com/ory/fosite/handler/rfc8628"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
@@ -28,6 +29,7 @@ type fositeStorage interface {
 	fosite.ClientManager
 	oauth2.CoreStorage
 	pkce.PKCERequestStorage
+	rfc8628.RFC8628CoreStorage
 	// TODO: Add support for database transactions.
 	//storage.Transactional
 }
@@ -40,6 +42,21 @@ type Storage struct {
 
 	// TODO: Remove the memory store entirely and implement all methods to use the database.
 	//storage.MemoryStore
+}
+
+func (s Storage) CreateDeviceAuthSession(ctx context.Context, deviceCodeSignature, userCodeSignature string, request fosite.DeviceRequester) (err error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s Storage) GetDeviceCodeSession(ctx context.Context, signature string, session fosite.Session) (request fosite.DeviceRequester, err error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s Storage) InvalidateDeviceCodeSession(ctx context.Context, signature string) (err error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (s Storage) GetPKCERequestSession(ctx context.Context, signature string, session fosite.Session) (fosite.Requester, error) {

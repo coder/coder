@@ -954,6 +954,15 @@ func New(options *Options) *API {
 		r.Get("/introspect", api.OAuth2Provider.IntrospectionEndpoint)
 		r.Post("/revoke", api.OAuth2Provider.RevokeEndpoint)
 		r.Post("/tokens", api.OAuth2Provider.TokenEndpoint)
+
+		r.Group(func(r chi.Router) {
+			r.Use(apiKeyMiddlewareRedirect)
+			r.Route("/device", func(r chi.Router) {
+				r.Get("/activate", api.OAuth2Provider.ActivateGET())
+				r.Post("/activate", api.OAuth2Provider.ActivatePOST())
+				r.Post("/code", api.OAuth2Provider.PostDevice)
+			})
+		})
 	})
 
 	// OAuth2 linking routes do not make sense under the /api/v2 path.  These are
