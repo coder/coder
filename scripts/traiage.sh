@@ -208,14 +208,21 @@ wait_agentapi_stable() {
 		sleep 5
 	done
 
-	# Final sanity check - ensure we can get messages
+	# Final sanity check - ensure the task agent has reported idle status
 	for attempt in {1..120}; do
-		last_msg=last_message
-		if [[ -n "${last_msg}" ]]; then
-			echo "Successfully retrieved last agent message"
+		set +o pipefail
+		task_json=$(${CODER_BIN} \
+			--url "${CODER_URL}" \
+			--token "${CODER_SESSION_TOKEN}" \
+			exp tasks status "${TASK_NAME}" \
+			--output json)
+		current_state=$(jq -r '.current_state.state' <<<"${task_json}")
+		current_message=$(jq -r '.current_state.message' <<<"${task_json}")
+		if [[ "${current_state}" == "idle" ]]; then
+			echo "Task Agent is ${current_state} and reports: \"${current_message}\""
 			break
 		fi
-		echo "Waiting to be able to retrieve last agent message (attempt ${attempt}/120)"
+		echo "Waiting for Task Agent to report state (attempt ${attempt}/120)"
 		sleep 5
 	done
 }
