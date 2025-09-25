@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/x/aibridged"
 	"github.com/coder/coder/v2/enterprise/x/aibridged/proto"
 )
 
@@ -47,11 +48,7 @@ var (
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
 )
 
-var (
-	_ proto.DRPCAuthorizerServer      = &Server{}
-	_ proto.DRPCMCPConfiguratorServer = &Server{}
-	_ proto.DRPCRecorderServer        = &Server{}
-)
+var _ aibridged.DRPCServer = &Server{}
 
 type store interface {
 	// Recorder-related queries.
@@ -402,7 +399,7 @@ func getCoderMCPServerConfig(experiments codersdk.Experiments, accessURL string)
 	}
 
 	return &proto.MCPServerConfig{
-		Id:  "coder",
+		Id:  aibridged.InternalMCPServerID,
 		Url: u,
 	}, nil
 }

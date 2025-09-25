@@ -28,6 +28,7 @@ import (
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/enterprise/x/aibridged"
 	"github.com/coder/coder/v2/enterprise/x/aibridged/proto"
 	"github.com/coder/coder/v2/enterprise/x/aibridgedserver"
 	"github.com/coder/coder/v2/testutil"
@@ -255,7 +256,7 @@ func TestGetMCPServerConfigs(t *testing.T) {
 			if tc.expectCoderMCP {
 				coderConfig := resp.CoderMcpConfig
 				require.NotNil(t, coderConfig)
-				require.Equal(t, "coder", coderConfig.GetId())
+				require.Equal(t, aibridged.InternalMCPServerID, coderConfig.GetId())
 				expectedURL, err := url.JoinPath(accessURL, codermcp.MCPEndpoint)
 				require.NoError(t, err)
 				require.Equal(t, expectedURL, coderConfig.GetUrl())

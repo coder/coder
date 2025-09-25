@@ -129,6 +129,147 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 	return i, err
 }
 
+const getAIBridgeInterceptions = `-- name: GetAIBridgeInterceptions :many
+SELECT id, initiator_id, provider, model, started_at, metadata FROM aibridge_interceptions
+`
+
+func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeInterception, error) {
+	rows, err := q.db.QueryContext(ctx, getAIBridgeInterceptions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIBridgeInterception
+	for rows.Next() {
+		var i AIBridgeInterception
+		if err := rows.Scan(
+			&i.ID,
+			&i.InitiatorID,
+			&i.Provider,
+			&i.Model,
+			&i.StartedAt,
+			&i.Metadata,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIBridgeTokenUsagesByInterceptionID = `-- name: GetAIBridgeTokenUsagesByInterceptionID :many
+SELECT id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at FROM aibridge_token_usages WHERE interception_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeTokenUsage, error) {
+	rows, err := q.db.QueryContext(ctx, getAIBridgeTokenUsagesByInterceptionID, interceptionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIBridgeTokenUsage
+	for rows.Next() {
+		var i AIBridgeTokenUsage
+		if err := rows.Scan(
+			&i.ID,
+			&i.InterceptionID,
+			&i.ProviderResponseID,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIBridgeToolUsagesByInterceptionID = `-- name: GetAIBridgeToolUsagesByInterceptionID :many
+SELECT id, interception_id, provider_response_id, server_url, tool, input, injected, invocation_error, metadata, created_at FROM aibridge_tool_usages WHERE interception_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeToolUsage, error) {
+	rows, err := q.db.QueryContext(ctx, getAIBridgeToolUsagesByInterceptionID, interceptionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIBridgeToolUsage
+	for rows.Next() {
+		var i AIBridgeToolUsage
+		if err := rows.Scan(
+			&i.ID,
+			&i.InterceptionID,
+			&i.ProviderResponseID,
+			&i.ServerUrl,
+			&i.Tool,
+			&i.Input,
+			&i.Injected,
+			&i.InvocationError,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIBridgeUserPromptsByInterceptionID = `-- name: GetAIBridgeUserPromptsByInterceptionID :many
+SELECT id, interception_id, provider_response_id, prompt, metadata, created_at FROM aibridge_user_prompts WHERE interception_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeUserPrompt, error) {
+	rows, err := q.db.QueryContext(ctx, getAIBridgeUserPromptsByInterceptionID, interceptionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIBridgeUserPrompt
+	for rows.Next() {
+		var i AIBridgeUserPrompt
+		if err := rows.Scan(
+			&i.ID,
+			&i.InterceptionID,
+			&i.ProviderResponseID,
+			&i.Prompt,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertAIBridgeInterception = `-- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (id, initiator_id, provider, model, metadata, started_at)
 VALUES ($1::uuid, $2::uuid, $3, $4, COALESCE($5::jsonb, '{}'::jsonb), $6)
