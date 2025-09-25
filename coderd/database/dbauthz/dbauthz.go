@@ -175,15 +175,15 @@ func (q *querier) authorizePrebuiltWorkspace(ctx context.Context, action policy.
 	return xerrors.Errorf("authorize context: %w", workspaceErr)
 }
 
-// authorizeAIBridgeInterceptionUpdate validates that the context's actor matches the initiator of the AIBridgeInterception.
+// authorizeAIBridgeInterceptionAction validates that the context's actor matches the initiator of the AIBridgeInterception.
 // This is used by all of the sub-resources which fall under the [ResourceAibridgeInterception] umbrella.
-func (q *querier) authorizeAIBridgeInterceptionUpdate(ctx context.Context, interceptionID uuid.UUID) error {
+func (q *querier) authorizeAIBridgeInterceptionAction(ctx context.Context, action policy.Action, interceptionID uuid.UUID) error {
 	inter, err := q.db.GetAIBridgeInterceptionByID(ctx, interceptionID)
 	if err != nil {
 		return xerrors.Errorf("fetch aibridge interception %q: %w", interceptionID, err)
 	}
 
-	err = q.authorizeContext(ctx, policy.ActionUpdate, inter.RBACObject())
+	err = q.authorizeContext(ctx, action, inter.RBACObject())
 	if err != nil {
 		return err
 	}
@@ -570,6 +570,7 @@ var (
 				DisplayName: "AIBridge Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceUser.Type: {
+						policy.ActionRead,         // Required to validate API key owner is active.
 						policy.ActionReadPersonal, // Required to read users' external auth links. // TODO: this is too broad; reduce scope to just external_auth_links by creating separate resource.
 					},
 					rbac.ResourceApiKey.Type:               {policy.ActionRead}, // Validate API keys.
@@ -1925,6 +1926,37 @@ func (q *querier) FindMatchingPresetID(ctx context.Context, arg database.FindMat
 
 func (q *querier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error) {
 	return fetch(q.log, q.auth, q.db.GetAIBridgeInterceptionByID)(ctx, id)
+}
+
+func (q *querier) GetAIBridgeInterceptions(ctx context.Context) ([]database.AIBridgeInterception, error) {
+	fetch := func(ctx context.Context, _ any) ([]database.AIBridgeInterception, error) {
+		return q.db.GetAIBridgeInterceptions(ctx)
+	}
+	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
+}
+
+func (q *querier) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
+	// All aibridge_token_usages records belong to the initiator of their associated interception.
+	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionRead, interceptionID); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIBridgeTokenUsagesByInterceptionID(ctx, interceptionID)
+}
+
+func (q *querier) GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeToolUsage, error) {
+	// All aibridge_token_usages records belong to the initiator of their associated interception.
+	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionRead, interceptionID); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIBridgeToolUsagesByInterceptionID(ctx, interceptionID)
+}
+
+func (q *querier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeUserPrompt, error) {
+	// All aibridge_token_usages records belong to the initiator of their associated interception.
+	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionRead, interceptionID); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptionID)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -3812,7 +3844,7 @@ func (q *querier) InsertAIBridgeInterception(ctx context.Context, arg database.I
 
 func (q *querier) InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) error {
 	// All aibridge_token_usages records belong to the initiator of their associated interception.
-	if err := q.authorizeAIBridgeInterceptionUpdate(ctx, arg.InterceptionID); err != nil {
+	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionUpdate, arg.InterceptionID); err != nil {
 		return err
 	}
 	return q.db.InsertAIBridgeTokenUsage(ctx, arg)
@@ -3820,7 +3852,7 @@ func (q *querier) InsertAIBridgeTokenUsage(ctx context.Context, arg database.Ins
 
 func (q *querier) InsertAIBridgeToolUsage(ctx context.Context, arg database.InsertAIBridgeToolUsageParams) error {
 	// All aibridge_tool_usages records belong to the initiator of their associated interception.
-	if err := q.authorizeAIBridgeInterceptionUpdate(ctx, arg.InterceptionID); err != nil {
+	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionUpdate, arg.InterceptionID); err != nil {
 		return err
 	}
 	return q.db.InsertAIBridgeToolUsage(ctx, arg)
@@ -3828,7 +3860,7 @@ func (q *querier) InsertAIBridgeToolUsage(ctx context.Context, arg database.Inse
 
 func (q *querier) InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) error {
 	// All aibridge_user_prompts records belong to the initiator of their associated interception.
-	if err := q.authorizeAIBridgeInterceptionUpdate(ctx, arg.InterceptionID); err != nil {
+	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionUpdate, arg.InterceptionID); err != nil {
 		return err
 	}
 	return q.db.InsertAIBridgeUserPrompt(ctx, arg)

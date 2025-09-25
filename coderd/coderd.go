@@ -44,6 +44,8 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
+	"github.com/coder/coder/v2/provisionerd/proto"
+
 	"cdr.dev/slog"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
@@ -95,7 +97,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
-	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
@@ -489,16 +490,8 @@ func New(options *Options) *API {
 	r := chi.NewRouter()
 	// We add this middleware early, to make sure that authorization checks made
 	// by other middleware get recorded.
-	//nolint:revive,staticcheck // This block will be re-enabled, not going to remove it
 	if buildinfo.IsDev() {
-		// TODO: Find another solution to opt into these checks.
-		//   If the header grows too large, it breaks `fetch()` requests.
-		//   Temporarily disabling this until we can find a better solution.
-		//	 One idea is to include checking the request for `X-Authz-Record=true`
-		//   header. To opt in on a per-request basis.
-		//   Some authz calls (like filtering lists) might be able to be
-		//   summarized better to condense the header payload.
-		// r.Use(httpmw.RecordAuthzChecks)
+		r.Use(httpmw.RecordAuthzChecks)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -785,7 +778,7 @@ func New(options *Options) *API {
 		options.WorkspaceAppsStatsCollectorOptions.Reporter = api.statsReporter
 	}
 
-	api.workspaceAppServer = &workspaceapps.Server{
+	api.workspaceAppServer = workspaceapps.NewServer(workspaceapps.ServerOptions{
 		Logger: workspaceAppsLogger,
 
 		DashboardURL:  api.AccessURL,
@@ -799,9 +792,9 @@ func New(options *Options) *API {
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
 
 		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
-		Cookies:                  options.DeploymentValues.HTTPCookies,
+		CookiesConfig:            options.DeploymentValues.HTTPCookies,
 		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
-	}
+	})
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
@@ -1007,28 +1000,37 @@ func New(options *Options) *API {
 
 	// Experimental routes are not guaranteed to be stable and may change at any time.
 	r.Route("/api/experimental", func(r chi.Router) {
-		r.Use(apiKeyMiddleware)
-		r.Route("/aitasks", func(r chi.Router) {
-			r.Get("/prompts", api.aiTasksPrompts)
-		})
-		r.Route("/tasks", func(r chi.Router) {
-			r.Use(apiRateLimiter)
+		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
 
-			r.Get("/", api.tasksList)
-
-			r.Route("/{user}", func(r chi.Router) {
-				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
-				r.Get("/{id}", api.taskGet)
-				r.Delete("/{id}", api.taskDelete)
-				r.Post("/", api.tasksCreate)
+		// Only this group should be subject to apiKeyMiddleware; aibridged will mount its own
+		// router and handles key validation in a different fashion.
+		// See enterprise/x/aibridged/http.go.
+		r.Group(func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Route("/aitasks", func(r chi.Router) {
+				r.Get("/prompts", api.aiTasksPrompts)
 			})
-		})
-		r.Route("/mcp", func(r chi.Router) {
-			r.Use(
-				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP),
-			)
-			// MCP HTTP transport endpoint with mandatory authentication
-			r.Mount("/http", api.mcpHTTPHandler())
+			r.Route("/tasks", func(r chi.Router) {
+				r.Use(apiRateLimiter)
+
+				r.Get("/", api.tasksList)
+
+				r.Route("/{user}", func(r chi.Router) {
+					r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+					r.Get("/{id}", api.taskGet)
+					r.Delete("/{id}", api.taskDelete)
+					r.Post("/{id}/send", api.taskSend)
+					r.Get("/{id}/logs", api.taskLogs)
+					r.Post("/", api.tasksCreate)
+				})
+			})
+			r.Route("/mcp", func(r chi.Router) {
+				r.Use(
+					httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP),
+				)
+				// MCP HTTP transport endpoint with mandatory authentication
+				r.Mount("/http", api.mcpHTTPHandler())
+			})
 		})
 	})
 

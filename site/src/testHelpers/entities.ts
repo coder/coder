@@ -1599,6 +1599,12 @@ export const MockPendingWorkspace: TypesGen.Workspace = {
 	},
 };
 
+export const MockNonClassicParameterFlowWorkspace: TypesGen.Workspace = {
+	...MockWorkspace,
+	id: "test-non-classic-parameter-flow-workspace",
+	template_use_classic_parameter_flow: false,
+};
+
 // just over one page of workspaces
 export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
 	workspaces: range(1, 27).map((id: number) => ({
@@ -1695,6 +1701,21 @@ const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter = {
 	required: true,
 	ephemeral: false,
 };
+
+export const MockTemplateVersionParameter6: TypesGen.TemplateVersionParameter =
+	{
+		name: "ephemeral_parameter",
+		type: "string",
+		form_type: "input",
+		description: "This is ephemeral parameter",
+		description_plaintext: "Markdown: This is ephemeral parameter",
+		default_value: "abc",
+		mutable: true,
+		icon: "/icon/folder.svg",
+		options: [],
+		required: true,
+		ephemeral: true,
+	};
 
 export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
 	name: "first_variable",
@@ -4516,125 +4537,141 @@ export const MockNotificationPreferences: TypesGen.NotificationPreference[] = [
 	},
 ];
 
-export const MockNotificationTemplates: TypesGen.NotificationTemplate[] = [
-	{
-		id: "381df2a9-c0c0-4749-420f-80a9280c66f9",
-		name: "Workspace Autobuild Failed",
-		title_template: 'Workspace "{{.Labels.name}}" autobuild failed',
-		body_template:
-			'Hi {{.UserName}}\nAutomatic build of your workspace **{{.Labels.name}}** failed.\nThe specified reason was "**{{.Labels.reason}}**".',
-		actions:
-			'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
-		group: "Workspace Events",
-		method: "webhook",
-		kind: "system",
-		enabled_by_default: true,
-	},
-	{
-		id: "f517da0b-cdc9-410f-ab89-a86107c420ed",
-		name: "Workspace Deleted",
-		title_template: 'Workspace "{{.Labels.name}}" deleted',
-		body_template:
-			'Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** was deleted.\nThe specified reason was "**{{.Labels.reason}}{{ if .Labels.initiator }} ({{ .Labels.initiator }}){{end}}**".',
-		actions:
-			'[{"url": "{{ base_url }}/workspaces", "label": "View workspaces"}, {"url": "{{ base_url }}/templates", "label": "View templates"}]',
-		group: "Workspace Events",
-		method: "smtp",
-		kind: "system",
-		enabled_by_default: true,
-	},
-	{
-		id: "f44d9314-ad03-4bc8-95d0-5cad491da6b6",
-		name: "User account deleted",
-		title_template: 'User account "{{.Labels.deleted_account_name}}" deleted',
-		body_template:
-			"Hi {{.UserName}},\n\nUser account **{{.Labels.deleted_account_name}}** has been deleted.",
-		actions:
-			'[{"url": "{{ base_url }}/deployment/users?filter=status%3Aactive", "label": "View accounts"}]',
-		group: "User Events",
-		method: "",
-		kind: "system",
-		enabled_by_default: true,
-	},
-	{
-		id: "4e19c0ac-94e1-4532-9515-d1801aa283b2",
-		name: "User account created",
-		title_template: 'User account "{{.Labels.created_account_name}}" created',
-		body_template:
-			"Hi {{.UserName}},\n\nNew user account **{{.Labels.created_account_name}}** has been created.",
-		actions:
-			'[{"url": "{{ base_url }}/deployment/users?filter=status%3Aactive", "label": "View accounts"}]',
-		group: "User Events",
-		method: "",
-		kind: "system",
-		enabled_by_default: true,
-	},
-	{
-		id: "0ea69165-ec14-4314-91f1-69566ac3c5a0",
-		name: "Workspace Marked as Dormant",
-		title_template: 'Workspace "{{.Labels.name}}" marked as dormant',
-		body_template:
-			"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked as [**dormant**](https://coder.com/docs/templates/schedule#dormancy-threshold-enterprise) because of {{.Labels.reason}}.\nDormant workspaces are [automatically deleted](https://coder.com/docs/templates/schedule#dormancy-auto-deletion-enterprise) after {{.Labels.timeTilDormant}} of inactivity.\nTo prevent deletion, use your workspace with the link below.",
-		actions:
-			'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
-		group: "Workspace Events",
-		method: "smtp",
-		kind: "system",
-		enabled_by_default: true,
-	},
-	{
-		id: "c34a0c09-0704-4cac-bd1c-0c0146811c2b",
-		name: "Workspace updated automatically",
-		title_template: 'Workspace "{{.Labels.name}}" updated automatically',
-		body_template:
-			"Hi {{.UserName}}\nYour workspace **{{.Labels.name}}** has been updated automatically to the latest template version ({{.Labels.template_version_name}}).",
-		actions:
-			'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
-		group: "Workspace Events",
-		method: "smtp",
-		kind: "system",
-		enabled_by_default: true,
-	},
-	{
-		id: "51ce2fdf-c9ca-4be1-8d70-628674f9bc42",
-		name: "Workspace Marked for Deletion",
-		title_template: 'Workspace "{{.Labels.name}}" marked for deletion',
-		body_template:
-			"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked for **deletion** after {{.Labels.timeTilDormant}} of [dormancy](https://coder.com/docs/templates/schedule#dormancy-auto-deletion-enterprise) because of {{.Labels.reason}}.\nTo prevent deletion, use your workspace with the link below.",
-		actions:
-			'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
-		group: "Workspace Events",
-		method: "webhook",
-		kind: "system",
-		enabled_by_default: true,
-	},
-	{
-		id: "template-event-1",
-		name: "Template Version Created",
-		title_template: 'Template version "{{.Labels.version_name}}" created',
-		body_template:
-			'Hi {{.UserName}}\nA new version of template "{{.Labels.template_name}}" has been created.',
-		actions:
-			'[{"url": "{{ base_url }}/templates/{{.Labels.template_name}}", "label": "View template"}]',
-		group: "Template Events",
-		method: "smtp",
-		kind: "system",
-		enabled_by_default: true,
-	},
-	{
-		id: "template-event-2",
-		name: "Template Updated",
-		title_template: 'Template "{{.Labels.template_name}}" updated',
-		body_template:
-			'Hi {{.UserName}}\nTemplate "{{.Labels.template_name}}" has been updated.',
-		actions:
-			'[{"url": "{{ base_url }}/templates/{{.Labels.template_name}}", "label": "View template"}]',
-		group: "Template Events",
-		method: "webhook",
-		kind: "system",
-		enabled_by_default: true,
-	},
-];
+export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
+	[
+		{
+			id: "381df2a9-c0c0-4749-420f-80a9280c66f9",
+			name: "Workspace Autobuild Failed",
+			title_template: 'Workspace "{{.Labels.name}}" autobuild failed',
+			body_template:
+				'Hi {{.UserName}}\nAutomatic build of your workspace **{{.Labels.name}}** failed.\nThe specified reason was "**{{.Labels.reason}}**".',
+			actions:
+				'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
+			group: "Workspace Events",
+			method: "webhook",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "f517da0b-cdc9-410f-ab89-a86107c420ed",
+			name: "Workspace Deleted",
+			title_template: 'Workspace "{{.Labels.name}}" deleted',
+			body_template:
+				'Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** was deleted.\nThe specified reason was "**{{.Labels.reason}}{{ if .Labels.initiator }} ({{ .Labels.initiator }}){{end}}**".',
+			actions:
+				'[{"url": "{{ base_url }}/workspaces", "label": "View workspaces"}, {"url": "{{ base_url }}/templates", "label": "View templates"}]',
+			group: "Workspace Events",
+			method: "smtp",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "f44d9314-ad03-4bc8-95d0-5cad491da6b6",
+			name: "User account deleted",
+			title_template: 'User account "{{.Labels.deleted_account_name}}" deleted',
+			body_template:
+				"Hi {{.UserName}},\n\nUser account **{{.Labels.deleted_account_name}}** has been deleted.",
+			actions:
+				'[{"url": "{{ base_url }}/deployment/users?filter=status%3Aactive", "label": "View accounts"}]',
+			group: "User Events",
+			method: "",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "4e19c0ac-94e1-4532-9515-d1801aa283b2",
+			name: "User account created",
+			title_template: 'User account "{{.Labels.created_account_name}}" created',
+			body_template:
+				"Hi {{.UserName}},\n\nNew user account **{{.Labels.created_account_name}}** has been created.",
+			actions:
+				'[{"url": "{{ base_url }}/deployment/users?filter=status%3Aactive", "label": "View accounts"}]',
+			group: "User Events",
+			method: "",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "0ea69165-ec14-4314-91f1-69566ac3c5a0",
+			name: "Workspace Marked as Dormant",
+			title_template: 'Workspace "{{.Labels.name}}" marked as dormant',
+			body_template:
+				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked as [**dormant**](https://coder.com/docs/templates/schedule#dormancy-threshold-enterprise) because of {{.Labels.reason}}.\nDormant workspaces are [automatically deleted](https://coder.com/docs/templates/schedule#dormancy-auto-deletion-enterprise) after {{.Labels.timeTilDormant}} of inactivity.\nTo prevent deletion, use your workspace with the link below.",
+			actions:
+				'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
+			group: "Workspace Events",
+			method: "smtp",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "c34a0c09-0704-4cac-bd1c-0c0146811c2b",
+			name: "Workspace updated automatically",
+			title_template: 'Workspace "{{.Labels.name}}" updated automatically',
+			body_template:
+				"Hi {{.UserName}}\nYour workspace **{{.Labels.name}}** has been updated automatically to the latest template version ({{.Labels.template_version_name}}).",
+			actions:
+				'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
+			group: "Workspace Events",
+			method: "smtp",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "51ce2fdf-c9ca-4be1-8d70-628674f9bc42",
+			name: "Workspace Marked for Deletion",
+			title_template: 'Workspace "{{.Labels.name}}" marked for deletion',
+			body_template:
+				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked for **deletion** after {{.Labels.timeTilDormant}} of [dormancy](https://coder.com/docs/templates/schedule#dormancy-auto-deletion-enterprise) because of {{.Labels.reason}}.\nTo prevent deletion, use your workspace with the link below.",
+			actions:
+				'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
+			group: "Workspace Events",
+			method: "webhook",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "template-event-1",
+			name: "Template Version Created",
+			title_template: 'Template version "{{.Labels.version_name}}" created',
+			body_template:
+				'Hi {{.UserName}}\nA new version of template "{{.Labels.template_name}}" has been created.',
+			actions:
+				'[{"url": "{{ base_url }}/templates/{{.Labels.template_name}}", "label": "View template"}]',
+			group: "Template Events",
+			method: "smtp",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "template-event-2",
+			name: "Template Updated",
+			title_template: 'Template "{{.Labels.template_name}}" updated',
+			body_template:
+				'Hi {{.UserName}}\nTemplate "{{.Labels.template_name}}" has been updated.',
+			actions:
+				'[{"url": "{{ base_url }}/templates/{{.Labels.template_name}}", "label": "View template"}]',
+			group: "Template Events",
+			method: "webhook",
+			kind: "system",
+			enabled_by_default: true,
+		},
+	];
+
+export const MockCustomNotificationTemplates: TypesGen.NotificationTemplate[] =
+	[
+		{
+			id: "39b1e189-c857-4b0c-877a-511144c18516",
+			name: "Custom Notification",
+			title_template: "{{.Labels.custom_title}}",
+			body_template: "{{.Labels.custom_message}}",
+			actions: "[]",
+			group: "Custom Events",
+			method: "",
+			kind: "custom",
+			enabled_by_default: true,
+		},
+	];
 
 export const MockNotificationMethodsResponse: TypesGen.NotificationMethodsResponse =
 	{ available: ["smtp", "webhook"], default: "smtp" };
@@ -4877,6 +4914,7 @@ export const MockTasks = [
 	{
 		workspace: {
 			...MockWorkspace,
+			name: "create-competitors-page",
 			latest_app_status: MockWorkspaceAppStatus,
 		},
 		prompt: "Create competitors page",
@@ -4885,6 +4923,7 @@ export const MockTasks = [
 		workspace: {
 			...MockWorkspace,
 			id: "workspace-2",
+			name: "fix-avatar-size",
 			latest_app_status: {
 				...MockWorkspaceAppStatus,
 				message: "Avatar size fixed!",
@@ -4896,6 +4935,7 @@ export const MockTasks = [
 		workspace: {
 			...MockWorkspace,
 			id: "workspace-3",
+			name: "fix-accessibility-issues",
 			latest_app_status: {
 				...MockWorkspaceAppStatus,
 				message: "Accessibility issues fixed!",

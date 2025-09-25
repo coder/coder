@@ -2884,6 +2884,29 @@ export interface Task {
 }
 
 // From codersdk/aitasks.go
+export interface TaskLogEntry {
+	readonly id: number;
+	readonly content: string;
+	readonly type: TaskLogType;
+	readonly time: string;
+}
+
+// From codersdk/aitasks.go
+export type TaskLogType = "input" | "output";
+
+export const TaskLogTypes: TaskLogType[] = ["input", "output"];
+
+// From codersdk/aitasks.go
+export interface TaskLogsResponse {
+	readonly logs: readonly TaskLogEntry[];
+}
+
+// From codersdk/aitasks.go
+export interface TaskSendRequest {
+	readonly input: string;
+}
+
+// From codersdk/aitasks.go
 export type TaskState = "completed" | "failed" | "idle" | "working";
 
 // From codersdk/aitasks.go

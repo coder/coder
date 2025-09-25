@@ -8,6 +8,7 @@ import ListItemText, { listItemTextClasses } from "@mui/material/ListItemText";
 import Switch from "@mui/material/Switch";
 import Tooltip from "@mui/material/Tooltip";
 import {
+	customNotificationTemplates,
 	disableNotification,
 	notificationDispatchMethods,
 	selectTemplatesByGroup,
@@ -38,7 +39,12 @@ import { Section } from "../Section";
 
 const NotificationsPage: FC = () => {
 	const { user, permissions } = useAuthenticated();
-	const [disabledPreferences, templatesByGroup, dispatchMethods] = useQueries({
+	const [
+		disabledPreferences,
+		systemTemplatesByGroup,
+		customTemplatesByGroup,
+		dispatchMethods,
+	] = useQueries({
 		queries: [
 			{
 				...userNotificationPreferences(user.id),
@@ -46,6 +52,10 @@ const NotificationsPage: FC = () => {
 			},
 			{
 				...systemNotificationTemplates(),
+				select: (data: NotificationTemplate[]) => selectTemplatesByGroup(data),
+			},
+			{
+				...customNotificationTemplates(),
 				select: (data: NotificationTemplate[]) => selectTemplatesByGroup(data),
 			},
 			notificationDispatchMethods(),
@@ -80,7 +90,15 @@ const NotificationsPage: FC = () => {
 	}, [searchParams.delete, disabledId, disableMutation]);
 
 	const ready =
-		disabledPreferences.data && templatesByGroup.data && dispatchMethods.data;
+		disabledPreferences.data &&
+		systemTemplatesByGroup.data &&
+		customTemplatesByGroup.data &&
+		dispatchMethods.data;
+	// Combine system and custom notification templates
+	const allTemplatesByGroup = {
+		...systemTemplatesByGroup.data,
+		...customTemplatesByGroup.data,
+	};
 
 	return (
 		<>
@@ -94,7 +112,7 @@ const NotificationsPage: FC = () => {
 			>
 				{ready ? (
 					<Stack spacing={4}>
-						{Object.entries(templatesByGroup.data).map(([group, templates]) => {
+						{Object.entries(allTemplatesByGroup).map(([group, templates]) => {
 							if (!canSeeNotificationGroup(group, permissions)) {
 								return null;
 							}
@@ -218,6 +236,8 @@ function canSeeNotificationGroup(
 			return permissions.createTemplates;
 		case "User Events":
 			return permissions.createUser;
+		case "Custom Events":
+			return true;
 		default:
 			return false;
 	}

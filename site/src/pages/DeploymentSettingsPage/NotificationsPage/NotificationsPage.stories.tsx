@@ -1,9 +1,11 @@
 import {
+	MockCustomNotificationTemplates,
 	MockNotificationMethodsResponse,
-	MockNotificationTemplates,
+	MockSystemNotificationTemplates,
 } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
+	customNotificationTemplatesKey,
 	notificationDispatchMethodsKey,
 	systemNotificationTemplatesKey,
 } from "api/queries/notifications";
@@ -29,6 +31,10 @@ export const LoadingTemplates: Story = {
 				data: undefined,
 			},
 			{
+				key: customNotificationTemplatesKey,
+				data: undefined,
+			},
+			{
 				key: notificationDispatchMethodsKey,
 				data: MockNotificationMethodsResponse,
 			},
@@ -39,7 +45,14 @@ export const LoadingTemplates: Story = {
 export const LoadingDispatchMethods: Story = {
 	parameters: {
 		queries: [
-			{ key: systemNotificationTemplatesKey, data: MockNotificationTemplates },
+			{
+				key: systemNotificationTemplatesKey,
+				data: MockSystemNotificationTemplates,
+			},
+			{
+				key: customNotificationTemplatesKey,
+				data: MockCustomNotificationTemplates,
+			},
 			{
 				key: notificationDispatchMethodsKey,
 				data: undefined,
@@ -48,7 +61,20 @@ export const LoadingDispatchMethods: Story = {
 	},
 };
 
-export const Events: Story = {};
+export const Events: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// System notification templates
+		await canvas.findByText("Template Events");
+		await canvas.findByText("User Events");
+		await canvas.findByText("Workspace Events");
+
+		// Custom notification template
+		await canvas.findByText("Custom Events");
+		await canvas.findByText("Custom Notification");
+	},
+};
 
 export const Settings: Story = {
 	play: async ({ canvasElement }) => {
