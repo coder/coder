@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/cryptorand"
 )
@@ -99,6 +100,12 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 	for _, s := range scopes {
 		if !s.Valid() {
 			return database.InsertAPIKeyParams{}, "", xerrors.Errorf("invalid API key scope: %q", s)
+		}
+	}
+
+	if len(params.AllowList) == 0 {
+		params.AllowList = database.AllowList{
+			rbac.AllowListElement{Type: rbac.ResourceWildcard.Type, ID: policy.WildcardSymbol},
 		}
 	}
 
