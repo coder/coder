@@ -449,7 +449,7 @@ func TestTasks(t *testing.T) {
 					assert.Equal(t, `{"content":"Hello, Agent!","type":"user"}`, string(b), "expected message content")
 
 					w.WriteHeader(http.StatusOK)
-					io.WriteString(w, `{"status": "ok"}`)
+					io.WriteString(w, `{"ok": true}`)
 					return
 				}
 				w.WriteHeader(http.StatusInternalServerError)
