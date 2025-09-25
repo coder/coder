@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/x/aibridged"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -120,21 +121,22 @@ func TestIntegration(t *testing.T) {
 	t.Cleanup(mockOpenAI.Close)
 
 	db, ps := dbtestutil.NewDB(t)
-	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		Database: db,
-		Pubsub:   ps,
-		ExternalAuthConfigs: []*externalauth.Config{
-			{
-				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
-				ID:                       "mock",
-				Type:                     "mock",
-				DisplayName:              "Mock",
-				MCPURL:                   mockMCPServer.URL,
+	client, _, api, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
+			ExternalAuthConfigs: []*externalauth.Config{
+				{
+					InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+					ID:                       "mock",
+					Type:                     "mock",
+					DisplayName:              "Mock",
+					MCPURL:                   mockMCPServer.URL,
+				},
 			},
 		},
 	})
 
-	firstUser := coderdtest.CreateFirstUser(t, client)
 	userClient, user := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 
 	// Create an API token for the user.

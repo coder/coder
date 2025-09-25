@@ -25,8 +25,6 @@ import (
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
-	"github.com/coder/coder/v2/enterprise/x/aibridged"
-	aibridgedproto "github.com/coder/coder/v2/enterprise/x/aibridged/proto"
 
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
@@ -46,7 +44,6 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
-	"github.com/coder/coder/v2/enterprise/x/aibridgedserver"
 	"github.com/coder/coder/v2/provisionerd/proto"
 
 	"cdr.dev/slog"
@@ -1007,7 +1004,7 @@ func New(options *Options) *API {
 
 		// Only this group should be subject to apiKeyMiddleware; aibridged will mount its own
 		// router and handles key validation in a different fashion.
-		// See aibridged/http.go.
+		// See enterprise/x/aibridged/http.go.
 		r.Group(func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Route("/aitasks", func(r chi.Router) {
@@ -1985,78 +1982,6 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	}()
 
 	return proto.NewDRPCProvisionerDaemonClient(clientSession), nil
-}
-
-// CreateInMemoryAIBridgeServer creates a [aibridged.DRPCServer] and returns a
-// [aibridged.DRPCClient] to it, connected over an in-memory transport.
-// This server is responsible for all the Coder-specific functionality that aibridged
-// requires such as persistence and retrieving configuration.
-func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client aibridged.DRPCClient, err error) {
-	// TODO(dannyk): implement options.
-	// TODO(dannyk): implement tracing.
-	// TODO(dannyk): implement API versioning.
-
-	clientSession, serverSession := drpcsdk.MemTransportPipe()
-	defer func() {
-		if err != nil {
-			_ = clientSession.Close()
-			_ = serverSession.Close()
-		}
-	}()
-
-	mux := drpcmux.New()
-	srv, err := aibridgedserver.NewServer(api.ctx, api.Database, api.Logger.Named("aibridgedserver"),
-		api.AccessURL.String(), api.ExternalAuthConfigs, api.Experiments)
-	if err != nil {
-		return nil, err
-	}
-	err = aibridgedproto.DRPCRegisterRecorder(mux, srv)
-	if err != nil {
-		return nil, xerrors.Errorf("register recorder service: %w", err)
-	}
-	err = aibridgedproto.DRPCRegisterMCPConfigurator(mux, srv)
-	if err != nil {
-		return nil, xerrors.Errorf("register MCP configurator service: %w", err)
-	}
-	err = aibridgedproto.DRPCRegisterAuthorizer(mux, srv)
-	if err != nil {
-		return nil, xerrors.Errorf("register key validator service: %w", err)
-	}
-	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
-		drpcserver.Options{
-			Manager: drpcsdk.DefaultDRPCOptions(nil),
-			Log: func(err error) {
-				if errors.Is(err, io.EOF) {
-					return
-				}
-				api.Logger.Debug(dialCtx, "aibridged drpc server error", slog.Error(err))
-			},
-		},
-	)
-	// in-mem pipes aren't technically "websockets" but they have the same properties as far as the
-	// API is concerned: they are long-lived connections that we need to close before completing
-	// shutdown of the API.
-	api.WebsocketWaitMutex.Lock()
-	api.WebsocketWaitGroup.Add(1)
-	api.WebsocketWaitMutex.Unlock()
-	go func() {
-		defer api.WebsocketWaitGroup.Done()
-		// Here we pass the background context, since we want the server to keep serving until the
-		// client hangs up. The aibridged is local, in-mem, so there isn't a danger of losing contact with it and
-		// having a dead connection we don't know the status of.
-		err := server.Serve(context.Background(), serverSession)
-		api.Logger.Info(dialCtx, "aibridge daemon disconnected", slog.Error(err))
-		// Close the sessions, so we don't leak goroutines serving them.
-		_ = clientSession.Close()
-		_ = serverSession.Close()
-	}()
-
-	return &aibridged.Client{
-		Conn:                      clientSession,
-		DRPCRecorderClient:        aibridgedproto.NewDRPCRecorderClient(clientSession),
-		DRPCMCPConfiguratorClient: aibridgedproto.NewDRPCMCPConfiguratorClient(clientSession),
-		DRPCAuthorizerClient:      aibridgedproto.NewDRPCAuthorizerClient(clientSession),
-	}, nil
 }
 
 func (api *API) DERPMap() *tailcfg.DERPMap {
