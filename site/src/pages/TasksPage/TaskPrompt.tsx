@@ -29,7 +29,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks/useAuthenticated";
 import { useExternalAuth } from "hooks/useExternalAuth";
-import { RedoIcon, RotateCcwIcon, SendIcon } from "lucide-react";
+import { ArrowUpIcon, RedoIcon, RotateCcwIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME } from "modules/tasks/tasks";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -106,8 +106,8 @@ const TaskPromptSkeleton: FC = () => {
 
 				{/* Bottom controls skeleton */}
 				<div className="flex items-center justify-between pt-2">
-					<Skeleton className="w-[208px] h-8" />
-					<Skeleton className="w-[96px] h-8" />
+					<Skeleton className="w-[160px] h-8 rounded-full" />
+					<Skeleton className="size-8 rounded-full" />
 				</div>
 			</div>
 		</div>
@@ -225,7 +225,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 			{externalAuthError && <ErrorAlert error={externalAuthError} />}
 
 			<fieldset
-				className="border border-border border-solid rounded-lg p-4"
+				className="border border-border border-solid rounded-3xl p-4"
 				disabled={createTaskMutation.isPending}
 			>
 				<label
@@ -251,23 +251,23 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 						}`}
 				/>
 				<div className="flex items-center justify-between pt-2">
-					<div className="flex items-center gap-4">
-						<div className="flex flex-col gap-1">
-							<label
-								htmlFor="templateID"
-								className="text-xs font-medium text-content-primary"
-							>
+					<div className="flex items-center gap-2">
+						<div>
+							<label htmlFor="templateID" className="sr-only">
 								Template
 							</label>
 							<Select
 								name="templateID"
-								onValueChange={(value) => setSelectedTemplateId(value)}
+								onValueChange={(value) => {
+									setSelectedTemplateId(value);
+									setSelectedPresetId(undefined);
+								}}
 								defaultValue={templates[0].id}
 								required
 							>
 								<SelectTrigger
 									id="templateID"
-									className="w-80 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3"
+									className="w-fit text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3 rounded-full"
 								>
 									<SelectValue placeholder="Select a template" />
 								</SelectTrigger>
@@ -285,40 +285,28 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 							</Select>
 						</div>
 
-						{isLoadingPresets ? (
-							<div className="flex flex-col gap-1">
-								<label
-									htmlFor="presetID"
-									className="text-xs font-medium text-content-primary"
-								>
+						{presets && presets.length > 0 && (
+							<div>
+								<label htmlFor="presetID" className="sr-only">
 									Preset
 								</label>
-								<Skeleton className="w-[320px] h-8" />
-							</div>
-						) : (
-							presets &&
-							presets.length > 0 && (
-								<div className="flex flex-col gap-1">
-									<label
-										htmlFor="presetID"
-										className="text-xs font-medium text-content-primary"
-									>
-										Preset
-									</label>
+								{isLoadingPresets ? (
+									<Skeleton className="w-[160px] h-8" />
+								) : (
 									<Select
 										key={`preset-select-${selectedTemplate.active_version_id}`}
 										name="presetID"
-										value={selectedPresetId || undefined}
+										value={selectedPresetId}
 										onValueChange={setSelectedPresetId}
 									>
 										<SelectTrigger
 											id="presetID"
-											className="w-80 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3"
+											className="w-fit text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3 rounded-full"
 										>
 											<SelectValue placeholder="Select a preset" />
 										</SelectTrigger>
 										<SelectContent>
-											{presets.toSorted(sortByDefault).map((preset) => (
+											{presets?.toSorted(sortByDefault).map((preset) => (
 												<SelectItem value={preset.ID} key={preset.ID}>
 													<span className="overflow-hidden text-ellipsis block">
 														{preset.Name} {preset.Default && "(Default)"}
@@ -327,8 +315,8 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 											))}
 										</SelectContent>
 									</Select>
-								</div>
-							)
+								)}
+							</div>
 						)}
 					</div>
 
@@ -340,7 +328,12 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 							/>
 						)}
 
-						<Button size="sm" type="submit" disabled={isMissingExternalAuth}>
+						<Button
+							size="icon"
+							className="rounded-full"
+							type="submit"
+							disabled={isMissingExternalAuth}
+						>
 							<Spinner
 								loading={
 									isLoadingExternalAuth ||
@@ -348,9 +341,9 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 									createTaskMutation.isPending
 								}
 							>
-								<SendIcon />
+								<ArrowUpIcon />
 							</Spinner>
-							Run task
+							<span className="sr-only">Run task</span>
 						</Button>
 					</div>
 				</div>
@@ -380,6 +373,7 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 			<div className="flex items-center gap-2" key={auth.id}>
 				<Button
 					variant="outline"
+					className="rounded-full"
 					size="sm"
 					disabled={isPollingExternalAuth || auth.authenticated}
 					onClick={() => {

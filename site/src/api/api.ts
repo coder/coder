@@ -426,7 +426,7 @@ export type GetProvisionerDaemonsParams = {
 	offline?: boolean;
 };
 
-export type TasksFilter = {
+type TasksFilter = {
 	username?: string;
 };
 
