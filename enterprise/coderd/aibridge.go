@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -39,7 +40,7 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	page, ok := ParsePagination(rw, r)
+	page, ok := coderd.ParsePagination(rw, r)
 	if !ok {
 		return
 	}

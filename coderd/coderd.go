@@ -1000,43 +1000,40 @@ func New(options *Options) *API {
 
 	// Experimental routes are not guaranteed to be stable and may change at any time.
 	r.Route("/api/experimental", func(r chi.Router) {
+		api.ExperimentalHandler = r
+
 		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
-
-		// Only this group should be subject to apiKeyMiddleware; aibridged will mount its own
-		// router and handles key validation in a different fashion.
-		// See enterprise/x/aibridged/http.go.
-		r.Group(func(r chi.Router) {
+		r.Use(
+			// Specific routes can specify different limits, but every rate
+			// limit must be configurable by the admin.
+			apiRateLimiter,
+			httpmw.ReportCLITelemetry(api.Logger, options.Telemetry),
+		)
+		r.Route("/aitasks", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Route("/aibridge", func(r chi.Router) {
-				r.Use(
-					httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAIBridge),
-				)
-				r.Get("/interceptions", api.aiBridgeListInterceptions)
-			})
-			r.Route("/aitasks", func(r chi.Router) {
-				r.Get("/prompts", api.aiTasksPrompts)
-			})
-			r.Route("/tasks", func(r chi.Router) {
-				r.Use(apiRateLimiter)
+			r.Get("/prompts", api.aiTasksPrompts)
+		})
+		r.Route("/tasks", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
 
-				r.Get("/", api.tasksList)
+			r.Get("/", api.tasksList)
 
-				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
-					r.Get("/{id}", api.taskGet)
-					r.Delete("/{id}", api.taskDelete)
-					r.Post("/{id}/send", api.taskSend)
-					r.Get("/{id}/logs", api.taskLogs)
-					r.Post("/", api.tasksCreate)
-				})
+			r.Route("/{user}", func(r chi.Router) {
+				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+				r.Get("/{id}", api.taskGet)
+				r.Delete("/{id}", api.taskDelete)
+				r.Post("/{id}/send", api.taskSend)
+				r.Get("/{id}/logs", api.taskLogs)
+				r.Post("/", api.tasksCreate)
 			})
-			r.Route("/mcp", func(r chi.Router) {
-				r.Use(
-					httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP),
-				)
-				// MCP HTTP transport endpoint with mandatory authentication
-				r.Mount("/http", api.mcpHTTPHandler())
-			})
+		})
+		r.Route("/mcp", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP),
+			)
+			// MCP HTTP transport endpoint with mandatory authentication
+			r.Mount("/http", api.mcpHTTPHandler())
 		})
 	})
 
@@ -1733,6 +1730,8 @@ type API struct {
 
 	// APIHandler serves "/api/v2"
 	APIHandler chi.Router
+	// ExperimentalHandler serves "/api/experimental"
+	ExperimentalHandler chi.Router
 	// RootHandler serves "/"
 	RootHandler chi.Router
 

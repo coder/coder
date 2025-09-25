@@ -1000,10 +1000,3 @@ func jsonOrEmptyMap(rawMessage pqtype.NullRawMessage) map[string]any {
 	}
 	return m
 }
-
-func ensureNonNilSlice[T any](slice []T) []T {
-	if slice == nil {
-		return []T{}
-	}
-	return slice
-}

@@ -4417,34 +4417,34 @@ func (q *querier) ListAIBridgeInterceptions(ctx context.Context, arg database.Li
 	return q.db.ListAuthorizedAIBridgeInterceptions(ctx, arg, prep)
 }
 
-func (q *querier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
+func (q *querier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIDs []uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
 	// This function is a system function until we implement a join for aibridge interceptions.
 	// Matches the behavior of the workspaces listing endpoint.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
 
-	return q.db.ListAIBridgeTokenUsagesByInterceptionIDs(ctx, interceptionIds)
+	return q.db.ListAIBridgeTokenUsagesByInterceptionIDs(ctx, interceptionIDs)
 }
 
-func (q *querier) ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]database.AIBridgeToolUsage, error) {
+func (q *querier) ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIDs []uuid.UUID) ([]database.AIBridgeToolUsage, error) {
 	// This function is a system function until we implement a join for aibridge interceptions.
 	// Matches the behavior of the workspaces listing endpoint.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
 
-	return q.db.ListAIBridgeToolUsagesByInterceptionIDs(ctx, interceptionIds)
+	return q.db.ListAIBridgeToolUsagesByInterceptionIDs(ctx, interceptionIDs)
 }
 
-func (q *querier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]database.AIBridgeUserPrompt, error) {
+func (q *querier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIDs []uuid.UUID) ([]database.AIBridgeUserPrompt, error) {
 	// This function is a system function until we implement a join for aibridge interceptions.
 	// Matches the behavior of the workspaces listing endpoint.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
 
-	return q.db.ListAIBridgeUserPromptsByInterceptionIDs(ctx, interceptionIds)
+	return q.db.ListAIBridgeUserPromptsByInterceptionIDs(ctx, interceptionIDs)
 }
 
 func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
