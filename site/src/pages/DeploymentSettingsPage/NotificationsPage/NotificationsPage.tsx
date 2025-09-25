@@ -1,5 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import {
+	customNotificationTemplates,
 	notificationDispatchMethods,
 	selectTemplatesByGroup,
 	systemNotificationTemplates,
@@ -27,21 +28,35 @@ import { Troubleshooting } from "./Troubleshooting";
 
 const NotificationsPage: FC = () => {
 	const { deploymentConfig } = useDeploymentConfig();
-	const [templatesByGroup, dispatchMethods] = useQueries({
-		queries: [
-			{
-				...systemNotificationTemplates(),
-				select: selectTemplatesByGroup,
-			},
-			notificationDispatchMethods(),
-		],
-	});
+	const [systemTemplatesByGroup, customTemplatesByGroup, dispatchMethods] =
+		useQueries({
+			queries: [
+				{
+					...systemNotificationTemplates(),
+					select: selectTemplatesByGroup,
+				},
+				{
+					...customNotificationTemplates(),
+					select: selectTemplatesByGroup,
+				},
+				notificationDispatchMethods(),
+			],
+		});
 	const tabState = useSearchParamsKey({
 		key: "tab",
 		defaultValue: "events",
 	});
 
-	const ready = !!(templatesByGroup.data && dispatchMethods.data);
+	const ready = !!(
+		systemTemplatesByGroup.data &&
+		customTemplatesByGroup.data &&
+		dispatchMethods.data
+	);
+	// Combine system and custom notification templates
+	const allTemplatesByGroup = {
+		...systemTemplatesByGroup.data,
+		...customTemplatesByGroup.data,
+	};
 	return (
 		<>
 			<Helmet>
@@ -79,7 +94,7 @@ const NotificationsPage: FC = () => {
 				{ready ? (
 					tabState.value === "events" ? (
 						<NotificationEvents
-							templatesByGroup={templatesByGroup.data}
+							templatesByGroup={allTemplatesByGroup}
 							deploymentConfig={deploymentConfig.config}
 							defaultMethod={castNotificationMethod(
 								dispatchMethods.data.default,

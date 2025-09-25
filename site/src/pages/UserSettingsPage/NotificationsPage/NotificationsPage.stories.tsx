@@ -1,7 +1,8 @@
 import {
+	MockCustomNotificationTemplates,
 	MockNotificationMethodsResponse,
 	MockNotificationPreferences,
-	MockNotificationTemplates,
+	MockSystemNotificationTemplates,
 	MockUserOwner,
 } from "testHelpers/entities";
 import {
@@ -12,6 +13,7 @@ import {
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import {
+	customNotificationTemplatesKey,
 	notificationDispatchMethodsKey,
 	systemNotificationTemplatesKey,
 	userNotificationPreferencesKey,
@@ -32,7 +34,11 @@ const meta = {
 			},
 			{
 				key: systemNotificationTemplatesKey,
-				data: MockNotificationTemplates,
+				data: MockSystemNotificationTemplates,
+			},
+			{
+				key: customNotificationTemplatesKey,
+				data: MockCustomNotificationTemplates,
 			},
 			{
 				key: notificationDispatchMethodsKey,
@@ -100,7 +106,7 @@ if (!enabledPreference) {
 		"No enabled notification preference available to test the disabling action.",
 	);
 }
-const templateToDisable = MockNotificationTemplates.find(
+const templateToDisable = MockSystemNotificationTemplates.find(
 	(tpl) => tpl.id === enabledPreference.id,
 );
 if (!templateToDisable) {
