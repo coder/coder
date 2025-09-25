@@ -186,11 +186,12 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 
 	const createTaskMutation = useMutation({
 		mutationFn: async ({ prompt }: CreateTaskMutationFnProps) =>
-			API.experimental.createTask(user.id, {
+			createTaskWithLatestTemplateVersion(
 				prompt,
-				template_version_id: selectedTemplate.active_version_id,
-				template_version_preset_id: selectedPresetId,
-			}),
+				user.id,
+				selectedTemplate.id,
+				selectedPresetId,
+			),
 		onSuccess: async (task) => {
 			await queryClient.invalidateQueries({ queryKey: ["tasks"] });
 			onSuccess(task);
@@ -426,4 +427,22 @@ function sortByDefault(a: Preset, b: Preset) {
 	if (!a.Default && b.Default) return 1;
 	// Otherwise, sort alphabetically by name
 	return a.Name.localeCompare(b.Name);
+}
+
+// TODO: Enforce task creation to always use the latest active template version.
+// During task creation, the active version might change between template load
+// and user action. Since handling this in the FE cannot guarantee correctness,
+// we should move the logic to the BE after the experimental phase.
+async function createTaskWithLatestTemplateVersion(
+	prompt: string,
+	userId: string,
+	templateId: string,
+	presetId: string | undefined,
+): Promise<Task> {
+	const template = await API.getTemplate(templateId);
+	return API.experimental.createTask(userId, {
+		prompt,
+		template_version_id: template.active_version_id,
+		template_version_preset_id: presetId,
+	});
 }

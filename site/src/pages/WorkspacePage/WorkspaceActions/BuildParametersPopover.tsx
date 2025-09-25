@@ -7,12 +7,6 @@ import type {
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-	usePopover,
-} from "components/deprecated/Popover/Popover";
 import { FormFields } from "components/Form/Form";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
 import {
@@ -21,13 +15,18 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
+import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import { useFormik } from "formik";
 import { ChevronDownIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { useQuery } from "react-query";
-import { useNavigate } from "react-router";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
 import {
@@ -48,6 +47,7 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 	label,
 	onSubmit,
 }) => {
+	const [isOpen, setIsOpen] = useState(false);
 	const { data: parameters } = useQuery({
 		queryKey: ["workspace", workspace.id, "parameters"],
 		queryFn: () => API.getWorkspaceParameters(workspace),
@@ -57,8 +57,8 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 		: undefined;
 
 	return (
-		<Popover>
-			<PopoverTrigger>
+		<Popover open={isOpen} onOpenChange={setIsOpen}>
+			<PopoverTrigger asChild>
 				<TopbarButton
 					data-testid="build-parameters-button"
 					disabled={disabled}
@@ -69,14 +69,15 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 				</TopbarButton>
 			</PopoverTrigger>
 			<PopoverContent
-				horizontal="right"
-				css={{ ".MuiPaper-root": { width: 304 } }}
+				align="end"
+				className="bg-surface-secondary border-surface-quaternary w-[304px]"
 			>
 				<BuildParametersPopoverContent
 					workspace={workspace}
 					ephemeralParameters={ephemeralParameters}
 					buildParameters={parameters?.buildParameters}
 					onSubmit={onSubmit}
+					setIsOpen={setIsOpen}
 				/>
 			</PopoverContent>
 		</Popover>
@@ -88,6 +89,7 @@ interface BuildParametersPopoverContentProps {
 	ephemeralParameters?: TemplateVersionParameter[];
 	buildParameters?: WorkspaceBuildParameter[];
 	onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
+	setIsOpen: (newOpen: boolean) => void;
 }
 
 const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
@@ -95,23 +97,15 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 	ephemeralParameters,
 	buildParameters,
 	onSubmit,
+	setIsOpen,
 }) => {
 	const theme = useTheme();
-	const popover = usePopover();
-	const navigate = useNavigate();
 
 	if (
 		!workspace.template_use_classic_parameter_flow &&
 		ephemeralParameters &&
 		ephemeralParameters.length > 0
 	) {
-		const handleGoToParameters = () => {
-			popover.setOpen(false);
-			navigate(
-				`/@${workspace.owner_name}/${workspace.name}/settings/parameters`,
-			);
-		};
-
 		return (
 			<div className="flex flex-col gap-4 p-5">
 				<p className="m-0 text-sm text-content-secondary">
@@ -137,9 +131,12 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 					</ul>
 				</div>
 
-				<Button className="w-full" onClick={handleGoToParameters}>
+				<Link
+					href={`/@${workspace.owner_name}/${workspace.name}/settings/parameters`}
+					className="self-start"
+				>
 					Go to workspace parameters
-				</Button>
+				</Link>
 			</div>
 		);
 	}
@@ -165,7 +162,7 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 							<Form
 								onSubmit={(buildParameters) => {
 									onSubmit(buildParameters);
-									popover.setOpen(false);
+									setIsOpen(false);
 								}}
 								ephemeralParameters={ephemeralParameters}
 								buildParameters={buildParameters.map(

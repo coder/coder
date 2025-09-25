@@ -3,6 +3,8 @@ import { getErrorMessage } from "api/errors";
 import { cva } from "class-variance-authority";
 import { Button } from "components/Button/Button";
 import { CoderIcon } from "components/Icons/CoderIcon";
+import { ScrollArea } from "components/ScrollArea/ScrollArea";
+import { Skeleton } from "components/Skeleton/Skeleton";
 import {
 	Tooltip,
 	TooltipContent,
@@ -33,7 +35,7 @@ export const TasksSidebar: FC = () => {
 			className={cn(
 				"h-full flex flex-col flex-1 min-h-0 gap-6 bg-surface-secondary max-w-80",
 				"border-solid border-0 border-r transition-all p-3",
-				{ "max-w-16 items-center": isCollapsed },
+				{ "max-w-14": isCollapsed },
 			)}
 		>
 			<div className="flex items-center place-content-between">
@@ -41,10 +43,7 @@ export const TasksSidebar: FC = () => {
 					<Button
 						size="icon"
 						variant="subtle"
-						className={cn([
-							"size-8 p-0 transition-[margin,opacity]",
-							"group-data-[collapsible=icon]:-ml-10 group-data-[collapsible=icon]:opacity-0",
-						])}
+						className={cn(["size-8 p-0 transition-[margin,opacity]"])}
 					>
 						<CoderIcon className="fill-content-primary !size-6 !p-0" />
 					</Button>
@@ -129,36 +128,34 @@ const TasksSidebarGroup: FC<TasksSidebarGroupProps> = ({ username }) => {
 	});
 
 	return (
-		<div className="flex flex-col flex-1 gap-2 min-h-0 transition-[opacity] group-data-[collapsible=icon]:opacity-0">
-			<div className="text-content-secondary text-xs">Tasks</div>
-			<div className="flex flex-col flex-1 gap-1 min-h-0 overflow-y-auto">
-				{tasksQuery.data ? (
-					tasksQuery.data.length > 0 ? (
-						tasksQuery.data.map((t) => (
-							<TaskSidebarMenuItem key={t.workspace.id} task={t} />
-						))
-					) : (
+		<ScrollArea>
+			<div className="flex flex-col gap-2">
+				<div className="text-content-secondary text-xs">Tasks</div>
+				<div className="flex flex-col flex-1 gap-1">
+					{tasksQuery.data ? (
+						tasksQuery.data.length > 0 ? (
+							tasksQuery.data.map((t) => (
+								<TaskSidebarMenuItem key={t.workspace.id} task={t} />
+							))
+						) : (
+							<div className="text-content-secondary text-xs p-4 border-border border-solid rounded text-center">
+								No tasks found
+							</div>
+						)
+					) : tasksQuery.error ? (
 						<div className="text-content-secondary text-xs p-4 border-border border-solid rounded text-center">
-							No tasks found
+							{getErrorMessage(tasksQuery.error, "Failed to load tasks")}
 						</div>
-					)
-				) : tasksQuery.error ? (
-					<div className="text-content-secondary text-xs p-4 border-border border-solid rounded text-center">
-						{getErrorMessage(tasksQuery.error, "Failed to load tasks")}
-					</div>
-				) : (
-					<div className="flex flex-col gap-1">
-						{Array.from({ length: 5 }).map((_, index) => (
-							<div
-								key={index}
-								aria-hidden={true}
-								className="h-8 w-full rounded-lg bg-surface-tertiary animate-pulse"
-							/>
-						))}
-					</div>
-				)}
+					) : (
+						<div className="flex flex-col gap-1">
+							{Array.from({ length: 5 }).map((_, index) => (
+								<Skeleton className="h-8 w-full" key={index} />
+							))}
+						</div>
+					)}
+				</div>
 			</div>
-		</div>
+		</ScrollArea>
 	);
 };
 
