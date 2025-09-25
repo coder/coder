@@ -1012,6 +1012,7 @@ func New(options *Options) *API {
 				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
 				r.Get("/{id}", api.taskGet)
 				r.Delete("/{id}", api.taskDelete)
+				r.Post("/{id}/send", api.taskSend)
 				r.Post("/", api.tasksCreate)
 			})
 		})

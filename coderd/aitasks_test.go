@@ -1,7 +1,10 @@
 package coderd_test
 
 import (
+	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -9,10 +12,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -147,8 +155,25 @@ func TestAITasksPrompts(t *testing.T) {
 func TestTasks(t *testing.T) {
 	t.Parallel()
 
-	createAITemplate := func(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse) codersdk.Template {
+	type aiTemplateOpts struct {
+		appURL    string
+		authToken string
+	}
+
+	type aiTemplateOpt func(*aiTemplateOpts)
+
+	withSidebarURL := func(url string) aiTemplateOpt { return func(o *aiTemplateOpts) { o.appURL = url } }
+	withAgentToken := func(token string) aiTemplateOpt { return func(o *aiTemplateOpts) { o.authToken = token } }
+
+	createAITemplate := func(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, opts ...aiTemplateOpt) codersdk.Template {
 		t.Helper()
+
+		opt := aiTemplateOpts{
+			authToken: uuid.New().String(),
+		}
+		for _, o := range opts {
+			o(&opt)
+		}
 
 		// Create a template version that supports AI tasks with the AI Prompt parameter.
 		taskAppID := uuid.New()
@@ -176,11 +201,15 @@ func TestTasks(t *testing.T) {
 										{
 											Id:   uuid.NewString(),
 											Name: "example",
+											Auth: &proto.Agent_Token{
+												Token: opt.authToken,
+											},
 											Apps: []*proto.App{
 												{
 													Id:          taskAppID.String(),
 													Slug:        "task-sidebar",
 													DisplayName: "Task Sidebar",
+													Url:         opt.appURL,
 												},
 											},
 										},
@@ -382,6 +411,193 @@ func TestTasks(t *testing.T) {
 			if authErr.StatusCode() != 403 && authErr.StatusCode() != 404 {
 				t.Fatalf("unexpected status code: %d (expected 403 or 404)", authErr.StatusCode())
 			}
+		})
+	})
+
+	t.Run("Send", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("IntegrationOK", func(t *testing.T) {
+			t.Parallel()
+
+			client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+			userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+			createStatusResponse := func(status string) string {
+				return `
+					{
+						"$schema": "http://localhost:3284/schemas/StatusResponseBody.json",
+						"status": "` + status + `"
+					}
+				`
+			}
+			statusResponse := createStatusResponse("stable")
+
+			// Start a fake AgentAPI that accepts GET /status and POST /message.
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && r.URL.Path == "/status" {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusOK)
+					_, _ = fmt.Fprint(w, statusResponse)
+					return
+				}
+				if r.Method == http.MethodPost && r.URL.Path == "/message" {
+					w.Header().Set("Content-Type", "application/json")
+
+					b, _ := io.ReadAll(r.Body)
+					assert.Equal(t, `{"content":"Hello, Agent!","type":"user"}`, string(b), "expected message content")
+
+					w.WriteHeader(http.StatusOK)
+					io.WriteString(w, `{"status": "ok"}`)
+					return
+				}
+				w.WriteHeader(http.StatusInternalServerError)
+			}))
+			defer srv.Close()
+
+			// Create an AI-capable template whose sidebar app points to our fake AgentAPI.
+			authToken := uuid.NewString()
+			template := createAITemplate(t, client, owner, withSidebarURL(srv.URL), withAgentToken(authToken))
+
+			// Create a workspace (task) from the AI-capable template.
+			ws := coderdtest.CreateWorkspace(t, userClient, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+				req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+					{Name: codersdk.AITaskPromptParameterName, Value: "send a message"},
+				}
+			})
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+			// Start a fake agent so the workspace agent is connected before sending the message.
+			agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
+			_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
+				o.Client = agentClient
+			})
+			coderdtest.NewWorkspaceAgentWaiter(t, client, ws.ID).WaitFor(coderdtest.AgentsReady)
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+
+			// Lookup the sidebar app ID.
+			w, err := client.Workspace(ctx, ws.ID)
+			require.NoError(t, err)
+			var sidebarAppID uuid.UUID
+			for _, res := range w.LatestBuild.Resources {
+				for _, ag := range res.Agents {
+					for _, app := range ag.Apps {
+						if app.Slug == "task-sidebar" {
+							sidebarAppID = app.ID
+						}
+					}
+				}
+			}
+			require.NotEqual(t, uuid.Nil, sidebarAppID)
+
+			// Make the sidebar app unhealthy initially.
+			err = api.Database.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
+				ID:     sidebarAppID,
+				Health: database.WorkspaceAppHealthUnhealthy,
+			})
+			require.NoError(t, err)
+
+			exp := codersdk.NewExperimentalClient(userClient)
+			err = exp.TaskSend(ctx, "me", ws.ID, codersdk.TaskSendRequest{
+				Input: "Hello, Agent!",
+			})
+			require.Error(t, err, "wanted error due to unhealthy sidebar app")
+
+			// Make the sidebar app healthy.
+			err = api.Database.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
+				ID:     sidebarAppID,
+				Health: database.WorkspaceAppHealthHealthy,
+			})
+			require.NoError(t, err)
+
+			statusResponse = createStatusResponse("bad")
+
+			err = exp.TaskSend(ctx, "me", ws.ID, codersdk.TaskSendRequest{
+				Input: "Hello, Agent!",
+			})
+			require.Error(t, err, "wanted error due to bad status")
+
+			statusResponse = createStatusResponse("stable")
+
+			// Send task input to the tasks sidebar app and expect 204.e
+			err = exp.TaskSend(ctx, "me", ws.ID, codersdk.TaskSendRequest{
+				Input: "Hello, Agent!",
+			})
+			require.NoError(t, err, "wanted no error due to healthy sidebar app and stable status")
+		})
+
+		t.Run("MissingContent", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			template := createAITemplate(t, client, user)
+
+			// Create a workspace (task).
+			ws := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+				req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+					{Name: codersdk.AITaskPromptParameterName, Value: "do work"},
+				}
+			})
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+			exp := codersdk.NewExperimentalClient(client)
+			err := exp.TaskSend(ctx, "me", ws.ID, codersdk.TaskSendRequest{
+				Input: "",
+			})
+
+			var sdkErr *codersdk.Error
+			require.Error(t, err)
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		})
+
+		t.Run("TaskNotFound", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			_ = coderdtest.CreateFirstUser(t, client)
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			exp := codersdk.NewExperimentalClient(client)
+			err := exp.TaskSend(ctx, "me", uuid.New(), codersdk.TaskSendRequest{
+				Input: "hi",
+			})
+
+			var sdkErr *codersdk.Error
+			require.Error(t, err)
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		})
+
+		t.Run("NotATask", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			// Create a template without AI tasks.
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+			ws := coderdtest.CreateWorkspace(t, client, template.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+			exp := codersdk.NewExperimentalClient(client)
+			err := exp.TaskSend(ctx, "me", ws.ID, codersdk.TaskSendRequest{
+				Input: "hello",
+			})
+
+			var sdkErr *codersdk.Error
+			require.Error(t, err)
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		})
 	})
 }

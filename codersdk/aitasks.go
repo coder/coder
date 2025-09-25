@@ -206,3 +206,21 @@ func (c *ExperimentalClient) DeleteTask(ctx context.Context, user string, id uui
 	}
 	return nil
 }
+
+// TaskSendRequest is used to send task input to the tasks sidebar app.
+type TaskSendRequest struct {
+	Input string `json:"input"`
+}
+
+// TaskSend submits task input to the tasks sidebar app.
+func (c *ExperimentalClient) TaskSend(ctx context.Context, user string, id uuid.UUID, req TaskSendRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/tasks/%s/%s/send", user, id.String()), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
