@@ -1,5 +1,5 @@
-import Button from "@mui/material/Button";
 import FormHelperText from "@mui/material/FormHelperText";
+import { Button } from "components/Button/Button";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
 import {
@@ -44,11 +44,13 @@ export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
 					}[]
 				).map((day) => (
 					<Button
-						fullWidth
+						variant="outline"
+						className="w-full rounded-none"
 						key={day.key}
-						css={{ borderRadius: 0 }}
 						// TODO: Adding a background color would also help
-						color={value.includes(day.value) ? "primary" : "secondary"}
+						style={{
+							color: value.includes(day.value) ? "primary" : "secondary",
+						}}
 						disabled={isSubmitting || !enabled}
 						onClick={() => {
 							if (!value.includes(day.value)) {

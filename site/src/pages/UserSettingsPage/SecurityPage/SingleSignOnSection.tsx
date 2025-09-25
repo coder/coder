@@ -1,7 +1,6 @@
 import { useTheme } from "@emotion/react";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import KeyIcon from "@mui/icons-material/VpnKey";
-import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { API } from "api/api";
@@ -12,6 +11,7 @@ import type {
 	OIDCAuthMethod,
 	UserLoginType,
 } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Stack } from "components/Stack/Stack";
@@ -150,24 +150,25 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 						<>
 							{authMethods.github.enabled && (
 								<Button
-									size="large"
-									fullWidth
+									variant="outline"
+									size="lg"
+									className="w-full"
 									disabled={isUpdating}
-									startIcon={<GitHubIcon css={{ width: 16, height: 16 }} />}
 									onClick={() => openConfirmation("github")}
 								>
+									<GitHubIcon />
 									GitHub
 								</Button>
 							)}
 
 							{authMethods.oidc.enabled && (
 								<Button
-									size="large"
-									fullWidth
+									size="lg"
+									className="w-full"
 									disabled={isUpdating}
-									startIcon={<OIDCIcon oidcAuth={authMethods.oidc} />}
 									onClick={() => openConfirmation("oidc")}
 								>
+									<OIDCIcon oidcAuth={authMethods.oidc} />
 									{getOIDCLabel(authMethods.oidc)}
 								</Button>
 							)}
