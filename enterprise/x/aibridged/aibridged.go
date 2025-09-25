@@ -139,7 +139,7 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 		return nil, xerrors.New("nil requestBridgePool")
 	}
 
-	reqBridge, err := s.requestBridgePool.Acquire(ctx, req, s.Client)
+	reqBridge, err := s.requestBridgePool.Acquire(ctx, req, s.Client, NewMCPProxyFactory(s.logger, s.Client))
 	if err != nil {
 		return nil, xerrors.Errorf("acquire request bridge: %w", err)
 	}
