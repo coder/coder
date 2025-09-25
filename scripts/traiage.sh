@@ -97,11 +97,21 @@ prompt() {
 	# Wait for agentapi to process the response and return the last agent message
 	wait_agentapi_stable
 
+	CODER_USERNAME="${username}" last_message
+}
+
+last_message() {
+	requiredenvs CODER_URL CODER_SESSION_TOKEN CODER_USERNAME TASK_NAME APP_SLUG PROMPT
 	last_msg=$(curl \
+		--fail \
 		--header "Content-Type: application/json" \
 		--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
-		"${CODER_URL}/@${username}/${TASK_NAME}/apps/${APP_SLUG}/messages" |
+		--location \
+		--show-error \
+		--silent \
+		"${CODER_URL}/@${CODER_USERNAME}/${TASK_NAME}/apps/${APP_SLUG}/messages" |
 		jq -r 'last(.messages[] | select(.role=="agent") | [.])')
+
 	echo "${last_msg}"
 }
 
@@ -166,10 +176,10 @@ wait_agentapi_stable() {
 			"${CODER_URL}/@${username}/${TASK_NAME}/apps/${APP_SLUG}/status")
 		echo "Workspace app ${APP_SLUG} returned ${agentapi_app_status_code}"
 		if [[ "${agentapi_app_status_code}" == "200" ]]; then
-			echo "Agentapi is running"
+			echo "AgentAPI is running"
 			break
 		fi
-		echo "Agentapi not yet running (attempt ${attempt}/120)"
+		echo "AgentAPI not yet running (attempt ${attempt}/120)"
 		sleep 5
 	done
 
@@ -192,7 +202,17 @@ wait_agentapi_stable() {
 		echo "Waiting for AgentAPI to report stable status (attempt ${attempt}/120)"
 		sleep 5
 	done
-	set -o pipefail
+
+	# Final sanity check - ensure we can get messages
+	for attempt in {1..120}; do
+		last_msg=last_message
+		if [[ -n "${last_msg}" ]]; then
+			echo "Successfully retrieved last agent message"
+			break
+		fi
+		echo "Waiting to be able to retrieve last agent message (attempt ${attempt}/120)"
+		sleep 5
+	done
 }
 
 archive() {
