@@ -208,22 +208,51 @@ wait_agentapi_stable() {
 		sleep 5
 	done
 
-	# Final sanity check - ensure the task agent has reported idle status
+	# At this point the task is running, the workspace agent is healthy,
+	# the AgentAPI app is running and the AgentAPI reports stable status.
+	# Now we wait for the Task Agent to report 'idle', 'complete', or 'failure'.
 	for attempt in {1..120}; do
-		set +o pipefail
 		task_json=$(${CODER_BIN} \
 			--url "${CODER_URL}" \
 			--token "${CODER_SESSION_TOKEN}" \
 			exp tasks status "${TASK_NAME}" \
 			--output json)
+		set +o pipefail
 		current_state=$(jq -r '.current_state.state' <<<"${task_json}")
 		current_message=$(jq -r '.current_state.message' <<<"${task_json}")
-		if [[ "${current_state}" == "idle" ]]; then
+		set -o pipefail
+
+		# The current_state or current_message may be null if the Task Agent
+		# has not yet reported its status.
+		if [[ -z "${current_state}" ]] || [[ -z "${current_message}" ]]; then
+			echo "Waiting for Task Agent to report state (attempt ${attempt}/120)"
+			sleep 5
+			continue
+		fi
+		break
+	done
+
+	# Finally, wait for the Task Agent to report 'idle', 'complete', or 'failure'. This is unbounded, as we don't know how long the agent will take.
+	while true; do
+		task_json=$(${CODER_BIN} \
+			--url "${CODER_URL}" \
+			--token "${CODER_SESSION_TOKEN}" \
+			exp tasks status "${TASK_NAME}" \
+			--output json)
+		set +o pipefail
+
+		current_state=$(jq -r '.current_state.state' <<<"${task_json}")
+		current_message=$(jq -r '.current_state.message' <<<"${task_json}")
+		set -o pipefail
+		if [[ "${current_state}" == "working" ]]; then
+			echo "Task Agent is ${current_state} and reports: \"${current_message}\""
+			echo "Waiting for Task Agent to report idle state (attempt ${attempt}/120)"
+			sleep 5
+			continue
+		else
 			echo "Task Agent is ${current_state} and reports: \"${current_message}\""
 			break
 		fi
-		echo "Waiting for Task Agent to report state (attempt ${attempt}/120)"
-		sleep 5
 	done
 }
 
