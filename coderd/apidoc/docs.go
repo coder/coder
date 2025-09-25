@@ -11917,6 +11917,12 @@ const docTemplate = `{
                 "user_id"
             ],
             "properties": {
+                "allow_list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.APIAllowListTarget"
+                    }
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
