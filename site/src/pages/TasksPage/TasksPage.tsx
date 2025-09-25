@@ -12,7 +12,6 @@ import {
 import { useAuthenticated } from "hooks";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
@@ -61,9 +60,7 @@ const TasksPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("AI Tasks")}</title>
-			</Helmet>
+			<title>{pageTitle("AI Tasks")}</title>
 			<Margins>
 				<PageHeader>
 					<span className="flex flex-row gap-2">

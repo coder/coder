@@ -1,7 +1,7 @@
 import { API } from "api/api";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
+
 import { useMutation } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -37,14 +37,12 @@ const WorkspaceSettingsPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(workspaceName, "Settings")}</title>
-			</Helmet>
+			<title>{pageTitle(workspaceName, "Settings")}</title>
 
 			<WorkspaceSettingsPageView
 				error={mutation.error}
 				workspace={workspace}
-				onCancel={() => navigate(`/@${username}/${workspaceName}`)}
+				onCancel={() => navigate(`/@${username}/$workspaceName`)}
 				onSubmit={mutation.mutateAsync}
 			/>
 		</>

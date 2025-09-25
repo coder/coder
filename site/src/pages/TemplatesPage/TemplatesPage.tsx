@@ -5,7 +5,6 @@ import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { useAuthenticated } from "hooks";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -41,9 +40,7 @@ const TemplatesPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Templates")}</title>
-			</Helmet>
+			<title>{pageTitle("Templates")}</title>
 			<TemplatesPageView
 				error={error}
 				filterState={filterState}

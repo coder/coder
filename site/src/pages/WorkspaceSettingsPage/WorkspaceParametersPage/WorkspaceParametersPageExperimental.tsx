@@ -20,7 +20,7 @@ import { useEffectEvent } from "hooks/hookPolyfills";
 import { CircleHelp } from "lucide-react";
 import type { FC } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Helmet } from "react-helmet-async";
+
 import { useMutation, useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { docs } from "utils/docs";
@@ -206,9 +206,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 
 	return (
 		<div className="flex flex-col gap-6 max-w-screen-md">
-			<Helmet>
-				<title>{pageTitle(workspace.name, "Parameters")}</title>
-			</Helmet>
+			<title>{pageTitle(workspace.name, "Parameters")}</title>
 
 			<header className="flex flex-col items-start gap-2">
 				<span className="flex flex-row items-center gap-2 justify-between w-full">

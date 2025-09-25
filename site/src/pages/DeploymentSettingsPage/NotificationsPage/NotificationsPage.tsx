@@ -16,7 +16,7 @@ import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
 import { castNotificationMethod } from "modules/notifications/utils";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
+
 import { useQueries } from "react-query";
 import { deploymentGroupHasParent } from "utils/deployOptions";
 import { docs } from "utils/docs";
@@ -44,9 +44,7 @@ const NotificationsPage: FC = () => {
 	const ready = !!(templatesByGroup.data && dispatchMethods.data);
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Notifications Settings")}</title>
-			</Helmet>
+			<title>{pageTitle("Notifications Settings")}</title>
 
 			<SettingsHeader
 				actions={

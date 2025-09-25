@@ -17,7 +17,7 @@ import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useState } from "react";
-import { Helmet } from "react-helmet-async";
+
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -66,11 +66,9 @@ const OrganizationMembersPage: FC = () => {
 	}
 
 	const helmet = (
-		<Helmet>
-			<title>
-				{pageTitle("Members", organization.display_name || organization.name)}
-			</title>
-		</Helmet>
+		<title>
+			{pageTitle("Members", organization.display_name || organization.name)}
+		</title>
 	);
 
 	if (!organizationPermissions) {

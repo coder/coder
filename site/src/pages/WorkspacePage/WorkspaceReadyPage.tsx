@@ -26,7 +26,7 @@ import {
 	WorkspaceUpdateDialogs,
 } from "modules/workspaces/WorkspaceUpdateDialogs";
 import { type FC, useEffect, useState } from "react";
-import { Helmet } from "react-helmet-async";
+
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { pageTitle } from "utils/page";
 import { Workspace } from "./Workspace";
@@ -263,19 +263,17 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(`${workspace.owner_name}/${workspace.name}`)}</title>
-				<link
-					rel="alternate icon"
-					type="image/png"
-					href={`/favicons/${favicon}-${faviconTheme}.png`}
-				/>
-				<link
-					rel="icon"
-					type="image/svg+xml"
-					href={`/favicons/${favicon}-${faviconTheme}.svg`}
-				/>
-			</Helmet>
+			<title>{pageTitle(`${workspace.owner_name}/${workspace.name}`)}</title>
+			<link
+				rel="alternate icon"
+				type="image/png"
+				href={`/favicons/${favicon}-${faviconTheme}.png`}
+			/>
+			<link
+				rel="icon"
+				type="image/svg+xml"
+				href={`/favicons/${favicon}-${faviconTheme}.svg`}
+			/>
 
 			<Workspace
 				permissions={permissions}

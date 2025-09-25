@@ -11,7 +11,7 @@ import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
+
 import { useMutation } from "react-query";
 import { Link as RouterLink, useNavigate, useSearchParams } from "react-router";
 import { getApplicationName } from "utils/appearance";
@@ -66,9 +66,7 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 
 	return (
 		<>
-			<Helmet>
-				<title>Reset Password - {applicationName}</title>
-			</Helmet>
+			<title>Reset Password - {applicationName}</title>
 
 			<div css={styles.root}>
 				<main css={styles.container}>

@@ -7,7 +7,7 @@ import { CustomLogo } from "components/CustomLogo/CustomLogo";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
+
 import { useMutation } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { getApplicationName } from "utils/appearance";
@@ -18,25 +18,21 @@ const RequestOTPPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>Reset Password - {applicationName}</title>
-			</Helmet>
+			<title>Reset Password - {applicationName}</title>
 
 			<main css={styles.root}>
 				<CustomLogo css={styles.logo} />
-				{requestOTPMutation.isSuccess ? (
-					<RequestOTPSuccess
-						email={requestOTPMutation.variables?.email ?? ""}
-					/>
-				) : (
-					<RequestOTP
-						error={requestOTPMutation.error}
-						isRequesting={requestOTPMutation.isPending}
-						onRequest={(email) => {
-							requestOTPMutation.mutate({ email });
-						}}
-					/>
-				)}
+				requestOTPMutation.isSuccess ? (
+				<RequestOTPSuccess email={requestOTPMutation.variables?.email ?? ""} />)
+				: (
+				<RequestOTP
+					error={requestOTPMutation.error}
+					isRequesting={requestOTPMutation.isPending}
+					onRequest={(email) => {
+						requestOTPMutation.mutate({ email });
+					}}
+				/>
+				);
 			</main>
 		</>
 	);

@@ -6,7 +6,7 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
+
 import { useQuery } from "react-query";
 import { useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -38,14 +38,12 @@ const OrganizationProvisionersPage: FC = () => {
 	}
 
 	const helmet = (
-		<Helmet>
-			<title>
-				{pageTitle(
-					"Provisioners",
-					organization.display_name || organization.name,
-				)}
-			</title>
-		</Helmet>
+		<title>
+			{pageTitle(
+				"Provisioners",
+				organization.display_name || organization.name,
+			)}
+		</title>
 	);
 
 	if (!organizationPermissions?.viewProvisioners) {

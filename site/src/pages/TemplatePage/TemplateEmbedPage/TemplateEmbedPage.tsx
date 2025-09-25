@@ -14,7 +14,7 @@ import { useClipboard } from "hooks/useClipboard";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useEffect, useId, useState } from "react";
-import { Helmet } from "react-helmet-async";
+
 import { useQuery } from "react-query";
 import { nameValidator } from "utils/formUtils";
 import { pageTitle } from "utils/page";
@@ -34,9 +34,8 @@ const TemplateEmbedPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(template.name)}</title>
-			</Helmet>
+			<title>{pageTitle(template.name)}</title>
+
 			<TemplateEmbedPageView
 				template={template}
 				templateParameters={templateParameters?.filter(
@@ -124,9 +123,8 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(template.name)}</title>
-			</Helmet>
+			<title>{pageTitle(template.name)}</title>
+
 			{!buttonValues || !templateParameters ? (
 				<Loader />
 			) : (
