@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/x/wildcard"
 )
 
 // userDebugOIDC returns the OIDC debug context for the user.
@@ -1587,6 +1588,18 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 		scopes = append(scopes, codersdk.APIKeyScope(s))
 	}
 
+	allowList := make([]codersdk.APIAllowListTarget, 0, len(k.AllowList))
+	for _, entry := range k.AllowList {
+		var target codersdk.APIAllowListTarget
+		if resource, ok := entry.Type.Value(); ok {
+			target.Type = wildcard.Of(codersdk.RBACResource(resource))
+		}
+		if id, ok := entry.ID.Value(); ok {
+			target.ID = wildcard.Of(id)
+		}
+		allowList = append(allowList, target)
+	}
+
 	return codersdk.APIKey{
 		ID:              k.ID,
 		UserID:          k.UserID,
@@ -1599,5 +1612,6 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 		Scopes:          scopes,
 		LifetimeSeconds: k.LifetimeSeconds,
 		TokenName:       k.TokenName,
+		AllowList:       allowList,
 	}
 }

@@ -97,6 +97,10 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 		}
 	}
 
+	if len(params.AllowList) == 0 {
+		params.AllowList = database.AllowList{database.AllowListTarget{}}
+	}
+
 	token := fmt.Sprintf("%s-%s", keyID, keySecret)
 
 	return database.InsertAPIKeyParams{
