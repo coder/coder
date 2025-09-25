@@ -675,7 +675,7 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 			})
 		}
 
-		if v, ok := respBody["status"].(string); !ok || v != "ok" {
+		if v, ok := respBody["ok"].(bool); !ok || !v {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
 				Message: "Task app rejected the message.",
 				Detail:  fmt.Sprintf("Upstream response: %v", respBody),
