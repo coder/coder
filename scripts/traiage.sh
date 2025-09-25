@@ -21,11 +21,13 @@ usage() {
 create() {
 	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME TEMPLATE_NAME TEMPLATE_PRESET PROMPT
 	# Check if a task already exists
+	set +e
 	task_json=$("${CODER_BIN}" \
 		--url "${CODER_URL}" \
 		--token "${CODER_SESSION_TOKEN}" \
 		exp tasks status "${TASK_NAME}" \
 		--output json)
+	set -e
 
 	if [[ "${TASK_NAME}" == $(jq -r '.name' <<<"${task_json}") ]]; then
 		# TODO(Cian): Send PROMPT to the agent in the existing workspace.
