@@ -697,9 +697,9 @@ func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	taskID, err := uuid.Parse(idStr)
 	if err != nil {
-		httperror.WriteResponseError(ctx, rw, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Invalid UUID %q for task ID.", idStr),
-		}))
+		})
 		return
 	}
 
