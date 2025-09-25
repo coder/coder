@@ -473,24 +473,6 @@ module "devcontainers-cli" {
   agent_id = coder_agent.dev.id
 }
 
-module "claude-code" {
-  count               = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
-  source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "2.2.0"
-  agent_id            = coder_agent.dev.id
-  folder              = local.repo_dir
-  install_claude_code = true
-  claude_code_version = "latest"
-  order               = 999
-
-  experiment_report_tasks        = true
-  experiment_post_install_script = <<-EOT
-    claude mcp add playwright npx -- @playwright/mcp@latest --headless --isolated --no-sandbox
-    claude mcp add desktop-commander npx -- @wonderwhy-er/desktop-commander@latest
-  EOT
-}
-
-
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
@@ -834,11 +816,8 @@ resource "coder_metadata" "container_info" {
   }
 }
 
-resource "coder_env" "claude_system_prompt" {
-  count    = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
-  agent_id = coder_agent.dev.id
-  name     = "CODER_MCP_CLAUDE_SYSTEM_PROMPT"
-  value    = <<-EOT
+locals {
+  claude_system_prompt = <<-EOT
     <system>
     -- Framing --
     You are a helpful Coding assistant. Aim to autonomously investigate
@@ -885,21 +864,25 @@ resource "coder_env" "claude_system_prompt" {
     This is a real-world production application. As such, make sure to think carefully, use TODO lists, and plan carefully before making changes.
     </system>
   EOT
+
 }
 
-resource "coder_env" "claude_task_prompt" {
-  count    = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
-  agent_id = coder_agent.dev.id
-  name     = "CODER_MCP_CLAUDE_TASK_PROMPT"
-  value    = data.coder_parameter.ai_prompt.value
-}
+module "claude-code" {
+  count               = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  source              = "dev.registry.coder.com/coder/claude-code/coder"
+  version             = "3.0.0"
+  agent_id            = coder_agent.dev.id
+  workdir             = local.repo_dir
+  claude_code_version = "latest"
+  order               = 999
+  claude_api_key      = var.anthropic_api_key
 
-# coder exp mcp configure claude-code reads from CLAUDE_API_KEY
-resource "coder_env" "claude_api_key" {
-  count    = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
-  agent_id = coder_agent.dev.id
-  name     = "CLAUDE_API_KEY"
-  value    = var.anthropic_api_key
+  system_prompt       = local.claude_system_prompt
+  ai_prompt           = data.coder_parameter.ai_prompt.value
+  post_install_script = <<-EOT
+    claude mcp add playwright npx -- @playwright/mcp@latest --headless --isolated --no-sandbox
+    claude mcp add desktop-commander npx -- @wonderwhy-er/desktop-commander@latest
+  EOT
 }
 
 resource "coder_app" "develop_sh" {

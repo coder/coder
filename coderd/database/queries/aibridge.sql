@@ -1,6 +1,6 @@
 -- name: InsertAIBridgeInterception :one
-INSERT INTO aibridge_interceptions (id, initiator_id, provider, model, started_at)
-VALUES (@id::uuid, @initiator_id::uuid, @provider, @model, @started_at)
+INSERT INTO aibridge_interceptions (id, initiator_id, provider, model, metadata, started_at)
+VALUES (@id::uuid, @initiator_id::uuid, @provider, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at)
 RETURNING *;
 
 -- name: InsertAIBridgeTokenUsage :exec
@@ -26,3 +26,15 @@ INSERT INTO aibridge_tool_usages (
 
 -- name: GetAIBridgeInterceptionByID :one
 SELECT * FROM aibridge_interceptions WHERE id = @id::uuid;
+
+-- name: GetAIBridgeInterceptions :many
+SELECT * FROM aibridge_interceptions;
+
+-- name: GetAIBridgeTokenUsagesByInterceptionID :many
+SELECT * FROM aibridge_token_usages WHERE interception_id = @interception_id::uuid;
+
+-- name: GetAIBridgeUserPromptsByInterceptionID :many
+SELECT * FROM aibridge_user_prompts WHERE interception_id = @interception_id::uuid;
+
+-- name: GetAIBridgeToolUsagesByInterceptionID :many
+SELECT * FROM aibridge_tool_usages WHERE interception_id = @interception_id::uuid;
