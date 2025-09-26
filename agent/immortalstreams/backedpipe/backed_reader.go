@@ -20,6 +20,9 @@ type BackedReader struct {
 
 	// Current connection generation for error reporting
 	currentGen uint64
+
+	// Tracks in-flight Read calls so Close() can wait for them to complete
+	activeReadWG sync.WaitGroup
 }
 
 // NewBackedReader creates a new BackedReader with generation-aware error reporting.
@@ -44,55 +47,64 @@ func NewBackedReader(errorEventChan chan<- ErrorEvent) *BackedReader {
 // When connected, it reads from the underlying reader and updates sequence numbers.
 // Connection failures are automatically detected and reported to the higher layer via callback.
 func (br *BackedReader) Read(p []byte) (int, error) {
-	// Step 1: Wait until we have a reader or are closed
-	br.mu.Lock()
-	for br.reader == nil && !br.closed {
-		br.cond.Wait()
-	}
+	for {
+		// Step 1: Wait until we have a reader or are closed
+		br.mu.Lock()
+		for br.reader == nil && !br.closed {
+			br.cond.Wait()
+		}
 
-	if br.closed {
+		if br.closed {
+			br.mu.Unlock()
+			return 0, io.EOF
+		}
+
+		// Snapshot the reader and current generation, then release the lock
+		// before performing a potentially blocking Read.
+		r := br.reader
+		gen := br.currentGen
 		br.mu.Unlock()
-		return 0, io.EOF
-	}
 
-	// Snapshot the reader and current generation, then release the lock
-	// before performing a potentially blocking Read.
-	r := br.reader
-	gen := br.currentGen
-	br.mu.Unlock()
+		// Step 2: Perform the read without holding the mutex to avoid blocking
+		// other operations such as Connected() checks.
+		br.activeReadWG.Add(1)
+		n, err := r.Read(p)
+		br.activeReadWG.Done()
 
-	// Step 2: Perform the read without holding the mutex to avoid blocking
-	// other operations such as Connected() checks.
-	n, err := r.Read(p)
+		// Step 3: Update state and handle errors
+		br.mu.Lock()
+		br.sequenceNum += uint64(n) // #nosec G115 -- n is always >= 0 per io.Reader contract
+		if err == nil {
+			br.mu.Unlock()
+			return n, nil
+		}
 
-	// Step 3: Update state and handle errors
-	br.mu.Lock()
-	br.sequenceNum += uint64(n) // #nosec G115 -- n is always >= 0 per io.Reader contract
-	if err == nil {
+		// Mark reader as disconnected so future reads will wait for reconnection
+		br.reader = nil
 		br.mu.Unlock()
-		return n, nil
-	}
 
-	// Mark reader as disconnected so future reads will wait for reconnection
-	br.reader = nil
-	br.mu.Unlock()
+		// Notify parent of error with generation information (non-blocking)
+		select {
+		case br.errorEventChan <- ErrorEvent{
+			Err:        err,
+			Component:  "reader",
+			Generation: gen,
+		}:
+		default:
+			// Channel is full, drop the error.
+		}
 
-	// Notify parent of error with generation information (non-blocking)
-	select {
-	case br.errorEventChan <- ErrorEvent{
-		Err:        err,
-		Component:  "reader",
-		Generation: gen,
-	}:
-	default:
-		// Channel is full, drop the error.
-	}
+		// If we got some data before the error, return it now
+		if n > 0 {
+			return n, nil
+		}
 
-	// If we got some data before the error, return it now
-	if n > 0 {
-		return n, nil
+		// Otherwise, do not surface the error to the caller. Loop back to
+		// wait for a reconnection and try reading again to preserve the
+		// invariant that reads block across disconnects instead of failing.
+		// The reconnection will be driven by the BackedPipe upon receiving
+		// the error event above.
 	}
-	return 0, err
 }
 
 // Reconnect coordinates reconnection using channels for better synchronization.
@@ -134,9 +146,10 @@ func (br *BackedReader) Reconnect(seqNum chan<- uint64, newR <-chan io.Reader) {
 // After closing, all Read calls will return io.EOF.
 func (br *BackedReader) Close() error {
 	br.mu.Lock()
-	defer br.mu.Unlock()
-
 	if br.closed {
+		br.mu.Unlock()
+		// Still ensure any in-flight reads are complete to match semantics
+		br.activeReadWG.Wait()
 		return nil
 	}
 
@@ -145,7 +158,12 @@ func (br *BackedReader) Close() error {
 
 	// Wake up any blocked reads
 	br.cond.Broadcast()
+	br.mu.Unlock()
 
+	// Wait for any in-flight read to complete before returning. This ensures
+	// callers that Close() will not race with an ongoing Read and matches
+	// expected blocking semantics in tests.
+	br.activeReadWG.Wait()
 	return nil
 }
 

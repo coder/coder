@@ -13,6 +13,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -38,6 +39,10 @@ func (r *RootCmd) portForward() *serpent.Command {
 		tcpForwards      []string // <port>:<port>
 		udpForwards      []string // <port>:<port>
 		disableAutostart bool
+
+		// Immortal streams flags
+		immortal         bool
+		immortalFallback = true // Default to true for port-forward
 	)
 	cmd := &serpent.Command{
 		Use:     "port-forward <workspace>",
@@ -128,6 +133,12 @@ func (r *RootCmd) portForward() *serpent.Command {
 			}
 			defer conn.Close()
 
+			// Compute Coder Connect host for immortal streams (if available)
+			coderConnectHost := ""
+			if connInfo, _ := workspacesdk.New(client).AgentConnectionInfoGeneric(ctx); connInfo.HostnameSuffix != "" {
+				coderConnectHost = fmt.Sprintf("%s.%s.%s.%s", workspaceAgent.Name, workspace.Name, workspace.OwnerName, connInfo.HostnameSuffix)
+			}
+
 			// Start all listeners.
 			var (
 				wg                = new(sync.WaitGroup)
@@ -149,7 +160,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 					// first, opportunistically try to listen on IPv6
 					spec6 := spec
 					spec6.listenHost = ipv6Loopback
-					l6, err6 := listenAndPortForward(ctx, inv, conn, wg, spec6, logger)
+					l6, err6 := listenAndPortForward(ctx, inv, conn, wg, spec6, logger, portForwardOptions{immortal: immortal, immortalFallback: immortalFallback, coderConnectHost: coderConnectHost}, client, workspaceAgent.ID)
 					if err6 != nil {
 						logger.Info(ctx, "failed to opportunistically listen on IPv6", slog.F("spec", spec), slog.Error(err6))
 					} else {
@@ -157,7 +168,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 					}
 					spec.listenHost = ipv4Loopback
 				}
-				l, err := listenAndPortForward(ctx, inv, conn, wg, spec, logger)
+				l, err := listenAndPortForward(ctx, inv, conn, wg, spec, logger, portForwardOptions{immortal: immortal, immortalFallback: immortalFallback, coderConnectHost: coderConnectHost}, client, workspaceAgent.ID)
 				if err != nil {
 					logger.Error(ctx, "failed to listen", slog.F("spec", spec), slog.Error(err))
 					return err
@@ -213,10 +224,29 @@ func (r *RootCmd) portForward() *serpent.Command {
 			Description: "Forward UDP port(s) from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols.",
 			Value:       serpent.StringArrayOf(&udpForwards),
 		},
+		{
+			Flag:        "immortal",
+			Description: "Use immortal streams for port forwarding connections, providing automatic reconnection when interrupted.",
+			Value:       serpent.BoolOf(&immortal),
+			Hidden:      true,
+		},
+		{
+			Flag:        "immortal-fallback",
+			Description: "If immortal streams are unavailable due to connection limits, fall back to regular TCP connection.",
+			Default:     "true",
+			Value:       serpent.BoolOf(&immortalFallback),
+			Hidden:      true,
+		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
 	}
 
 	return cmd
+}
+
+type portForwardOptions struct {
+	immortal         bool
+	immortalFallback bool
+	coderConnectHost string
 }
 
 func listenAndPortForward(
@@ -226,6 +256,9 @@ func listenAndPortForward(
 	wg *sync.WaitGroup,
 	spec portForwardSpec,
 	logger slog.Logger,
+	options portForwardOptions,
+	client *codersdk.Client,
+	agentID uuid.UUID,
 ) (net.Listener, error) {
 	logger = logger.With(
 		slog.F("network", spec.network),
@@ -265,16 +298,54 @@ func listenAndPortForward(
 
 			go func(netConn net.Conn) {
 				defer netConn.Close()
-				remoteConn, err := conn.DialContext(ctx, spec.network, dialAddress)
-				if err != nil {
-					_, _ = fmt.Fprintf(inv.Stderr,
-						"Failed to dial '%s://%s' in workspace: %s\n",
-						spec.network, dialAddress, err)
-					return
+
+				var remoteConn net.Conn
+				var immortalStreamClient *immortalStreamClient
+				var streamID *uuid.UUID
+
+				// Only use immortal streams for TCP connections
+				if options.immortal && spec.network == "tcp" {
+					res, derr := DialImmortalOrFallback(ctx, conn, client, agentID, logger, ImmortalDialOptions{
+						Enabled:          true,
+						Fallback:         options.immortalFallback,
+						TargetPort:       spec.dialPort,
+						CoderConnectHost: options.coderConnectHost,
+					}, func(c context.Context) (net.Conn, error) {
+						return conn.DialContext(c, spec.network, dialAddress)
+					})
+					if derr != nil {
+						_, _ = fmt.Fprintf(inv.Stderr,
+							"Failed to establish connection for '%s://%s' in workspace: %s\n",
+							spec.network, dialAddress, derr)
+						return
+					}
+					remoteConn = res.Conn
+					immortalStreamClient = res.StreamClient
+					streamID = res.StreamID
+				} else {
+					// Use regular connection for UDP or when immortal is disabled
+					var derr error
+					remoteConn, derr = conn.DialContext(ctx, spec.network, dialAddress)
+					if derr != nil {
+						_, _ = fmt.Fprintf(inv.Stderr,
+							"Failed to dial '%s://%s' in workspace: %s\n",
+							spec.network, dialAddress, derr)
+						return
+					}
 				}
+
 				defer remoteConn.Close()
 				logger.Debug(ctx,
 					"dialed remote", slog.F("remote_addr", netConn.RemoteAddr()))
+
+				// Set up cleanup for immortal stream
+				if immortalStreamClient != nil && streamID != nil {
+					defer func() {
+						if err := immortalStreamClient.deleteStream(context.Background(), *streamID); err != nil {
+							logger.Error(context.Background(), "failed to cleanup immortal stream", slog.Error(err))
+						}
+					}()
+				}
 
 				agentssh.Bicopy(ctx, netConn, remoteConn)
 				logger.Debug(ctx,
