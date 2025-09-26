@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"database/sql/driver"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -35,6 +36,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/types/key"
@@ -1836,7 +1838,7 @@ func TestServer_Logging_NoParallel(t *testing.T) {
 		// fails.
 		pty := ptytest.New(t).Attach(inv)
 
-		clitest.Start(t, inv.WithContext(ctx))
+		startIgnoringPostgresQueryCancel(t, inv.WithContext(ctx))
 
 		// Wait for server to listen on HTTP, this is a good
 		// starting point for expecting logs.
@@ -1873,7 +1875,7 @@ func TestServer_Logging_NoParallel(t *testing.T) {
 		// fails.
 		pty := ptytest.New(t).Attach(inv)
 
-		clitest.Start(t, inv)
+		startIgnoringPostgresQueryCancel(t, inv)
 
 		// Wait for server to listen on HTTP, this is a good
 		// starting point for expecting logs.
@@ -2395,6 +2397,13 @@ func startIgnoringPostgresQueryCancel(t *testing.T, inv *serpent.Invocation) {
 	t.Helper()
 	clitest.StartWithAssert(t, inv, func(t *testing.T, err error) {
 		if database.IsQueryCanceledError(err) {
+			return
+		}
+		// specifically when making our initial connection to PostgreSQL, we ping the database.
+		// Database driver.Conn instances can return driver.ErrBadConn on ping to remove the connection from the pool.
+		// lib/pq does this no matter what the error is, including context.Canceled.
+		// c.f. https://pkg.go.dev/database/sql/driver#Pinger
+		if xerrors.Is(err, driver.ErrBadConn) {
 			return
 		}
 		assert.NoError(t, err)
