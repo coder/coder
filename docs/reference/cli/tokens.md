@@ -25,6 +25,10 @@ Tokens are used to authenticate automated clients to Coder.
 
      $ coder tokens ls
 
+  - Create a scoped token:
+
+     $ coder tokens create --scope workspace:read --allow workspace:<uuid>
+
   - Remove a token by ID:
 
      $ coder tokens rm WuoWs4ZsMX
@@ -32,8 +36,9 @@ Tokens are used to authenticate automated clients to Coder.
 
 ## Subcommands
 
-| Name                                      | Purpose        |
-|-------------------------------------------|----------------|
-| [<code>create</code>](./tokens_create.md) | Create a token |
-| [<code>list</code>](./tokens_list.md)     | List tokens    |
-| [<code>remove</code>](./tokens_remove.md) | Delete a token |
+| Name                                      | Purpose                                    |
+|-------------------------------------------|--------------------------------------------|
+| [<code>create</code>](./tokens_create.md) | Create a token                             |
+| [<code>list</code>](./tokens_list.md)     | List tokens                                |
+| [<code>view</code>](./tokens_view.md)     | Display detailed information about a token |
+| [<code>remove</code>](./tokens_remove.md) | Delete a token                             |
