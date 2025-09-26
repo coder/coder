@@ -36,13 +36,13 @@ func (r *RootCmd) aibridgeInterceptions() *serpent.Command {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*serpent.Command{
-			r.aibrdigeInterceptionsList(),
+			r.aibridgeInterceptionsList(),
 		},
 	}
 	return cmd
 }
 
-func (r *RootCmd) aibrdigeInterceptionsList() *serpent.Command {
+func (r *RootCmd) aibridgeInterceptionsList() *serpent.Command {
 	var (
 		initiator        string
 		startedBeforeRaw string
