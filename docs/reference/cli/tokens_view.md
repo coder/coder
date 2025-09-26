@@ -1,34 +1,22 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# tokens list
+# tokens view
 
-List tokens
-
-Aliases:
-
-* ls
+Display detailed information about a token
 
 ## Usage
 
 ```console
-coder tokens list [flags]
+coder tokens view [flags] <name|id>
 ```
 
 ## Options
-
-### -a, --all
-
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
-
-Specifies whether all users' tokens will be listed or not (must have Owner role to see all tokens).
 
 ### -c, --column
 
 |         |                                                                                       |
 |---------|---------------------------------------------------------------------------------------|
 | Type    | <code>[id\|name\|scopes\|allow list\|last used\|expires at\|created at\|owner]</code> |
-| Default | <code>id,name,scopes,allow list,last used,expires at,created at</code>                |
+| Default | <code>id,name,scopes,allow list,last used,expires at,created at,owner</code>          |
 
 Columns to display in table output.
 
