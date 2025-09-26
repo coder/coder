@@ -10,7 +10,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) vpnDaemonRun() *serpent.Command {
+func (*RootCmd) vpnDaemonRun() *serpent.Command {
 	var (
 		rpcReadFD  int64
 		rpcWriteFD int64

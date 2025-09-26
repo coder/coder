@@ -150,9 +150,14 @@ func TestAgentConnectionMonitor_PingTimeout(t *testing.T) {
 		AnyTimes().
 		Return(database.WorkspaceBuild{ID: build.ID}, nil)
 
-	go uut.monitor(ctx)
+	done := make(chan struct{})
+	go func() {
+		uut.monitor(ctx)
+		close(done)
+	}()
 	fConn.requireEventuallyClosed(t, websocket.StatusGoingAway, "ping timeout")
 	fUpdater.requireEventuallySomeUpdates(t, build.WorkspaceID)
+	_ = testutil.TryReceive(ctx, t, done) // ensure monitor() exits before mDB assertions are checked.
 }
 
 func TestAgentConnectionMonitor_BuildOutdated(t *testing.T) {
@@ -210,14 +215,20 @@ func TestAgentConnectionMonitor_BuildOutdated(t *testing.T) {
 		AnyTimes().
 		Return(database.WorkspaceBuild{ID: uuid.New()}, nil)
 
-	go uut.monitor(ctx)
+	done := make(chan struct{})
+	go func() {
+		uut.monitor(ctx)
+		close(done)
+	}()
 	fConn.requireEventuallyClosed(t, websocket.StatusGoingAway, "build is outdated")
 	fUpdater.requireEventuallySomeUpdates(t, build.WorkspaceID)
+	_ = testutil.TryReceive(ctx, t, done) // ensure monitor() exits before mDB assertions are checked.
 }
 
 func TestAgentConnectionMonitor_SendPings(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	ctx, cancel := context.WithCancel(testCtx)
 	t.Cleanup(cancel)
 	fConn := &fakePingerCloser{}
 	uut := &agentConnectionMonitor{
@@ -231,7 +242,7 @@ func TestAgentConnectionMonitor_SendPings(t *testing.T) {
 	}()
 	fConn.requireEventuallyHasPing(t)
 	cancel()
-	<-done
+	_ = testutil.TryReceive(testCtx, t, done)
 	lastPing := uut.lastPing.Load()
 	require.NotNil(t, lastPing)
 }

@@ -48,6 +48,9 @@ const (
 	// SubdomainAppSessionTokenCookie is the name of the cookie that stores an
 	// application-scoped API token on subdomain app domains (both the primary
 	// and proxies).
+	//
+	// To avoid conflicts between multiple proxies, we append an underscore and
+	// a hash suffix to the cookie name.
 	//nolint:gosec
 	SubdomainAppSessionTokenCookie = "coder_subdomain_app_session_token"
 	// SignedAppTokenCookie is the name of the cookie that stores a temporary
@@ -105,13 +108,19 @@ var loggableMimeTypes = map[string]struct{}{
 	"text/html": {},
 }
 
+type ClientOption func(*Client)
+
 // New creates a Coder client for the provided URL.
-func New(serverURL *url.URL) *Client {
-	return &Client{
+func New(serverURL *url.URL, opts ...ClientOption) *Client {
+	client := &Client{
 		URL:                  serverURL,
 		HTTPClient:           &http.Client{},
 		SessionTokenProvider: FixedSessionTokenProvider{},
 	}
+	for _, opt := range opts {
+		opt(client)
+	}
+	return client
 }
 
 // Client is an HTTP caller for methods to the Coder API.
@@ -129,15 +138,18 @@ type Client struct {
 
 	// PlainLogger may be set to log HTTP traffic in a human-readable form.
 	// It uses the LogBodies option.
+	// Deprecated: Use WithPlainLogger to set this.
 	PlainLogger io.Writer
 
 	// Trace can be enabled to propagate tracing spans to the Coder API.
 	// This is useful for tracking a request end-to-end.
+	// Deprecated: Use WithTrace to set this.
 	Trace bool
 
 	// DisableDirectConnections forces any connections to workspaces to go
 	// through DERP, regardless of the BlockEndpoints setting on each
 	// connection.
+	// Deprecated: Use WithDisableDirectConnections to set this.
 	DisableDirectConnections bool
 }
 
@@ -149,6 +161,7 @@ func (c *Client) Logger() slog.Logger {
 }
 
 // SetLogger sets the logger for the client.
+// Deprecated: Use WithLogger to set this.
 func (c *Client) SetLogger(logger slog.Logger) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -163,6 +176,7 @@ func (c *Client) LogBodies() bool {
 }
 
 // SetLogBodies sets whether to log request and response bodies.
+// Deprecated: Use WithLogBodies to set this.
 func (c *Client) SetLogBodies(logBodies bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -177,16 +191,11 @@ func (c *Client) SessionToken() string {
 }
 
 // SetSessionToken sets a fixed token for the client.
-// Deprecated: Create a new client instead of changing the token after creation.
+// Deprecated: Create a new client using WithSessionToken instead of changing the token after creation.
 func (c *Client) SetSessionToken(token string) {
-	c.SetSessionTokenProvider(FixedSessionTokenProvider{SessionToken: token})
-}
-
-// SetSessionTokenProvider sets the session token provider for the client.
-func (c *Client) SetSessionTokenProvider(provider SessionTokenProvider) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.SessionTokenProvider = provider
+	c.SessionTokenProvider = FixedSessionTokenProvider{SessionToken: token}
 }
 
 func prefixLines(prefix, s []byte) []byte {
@@ -639,5 +648,49 @@ func (h *HeaderTransport) CloseIdleConnections() {
 	}
 	if tr, ok := h.Transport.(closeIdler); ok {
 		tr.CloseIdleConnections()
+	}
+}
+
+// ClientOptions
+
+func WithSessionToken(token string) ClientOption {
+	return func(c *Client) {
+		c.SessionTokenProvider = FixedSessionTokenProvider{SessionToken: token}
+	}
+}
+
+func WithHTTPClient(httpClient *http.Client) ClientOption {
+	return func(c *Client) {
+		c.HTTPClient = httpClient
+	}
+}
+
+func WithLogger(logger slog.Logger) ClientOption {
+	return func(c *Client) {
+		c.logger = logger
+	}
+}
+
+func WithLogBodies() ClientOption {
+	return func(c *Client) {
+		c.logBodies = true
+	}
+}
+
+func WithPlainLogger(plainLogger io.Writer) ClientOption {
+	return func(c *Client) {
+		c.PlainLogger = plainLogger
+	}
+}
+
+func WithTrace() ClientOption {
+	return func(c *Client) {
+		c.Trace = true
+	}
+}
+
+func WithDisableDirectConnections() ClientOption {
+	return func(c *Client) {
+		c.DisableDirectConnections = true
 	}
 }

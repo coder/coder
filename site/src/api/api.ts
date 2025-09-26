@@ -27,6 +27,7 @@ import { delay } from "../utils/delay";
 import { OneWayWebSocket } from "../utils/OneWayWebSocket";
 import { type FieldError, isApiError } from "./errors";
 import type {
+	DeleteExternalAuthByIDResponse,
 	DynamicParametersRequest,
 	PostWorkspaceUsageRequest,
 } from "./typesGenerated";
@@ -1727,7 +1728,9 @@ class ApiMethods {
 			return resp.data;
 		};
 
-	unlinkExternalAuthProvider = async (provider: string): Promise<string> => {
+	unlinkExternalAuthProvider = async (
+		provider: string,
+	): Promise<DeleteExternalAuthByIDResponse> => {
 		const resp = await this.axios.delete(`/api/v2/external-auth/${provider}`);
 		return resp.data;
 	};
@@ -2512,6 +2515,13 @@ class ApiMethods {
 	getSystemNotificationTemplates = async () => {
 		const res = await this.axios.get<TypesGen.NotificationTemplate[]>(
 			"/api/v2/notifications/templates/system",
+		);
+		return res.data;
+	};
+
+	getCustomNotificationTemplates = async () => {
+		const res = await this.axios.get<TypesGen.NotificationTemplate[]>(
+			"/api/v2/notifications/templates/custom",
 		);
 		return res.data;
 	};

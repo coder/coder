@@ -929,7 +929,7 @@ func TestAuthorizeScope(t *testing.T) {
 				Org:  map[string][]Permission{},
 				User: []Permission{},
 			},
-			AllowIDList: []string{workspaceID.String()},
+			AllowIDList: []AllowListElement{{Type: ResourceWorkspace.Type, ID: workspaceID.String()}},
 		},
 	}
 
@@ -1019,7 +1019,9 @@ func TestAuthorizeScope(t *testing.T) {
 				User: []Permission{},
 			},
 			// Empty string allow_list is allowed for actions like 'create'
-			AllowIDList: []string{""},
+			AllowIDList: []AllowListElement{{
+				Type: ResourceWorkspace.Type, ID: "",
+			}},
 		},
 	}
 
@@ -1109,6 +1111,182 @@ func TestAuthorizeScope(t *testing.T) {
 			// Cannot access admin resources
 			{resource: ResourceOrganization.WithID(defOrg)},
 		}),
+	)
+
+	// Test setting a scope on the org and the user level
+	// This is a bit of a contrived example that would not exist in practice.
+	// It combines a specific organization scope with a user scope to verify
+	// that both are applied.
+	// The test uses the `Owner` role, so by default the user can do everything.
+	user = Subject{
+		ID: "me",
+		Roles: Roles{
+			must(RoleByName(RoleOwner())),
+			// TODO: There is a __bug__ in the policy.rego. If the user is not a
+			//  member of the organization, the org_scope fails. This happens because
+			//  the org_allow_set uses "org_members".
+			//  This is odd behavior, as without this membership role, the test for
+			//  the workspace fails. Maybe scopes should just assume the user
+			//  is a member.
+			must(RoleByName(ScopedRoleOrgMember(defOrg))),
+		},
+		Scope: Scope{
+			Role: Role{
+				Identifier: RoleIdentifier{
+					Name:           "org-and-user-scope",
+					OrganizationID: defOrg,
+				},
+				DisplayName: "OrgAndUserScope",
+				Site:        nil,
+				Org: map[string][]Permission{
+					defOrg.String(): Permissions(map[string][]policy.Action{
+						ResourceWorkspace.Type: {policy.ActionRead},
+					}),
+				},
+				User: Permissions(map[string][]policy.Action{
+					ResourceUser.Type: {policy.ActionRead},
+				}),
+			},
+			AllowIDList: []AllowListElement{AllowListAll()},
+		},
+	}
+
+	testAuthorize(t, "OrgAndUserScope", user,
+		// Allowed by scope:
+		[]authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), allow: true, actions: []policy.Action{policy.ActionRead}},
+			{resource: ResourceUser.WithOwner(user.ID), allow: true, actions: []policy.Action{policy.ActionRead}},
+		},
+		// Not allowed by scope:
+		[]authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), allow: false, actions: []policy.Action{policy.ActionCreate}},
+			{resource: ResourceUser.WithOwner(user.ID), allow: false, actions: []policy.Action{policy.ActionUpdate}},
+		},
+	)
+}
+
+func TestScopeAllowList(t *testing.T) {
+	t.Parallel()
+
+	defOrg := uuid.New()
+
+	// Some IDs to use
+	wid := uuid.New()
+	gid := uuid.New()
+
+	user := Subject{
+		ID: "me",
+		Roles: Roles{
+			must(RoleByName(RoleOwner())),
+		},
+		Scope: Scope{
+			Role: Role{
+				Identifier: RoleIdentifier{
+					Name:           "AllowList",
+					OrganizationID: defOrg,
+				},
+				DisplayName: "AllowList",
+				// Allow almost everything
+				Site: allPermsExcept(ResourceUser),
+			},
+			AllowIDList: []AllowListElement{
+				{Type: ResourceWorkspace.Type, ID: wid.String()},
+				{Type: ResourceWorkspace.Type, ID: ""}, // Allow to create
+				{Type: ResourceTemplate.Type, ID: policy.WildcardSymbol},
+				{Type: ResourceGroup.Type, ID: gid.String()},
+
+				// This scope allows all users, but the permissions do not.
+				{Type: ResourceUser.Type, ID: policy.WildcardSymbol},
+			},
+		},
+	}
+
+	testAuthorize(t, "AllowList", user,
+		// Allowed:
+		cases(func(c authTestCase) authTestCase {
+			c.allow = true
+			return c
+		},
+			[]authTestCase{
+				{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID).WithID(wid), actions: []policy.Action{policy.ActionRead}},
+				// matching on empty id
+				{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: []policy.Action{policy.ActionCreate}},
+
+				// Template has wildcard ID, so any uuid is allowed, including the empty
+				{resource: ResourceTemplate.InOrg(defOrg).WithID(uuid.New()), actions: AllActions()},
+				{resource: ResourceTemplate.InOrg(defOrg).WithID(uuid.New()), actions: AllActions()},
+				{resource: ResourceTemplate.InOrg(defOrg), actions: AllActions()},
+
+				// Group
+				{resource: ResourceGroup.InOrg(defOrg).WithID(gid), actions: []policy.Action{policy.ActionRead}},
+			},
+		),
+
+		// Not allowed:
+		cases(func(c authTestCase) authTestCase {
+			c.allow = false
+			return c
+		},
+			[]authTestCase{
+				// Has the scope and allow list, but not the permission
+				{resource: ResourceUser.WithOwner(user.ID), actions: []policy.Action{policy.ActionRead}},
+
+				// `wid` matches on the uuid, but not the type
+				{resource: ResourceGroup.WithID(wid), actions: []policy.Action{policy.ActionRead}},
+
+				// no empty id for the create action
+				{resource: ResourceGroup.InOrg(defOrg), actions: []policy.Action{policy.ActionCreate}},
+			},
+		),
+	)
+
+	// Wildcard type
+	user = Subject{
+		ID: "me",
+		Roles: Roles{
+			must(RoleByName(RoleOwner())),
+		},
+		Scope: Scope{
+			Role: Role{
+				Identifier: RoleIdentifier{
+					Name:           "WildcardType",
+					OrganizationID: defOrg,
+				},
+				DisplayName: "WildcardType",
+				// Allow almost everything
+				Site: allPermsExcept(ResourceUser),
+			},
+			AllowIDList: []AllowListElement{
+				{Type: policy.WildcardSymbol, ID: wid.String()},
+			},
+		},
+	}
+
+	testAuthorize(t, "WildcardType", user,
+		// Allowed:
+		cases(func(c authTestCase) authTestCase {
+			c.allow = true
+			return c
+		},
+			[]authTestCase{
+				// anything with the id is ok
+				{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID).WithID(wid), actions: []policy.Action{policy.ActionRead}},
+				{resource: ResourceGroup.InOrg(defOrg).WithID(wid), actions: []policy.Action{policy.ActionRead}},
+				{resource: ResourceTemplate.InOrg(defOrg).WithID(wid), actions: []policy.Action{policy.ActionRead}},
+			},
+		),
+
+		// Not allowed:
+		cases(func(c authTestCase) authTestCase {
+			c.allow = false
+			return c
+		},
+			[]authTestCase{
+				// Anything without the id is not allowed
+				{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: []policy.Action{policy.ActionCreate}},
+				{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID).WithID(uuid.New()), actions: []policy.Action{policy.ActionRead}},
+			},
+		),
 	)
 }
 

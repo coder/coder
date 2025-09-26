@@ -16,7 +16,6 @@ import { useProxy } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import themes from "theme";
@@ -117,7 +116,7 @@ const TerminalPage: FC = () => {
 		appearanceSettingsQuery.data?.terminal_font || DEFAULT_TERMINAL_FONT;
 
 	// Create the terminal!
-	const fitAddonRef = useRef<FitAddon>();
+	const fitAddonRef = useRef<FitAddon>(undefined);
 	useEffect(() => {
 		if (!terminalWrapperRef.current || config.isLoading) {
 			return;
@@ -209,7 +208,7 @@ const TerminalPage: FC = () => {
 	}, [navigate, reconnectionToken, searchParams]);
 
 	// Hook up the terminal through a web socket.
-	const websocketRef = useRef<Websocket>();
+	const websocketRef = useRef<Websocket>(undefined);
 	useEffect(() => {
 		if (!terminal) {
 			return;
@@ -370,15 +369,15 @@ const TerminalPage: FC = () => {
 
 	return (
 		<ThemeOverride theme={theme}>
-			<Helmet>
+			{workspace.data && (
 				<title>
-					{workspace.data
-						? pageTitle(
-								`Terminal · ${workspace.data.owner_name}/${workspace.data.name}`,
-							)
-						: ""}
+					{pageTitle(
+						"Terminal",
+						`${workspace.data.owner_name}/${workspace.data.name}`,
+					)}
 				</title>
-			</Helmet>
+			)}
+
 			<div
 				css={{ display: "flex", flexDirection: "column", height: "100vh" }}
 				data-status={connectionStatus}

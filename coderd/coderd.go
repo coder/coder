@@ -44,6 +44,8 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
+	"github.com/coder/coder/v2/provisionerd/proto"
+
 	"cdr.dev/slog"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
@@ -95,7 +97,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
-	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
@@ -459,7 +460,7 @@ func New(options *Options) *API {
 	metricsCache := metricscache.New(
 		options.Database,
 		options.Logger.Named("metrics_cache"),
-		options.Clock,
+		quartz.NewReal(),
 		metricscache.Intervals{
 			TemplateBuildTimes: options.MetricsCacheRefreshInterval,
 			DeploymentStats:    options.AgentStatsRefreshInterval,
@@ -489,16 +490,8 @@ func New(options *Options) *API {
 	r := chi.NewRouter()
 	// We add this middleware early, to make sure that authorization checks made
 	// by other middleware get recorded.
-	//nolint:revive,staticcheck // This block will be re-enabled, not going to remove it
 	if buildinfo.IsDev() {
-		// TODO: Find another solution to opt into these checks.
-		//   If the header grows too large, it breaks `fetch()` requests.
-		//   Temporarily disabling this until we can find a better solution.
-		//	 One idea is to include checking the request for `X-Authz-Record=true`
-		//   header. To opt in on a per-request basis.
-		//   Some authz calls (like filtering lists) might be able to be
-		//   summarized better to condense the header payload.
-		// r.Use(httpmw.RecordAuthzChecks)
+		r.Use(httpmw.RecordAuthzChecks)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -785,7 +778,7 @@ func New(options *Options) *API {
 		options.WorkspaceAppsStatsCollectorOptions.Reporter = api.statsReporter
 	}
 
-	api.workspaceAppServer = &workspaceapps.Server{
+	api.workspaceAppServer = workspaceapps.NewServer(workspaceapps.ServerOptions{
 		Logger: workspaceAppsLogger,
 
 		DashboardURL:  api.AccessURL,
@@ -799,9 +792,9 @@ func New(options *Options) *API {
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
 
 		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
-		Cookies:                  options.DeploymentValues.HTTPCookies,
+		CookiesConfig:            options.DeploymentValues.HTTPCookies,
 		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
-	}
+	})
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
@@ -948,9 +941,13 @@ func New(options *Options) *API {
 	}
 
 	// OAuth2 metadata endpoint for RFC 8414 discovery
-	r.Get("/.well-known/oauth-authorization-server", api.oauth2AuthorizationServerMetadata())
+	r.Route("/.well-known/oauth-authorization-server", func(r chi.Router) {
+		r.Get("/*", api.oauth2AuthorizationServerMetadata())
+	})
 	// OAuth2 protected resource metadata endpoint for RFC 9728 discovery
-	r.Get("/.well-known/oauth-protected-resource", api.oauth2ProtectedResourceMetadata())
+	r.Route("/.well-known/oauth-protected-resource", func(r chi.Router) {
+		r.Get("/*", api.oauth2ProtectedResourceMetadata())
+	})
 
 	// OAuth2 linking routes do not make sense under the /api/v2 path.  These are
 	// for an external application to use Coder as an OAuth2 provider, not for
@@ -1003,12 +1000,21 @@ func New(options *Options) *API {
 
 	// Experimental routes are not guaranteed to be stable and may change at any time.
 	r.Route("/api/experimental", func(r chi.Router) {
-		r.Use(apiKeyMiddleware)
+		api.ExperimentalHandler = r
+
+		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
+		r.Use(
+			// Specific routes can specify different limits, but every rate
+			// limit must be configurable by the admin.
+			apiRateLimiter,
+			httpmw.ReportCLITelemetry(api.Logger, options.Telemetry),
+		)
 		r.Route("/aitasks", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
 			r.Get("/prompts", api.aiTasksPrompts)
 		})
 		r.Route("/tasks", func(r chi.Router) {
-			r.Use(apiRateLimiter)
+			r.Use(apiKeyMiddleware)
 
 			r.Get("/", api.tasksList)
 
@@ -1016,11 +1022,14 @@ func New(options *Options) *API {
 				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
 				r.Get("/{id}", api.taskGet)
 				r.Delete("/{id}", api.taskDelete)
+				r.Post("/{id}/send", api.taskSend)
+				r.Get("/{id}/logs", api.taskLogs)
 				r.Post("/", api.tasksCreate)
 			})
 		})
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(
+				apiKeyMiddleware,
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP),
 			)
 			// MCP HTTP transport endpoint with mandatory authentication
@@ -1041,6 +1050,8 @@ func New(options *Options) *API {
 		r.Get("/", apiRoot)
 		// All CSP errors will be logged
 		r.Post("/csp/reports", api.logReportCSPViolations)
+
+		r.Get("/auth/scopes", api.listExternalScopes)
 
 		r.Get("/buildinfo", buildInfoHandler(buildInfo))
 		// /regions is overridden in the enterprise version
@@ -1453,6 +1464,7 @@ func New(options *Options) *API {
 
 					r.Get("/", api.workspaceACL)
 					r.Patch("/", api.patchWorkspaceACL)
+					r.Delete("/", api.deleteWorkspaceACL)
 				})
 			})
 		})
@@ -1574,9 +1586,11 @@ func New(options *Options) *API {
 			r.Put("/settings", api.putNotificationsSettings)
 			r.Route("/templates", func(r chi.Router) {
 				r.Get("/system", api.systemNotificationTemplates)
+				r.Get("/custom", api.customNotificationTemplates)
 			})
 			r.Get("/dispatch-methods", api.notificationDispatchMethods)
 			r.Post("/test", api.postTestNotification)
+			r.Post("/custom", api.postCustomNotification)
 		})
 		r.Route("/tailnet", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -1716,6 +1730,8 @@ type API struct {
 
 	// APIHandler serves "/api/v2"
 	APIHandler chi.Router
+	// ExperimentalHandler serves "/api/experimental"
+	ExperimentalHandler chi.Router
 	// RootHandler serves "/"
 	RootHandler chi.Router
 

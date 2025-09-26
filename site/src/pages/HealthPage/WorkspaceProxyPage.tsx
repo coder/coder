@@ -5,7 +5,6 @@ import type { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { HashIcon } from "lucide-react";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useOutletContext } from "react-router";
 import { createDayString } from "utils/createDayString";
 import { pageTitle } from "utils/page";
@@ -28,9 +27,7 @@ const WorkspaceProxyPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Workspace Proxy - Health")}</title>
-			</Helmet>
+			<title>{pageTitle("Workspace Proxy - Health")}</title>
 
 			<Header>
 				<HeaderTitle>
@@ -47,7 +44,7 @@ const WorkspaceProxyPage: FC = () => {
 				{workspace_proxy.warnings.map((warning) => {
 					return (
 						<Alert
-							actions={HealthMessageDocsLink(warning)}
+							actions={<HealthMessageDocsLink {...warning} />}
 							key={warning.code}
 							severity="warning"
 						>

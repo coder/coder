@@ -1,4 +1,3 @@
-import type { WorkspaceApp } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -7,55 +6,42 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { Spinner } from "components/Spinner/Spinner";
+import { useProxy } from "contexts/ProxyContext";
 import { EllipsisVertical, ExternalLinkIcon, HouseIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
-import type { Task } from "modules/tasks/tasks";
+import type { Task, WorkspaceAppWithAgent } from "modules/tasks/tasks";
 import { type FC, useRef } from "react";
 import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
+import { TaskWildcardWarning } from "./TaskWildcardWarning";
 
 type TaskAppIFrameProps = {
 	task: Task;
-	app: WorkspaceApp;
+	app: WorkspaceAppWithAgent;
 	active: boolean;
-	pathname?: string;
 };
 
 export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 	task,
 	app,
 	active,
-	pathname,
 }) => {
-	const agent = task.workspace.latest_build.resources
-		.flatMap((r) => r.agents)
-		.filter((a) => !!a)
-		.find((a) => a.apps.some((a) => a.id === app.id));
-
-	if (!agent) {
-		throw new Error(`Agent for app ${app.id} not found in task workspace`);
-	}
-
 	const link = useAppLink(app, {
-		agent,
+		agent: app.agent,
 		workspace: task.workspace,
 	});
-
-	const appHref = (): string => {
-		try {
-			const url = new URL(link.href, location.href);
-			if (pathname) {
-				url.pathname = pathname;
-			}
-			return url.toString();
-		} catch (err) {
-			console.warn(`Failed to parse URL ${link.href} for app ${app.id}`, err);
-			return link.href;
-		}
-	};
-
+	const proxy = useProxy();
 	const frameRef = useRef<HTMLIFrameElement>(null);
-	const frameSrc = appHref();
+	const shouldDisplayWildcardWarning =
+		app.subdomain && !proxy.proxy?.preferredWildcardHostname;
+
+	if (shouldDisplayWildcardWarning) {
+		return (
+			<div className="h-full flex items-center justify-center pb-4">
+				<TaskWildcardWarning />
+			</div>
+		);
+	}
 
 	return (
 		<div className={cn([active ? "flex" : "hidden", "w-full h-full flex-col"])}>
@@ -67,7 +53,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 						onClick={(e) => {
 							e.preventDefault();
 							if (frameRef.current?.contentWindow) {
-								frameRef.current.contentWindow.location.href = appHref();
+								frameRef.current.contentWindow.location.href = link.href;
 							}
 						}}
 					>
@@ -88,7 +74,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem asChild>
-								<RouterLink to={frameSrc} target="_blank">
+								<RouterLink to={link.href} target="_blank">
 									<ExternalLinkIcon />
 									Open app in new tab
 								</RouterLink>
@@ -103,7 +89,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 			app.health === "unhealthy" ? (
 				<iframe
 					ref={frameRef}
-					src={frameSrc}
+					src={link.href}
 					title={link.label}
 					loading="eager"
 					className={"w-full h-full border-0"}

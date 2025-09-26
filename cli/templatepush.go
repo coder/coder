@@ -37,15 +37,17 @@ func (r *RootCmd) templatePush() *serpent.Command {
 		activate             bool
 		orgContext           = NewOrganizationContext()
 	)
-	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "push [template]",
 		Short: "Create or update a template from the current directory or as specified by flag",
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 1),
-			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			uploadFlags.setWorkdir(workdir)
 
 			organization, err := orgContext.Selected(inv, client)

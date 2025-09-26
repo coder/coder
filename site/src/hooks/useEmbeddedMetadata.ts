@@ -8,7 +8,6 @@ import type {
 	UserAppearanceSettings,
 } from "api/typesGenerated";
 import { useMemo, useSyncExternalStore } from "react";
-
 export const DEFAULT_METADATA_KEY = "property";
 
 /**
@@ -229,13 +228,12 @@ export function makeUseEmbeddedMetadata(
 			manager.getMetadata,
 		);
 
-		// biome-ignore lint/correctness/useExhaustiveDependencies(manager.clearMetadataByKey): baked into containing hook
 		const stableMetadataResult = useMemo<UseEmbeddedMetadataResult>(() => {
 			return {
 				metadata,
 				clearMetadataByKey: manager.clearMetadataByKey,
 			};
-		}, [metadata]);
+		}, [manager, metadata]);
 
 		return stableMetadataResult;
 	};

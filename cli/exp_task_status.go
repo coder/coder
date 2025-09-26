@@ -15,13 +15,13 @@ import (
 
 func (r *RootCmd) taskStatus() *serpent.Command {
 	var (
-		client    = new(codersdk.Client)
 		formatter = cliui.NewOutputFormatter(
 			cliui.TableFormat(
 				[]taskStatusRow{},
 				[]string{
 					"state changed",
 					"status",
+					"healthy",
 					"state",
 					"message",
 				},
@@ -66,9 +66,13 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 		},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			r.InitClient(client),
 		),
 		Handler: func(i *serpent.Invocation) error {
+			client, err := r.InitClient(i)
+			if err != nil {
+				return err
+			}
+
 			ctx := i.Context()
 			ec := codersdk.NewExperimentalClient(client)
 			identifier := i.Args[0]
@@ -89,44 +93,46 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 				return err
 			}
 
-			out, err := formatter.Format(ctx, toStatusRow(task))
+			tsr := toStatusRow(task)
+			out, err := formatter.Format(ctx, []taskStatusRow{tsr})
 			if err != nil {
 				return xerrors.Errorf("format task status: %w", err)
 			}
 			_, _ = fmt.Fprintln(i.Stdout, out)
 
-			if !watchArg {
+			if !watchArg || taskWatchIsEnded(task) {
 				return nil
 			}
 
-			lastStatus := task.Status
-			lastState := task.CurrentState
 			t := time.NewTicker(watchIntervalArg)
 			defer t.Stop()
 			// TODO: implement streaming updates instead of polling
+			lastStatusRow := tsr
 			for range t.C {
 				task, err := ec.TaskByID(ctx, taskID)
 				if err != nil {
 					return err
 				}
-				if lastStatus == task.Status && taskStatusEqual(lastState, task.CurrentState) {
-					continue
-				}
-				out, err := formatter.Format(ctx, toStatusRow(task))
-				if err != nil {
-					return xerrors.Errorf("format task status: %w", err)
-				}
-				// hack: skip the extra column header from formatter
-				if formatter.FormatID() != cliui.JSONFormat().ID() {
-					out = strings.SplitN(out, "\n", 2)[1]
-				}
-				_, _ = fmt.Fprintln(i.Stdout, out)
 
-				if task.Status == codersdk.WorkspaceStatusStopped {
+				// Only print if something changed
+				newStatusRow := toStatusRow(task)
+				if !taskStatusRowEqual(lastStatusRow, newStatusRow) {
+					out, err := formatter.Format(ctx, []taskStatusRow{newStatusRow})
+					if err != nil {
+						return xerrors.Errorf("format task status: %w", err)
+					}
+					// hack: skip the extra column header from formatter
+					if formatter.FormatID() != cliui.JSONFormat().ID() {
+						out = strings.SplitN(out, "\n", 2)[1]
+					}
+					_, _ = fmt.Fprintln(i.Stdout, out)
+				}
+
+				if taskWatchIsEnded(task) {
 					return nil
 				}
-				lastStatus = task.Status
-				lastState = task.CurrentState
+
+				lastStatusRow = newStatusRow
 			}
 			return nil
 		},
@@ -135,14 +141,20 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 	return cmd
 }
 
-func taskStatusEqual(s1, s2 *codersdk.TaskStateEntry) bool {
-	if s1 == nil && s2 == nil {
+func taskWatchIsEnded(task codersdk.Task) bool {
+	if task.Status == codersdk.WorkspaceStatusStopped {
 		return true
 	}
-	if s1 == nil || s2 == nil {
+	if task.WorkspaceAgentHealth == nil || !task.WorkspaceAgentHealth.Healthy {
 		return false
 	}
-	return s1.State == s2.State
+	if task.WorkspaceAgentLifecycle == nil || task.WorkspaceAgentLifecycle.Starting() || task.WorkspaceAgentLifecycle.ShuttingDown() {
+		return false
+	}
+	if task.CurrentState == nil || task.CurrentState.State == codersdk.TaskStateWorking {
+		return false
+	}
+	return true
 }
 
 type taskStatusRow struct {
@@ -150,22 +162,36 @@ type taskStatusRow struct {
 	ChangedAgo    string    `json:"-" table:"state changed,default_sort"`
 	Timestamp     time.Time `json:"-" table:"-"`
 	TaskStatus    string    `json:"-" table:"status"`
+	Healthy       bool      `json:"-" table:"healthy"`
 	TaskState     string    `json:"-" table:"state"`
 	Message       string    `json:"-" table:"message"`
 }
 
-func toStatusRow(task codersdk.Task) []taskStatusRow {
+func taskStatusRowEqual(r1, r2 taskStatusRow) bool {
+	return r1.TaskStatus == r2.TaskStatus &&
+		r1.Healthy == r2.Healthy &&
+		r1.TaskState == r2.TaskState &&
+		r1.Message == r2.Message
+}
+
+func toStatusRow(task codersdk.Task) taskStatusRow {
 	tsr := taskStatusRow{
 		Task:       task,
 		ChangedAgo: time.Since(task.UpdatedAt).Truncate(time.Second).String() + " ago",
 		Timestamp:  task.UpdatedAt,
 		TaskStatus: string(task.Status),
 	}
+	tsr.Healthy = task.WorkspaceAgentHealth != nil &&
+		task.WorkspaceAgentHealth.Healthy &&
+		task.WorkspaceAgentLifecycle != nil &&
+		!task.WorkspaceAgentLifecycle.Starting() &&
+		!task.WorkspaceAgentLifecycle.ShuttingDown()
+
 	if task.CurrentState != nil {
 		tsr.ChangedAgo = time.Since(task.CurrentState.Timestamp).Truncate(time.Second).String() + " ago"
 		tsr.Timestamp = task.CurrentState.Timestamp
 		tsr.TaskState = string(task.CurrentState.State)
 		tsr.Message = task.CurrentState.Message
 	}
-	return []taskStatusRow{tsr}
+	return tsr
 }

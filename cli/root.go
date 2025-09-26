@@ -97,6 +97,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.portForward(),
 		r.publickey(),
 		r.resetPassword(),
+		r.sharing(),
 		r.state(),
 		r.templates(),
 		r.tokens(),
@@ -127,7 +128,6 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 
 		// Hidden
 		r.connectCmd(),
-		r.expCmd(),
 		gitssh(),
 		r.support(),
 		r.vpnDaemon(),
@@ -136,13 +136,43 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 	}
 }
 
+// AGPLExperimental returns all AGPL experimental subcommands.
+func (r *RootCmd) AGPLExperimental() []*serpent.Command {
+	return []*serpent.Command{
+		r.scaletestCmd(),
+		r.errorExample(),
+		r.mcpCommand(),
+		r.promptExample(),
+		r.rptyCommand(),
+		r.tasksCommand(),
+	}
+}
+
+// AGPL returns all AGPL commands including any non-core commands that are
+// duplicated in the Enterprise CLI.
 func (r *RootCmd) AGPL() []*serpent.Command {
 	all := append(
 		r.CoreSubcommands(),
 		r.Server( /* Do not import coderd here. */ nil),
 		r.Provisioners(),
+		ExperimentalCommand(r.AGPLExperimental()),
 	)
 	return all
+}
+
+// ExperimentalCommand creates an experimental command that is hidden and has
+// the given subcommands.
+func ExperimentalCommand(subcommands []*serpent.Command) *serpent.Command {
+	cmd := &serpent.Command{
+		Use:   "exp",
+		Short: "Internal commands for testing and experimentation. These are prone to breaking changes with no notice.",
+		Handler: func(i *serpent.Invocation) error {
+			return i.Command.HelpHandler(i)
+		},
+		Hidden:   true,
+		Children: subcommands,
+	}
+	return cmd
 }
 
 // RunWithSubcommands runs the root command with the given subcommands.
@@ -493,110 +523,126 @@ type RootCmd struct {
 	noFeatureWarning        bool
 }
 
-// InitClient authenticates the client with files from disk
-// and injects header middlewares for telemetry, authentication,
+// InitClient creates and configures a new client with authentication, telemetry,
 // and version checks.
-func (r *RootCmd) InitClient(client *codersdk.Client) serpent.MiddlewareFunc {
-	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
-		return func(inv *serpent.Invocation) error {
-			conf := r.createConfig()
-			var err error
-			// Read the client URL stored on disk.
-			if r.clientURL == nil || r.clientURL.String() == "" {
-				rawURL, err := conf.URL().Read()
-				// If the configuration files are absent, the user is logged out
-				if os.IsNotExist(err) {
-					binPath, err := os.Executable()
-					if err != nil {
-						binPath = "coder"
-					}
-					return xerrors.Errorf(notLoggedInMessage, binPath)
-				}
-				if err != nil {
-					return err
-				}
-
-				r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
-				if err != nil {
-					return err
-				}
-			}
-			// Read the token stored on disk.
-			if r.token == "" {
-				r.token, err = conf.Session().Read()
-				// Even if there isn't a token, we don't care.
-				// Some API routes can be unauthenticated.
-				if err != nil && !os.IsNotExist(err) {
-					return err
-				}
-			}
-
-			err = r.configureClient(inv.Context(), client, r.clientURL, inv)
+func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) {
+	conf := r.createConfig()
+	var err error
+	// Read the client URL stored on disk.
+	if r.clientURL == nil || r.clientURL.String() == "" {
+		rawURL, err := conf.URL().Read()
+		// If the configuration files are absent, the user is logged out
+		if os.IsNotExist(err) {
+			binPath, err := os.Executable()
 			if err != nil {
-				return err
+				binPath = "coder"
 			}
-			client.SetSessionToken(r.token)
+			return nil, xerrors.Errorf(notLoggedInMessage, binPath)
+		}
+		if err != nil {
+			return nil, err
+		}
 
-			if r.debugHTTP {
-				client.PlainLogger = os.Stderr
-				client.SetLogBodies(true)
-			}
-			client.DisableDirectConnections = r.disableDirect
-			return next(inv)
+		r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
+		if err != nil {
+			return nil, err
 		}
 	}
+	// Read the token stored on disk.
+	if r.token == "" {
+		r.token, err = conf.Session().Read()
+		// Even if there isn't a token, we don't care.
+		// Some API routes can be unauthenticated.
+		if err != nil && !os.IsNotExist(err) {
+			return nil, err
+		}
+	}
+
+	// Configure HTTP client with transport wrappers
+	httpClient, err := r.createHTTPClient(inv.Context(), r.clientURL, inv)
+	if err != nil {
+		return nil, err
+	}
+
+	clientOpts := []codersdk.ClientOption{
+		codersdk.WithSessionToken(r.token),
+		codersdk.WithHTTPClient(httpClient),
+	}
+
+	if r.disableDirect {
+		clientOpts = append(clientOpts, codersdk.WithDisableDirectConnections())
+	}
+
+	if r.debugHTTP {
+		clientOpts = append(clientOpts,
+			codersdk.WithPlainLogger(os.Stderr),
+			codersdk.WithLogBodies(),
+		)
+	}
+
+	return codersdk.New(r.clientURL, clientOpts...), nil
 }
 
 // TryInitClient is similar to InitClient but doesn't error when credentials are missing.
 // This allows commands to run without requiring authentication, but still use auth if available.
-func (r *RootCmd) TryInitClient(client *codersdk.Client) serpent.MiddlewareFunc {
-	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
-		return func(inv *serpent.Invocation) error {
-			conf := r.createConfig()
-			var err error
-			// Read the client URL stored on disk.
-			if r.clientURL == nil || r.clientURL.String() == "" {
-				rawURL, err := conf.URL().Read()
-				// If the configuration files are absent, just continue without URL
-				if err != nil {
-					// Continue with a nil or empty URL
-					if !os.IsNotExist(err) {
-						return err
-					}
-				} else {
-					r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
-					if err != nil {
-						return err
-					}
-				}
+func (r *RootCmd) TryInitClient(inv *serpent.Invocation) (*codersdk.Client, error) {
+	conf := r.createConfig()
+	var err error
+	// Read the client URL stored on disk.
+	if r.clientURL == nil || r.clientURL.String() == "" {
+		rawURL, err := conf.URL().Read()
+		// If the configuration files are absent, just continue without URL
+		if err != nil {
+			// Continue with a nil or empty URL
+			if !os.IsNotExist(err) {
+				return nil, err
 			}
-			// Read the token stored on disk.
-			if r.token == "" {
-				r.token, err = conf.Session().Read()
-				// Even if there isn't a token, we don't care.
-				// Some API routes can be unauthenticated.
-				if err != nil && !os.IsNotExist(err) {
-					return err
-				}
+		} else {
+			r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
+			if err != nil {
+				return nil, err
 			}
-
-			// Only configure the client if we have a URL
-			if r.clientURL != nil && r.clientURL.String() != "" {
-				err = r.configureClient(inv.Context(), client, r.clientURL, inv)
-				if err != nil {
-					return err
-				}
-				client.SetSessionToken(r.token)
-
-				if r.debugHTTP {
-					client.PlainLogger = os.Stderr
-					client.SetLogBodies(true)
-				}
-				client.DisableDirectConnections = r.disableDirect
-			}
-			return next(inv)
 		}
 	}
+	// Read the token stored on disk.
+	if r.token == "" {
+		r.token, err = conf.Session().Read()
+		// Even if there isn't a token, we don't care.
+		// Some API routes can be unauthenticated.
+		if err != nil && !os.IsNotExist(err) {
+			return nil, err
+		}
+	}
+
+	// Only configure the client if we have a URL
+	if r.clientURL != nil && r.clientURL.String() != "" {
+		// Configure HTTP client with transport wrappers
+		httpClient, err := r.createHTTPClient(inv.Context(), r.clientURL, inv)
+		if err != nil {
+			return nil, err
+		}
+
+		clientOpts := []codersdk.ClientOption{
+			codersdk.WithSessionToken(r.token),
+			codersdk.WithHTTPClient(httpClient),
+		}
+
+		if r.disableDirect {
+			clientOpts = append(clientOpts, codersdk.WithDisableDirectConnections())
+		}
+
+		if r.debugHTTP {
+			clientOpts = append(clientOpts,
+				codersdk.WithPlainLogger(os.Stderr),
+				codersdk.WithLogBodies(),
+			)
+		}
+
+		return codersdk.New(r.clientURL, clientOpts...), nil
+	}
+
+	// Return a minimal client if no URL is available
+	return &codersdk.Client{}, nil
 }
 
 // HeaderTransport creates a new transport that executes `--header-command`
@@ -605,10 +651,7 @@ func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*cod
 	return headerTransport(ctx, serverURL, r.header, r.headerCommand)
 }
 
-func (r *RootCmd) configureClient(ctx context.Context, client *codersdk.Client, serverURL *url.URL, inv *serpent.Invocation) error {
-	if client.SessionTokenProvider == nil {
-		client.SessionTokenProvider = codersdk.FixedSessionTokenProvider{}
-	}
+func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*http.Client, error) {
 	transport := http.DefaultTransport
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
 	if !r.noVersionCheck {
@@ -624,23 +667,24 @@ func (r *RootCmd) configureClient(ctx context.Context, client *codersdk.Client, 
 	}
 	headerTransport, err := r.HeaderTransport(ctx, serverURL)
 	if err != nil {
-		return xerrors.Errorf("create header transport: %w", err)
+		return nil, xerrors.Errorf("create header transport: %w", err)
 	}
 	// The header transport has to come last.
 	// codersdk checks for the header transport to get headers
 	// to clone on the DERP client.
 	headerTransport.Transport = transport
-	client.HTTPClient = &http.Client{
+	return &http.Client{
 		Transport: headerTransport,
-	}
-	client.URL = serverURL
-	return nil
+	}, nil
 }
 
 func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*codersdk.Client, error) {
-	var client codersdk.Client
-	err := r.configureClient(ctx, &client, serverURL, inv)
-	return &client, err
+	httpClient, err := r.createHTTPClient(ctx, serverURL, inv)
+	if err != nil {
+		return nil, err
+	}
+	client := codersdk.New(serverURL, codersdk.WithHTTPClient(httpClient))
+	return client, nil
 }
 
 type AgentAuth struct {
@@ -816,17 +860,13 @@ func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier str
 	return client.WorkspaceByOwnerAndName(ctx, owner, name, codersdk.WorkspaceOptions{})
 }
 
-func initAppearance(client *codersdk.Client, outConfig *codersdk.AppearanceConfig) serpent.MiddlewareFunc {
-	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
-		return func(inv *serpent.Invocation) error {
-			cfg, _ := client.Appearance(inv.Context())
-			if cfg.DocsURL == "" {
-				cfg.DocsURL = codersdk.DefaultDocsURL()
-			}
-			*outConfig = cfg
-			return next(inv)
-		}
+func initAppearance(ctx context.Context, client *codersdk.Client) codersdk.AppearanceConfig {
+	// best effort
+	cfg, _ := client.Appearance(ctx)
+	if cfg.DocsURL == "" {
+		cfg.DocsURL = codersdk.DefaultDocsURL()
 	}
+	return cfg
 }
 
 // createConfig consumes the global configuration flag to produce a config root.

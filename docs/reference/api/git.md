@@ -80,6 +80,7 @@ curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth} \
       "id": 0
     }
   ],
+  "supports_revocation": true,
   "user": {
     "avatar_url": "string",
     "id": 0,
@@ -105,6 +106,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```shell
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/external-auth/{externalauth} \
+  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -116,11 +118,22 @@ curl -X DELETE http://coder-server:8080/api/v2/external-auth/{externalauth} \
 |----------------|------|----------------|----------|-----------------|
 | `externalauth` | path | string(string) | true     | Git Provider ID |
 
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "token_revocation_error": "string",
+  "token_revoked": true
+}
+```
+
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema |
-|--------|---------------------------------------------------------|-------------|--------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+| Status | Meaning                                                 | Description | Schema                                                                                       |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeleteExternalAuthByIDResponse](schemas.md#codersdkdeleteexternalauthbyidresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

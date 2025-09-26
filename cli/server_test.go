@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"database/sql/driver"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -35,6 +36,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/types/key"
@@ -56,6 +58,7 @@ import (
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func dbArg(t *testing.T) string {
@@ -76,6 +79,7 @@ func TestReadExternalAuthProvidersFromEnv(t *testing.T) {
 			"CODER_EXTERNAL_AUTH_1_CLIENT_SECRET=hunter12",
 			"CODER_EXTERNAL_AUTH_1_TOKEN_URL=google.com",
 			"CODER_EXTERNAL_AUTH_1_VALIDATE_URL=bing.com",
+			"CODER_EXTERNAL_AUTH_1_REVOKE_URL=revoke.url",
 			"CODER_EXTERNAL_AUTH_1_SCOPES=repo:read repo:write",
 			"CODER_EXTERNAL_AUTH_1_NO_REFRESH=true",
 			"CODER_EXTERNAL_AUTH_1_DISPLAY_NAME=Google",
@@ -87,6 +91,7 @@ func TestReadExternalAuthProvidersFromEnv(t *testing.T) {
 		// Validate the first provider.
 		assert.Equal(t, "1", providers[0].ID)
 		assert.Equal(t, "gitlab", providers[0].Type)
+		assert.Equal(t, "", providers[0].RevokeURL)
 
 		// Validate the second provider.
 		assert.Equal(t, "2", providers[1].ID)
@@ -94,6 +99,7 @@ func TestReadExternalAuthProvidersFromEnv(t *testing.T) {
 		assert.Equal(t, "hunter12", providers[1].ClientSecret)
 		assert.Equal(t, "google.com", providers[1].TokenURL)
 		assert.Equal(t, "bing.com", providers[1].ValidateURL)
+		assert.Equal(t, "revoke.url", providers[1].RevokeURL)
 		assert.Equal(t, []string{"repo:read", "repo:write"}, providers[1].Scopes)
 		assert.Equal(t, true, providers[1].NoRefresh)
 		assert.Equal(t, "Google", providers[1].DisplayName)
@@ -486,7 +492,9 @@ func TestServer(t *testing.T) {
 			"--cache-dir", t.TempDir(),
 		)
 		pty := ptytest.New(t).Attach(inv)
-		clitest.Start(t, inv)
+		// Since we end the test after seeing the log lines about the access url, we could cancel the test before
+		// our initial interactions with PostgreSQL are complete. So, ignore errors of that type for this test.
+		startIgnoringPostgresQueryCancel(t, inv)
 
 		// Just wait for startup
 		_ = waitAccessURL(t, cfg)
@@ -510,7 +518,9 @@ func TestServer(t *testing.T) {
 		)
 		pty := ptytest.New(t).Attach(inv)
 
-		clitest.Start(t, inv)
+		// Since we end the test after seeing the log lines about the access url, we could cancel the test before
+		// our initial interactions with PostgreSQL are complete. So, ignore errors of that type for this test.
+		startIgnoringPostgresQueryCancel(t, inv)
 
 		// Just wait for startup
 		_ = waitAccessURL(t, cfg)
@@ -530,7 +540,9 @@ func TestServer(t *testing.T) {
 			"--cache-dir", t.TempDir(),
 		)
 		pty := ptytest.New(t).Attach(inv)
-		clitest.Start(t, inv)
+		// Since we end the test after seeing the log lines about the access url, we could cancel the test before
+		// our initial interactions with PostgreSQL are complete. So, ignore errors of that type for this test.
+		startIgnoringPostgresQueryCancel(t, inv)
 
 		// Just wait for startup
 		_ = waitAccessURL(t, cfg)
@@ -1015,7 +1027,9 @@ func TestServer(t *testing.T) {
 		)
 
 		pty := ptytest.New(t).Attach(inv)
-		clitest.Start(t, inv)
+		// Since we end the test after seeing the log lines about the HTTP listener, we could cancel the test before
+		// our initial interactions with PostgreSQL are complete. So, ignore errors of that type for this test.
+		startIgnoringPostgresQueryCancel(t, inv)
 
 		pty.ExpectMatch("Started HTTP listener")
 		pty.ExpectMatch("http://0.0.0.0:")
@@ -1032,7 +1046,9 @@ func TestServer(t *testing.T) {
 		)
 
 		pty := ptytest.New(t).Attach(inv)
-		clitest.Start(t, inv)
+		// Since we end the test after seeing the log lines about the HTTP listener, we could cancel the test before
+		// our initial interactions with PostgreSQL are complete. So, ignore errors of that type for this test.
+		startIgnoringPostgresQueryCancel(t, inv)
 
 		pty.ExpectMatch("Started HTTP listener at")
 		pty.ExpectMatch("http://[::]:")
@@ -1157,7 +1173,10 @@ func TestServer(t *testing.T) {
 		)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		clitest.Start(t, inv.WithContext(ctx))
+		// Since we cancel the context before our initial interactions with PostgreSQL are complete, we need to ignore
+		// errors about queries being canceled.
+		startIgnoringPostgresQueryCancel(t, inv.WithContext(ctx))
+
 		cancel()
 		require.Error(t, goleak.Find())
 	})
@@ -1819,7 +1838,7 @@ func TestServer_Logging_NoParallel(t *testing.T) {
 		// fails.
 		pty := ptytest.New(t).Attach(inv)
 
-		clitest.Start(t, inv.WithContext(ctx))
+		startIgnoringPostgresQueryCancel(t, inv.WithContext(ctx))
 
 		// Wait for server to listen on HTTP, this is a good
 		// starting point for expecting logs.
@@ -1856,7 +1875,7 @@ func TestServer_Logging_NoParallel(t *testing.T) {
 		// fails.
 		pty := ptytest.New(t).Attach(inv)
 
-		clitest.Start(t, inv)
+		startIgnoringPostgresQueryCancel(t, inv)
 
 		// Wait for server to listen on HTTP, this is a good
 		// starting point for expecting logs.
@@ -2369,4 +2388,24 @@ func mockTelemetryServer(t *testing.T) (*url.URL, chan *telemetry.Deployment, ch
 	require.NoError(t, err)
 
 	return serverURL, deployment, snapshot
+}
+
+// startIgnoringPostgresQueryCancel starts the Invocation, but excludes PostgreSQL query canceled and context
+// cancellation errors. This prevents flakes in tests that only assert things that happen before PostgreSQL is fully
+// initialized in the server.
+func startIgnoringPostgresQueryCancel(t *testing.T, inv *serpent.Invocation) {
+	t.Helper()
+	clitest.StartWithAssert(t, inv, func(t *testing.T, err error) {
+		if database.IsQueryCanceledError(err) {
+			return
+		}
+		// specifically when making our initial connection to PostgreSQL, we ping the database.
+		// Database driver.Conn instances can return driver.ErrBadConn on ping to remove the connection from the pool.
+		// lib/pq does this no matter what the error is, including context.Canceled.
+		// c.f. https://pkg.go.dev/database/sql/driver#Pinger
+		if xerrors.Is(err, driver.ErrBadConn) {
+			return
+		}
+		assert.NoError(t, err)
+	})
 }

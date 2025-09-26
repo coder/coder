@@ -1570,6 +1570,23 @@ func userOrganizationIDs(ctx context.Context, api *API, user database.User) ([]u
 }
 
 func convertAPIKey(k database.APIKey) codersdk.APIKey {
+	// Derive a single legacy scope name for response compatibility.
+	// Historically, the API exposed only two scope strings: "all" and
+	// "application_connect". Continue to return those for clients even
+	// though the database stores canonical values (e.g. "coder:all")
+	// and may include low-level scopes.
+	var legacyScope codersdk.APIKeyScope
+	if k.Scopes.Has(database.ApiKeyScopeCoderApplicationConnect) {
+		legacyScope = codersdk.APIKeyScopeApplicationConnect
+	} else if k.Scopes.Has(database.ApiKeyScopeCoderAll) {
+		legacyScope = codersdk.APIKeyScopeAll
+	}
+
+	scopes := make([]codersdk.APIKeyScope, 0, len(k.Scopes))
+	for _, s := range k.Scopes {
+		scopes = append(scopes, codersdk.APIKeyScope(s))
+	}
+
 	return codersdk.APIKey{
 		ID:              k.ID,
 		UserID:          k.UserID,
@@ -1578,7 +1595,8 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 		CreatedAt:       k.CreatedAt,
 		UpdatedAt:       k.UpdatedAt,
 		LoginType:       codersdk.LoginType(k.LoginType),
-		Scope:           codersdk.APIKeyScope(k.Scope),
+		Scope:           legacyScope,
+		Scopes:          scopes,
 		LifetimeSeconds: k.LifetimeSeconds,
 		TokenName:       k.TokenName,
 	}

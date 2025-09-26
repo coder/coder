@@ -286,7 +286,7 @@
 					"icon_path": "./images/icons/computer-code.svg",
 					"children": [
 						{
-							"title": "Coder Desktop connect and sync",
+							"title": "Coder Desktop Connect and Sync",
 							"description": "Use Coder Desktop to manage your workspace code and files locally",
 							"path": "./user-guides/desktop/desktop-connect-sync.md"
 						}
@@ -769,6 +769,11 @@
 							"description": "Learn how to configure Coder for High Availability",
 							"path": "./admin/networking/high-availability.md",
 							"state": ["premium"]
+						},
+						{
+							"title": "Wildcard Access URL",
+							"description": "Learn about wildcard access URL in Coder deployments",
+							"path": "./admin/networking/wildcard-access-url.md"
 						},
 						{
 							"title": "Troubleshooting",
@@ -1286,6 +1291,11 @@
 							"title": "notifications",
 							"description": "Manage Coder notifications",
 							"path": "reference/cli/notifications.md"
+						},
+						{
+							"title": "notifications custom",
+							"description": "Send a custom notification",
+							"path": "reference/cli/notifications_custom.md"
 						},
 						{
 							"title": "notifications pause",

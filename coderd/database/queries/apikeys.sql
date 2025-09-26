@@ -43,7 +43,8 @@ INSERT INTO
 		created_at,
 		updated_at,
 		login_type,
-		scope,
+		scopes,
+		allow_list,
 		token_name
 	)
 VALUES
@@ -53,7 +54,7 @@ VALUES
 	     WHEN 0 THEN 86400
 		 ELSE @lifetime_seconds::bigint
 	 END
-	 , @hashed_secret, @ip_address, @user_id, @last_used, @expires_at, @created_at, @updated_at, @login_type, @scope, @token_name) RETURNING *;
+	 , @hashed_secret, @ip_address, @user_id, @last_used, @expires_at, @created_at, @updated_at, @login_type, @scopes, @allow_list, @token_name) RETURNING *;
 
 -- name: UpdateAPIKeyByID :exec
 UPDATE
@@ -76,7 +77,7 @@ DELETE FROM
 	api_keys
 WHERE
 	user_id = $1 AND
-	scope = 'application_connect'::api_key_scope;
+	'coder:application_connect'::api_key_scope = ANY(scopes);
 
 -- name: DeleteAPIKeysByUserID :exec
 DELETE FROM

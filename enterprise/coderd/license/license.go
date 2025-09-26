@@ -96,17 +96,6 @@ func Entitlements(
 		return codersdk.Entitlements{}, xerrors.Errorf("query active user count: %w", err)
 	}
 
-	// nolint:gocritic // Getting external workspaces is a system function.
-	externalWorkspaces, err := db.GetWorkspaces(dbauthz.AsSystemRestricted(ctx), database.GetWorkspacesParams{
-		HasExternalAgent: sql.NullBool{
-			Bool:  true,
-			Valid: true,
-		},
-	})
-	if err != nil {
-		return codersdk.Entitlements{}, xerrors.Errorf("query external workspaces: %w", err)
-	}
-
 	// nolint:gocritic // Getting external templates is a system function.
 	externalTemplates, err := db.GetTemplatesWithFilter(dbauthz.AsSystemRestricted(ctx), database.GetTemplatesWithFilterParams{
 		HasExternalAgent: sql.NullBool{
@@ -119,11 +108,10 @@ func Entitlements(
 	}
 
 	entitlements, err := LicensesEntitlements(ctx, now, licenses, enablements, keys, FeatureArguments{
-		ActiveUserCount:        activeUserCount,
-		ReplicaCount:           replicaCount,
-		ExternalAuthCount:      externalAuthCount,
-		ExternalWorkspaceCount: int64(len(externalWorkspaces)),
-		ExternalTemplateCount:  int64(len(externalTemplates)),
+		ActiveUserCount:       activeUserCount,
+		ReplicaCount:          replicaCount,
+		ExternalAuthCount:     externalAuthCount,
+		ExternalTemplateCount: int64(len(externalTemplates)),
 		ManagedAgentCountFn: func(ctx context.Context, startTime time.Time, endTime time.Time) (int64, error) {
 			// This is not super accurate, as the start and end times will be
 			// truncated to the date in UTC timezone. This is an optimization
@@ -149,11 +137,10 @@ func Entitlements(
 }
 
 type FeatureArguments struct {
-	ActiveUserCount        int64
-	ReplicaCount           int
-	ExternalAuthCount      int
-	ExternalWorkspaceCount int64
-	ExternalTemplateCount  int64
+	ActiveUserCount       int64
+	ReplicaCount          int
+	ExternalAuthCount     int
+	ExternalTemplateCount int64
 	// Unfortunately, managed agent count is not a simple count of the current
 	// state of the world, but a count between two points in time determined by
 	// the licenses.
@@ -474,18 +461,6 @@ func LicensesEntitlements(
 			entitlements.Warnings = append(entitlements.Warnings,
 				"You have multiple External Auth Providers configured but your license is expired. Reduce to one.",
 			)
-		}
-	}
-
-	if featureArguments.ExternalWorkspaceCount > 0 {
-		feature := entitlements.Features[codersdk.FeatureWorkspaceExternalAgent]
-		switch feature.Entitlement {
-		case codersdk.EntitlementNotEntitled:
-			entitlements.Errors = append(entitlements.Errors,
-				"You have external workspaces but your license is not entitled to this feature.")
-		case codersdk.EntitlementGracePeriod:
-			entitlements.Warnings = append(entitlements.Warnings,
-				"You have external workspaces but your license is expired.")
 		}
 	}
 

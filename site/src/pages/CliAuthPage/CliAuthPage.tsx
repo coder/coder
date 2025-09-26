@@ -1,6 +1,5 @@
 import { apiKey } from "api/queries/users";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
 import { CliAuthPageView } from "./CliAuthPageView";
@@ -10,9 +9,7 @@ const CliAuthenticationPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("CLI Auth")}</title>
-			</Helmet>
+			<title>{pageTitle("CLI Auth")}</title>
 			<CliAuthPageView sessionToken={data?.key} />
 		</>
 	);
