@@ -160,15 +160,17 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 	} = useExternalAuth(selectedTemplate.active_version_id);
 
 	// Fetch presets when template changes
-	const { data: presets, isLoading: isLoadingPresets } = useQuery(
+	const { data: presets } = useQuery(
 		templateVersionPresets(selectedTemplate.active_version_id),
 	);
-	const defaultPreset = presets?.find((p) => p.Default);
 
 	// Handle preset selection when data changes
 	useEffect(() => {
-		setSelectedPresetId(defaultPreset?.ID);
-	}, [defaultPreset?.ID]);
+		if (presets && presets.length > 0) {
+			const defaultPreset = presets.find((p) => p.Default) || presets[0];
+			setSelectedPresetId(defaultPreset.ID);
+		}
+	}, [presets]);
 
 	// Extract AI prompt from selected preset
 	const selectedPreset = presets?.find((p) => p.ID === selectedPresetId);
@@ -290,32 +292,28 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 								<label htmlFor="presetID" className="sr-only">
 									Preset
 								</label>
-								{isLoadingPresets ? (
-									<Skeleton className="w-[160px] h-8" />
-								) : (
-									<Select
-										key={`preset-select-${selectedTemplate.active_version_id}`}
-										name="presetID"
-										value={selectedPresetId}
-										onValueChange={setSelectedPresetId}
+								<Select
+									key={`preset-select-${selectedTemplate.active_version_id}`}
+									name="presetID"
+									value={selectedPresetId}
+									onValueChange={setSelectedPresetId}
+								>
+									<SelectTrigger
+										id="presetID"
+										className="w-fit text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3 rounded-full"
 									>
-										<SelectTrigger
-											id="presetID"
-											className="w-fit text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3 rounded-full"
-										>
-											<SelectValue placeholder="Select a preset" />
-										</SelectTrigger>
-										<SelectContent>
-											{presets?.toSorted(sortByDefault).map((preset) => (
-												<SelectItem value={preset.ID} key={preset.ID}>
-													<span className="overflow-hidden text-ellipsis block">
-														{preset.Name} {preset.Default && "(Default)"}
-													</span>
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								)}
+										<SelectValue placeholder="Select a preset" />
+									</SelectTrigger>
+									<SelectContent>
+										{presets?.toSorted(sortByDefault).map((preset) => (
+											<SelectItem value={preset.ID} key={preset.ID}>
+												<span className="overflow-hidden text-ellipsis block">
+													{preset.Name} {preset.Default && "(Default)"}
+												</span>
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
 							</div>
 						)}
 					</div>

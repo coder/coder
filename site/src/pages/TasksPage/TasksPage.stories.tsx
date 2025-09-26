@@ -15,6 +15,7 @@ import {
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
+import { AI_PROMPT_PARAMETER_NAME } from "modules/tasks/tasks";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import TasksPage from "./TasksPage";
@@ -86,6 +87,20 @@ export const WithPreset: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
 		spyOn(API, "getTemplateVersionPresets").mockResolvedValue(MockPresets);
+	},
+};
+
+export const PreDefinedPrompt: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API, "getTemplateVersionPresets").mockResolvedValue([
+			{
+				...MockPresets[0],
+				Parameters: [
+					{ Name: AI_PROMPT_PARAMETER_NAME, Value: "Write a poem about AI" },
+				],
+			},
+		]);
 	},
 };
 
