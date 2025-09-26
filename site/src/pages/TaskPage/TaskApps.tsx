@@ -37,32 +37,36 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	);
 	const [embeddedApps, externalApps] = splitEmbeddedAndExternalApps(apps);
 	const [activeAppId, setActiveAppId] = useState(embeddedApps.at(0)?.id);
+	const hasAvailableAppsToDisplay =
+		embeddedApps.length > 0 || externalApps.length > 0;
 
 	return (
 		<main className="flex flex-col h-full">
-			<div className="w-full flex items-center border-0 border-b border-border border-solid">
-				<ScrollArea className="max-w-full">
-					<div className="flex w-max gap-2 items-center p-2 pb-0">
-						{embeddedApps.map((app) => (
-							<TaskAppTab
-								key={app.id}
-								task={task}
-								app={app}
-								active={app.id === activeAppId}
-								onClick={(e) => {
-									e.preventDefault();
-									setActiveAppId(app.id);
-								}}
-							/>
-						))}
-					</div>
-					<ScrollBar orientation="horizontal" className="h-2" />
-				</ScrollArea>
+			{hasAvailableAppsToDisplay && (
+				<div className="w-full flex items-center border-0 border-b border-border border-solid">
+					<ScrollArea className="max-w-full">
+						<div className="flex w-max gap-2 items-center p-2 pb-0">
+							{embeddedApps.map((app) => (
+								<TaskAppTab
+									key={app.id}
+									task={task}
+									app={app}
+									active={app.id === activeAppId}
+									onClick={(e) => {
+										e.preventDefault();
+										setActiveAppId(app.id);
+									}}
+								/>
+							))}
+						</div>
+						<ScrollBar orientation="horizontal" className="h-2" />
+					</ScrollArea>
 
-				{externalApps.length > 0 && (
-					<ExternalAppsDropdown task={task} externalApps={externalApps} />
-				)}
-			</div>
+					{externalApps.length > 0 && (
+						<ExternalAppsDropdown task={task} externalApps={externalApps} />
+					)}
+				</div>
+			)}
 
 			{embeddedApps.length > 0 ? (
 				<div className="flex-1">
