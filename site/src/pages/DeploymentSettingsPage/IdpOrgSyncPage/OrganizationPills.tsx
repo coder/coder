@@ -65,7 +65,9 @@ const OverflowPillList: FC<OverflowPillProps> = ({ organizations }) => {
 								<Pill
 									className={cn(
 										"border-none w-fit",
-										organization.isUUID ? "bg-surface-destructive" : "bg-surface-secondary",
+										organization.isUUID
+											? "bg-surface-destructive"
+											: "bg-surface-secondary",
 									)}
 								>
 									{organization.name}
