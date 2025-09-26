@@ -53,9 +53,74 @@ export interface APIKey {
 }
 
 // From codersdk/apikey.go
-export type APIKeyScope = "all" | "application_connect";
+export type APIKeyScope =
+	| "all"
+	| "api_key:*"
+	| "api_key:create"
+	| "api_key:delete"
+	| "api_key:read"
+	| "api_key:update"
+	| "application_connect"
+	| "file:*"
+	| "file:create"
+	| "file:read"
+	| "template:*"
+	| "template:create"
+	| "template:delete"
+	| "template:read"
+	| "template:update"
+	| "template:use"
+	| "user:read_personal"
+	| "user_secret:*"
+	| "user_secret:create"
+	| "user_secret:delete"
+	| "user_secret:read"
+	| "user_secret:update"
+	| "user:update_personal"
+	| "workspace:*"
+	| "workspace:application_connect"
+	| "workspace:create"
+	| "workspace:delete"
+	| "workspace:read"
+	| "workspace:ssh"
+	| "workspace:start"
+	| "workspace:stop"
+	| "workspace:update";
 
-export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"];
+export const APIKeyScopes: APIKeyScope[] = [
+	"all",
+	"api_key:*",
+	"api_key:create",
+	"api_key:delete",
+	"api_key:read",
+	"api_key:update",
+	"application_connect",
+	"file:*",
+	"file:create",
+	"file:read",
+	"template:*",
+	"template:create",
+	"template:delete",
+	"template:read",
+	"template:update",
+	"template:use",
+	"user:read_personal",
+	"user_secret:*",
+	"user_secret:create",
+	"user_secret:delete",
+	"user_secret:read",
+	"user_secret:update",
+	"user:update_personal",
+	"workspace:*",
+	"workspace:application_connect",
+	"workspace:create",
+	"workspace:delete",
+	"workspace:read",
+	"workspace:ssh",
+	"workspace:start",
+	"workspace:stop",
+	"workspace:update",
+];
 
 // From codersdk/apikey.go
 export interface APIKeyWithOwner extends APIKey {
@@ -982,6 +1047,11 @@ export const Experiments: Experiment[] = [
 	"workspace-sharing",
 	"workspace-usage",
 ];
+
+// From codersdk/scopes_catalog.go
+export interface ExternalAPIKeyScopes {
+	readonly external: readonly APIKeyScope[];
+}
 
 // From codersdk/workspaces.go
 export interface ExternalAgentCredentials {

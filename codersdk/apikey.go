@@ -42,17 +42,9 @@ const (
 
 type APIKeyScope string
 
-const (
-	// APIKeyScopeAll is a scope that allows the user to do everything.
-	APIKeyScopeAll APIKeyScope = "all"
-	// APIKeyScopeApplicationConnect is a scope that allows the user
-	// to connect to applications in a workspace.
-	APIKeyScopeApplicationConnect APIKeyScope = "application_connect"
-)
-
 type CreateTokenRequest struct {
 	Lifetime  time.Duration `json:"lifetime"`
-	Scope     APIKeyScope   `json:"scope" enums:"all,application_connect"`
+	Scope     APIKeyScope   `json:"scope"`
 	TokenName string        `json:"token_name"`
 }
 
