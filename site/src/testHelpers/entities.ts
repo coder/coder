@@ -39,6 +39,18 @@ export const MockOrganization2: TypesGen.Organization = {
 	is_default: false,
 };
 
+export const MockOrganization3: TypesGen.Organization = {
+	id: "my-organization-3-id",
+	name: "my-organization-3",
+	display_name: "My Organization 3",
+	description:
+		"Yet another organization that will show up in OrganizationPills.",
+	icon: "/emojis/1f957.png",
+	created_at: "",
+	updated_at: "",
+	is_default: false,
+};
+
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
 	tz_hour_offset: 0,
 	entries: [
@@ -2905,6 +2917,20 @@ export const MockGroupSyncSettings2: TypesGen.GroupSyncSettings = {
 	auto_create_missing_groups: false,
 };
 
+export const MockMultipleOverflowGroupSyncSettings: TypesGen.GroupSyncSettings =
+	{
+		field: "group-multiple-overflow-test",
+		mapping: {
+			"idp-group-1": [
+				"fbd2116a-8961-4954-87ae-e4575bd29ce0",
+				"13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
+				"d3562dc1-c120-43a9-ba02-88e43bbca192",
+			],
+		},
+		regex_filter: "@[a-zA-Z0-9_]+",
+		auto_create_missing_groups: false,
+	};
+
 export const MockRoleSyncSettings: TypesGen.RoleSyncSettings = {
 	field: "role-test",
 	mapping: {
@@ -2929,7 +2955,11 @@ export const MockOrganizationSyncSettings2: TypesGen.OrganizationSyncSettings =
 	{
 		field: "organization-test",
 		mapping: {
-			"idp-org-1": ["my-organization-id", "my-organization-2-id"],
+			"idp-org-1": [
+				"my-organization-id",
+				"my-organization-2-id",
+				"my-organization-3-id",
+			],
 			"idp-org-2": ["my-organization-id"],
 		},
 		organization_assign_default: true,
@@ -2959,6 +2989,20 @@ export const MockGroup: TypesGen.Group = {
 export const MockGroup2: TypesGen.Group = {
 	id: "13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
 	name: "developer",
+	display_name: "",
+	avatar_url: "https://example.com",
+	organization_id: MockOrganization.id,
+	organization_name: MockOrganization.name,
+	organization_display_name: MockOrganization.display_name,
+	members: [MockUserOwner, MockUserMember],
+	quota_allowance: 5,
+	source: "user",
+	total_member_count: 2,
+};
+
+export const MockGroup3: TypesGen.Group = {
+	id: "d3562dc1-c120-43a9-ba02-88e43bbca192",
+	name: "Back-End",
 	display_name: "",
 	avatar_url: "https://example.com",
 	organization_id: MockOrganization.id,

@@ -1,6 +1,7 @@
 import {
 	MockOrganization,
 	MockOrganization2,
+	MockOrganization3,
 	MockOrganizationSyncSettings,
 	MockOrganizationSyncSettings2,
 	MockOrganizationSyncSettingsEmpty,
@@ -15,7 +16,7 @@ const meta: Meta<typeof IdpOrgSyncPageView> = {
 	args: {
 		organizationSyncSettings: MockOrganizationSyncSettings2,
 		claimFieldValues: Object.keys(MockOrganizationSyncSettings2.mapping),
-		organizations: [MockOrganization, MockOrganization2],
+		organizations: [MockOrganization, MockOrganization2, MockOrganization3],
 		error: undefined,
 	},
 };
