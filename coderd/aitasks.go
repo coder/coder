@@ -245,13 +245,18 @@ func taskFromWorkspace(ws codersdk.Workspace, initialPrompt string) codersdk.Tas
 		}
 	}
 
+	// Ignore 'latest app status' if it is older than the latest build and the latest build is a 'start' transition.
+	// This ensures that you don't show a stale app status from a previous build.
+	// For stop transitions, there is still value in showing the latest app status.
 	var currentState *codersdk.TaskStateEntry
 	if ws.LatestAppStatus != nil {
-		currentState = &codersdk.TaskStateEntry{
-			Timestamp: ws.LatestAppStatus.CreatedAt,
-			State:     codersdk.TaskState(ws.LatestAppStatus.State),
-			Message:   ws.LatestAppStatus.Message,
-			URI:       ws.LatestAppStatus.URI,
+		if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart || ws.LatestAppStatus.CreatedAt.After(ws.LatestBuild.CreatedAt) {
+			currentState = &codersdk.TaskStateEntry{
+				Timestamp: ws.LatestAppStatus.CreatedAt,
+				State:     codersdk.TaskState(ws.LatestAppStatus.State),
+				Message:   ws.LatestAppStatus.Message,
+				URI:       ws.LatestAppStatus.URI,
+			}
 		}
 	}
 

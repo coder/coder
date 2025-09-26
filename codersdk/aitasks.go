@@ -96,10 +96,10 @@ type TaskState string
 
 // TaskState enums.
 const (
-	TaskStateWorking   TaskState = "working"
-	TaskStateIdle      TaskState = "idle"
-	TaskStateCompleted TaskState = "completed"
-	TaskStateFailed    TaskState = "failed"
+	TaskStateWorking  TaskState = "working"
+	TaskStateIdle     TaskState = "idle"
+	TaskStateComplete TaskState = "complete"
+	TaskStateFailed   TaskState = "failed"
 )
 
 // Task represents a task.
