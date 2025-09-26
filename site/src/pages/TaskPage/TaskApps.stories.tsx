@@ -18,6 +18,7 @@ import { TaskApps } from "./TaskApps";
 const mockExternalApp: WorkspaceApp = {
 	...MockWorkspaceApp,
 	external: true,
+	health: "healthy",
 };
 
 const meta: Meta<typeof TaskApps> = {
