@@ -25,7 +25,7 @@ const OrganizationProvisionerKeysPage: FC = () => {
 		return <EmptyState message="Organization not found" />;
 	}
 
-	const helmet = (
+	const title = (
 		<title>
 			{pageTitle(
 				"Provisioner Keys",
@@ -37,7 +37,7 @@ const OrganizationProvisionerKeysPage: FC = () => {
 	if (!organizationPermissions?.viewProvisioners) {
 		return (
 			<>
-				{helmet}
+				{title}
 				<RequirePermission isFeatureVisible={false} />
 			</>
 		);
@@ -45,7 +45,7 @@ const OrganizationProvisionerKeysPage: FC = () => {
 
 	return (
 		<>
-			{helmet}
+			{title}
 			<OrganizationProvisionerKeysPageView
 				showPaywall={!entitlements.features.multiple_organizations.enabled}
 				provisionerKeyDaemons={provisionerKeyDaemonsQuery.data}

@@ -23,7 +23,7 @@ const GroupSettingsPage: FC = () => {
 		navigate(`/organizations/${organization}/groups/${groupName}`);
 	};
 
-	const helmet = <title>{pageTitle("Settings Group")}</title>;
+	const title = <title>{pageTitle("Settings Group")}</title>;
 
 	if (groupQuery.error) {
 		return <ErrorAlert error={groupQuery.error} />;
@@ -32,7 +32,7 @@ const GroupSettingsPage: FC = () => {
 	if (groupQuery.isLoading || !groupQuery.data) {
 		return (
 			<>
-				{helmet}
+				{title}
 				<Loader />
 			</>
 		);
@@ -41,7 +41,7 @@ const GroupSettingsPage: FC = () => {
 
 	return (
 		<>
-			{helmet}
+			{title}
 
 			<GroupSettingsPageView
 				onCancel={navigateToGroup}

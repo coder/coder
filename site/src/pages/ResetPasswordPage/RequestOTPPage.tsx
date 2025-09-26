@@ -10,6 +10,7 @@ import type { FC } from "react";
 import { useMutation } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { getApplicationName } from "utils/appearance";
+import { pageTitle } from "utils/page";
 
 const RequestOTPPage: FC = () => {
 	const applicationName = getApplicationName();
@@ -17,21 +18,23 @@ const RequestOTPPage: FC = () => {
 
 	return (
 		<>
-			<title>Reset Password - {applicationName}</title>
+			<title>{pageTitle("Reset Password", applicationName)}</title>
 
 			<main css={styles.root}>
 				<CustomLogo css={styles.logo} />
-				requestOTPMutation.isSuccess ? (
-				<RequestOTPSuccess email={requestOTPMutation.variables?.email ?? ""} />)
-				: (
-				<RequestOTP
-					error={requestOTPMutation.error}
-					isRequesting={requestOTPMutation.isPending}
-					onRequest={(email) => {
-						requestOTPMutation.mutate({ email });
-					}}
-				/>
-				);
+				{requestOTPMutation.isSuccess ? (
+					<RequestOTPSuccess
+						email={requestOTPMutation.variables?.email ?? ""}
+					/>
+				) : (
+					<RequestOTP
+						error={requestOTPMutation.error}
+						isRequesting={requestOTPMutation.isPending}
+						onRequest={(email) => {
+							requestOTPMutation.mutate({ email });
+						}}
+					/>
+				)}
 			</main>
 		</>
 	);

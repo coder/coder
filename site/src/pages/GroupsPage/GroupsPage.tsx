@@ -57,14 +57,14 @@ const GroupsPage: FC = () => {
 		return <Loader />;
 	}
 
-	const helmet = <title>{pageTitle("Groups")}</title>;
+	const title = <title>{pageTitle("Groups")}</title>;
 
 	const permissions = permissionsQuery.data?.[organization.id];
 
 	if (!permissions?.viewGroups) {
 		return (
 			<>
-				{helmet}
+				{title}
 				<RequirePermission isFeatureVisible={false} />
 			</>
 		);
@@ -72,7 +72,7 @@ const GroupsPage: FC = () => {
 
 	return (
 		<div className="w-full max-w-screen-2xl pb-10">
-			{helmet}
+			{title}
 
 			<Stack
 				alignItems="baseline"

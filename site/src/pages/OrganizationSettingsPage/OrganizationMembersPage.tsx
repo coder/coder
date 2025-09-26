@@ -64,7 +64,7 @@ const OrganizationMembersPage: FC = () => {
 		return <EmptyState message="Organization not found" />;
 	}
 
-	const helmet = (
+	const title = (
 		<title>
 			{pageTitle("Members", organization.display_name || organization.name)}
 		</title>
@@ -73,7 +73,7 @@ const OrganizationMembersPage: FC = () => {
 	if (!organizationPermissions) {
 		return (
 			<>
-				{helmet}
+				{title}
 				<RequirePermission isFeatureVisible={false} />
 			</>
 		);
@@ -81,7 +81,7 @@ const OrganizationMembersPage: FC = () => {
 
 	return (
 		<>
-			{helmet}
+			{title}
 			<OrganizationMembersPageView
 				allAvailableRoles={organizationRolesQuery.data}
 				canEditMembers={organizationPermissions.editMembers}

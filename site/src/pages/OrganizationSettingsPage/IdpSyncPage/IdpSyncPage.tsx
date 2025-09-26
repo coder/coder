@@ -84,7 +84,7 @@ const IdpSyncPage: FC = () => {
 		return <EmptyState message="Organization not found" />;
 	}
 
-	const helmet = (
+	const title = (
 		<title>
 			{pageTitle("IdP Sync", organization.display_name || organization.name)}
 		</title>
@@ -93,7 +93,7 @@ const IdpSyncPage: FC = () => {
 	if (!organizationPermissions?.viewIdpSyncSettings) {
 		return (
 			<>
-				{helmet}
+				{title}
 				<RequirePermission isFeatureVisible={false} />
 			</>
 		);
@@ -115,7 +115,7 @@ const IdpSyncPage: FC = () => {
 
 	return (
 		<div className="w-full max-w-screen-2xl pb-10">
-			{helmet}
+			{title}
 
 			<div className="flex flex-col gap-12">
 				<header className="flex flex-row items-baseline justify-between">

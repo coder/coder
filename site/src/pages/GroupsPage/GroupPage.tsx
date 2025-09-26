@@ -80,7 +80,7 @@ const GroupPage: FC = () => {
 	const isLoading = groupQuery.isLoading || !groupData || !permissions;
 	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
 
-	const helmet = (
+	const title = (
 		<title>
 			{pageTitle((groupData?.display_name || groupData?.name) ?? "Loading...")}
 		</title>
@@ -93,7 +93,7 @@ const GroupPage: FC = () => {
 	if (isLoading) {
 		return (
 			<>
-				{helmet}
+				{title}
 				<Loader />
 			</>
 		);
@@ -102,7 +102,7 @@ const GroupPage: FC = () => {
 
 	return (
 		<>
-			{helmet}
+			{title}
 
 			<Stack
 				alignItems="baseline"

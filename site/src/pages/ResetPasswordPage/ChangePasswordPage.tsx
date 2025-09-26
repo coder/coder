@@ -15,6 +15,7 @@ import { useMutation } from "react-query";
 import { Link as RouterLink, useNavigate, useSearchParams } from "react-router";
 import { getApplicationName } from "utils/appearance";
 import { getFormHelpers } from "utils/formUtils";
+import { pageTitle } from "utils/page";
 import * as yup from "yup";
 
 const validationSchema = yup.object({
@@ -65,7 +66,7 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 
 	return (
 		<>
-			<title>Reset Password - {applicationName}</title>
+			<title>{pageTitle("Reset Password", applicationName)}</title>
 
 			<div css={styles.root}>
 				<main css={styles.container}>

@@ -36,7 +36,7 @@ const OrganizationProvisionersPage: FC = () => {
 		return <EmptyState message="Organization not found" />;
 	}
 
-	const helmet = (
+	const title = (
 		<title>
 			{pageTitle(
 				"Provisioners",
@@ -48,7 +48,7 @@ const OrganizationProvisionersPage: FC = () => {
 	if (!organizationPermissions?.viewProvisioners) {
 		return (
 			<>
-				{helmet}
+				{title}
 				<RequirePermission isFeatureVisible={false} />
 			</>
 		);
@@ -56,7 +56,7 @@ const OrganizationProvisionersPage: FC = () => {
 
 	return (
 		<>
-			{helmet}
+			{title}
 			<OrganizationProvisionersPageView
 				showPaywall={!entitlements.features.multiple_organizations.enabled}
 				error={provisionersQuery.error}

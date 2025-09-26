@@ -29,7 +29,7 @@ const OrganizationSettingsPage: FC = () => {
 		return <EmptyState message="Organization not found" />;
 	}
 
-	const helmet = (
+	const title = (
 		<title>
 			{pageTitle("Settings", organization.display_name || organization.name)}
 		</title>
@@ -38,7 +38,7 @@ const OrganizationSettingsPage: FC = () => {
 	if (!organizationPermissions?.editSettings) {
 		return (
 			<>
-				{helmet}
+				{title}
 				<RequirePermission isFeatureVisible={false} />
 			</>
 		);
@@ -49,7 +49,7 @@ const OrganizationSettingsPage: FC = () => {
 
 	return (
 		<>
-			{helmet}
+			{title}
 			<OrganizationSettingsPageView
 				organization={organization}
 				error={error}
