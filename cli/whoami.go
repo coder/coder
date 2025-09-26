@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
@@ -10,8 +11,13 @@ import (
 )
 
 type whoamiRow struct {
-	URL      string `json:"url" table:"URL,default_sort"`
-	Username string `json:"username" table:"Username"`
+	URL                 string              `json:"url" table:"URL,default_sort"`
+	Username            string              `json:"username" table:"Username"`
+	UserID              string              `json:"user_id" table:"ID"`
+	OrganizationIDs     string              `json:"-" table:"Orgs"`
+	OrganizationIDsJSON []string            `json:"organization_ids" table:"-"`
+	Roles               string              `json:"-" table:"Roles"`
+	RolesJSON           map[string][]string `json:"roles" table:"-"`
 }
 
 func (r whoamiRow) String() string {
@@ -26,7 +32,7 @@ func (r *RootCmd) whoami() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TextFormat(),
 		cliui.JSONFormat(),
-		cliui.TableFormat([]whoamiRow{}, []string{"url", "username"}),
+		cliui.TableFormat([]whoamiRow{}, []string{"url", "username", "id"}),
 	)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
@@ -50,10 +56,29 @@ func (r *RootCmd) whoami() *serpent.Command {
 				return err
 			}
 
+			orgIDs := make([]string, 0, len(resp.OrganizationIDs))
+			for _, orgID := range resp.OrganizationIDs {
+				orgIDs = append(orgIDs, orgID.String())
+			}
+
+			roles := make([]string, 0, len(resp.Roles))
+			jsonRoles := make(map[string][]string)
+			for _, role := range resp.Roles {
+				if role.OrganizationID == "" {
+					role.OrganizationID = "*"
+				}
+				roles = append(roles, fmt.Sprintf("%s:%s", role.OrganizationID, role.DisplayName))
+				jsonRoles[role.OrganizationID] = append(jsonRoles[role.OrganizationID], role.DisplayName)
+			}
 			out, err := formatter.Format(ctx, []whoamiRow{
 				{
-					URL:      clientURL.String(),
-					Username: resp.Username,
+					URL:                 clientURL.String(),
+					Username:            resp.Username,
+					UserID:              resp.ID.String(),
+					OrganizationIDs:     strings.Join(orgIDs, ","),
+					OrganizationIDsJSON: orgIDs,
+					Roles:               strings.Join(roles, ","),
+					RolesJSON:           jsonRoles,
 				},
 			})
 			if err != nil {

@@ -6,7 +6,7 @@ USAGE:
   Fetch authenticated user info for Coder deployment
 
 OPTIONS:
-  -c, --column [URL|Username] (default: url,username)
+  -c, --column [URL|Username|ID|Orgs|Roles] (default: url,username,id)
           Columns to display in table output.
 
   -o, --output text|json|table (default: text)
