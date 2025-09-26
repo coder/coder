@@ -25,10 +25,10 @@ export const OrganizationPills: FC<OrganizationPillsProps> = ({
 		<div className="flex flex-row gap-2">
 			{orgs.length > 0 ? (
 				<Pill
-					className={cn("border-none w-fit", {
-						"bg-surface-destructive": orgs[0].isUUID,
-						"bg-surface-secondary": !orgs[0].isUUID,
-					})}
+					className={cn(
+						"border-none w-fit",
+						orgs[0].isUUID ? "bg-surface-destructive" : "bg-surface-secondary",
+					)}
 				>
 					{orgs[0].name}
 				</Pill>
