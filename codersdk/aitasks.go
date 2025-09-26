@@ -63,7 +63,7 @@ func (c *ExperimentalClient) AITaskPrompts(ctx context.Context, buildIDs []uuid.
 type CreateTaskRequest struct {
 	TemplateVersionID       uuid.UUID `json:"template_version_id" format:"uuid"`
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
-	Prompt                  string    `json:"prompt"`
+	Input                   string    `json:"input"`
 	Name                    string    `json:"name,omitempty"`
 }
 
@@ -96,10 +96,10 @@ type TaskState string
 
 // TaskState enums.
 const (
-	TaskStateWorking   TaskState = "working"
-	TaskStateIdle      TaskState = "idle"
-	TaskStateCompleted TaskState = "completed"
-	TaskStateFailed    TaskState = "failed"
+	TaskStateWorking  TaskState = "working"
+	TaskStateIdle     TaskState = "idle"
+	TaskStateComplete TaskState = "complete"
+	TaskStateFailed   TaskState = "failed"
 )
 
 // Task represents a task.
@@ -261,10 +261,10 @@ const (
 //
 // Experimental: This type is experimental and may change in the future.
 type TaskLogEntry struct {
-	ID      int         `json:"id"`
-	Content string      `json:"content"`
-	Type    TaskLogType `json:"type" enum:"input,output"`
-	Time    time.Time   `json:"time" format:"date-time"`
+	ID      int         `json:"id" table:"id"`
+	Content string      `json:"content" table:"content"`
+	Type    TaskLogType `json:"type" enum:"input,output" table:"type"`
+	Time    time.Time   `json:"time" format:"date-time" table:"time,default_sort"`
 }
 
 // TaskLogsResponse contains the logs for a task.

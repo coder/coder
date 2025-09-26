@@ -11,7 +11,6 @@ import { Loader } from "components/Loader/Loader";
 import kebabCase from "lodash/fp/kebabCase";
 import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
 import { type FC, Suspense } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { NavLink, Outlet } from "react-router";
 import { cn } from "utils/cn";
@@ -70,9 +69,7 @@ export const HealthLayout: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Health")}</title>
-			</Helmet>
+			<title>{pageTitle("Health")}</title>
 
 			<DashboardFullPage>
 				<div className="flex basis-0 flex-1 overflow-hidden">

@@ -1,6 +1,5 @@
 import { useTheme } from "@emotion/react";
 import GitHubIcon from "@mui/icons-material/GitHub";
-import KeyIcon from "@mui/icons-material/VpnKey";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
@@ -15,7 +14,7 @@ import type {
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Stack } from "components/Stack/Stack";
-import { CircleCheck as CircleCheckIcon } from "lucide-react";
+import { CircleCheck as CircleCheckIcon, KeyIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation } from "react-query";
 import { docs } from "utils/docs";
@@ -230,7 +229,7 @@ interface OIDCIconProps {
 
 const OIDCIcon: FC<OIDCIconProps> = ({ oidcAuth }) => {
 	if (!oidcAuth.iconUrl) {
-		return <KeyIcon css={{ width: 16, height: 16 }} />;
+		return <KeyIcon className="size-4" />;
 	}
 
 	return (

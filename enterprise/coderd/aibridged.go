@@ -6,16 +6,13 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/tracing"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/enterprise/x/aibridged"
 	aibridgedproto "github.com/coder/coder/v2/enterprise/x/aibridged/proto"
@@ -25,24 +22,12 @@ import (
 // RegisterInMemoryAIBridgedHTTPHandler mounts [aibridged.Server]'s HTTP router onto
 // [API]'s router, so that requests to aibridged will be relayed from Coder's API server
 // to the in-memory aibridged.
-func (api *API) RegisterInMemoryAIBridgedHTTPHandler(srv *aibridged.Server) {
+func (api *API) RegisterInMemoryAIBridgedHTTPHandler(srv http.Handler) {
 	if srv == nil {
 		panic("aibridged cannot be nil")
 	}
 
-	if api.AGPL.RootHandler == nil {
-		panic("api.RootHandler cannot be nil")
-	}
-
-	aibridgeEndpoint := "/api/experimental/aibridge"
-
-	r := chi.NewRouter()
-	r.Group(func(r chi.Router) {
-		r.Use(httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentAIBridge))
-		r.HandleFunc("/*", http.StripPrefix(aibridgeEndpoint, srv).ServeHTTP)
-	})
-
-	api.AGPL.RootHandler.Mount(aibridgeEndpoint, r)
+	api.aibridgedHandler = srv
 }
 
 // CreateInMemoryAIBridgeServer creates a [aibridged.DRPCServer] and returns a

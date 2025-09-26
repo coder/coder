@@ -18,6 +18,7 @@ import { TaskApps } from "./TaskApps";
 const mockExternalApp: WorkspaceApp = {
 	...MockWorkspaceApp,
 	external: true,
+	health: "healthy",
 };
 
 const meta: Meta<typeof TaskApps> = {
@@ -103,6 +104,7 @@ function mockEmbeddedApp(name = MockWorkspaceApp.display_name): WorkspaceApp {
 		slug: kebabCase(name),
 		display_name: name,
 		external: false,
+		health: "healthy",
 	};
 }
 

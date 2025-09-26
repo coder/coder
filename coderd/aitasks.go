@@ -136,7 +136,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		if anthropicAPIKey := taskname.GetAnthropicAPIKeyFromEnv(); anthropicAPIKey != "" {
 			anthropicModel := taskname.GetAnthropicModelFromEnv()
 
-			generatedName, err := taskname.Generate(ctx, req.Prompt, taskname.WithAPIKey(anthropicAPIKey), taskname.WithModel(anthropicModel))
+			generatedName, err := taskname.Generate(ctx, req.Input, taskname.WithAPIKey(anthropicAPIKey), taskname.WithModel(anthropicModel))
 			if err != nil {
 				api.Logger.Error(ctx, "unable to generate task name", slog.Error(err))
 			} else {
@@ -150,7 +150,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		TemplateVersionID:       req.TemplateVersionID,
 		TemplateVersionPresetID: req.TemplateVersionPresetID,
 		RichParameterValues: []codersdk.WorkspaceBuildParameter{
-			{Name: codersdk.AITaskPromptParameterName, Value: req.Prompt},
+			{Name: codersdk.AITaskPromptParameterName, Value: req.Input},
 		},
 	}
 
@@ -216,7 +216,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	task := taskFromWorkspace(w, req.Prompt)
+	task := taskFromWorkspace(w, req.Input)
 	httpapi.Write(ctx, rw, http.StatusCreated, task)
 }
 
@@ -245,13 +245,18 @@ func taskFromWorkspace(ws codersdk.Workspace, initialPrompt string) codersdk.Tas
 		}
 	}
 
+	// Ignore 'latest app status' if it is older than the latest build and the latest build is a 'start' transition.
+	// This ensures that you don't show a stale app status from a previous build.
+	// For stop transitions, there is still value in showing the latest app status.
 	var currentState *codersdk.TaskStateEntry
 	if ws.LatestAppStatus != nil {
-		currentState = &codersdk.TaskStateEntry{
-			Timestamp: ws.LatestAppStatus.CreatedAt,
-			State:     codersdk.TaskState(ws.LatestAppStatus.State),
-			Message:   ws.LatestAppStatus.Message,
-			URI:       ws.LatestAppStatus.URI,
+		if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart || ws.LatestAppStatus.CreatedAt.After(ws.LatestBuild.CreatedAt) {
+			currentState = &codersdk.TaskStateEntry{
+				Timestamp: ws.LatestAppStatus.CreatedAt,
+				State:     codersdk.TaskState(ws.LatestAppStatus.State),
+				Message:   ws.LatestAppStatus.Message,
+				URI:       ws.LatestAppStatus.URI,
+			}
 		}
 	}
 

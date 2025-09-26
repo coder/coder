@@ -16,7 +16,6 @@ import { useProxy } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import themes from "theme";
@@ -370,15 +369,15 @@ const TerminalPage: FC = () => {
 
 	return (
 		<ThemeOverride theme={theme}>
-			<Helmet>
+			{workspace.data && (
 				<title>
-					{workspace.data
-						? pageTitle(
-								`Terminal · ${workspace.data.owner_name}/${workspace.data.name}`,
-							)
-						: ""}
+					{pageTitle(
+						"Terminal",
+						`${workspace.data.owner_name}/${workspace.data.name}`,
+					)}
 				</title>
-			</Helmet>
+			)}
+
 			<div
 				css={{ display: "flex", flexDirection: "column", height: "100vh" }}
 				data-status={connectionStatus}

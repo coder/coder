@@ -1,6 +1,6 @@
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
-import BuildCircleOutlinedIcon from "@mui/icons-material/BuildCircleOutlined";
 import { DisabledBadge, EnabledBadge } from "components/Badges/Badges";
+import { WrenchIcon } from "lucide-react";
 import type { FC, HTMLAttributes, PropsWithChildren } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
@@ -90,16 +90,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 									alignItems: "center",
 								}}
 							>
-								{isEnabled && (
-									<BuildCircleOutlinedIcon
-										css={(theme) => ({
-											width: 16,
-											height: 16,
-											color: theme.palette.mode,
-											margin: "0 8px",
-										})}
-									/>
-								)}
+								{isEnabled && <WrenchIcon className="size-4 mx-2" />}
 								{option}
 							</div>
 						</li>

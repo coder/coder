@@ -1,6 +1,5 @@
 import isChromatic from "chromatic/isChromatic";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { CliInstallPageView } from "./CliInstallPageView";
 
@@ -9,9 +8,7 @@ const CliInstallPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Install the Coder CLI")}</title>
-			</Helmet>
+			<title>{pageTitle("Install the Coder CLI")}</title>
 			<CliInstallPageView origin={origin} />
 		</>
 	);

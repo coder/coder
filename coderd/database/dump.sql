@@ -11,8 +11,8 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
 );
 
 CREATE TYPE api_key_scope AS ENUM (
-    'all',
-    'application_connect',
+    'coder:all',
+    'coder:application_connect',
     'aibridge_interception:create',
     'aibridge_interception:read',
     'aibridge_interception:update',
@@ -3111,6 +3111,12 @@ CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (cr
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
 
 CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions USING btree (initiator_id);
+
+CREATE INDEX idx_aibridge_interceptions_model ON aibridge_interceptions USING btree (model);
+
+CREATE INDEX idx_aibridge_interceptions_provider ON aibridge_interceptions USING btree (provider);
+
+CREATE INDEX idx_aibridge_interceptions_started_id_desc ON aibridge_interceptions USING btree (started_at DESC, id DESC);
 
 CREATE INDEX idx_aibridge_token_usages_interception_id ON aibridge_token_usages USING btree (interception_id);
 

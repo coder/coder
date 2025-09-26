@@ -7,7 +7,6 @@ import {
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
 import { OverviewPageView } from "./OverviewPageView";
@@ -29,9 +28,8 @@ const OverviewPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Overview", "Deployment")}</title>
-			</Helmet>
+			<title>{pageTitle("Overview", "Deployment")}</title>
+
 			<OverviewPageView
 				deploymentOptions={deploymentConfig.options}
 				dailyActiveUsers={dailyActiveUsers}
