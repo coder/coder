@@ -248,6 +248,7 @@ user_allow(roles) := num if {
 
 # Scope allow_list is a list of resource (Type, ID) tuples explicitly allowed by the scope.
 # If the list contains `(*,*)`, then all resources are allowed.
+default scope_allow_list := false
 scope_allow_list if {
 	input.subject.scope.allow_list[_] == {"type": "*", "id": "*"}
 }
@@ -285,6 +286,7 @@ scope_allow_list if {
 # Role-Specific Rules
 # -------------------
 
+default role_allow := false
 role_allow if {
 	site = 1
 }
@@ -308,6 +310,7 @@ role_allow if {
 # Scope-Specific Rules
 # -------------------
 
+default scope_allow := false
 scope_allow if {
 	scope_allow_list
 	scope_site = 1
@@ -335,6 +338,7 @@ scope_allow if {
 # Access Control List
 # -------------------
 
+default acl_allow := false
 # ACL for users
 acl_allow if {
 	# Should you have to be a member of the org too?
@@ -381,6 +385,7 @@ acl_allow if {
 
 # The role or the ACL must allow the action. Scopes can be used to limit,
 # so scope_allow must always be true.
+default allow := false
 allow if {
 	role_allow
 	scope_allow
@@ -390,4 +395,15 @@ allow if {
 allow if {
 	acl_allow
 	scope_allow
+}
+
+# scope_metrics provides a simple structured view of the policy outcomes so the
+# Go authorizer can classify why a request was allowed or denied without
+# re-evaluating the policy.
+scope_metrics := {
+	"allow":           allow,
+	"scope_allow":     scope_allow,
+	"scope_allow_list": scope_allow_list,
+	"role_allow":      role_allow,
+	"acl_allow":       acl_allow,
 }
