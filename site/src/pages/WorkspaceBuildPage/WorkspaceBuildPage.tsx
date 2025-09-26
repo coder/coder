@@ -35,11 +35,11 @@ const WorkspaceBuildPage: FC = () => {
 
 	return (
 		<>
-			<title>
-				{build
-					? pageTitle(`Build #${build.build_number} · ${build.workspace_name}`)
-					: ""}
-			</title>
+			{build && (
+				<title>
+					{pageTitle(`Build #${build.build_number} · ${build.workspace_name}`)}
+				</title>
+			)}
 
 			<WorkspaceBuildPageView
 				logs={logs}
