@@ -1333,6 +1333,7 @@ func New(options *Options) *API {
 								r.Get("/tokenconfig", api.tokenConfig)
 								r.Route("/{keyname}", func(r chi.Router) {
 									r.Get("/", api.apiKeyByName)
+									r.Patch("/", api.patchToken)
 								})
 							})
 							r.Route("/{keyid}", func(r chi.Router) {

@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/cryptorand"
 )
 
@@ -66,10 +65,6 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 		params.LifetimeSeconds = int64(time.Until(params.ExpiresAt).Seconds())
 	}
 
-	if len(params.AllowList) == 0 {
-		params.AllowList = database.AllowList{{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol}}
-	}
-
 	ip := net.ParseIP(params.RemoteAddr)
 	if ip == nil {
 		ip = net.IPv4(0, 0, 0, 0)
@@ -104,9 +99,7 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 	}
 
 	if len(params.AllowList) == 0 {
-		params.AllowList = database.AllowList{
-			rbac.AllowListElement{Type: rbac.ResourceWildcard.Type, ID: policy.WildcardSymbol},
-		}
+		params.AllowList = database.AllowList{rbac.AllowListAll()}
 	}
 
 	token := fmt.Sprintf("%s-%s", keyID, keySecret)
