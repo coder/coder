@@ -32,6 +32,7 @@ const MockClaudeCodeApp: WorkspaceApp = {
 	display_name: "Claude Code",
 	slug: "claude-code",
 	icon: "/icon/claude.svg",
+	health: "healthy",
 	healthcheck: {
 		url: "http://localhost:3000/health",
 		interval: 10,
@@ -54,6 +55,7 @@ const MockVSCodeApp: WorkspaceApp = {
 	slug: "vscode",
 	display_name: "VS Code Web",
 	icon: "/icon/code.svg",
+	health: "healthy",
 };
 
 const meta: Meta<typeof TaskPage> = {
@@ -458,12 +460,20 @@ function mockTaskWorkspace(
 									id: "zed",
 									display_name: "Zed",
 									icon: "/icon/zed.svg",
+									health: "healthy",
 								},
 								{
 									...MockWorkspaceApp,
 									slug: "preview",
 									id: "preview",
 									display_name: "Preview",
+									health: "healthy",
+								},
+								{
+									...MockWorkspaceApp,
+									slug: "disabled",
+									id: "disabled",
+									display_name: "Disabled",
 								},
 							],
 						},
