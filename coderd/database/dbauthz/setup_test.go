@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/x/wildcard"
 )
 
 var errMatchAny = xerrors.New("match any error")
@@ -225,6 +226,11 @@ func (s *MethodTestSuite) SubtestWithDB(db database.Store, testCaseF func(db dat
 			if testCase.outputs != nil {
 				// Assert the required outputs
 				s.Equal(len(testCase.outputs), len(outputs), "method %q returned unexpected number of outputs", methodName)
+				cmpOptions := []cmp.Option{
+					// Equate nil and empty slices.
+					cmpopts.EquateEmpty(),
+					cmpopts.EquateComparable(wildcard.Value[string]{}, wildcard.Value[uuid.UUID]{}),
+				}
 				for i := range outputs {
 					a, b := testCase.outputs[i].Interface(), outputs[i].Interface()
 
@@ -232,10 +238,9 @@ func (s *MethodTestSuite) SubtestWithDB(db database.Store, testCaseF func(db dat
 					// first check if the values are equal with regard to order.
 					// If not, re-check disregarding order and show a nice diff
 					// output of the two values.
-					if !cmp.Equal(a, b, cmpopts.EquateEmpty()) {
-						if diff := cmp.Diff(a, b,
-							// Equate nil and empty slices.
-							cmpopts.EquateEmpty(),
+					if !cmp.Equal(a, b, cmpOptions...) {
+						diffOpts := append(
+							append([]cmp.Option{}, cmpOptions...),
 							// Allow slice order to be ignored.
 							cmpopts.SortSlices(func(a, b any) bool {
 								var ab, bb strings.Builder
@@ -247,7 +252,8 @@ func (s *MethodTestSuite) SubtestWithDB(db database.Store, testCaseF func(db dat
 								// https://github.com/google/go-cmp/issues/67
 								return ab.String() < bb.String()
 							}),
-						); diff != "" {
+						)
+						if diff := cmp.Diff(a, b, diffOpts...); diff != "" {
 							s.Failf("compare outputs failed", "method %q returned unexpected output %d (-want +got):\n%s", methodName, i, diff)
 						}
 					}

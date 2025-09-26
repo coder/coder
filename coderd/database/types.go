@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/x/wildcard"
 )
 
 // AuditOAuthConvertState is never stored in the database. It is stored in a cookie
@@ -163,9 +164,7 @@ func (m StringMapOfInt) Value() (driver.Value, error) {
 
 type CustomRolePermissions []CustomRolePermission
 
-// APIKeyScopes implements sql.Scanner and driver.Valuer so it can be read from
-// and written to the Postgres api_key_scope[] enum array column.
-func (s *APIKeyScopes) Scan(src interface{}) error {
+func (s *APIKeyScopes) Scan(src any) error {
 	var arr []string
 	if err := pq.Array(&arr).Scan(src); err != nil {
 		return err
@@ -318,26 +317,43 @@ func ParseIP(ipStr string) pqtype.Inet {
 // It encodes a resource tuple (type, id) and provides helpers for
 // consistent string and JSON representations across the codebase.
 type AllowListTarget struct {
-	Type string `json:"type"`
-	ID   string `json:"id"`
+	Type wildcard.Value[string]    `json:"type"`
+	ID   wildcard.Value[uuid.UUID] `json:"id"`
 }
 
 // String returns the canonical database representation "type:id".
-func (t AllowListTarget) String() string {
-	return t.Type + ":" + t.ID
+func (t AllowListTarget) String() string { return t.Type.String() + ":" + t.ID.String() }
+
+func NewAllowListTarget(typ string, id string) (AllowListTarget, error) {
+	var (
+		anyType wildcard.Value[string]
+		anyID   wildcard.Value[uuid.UUID]
+	)
+
+	if typ != policy.WildcardSymbol {
+		anyType = wildcard.Of(typ)
+	}
+
+	if id != policy.WildcardSymbol {
+		u, err := uuid.Parse(id)
+		if err != nil {
+			return AllowListTarget{}, xerrors.Errorf("invalid %s ID: %q", typ, id)
+		}
+		anyID = wildcard.Of(u)
+	}
+
+	return AllowListTarget{Type: anyType, ID: anyID}, nil
 }
 
 // ParseAllowListTarget parses the canonical string form "type:id".
 func ParseAllowListTarget(s string) (AllowListTarget, error) {
-	targetType, id, ok := rbac.ParseResourceAction(s)
+	targetType, rawID, ok := rbac.ParseResourceAction(s)
 	if !ok {
 		return AllowListTarget{}, xerrors.Errorf("invalid allow list target: %q", s)
 	}
-	return AllowListTarget{Type: targetType, ID: id}, nil
-}
 
-// AllowListWildcard returns the wildcard allow-list entry {"*","*"}.
-func AllowListWildcard() AllowListTarget { return AllowListTarget{Type: "*", ID: "*"} }
+	return NewAllowListTarget(targetType, rawID)
+}
 
 // AllowList is a typed wrapper around a list of AllowListTarget entries.
 // It implements sql.Scanner and driver.Valuer so it can be stored in and

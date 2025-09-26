@@ -830,6 +830,12 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 
 ```json
 {
+  "allow_list": [
+    {
+      "id": "string",
+      "type": "*"
+    }
+  ],
   "lifetime": 0,
   "scope": "all",
   "scopes": [

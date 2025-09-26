@@ -6,3 +6,11 @@ replace time.Duration int64
 replace github.com/coder/coder/v2/codersdk.ProvisionerType string
 // Do not render netip.Addr
 replace netip.Addr string
+
+// Map generics of wildcard.Value[T] to concrete, client-friendly types.
+
+// Type: wildcard.Value[codersdk.RBACResource] -> codersdk.RBACResource (already includes "*")
+replace github.com/coder/coder/v2/x/wildcard.$wildcard.Value-codersdk_RBACResource github.com/coder/coder/v2/codersdk.RBACResource
+
+// ID: wildcard.Value[uuid.UUID] -> string (we’ll add a doc note to allow "*")
+replace github.com/coder/coder/v2/x/wildcard.$wildcard.Value-uuid_UUID string
