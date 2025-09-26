@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -30,6 +31,11 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
 			},
 		})
 		memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -76,6 +82,11 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
 			},
 		})
 		memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -157,6 +168,11 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
 			},
 		})
 		memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)

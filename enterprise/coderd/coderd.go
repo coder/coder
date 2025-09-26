@@ -229,6 +229,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	api.AGPL.ExperimentalHandler.Group(func(r chi.Router) {
 		r.Route("/aibridge", func(r chi.Router) {
 			r.Use(
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
 				httpmw.RequireExperimentWithDevBypass(api.AGPL.Experiments, codersdk.ExperimentAIBridge),
 			)
 			r.Group(func(r chi.Router) {
@@ -770,6 +771,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				codersdk.FeatureUserRoleManagement:         true,
 				codersdk.FeatureAccessControl:              true,
 				codersdk.FeatureControlSharedPorts:         true,
+				codersdk.FeatureAIBridge:                   true,
 			})
 		if err != nil {
 			return codersdk.Entitlements{}, err
