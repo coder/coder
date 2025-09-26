@@ -84,9 +84,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 				</div>
 			)}
 
-			{app.health === "healthy" ||
-			app.health === "disabled" ||
-			app.health === "unhealthy" ? (
+			{app.health === "healthy" || app.health === "disabled" ? (
 				<iframe
 					ref={frameRef}
 					src={link.href}
@@ -95,6 +93,41 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 					className={"w-full h-full border-0"}
 					allow="clipboard-read; clipboard-write"
 				/>
+			) : app.health === "unhealthy" ? (
+				<div className="w-full h-full flex flex-col items-center justify-center p-4">
+					<h3 className="m-0 font-medium text-content-primary text-base text-center">
+						App "{app.display_name}" is unhealthy
+					</h3>
+					<div className="text-content-secondary text-sm">
+						<span className="block text-center">
+							Here are some troubleshooting steps you can take:
+						</span>
+						<ul className="m-0 pt-4 flex flex-col gap-4">
+							{app.healthcheck && (
+								<li>
+									<span className="block font-medium text-content-primary mb-1">
+										Verify healthcheck
+									</span>
+									Try running the following inside your workspace:{" "}
+									<code className="font-mono text-content-primary select-all">
+										curl -v "{app.healthcheck.url}"
+									</code>
+								</li>
+							)}
+							<li>
+								<span className="block font-medium text-content-primary mb-1">
+									Check logs
+								</span>
+								See{" "}
+								<code className="font-mono text-content-primary select-all">
+									/tmp/coder-agent.log
+								</code>{" "}
+								inside your workspace "{task.workspace.name}" for more
+								information.
+							</li>
+						</ul>
+					</div>
+				</div>
 			) : app.health === "initializing" ? (
 				<div className="w-full h-full flex items-center justify-center">
 					<Spinner loading />

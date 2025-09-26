@@ -7,7 +7,6 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationsFilterMenu } from "modules/tableFiltering/options";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { useStatusFilterMenu, useTypeFilterMenu } from "./ConnectionLogFilter";
@@ -72,9 +71,7 @@ const ConnectionLogPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Connection Log")}</title>
-			</Helmet>
+			<title>{pageTitle("Connection Log")}</title>
 
 			<ConnectionLogPageView
 				connectionLogs={connectionlogsQuery.data?.connection_logs}

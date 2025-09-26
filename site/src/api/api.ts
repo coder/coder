@@ -2519,6 +2519,13 @@ class ApiMethods {
 		return res.data;
 	};
 
+	getCustomNotificationTemplates = async () => {
+		const res = await this.axios.get<TypesGen.NotificationTemplate[]>(
+			"/api/v2/notifications/templates/custom",
+		);
+		return res.data;
+	};
+
 	getNotificationDispatchMethods = async () => {
 		const res = await this.axios.get<TypesGen.NotificationMethodsResponse>(
 			"/api/v2/notifications/dispatch-methods",

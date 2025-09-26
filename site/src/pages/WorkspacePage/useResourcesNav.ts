@@ -2,7 +2,6 @@ import type { WorkspaceResource } from "api/typesGenerated";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { useCallback, useEffect } from "react";
-
 export const resourceOptionValue = (resource: WorkspaceResource) => {
 	return `${resource.type}_${resource.name}`;
 };

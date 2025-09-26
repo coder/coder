@@ -1,6 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import type { FC, HTMLAttributes, ReactNode } from "react";
-
 export const HorizontalContainer: FC<HTMLAttributes<HTMLDivElement>> = ({
 	...attrs
 }) => {

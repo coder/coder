@@ -53,7 +53,7 @@ func main() {
 		_, _ = fmt.Fprintf(os.Stderr, "  ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS '%s';\n", m)
 	}
 	_, _ = fmt.Fprintln(os.Stderr)
-	_, _ = fmt.Fprintln(os.Stderr, "Also decide if each new scope is public (exposed in the catalog) or internal-only (catalog task).")
+	_, _ = fmt.Fprintln(os.Stderr, "Also decide if each new scope is external (exposed in the `externalLowLevel` in coderd/rbac/scopes_catalog.go) or internal-only.")
 	os.Exit(1)
 }
 

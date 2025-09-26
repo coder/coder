@@ -2,7 +2,6 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
 
@@ -13,9 +12,8 @@ const ObservabilitySettingsPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Observability Settings")}</title>
-			</Helmet>
+			<title>{pageTitle("Observability Settings")}</title>
+
 			<ObservabilitySettingsPageView
 				options={deploymentConfig.options}
 				featureAuditLogEnabled={entitlements.features.audit_log.enabled}

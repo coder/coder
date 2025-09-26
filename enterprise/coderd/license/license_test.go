@@ -890,6 +890,7 @@ func TestLicenseEntitlements(t *testing.T) {
 		codersdk.FeatureAccessControl:              true,
 		codersdk.FeatureControlSharedPorts:         true,
 		codersdk.FeatureWorkspaceExternalAgent:     true,
+		codersdk.FeatureAIBridge:                   true,
 	}
 
 	legacyLicense := func() *coderdenttest.LicenseOptions {

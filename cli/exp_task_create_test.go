@@ -75,7 +75,7 @@ func TestTaskCreate(t *testing.T) {
 					return
 				}
 
-				assert.Equal(t, prompt, req.Prompt, "prompt mismatch")
+				assert.Equal(t, prompt, req.Input, "prompt mismatch")
 				assert.Equal(t, templateVersionID, req.TemplateVersionID, "template version mismatch")
 
 				if presetName == "" {
