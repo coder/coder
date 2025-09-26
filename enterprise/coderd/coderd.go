@@ -245,7 +245,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 					})
 					return
 				}
-				api.aibridgedHandler.ServeHTTP(rw, r)
+				http.StripPrefix("/api/experimental/aibridge", api.aibridgedHandler).ServeHTTP(rw, r)
 			})
 		})
 	})
