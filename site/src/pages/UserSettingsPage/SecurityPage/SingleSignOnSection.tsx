@@ -163,6 +163,7 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 
 							{authMethods.oidc.enabled && (
 								<Button
+									variant="outline"
 									size="lg"
 									className="w-full"
 									disabled={isUpdating}

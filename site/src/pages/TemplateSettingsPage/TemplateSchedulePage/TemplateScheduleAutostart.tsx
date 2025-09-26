@@ -27,7 +27,7 @@ export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
 				spacing={0}
 				alignItems="baseline"
 				justifyContent="center"
-				css={{ width: "100%" }}
+				className="w-full gap-0.5"
 			>
 				{(
 					[
@@ -45,12 +45,9 @@ export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
 				).map((day) => (
 					<Button
 						variant="outline"
-						className="w-full rounded-none"
-						key={day.key}
 						// TODO: Adding a background color would also help
-						style={{
-							color: value.includes(day.value) ? "primary" : "secondary",
-						}}
+						className={`flex-1 rounded-none ${value.includes(day.value) ? "text-content-primary bg-surface-tertiary" : "text-content-secondary"}`}
+						key={day.key}
 						disabled={isSubmitting || !enabled}
 						onClick={() => {
 							if (!value.includes(day.value)) {
