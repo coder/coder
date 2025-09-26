@@ -191,65 +191,6 @@ func TestGetManifest(t *testing.T) {
 	// These are done manually to ensure the conversion logic matches what a
 	// human expects.
 	var (
-		protoApps = []*agentproto.WorkspaceApp{
-			{
-				Id:            apps[0].ID[:],
-				Url:           apps[0].Url.String,
-				External:      apps[0].External,
-				Slug:          apps[0].Slug,
-				DisplayName:   apps[0].DisplayName,
-				Command:       apps[0].Command.String,
-				Icon:          apps[0].Icon,
-				Subdomain:     apps[0].Subdomain,
-				SubdomainName: fmt.Sprintf("%s--%s--%s--%s", apps[0].Slug, agent.Name, workspace.Name, owner.Username),
-				SharingLevel:  agentproto.WorkspaceApp_AUTHENTICATED,
-				Healthcheck: &agentproto.WorkspaceApp_Healthcheck{
-					Url:       apps[0].HealthcheckUrl,
-					Interval:  durationpb.New(time.Duration(apps[0].HealthcheckInterval) * time.Second),
-					Threshold: apps[0].HealthcheckThreshold,
-				},
-				Health: agentproto.WorkspaceApp_HEALTHY,
-				Hidden: false,
-			},
-			{
-				Id:            apps[1].ID[:],
-				Url:           apps[1].Url.String,
-				External:      apps[1].External,
-				Slug:          apps[1].Slug,
-				DisplayName:   apps[1].DisplayName,
-				Command:       apps[1].Command.String,
-				Icon:          apps[1].Icon,
-				Subdomain:     false,
-				SubdomainName: "",
-				SharingLevel:  agentproto.WorkspaceApp_PUBLIC,
-				Healthcheck: &agentproto.WorkspaceApp_Healthcheck{
-					Url:       "",
-					Interval:  durationpb.New(0),
-					Threshold: 0,
-				},
-				Health: agentproto.WorkspaceApp_DISABLED,
-				Hidden: false,
-			},
-			{
-				Id:            apps[2].ID[:],
-				Url:           apps[2].Url.String,
-				External:      apps[2].External,
-				Slug:          apps[2].Slug,
-				DisplayName:   apps[2].DisplayName,
-				Command:       apps[2].Command.String,
-				Icon:          apps[2].Icon,
-				Subdomain:     false,
-				SubdomainName: "",
-				SharingLevel:  agentproto.WorkspaceApp_OWNER,
-				Healthcheck: &agentproto.WorkspaceApp_Healthcheck{
-					Url:       apps[2].HealthcheckUrl,
-					Interval:  durationpb.New(time.Duration(apps[2].HealthcheckInterval) * time.Second),
-					Threshold: apps[2].HealthcheckThreshold,
-				},
-				Health: agentproto.WorkspaceApp_UNHEALTHY,
-				Hidden: true,
-			},
-		}
 		protoScripts = []*agentproto.WorkspaceAgentScript{
 			{
 				Id:               scripts[0].ID[:],
@@ -307,6 +248,66 @@ func TestGetManifest(t *testing.T) {
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
+
+		protoApps := []*agentproto.WorkspaceApp{
+			{
+				Id:            apps[0].ID[:],
+				Url:           apps[0].Url.String,
+				External:      apps[0].External,
+				Slug:          apps[0].Slug,
+				DisplayName:   apps[0].DisplayName,
+				Command:       apps[0].Command.String,
+				Icon:          apps[0].Icon,
+				Subdomain:     apps[0].Subdomain,
+				SubdomainName: fmt.Sprintf("%s--%s--%s", apps[0].Slug, workspace.Name, owner.Username),
+				SharingLevel:  agentproto.WorkspaceApp_AUTHENTICATED,
+				Healthcheck: &agentproto.WorkspaceApp_Healthcheck{
+					Url:       apps[0].HealthcheckUrl,
+					Interval:  durationpb.New(time.Duration(apps[0].HealthcheckInterval) * time.Second),
+					Threshold: apps[0].HealthcheckThreshold,
+				},
+				Health: agentproto.WorkspaceApp_HEALTHY,
+				Hidden: false,
+			},
+			{
+				Id:            apps[1].ID[:],
+				Url:           apps[1].Url.String,
+				External:      apps[1].External,
+				Slug:          apps[1].Slug,
+				DisplayName:   apps[1].DisplayName,
+				Command:       apps[1].Command.String,
+				Icon:          apps[1].Icon,
+				Subdomain:     false,
+				SubdomainName: "",
+				SharingLevel:  agentproto.WorkspaceApp_PUBLIC,
+				Healthcheck: &agentproto.WorkspaceApp_Healthcheck{
+					Url:       "",
+					Interval:  durationpb.New(0),
+					Threshold: 0,
+				},
+				Health: agentproto.WorkspaceApp_DISABLED,
+				Hidden: false,
+			},
+			{
+				Id:            apps[2].ID[:],
+				Url:           apps[2].Url.String,
+				External:      apps[2].External,
+				Slug:          apps[2].Slug,
+				DisplayName:   apps[2].DisplayName,
+				Command:       apps[2].Command.String,
+				Icon:          apps[2].Icon,
+				Subdomain:     false,
+				SubdomainName: "",
+				SharingLevel:  agentproto.WorkspaceApp_OWNER,
+				Healthcheck: &agentproto.WorkspaceApp_Healthcheck{
+					Url:       apps[2].HealthcheckUrl,
+					Interval:  durationpb.New(time.Duration(apps[2].HealthcheckInterval) * time.Second),
+					Threshold: apps[2].HealthcheckThreshold,
+				},
+				Health: agentproto.WorkspaceApp_UNHEALTHY,
+				Hidden: true,
+			},
+		}
 
 		mDB := dbmock.NewMockStore(gomock.NewController(t))
 
@@ -437,6 +438,66 @@ func TestGetManifest(t *testing.T) {
 
 	t.Run("NoAppHostname", func(t *testing.T) {
 		t.Parallel()
+
+		protoApps := []*agentproto.WorkspaceApp{
+			{
+				Id:            apps[0].ID[:],
+				Url:           apps[0].Url.String,
+				External:      apps[0].External,
+				Slug:          apps[0].Slug,
+				DisplayName:   apps[0].DisplayName,
+				Command:       apps[0].Command.String,
+				Icon:          apps[0].Icon,
+				Subdomain:     apps[0].Subdomain,
+				SubdomainName: "", // Empty because AppHostname is empty
+				SharingLevel:  agentproto.WorkspaceApp_AUTHENTICATED,
+				Healthcheck: &agentproto.WorkspaceApp_Healthcheck{
+					Url:       apps[0].HealthcheckUrl,
+					Interval:  durationpb.New(time.Duration(apps[0].HealthcheckInterval) * time.Second),
+					Threshold: apps[0].HealthcheckThreshold,
+				},
+				Health: agentproto.WorkspaceApp_HEALTHY,
+				Hidden: false,
+			},
+			{
+				Id:            apps[1].ID[:],
+				Url:           apps[1].Url.String,
+				External:      apps[1].External,
+				Slug:          apps[1].Slug,
+				DisplayName:   apps[1].DisplayName,
+				Command:       apps[1].Command.String,
+				Icon:          apps[1].Icon,
+				Subdomain:     false,
+				SubdomainName: "",
+				SharingLevel:  agentproto.WorkspaceApp_PUBLIC,
+				Healthcheck: &agentproto.WorkspaceApp_Healthcheck{
+					Url:       "",
+					Interval:  durationpb.New(0),
+					Threshold: 0,
+				},
+				Health: agentproto.WorkspaceApp_DISABLED,
+				Hidden: false,
+			},
+			{
+				Id:            apps[2].ID[:],
+				Url:           apps[2].Url.String,
+				External:      apps[2].External,
+				Slug:          apps[2].Slug,
+				DisplayName:   apps[2].DisplayName,
+				Command:       apps[2].Command.String,
+				Icon:          apps[2].Icon,
+				Subdomain:     false,
+				SubdomainName: "",
+				SharingLevel:  agentproto.WorkspaceApp_OWNER,
+				Healthcheck: &agentproto.WorkspaceApp_Healthcheck{
+					Url:       apps[2].HealthcheckUrl,
+					Interval:  durationpb.New(time.Duration(apps[2].HealthcheckInterval) * time.Second),
+					Threshold: apps[2].HealthcheckThreshold,
+				},
+				Health: agentproto.WorkspaceApp_UNHEALTHY,
+				Hidden: true,
+			},
+		}
 
 		mDB := dbmock.NewMockStore(gomock.NewController(t))
 

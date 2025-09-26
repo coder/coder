@@ -532,13 +532,20 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 	if appSlug == "" {
 		appSlug = dbApp.DisplayName
 	}
+
+	// Agent name is optional when app slug is present
+	normalizedAgentName := agentName
+	if !appurl.PortRegex.MatchString(appSlug) {
+		normalizedAgentName = ""
+	}
+
 	return appurl.ApplicationURL{
 		// We never generate URLs with a prefix. We only allow prefixes when
 		// parsing URLs from the hostname. Users that want this feature can
 		// write out their own URLs.
 		Prefix:        "",
 		AppSlugOrPort: appSlug,
-		AgentName:     agentName,
+		AgentName:     normalizedAgentName,
 		WorkspaceName: workspaceName,
 		Username:      ownerName,
 	}.String()

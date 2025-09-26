@@ -159,10 +159,16 @@ func (d *Details) PathAppURL(app App) *url.URL {
 
 // SubdomainAppURL returns the URL for the given subdomain app.
 func (d *Details) SubdomainAppURL(app App) *url.URL {
+	// Agent name is optional when app slug is present
+	agentName := app.AgentName
+	if !appurl.PortRegex.MatchString(app.AppSlugOrPort) {
+		agentName = ""
+	}
+
 	appHost := appurl.ApplicationURL{
 		Prefix:        app.Prefix,
 		AppSlugOrPort: app.AppSlugOrPort,
-		AgentName:     app.AgentName,
+		AgentName:     agentName,
 		WorkspaceName: app.WorkspaceName,
 		Username:      app.Username,
 	}
@@ -234,7 +240,7 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 	details.Apps.Owner = App{
 		Username:      me.Username,
 		WorkspaceName: workspace.Name,
-		AgentName:     agnt.Name,
+		AgentName:     "", // Agent name is optional when app slug is present
 		AppSlugOrPort: proxyTestAppNameOwner,
 		Query:         proxyTestAppQuery,
 	}
@@ -474,7 +480,6 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 			// findProtoApp is needed as the order of apps returned from PG database
 			// is not guaranteed.
 			AppSlugOrPort: findProtoApp(t, protoApps, app.Slug).Slug,
-			AgentName:     proxyTestAgentName,
 			WorkspaceName: workspace.Name,
 			Username:      me.Username,
 		}
