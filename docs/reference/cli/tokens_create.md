@@ -37,3 +37,19 @@ Specify a human-readable name.
 | Environment | <code>$CODER_TOKEN_USER</code> |
 
 Specify the user to create the token for (Only works if logged in user is admin).
+
+### --scope
+
+|      |                    |
+|------|--------------------|
+| Type | <code>scope</code> |
+
+Repeatable scope to attach to the token (e.g. workspace:read).
+
+### --allow
+
+|      |                        |
+|------|------------------------|
+| Type | <code>allowList</code> |
+
+Repeatable allow-list entry (<type>:<uuid>, e.g. workspace:1234-...).
