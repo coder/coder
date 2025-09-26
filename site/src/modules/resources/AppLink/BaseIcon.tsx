@@ -1,6 +1,6 @@
 import type { WorkspaceApp } from "api/typesGenerated";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { ComputerIcon } from "lucide-react";
+import { LaptopIcon } from "lucide-react";
 import type { FC } from "react";
 
 interface BaseIconProps {
@@ -22,6 +22,6 @@ export const BaseIcon: FC<BaseIconProps> = ({ app, onIconPathError }) => {
 			}}
 		/>
 	) : (
-		<ComputerIcon />
+		<LaptopIcon />
 	);
 };
