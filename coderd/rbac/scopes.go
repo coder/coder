@@ -205,6 +205,11 @@ func parseLowLevelScope(name ScopeName) (resource string, action policy.Action, 
 	if !exists {
 		return "", "", false
 	}
+
+	if act == policy.WildcardSymbol {
+		return res, policy.WildcardSymbol, true
+	}
+
 	if _, exists := def.Actions[policy.Action(act)]; !exists {
 		return "", "", false
 	}
