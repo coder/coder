@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import LocationOnOutlined from "@mui/icons-material/LocationOnOutlined";
 import Button from "@mui/material/Button";
 import type {
 	HealthcheckReport,
@@ -7,6 +6,7 @@ import type {
 	NetcheckReport,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { MapPinIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link, useOutletContext } from "react-router";
 import { pageTitle } from "utils/page";
@@ -102,10 +102,9 @@ const DERPPage: FC = () => {
 								return (
 									<Button
 										startIcon={
-											<LocationOnOutlined
-												css={{
-													width: 16,
-													height: 16,
+											<MapPinIcon
+												className="size-4"
+												style={{
 													color: healthyColor(
 														theme,
 														severity as HealthSeverity,
