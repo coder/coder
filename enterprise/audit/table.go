@@ -221,8 +221,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"login_type":       ActionIgnore,
 		"lifetime_seconds": ActionIgnore,
 		"ip_address":       ActionIgnore,
-		"scopes":           ActionIgnore,
-		"allow_list":       ActionIgnore,
+		"scopes":           ActionTrack,
+		"allow_list":       ActionTrack,
 		"token_name":       ActionIgnore,
 	},
 	&database.AuditOAuthConvertState{}: {

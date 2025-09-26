@@ -131,6 +131,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = *key
+	aReq.SetAdditionalFields(audit.WrapAPIKeyFields(audit.APIKeyFields(ctx, api.Logger, *key)))
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: cookie.Value})
 }
 
@@ -182,6 +183,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aReq.New = *key
+	aReq.SetAdditionalFields(audit.WrapAPIKeyFields(audit.APIKeyFields(ctx, api.Logger, *key)))
 	// We intentionally do not set the cookie on the response here.
 	// Setting the cookie will couple the browser session to the API
 	// key we return here, meaning logging out of the website would
@@ -386,6 +388,7 @@ func (api *API) patchToken(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aReq.New = updatedToken
+	aReq.SetAdditionalFields(audit.WrapAPIKeyFields(audit.APIKeyFields(ctx, api.Logger, updatedToken)))
 	httpapi.Write(ctx, rw, http.StatusOK, convertAPIKey(updatedToken))
 }
 
@@ -492,6 +495,9 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 		api.Logger.Warn(ctx, "get API Key for audit log")
 	}
 	aReq.Old = key
+	if err == nil {
+		aReq.SetAdditionalFields(audit.WrapAPIKeyFields(audit.APIKeyFields(ctx, api.Logger, key)))
+	}
 	defer commitAudit()
 
 	err = api.Database.DeleteAPIKeyByID(ctx, keyID)

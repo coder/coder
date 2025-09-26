@@ -547,6 +547,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aReq.New = *key
+	aReq.SetAdditionalFields(audit.WrapAPIKeyFields(audit.APIKeyFields(ctx, api.Logger, *key)))
 
 	http.SetCookie(rw, cookie)
 
