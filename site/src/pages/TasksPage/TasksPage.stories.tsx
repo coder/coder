@@ -271,7 +271,7 @@ export const CreateTaskSuccessfully: Story = {
 			expect(API.experimental.createTask).toHaveBeenCalledWith(
 				MockUserOwner.id,
 				{
-					prompt: MockNewTaskData.prompt,
+					input: MockNewTaskData.prompt,
 					template_version_id: `${MockTemplate.active_version_id}-latest`,
 					template_version_preset_id: undefined,
 				},

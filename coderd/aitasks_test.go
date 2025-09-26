@@ -349,7 +349,7 @@ func TestTasks(t *testing.T) {
 			exp := codersdk.NewExperimentalClient(client)
 			task, err := exp.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
 				TemplateVersionID: template.ActiveVersionID,
-				Prompt:            "delete me",
+				Input:             "delete me",
 			})
 			require.NoError(t, err)
 			ws, err := client.Workspace(ctx, task.ID)
@@ -429,7 +429,7 @@ func TestTasks(t *testing.T) {
 			exp := codersdk.NewExperimentalClient(client)
 			task, err := exp.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
 				TemplateVersionID: template.ActiveVersionID,
-				Prompt:            "delete me not",
+				Input:             "delete me not",
 			})
 			require.NoError(t, err)
 			ws, err := client.Workspace(ctx, task.ID)
@@ -802,7 +802,7 @@ func TestTasksCreate(t *testing.T) {
 		// When: We attempt to create a Task.
 		task, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
 			TemplateVersionID: template.ActiveVersionID,
-			Prompt:            taskPrompt,
+			Input:             taskPrompt,
 		})
 		require.NoError(t, err)
 		require.True(t, task.WorkspaceID.Valid)
@@ -875,7 +875,7 @@ func TestTasksCreate(t *testing.T) {
 				// When: We attempt to create a Task.
 				task, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
 					TemplateVersionID: template.ActiveVersionID,
-					Prompt:            "Some prompt",
+					Input:             "Some prompt",
 					Name:              tt.taskName,
 				})
 				if tt.expectError == "" {
@@ -919,7 +919,7 @@ func TestTasksCreate(t *testing.T) {
 		// When: We attempt to create a Task.
 		_, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
 			TemplateVersionID: template.ActiveVersionID,
-			Prompt:            taskPrompt,
+			Input:             taskPrompt,
 		})
 
 		// Then: We expect it to fail.
@@ -951,7 +951,7 @@ func TestTasksCreate(t *testing.T) {
 		// When: We attempt to create a Task with an invalid template version ID.
 		_, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
 			TemplateVersionID: uuid.New(),
-			Prompt:            taskPrompt,
+			Input:             taskPrompt,
 		})
 
 		// Then: We expect it to fail.

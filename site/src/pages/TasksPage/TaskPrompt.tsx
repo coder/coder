@@ -434,14 +434,14 @@ function sortByDefault(a: Preset, b: Preset) {
 // and user action. Since handling this in the FE cannot guarantee correctness,
 // we should move the logic to the BE after the experimental phase.
 async function createTaskWithLatestTemplateVersion(
-	prompt: string,
+	input: string,
 	userId: string,
 	templateId: string,
 	presetId: string | undefined,
 ): Promise<Task> {
 	const template = await API.getTemplate(templateId);
 	return API.experimental.createTask(userId, {
-		prompt,
+		input,
 		template_version_id: template.active_version_id,
 		template_version_preset_id: presetId,
 	});
