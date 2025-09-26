@@ -7060,6 +7060,52 @@
 						}
 					}
 				}
+			},
+			"patch": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Users"],
+				"summary": "Update token API key",
+				"operationId": "update-token-api-key",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "User ID, name, or me",
+						"name": "user",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "string",
+						"description": "Key Name",
+						"name": "keyname",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Update token request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.UpdateTokenRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.APIKey"
+						}
+					}
+				}
 			}
 		},
 		"/users/{user}/keys/{keyid}": {
@@ -17440,6 +17486,29 @@
 				"use_classic_parameter_flow": {
 					"description": "UseClassicParameterFlow is a flag that switches the default behavior to use the classic\nparameter flow when creating a workspace. This only affects deployments with the experiment\n\"dynamic-parameters\" enabled. This setting will live for a period after the experiment is\nmade the default.\nAn \"opt-out\" is present in case the new feature breaks some existing templates.",
 					"type": "boolean"
+				}
+			}
+		},
+		"codersdk.UpdateTokenRequest": {
+			"type": "object",
+			"properties": {
+				"allow_list": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.APIAllowListTarget"
+					}
+				},
+				"lifetime": {
+					"type": "integer"
+				},
+				"scope": {
+					"$ref": "#/definitions/codersdk.APIKeyScope"
+				},
+				"scopes": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.APIKeyScope"
+					}
 				}
 			}
 		},

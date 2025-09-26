@@ -2888,6 +2888,13 @@ func (m queryMetricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.Up
 	return err
 }
 
+func (m queryMetricsStore) UpdateAPIKeySettings(ctx context.Context, arg database.UpdateAPIKeySettingsParams) (database.APIKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAPIKeySettings(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAPIKeySettings").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {
 	start := time.Now()
 	key, err := m.s.UpdateCryptoKeyDeletesAt(ctx, arg)

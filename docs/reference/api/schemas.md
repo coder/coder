@@ -9154,6 +9154,33 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `update_workspace_last_used_at`    | boolean                                                                        | false    |              | Update workspace last used at updates the last_used_at field of workspaces spawned from the template. This is useful for preventing workspaces being immediately locked when updating the inactivity_ttl field to a new, shorter value.                                                                                                                                            |
 | `use_classic_parameter_flow`       | boolean                                                                        | false    |              | Use classic parameter flow is a flag that switches the default behavior to use the classic parameter flow when creating a workspace. This only affects deployments with the experiment "dynamic-parameters" enabled. This setting will live for a period after the experiment is made the default. An "opt-out" is present in case the new feature breaks some existing templates. |
 
+## codersdk.UpdateTokenRequest
+
+```json
+{
+  "allow_list": [
+    {
+      "id": "string",
+      "type": "*"
+    }
+  ],
+  "lifetime": 0,
+  "scope": "all",
+  "scopes": [
+    "all"
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                                | Required | Restrictions | Description |
+|--------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `allow_list` | array of [codersdk.APIAllowListTarget](#codersdkapiallowlisttarget) | false    |              |             |
+| `lifetime`   | integer                                                             | false    |              |             |
+| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope)                        | false    |              |             |
+| `scopes`     | array of [codersdk.APIKeyScope](#codersdkapikeyscope)               | false    |              |             |
+
 ## codersdk.UpdateUserAppearanceSettingsRequest
 
 ```json
