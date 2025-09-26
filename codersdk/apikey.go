@@ -52,6 +52,13 @@ type CreateTokenRequest struct {
 	AllowList []APIAllowListTarget `json:"allow_list,omitempty"`
 }
 
+type UpdateTokenRequest struct {
+	Scope     *APIKeyScope          `json:"scope,omitempty"`
+	Scopes    *[]APIKeyScope        `json:"scopes,omitempty"`
+	AllowList *[]APIAllowListTarget `json:"allow_list,omitempty"`
+	Lifetime  *time.Duration        `json:"lifetime,omitempty"`
+}
+
 // GenerateAPIKeyResponse contains an API key for a user.
 type GenerateAPIKeyResponse struct {
 	Key string `json:"key"`
@@ -72,6 +79,19 @@ func (c *Client) CreateToken(ctx context.Context, userID string, req CreateToken
 
 	var apiKey GenerateAPIKeyResponse
 	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
+}
+
+func (c *Client) UpdateToken(ctx context.Context, userID string, tokenName string, req UpdateTokenRequest) (*APIKey, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/users/%s/keys/tokens/%s", userID, tokenName), req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode > http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var key APIKey
+	return &key, json.NewDecoder(res.Body).Decode(&key)
 }
 
 // CreateAPIKey generates an API key for the user ID provided.

@@ -5429,6 +5429,14 @@ export interface UpdateTemplateMeta {
 	readonly use_classic_parameter_flow?: boolean;
 }
 
+// From codersdk/apikey.go
+export interface UpdateTokenRequest {
+	readonly scope?: APIKeyScope;
+	readonly scopes?: APIKeyScope[];
+	readonly allow_list?: APIAllowListTarget[];
+	readonly lifetime?: number;
+}
+
 // From codersdk/users.go
 export interface UpdateUserAppearanceSettingsRequest {
 	readonly theme_preference: string;
