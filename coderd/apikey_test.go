@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -140,6 +141,75 @@ func TestTokenLegacySingularScopeCompat(t *testing.T) {
 			require.Equal(t, "*:*", keys[0].AllowList[0].String())
 		})
 	}
+}
+
+func TestTokenUpdate(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{TokenName: "updatable"})
+	require.NoError(t, err)
+
+	workspaceID := uuid.New()
+	allowList := []codersdk.APIAllowListTarget{codersdk.AllowResourceTarget(codersdk.ResourceWorkspace, workspaceID)}
+	scopes := []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead}
+	lifetime := 2 * time.Hour
+
+	updated, err := client.UpdateToken(ctx, codersdk.Me, "updatable", codersdk.UpdateTokenRequest{
+		Scopes:    &scopes,
+		AllowList: &allowList,
+		Lifetime:  &lifetime,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	require.ElementsMatch(t, scopes, updated.Scopes)
+	require.Len(t, updated.AllowList, 1)
+	require.Equal(t, allowList[0].String(), updated.AllowList[0].String())
+	require.InDelta(t, lifetime.Seconds(), float64(updated.LifetimeSeconds), 1)
+
+	keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	require.ElementsMatch(t, scopes, keys[0].Scopes)
+	require.Equal(t, allowList[0].String(), keys[0].AllowList[0].String())
+}
+
+func TestTokenUpdateMaxLifetime(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	dc := coderdtest.DeploymentValues(t)
+	dc.Sessions.MaximumTokenDuration = serpent.Duration(time.Hour)
+	dc.Sessions.MaximumAdminTokenDuration = serpent.Duration(2 * time.Hour)
+	client := coderdtest.New(t, &coderdtest.Options{DeploymentValues: dc})
+	adminUser := coderdtest.CreateFirstUser(t, client)
+	nonAdminClient, _ := coderdtest.CreateAnotherUser(t, client, adminUser.OrganizationID)
+
+	_, err := nonAdminClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{TokenName: "nonadmin-updatable"})
+	require.NoError(t, err)
+
+	tooLongNonAdmin := 90 * time.Minute
+	_, err = nonAdminClient.UpdateToken(ctx, codersdk.Me, "nonadmin-updatable", codersdk.UpdateTokenRequest{
+		Lifetime: &tooLongNonAdmin,
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "lifetime must be less than")
+
+	_, err = client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{TokenName: "admin-updatable"})
+	require.NoError(t, err)
+
+	tooLongAdmin := 3 * time.Hour
+	_, err = client.UpdateToken(ctx, codersdk.Me, "admin-updatable", codersdk.UpdateTokenRequest{
+		Lifetime: &tooLongAdmin,
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "lifetime must be less than")
 }
 
 func TestUserSetTokenDuration(t *testing.T) {
