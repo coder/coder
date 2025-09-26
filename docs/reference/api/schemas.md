@@ -375,6 +375,151 @@
 | `enabled`   | boolean                                                              | false    |              |             |
 | `openai`    | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
 
+## codersdk.AIBridgeInterception
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "model": "string",
+  "provider": "string",
+  "started_at": "2019-08-24T14:15:22Z",
+  "token_usages": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "input_tokens": 0,
+      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "output_tokens": 0,
+      "provider_response_id": "string"
+    }
+  ],
+  "tool_usages": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "injected": true,
+      "input": "string",
+      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+      "invocation_error": "string",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "provider_response_id": "string",
+      "server_url": "string",
+      "tool": "string"
+    }
+  ],
+  "user_prompts": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "prompt": "string",
+      "provider_response_id": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name               | Type                                                                | Required | Restrictions | Description |
+|--------------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `id`               | string                                                              | false    |              |             |
+| `initiator_id`     | string                                                              | false    |              |             |
+| `metadata`         | object                                                              | false    |              |             |
+| » `[any property]` | any                                                                 | false    |              |             |
+| `model`            | string                                                              | false    |              |             |
+| `provider`         | string                                                              | false    |              |             |
+| `started_at`       | string                                                              | false    |              |             |
+| `token_usages`     | array of [codersdk.AIBridgeTokenUsage](#codersdkaibridgetokenusage) | false    |              |             |
+| `tool_usages`      | array of [codersdk.AIBridgeToolUsage](#codersdkaibridgetoolusage)   | false    |              |             |
+| `user_prompts`     | array of [codersdk.AIBridgeUserPrompt](#codersdkaibridgeuserprompt) | false    |              |             |
+
+## codersdk.AIBridgeListInterceptionsResponse
+
+```json
+{
+  "results": [
+    {
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "model": "string",
+      "provider": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "token_usages": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "input_tokens": 0,
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+          "metadata": {
+            "property1": null,
+            "property2": null
+          },
+          "output_tokens": 0,
+          "provider_response_id": "string"
+        }
+      ],
+      "tool_usages": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "injected": true,
+          "input": "string",
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+          "invocation_error": "string",
+          "metadata": {
+            "property1": null,
+            "property2": null
+          },
+          "provider_response_id": "string",
+          "server_url": "string",
+          "tool": "string"
+        }
+      ],
+      "user_prompts": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+          "metadata": {
+            "property1": null,
+            "property2": null
+          },
+          "prompt": "string",
+          "provider_response_id": "string"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                                    | Required | Restrictions | Description |
+|-----------|-------------------------------------------------------------------------|----------|--------------|-------------|
+| `results` | array of [codersdk.AIBridgeInterception](#codersdkaibridgeinterception) | false    |              |             |
+
 ## codersdk.AIBridgeOpenAIConfig
 
 ```json
@@ -390,6 +535,100 @@
 |------------|--------|----------|--------------|-------------|
 | `base_url` | string | false    |              |             |
 | `key`      | string | false    |              |             |
+
+## codersdk.AIBridgeTokenUsage
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "input_tokens": 0,
+  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "output_tokens": 0,
+  "provider_response_id": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description |
+|------------------------|---------|----------|--------------|-------------|
+| `created_at`           | string  | false    |              |             |
+| `id`                   | string  | false    |              |             |
+| `input_tokens`         | integer | false    |              |             |
+| `interception_id`      | string  | false    |              |             |
+| `metadata`             | object  | false    |              |             |
+| » `[any property]`     | any     | false    |              |             |
+| `output_tokens`        | integer | false    |              |             |
+| `provider_response_id` | string  | false    |              |             |
+
+## codersdk.AIBridgeToolUsage
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "injected": true,
+  "input": "string",
+  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+  "invocation_error": "string",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "provider_response_id": "string",
+  "server_url": "string",
+  "tool": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description |
+|------------------------|---------|----------|--------------|-------------|
+| `created_at`           | string  | false    |              |             |
+| `id`                   | string  | false    |              |             |
+| `injected`             | boolean | false    |              |             |
+| `input`                | string  | false    |              |             |
+| `interception_id`      | string  | false    |              |             |
+| `invocation_error`     | string  | false    |              |             |
+| `metadata`             | object  | false    |              |             |
+| » `[any property]`     | any     | false    |              |             |
+| `provider_response_id` | string  | false    |              |             |
+| `server_url`           | string  | false    |              |             |
+| `tool`                 | string  | false    |              |             |
+
+## codersdk.AIBridgeUserPrompt
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "prompt": "string",
+  "provider_response_id": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type   | Required | Restrictions | Description |
+|------------------------|--------|----------|--------------|-------------|
+| `created_at`           | string | false    |              |             |
+| `id`                   | string | false    |              |             |
+| `interception_id`      | string | false    |              |             |
+| `metadata`             | object | false    |              |             |
+| » `[any property]`     | any    | false    |              |             |
+| `prompt`               | string | false    |              |             |
+| `provider_response_id` | string | false    |              |             |
 
 ## codersdk.AIConfig
 
