@@ -104,6 +104,7 @@ function mockEmbeddedApp(name = MockWorkspaceApp.display_name): WorkspaceApp {
 		slug: kebabCase(name),
 		display_name: name,
 		external: false,
+		health: "healthy",
 	};
 }
 

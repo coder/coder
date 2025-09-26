@@ -272,7 +272,6 @@ const mainAppHealthStory = (health: WorkspaceApp["health"]) => ({
 export const MainAppHealthy: Story = mainAppHealthStory("healthy");
 export const MainAppInitializing: Story = mainAppHealthStory("initializing");
 export const MainAppUnhealthy: Story = mainAppHealthStory("unhealthy");
-export const MainAppHealthDisabled: Story = mainAppHealthStory("disabled");
 export const MainAppHealthUnknown: Story = mainAppHealthStory(
 	"unknown" as unknown as WorkspaceApp["health"],
 );
