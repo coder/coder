@@ -172,6 +172,7 @@ func (s APIKeyScopes) Expand() (rbac.Scope, error) {
 		Site:       nil,
 		Org:        map[string][]rbac.Permission{},
 		User:       nil,
+		OrgMember:  nil,
 	}
 
 	// Track allow list union, collapsing to wildcard if any child is wildcard.
