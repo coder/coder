@@ -85,6 +85,51 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/aibridge/interceptions": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AIBridge"
+                ],
+                "summary": "List AIBridge interceptions",
+                "operationId": "list-aibridge-interceptions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: initiator, provider, model, started_after, started_before.",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor pagination after ID",
+                        "name": "after_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIBridgeListInterceptionsResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/appearance": {
             "get": {
                 "security": [
@@ -321,6 +366,26 @@ const docTemplate = `{
                 },
                 "x-apidocgen": {
                     "skip": true
+                }
+            }
+        },
+        "/auth/scopes": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "List API key scopes",
+                "operationId": "list-api-key-scopes",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ExternalAPIKeyScopes"
+                        }
+                    }
                 }
             }
         },
@@ -11206,6 +11271,62 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIBridgeInterception": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "initiator_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "model": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "token_usages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeTokenUsage"
+                    }
+                },
+                "tool_usages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeToolUsage"
+                    }
+                },
+                "user_prompts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeUserPrompt"
+                    }
+                }
+            }
+        },
+        "codersdk.AIBridgeListInterceptionsResponse": {
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeInterception"
+                    }
+                }
+            }
+        },
         "codersdk.AIBridgeOpenAIConfig": {
             "type": "object",
             "properties": {
@@ -11213,6 +11334,102 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "key": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBridgeTokenUsage": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "input_tokens": {
+                    "type": "integer"
+                },
+                "interception_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "output_tokens": {
+                    "type": "integer"
+                },
+                "provider_response_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBridgeToolUsage": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "injected": {
+                    "type": "boolean"
+                },
+                "input": {
+                    "type": "string"
+                },
+                "interception_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "invocation_error": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "provider_response_id": {
+                    "type": "string"
+                },
+                "server_url": {
+                    "type": "string"
+                },
+                "tool": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBridgeUserPrompt": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "interception_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "provider_response_id": {
                     "type": "string"
                 }
             }
@@ -11234,7 +11451,6 @@ const docTemplate = `{
                 "last_used",
                 "lifetime_seconds",
                 "login_type",
-                "scope",
                 "token_name",
                 "updated_at",
                 "user_id"
@@ -11272,6 +11488,7 @@ const docTemplate = `{
                     ]
                 },
                 "scope": {
+                    "description": "Deprecated: use Scopes instead.",
                     "enum": [
                         "all",
                         "application_connect"
@@ -11281,6 +11498,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.APIKeyScope"
                         }
                     ]
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.APIKeyScope"
+                    }
                 },
                 "token_name": {
                     "type": "string"
@@ -11299,11 +11522,75 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "all",
-                "application_connect"
+                "application_connect",
+                "api_key:*",
+                "api_key:create",
+                "api_key:delete",
+                "api_key:read",
+                "api_key:update",
+                "coder:all",
+                "coder:application_connect",
+                "file:*",
+                "file:create",
+                "file:read",
+                "template:*",
+                "template:create",
+                "template:delete",
+                "template:read",
+                "template:update",
+                "template:use",
+                "user:read_personal",
+                "user:update_personal",
+                "user_secret:*",
+                "user_secret:create",
+                "user_secret:delete",
+                "user_secret:read",
+                "user_secret:update",
+                "workspace:*",
+                "workspace:application_connect",
+                "workspace:create",
+                "workspace:delete",
+                "workspace:read",
+                "workspace:ssh",
+                "workspace:start",
+                "workspace:stop",
+                "workspace:update"
             ],
             "x-enum-varnames": [
                 "APIKeyScopeAll",
-                "APIKeyScopeApplicationConnect"
+                "APIKeyScopeApplicationConnect",
+                "APIKeyScopeApiKeyAll",
+                "APIKeyScopeApiKeyCreate",
+                "APIKeyScopeApiKeyDelete",
+                "APIKeyScopeApiKeyRead",
+                "APIKeyScopeApiKeyUpdate",
+                "APIKeyScopeCoderAll",
+                "APIKeyScopeCoderApplicationConnect",
+                "APIKeyScopeFileAll",
+                "APIKeyScopeFileCreate",
+                "APIKeyScopeFileRead",
+                "APIKeyScopeTemplateAll",
+                "APIKeyScopeTemplateCreate",
+                "APIKeyScopeTemplateDelete",
+                "APIKeyScopeTemplateRead",
+                "APIKeyScopeTemplateUpdate",
+                "APIKeyScopeTemplateUse",
+                "APIKeyScopeUserReadPersonal",
+                "APIKeyScopeUserUpdatePersonal",
+                "APIKeyScopeUserSecretAll",
+                "APIKeyScopeUserSecretCreate",
+                "APIKeyScopeUserSecretDelete",
+                "APIKeyScopeUserSecretRead",
+                "APIKeyScopeUserSecretUpdate",
+                "APIKeyScopeWorkspaceAll",
+                "APIKeyScopeWorkspaceApplicationConnect",
+                "APIKeyScopeWorkspaceCreate",
+                "APIKeyScopeWorkspaceDelete",
+                "APIKeyScopeWorkspaceRead",
+                "APIKeyScopeWorkspaceSsh",
+                "APIKeyScopeWorkspaceStart",
+                "APIKeyScopeWorkspaceStop",
+                "APIKeyScopeWorkspaceUpdate"
             ]
         },
         "codersdk.AddLicenseRequest": {
@@ -12373,15 +12660,18 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "scope": {
-                    "enum": [
-                        "all",
-                        "application_connect"
-                    ],
+                    "description": "Deprecated: use Scopes instead.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.APIKeyScope"
                         }
                     ]
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.APIKeyScope"
+                    }
                 },
                 "token_name": {
                     "type": "string"
@@ -13228,6 +13518,17 @@ const docTemplate = `{
                 "ExperimentWorkspaceSharing",
                 "ExperimentAIBridge"
             ]
+        },
+        "codersdk.ExternalAPIKeyScopes": {
+            "type": "object",
+            "properties": {
+                "external": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.APIKeyScope"
+                    }
+                }
+            }
         },
         "codersdk.ExternalAgentCredentials": {
             "type": "object",

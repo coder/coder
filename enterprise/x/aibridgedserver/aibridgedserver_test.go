@@ -158,7 +158,7 @@ func TestAuthorization(t *testing.T) {
 				CreatedAt: now,
 				UpdatedAt: now,
 				LoginType: database.LoginTypePassword,
-				Scopes:    []database.APIKeyScope{database.APIKeyScopeAll},
+				Scopes:    []database.APIKeyScope{database.ApiKeyScopeCoderAll},
 				TokenName: "",
 			}
 			if tc.key == "" {
@@ -464,7 +464,18 @@ func TestRecordTokenUsage(t *testing.T) {
 							return false
 						}
 						return true
-					})).Return(nil)
+					})).Return(database.AIBridgeTokenUsage{
+						ID:                 uuid.New(),
+						InterceptionID:     interceptionID,
+						ProviderResponseID: req.GetMsgId(),
+						InputTokens:        req.GetInputTokens(),
+						OutputTokens:       req.GetOutputTokens(),
+						Metadata: pqtype.NullRawMessage{
+							RawMessage: json.RawMessage(metadataJSON),
+							Valid:      true,
+						},
+						CreatedAt: req.GetCreatedAt().AsTime(),
+					}, nil)
 				},
 			},
 			{
@@ -488,7 +499,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					CreatedAt:      timestamppb.Now(),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordTokenUsageRequest) {
-					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).Return(sql.ErrConnDone)
+					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).Return(database.AIBridgeTokenUsage{}, sql.ErrConnDone)
 				},
 				expectedErr: "insert token usage",
 			},
@@ -534,7 +545,17 @@ func TestRecordPromptUsage(t *testing.T) {
 							return false
 						}
 						return true
-					})).Return(nil)
+					})).Return(database.AIBridgeUserPrompt{
+						ID:                 uuid.New(),
+						InterceptionID:     interceptionID,
+						ProviderResponseID: req.GetMsgId(),
+						Prompt:             req.GetPrompt(),
+						Metadata: pqtype.NullRawMessage{
+							RawMessage: json.RawMessage(metadataJSON),
+							Valid:      true,
+						},
+						CreatedAt: req.GetCreatedAt().AsTime(),
+					}, nil)
 				},
 			},
 			{
@@ -556,7 +577,7 @@ func TestRecordPromptUsage(t *testing.T) {
 					CreatedAt:      timestamppb.Now(),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordPromptUsageRequest) {
-					db.EXPECT().InsertAIBridgeUserPrompt(gomock.Any(), gomock.Any()).Return(sql.ErrConnDone)
+					db.EXPECT().InsertAIBridgeUserPrompt(gomock.Any(), gomock.Any()).Return(database.AIBridgeUserPrompt{}, sql.ErrConnDone)
 				},
 				expectedErr: "insert user prompt",
 			},
@@ -622,7 +643,21 @@ func TestRecordToolUsage(t *testing.T) {
 							return false
 						}
 						return true
-					})).Return(nil)
+					})).Return(database.AIBridgeToolUsage{
+						ID:                 uuid.New(),
+						InterceptionID:     interceptionID,
+						ProviderResponseID: req.GetMsgId(),
+						Tool:               req.GetTool(),
+						ServerUrl:          dbServerURL,
+						Input:              req.GetInput(),
+						Injected:           req.GetInjected(),
+						InvocationError:    dbInvocationError,
+						Metadata: pqtype.NullRawMessage{
+							RawMessage: json.RawMessage(metadataJSON),
+							Valid:      true,
+						},
+						CreatedAt: req.GetCreatedAt().AsTime(),
+					}, nil)
 				},
 			},
 			{
@@ -646,7 +681,7 @@ func TestRecordToolUsage(t *testing.T) {
 					CreatedAt:      timestamppb.Now(),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordToolUsageRequest) {
-					db.EXPECT().InsertAIBridgeToolUsage(gomock.Any(), gomock.Any()).Return(sql.ErrConnDone)
+					db.EXPECT().InsertAIBridgeToolUsage(gomock.Any(), gomock.Any()).Return(database.AIBridgeToolUsage{}, sql.ErrConnDone)
 				},
 				expectedErr: "insert tool usage",
 			},

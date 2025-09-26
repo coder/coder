@@ -17,7 +17,6 @@ import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useEffect, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router";
 import { docs } from "utils/docs";
@@ -85,18 +84,16 @@ const IdpSyncPage: FC = () => {
 		return <EmptyState message="Organization not found" />;
 	}
 
-	const helmet = (
-		<Helmet>
-			<title>
-				{pageTitle("IdP Sync", organization.display_name || organization.name)}
-			</title>
-		</Helmet>
+	const title = (
+		<title>
+			{pageTitle("IdP Sync", organization.display_name || organization.name)}
+		</title>
 	);
 
 	if (!organizationPermissions?.viewIdpSyncSettings) {
 		return (
 			<>
-				{helmet}
+				{title}
 				<RequirePermission isFeatureVisible={false} />
 			</>
 		);
@@ -118,7 +115,7 @@ const IdpSyncPage: FC = () => {
 
 	return (
 		<div className="w-full max-w-screen-2xl pb-10">
-			{helmet}
+			{title}
 
 			<div className="flex flex-col gap-12">
 				<header className="flex flex-row items-baseline justify-between">

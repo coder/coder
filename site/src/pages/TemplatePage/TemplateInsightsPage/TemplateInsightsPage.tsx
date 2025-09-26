@@ -1,6 +1,4 @@
 import { useTheme } from "@emotion/react";
-import CancelOutlined from "@mui/icons-material/CancelOutlined";
-import LinkOutlined from "@mui/icons-material/LinkOutlined";
 import LinearProgress from "@mui/material/LinearProgress";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
@@ -36,7 +34,11 @@ import {
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { CircleCheck as CircleCheckIcon } from "lucide-react";
+import {
+	CircleCheck as CircleCheckIcon,
+	CircleXIcon,
+	LinkIcon,
+} from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
@@ -45,7 +47,6 @@ import {
 	type ReactNode,
 	useId,
 } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { type SetURLSearchParams, useSearchParams } from "react-router";
 import { getLatencyColor } from "utils/latency";
@@ -100,9 +101,8 @@ export default function TemplateInsightsPage() {
 
 	return (
 		<>
-			<Helmet>
-				<title>{getTemplatePageTitle("Insights", template)}</title>
-			</Helmet>
+			<title>{getTemplatePageTitle("Insights", template)}</title>
+
 			<TemplateInsightsPageView
 				controls={
 					<TemplateInsightsControls
@@ -729,13 +729,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 				}}
 			>
 				<TextValue>{usage.value}</TextValue>
-				<LinkOutlined
-					css={{
-						width: 14,
-						height: 14,
-						color: theme.palette.primary.light,
-					}}
-				/>
+				<LinkIcon className="size-icon-xs text-content-link" />
 			</Link>
 		);
 	}
@@ -772,13 +766,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 			>
 				{usage.value === "false" ? (
 					<>
-						<CancelOutlined
-							css={{
-								width: 16,
-								height: 16,
-								color: theme.palette.error.light,
-							}}
-						/>
+						<CircleXIcon className="size-icon-xs text-content-destructive" />
 						False
 					</>
 				) : (

@@ -19,10 +19,67 @@ export interface AIBridgeConfig {
 	readonly anthropic: AIBridgeAnthropicConfig;
 }
 
+// From codersdk/aibridge.go
+export interface AIBridgeInterception {
+	readonly id: string;
+	readonly initiator_id: string;
+	readonly provider: string;
+	readonly model: string;
+	// empty interface{} type, falling back to unknown
+	readonly metadata: Record<string, unknown>;
+	readonly started_at: string;
+	readonly token_usages: readonly AIBridgeTokenUsage[];
+	readonly user_prompts: readonly AIBridgeUserPrompt[];
+	readonly tool_usages: readonly AIBridgeToolUsage[];
+}
+
+// From codersdk/aibridge.go
+export interface AIBridgeListInterceptionsResponse {
+	readonly results: readonly AIBridgeInterception[];
+}
+
 // From codersdk/deployment.go
 export interface AIBridgeOpenAIConfig {
 	readonly base_url: string;
 	readonly key: string;
+}
+
+// From codersdk/aibridge.go
+export interface AIBridgeTokenUsage {
+	readonly id: string;
+	readonly interception_id: string;
+	readonly provider_response_id: string;
+	readonly input_tokens: number;
+	readonly output_tokens: number;
+	// empty interface{} type, falling back to unknown
+	readonly metadata: Record<string, unknown>;
+	readonly created_at: string;
+}
+
+// From codersdk/aibridge.go
+export interface AIBridgeToolUsage {
+	readonly id: string;
+	readonly interception_id: string;
+	readonly provider_response_id: string;
+	readonly server_url: string;
+	readonly tool: string;
+	readonly input: string;
+	readonly injected: boolean;
+	readonly invocation_error: string;
+	// empty interface{} type, falling back to unknown
+	readonly metadata: Record<string, unknown>;
+	readonly created_at: string;
+}
+
+// From codersdk/aibridge.go
+export interface AIBridgeUserPrompt {
+	readonly id: string;
+	readonly interception_id: string;
+	readonly provider_response_id: string;
+	readonly prompt: string;
+	// empty interface{} type, falling back to unknown
+	readonly metadata: Record<string, unknown>;
+	readonly created_at: string;
 }
 
 // From codersdk/deployment.go
@@ -48,14 +105,84 @@ export interface APIKey {
 	readonly updated_at: string;
 	readonly login_type: LoginType;
 	readonly scope: APIKeyScope;
+	readonly scopes: readonly APIKeyScope[];
 	readonly token_name: string;
 	readonly lifetime_seconds: number;
 }
 
 // From codersdk/apikey.go
-export type APIKeyScope = "all" | "application_connect";
+export type APIKeyScope =
+	| "all"
+	| "api_key:*"
+	| "api_key:create"
+	| "api_key:delete"
+	| "api_key:read"
+	| "api_key:update"
+	| "application_connect"
+	| "coder:all"
+	| "coder:application_connect"
+	| "file:*"
+	| "file:create"
+	| "file:read"
+	| "template:*"
+	| "template:create"
+	| "template:delete"
+	| "template:read"
+	| "template:update"
+	| "template:use"
+	| "user:read_personal"
+	| "user_secret:*"
+	| "user_secret:create"
+	| "user_secret:delete"
+	| "user_secret:read"
+	| "user_secret:update"
+	| "user:update_personal"
+	| "workspace:*"
+	| "workspace:application_connect"
+	| "workspace:create"
+	| "workspace:delete"
+	| "workspace:read"
+	| "workspace:ssh"
+	| "workspace:start"
+	| "workspace:stop"
+	| "workspace:update";
 
-export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"];
+export const APIKeyScopes: APIKeyScope[] = [
+	"all",
+	"api_key:*",
+	"api_key:create",
+	"api_key:delete",
+	"api_key:read",
+	"api_key:update",
+	"application_connect",
+	"coder:all",
+	"coder:application_connect",
+	"file:*",
+	"file:create",
+	"file:read",
+	"template:*",
+	"template:create",
+	"template:delete",
+	"template:read",
+	"template:update",
+	"template:use",
+	"user:read_personal",
+	"user_secret:*",
+	"user_secret:create",
+	"user_secret:delete",
+	"user_secret:read",
+	"user_secret:update",
+	"user:update_personal",
+	"workspace:*",
+	"workspace:application_connect",
+	"workspace:create",
+	"workspace:delete",
+	"workspace:read",
+	"workspace:ssh",
+	"workspace:start",
+	"workspace:stop",
+	"workspace:update",
+];
 
 // From codersdk/apikey.go
 export interface APIKeyWithOwner extends APIKey {
@@ -504,7 +631,7 @@ export interface CreateProvisionerKeyResponse {
 export interface CreateTaskRequest {
 	readonly template_version_id: string;
 	readonly template_version_preset_id?: string;
-	readonly prompt: string;
+	readonly input: string;
 	readonly name?: string;
 }
 
@@ -567,7 +694,8 @@ export interface CreateTestAuditLogRequest {
 // From codersdk/apikey.go
 export interface CreateTokenRequest {
 	readonly lifetime: number;
-	readonly scope: APIKeyScope;
+	readonly scope?: APIKeyScope;
+	readonly scopes?: readonly APIKeyScope[];
 	readonly token_name: string;
 }
 
@@ -983,6 +1111,11 @@ export const Experiments: Experiment[] = [
 	"workspace-usage",
 ];
 
+// From codersdk/scopes_catalog.go
+export interface ExternalAPIKeyScopes {
+	readonly external: readonly APIKeyScope[];
+}
+
 // From codersdk/workspaces.go
 export interface ExternalAgentCredentials {
 	readonly command: string;
@@ -1089,6 +1222,7 @@ export interface Feature {
 
 // From codersdk/deployment.go
 export type FeatureName =
+	| "aibridge"
 	| "access_control"
 	| "advanced_template_scheduling"
 	| "appearance"
@@ -1113,6 +1247,7 @@ export type FeatureName =
 	| "workspace_proxy";
 
 export const FeatureNames: FeatureName[] = [
+	"aibridge",
 	"access_control",
 	"advanced_template_scheduling",
 	"appearance",
@@ -2907,7 +3042,7 @@ export interface TaskSendRequest {
 }
 
 // From codersdk/aitasks.go
-export type TaskState = "completed" | "failed" | "idle" | "working";
+export type TaskState = "complete" | "failed" | "idle" | "working";
 
 // From codersdk/aitasks.go
 export interface TaskStateEntry {
@@ -2918,7 +3053,7 @@ export interface TaskStateEntry {
 }
 
 export const TaskStates: TaskState[] = [
-	"completed",
+	"complete",
 	"failed",
 	"idle",
 	"working",

@@ -24,7 +24,6 @@ import {
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 
 type ButtonValues = Record<string, string>;
@@ -107,9 +106,8 @@ const TemplateEmbedPageExperimental: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(template.name)}</title>
-			</Helmet>
+			<title>{pageTitle(template.name)}</title>
+
 			<TemplateEmbedPageView
 				template={template}
 				parameters={sortedParams}

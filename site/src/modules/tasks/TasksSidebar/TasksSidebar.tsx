@@ -41,11 +41,14 @@ export const TasksSidebar: FC = () => {
 			<div className="flex items-center place-content-between">
 				{!isCollapsed && (
 					<Button
+						asChild
 						size="icon"
 						variant="subtle"
 						className={cn(["size-8 p-0 transition-[margin,opacity]"])}
 					>
-						<CoderIcon className="fill-content-primary !size-6 !p-0" />
+						<RouterLink to="/">
+							<CoderIcon className="fill-content-primary !size-6 !p-0" />
+						</RouterLink>
 					</Button>
 				)}
 

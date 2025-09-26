@@ -1,5 +1,4 @@
 import type { FC, HTMLAttributes } from "react";
-
 export const Sidebar: FC<HTMLAttributes<HTMLElement>> = ({
 	children,
 	...attrs
