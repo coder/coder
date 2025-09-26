@@ -764,6 +764,9 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
     "lifetime_seconds": 0,
     "login_type": "password",
     "scope": "all",
+    "scopes": [
+      "all"
+    ],
     "token_name": "string",
     "updated_at": "2019-08-24T14:15:22Z",
     "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
@@ -781,19 +784,20 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 
 Status Code **200**
 
-| Name                 | Type                                                   | Required | Restrictions | Description |
-|----------------------|--------------------------------------------------------|----------|--------------|-------------|
-| `[array item]`       | array                                                  | false    |              |             |
-| `» created_at`       | string(date-time)                                      | true     |              |             |
-| `» expires_at`       | string(date-time)                                      | true     |              |             |
-| `» id`               | string                                                 | true     |              |             |
-| `» last_used`        | string(date-time)                                      | true     |              |             |
-| `» lifetime_seconds` | integer                                                | true     |              |             |
-| `» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)     | true     |              |             |
-| `» scope`            | [codersdk.APIKeyScope](schemas.md#codersdkapikeyscope) | true     |              |             |
-| `» token_name`       | string                                                 | true     |              |             |
-| `» updated_at`       | string(date-time)                                      | true     |              |             |
-| `» user_id`          | string(uuid)                                           | true     |              |             |
+| Name                 | Type                                                   | Required | Restrictions | Description                     |
+|----------------------|--------------------------------------------------------|----------|--------------|---------------------------------|
+| `[array item]`       | array                                                  | false    |              |                                 |
+| `» created_at`       | string(date-time)                                      | true     |              |                                 |
+| `» expires_at`       | string(date-time)                                      | true     |              |                                 |
+| `» id`               | string                                                 | true     |              |                                 |
+| `» last_used`        | string(date-time)                                      | true     |              |                                 |
+| `» lifetime_seconds` | integer                                                | true     |              |                                 |
+| `» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)     | true     |              |                                 |
+| `» scope`            | [codersdk.APIKeyScope](schemas.md#codersdkapikeyscope) | false    |              | Deprecated: use Scopes instead. |
+| `» scopes`           | array                                                  | false    |              |                                 |
+| `» token_name`       | string                                                 | true     |              |                                 |
+| `» updated_at`       | string(date-time)                                      | true     |              |                                 |
+| `» user_id`          | string(uuid)                                           | true     |              |                                 |
 
 #### Enumerated Values
 
@@ -828,6 +832,9 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 {
   "lifetime": 0,
   "scope": "all",
+  "scopes": [
+    "all"
+  ],
   "token_name": "string"
 }
 ```
@@ -890,6 +897,9 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/{keyname} \
   "lifetime_seconds": 0,
   "login_type": "password",
   "scope": "all",
+  "scopes": [
+    "all"
+  ],
   "token_name": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
@@ -937,6 +947,9 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
   "lifetime_seconds": 0,
   "login_type": "password",
   "scope": "all",
+  "scopes": [
+    "all"
+  ],
   "token_name": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"

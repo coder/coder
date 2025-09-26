@@ -99,7 +99,6 @@
 		"react-confetti": "6.2.2",
 		"react-date-range": "1.4.0",
 		"react-dom": "19.1.1",
-		"react-helmet-async": "2.0.5",
 		"react-markdown": "9.0.3",
 		"react-query": "npm:@tanstack/react-query@5.77.0",
 		"react-resizable-panels": "3.0.3",

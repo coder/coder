@@ -1,25 +1,36 @@
 package cli
 
 import (
-	"github.com/coder/coder/v2/cli"
+	agplcli "github.com/coder/coder/v2/cli"
 	"github.com/coder/serpent"
 )
 
 type RootCmd struct {
-	cli.RootCmd
+	agplcli.RootCmd
 }
 
 func (r *RootCmd) enterpriseOnly() []*serpent.Command {
 	return []*serpent.Command{
+		// These commands exist in AGPL, but we use a different implementation
+		// in enterprise:
 		r.Server(nil),
+		r.provisionerDaemons(),
+		agplcli.ExperimentalCommand(append(r.AGPLExperimental(), r.enterpriseExperimental()...)),
+
+		// New commands that don't exist in AGPL:
 		r.workspaceProxy(),
 		r.features(),
 		r.licenses(),
 		r.groups(),
 		r.prebuilds(),
-		r.provisionerDaemons(),
 		r.provisionerd(),
 		r.externalWorkspaces(),
+	}
+}
+
+func (r *RootCmd) enterpriseExperimental() []*serpent.Command {
+	return []*serpent.Command{
+		r.aibridge(),
 	}
 }
 

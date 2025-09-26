@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import GroupIcon from "@mui/icons-material/Group";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import type { Group } from "api/typesGenerated";
@@ -12,7 +11,9 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { UsersIcon } from "lucide-react";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 
 type GroupsCellProps = {
 	userGroups: readonly Group[] | undefined;
@@ -44,12 +45,11 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 								type="button"
 							>
 								<div className="flex flex-row gap-2 items-center">
-									<GroupIcon
-										css={{
-											width: "1rem",
-											height: "1rem",
-											opacity: userGroups.length > 0 ? 0.8 : 0.5,
-										}}
+									<UsersIcon
+										className={cn([
+											"size-4 opacity-50",
+											userGroups.length > 0 && "opacity-80",
+										])}
 									/>
 
 									<span>

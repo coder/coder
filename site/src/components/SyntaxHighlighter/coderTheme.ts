@@ -1,7 +1,6 @@
 import { useTheme } from "@emotion/react";
 import { useMonaco } from "@monaco-editor/react";
 import { useEffect, useState } from "react";
-
 export const useCoderTheme = (): { isLoading: boolean; name: string } => {
 	const [isLoading, setIsLoading] = useState(true);
 	const monaco = useMonaco();

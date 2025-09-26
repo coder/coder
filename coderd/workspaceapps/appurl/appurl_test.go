@@ -20,7 +20,7 @@ func TestApplicationURLString(t *testing.T) {
 		{
 			Name:     "Empty",
 			URL:      appurl.ApplicationURL{},
-			Expected: "------",
+			Expected: "----",
 		},
 		{
 			Name: "AppName",
@@ -52,6 +52,66 @@ func TestApplicationURLString(t *testing.T) {
 				Username:      "user",
 			},
 			Expected: "yolo---app--agent--workspace--user",
+		},
+		{
+			Name: "5DigitAppSlug",
+			URL: appurl.ApplicationURL{
+				AppSlugOrPort: "30000",
+				AgentName:     "",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+			Expected: "30000--workspace--user",
+		},
+		{
+			Name: "4DigitPort",
+			URL: appurl.ApplicationURL{
+				AppSlugOrPort: "1234",
+				AgentName:     "agent",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+			Expected: "1234--agent--workspace--user",
+		},
+		{
+			Name: "3DigitPort",
+			URL: appurl.ApplicationURL{
+				AppSlugOrPort: "123",
+				AgentName:     "",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+			Expected: "123--workspace--user",
+		},
+		{
+			Name: "LegacyAppSlug_WithAgent_StillWorks",
+			URL: appurl.ApplicationURL{
+				AppSlugOrPort: "myapp",
+				AgentName:     "agent",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+			Expected: "myapp--agent--workspace--user",
+		},
+		{
+			Name: "AppSlug_WithNumbers",
+			URL: appurl.ApplicationURL{
+				AppSlugOrPort: "app123",
+				AgentName:     "",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+			Expected: "app123--workspace--user",
+		},
+		{
+			Name: "NumbersWithLetters",
+			URL: appurl.ApplicationURL{
+				AppSlugOrPort: "8080abc",
+				AgentName:     "",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+			Expected: "8080abc--workspace--user",
 		},
 	}
 
@@ -91,10 +151,14 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			ExpectedError: "invalid application url format",
 		},
 		{
-			Name:          "Invalid_App--Workspace--User",
-			Subdomain:     "app--workspace--user",
-			Expected:      appurl.ApplicationURL{},
-			ExpectedError: "invalid application url format",
+			Name:      "Valid_App--Workspace--User",
+			Subdomain: "app--workspace--user",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "app",
+				AgentName:     "", // Agent name is optional when app slug is present
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
 		},
 		{
 			Name:          "Invalid_TooManyComponents",
@@ -102,13 +166,19 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			Expected:      appurl.ApplicationURL{},
 			ExpectedError: "invalid application url format",
 		},
+		{
+			Name:          "Invalid_Port--Workspace--User",
+			Subdomain:     "8080--workspace--user",
+			Expected:      appurl.ApplicationURL{},
+			ExpectedError: "agent name is required for port-based URLs",
+		},
 		// Correct
 		{
 			Name:      "AppName--Agent--Workspace--User",
 			Subdomain: "app--agent--workspace--user",
 			Expected: appurl.ApplicationURL{
 				AppSlugOrPort: "app",
-				AgentName:     "agent",
+				AgentName:     "",
 				WorkspaceName: "workspace",
 				Username:      "user",
 			},
@@ -138,7 +208,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			Subdomain: "app-slug--agent-name--workspace-name--user-name",
 			Expected: appurl.ApplicationURL{
 				AppSlugOrPort: "app-slug",
-				AgentName:     "agent-name",
+				AgentName:     "",
 				WorkspaceName: "workspace-name",
 				Username:      "user-name",
 			},
@@ -149,7 +219,49 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			Expected: appurl.ApplicationURL{
 				Prefix:        "dean---was---here---",
 				AppSlugOrPort: "app",
-				AgentName:     "agent",
+				AgentName:     "",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+		},
+		{
+			Name:      "5DigitAppSlug--Workspace--User",
+			Subdomain: "30000--workspace--user",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "30000",
+				AgentName:     "",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+		},
+		{
+			Name:          "Invalid_4DigitPort--Workspace--User",
+			Subdomain:     "1234--workspace--user",
+			Expected:      appurl.ApplicationURL{},
+			ExpectedError: "agent name is required for port-based URLs",
+		},
+		{
+			Name:      "3DigitPort_WithoutAgent",
+			Subdomain: "123--workspace--user",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "123",
+				AgentName:     "",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+		},
+		{
+			Name:          "Invalid_4DigitPortS_WithoutAgent",
+			Subdomain:     "8080s--workspace--user",
+			Expected:      appurl.ApplicationURL{},
+			ExpectedError: "agent name is required for port-based URLs",
+		},
+		{
+			Name:      "ParseLegacyAppSlug_WithAgent",
+			Subdomain: "myapp--agent--workspace--user",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "myapp",
+				AgentName:     "",
 				WorkspaceName: "workspace",
 				Username:      "user",
 			},
@@ -458,6 +570,55 @@ func TestConvertAppURLForCSP(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, c.expected, appurl.ConvertAppHostForCSP(c.host, c.wildcard))
+		})
+	}
+}
+
+func TestURLGenerationVsParsing(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		Name           string
+		AppSlugOrPort  string
+		AgentName      string
+		ExpectedParsed string
+	}{
+		{
+			Name:           "AppSlug_AgentOmittedInParsing",
+			AppSlugOrPort:  "myapp",
+			AgentName:      "agent",
+			ExpectedParsed: "",
+		},
+		{
+			Name:           "4DigitPort_AgentPreserved",
+			AppSlugOrPort:  "8080",
+			AgentName:      "agent",
+			ExpectedParsed: "agent",
+		},
+		{
+			Name:           "5DigitAppSlug_AgentOmittedInParsing",
+			AppSlugOrPort:  "30000",
+			AgentName:      "agent",
+			ExpectedParsed: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			original := appurl.ApplicationURL{
+				AppSlugOrPort: tc.AppSlugOrPort,
+				AgentName:     tc.AgentName,
+				WorkspaceName: "workspace",
+				Username:      "user",
+			}
+
+			urlString := original.String()
+			parsed, err := appurl.ParseSubdomainAppURL(urlString)
+			require.NoError(t, err)
+
+			require.Equal(t, tc.ExpectedParsed, parsed.AgentName,
+				"Agent name should be '%s' after parsing", tc.ExpectedParsed)
 		})
 	}
 }

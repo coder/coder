@@ -5,7 +5,6 @@ import Tooltip from "@mui/material/Tooltip";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { SearchIcon, XIcon } from "lucide-react";
 import { type FC, useLayoutEffect, useRef } from "react";
-
 export type SearchFieldProps = Omit<TextFieldProps, "onChange"> & {
 	onChange: (query: string) => void;
 	autoFocus?: boolean;

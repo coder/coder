@@ -40,4 +40,5 @@ When the tool reports missing values:
    make -B gen/db && make lint/check-scopes
    ```
 
-3. Decide whether each new scope is public (exposed in the catalog) or internal-only (handled by the catalog task).
+3. Decide whether each new scope is public (exposed in the catalog) or internal-only.
+   - If public, add it to the curated map in `coderd/rbac/scopes_catalog.go` (`externalLowLevel`) so it appears in the public catalog and can be requested by users.

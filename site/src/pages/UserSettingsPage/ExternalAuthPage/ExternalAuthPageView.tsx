@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import AutorenewIcon from "@mui/icons-material/Autorenew";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -28,7 +27,7 @@ import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
-import { EllipsisVertical } from "lucide-react";
+import { EllipsisVertical, RefreshCcwIcon } from "lucide-react";
 import { type FC, useCallback, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 
@@ -142,11 +141,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 							title="Authentication token will automatically refresh when expired."
 							placement="right"
 						>
-							<AutorenewIcon
-								sx={{
-									fontSize: "0.75rem",
-								}}
-							/>
+							<RefreshCcwIcon className="size-3" />
 						</Tooltip>
 					)}
 

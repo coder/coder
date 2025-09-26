@@ -61,8 +61,8 @@ func WorkspaceAgentScope(params WorkspaceAgentScopeParams) Scope {
 }
 
 const (
-	ScopeAll                ScopeName = "all"
-	ScopeApplicationConnect ScopeName = "application_connect"
+	ScopeAll                ScopeName = "coder:all"
+	ScopeApplicationConnect ScopeName = "coder:application_connect"
 	ScopeNoUserData         ScopeName = "no_user_data"
 )
 
@@ -205,6 +205,11 @@ func parseLowLevelScope(name ScopeName) (resource string, action policy.Action, 
 	if !exists {
 		return "", "", false
 	}
+
+	if act == policy.WildcardSymbol {
+		return res, policy.WildcardSymbol, true
+	}
+
 	if _, exists := def.Actions[policy.Action(act)]; !exists {
 		return "", "", false
 	}

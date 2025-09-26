@@ -88,6 +88,54 @@ func TestTokenScoped(t *testing.T) {
 	require.Equal(t, keys[0].Scope, codersdk.APIKeyScopeApplicationConnect)
 }
 
+// Ensure backward-compat: when a token is created using the legacy singular
+// scope names ("all" or "application_connect"), the API returns the same
+// legacy value in the deprecated singular Scope field while also supporting
+// the new multi-scope field.
+func TestTokenLegacySingularScopeCompat(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		scope  codersdk.APIKeyScope
+		scopes []codersdk.APIKeyScope
+	}{
+		{
+			name:   "all",
+			scope:  codersdk.APIKeyScopeAll,
+			scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderAll},
+		},
+		{
+			name:   "application_connect",
+			scope:  codersdk.APIKeyScopeApplicationConnect,
+			scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderApplicationConnect},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+			defer cancel()
+			client := coderdtest.New(t, nil)
+			_ = coderdtest.CreateFirstUser(t, client)
+
+			// Create with legacy singular scope.
+			_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+				Scope: tc.scope,
+			})
+			require.NoError(t, err)
+
+			// Read back and ensure the deprecated singular field matches exactly.
+			keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
+			require.NoError(t, err)
+			require.Len(t, keys, 1)
+			require.Equal(t, tc.scope, keys[0].Scope)
+			require.ElementsMatch(t, keys[0].Scopes, tc.scopes)
+		})
+	}
+}
+
 func TestUserSetTokenDuration(t *testing.T) {
 	t.Parallel()
 

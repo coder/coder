@@ -84,6 +84,7 @@ export const MockToken: TypesGen.APIKeyWithOwner = {
 	updated_at: "2022-12-16T20:10:45.637452Z",
 	login_type: "token",
 	scope: "all",
+	scopes: ["coder:all"],
 	lifetime_seconds: 2592000,
 	token_name: "token-one",
 	username: "admin",
@@ -100,6 +101,7 @@ export const MockTokens: TypesGen.APIKeyWithOwner[] = [
 		updated_at: "2022-12-16T20:10:45.637452Z",
 		login_type: "token",
 		scope: "all",
+		scopes: ["coder:all"],
 		lifetime_seconds: 2592000,
 		token_name: "token-two",
 		username: "admin",
@@ -4919,34 +4921,6 @@ export const MockPresets: TypesGen.Preset[] = [
 		Parameters: [
 			{ Name: "cpu", Value: "8" },
 			{ Name: "memory", Value: "16GB" },
-		],
-		Default: false,
-		DesiredPrebuildInstances: 0,
-	},
-];
-
-export const MockAIPromptPresets: TypesGen.Preset[] = [
-	{
-		ID: "ai-preset-1",
-		Name: "Code Review",
-		Description: "",
-		Icon: "",
-		Parameters: [
-			{ Name: "AI Prompt", Value: "Review the code for best practices" },
-			{ Name: "cpu", Value: "4" },
-			{ Name: "memory", Value: "8GB" },
-		],
-		Default: true,
-		DesiredPrebuildInstances: 0,
-	},
-	{
-		ID: "ai-preset-2",
-		Name: "Custom Prompt",
-		Description: "",
-		Icon: "",
-		Parameters: [
-			{ Name: "cpu", Value: "4" },
-			{ Name: "memory", Value: "8GB" },
 		],
 		Default: false,
 		DesiredPrebuildInstances: 0,

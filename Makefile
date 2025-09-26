@@ -651,6 +651,7 @@ GEN_FILES := \
 	coderd/rbac/object_gen.go \
 	codersdk/rbacresources_gen.go \
 	coderd/rbac/scopes_constants_gen.go \
+	codersdk/apikey_scopes_gen.go \
 	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
@@ -868,6 +869,12 @@ codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/m
  	# the `codersdk` package and any parallel build targets.
 	go run scripts/typegen/main.go rbac codersdk > /tmp/rbacresources_gen.go
 	mv /tmp/rbacresources_gen.go codersdk/rbacresources_gen.go
+	touch "$@"
+
+codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scopes_catalog.go coderd/rbac/scopes.go
+	# Generate SDK constants for external API key scopes.
+	go run ./scripts/apikeyscopesgen > /tmp/apikey_scopes_gen.go
+	mv /tmp/apikey_scopes_gen.go codersdk/apikey_scopes_gen.go
 	touch "$@"
 
 site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
