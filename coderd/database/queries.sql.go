@@ -177,8 +177,8 @@ SELECT
 FROM
 	aibridge_token_usages WHERE interception_id = $1::uuid
 ORDER BY
-	created_at DESC,
-	id DESC
+	created_at ASC,
+	id ASC
 `
 
 func (q *sqlQuerier) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeTokenUsage, error) {
@@ -220,8 +220,8 @@ FROM
 WHERE
 	interception_id = $1::uuid
 ORDER BY
-	created_at DESC,
-	id DESC
+	created_at ASC,
+	id ASC
 `
 
 func (q *sqlQuerier) GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeToolUsage, error) {
@@ -266,8 +266,8 @@ FROM
 WHERE
 	interception_id = $1::uuid
 ORDER BY
-	created_at DESC,
-	id DESC
+	created_at ASC,
+	id ASC
 `
 
 func (q *sqlQuerier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeUserPrompt, error) {
@@ -507,6 +507,9 @@ WHERE
 			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the started_at field, so select all
 			-- rows before the cursor and before the after_id UUID.
+			-- This uses a less than operator because we're sorting DESC. The
+			-- "after_id" terminology comes from our pagination parser in
+			-- coderd.
 			(aibridge_interceptions.started_at, aibridge_interceptions.id) < (
 				(SELECT started_at FROM aibridge_interceptions WHERE id = $6),
 				$6::uuid

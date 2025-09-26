@@ -50,8 +50,8 @@ SELECT
 FROM
 	aibridge_token_usages WHERE interception_id = @interception_id::uuid
 ORDER BY
-	created_at DESC,
-	id DESC;
+	created_at ASC,
+	id ASC;
 
 -- name: GetAIBridgeUserPromptsByInterceptionID :many
 SELECT
@@ -61,8 +61,8 @@ FROM
 WHERE
 	interception_id = @interception_id::uuid
 ORDER BY
-	created_at DESC,
-	id DESC;
+	created_at ASC,
+	id ASC;
 
 -- name: GetAIBridgeToolUsagesByInterceptionID :many
 SELECT
@@ -72,8 +72,8 @@ FROM
 WHERE
 	interception_id = @interception_id::uuid
 ORDER BY
-	created_at DESC,
-	id DESC;
+	created_at ASC,
+	id ASC;
 
 -- name: ListAIBridgeInterceptions :many
 SELECT
@@ -111,6 +111,9 @@ WHERE
 			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the started_at field, so select all
 			-- rows before the cursor and before the after_id UUID.
+			-- This uses a less than operator because we're sorting DESC. The
+			-- "after_id" terminology comes from our pagination parser in
+			-- coderd.
 			(aibridge_interceptions.started_at, aibridge_interceptions.id) < (
 				(SELECT started_at FROM aibridge_interceptions WHERE id = @after_id),
 				@after_id::uuid
