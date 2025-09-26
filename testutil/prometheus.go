@@ -69,8 +69,15 @@ func getMetric(t testing.TB, metrics []*dto.MetricFamily, name string, labels ..
 	metricsLoop:
 		for _, m := range ms {
 			require.Equal(t, len(labels), len(m.GetLabel()))
-			for i, lv := range labels {
-				if lv != m.GetLabel()[i].GetValue() {
+			actual := make(map[string]int, len(m.GetLabel()))
+			for _, label := range m.GetLabel() {
+				actual[label.GetValue()]++
+			}
+			for _, lv := range labels {
+				actual[lv]--
+			}
+			for _, count := range actual {
+				if count != 0 {
 					continue metricsLoop
 				}
 			}

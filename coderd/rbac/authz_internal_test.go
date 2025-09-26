@@ -1290,6 +1290,86 @@ func TestScopeAllowList(t *testing.T) {
 	)
 }
 
+func TestScopeMetricsCounters(t *testing.T) {
+	t.Parallel()
+
+	createSubject := func(allowList []AllowListElement) Subject {
+		role := Role{
+			Identifier: RoleIdentifier{Name: "metrics-role"},
+			Site: []Permission{{
+				ResourceType: ResourceWorkspace.Type,
+				Action:       policy.ActionRead,
+			}},
+		}
+		scope := Scope{
+			Role: Role{
+				Identifier: RoleIdentifier{Name: "scope-metrics"},
+				Site: []Permission{{
+					ResourceType: ResourceWorkspace.Type,
+					Action:       policy.ActionRead,
+				}},
+			},
+			AllowIDList: allowList,
+		}
+		return Subject{
+			ID:     uuid.NewString(),
+			Roles:  Roles{role},
+			Groups: []string{},
+			Scope:  scope,
+		}
+	}
+
+	t.Run("scope allow", func(t *testing.T) {
+		t.Parallel()
+
+		reg := prometheus.NewRegistry()
+		auth := NewAuthorizer(reg)
+
+		subject := createSubject([]AllowListElement{AllowListAll()})
+		obj := ResourceWorkspace.WithID(uuid.New())
+
+		require.NoError(t, auth.Authorize(context.Background(), subject, policy.ActionRead, obj))
+
+		metrics, err := reg.Gather()
+		require.NoError(t, err)
+
+		require.True(t, testutil.PromCounterHasValue(t, metrics, 1,
+			"coderd_authz_scope_enforcement_total",
+			"scope_allow", "scope_metrics", ResourceWorkspace.Type, "allow",
+		))
+		require.False(t, testutil.PromCounterGathered(t, metrics,
+			"coderd_authz_scope_allowlist_miss_total",
+			"scope_metrics", ResourceWorkspace.Type,
+		))
+	})
+
+	t.Run("allow-list miss", func(t *testing.T) {
+		t.Parallel()
+
+		reg := prometheus.NewRegistry()
+		auth := NewAuthorizer(reg)
+
+		allowedID := uuid.NewString()
+		subject := createSubject([]AllowListElement{{Type: ResourceWorkspace.Type, ID: allowedID}})
+		obj := ResourceWorkspace.WithID(uuid.New())
+
+		err := auth.Authorize(context.Background(), subject, policy.ActionRead, obj)
+		require.Error(t, err)
+
+		metrics, gatherErr := reg.Gather()
+		require.NoError(t, gatherErr)
+
+		require.True(t, testutil.PromCounterHasValue(t, metrics, 1,
+			"coderd_authz_scope_enforcement_total",
+			"allow_list_deny", "scope_metrics", ResourceWorkspace.Type, "deny",
+		))
+		require.True(t, testutil.PromCounterHasValue(t, metrics, 1,
+			"coderd_authz_scope_allowlist_miss_total",
+			"scope_metrics", ResourceWorkspace.Type,
+		))
+	})
+}
+
 // cases applies a given function to all test cases. This makes generalities easier to create.
 func cases(opt func(c authTestCase) authTestCase, cases []authTestCase) []authTestCase {
 	if opt == nil {
