@@ -4,11 +4,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/x/wildcard"
 )
 
 func TestTokenCreation_ScopeValidation(t *testing.T) {
@@ -61,4 +63,55 @@ func TestTokenCreation_ScopeValidation(t *testing.T) {
 			require.Contains(t, keys[0].Scopes, expected)
 		})
 	}
+}
+
+func TestTokenCreation_AllowListValidation(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitShort)
+	defer cancel()
+
+	// Invalid resource type should be rejected.
+	_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead},
+		AllowList: []codersdk.APIAllowListTarget{
+			{Type: wildcard.Of(codersdk.RBACResource("unknown")), ID: wildcard.Of(uuid.New())},
+		},
+	})
+	require.Error(t, err)
+
+	// Valid typed allow list should succeed.
+	resp, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		Scopes:    []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead},
+		AllowList: []codersdk.APIAllowListTarget{codersdk.AllowResourceTarget(codersdk.ResourceWorkspace, uuid.New())},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.Key)
+}
+
+func TestTokenCreationAllowsElevatedScopes(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	admin := coderdtest.New(t, nil)
+	first := coderdtest.CreateFirstUser(t, admin)
+
+	limitedClient, _ := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
+
+	resp, err := limitedClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderWorkspacesDelete},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.Key)
+
+	resp, err = limitedClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderApikeysManageSelf},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.Key)
 }

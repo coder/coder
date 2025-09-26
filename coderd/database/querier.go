@@ -622,6 +622,7 @@ type sqlcQuerier interface {
 	// This will always work regardless of the current state of the template version.
 	UnarchiveTemplateVersion(ctx context.Context, arg UnarchiveTemplateVersionParams) error
 	UnfavoriteWorkspace(ctx context.Context, id uuid.UUID) error
+	UpdateAPIKeyAuthorization(ctx context.Context, arg UpdateAPIKeyAuthorizationParams) (APIKey, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)
 	UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error)

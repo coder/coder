@@ -66,40 +66,13 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Map and validate requested scope.
-	// Accept legacy special scopes (all, application_connect) and external scopes.
-	// Default to coder:all scopes for backward compatibility.
-	scopes := database.APIKeyScopes{database.ApiKeyScopeCoderAll}
-	if len(createToken.Scopes) > 0 {
-		scopes = make(database.APIKeyScopes, 0, len(createToken.Scopes))
-		for _, s := range createToken.Scopes {
-			name := string(s)
-			if !rbac.IsExternalScope(rbac.ScopeName(name)) {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to create API key.",
-					Detail:  fmt.Sprintf("invalid or unsupported API key scope: %q", name),
-				})
-				return
-			}
-			scopes = append(scopes, database.APIKeyScope(name))
-		}
-	} else if string(createToken.Scope) != "" {
-		name := string(createToken.Scope)
-		if !rbac.IsExternalScope(rbac.ScopeName(name)) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to create API key.",
-				Detail:  fmt.Sprintf("invalid or unsupported API key scope: %q", name),
-			})
-			return
-		}
-		switch name {
-		case "all":
-			scopes = database.APIKeyScopes{database.ApiKeyScopeCoderAll}
-		case "application_connect":
-			scopes = database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect}
-		default:
-			scopes = database.APIKeyScopes{database.APIKeyScope(name)}
-		}
+	scopes, err := normalizeTokenScopes(createToken.Scope, createToken.Scopes)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to create API key.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	tokenName := namesgenerator.GetRandomName(1)
@@ -116,43 +89,14 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		TokenName:       tokenName,
 	}
 
-	if len(createToken.AllowList) > 0 {
-		rbacAllowListElements := make([]rbac.AllowListElement, 0, len(createToken.AllowList))
-		for _, t := range createToken.AllowList {
-			entry, err := rbac.NewAllowListElement(t.Type.String(), t.ID.String())
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to create API key.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-			rbacAllowListElements = append(rbacAllowListElements, entry)
-		}
-
-		rbacAllowList, err := rbac.ProcessAllowList(rbacAllowListElements, 128)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to create API key.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
-		dbAllowList := make(database.AllowList, 0, len(rbacAllowList))
-		for _, e := range rbacAllowList {
-			target, err := database.NewAllowListTarget(e.Type, e.ID)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to create API key.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-			dbAllowList = append(dbAllowList, target)
-		}
-
-		params.AllowList = dbAllowList
+	if allowList, provided, err := normalizeTokenAllowList(createToken.AllowList); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to create API key.",
+			Detail:  err.Error(),
+		})
+		return
+	} else if provided {
+		params.AllowList = allowList
 	}
 
 	if createToken.Lifetime != 0 {
@@ -307,6 +251,142 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertAPIKey(token))
+}
+
+// @Summary Update token API key
+// @ID update-token-api-key
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param keyname path string true "Key Name" format(string)
+// @Param request body codersdk.UpdateTokenRequest true "Update token request"
+// @Success 200 {object} codersdk.APIKey
+// @Router /users/{user}/keys/tokens/{keyname} [patch]
+func (api *API) patchToken(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx       = r.Context()
+		user      = httpmw.UserParam(r)
+		tokenName = chi.URLParam(r, "keyname")
+		auditor   = api.Auditor.Load()
+	)
+
+	var updateReq codersdk.UpdateTokenRequest
+	if !httpapi.Read(ctx, rw, r, &updateReq) {
+		return
+	}
+
+	if updateReq.Scope != nil && updateReq.Scopes != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to update API key.",
+			Detail:  "provide either scope or scopes, not both",
+		})
+		return
+	}
+
+	token, err := api.Database.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
+		TokenName: tokenName,
+		UserID:    user.ID,
+	})
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	aReq, commitAudit := audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+		Audit:   *auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	aReq.Old = token
+	defer commitAudit()
+
+	if !api.Authorize(r, policy.ActionUpdate, token) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	updatedScopes := token.Scopes
+	if updateReq.Scopes != nil {
+		normalized, err := normalizeTokenScopes(codersdk.APIKeyScope(""), *updateReq.Scopes)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Failed to update API key.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		updatedScopes = normalized
+	} else if updateReq.Scope != nil {
+		normalized, err := normalizeTokenScopes(*updateReq.Scope, nil)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Failed to update API key.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		updatedScopes = normalized
+	}
+
+	updatedAllowList := token.AllowList
+	if updateReq.AllowList != nil {
+		if len(*updateReq.AllowList) == 0 {
+			updatedAllowList = database.AllowList{database.AllowListTarget{}}
+		} else {
+			normalized, _, err := normalizeTokenAllowList(*updateReq.AllowList)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Failed to update API key.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			updatedAllowList = normalized
+		}
+	}
+
+	expiresAt := token.ExpiresAt
+	lifetimeSeconds := token.LifetimeSeconds
+	if updateReq.Lifetime != nil {
+		if err := api.validateAPIKeyLifetime(ctx, user.ID, *updateReq.Lifetime); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Failed to update API key.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		expiresAt = dbtime.Now().Add(*updateReq.Lifetime)
+		lifetimeSeconds = int64(updateReq.Lifetime.Seconds())
+	}
+
+	updatedToken, err := api.Database.UpdateAPIKeyAuthorization(ctx, database.UpdateAPIKeyAuthorizationParams{
+		ID:              token.ID,
+		Scopes:          updatedScopes,
+		AllowList:       updatedAllowList,
+		LifetimeSeconds: lifetimeSeconds,
+		ExpiresAt:       expiresAt,
+		UpdatedAt:       dbtime.Now(),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	aReq.New = updatedToken
+	httpapi.Write(ctx, rw, http.StatusOK, convertAPIKey(updatedToken))
 }
 
 // @Summary Get user tokens
@@ -523,4 +603,70 @@ func (api *API) createAPIKey(ctx context.Context, params apikey.CreateParams) (*
 		Path:     "/",
 		HttpOnly: true,
 	}), &newkey, nil
+}
+
+func normalizeTokenScopes(scope codersdk.APIKeyScope, scopes []codersdk.APIKeyScope) (database.APIKeyScopes, error) {
+	// Default to coder:all for backward compatibility when nothing is provided.
+	if len(scopes) == 0 && string(scope) == "" {
+		return database.APIKeyScopes{database.ApiKeyScopeCoderAll}, nil
+	}
+
+	if len(scopes) == 0 {
+		name := string(scope)
+		if name == "" {
+			return database.APIKeyScopes{database.ApiKeyScopeCoderAll}, nil
+		}
+		if !rbac.IsExternalScope(rbac.ScopeName(name)) {
+			return nil, xerrors.Errorf("invalid or unsupported API key scope: %q", name)
+		}
+		switch name {
+		case "all":
+			return database.APIKeyScopes{database.ApiKeyScopeCoderAll}, nil
+		case "application_connect":
+			return database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect}, nil
+		default:
+			return database.APIKeyScopes{database.APIKeyScope(name)}, nil
+		}
+	}
+
+	out := make(database.APIKeyScopes, 0, len(scopes))
+	for _, raw := range scopes {
+		name := string(raw)
+		if !rbac.IsExternalScope(rbac.ScopeName(name)) {
+			return nil, xerrors.Errorf("invalid or unsupported API key scope: %q", name)
+		}
+		out = append(out, database.APIKeyScope(name))
+	}
+	return out, nil
+}
+
+func normalizeTokenAllowList(entries []codersdk.APIAllowListTarget) (database.AllowList, bool, error) {
+	if len(entries) == 0 {
+		return nil, false, nil
+	}
+
+	rbacAllowList := make([]rbac.AllowListElement, 0, len(entries))
+	for _, entry := range entries {
+		re, err := rbac.NewAllowListElement(entry.Type.String(), entry.ID.String())
+		if err != nil {
+			return nil, false, err
+		}
+		rbacAllowList = append(rbacAllowList, re)
+	}
+
+	normalized, err := rbac.ProcessAllowList(rbacAllowList, 128)
+	if err != nil {
+		return nil, false, err
+	}
+
+	out := make(database.AllowList, 0, len(normalized))
+	for _, n := range normalized {
+		target, err := database.NewAllowListTarget(n.Type, n.ID)
+		if err != nil {
+			return nil, false, err
+		}
+		out = append(out, target)
+	}
+
+	return out, true, nil
 }
