@@ -33,6 +33,15 @@ type AuthCall struct {
 	Object Object
 }
 
+type scopeDecision struct {
+	allow          bool
+	scopeAllow     bool
+	scopeAllowList bool
+	roleAllow      bool
+	aclAllow       bool
+	metricsErr     error
+}
+
 // hashAuthorizeCall guarantees a unique hash for a given auth call.
 // If two hashes are equal, then the result of a given authorize() call
 // will be the same.
@@ -255,11 +264,15 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 
 // RegoAuthorizer will use a prepared rego query for performing authorize()
 type RegoAuthorizer struct {
-	query        rego.PreparedEvalQuery
-	partialQuery rego.PreparedPartialQuery
+	query             rego.PreparedEvalQuery
+	partialQuery      rego.PreparedPartialQuery
+	scopeMetricsQuery rego.PreparedEvalQuery
 
-	authorizeHist *prometheus.HistogramVec
-	prepareHist   prometheus.Histogram
+	authorizeHist         *prometheus.HistogramVec
+	prepareHist           prometheus.Histogram
+	scopeDecisionCounter  *prometheus.CounterVec
+	scopeDecisionDuration *prometheus.HistogramVec
+	scopeAllowListMisses  *prometheus.CounterVec
 
 	// strict checking also verifies the inputs to the authorizer. Making sure
 	// the action make sense for the input object.
@@ -272,10 +285,11 @@ var (
 	// Load the policy from policy.rego in this directory.
 	//
 	//go:embed policy.rego
-	regoPolicy   string
-	queryOnce    sync.Once
-	query        rego.PreparedEvalQuery
-	partialQuery rego.PreparedPartialQuery
+	regoPolicy        string
+	queryOnce         sync.Once
+	query             rego.PreparedEvalQuery
+	partialQuery      rego.PreparedPartialQuery
+	scopeMetricsQuery rego.PreparedEvalQuery
 )
 
 // NewCachingAuthorizer returns a new RegoAuthorizer that supports context based
@@ -317,6 +331,14 @@ func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 		if err != nil {
 			panic(xerrors.Errorf("compile partial rego: %w", err))
 		}
+
+		scopeMetricsQuery, err = rego.New(
+			rego.Query("data.authz.scope_metrics"),
+			rego.Module("policy.rego", regoPolicy),
+		).PrepareForEval(context.Background())
+		if err != nil {
+			panic(xerrors.Errorf("compile scope metrics rego: %w", err))
+		}
 	})
 
 	// Register metrics to prometheus.
@@ -357,12 +379,38 @@ func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 		Buckets:   buckets,
 	})
 
-	return &RegoAuthorizer{
-		query:        query,
-		partialQuery: partialQuery,
+	scopeDecisionCounter := factory.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "coderd",
+		Subsystem: "authz",
+		Name:      "scope_enforcement_total",
+		Help:      "Scope evaluation outcomes keyed by decision, scope, and resource.",
+	}, []string{"decision", "scope", "resource", "outcome"})
 
-		authorizeHist: authorizeHistogram,
-		prepareHist:   prepareHistogram,
+	scopeDecisionDuration := factory.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "coderd",
+		Subsystem: "authz",
+		Name:      "scope_enforcement_duration_seconds",
+		Help:      "Duration of scope enforcement decisions in seconds.",
+		Buckets:   buckets,
+	}, []string{"decision", "scope", "resource", "outcome"})
+
+	scopeAllowListMisses := factory.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "coderd",
+		Subsystem: "authz",
+		Name:      "scope_allowlist_miss_total",
+		Help:      "Requests denied because a scope allow-list did not include the resource.",
+	}, []string{"scope", "resource"})
+
+	return &RegoAuthorizer{
+		query:             query,
+		partialQuery:      partialQuery,
+		scopeMetricsQuery: scopeMetricsQuery,
+
+		authorizeHist:         authorizeHistogram,
+		prepareHist:           prepareHistogram,
+		scopeDecisionCounter:  scopeDecisionCounter,
+		scopeDecisionDuration: scopeDecisionDuration,
+		scopeAllowListMisses:  scopeAllowListMisses,
 	}
 }
 
@@ -396,11 +444,12 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action p
 	)
 	defer span.End()
 
-	err := a.authorize(ctx, subject, action, object)
+	decision, err := a.authorize(ctx, subject, action, object)
 	authorized := err == nil
 	span.SetAttributes(attribute.Bool("authorized", authorized))
 
 	dur := time.Since(start)
+	a.observeScopeMetrics(decision, subject.Scope, object, dur)
 	if !authorized {
 		a.authorizeHist.WithLabelValues("false").Observe(dur.Seconds())
 		return err
@@ -414,36 +463,180 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action p
 // It is a different function so the exported one can add tracing + metrics.
 // That code tends to clutter up the actual logic, so it's separated out.
 // nolint:revive
-func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action policy.Action, object Object) error {
+func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action policy.Action, object Object) (scopeDecision, error) {
+	decision := scopeDecision{}
 	if subject.Roles == nil {
-		return xerrors.Errorf("subject must have roles")
+		return decision, xerrors.Errorf("subject must have roles")
 	}
 	if subject.Scope == nil {
-		return xerrors.Errorf("subject must have a scope")
+		return decision, xerrors.Errorf("subject must have a scope")
 	}
 
 	// The caller should use either 1 or the other (or none).
 	// Using "AnyOrgOwner" and an OrgID is a contradiction.
 	// An empty uuid or a nil uuid means "no org owner".
 	if object.AnyOrgOwner && !(object.OrgID == "" || object.OrgID == "00000000-0000-0000-0000-000000000000") {
-		return xerrors.Errorf("object cannot have 'any_org' and an 'org_id' specified, values are mutually exclusive")
+		return decision, xerrors.Errorf("object cannot have 'any_org' and an 'org_id' specified, values are mutually exclusive")
 	}
 
 	astV, err := regoInputValue(subject, action, object)
 	if err != nil {
-		return xerrors.Errorf("convert input to value: %w", err)
+		return decision, xerrors.Errorf("convert input to value: %w", err)
+	}
+
+	metricsResults, metricsErr := a.scopeMetricsQuery.Eval(ctx, rego.EvalParsedInput(astV))
+	if metricsErr != nil {
+		decision.metricsErr = correctCancelError(metricsErr)
 	}
 
 	results, err := a.query.Eval(ctx, rego.EvalParsedInput(astV))
 	if err != nil {
 		err = correctCancelError(err)
-		return xerrors.Errorf("evaluate rego: %w", err)
+		return decision, xerrors.Errorf("evaluate rego: %w", err)
+	}
+
+	decision.allow = results.Allowed()
+	if decision.metricsErr == nil {
+		if err := applyScopeMetrics(&decision, metricsResults); err != nil {
+			decision.metricsErr = err
+		}
 	}
 
 	if !results.Allowed() {
-		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), subject, action, object, results)
+		return decision, ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), subject, action, object, results)
+	}
+	return decision, nil
+}
+
+func applyScopeMetrics(decision *scopeDecision, results rego.ResultSet) error {
+	if len(results) == 0 {
+		return xerrors.Errorf("scope metrics returned no results")
+	}
+	if len(results[0].Expressions) == 0 {
+		return xerrors.Errorf("scope metrics returned no expressions")
+	}
+	metricsMap, ok := results[0].Expressions[0].Value.(map[string]interface{})
+	if !ok {
+		return xerrors.Errorf("scope metrics expression unexpected type %T", results[0].Expressions[0].Value)
+	}
+
+	boolVal := func(key string) (bool, error) {
+		v, ok := metricsMap[key]
+		if !ok {
+			return false, xerrors.Errorf("scope metrics missing key %q", key)
+		}
+		val, ok := v.(bool)
+		if !ok {
+			return false, xerrors.Errorf("scope metrics key %q has unexpected type %T", key, v)
+		}
+		return val, nil
+	}
+
+	var err error
+	if decision.allow, err = boolVal("allow"); err != nil {
+		return err
+	}
+	if decision.scopeAllow, err = boolVal("scope_allow"); err != nil {
+		return err
+	}
+	if decision.scopeAllowList, err = boolVal("scope_allow_list"); err != nil {
+		return err
+	}
+	if decision.roleAllow, err = boolVal("role_allow"); err != nil {
+		return err
+	}
+	if decision.aclAllow, err = boolVal("acl_allow"); err != nil {
+		return err
 	}
 	return nil
+}
+
+var scopeLabelReplacer = strings.NewReplacer(
+	" ", "_",
+	":", "_",
+	"*", "all",
+	"-", "_",
+	".", "_",
+	"[", "_",
+	"]", "_",
+	"+", "_",
+	"=", "_",
+	"/", "_",
+	"|", "_",
+)
+
+func sanitizeScopeLabel(scope ExpandableScope) string {
+	if scope == nil {
+		return "none"
+	}
+	identifier := scope.Name()
+	raw := identifier.Name
+	if raw == "" {
+		raw = identifier.String()
+	}
+	if raw == "" {
+		return "unknown"
+	}
+	if strings.HasPrefix(raw, "scopes[") && strings.HasSuffix(raw, "]") {
+		inner := strings.TrimSuffix(strings.TrimPrefix(raw, "scopes["), "]")
+		if inner == "" {
+			return "multi(0)"
+		}
+		count := strings.Count(inner, "+") + 1
+		return fmt.Sprintf("multi(%d)", count)
+	}
+	sanitized := strings.ToLower(scopeLabelReplacer.Replace(strings.TrimSpace(raw)))
+	if sanitized == "" {
+		sanitized = "unknown"
+	}
+	if len(sanitized) > 63 {
+		sanitized = sanitized[:63]
+	}
+	return sanitized
+}
+
+func classifyScopeDecision(decision scopeDecision) string {
+	if decision.metricsErr != nil {
+		return "unknown"
+	}
+	if decision.scopeAllow {
+		if decision.allow {
+			return "scope_allow"
+		}
+		if !decision.roleAllow && !decision.aclAllow {
+			return "role_deny"
+		}
+		return "other"
+	}
+	if !decision.scopeAllowList {
+		return "allow_list_deny"
+	}
+	return "scope_deny"
+}
+
+func (a RegoAuthorizer) observeScopeMetrics(decision scopeDecision, scope ExpandableScope, object Object, dur time.Duration) {
+	if a.scopeDecisionCounter == nil || a.scopeDecisionDuration == nil || a.scopeAllowListMisses == nil {
+		return
+	}
+	if decision.metricsErr != nil {
+		return
+	}
+	scopeLabel := sanitizeScopeLabel(scope)
+	resource := object.Type
+	if resource == "" {
+		resource = "unknown"
+	}
+	outcome := "deny"
+	if decision.allow {
+		outcome = "allow"
+	}
+	decisionLabel := classifyScopeDecision(decision)
+
+	a.scopeDecisionCounter.WithLabelValues(decisionLabel, scopeLabel, resource, outcome).Inc()
+	a.scopeDecisionDuration.WithLabelValues(decisionLabel, scopeLabel, resource, outcome).Observe(dur.Seconds())
+	if !decision.scopeAllowList {
+		a.scopeAllowListMisses.WithLabelValues(scopeLabel, resource).Inc()
+	}
 }
 
 // Prepare will partially execute the rego policy leaving the object fields unknown (except for the type).
