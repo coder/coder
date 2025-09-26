@@ -66,6 +66,18 @@ SET
 WHERE
 	id = $1;
 
+-- name: UpdateAPIKeySettings :one
+UPDATE api_keys
+SET
+	scopes = @scopes,
+	allow_list = @allow_list,
+	lifetime_seconds = @lifetime_seconds,
+	expires_at = @expires_at,
+	updated_at = @updated_at
+WHERE
+	id = @id
+RETURNING *;
+
 -- name: DeleteAPIKeyByID :exec
 DELETE FROM
 	api_keys

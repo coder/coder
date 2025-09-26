@@ -256,6 +256,23 @@ func (s *MethodTestSuite) TestAPIKey() {
 		dbm.EXPECT().InsertAPIKey(gomock.Any(), arg).Return(ret, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceApiKey.WithOwner(u.ID.String()), policy.ActionCreate)
 	}))
+	s.Run("UpdateAPIKeySettings", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		original := testutil.Fake(s.T(), faker, database.APIKey{})
+		params := database.UpdateAPIKeySettingsParams{
+			ID:              original.ID,
+			Scopes:          database.APIKeyScopes{database.APIKeyScope("workspace:read")},
+			AllowList:       database.AllowList{rbac.AllowListAll()},
+			LifetimeSeconds: original.LifetimeSeconds,
+			ExpiresAt:       time.Now().Add(time.Hour),
+			UpdatedAt:       time.Now(),
+		}
+		updated := original
+		updated.Scopes = params.Scopes
+		updated.AllowList = params.AllowList
+		dbm.EXPECT().GetAPIKeyByID(gomock.Any(), original.ID).Return(original, nil).AnyTimes()
+		dbm.EXPECT().UpdateAPIKeySettings(gomock.Any(), params).Return(updated, nil).AnyTimes()
+		check.Args(params).Asserts(original, policy.ActionUpdate).Returns(updated)
+	}))
 	s.Run("UpdateAPIKeyByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
 		a := testutil.Fake(s.T(), faker, database.APIKey{UserID: u.ID, IPAddress: defaultIPAddress()})
