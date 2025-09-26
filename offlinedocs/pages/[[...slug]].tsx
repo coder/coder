@@ -9,7 +9,7 @@ import {
 	DrawerOverlay,
 	Flex,
 	Grid,
-	GridProps,
+	type GridProps,
 	Heading,
 	Icon,
 	Img,
@@ -28,12 +28,12 @@ import {
 import fm from "front-matter";
 import { readFileSync } from "fs";
 import _ from "lodash";
-import { GetStaticPaths, GetStaticProps, NextPage } from "next";
+import type { GetStaticPaths, GetStaticProps, NextPage } from "next";
 import Head from "next/head";
 import NextLink from "next/link";
 import { useRouter } from "next/router";
 import path from "path";
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 import { MdMenu } from "react-icons/md";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";

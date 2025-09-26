@@ -17,7 +17,6 @@ import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { ArrowLeftIcon, RotateCcwIcon } from "lucide-react";
 import { AgentLogs } from "modules/resources/AgentLogs/AgentLogs";
 import { useAgentLogs } from "modules/resources/useAgentLogs";
-import { TasksSidebar } from "modules/tasks/TasksSidebar/TasksSidebar";
 import {
 	AI_PROMPT_PARAMETER_NAME,
 	getTaskApps,
@@ -25,13 +24,7 @@ import {
 } from "modules/tasks/tasks";
 import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import {
-	type FC,
-	type PropsWithChildren,
-	type ReactNode,
-	useLayoutEffect,
-	useRef,
-} from "react";
+import { type FC, type ReactNode, useLayoutEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Link as RouterLink, useParams } from "react-router";
@@ -44,15 +37,6 @@ import {
 import { TaskAppIFrame } from "./TaskAppIframe";
 import { TaskApps } from "./TaskApps";
 import { TaskTopbar } from "./TaskTopbar";
-
-const TaskPageLayout: FC<PropsWithChildren> = ({ children }) => {
-	return (
-		<div className="flex items-stretch h-full">
-			<TasksSidebar />
-			<div className="flex flex-col h-full flex-1">{children}</div>
-		</div>
-	);
-};
 
 const TaskPage = () => {
 	const { workspace: workspaceName, username } = useParams() as {
@@ -73,7 +57,7 @@ const TaskPage = () => {
 
 	if (error) {
 		return (
-			<TaskPageLayout>
+			<>
 				<title>{pageTitle("Error loading task")}</title>
 
 				<div className="w-full min-h-80 flex items-center justify-center">
@@ -98,16 +82,16 @@ const TaskPage = () => {
 						</div>
 					</div>
 				</div>
-			</TaskPageLayout>
+			</>
 		);
 	}
 
 	if (!task) {
 		return (
-			<TaskPageLayout>
+			<>
 				<title>{pageTitle("Loading task")}</title>
 				<Loader className="w-full h-full" />
-			</TaskPageLayout>
+			</>
 		);
 	}
 
@@ -174,12 +158,11 @@ const TaskPage = () => {
 	}
 
 	return (
-		<TaskPageLayout>
+		<>
 			<title>{pageTitle(task.workspace.name)}</title>
-
 			<TaskTopbar task={task} />
 			{content}
-		</TaskPageLayout>
+		</>
 	);
 };
 
