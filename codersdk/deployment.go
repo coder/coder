@@ -90,6 +90,7 @@ const (
 	// enterprise/coderd/license/license.go for the license format.
 	FeatureManagedAgentLimit      FeatureName = "managed_agent_limit"
 	FeatureWorkspaceExternalAgent FeatureName = "workspace_external_agent"
+	FeatureAIBridge               FeatureName = "aibridge"
 )
 
 var (
@@ -117,6 +118,7 @@ var (
 		FeatureWorkspacePrebuilds,
 		FeatureManagedAgentLimit,
 		FeatureWorkspaceExternalAgent,
+		FeatureAIBridge,
 	}
 
 	// FeatureNamesMap is a map of all feature names for quick lookups.
@@ -136,6 +138,8 @@ func (n FeatureName) Humanize() string {
 		return "Template RBAC"
 	case FeatureSCIM:
 		return "SCIM"
+	case FeatureAIBridge:
+		return "AI Bridge"
 	default:
 		return strings.Title(strings.ReplaceAll(string(n), "_", " "))
 	}
