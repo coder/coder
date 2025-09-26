@@ -1059,6 +1059,56 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 	return i, err
 }
 
+const updateAPIKeyAuthorization = `-- name: UpdateAPIKeyAuthorization :one
+UPDATE api_keys
+SET
+	scopes = $1,
+	allow_list = $2,
+	lifetime_seconds = $3,
+	expires_at = $4,
+	updated_at = $5
+WHERE
+	id = $6
+RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
+`
+
+type UpdateAPIKeyAuthorizationParams struct {
+	Scopes          APIKeyScopes `db:"scopes" json:"scopes"`
+	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
+	LifetimeSeconds int64        `db:"lifetime_seconds" json:"lifetime_seconds"`
+	ExpiresAt       time.Time    `db:"expires_at" json:"expires_at"`
+	UpdatedAt       time.Time    `db:"updated_at" json:"updated_at"`
+	ID              string       `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateAPIKeyAuthorization(ctx context.Context, arg UpdateAPIKeyAuthorizationParams) (APIKey, error) {
+	row := q.db.QueryRowContext(ctx, updateAPIKeyAuthorization,
+		arg.Scopes,
+		arg.AllowList,
+		arg.LifetimeSeconds,
+		arg.ExpiresAt,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	var i APIKey
+	err := row.Scan(
+		&i.ID,
+		&i.HashedSecret,
+		&i.UserID,
+		&i.LastUsed,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LoginType,
+		&i.LifetimeSeconds,
+		&i.IPAddress,
+		&i.TokenName,
+		&i.Scopes,
+		&i.AllowList,
+	)
+	return i, err
+}
+
 const updateAPIKeyByID = `-- name: UpdateAPIKeyByID :exec
 UPDATE
 	api_keys

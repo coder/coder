@@ -2819,6 +2819,13 @@ func (m queryMetricsStore) UnfavoriteWorkspace(ctx context.Context, arg uuid.UUI
 	return r0
 }
 
+func (m queryMetricsStore) UpdateAPIKeyAuthorization(ctx context.Context, arg database.UpdateAPIKeyAuthorizationParams) (database.APIKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAPIKeyAuthorization(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAPIKeyAuthorization").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateAPIKeyByID(ctx, arg)

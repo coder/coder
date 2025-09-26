@@ -4600,6 +4600,13 @@ func (q *querier) UnfavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	return update(q.log, q.auth, fetch, q.db.UnfavoriteWorkspace)(ctx, id)
 }
 
+func (q *querier) UpdateAPIKeyAuthorization(ctx context.Context, arg database.UpdateAPIKeyAuthorizationParams) (database.APIKey, error) {
+	fetch := func(ctx context.Context, arg database.UpdateAPIKeyAuthorizationParams) (database.APIKey, error) {
+		return q.db.GetAPIKeyByID(ctx, arg.ID)
+	}
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateAPIKeyAuthorization)(ctx, arg)
+}
+
 func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateAPIKeyByIDParams) (database.APIKey, error) {
 		return q.db.GetAPIKeyByID(ctx, arg.ID)

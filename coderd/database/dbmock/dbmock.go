@@ -6052,6 +6052,21 @@ func (mr *MockStoreMockRecorder) UnfavoriteWorkspace(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnfavoriteWorkspace", reflect.TypeOf((*MockStore)(nil).UnfavoriteWorkspace), ctx, id)
 }
 
+// UpdateAPIKeyAuthorization mocks base method.
+func (m *MockStore) UpdateAPIKeyAuthorization(ctx context.Context, arg database.UpdateAPIKeyAuthorizationParams) (database.APIKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAPIKeyAuthorization", ctx, arg)
+	ret0, _ := ret[0].(database.APIKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateAPIKeyAuthorization indicates an expected call of UpdateAPIKeyAuthorization.
+func (mr *MockStoreMockRecorder) UpdateAPIKeyAuthorization(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAPIKeyAuthorization", reflect.TypeOf((*MockStore)(nil).UpdateAPIKeyAuthorization), ctx, arg)
+}
+
 // UpdateAPIKeyByID mocks base method.
 func (m *MockStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	m.ctrl.T.Helper()
