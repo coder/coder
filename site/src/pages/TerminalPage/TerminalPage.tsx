@@ -369,11 +369,14 @@ const TerminalPage: FC = () => {
 
 	return (
 		<ThemeOverride theme={theme}>
-			{workspace.data && <title>
-				{pageTitle(
-					"Terminal", `${workspace.data.owner_name}/${workspace.data.name}`,
-				)}
-			</title>}
+			{workspace.data && (
+				<title>
+					{pageTitle(
+						"Terminal",
+						`${workspace.data.owner_name}/${workspace.data.name}`,
+					)}
+				</title>
+			)}
 
 			<div
 				css={{ display: "flex", flexDirection: "column", height: "100vh" }}
