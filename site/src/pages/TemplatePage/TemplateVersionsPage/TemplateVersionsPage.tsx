@@ -4,7 +4,6 @@ import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { useState } from "react";
-
 import { useMutation, useQuery } from "react-query";
 import { getTemplatePageTitle } from "../utils";
 import { VersionsTable } from "./VersionsTable";

@@ -42,7 +42,6 @@ import {
 } from "components/Tooltip/Tooltip";
 import { XIcon } from "lucide-react";
 import type { FC } from "react";
-
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { JobRow } from "./JobRow";

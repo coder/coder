@@ -8,7 +8,6 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
 import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
-
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router";
 import { docs } from "utils/docs";

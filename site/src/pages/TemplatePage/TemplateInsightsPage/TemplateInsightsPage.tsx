@@ -45,7 +45,6 @@ import {
 	type ReactNode,
 	useId,
 } from "react";
-
 import { useQuery } from "react-query";
 import { type SetURLSearchParams, useSearchParams } from "react-router";
 import { getLatencyColor } from "utils/latency";

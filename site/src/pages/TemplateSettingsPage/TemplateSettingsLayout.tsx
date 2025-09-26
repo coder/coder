@@ -6,7 +6,6 @@ import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
 import { createContext, type FC, Suspense, useContext } from "react";
-
 import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router";
 import { pageTitle } from "utils/page";

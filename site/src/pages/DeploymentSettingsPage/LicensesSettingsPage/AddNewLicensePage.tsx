@@ -1,7 +1,6 @@
 import { API } from "api/api";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import type { FC } from "react";
-
 import { useMutation } from "react-query";
 import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";

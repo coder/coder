@@ -4,7 +4,6 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import type { FC } from "react";
-
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { pageTitle } from "utils/page";

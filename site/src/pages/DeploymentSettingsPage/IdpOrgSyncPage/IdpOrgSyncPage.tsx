@@ -12,7 +12,6 @@ import { Paywall } from "components/Paywall/Paywall";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { type FC, useEffect, useState } from "react";
-
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";

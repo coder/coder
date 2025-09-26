@@ -8,7 +8,6 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
-
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";

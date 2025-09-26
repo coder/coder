@@ -7,7 +7,6 @@ import {
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
 import type { FC } from "react";
-
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
 import { OverviewPageView } from "./OverviewPageView";

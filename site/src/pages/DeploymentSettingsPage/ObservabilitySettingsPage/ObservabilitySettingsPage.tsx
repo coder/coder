@@ -2,7 +2,6 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
 import type { FC } from "react";
-
 import { pageTitle } from "utils/page";
 import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
 

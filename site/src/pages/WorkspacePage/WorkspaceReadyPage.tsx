@@ -26,7 +26,6 @@ import {
 	WorkspaceUpdateDialogs,
 } from "modules/workspaces/WorkspaceUpdateDialogs";
 import { type FC, useEffect, useState } from "react";
-
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { pageTitle } from "utils/page";
 import { Workspace } from "./Workspace";

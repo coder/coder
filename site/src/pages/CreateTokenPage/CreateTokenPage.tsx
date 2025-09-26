@@ -7,7 +7,6 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
-
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";

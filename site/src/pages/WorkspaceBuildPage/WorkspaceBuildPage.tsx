@@ -3,7 +3,6 @@ import { workspaceBuildByNumber } from "api/queries/workspaceBuilds";
 import dayjs from "dayjs";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import type { FC } from "react";
-
 import { keepPreviousData, useQuery } from "react-query";
 import { useParams } from "react-router";
 import { pageTitle } from "utils/page";

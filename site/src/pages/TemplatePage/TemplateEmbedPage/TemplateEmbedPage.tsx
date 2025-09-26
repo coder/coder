@@ -14,7 +14,6 @@ import { useClipboard } from "hooks/useClipboard";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useEffect, useId, useState } from "react";
-
 import { useQuery } from "react-query";
 import { nameValidator } from "utils/formUtils";
 import { pageTitle } from "utils/page";

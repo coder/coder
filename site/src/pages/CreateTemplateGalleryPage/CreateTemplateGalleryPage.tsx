@@ -1,6 +1,5 @@
 import { templateExamples } from "api/queries/templates";
 import type { FC } from "react";
-
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
 import { getTemplatesByTag } from "utils/starterTemplates";

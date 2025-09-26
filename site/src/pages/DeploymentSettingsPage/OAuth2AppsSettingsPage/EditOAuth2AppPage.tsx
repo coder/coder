@@ -2,7 +2,6 @@ import * as oauth2 from "api/queries/oauth2";
 import type * as TypesGen from "api/typesGenerated";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { type FC, useState } from "react";
-
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { pageTitle } from "utils/page";

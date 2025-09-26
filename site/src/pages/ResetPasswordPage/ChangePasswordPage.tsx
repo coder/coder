@@ -11,7 +11,6 @@ import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
 import type { FC } from "react";
-
 import { useMutation } from "react-query";
 import { Link as RouterLink, useNavigate, useSearchParams } from "react-router";
 import { getApplicationName } from "utils/appearance";

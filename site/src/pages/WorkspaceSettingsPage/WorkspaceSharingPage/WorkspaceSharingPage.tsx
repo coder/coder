@@ -1,6 +1,5 @@
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import type { FC } from "react";
-
 import { pageTitle } from "utils/page";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 

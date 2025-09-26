@@ -7,7 +7,6 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationsFilterMenu } from "modules/tableFiltering/options";
 import type { FC } from "react";
-
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { useActionFilterMenu, useResourceTypeFilterMenu } from "./AuditFilter";

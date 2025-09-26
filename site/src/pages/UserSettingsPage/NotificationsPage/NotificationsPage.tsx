@@ -30,7 +30,6 @@ import {
 } from "modules/notifications/utils";
 import type { Permissions } from "modules/permissions";
 import { type FC, Fragment, useEffect } from "react";
-
 import { useMutation, useQueries, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";

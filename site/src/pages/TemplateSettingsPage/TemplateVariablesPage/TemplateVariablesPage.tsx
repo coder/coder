@@ -14,7 +14,6 @@ import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useCallback } from "react";
-
 import {
 	keepPreviousData,
 	useMutation,
