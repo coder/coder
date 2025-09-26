@@ -63,10 +63,10 @@ const OverflowPillList: FC<OverflowPillProps> = ({ organizations }) => {
 						{organizations.map((organization) => (
 							<li key={organization.name}>
 								<Pill
-									className={cn("border-none w-fit", {
-										"bg-surface-destructive": organization.isUUID,
-										"bg-surface-secondary": !organization.isUUID,
-									})}
+									className={cn(
+										"border-none w-fit",
+										organization.isUUID ? "bg-surface-destructive" : "bg-surface-secondary",
+									)}
 								>
 									{organization.name}
 								</Pill>
