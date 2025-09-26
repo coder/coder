@@ -262,7 +262,6 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 								name="templateID"
 								onValueChange={(value) => {
 									setSelectedTemplateId(value);
-									setSelectedPresetId(undefined);
 								}}
 								defaultValue={templates[0].id}
 								required
@@ -287,7 +286,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 							</Select>
 						</div>
 
-						{presets && presets.length > 0 && (
+						{selectedPresetId && (
 							<div>
 								<label htmlFor="presetID" className="sr-only">
 									Preset
