@@ -245,7 +245,12 @@ export const CreateTaskSuccessfully: Story = {
 		}),
 	},
 	beforeEach: () => {
+		const activeVersionId = `${MockTemplate.active_version_id}-latest`;
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API, "getTemplate").mockResolvedValue({
+			...MockTemplate,
+			active_version_id: activeVersionId,
+		});
 		spyOn(API.experimental, "getTasks")
 			.mockResolvedValueOnce(MockTasks)
 			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
@@ -260,6 +265,17 @@ export const CreateTaskSuccessfully: Story = {
 			const submitButton = canvas.getByRole("button", { name: /run task/i });
 			await waitFor(() => expect(submitButton).toBeEnabled());
 			await userEvent.click(submitButton);
+		});
+
+		await step("Uses latest template version", () => {
+			expect(API.experimental.createTask).toHaveBeenCalledWith(
+				MockUserOwner.id,
+				{
+					input: MockNewTaskData.prompt,
+					template_version_id: `${MockTemplate.active_version_id}-latest`,
+					template_version_preset_id: undefined,
+				},
+			);
 		});
 
 		await step("Displays success message", async () => {
@@ -281,6 +297,7 @@ export const CreateTaskError: Story = {
 	decorators: [withGlobalSnackbar],
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
 		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
 		spyOn(API.experimental, "createTask").mockRejectedValue(
 			mockApiError({

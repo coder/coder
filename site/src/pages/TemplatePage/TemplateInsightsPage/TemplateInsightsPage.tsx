@@ -45,9 +45,8 @@ import {
 	type ReactNode,
 	useId,
 } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { useSearchParams } from "react-router";
+import { type SetURLSearchParams, useSearchParams } from "react-router";
 import { getLatencyColor } from "utils/latency";
 import {
 	addTime,
@@ -100,29 +99,17 @@ export default function TemplateInsightsPage() {
 
 	return (
 		<>
-			<Helmet>
-				<title>{getTemplatePageTitle("Insights", template)}</title>
-			</Helmet>
+			<title>{getTemplatePageTitle("Insights", template)}</title>
+
 			<TemplateInsightsPageView
 				controls={
-					<>
-						<IntervalMenu
-							value={interval}
-							onChange={(interval) => {
-								// When going from daily to week we need to set a safe week range
-								if (interval === "week") {
-									setDateRange(lastWeeks(DEFAULT_NUMBER_OF_WEEKS));
-								}
-								searchParams.set("interval", interval);
-								setSearchParams(searchParams);
-							}}
-						/>
-						{interval === "day" ? (
-							<DailyPicker value={dateRange} onChange={setDateRange} />
-						) : (
-							<WeekPicker value={dateRange} onChange={setDateRange} />
-						)}
-					</>
+					<TemplateInsightsControls
+						interval={interval}
+						dateRange={dateRange}
+						setDateRange={setDateRange}
+						searchParams={searchParams}
+						setSearchParams={setSearchParams}
+					/>
 				}
 				templateInsights={templateInsights}
 				userLatency={userLatency}
@@ -133,6 +120,43 @@ export default function TemplateInsightsPage() {
 		</>
 	);
 }
+
+interface TemplateInsightsControlsProps {
+	interval: "day" | "week";
+	dateRange: DateRangeValue;
+	setDateRange: (value: DateRangeValue) => void;
+	searchParams: URLSearchParams;
+	setSearchParams: SetURLSearchParams;
+}
+
+export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
+	interval,
+	dateRange,
+	setDateRange,
+	searchParams,
+	setSearchParams,
+}) => {
+	return (
+		<>
+			<IntervalMenu
+				value={interval}
+				onChange={(interval) => {
+					// When going from daily to week we need to set a safe week range
+					if (interval === "week") {
+						setDateRange(lastWeeks(DEFAULT_NUMBER_OF_WEEKS));
+					}
+					searchParams.set("interval", interval);
+					setSearchParams(searchParams);
+				}}
+			/>
+			{interval === "day" ? (
+				<DailyPicker value={dateRange} onChange={setDateRange} />
+			) : (
+				<WeekPicker value={dateRange} onChange={setDateRange} />
+			)}
+		</>
+	);
+};
 
 const getDefaultInterval = (template: Template) => {
 	const now = new Date();

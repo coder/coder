@@ -4,8 +4,10 @@ import { Button, type ButtonProps } from "components/Button/Button";
 import {
 	Popover,
 	PopoverContent,
+	type PopoverContentProps,
 	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
+	type PopoverTriggerProps,
+} from "components/Popover/Popover";
 import {
 	SearchField,
 	type SearchFieldProps,
@@ -24,9 +26,21 @@ import { cn } from "utils/cn";
 
 export const SelectMenu = Popover;
 
-export const SelectMenuTrigger = PopoverTrigger;
+export const SelectMenuTrigger: FC<PopoverTriggerProps> = (props) => {
+	return <PopoverTrigger asChild {...props} />;
+};
 
-export const SelectMenuContent = PopoverContent;
+export const SelectMenuContent: FC<PopoverContentProps> = (props) => {
+	return (
+		<PopoverContent
+			{...props}
+			className={cn(
+				"w-auto bg-surface-secondary border-surface-quaternary overflow-y-auto text-sm",
+				props.className,
+			)}
+		/>
+	);
+};
 
 type SelectMenuButtonProps = ButtonProps & {
 	startIcon?: React.ReactNode;

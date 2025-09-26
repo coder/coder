@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
@@ -917,4 +918,85 @@ func PreviewParameterValidation(v *previewtypes.ParameterValidation) codersdk.Pr
 		Max:       v.Max,
 		Monotonic: v.Monotonic,
 	}
+}
+
+func AIBridgeInterception(interception database.AIBridgeInterception, tokenUsages []database.AIBridgeTokenUsage, userPrompts []database.AIBridgeUserPrompt, toolUsages []database.AIBridgeToolUsage) codersdk.AIBridgeInterception {
+	sdkTokenUsages := List(tokenUsages, AIBridgeTokenUsage)
+	sort.Slice(sdkTokenUsages, func(i, j int) bool {
+		// created_at ASC
+		return sdkTokenUsages[i].CreatedAt.Before(sdkTokenUsages[j].CreatedAt)
+	})
+	sdkUserPrompts := List(userPrompts, AIBridgeUserPrompt)
+	sort.Slice(sdkUserPrompts, func(i, j int) bool {
+		// created_at ASC
+		return sdkUserPrompts[i].CreatedAt.Before(sdkUserPrompts[j].CreatedAt)
+	})
+	sdkToolUsages := List(toolUsages, AIBridgeToolUsage)
+	sort.Slice(sdkToolUsages, func(i, j int) bool {
+		// created_at ASC
+		return sdkToolUsages[i].CreatedAt.Before(sdkToolUsages[j].CreatedAt)
+	})
+	return codersdk.AIBridgeInterception{
+		ID:          interception.ID,
+		InitiatorID: interception.InitiatorID,
+		Provider:    interception.Provider,
+		Model:       interception.Model,
+		Metadata:    jsonOrEmptyMap(interception.Metadata),
+		StartedAt:   interception.StartedAt,
+		TokenUsages: sdkTokenUsages,
+		UserPrompts: sdkUserPrompts,
+		ToolUsages:  sdkToolUsages,
+	}
+}
+
+func AIBridgeTokenUsage(usage database.AIBridgeTokenUsage) codersdk.AIBridgeTokenUsage {
+	return codersdk.AIBridgeTokenUsage{
+		ID:                 usage.ID,
+		InterceptionID:     usage.InterceptionID,
+		ProviderResponseID: usage.ProviderResponseID,
+		InputTokens:        usage.InputTokens,
+		OutputTokens:       usage.OutputTokens,
+		Metadata:           jsonOrEmptyMap(usage.Metadata),
+		CreatedAt:          usage.CreatedAt,
+	}
+}
+
+func AIBridgeUserPrompt(prompt database.AIBridgeUserPrompt) codersdk.AIBridgeUserPrompt {
+	return codersdk.AIBridgeUserPrompt{
+		ID:                 prompt.ID,
+		InterceptionID:     prompt.InterceptionID,
+		ProviderResponseID: prompt.ProviderResponseID,
+		Prompt:             prompt.Prompt,
+		Metadata:           jsonOrEmptyMap(prompt.Metadata),
+		CreatedAt:          prompt.CreatedAt,
+	}
+}
+
+func AIBridgeToolUsage(usage database.AIBridgeToolUsage) codersdk.AIBridgeToolUsage {
+	return codersdk.AIBridgeToolUsage{
+		ID:                 usage.ID,
+		InterceptionID:     usage.InterceptionID,
+		ProviderResponseID: usage.ProviderResponseID,
+		ServerURL:          usage.ServerUrl.String,
+		Tool:               usage.Tool,
+		Input:              usage.Input,
+		Injected:           usage.Injected,
+		InvocationError:    usage.InvocationError.String,
+		Metadata:           jsonOrEmptyMap(usage.Metadata),
+		CreatedAt:          usage.CreatedAt,
+	}
+}
+
+func jsonOrEmptyMap(rawMessage pqtype.NullRawMessage) map[string]any {
+	var m map[string]any
+	if !rawMessage.Valid {
+		return m
+	}
+
+	err := json.Unmarshal(rawMessage.RawMessage, &m)
+	if err != nil {
+		// Don't reuse m
+		return map[string]any{}
+	}
+	return m
 }

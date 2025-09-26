@@ -16,6 +16,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -63,8 +64,8 @@ func Test_TaskStatus(t *testing.T) {
 		},
 		{
 			args: []string{"exists"},
-			expectOutput: `STATE CHANGED  STATUS   STATE    MESSAGE
-0s ago         running  working  Thinking furiously...`,
+			expectOutput: `STATE CHANGED  STATUS   HEALTHY  STATE    MESSAGE
+0s ago         running  true     working  Thinking furiously...`,
 			hf: func(ctx context.Context, now time.Time) func(w http.ResponseWriter, r *http.Request) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
@@ -83,6 +84,10 @@ func Test_TaskStatus(t *testing.T) {
 								Timestamp: now,
 								Message:   "Thinking furiously...",
 							},
+							WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
+								Healthy: true,
+							},
+							WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
 						})
 					default:
 						t.Errorf("unexpected path: %s", r.URL.Path)
@@ -93,12 +98,10 @@ func Test_TaskStatus(t *testing.T) {
 		{
 			args: []string{"exists", "--watch"},
 			expectOutput: `
-STATE CHANGED  STATUS   STATE  MESSAGE
-4s ago         running
-3s ago         running  working  Reticulating splines...
-2s ago         running  completed  Splines reticulated successfully!
-2s ago         stopping  completed  Splines reticulated successfully!
-2s ago         stopped  completed  Splines reticulated successfully!`,
+STATE CHANGED  STATUS   HEALTHY  STATE  MESSAGE
+4s ago         running  true
+3s ago         running  true     working  Reticulating splines...
+2s ago         running  true     complete  Splines reticulated successfully!`,
 			hf: func(ctx context.Context, now time.Time) func(http.ResponseWriter, *http.Request) {
 				var calls atomic.Int64
 				return func(w http.ResponseWriter, r *http.Request) {
@@ -116,13 +119,21 @@ STATE CHANGED  STATUS   STATE  MESSAGE
 								Status:    codersdk.WorkspaceStatusPending,
 								CreatedAt: now.Add(-5 * time.Second),
 								UpdatedAt: now.Add(-5 * time.Second),
+								WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
+									Healthy: true,
+								},
+								WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
 							})
 						case 1:
 							httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
 								ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
 								Status:    codersdk.WorkspaceStatusRunning,
 								CreatedAt: now.Add(-5 * time.Second),
-								UpdatedAt: now.Add(-4 * time.Second),
+								WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
+									Healthy: true,
+								},
+								WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
+								UpdatedAt:               now.Add(-4 * time.Second),
 							})
 						case 2:
 							httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
@@ -130,6 +141,10 @@ STATE CHANGED  STATUS   STATE  MESSAGE
 								Status:    codersdk.WorkspaceStatusRunning,
 								CreatedAt: now.Add(-5 * time.Second),
 								UpdatedAt: now.Add(-4 * time.Second),
+								WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
+									Healthy: true,
+								},
+								WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
 								CurrentState: &codersdk.TaskStateEntry{
 									State:     codersdk.TaskStateWorking,
 									Timestamp: now.Add(-3 * time.Second),
@@ -142,32 +157,12 @@ STATE CHANGED  STATUS   STATE  MESSAGE
 								Status:    codersdk.WorkspaceStatusRunning,
 								CreatedAt: now.Add(-5 * time.Second),
 								UpdatedAt: now.Add(-4 * time.Second),
-								CurrentState: &codersdk.TaskStateEntry{
-									State:     codersdk.TaskStateCompleted,
-									Timestamp: now.Add(-2 * time.Second),
-									Message:   "Splines reticulated successfully!",
+								WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
+									Healthy: true,
 								},
-							})
-						case 4:
-							httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
-								ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
-								Status:    codersdk.WorkspaceStatusStopping,
-								CreatedAt: now.Add(-5 * time.Second),
-								UpdatedAt: now.Add(-1 * time.Second),
+								WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
 								CurrentState: &codersdk.TaskStateEntry{
-									State:     codersdk.TaskStateCompleted,
-									Timestamp: now.Add(-2 * time.Second),
-									Message:   "Splines reticulated successfully!",
-								},
-							})
-						case 5:
-							httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
-								ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
-								Status:    codersdk.WorkspaceStatusStopped,
-								CreatedAt: now.Add(-5 * time.Second),
-								UpdatedAt: now,
-								CurrentState: &codersdk.TaskStateEntry{
-									State:     codersdk.TaskStateCompleted,
+									State:     codersdk.TaskStateComplete,
 									Timestamp: now.Add(-2 * time.Second),
 									Message:   "Splines reticulated successfully!",
 								},

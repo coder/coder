@@ -226,6 +226,30 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return api.refreshEntitlements(ctx)
 	}
 
+	api.AGPL.ExperimentalHandler.Group(func(r chi.Router) {
+		r.Route("/aibridge", func(r chi.Router) {
+			r.Use(
+				httpmw.RequireExperimentWithDevBypass(api.AGPL.Experiments, codersdk.ExperimentAIBridge),
+			)
+			r.Group(func(r chi.Router) {
+				r.Use(apiKeyMiddleware)
+				r.Get("/interceptions", api.aiBridgeListInterceptions)
+			})
+
+			// This is a bit funky but since aibridge only exposes a HTTP
+			// handler, this is how it has to be.
+			r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
+				if api.aibridgedHandler == nil {
+					httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
+						Message: "aibridged handler not mounted",
+					})
+					return
+				}
+				api.aibridgedHandler.ServeHTTP(rw, r)
+			})
+		})
+	})
+
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Get("/entitlements", api.serveEntitlements)
 		// /regions overrides the AGPL /regions endpoint
@@ -677,6 +701,8 @@ type API struct {
 
 	licenseMetricsCollector *license.MetricsCollector
 	tailnetService          *tailnet.ClientService
+
+	aibridgedHandler http.Handler
 }
 
 // writeEntitlementWarningsHeader writes the entitlement warnings to the response header
