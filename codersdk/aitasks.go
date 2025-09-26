@@ -261,10 +261,10 @@ const (
 //
 // Experimental: This type is experimental and may change in the future.
 type TaskLogEntry struct {
-	ID      int         `json:"id"`
-	Content string      `json:"content"`
-	Type    TaskLogType `json:"type" enum:"input,output"`
-	Time    time.Time   `json:"time" format:"date-time"`
+	ID      int         `json:"id" table:"id"`
+	Content string      `json:"content" table:"content"`
+	Type    TaskLogType `json:"type" enum:"input,output" table:"type"`
+	Time    time.Time   `json:"time" format:"date-time" table:"time,default_sort"`
 }
 
 // TaskLogsResponse contains the logs for a task.
