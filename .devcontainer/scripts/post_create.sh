@@ -12,6 +12,8 @@ install_ssh_config() {
 	echo "🔑 Installing SSH configuration..."
 	if [[ -d /mnt/home/coder/.ssh ]]; then
 		rsync -a /mnt/home/coder/.ssh/ ~/.ssh/
+	else
+		echo "⚠️ SSH directory not found."
 	fi
 	chmod 0700 ~/.ssh
 }
