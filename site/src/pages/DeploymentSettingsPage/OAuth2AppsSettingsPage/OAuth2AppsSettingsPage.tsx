@@ -1,6 +1,5 @@
 import { getApps } from "api/queries/oauth2";
 import type { FC } from "react";
-
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
 import OAuth2AppsSettingsPageView from "./OAuth2AppsSettingsPageView";

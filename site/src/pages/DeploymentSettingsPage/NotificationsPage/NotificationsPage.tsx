@@ -16,7 +16,6 @@ import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
 import { castNotificationMethod } from "modules/notifications/utils";
 import type { FC } from "react";
-
 import { useQueries } from "react-query";
 import { deploymentGroupHasParent } from "utils/deployOptions";
 import { docs } from "utils/docs";

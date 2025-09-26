@@ -42,7 +42,7 @@ const WorkspaceSettingsPage: FC = () => {
 			<WorkspaceSettingsPageView
 				error={mutation.error}
 				workspace={workspace}
-				onCancel={() => navigate(`/@${username}/$workspaceName`)}
+				onCancel={() => navigate(`/@${username}/${workspaceName}`)}
 				onSubmit={mutation.mutateAsync}
 			/>
 		</>

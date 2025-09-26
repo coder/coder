@@ -1,7 +1,6 @@
 import { postApp } from "api/queries/oauth2";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import type { FC } from "react";
-
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";

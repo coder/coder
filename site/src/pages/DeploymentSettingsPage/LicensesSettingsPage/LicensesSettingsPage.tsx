@@ -5,7 +5,6 @@ import { insightsUserStatusCounts } from "api/queries/insights";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useEffect, useState } from "react";
-
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";

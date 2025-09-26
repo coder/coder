@@ -1,7 +1,6 @@
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
 import type { FC } from "react";
-
 import { pageTitle } from "utils/page";
 import { SecuritySettingsPageView } from "./SecuritySettingsPageView";
 

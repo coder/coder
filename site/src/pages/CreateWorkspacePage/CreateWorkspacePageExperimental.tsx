@@ -26,7 +26,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";

@@ -20,7 +20,6 @@ import { useExternalAuth } from "hooks/useExternalAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
-
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
