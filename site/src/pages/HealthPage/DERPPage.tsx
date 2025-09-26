@@ -8,7 +8,6 @@ import type {
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { Link, useOutletContext } from "react-router";
 import { pageTitle } from "utils/page";
 import {
@@ -51,9 +50,7 @@ const DERPPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("DERP - Health")}</title>
-			</Helmet>
+			<title>{pageTitle("DERP - Health")}</title>
 
 			<Header>
 				<HeaderTitle>

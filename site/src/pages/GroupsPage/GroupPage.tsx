@@ -55,7 +55,6 @@ import {
 	UserPlusIcon,
 } from "lucide-react";
 import { type FC, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router";
 import { isEveryoneGroup } from "utils/groups";
@@ -81,14 +80,10 @@ const GroupPage: FC = () => {
 	const isLoading = groupQuery.isLoading || !groupData || !permissions;
 	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
 
-	const helmet = (
-		<Helmet>
-			<title>
-				{pageTitle(
-					(groupData?.display_name || groupData?.name) ?? "Loading...",
-				)}
-			</title>
-		</Helmet>
+	const title = (
+		<title>
+			{pageTitle((groupData?.display_name || groupData?.name) ?? "Loading...")}
+		</title>
 	);
 
 	if (groupQuery.error) {
@@ -98,7 +93,7 @@ const GroupPage: FC = () => {
 	if (isLoading) {
 		return (
 			<>
-				{helmet}
+				{title}
 				<Loader />
 			</>
 		);
@@ -107,7 +102,7 @@ const GroupPage: FC = () => {
 
 	return (
 		<>
-			{helmet}
+			{title}
 
 			<Stack
 				alignItems="baseline"

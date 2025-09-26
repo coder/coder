@@ -26,7 +26,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -283,9 +282,8 @@ const CreateWorkspacePageExperimental: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(title)}</title>
-			</Helmet>
+			<title>{pageTitle(title)}</title>
+
 			{shouldShowLoader ? (
 				<Loader />
 			) : (

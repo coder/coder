@@ -28,7 +28,6 @@ import {
 	useLayoutEffect,
 	useRef,
 } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Link as RouterLink, useParams } from "react-router";
@@ -71,9 +70,7 @@ const TaskPage = () => {
 	if (error) {
 		return (
 			<TaskPageLayout>
-				<Helmet>
-					<title>{pageTitle("Error loading task")}</title>
-				</Helmet>
+				<title>{pageTitle("Error loading task")}</title>
 
 				<div className="w-full min-h-80 flex items-center justify-center">
 					<div className="flex flex-col items-center">
@@ -104,9 +101,7 @@ const TaskPage = () => {
 	if (!task) {
 		return (
 			<TaskPageLayout>
-				<Helmet>
-					<title>{pageTitle("Loading task")}</title>
-				</Helmet>
+				<title>{pageTitle("Loading task")}</title>
 				<Loader className="w-full h-full" />
 			</TaskPageLayout>
 		);
@@ -159,9 +154,7 @@ const TaskPage = () => {
 
 	return (
 		<TaskPageLayout>
-			<Helmet>
-				<title>{pageTitle(task.workspace.name)}</title>
-			</Helmet>
+			<title>{pageTitle(task.workspace.name)}</title>
 
 			<TaskTopbar task={task} />
 			{content}

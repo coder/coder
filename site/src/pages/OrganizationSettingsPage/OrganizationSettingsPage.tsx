@@ -8,7 +8,6 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";
@@ -30,18 +29,16 @@ const OrganizationSettingsPage: FC = () => {
 		return <EmptyState message="Organization not found" />;
 	}
 
-	const helmet = (
-		<Helmet>
-			<title>
-				{pageTitle("Settings", organization.display_name || organization.name)}
-			</title>
-		</Helmet>
+	const title = (
+		<title>
+			{pageTitle("Settings", organization.display_name || organization.name)}
+		</title>
 	);
 
 	if (!organizationPermissions?.editSettings) {
 		return (
 			<>
-				{helmet}
+				{title}
 				<RequirePermission isFeatureVisible={false} />
 			</>
 		);
@@ -52,7 +49,7 @@ const OrganizationSettingsPage: FC = () => {
 
 	return (
 		<>
-			{helmet}
+			{title}
 			<OrganizationSettingsPageView
 				organization={organization}
 				error={error}
