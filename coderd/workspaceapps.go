@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/apikey"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -53,7 +54,19 @@ func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 // @Router /applications/auth-redirect [get]
 func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	var (
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	aReq.Old = database.APIKey{}
+	defer commitAudit()
 	apiKey := httpmw.APIKey(r)
+	aReq.UserID = apiKey.UserID
 	if !api.Authorize(r, policy.ActionCreate, apiKey) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -107,7 +120,7 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 		exp = dbtime.Now().Add(api.DeploymentValues.Sessions.DefaultDuration.Value())
 		lifetimeSeconds = int64(api.DeploymentValues.Sessions.DefaultDuration.Value().Seconds())
 	}
-	cookie, _, err := api.createAPIKey(ctx, apikey.CreateParams{
+	cookie, key, err := api.createAPIKey(ctx, apikey.CreateParams{
 		UserID:          apiKey.UserID,
 		LoginType:       database.LoginTypePassword,
 		DefaultLifetime: api.DeploymentValues.Sessions.DefaultDuration.Value(),
@@ -122,6 +135,8 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
+	aReq.New = *key
+	aReq.SetAdditionalFields(audit.WrapAPIKeyFields(audit.APIKeyFields(ctx, api.Logger, *key)))
 
 	payload := workspaceapps.EncryptedAPIKeyPayload{
 		APIKey: cookie.Value,
