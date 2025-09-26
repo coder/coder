@@ -2,13 +2,17 @@
 package codersdk
 
 const (
-	APIKeyScopeAll                         APIKeyScope = "all"
+	// Deprecated: use codersdk.APIKeyScopeCoderAll instead.
+	APIKeyScopeAll APIKeyScope = "all"
+	// Deprecated: use codersdk.APIKeyScopeCoderApplicationConnect instead.
+	APIKeyScopeApplicationConnect          APIKeyScope = "application_connect"
 	APIKeyScopeApiKeyAll                   APIKeyScope = "api_key:*"
 	APIKeyScopeApiKeyCreate                APIKeyScope = "api_key:create"
 	APIKeyScopeApiKeyDelete                APIKeyScope = "api_key:delete"
 	APIKeyScopeApiKeyRead                  APIKeyScope = "api_key:read"
 	APIKeyScopeApiKeyUpdate                APIKeyScope = "api_key:update"
-	APIKeyScopeApplicationConnect          APIKeyScope = "application_connect"
+	APIKeyScopeCoderAll                    APIKeyScope = "coder:all"
+	APIKeyScopeCoderApplicationConnect     APIKeyScope = "coder:application_connect"
 	APIKeyScopeFileAll                     APIKeyScope = "file:*"
 	APIKeyScopeFileCreate                  APIKeyScope = "file:create"
 	APIKeyScopeFileRead                    APIKeyScope = "file:read"
@@ -38,13 +42,13 @@ const (
 
 // PublicAPIKeyScopes lists all public low-level API key scopes.
 var PublicAPIKeyScopes = []APIKeyScope{
-	APIKeyScopeAll,
 	APIKeyScopeApiKeyAll,
 	APIKeyScopeApiKeyCreate,
 	APIKeyScopeApiKeyDelete,
 	APIKeyScopeApiKeyRead,
 	APIKeyScopeApiKeyUpdate,
-	APIKeyScopeApplicationConnect,
+	APIKeyScopeCoderAll,
+	APIKeyScopeCoderApplicationConnect,
 	APIKeyScopeFileAll,
 	APIKeyScopeFileCreate,
 	APIKeyScopeFileRead,

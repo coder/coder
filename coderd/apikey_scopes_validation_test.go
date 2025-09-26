@@ -22,7 +22,8 @@ func TestTokenCreation_ScopeValidation(t *testing.T) {
 		{name: "AllowsPublicLowLevelScope", scope: "workspace:read", wantErr: false},
 		{name: "RejectsInternalOnlyScope", scope: "debug_info:read", wantErr: true},
 		{name: "AllowsLegacyScopes", scope: "application_connect", wantErr: false},
-		{name: "AllowsCanonicalSpecialScope", scope: "all", wantErr: false},
+		{name: "AllowsLegacyScopes2", scope: "all", wantErr: false},
+		{name: "AllowsCanonicalSpecialScope", scope: "coder:all", wantErr: false},
 	}
 
 	for _, tc := range cases {
@@ -42,6 +43,22 @@ func TestTokenCreation_ScopeValidation(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.NotEmpty(t, resp.Key)
+
+			// Fetch and verify the stored scopes match expectation.
+			keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
+			require.NoError(t, err)
+			require.Len(t, keys, 1)
+
+			// Normalize legacy singular scopes to canonical coder:* values.
+			expected := tc.scope
+			switch tc.scope {
+			case codersdk.APIKeyScopeAll:
+				expected = codersdk.APIKeyScopeCoderAll
+			case codersdk.APIKeyScopeApplicationConnect:
+				expected = codersdk.APIKeyScopeCoderApplicationConnect
+			}
+
+			require.Contains(t, keys[0].Scopes, expected)
 		})
 	}
 }

@@ -11,8 +11,8 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
 );
 
 CREATE TYPE api_key_scope AS ENUM (
-    'all',
-    'application_connect',
+    'coder:all',
+    'coder:application_connect',
     'aibridge_interception:create',
     'aibridge_interception:read',
     'aibridge_interception:update',
