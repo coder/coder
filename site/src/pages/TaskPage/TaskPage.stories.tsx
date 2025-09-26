@@ -32,6 +32,11 @@ const MockClaudeCodeApp: WorkspaceApp = {
 	display_name: "Claude Code",
 	slug: "claude-code",
 	icon: "/icon/claude.svg",
+	healthcheck: {
+		url: "http://localhost:3000/health",
+		interval: 10,
+		threshold: 3,
+	},
 	statuses: [
 		MockWorkspaceAppStatus,
 		{
