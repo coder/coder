@@ -884,6 +884,12 @@
 					"state": ["beta"],
 					"children": [
 						{
+							"title": "Understanding Coder Tasks",
+							"description": "Core principles and concepts behind Coder Tasks",
+							"path": "./ai-coder/tasks-core-principles.md",
+							"state": ["beta"]
+						},
+						{
 							"title": "Custom Agents",
 							"description": "Run custom agents with Coder Tasks",
 							"path": "./ai-coder/custom-agents.md",
