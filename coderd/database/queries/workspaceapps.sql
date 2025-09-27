@@ -73,6 +73,12 @@ RETURNING *;
 -- name: GetWorkspaceAppStatusesByAppIDs :many
 SELECT * FROM workspace_app_statuses WHERE app_id = ANY(@ids :: uuid [ ]);
 
+-- name: GetLatestWorkspaceAppStatusesByAppID :many
+SELECT *
+FROM workspace_app_statuses
+WHERE app_id = @app_id::uuid
+ORDER BY created_at DESC, id DESC;
+
 -- name: GetLatestWorkspaceAppStatusesByWorkspaceIDs :many
 SELECT DISTINCT ON (workspace_id)
   *

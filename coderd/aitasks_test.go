@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"database/sql"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,8 +18,12 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -960,4 +965,165 @@ func TestTasksCreate(t *testing.T) {
 		require.ErrorAsf(t, err, &sdkErr, "error should be of type *codersdk.Error")
 		assert.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
+}
+
+func TestTasksNotification(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name                 string
+		latestAppStatuses    []codersdk.WorkspaceAppStatusState
+		newAppStatus         codersdk.WorkspaceAppStatusState
+		isAITask             bool
+		isNotificationSent   bool
+		notificationTemplate uuid.UUID
+	}{
+		// Should not send a notification when the agent app is not an AI task.
+		{
+			name:               "NoAITask",
+			latestAppStatuses:  nil,
+			newAppStatus:       codersdk.WorkspaceAppStatusStateWorking,
+			isAITask:           false,
+			isNotificationSent: false,
+		},
+		// Should not send a notification when the new app status is neither 'Working' nor 'Idle'.
+		{
+			name:               "NonNotifiedState",
+			latestAppStatuses:  nil,
+			newAppStatus:       codersdk.WorkspaceAppStatusStateComplete,
+			isAITask:           true,
+			isNotificationSent: false,
+		},
+		// Should not send a notification when the new app status equals the latest status (Working).
+		{
+			name:               "NonNotifiedTransition",
+			latestAppStatuses:  []codersdk.WorkspaceAppStatusState{codersdk.WorkspaceAppStatusStateWorking},
+			newAppStatus:       codersdk.WorkspaceAppStatusStateWorking,
+			isAITask:           true,
+			isNotificationSent: false,
+		},
+		// Should send TemplateTaskWorking when the AI task transitions to 'Working'.
+		{
+			name:                 "TemplateTaskWorking",
+			latestAppStatuses:    nil,
+			newAppStatus:         codersdk.WorkspaceAppStatusStateWorking,
+			isAITask:             true,
+			isNotificationSent:   true,
+			notificationTemplate: notifications.TemplateTaskWorking,
+		},
+		// Should send TemplateTaskWorking when the AI task transitions to 'Working' from 'Idle'.
+		{
+			name: "TemplateTaskWorkingFromIdle",
+			latestAppStatuses: []codersdk.WorkspaceAppStatusState{
+				codersdk.WorkspaceAppStatusStateWorking,
+				codersdk.WorkspaceAppStatusStateIdle,
+			}, // latest
+			newAppStatus:         codersdk.WorkspaceAppStatusStateWorking,
+			isAITask:             true,
+			isNotificationSent:   true,
+			notificationTemplate: notifications.TemplateTaskWorking,
+		},
+		// Should send TemplateTaskIdle when the AI task transitions to 'Idle'.
+		{
+			name:                 "TemplateTaskIdle",
+			latestAppStatuses:    []codersdk.WorkspaceAppStatusState{codersdk.WorkspaceAppStatusStateWorking},
+			newAppStatus:         codersdk.WorkspaceAppStatusStateIdle,
+			isAITask:             true,
+			isNotificationSent:   true,
+			notificationTemplate: notifications.TemplateTaskIdle,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			notifyEnq := &notificationstest.FakeEnqueuer{}
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				DeploymentValues:      coderdtest.DeploymentValues(t),
+				NotificationsEnqueuer: notifyEnq,
+			})
+
+			// Given: a member user
+			ownerUser := coderdtest.CreateFirstUser(t, client)
+			client, memberUser := coderdtest.CreateAnotherUser(t, client, ownerUser.OrganizationID)
+
+			// Given: a workspace build with an agent containing an App
+			workspaceAgentAppID := uuid.New()
+			workspaceBuildID := uuid.New()
+			workspaceBuildSeed := database.WorkspaceBuild{
+				ID: workspaceBuildID,
+			}
+			if tc.isAITask {
+				workspaceBuildSeed = database.WorkspaceBuild{
+					ID: workspaceBuildID,
+					// AI Task configuration
+					HasAITask:          sql.NullBool{Bool: true, Valid: true},
+					AITaskSidebarAppID: uuid.NullUUID{UUID: workspaceAgentAppID, Valid: true},
+				}
+			}
+			workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: ownerUser.OrganizationID,
+				OwnerID:        memberUser.ID,
+			}).Seed(workspaceBuildSeed).Params(database.WorkspaceBuildParameter{
+				WorkspaceBuildID: workspaceBuildID,
+				Name:             codersdk.AITaskPromptParameterName,
+				Value:            "task prompt",
+			}).WithAgent(func(agent []*proto.Agent) []*proto.Agent {
+				agent[0].Apps = []*proto.App{{
+					Id:   workspaceAgentAppID.String(),
+					Slug: "ccw",
+				}}
+				return agent
+			}).Do()
+
+			// Given: the workspace agent app has previous statuses
+			agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(workspaceBuild.AgentToken))
+			if len(tc.latestAppStatuses) > 0 {
+				workspace := coderdtest.MustWorkspace(t, client, workspaceBuild.Workspace.ID)
+				for _, appStatus := range tc.latestAppStatuses {
+					dbgen.WorkspaceAppStatus(t, db, database.WorkspaceAppStatus{
+						WorkspaceID: workspaceBuild.Workspace.ID,
+						AgentID:     workspace.LatestBuild.Resources[0].Agents[0].ID,
+						AppID:       workspaceAgentAppID,
+						State:       database.WorkspaceAppStatusState(appStatus),
+					})
+				}
+			}
+
+			// When: the agent updates the app status
+			err := agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+				AppSlug: "ccw",
+				Message: "testing",
+				URI:     "https://example.com",
+				State:   tc.newAppStatus,
+			})
+			require.NoError(t, err)
+
+			// Then: The workspace app status transitions successfully
+			workspace, err := client.Workspace(ctx, workspaceBuild.Workspace.ID)
+			require.NoError(t, err)
+			workspaceAgent, err := client.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
+			require.NoError(t, err)
+			require.Len(t, workspaceAgent.Apps, 1)
+			require.GreaterOrEqual(t, len(workspaceAgent.Apps[0].Statuses), 1)
+			latestStatusIndex := len(workspaceAgent.Apps[0].Statuses) - 1
+			require.Equal(t, tc.newAppStatus, workspaceAgent.Apps[0].Statuses[latestStatusIndex].State)
+
+			if tc.isNotificationSent {
+				// Then: A notification is sent to the workspace owner (memberUser)
+				sent := notifyEnq.Sent(notificationstest.WithTemplateID(tc.notificationTemplate))
+				require.Len(t, sent, 1)
+				require.Equal(t, memberUser.ID, sent[0].UserID)
+				require.Len(t, sent[0].Labels, 2)
+				require.Equal(t, "task prompt", sent[0].Labels["task"])
+				require.Equal(t, workspace.Name, sent[0].Labels["workspace"])
+			} else {
+				// Then: No notification is sent
+				sentWorking := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTaskWorking))
+				sentIdle := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTaskIdle))
+				require.Len(t, sentWorking, 0)
+				require.Len(t, sentIdle, 0)
+			}
+		})
+	}
 }

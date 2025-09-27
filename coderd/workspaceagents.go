@@ -36,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -387,6 +388,17 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 	// Treat the message as untrusted input.
 	cleaned := strutil.UISanitize(req.Message)
 
+	// Get the latest statuses for the workspace app to detect no-op updates
+	// nolint:gocritic // This is a system restricted operation.
+	latestAppStatus, err := api.Database.GetLatestWorkspaceAppStatusesByAppID(dbauthz.AsSystemRestricted(ctx), app.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get latest workspace app statuses.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	// nolint:gocritic // This is a system restricted operation.
 	_, err = api.Database.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
 		ID:          uuid.New(),
@@ -415,7 +427,85 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 		AgentID:     &workspaceAgent.ID,
 	})
 
+	// Notify on state change to Working/Idle for AI tasks
+	api.enqueueAITaskStateNotification(ctx, app.ID, latestAppStatus, req.State, workspace)
+
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
+}
+
+// enqueueAITaskStateNotification enqueues a notification when an AI task's app
+// transitions to Working or Idle.
+// No-op if:
+//   - the workspace agent app isn't configured as an AI task,
+//   - the new state equals the latest persisted state.
+func (api *API) enqueueAITaskStateNotification(
+	ctx context.Context,
+	appID uuid.UUID,
+	latestAppStatus []database.WorkspaceAppStatus,
+	newAppStatus codersdk.WorkspaceAppStatusState,
+	workspace database.Workspace,
+) {
+	switch newAppStatus {
+	case codersdk.WorkspaceAppStatusStateWorking, codersdk.WorkspaceAppStatusStateIdle:
+		workspaceBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to get workspace build", slog.Error(err))
+			break
+		}
+
+		// Confirm Workspace Agent App is an AI Task
+		if workspaceBuild.HasAITask.Valid && workspaceBuild.HasAITask.Bool &&
+			workspaceBuild.AITaskSidebarAppID.Valid && workspaceBuild.AITaskSidebarAppID.UUID == appID {
+			// Skip if the latest persisted state equals the new state (no new transition)
+			if len(latestAppStatus) > 0 && latestAppStatus[0].State == database.WorkspaceAppStatusState(newAppStatus) {
+				break
+			}
+
+			// Use the task prompt as the "task" label, fallback to workspace name
+			parameters, err := api.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
+			if err != nil {
+				api.Logger.Warn(ctx, "failed to get workspace build parameters", slog.Error(err))
+				break
+			}
+			taskName := workspace.Name
+			for _, param := range parameters {
+				if param.Name == codersdk.AITaskPromptParameterName {
+					taskName = param.Value
+				}
+			}
+
+			// Select notification template based on the new state
+			notificationTemplate := notifications.TemplateTaskWorking
+			if newAppStatus == codersdk.WorkspaceAppStatusStateIdle {
+				notificationTemplate = notifications.TemplateTaskIdle
+			}
+
+			if _, err := api.NotificationsEnqueuer.EnqueueWithData(
+				// nolint:gocritic // Need notifier actor to enqueue notifications
+				dbauthz.AsNotifier(ctx),
+				workspace.OwnerID,
+				notificationTemplate,
+				map[string]string{
+					"task":      taskName,
+					"workspace": workspace.Name,
+				},
+				map[string]any{
+					// Use a 10-second bucketed timestamp to bypass per-day dedupe,
+					// allowing identical content to resend within the same day
+					// (but not more than once every 10s).
+					"dedupe_bypass_ts": api.Clock.Now().UTC().Truncate(10 * time.Second),
+				},
+				"api-workspace-agent-app-status",
+				// Associate this notification with related entities
+				workspace.ID, workspace.OwnerID, workspace.OrganizationID, appID,
+			); err != nil {
+				api.Logger.Warn(ctx, "failed to notify of task state", slog.Error(err))
+				break
+			}
+		}
+	default:
+		// Not a notifiable state, do nothing
+	}
 }
 
 // workspaceAgentLogs returns the logs associated with a workspace agent
