@@ -33,10 +33,11 @@ func BenchmarkRBACValueAllocation(b *testing.B) {
 			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
 			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
 			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
-		}).WithACLUserList(map[string][]policy.Action{
-		uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
-		uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
-	})
+		}).
+		WithACLUserList(map[string][]policy.Action{
+			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
+			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
+		})
 
 	jsonSubject := authSubject{
 		ID:     actor.ID,
@@ -255,11 +256,18 @@ func equalRoles(t *testing.T, a, b Role) {
 	require.Equal(t, a.DisplayName, b.DisplayName, "role display names")
 	require.ElementsMatch(t, a.Site, b.Site, "site permissions")
 	require.ElementsMatch(t, a.User, b.User, "user permissions")
-	require.Equal(t, len(a.Org), len(b.Org), "same number of org roles")
 
+	require.Equal(t, len(a.Org), len(b.Org), "same number of org roles")
 	for ak, av := range a.Org {
 		bv, ok := b.Org[ak]
 		require.True(t, ok, "org permissions missing: %s", ak)
 		require.ElementsMatchf(t, av, bv, "org %s permissions", ak)
+	}
+
+	require.Equal(t, len(a.OrgMember), len(b.OrgMember), "same number of org member roles")
+	for ak, av := range a.OrgMember {
+		bv, ok := b.OrgMember[ak]
+		require.True(t, ok, "org member permissions missing: %s", ak)
+		require.ElementsMatchf(t, av, bv, "org member %s permissions", ak)
 	}
 }

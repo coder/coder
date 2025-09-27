@@ -281,8 +281,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
 				ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
 			})...),
-		Org:  map[string][]Permission{},
-		User: []Permission{},
+		Org:       map[string][]Permission{},
+		User:      []Permission{},
+		OrgMember: map[string][]Permission{},
 	}.withCachedRegoValue()
 
 	memberRole := Role{
@@ -308,6 +309,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 			})...,
 		),
+		OrgMember: map[string][]Permission{},
 	}.withCachedRegoValue()
 
 	auditorRole := Role{
@@ -330,8 +332,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Allow auditors to query aibridge interceptions.
 			ResourceAibridgeInterception.Type: {policy.ActionRead},
 		}),
-		Org:  map[string][]Permission{},
-		User: []Permission{},
+		Org:       map[string][]Permission{},
+		User:      []Permission{},
+		OrgMember: map[string][]Permission{},
 	}.withCachedRegoValue()
 
 	templateAdminRole := Role{
@@ -353,8 +356,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceOrganization.Type:       {policy.ActionRead},
 			ResourceOrganizationMember.Type: {policy.ActionRead},
 		}),
-		Org:  map[string][]Permission{},
-		User: []Permission{},
+		Org:       map[string][]Permission{},
+		User:      []Permission{},
+		OrgMember: map[string][]Permission{},
 	}.withCachedRegoValue()
 
 	userAdminRole := Role{
@@ -377,8 +381,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Manage org membership based on OIDC claims
 			ResourceIdpsyncSettings.Type: {policy.ActionRead, policy.ActionUpdate},
 		}),
-		Org:  map[string][]Permission{},
-		User: []Permission{},
+		Org:       map[string][]Permission{},
+		User:      []Permission{},
+		OrgMember: map[string][]Permission{},
 	}.withCachedRegoValue()
 
 	builtInRoles = map[string]func(orgID uuid.UUID) Role{
@@ -429,7 +434,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
 					})...),
 				},
-				User: []Permission{},
+				User:      []Permission{},
+				OrgMember: map[string][]Permission{},
 			}
 		},
 
@@ -450,7 +456,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						ResourceAssignOrgRole.Type: {policy.ActionRead},
 					}),
 				},
-				User: []Permission{},
+				User:      []Permission{},
+				OrgMember: map[string][]Permission{},
 			}
 		},
 		orgAuditor: func(organizationID uuid.UUID) Role {
@@ -470,7 +477,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						ResourceOrganizationMember.Type: {policy.ActionRead},
 					}),
 				},
-				User: []Permission{},
+				User:      []Permission{},
+				OrgMember: map[string][]Permission{},
 			}
 		},
 		orgUserAdmin: func(organizationID uuid.UUID) Role {
@@ -494,7 +502,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						ResourceIdpsyncSettings.Type:    {policy.ActionRead, policy.ActionUpdate},
 					}),
 				},
-				User: []Permission{},
+				User:      []Permission{},
+				OrgMember: map[string][]Permission{},
 			}
 		},
 		orgTemplateAdmin: func(organizationID uuid.UUID) Role {
@@ -521,7 +530,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						ResourceProvisionerJobs.Type:   {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
 					}),
 				},
-				User: []Permission{},
+				User:      []Permission{},
+				OrgMember: map[string][]Permission{},
 			}
 		},
 		// orgWorkspaceCreationBan prevents creating & deleting workspaces. This
@@ -556,7 +566,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						},
 					},
 				},
-				User: []Permission{},
+				User:      []Permission{},
+				OrgMember: map[string][]Permission{},
 			}
 		},
 	}
@@ -667,9 +678,10 @@ func (perm Permission) Valid() error {
 }
 
 // Role is a set of permissions at multiple levels:
-// - Site level permissions apply EVERYWHERE
-// - Org level permissions apply to EVERYTHING in a given ORG
-// - User level permissions are the lowest
+// - Site permissions apply EVERYWHERE
+// - Org permissions apply to EVERYTHING in a given ORG
+// - User permissions apply to all resources the user owns
+// - OrgMember permissions apply to resources in the given org that the user owns
 // This is the type passed into the rego as a json payload.
 // Users of this package should instead **only** use the role names, and
 // this package will expand the role names into their json payloads.
@@ -679,11 +691,13 @@ type Role struct {
 	// that means the UI should never display it.
 	DisplayName string       `json:"display_name"`
 	Site        []Permission `json:"site"`
-	// Org is a map of orgid to permissions. We represent orgid as a string.
-	// We scope the organizations in the role so we can easily combine all the
-	// roles.
+	// Org is a map of organization IDs to permissions. Grouping by organization
+	// makes roles easy to combine.
 	Org  map[string][]Permission `json:"org"`
 	User []Permission            `json:"user"`
+	// OrgMember is a map of organization IDs to permissions. Grouping by
+	// organization makes roles easy to combine.
+	OrgMember map[string][]Permission `json:"org_member"`
 
 	// cachedRegoValue can be used to cache the rego value for this role.
 	// This is helpful for static roles that never change.

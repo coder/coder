@@ -161,6 +161,10 @@ func (role Role) regoValue() ast.Value {
 	for k, p := range role.Org {
 		orgMap.Insert(ast.StringTerm(k), ast.NewTerm(regoSlice(p)))
 	}
+	orgMemberMap := ast.NewObject()
+	for k, p := range role.OrgMember {
+		orgMemberMap.Insert(ast.StringTerm(k), ast.NewTerm(regoSlice(p)))
+	}
 	return ast.NewObject(
 		[2]*ast.Term{
 			ast.StringTerm("site"),
@@ -173,6 +177,10 @@ func (role Role) regoValue() ast.Value {
 		[2]*ast.Term{
 			ast.StringTerm("user"),
 			ast.NewTerm(regoSlice(role.User)),
+		},
+		[2]*ast.Term{
+			ast.StringTerm("org_member"),
+			ast.NewTerm(orgMemberMap),
 		},
 	)
 }

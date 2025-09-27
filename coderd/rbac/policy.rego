@@ -246,6 +246,41 @@ user_allow(roles) := num if {
 	num := number(allow)
 }
 
+# -------------------
+# Organization Member Owner Rules
+# -------------------
+
+# 'org_member_owner' combines org membership and ownership requirements.
+# These rules only apply if:
+# 1. The user is a member of the organization the resource belongs to
+# 2. The user is the owner of the resource
+default org_member_owner := 0
+org_member_owner := org_member_owner_allow(input.subject.roles)
+
+default scope_org_member_owner := 0
+scope_org_member_owner := org_member_owner_allow([input.subject.scope])
+
+org_member_owner_allow(roles) := num if {
+	# Must be the owner of the object
+	input.object.owner != ""
+	input.subject.id = input.object.owner
+
+	# Must be a member of the organization
+	input.object.org_owner != ""
+	input.object.org_owner in org_members
+
+	allow := {is_allowed |
+		# Iterate over all org_member_owner permissions in all roles
+		perm := roles[_].org_member_owner[_]
+		perm.action in [input.action, "*"]
+		perm.resource_type in [input.object.type, "*"]
+
+		# is_allowed is either 'true' or 'false' if a matching permission exists.
+		is_allowed := bool_flip(perm.negate)
+	}
+	num := number(allow)
+}
+
 # Scope allow_list is a list of resource (Type, ID) tuples explicitly allowed by the scope.
 # If the list contains `(*,*)`, then all resources are allowed.
 scope_allow_list if {
@@ -304,6 +339,15 @@ role_allow if {
 	user = 1
 }
 
+role_allow if {
+	not site = -1
+	not org = -1
+	not user = -1
+
+	# Organization member owner permissions require both ownership and org membership
+	org_member_owner = 1
+}
+
 # -------------------
 # Scope-Specific Rules
 # -------------------
@@ -328,6 +372,16 @@ scope_allow if {
 	# not authorized. This is an "implied -1" for not being in the org.
 	org_ok
 	scope_user = 1
+}
+
+scope_allow if {
+	scope_allow_list
+	not scope_site = -1
+	not scope_org = -1
+	not scope_user = -1
+
+	# Organization member owner permissions require both ownership and org membership
+	scope_org_member_owner = 1
 }
 
 # -------------------

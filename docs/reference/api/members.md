@@ -112,6 +112,13 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
     "display_name": "string",
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "organization_member_permissions": [
+      {
+        "action": "application_connect",
+        "negate": true,
+        "resource_type": "*"
+      }
+    ],
     "organization_permissions": [
       {
         "action": "application_connect",
@@ -147,20 +154,21 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 Status Code **200**
 
-| Name                         | Type                                                     | Required | Restrictions | Description                                                                                     |
-|------------------------------|----------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------|
-| `[array item]`               | array                                                    | false    |              |                                                                                                 |
-| `» assignable`               | boolean                                                  | false    |              |                                                                                                 |
-| `» built_in`                 | boolean                                                  | false    |              | Built in roles are immutable                                                                    |
-| `» display_name`             | string                                                   | false    |              |                                                                                                 |
-| `» name`                     | string                                                   | false    |              |                                                                                                 |
-| `» organization_id`          | string(uuid)                                             | false    |              |                                                                                                 |
-| `» organization_permissions` | array                                                    | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above. |
-| `»» action`                  | [codersdk.RBACAction](schemas.md#codersdkrbacaction)     | false    |              |                                                                                                 |
-| `»» negate`                  | boolean                                                  | false    |              | Negate makes this a negative permission                                                         |
-| `»» resource_type`           | [codersdk.RBACResource](schemas.md#codersdkrbacresource) | false    |              |                                                                                                 |
-| `» site_permissions`         | array                                                    | false    |              |                                                                                                 |
-| `» user_permissions`         | array                                                    | false    |              |                                                                                                 |
+| Name                                | Type                                                     | Required | Restrictions | Description                                                                                            |
+|-------------------------------------|----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------|
+| `[array item]`                      | array                                                    | false    |              |                                                                                                        |
+| `» assignable`                      | boolean                                                  | false    |              |                                                                                                        |
+| `» built_in`                        | boolean                                                  | false    |              | Built in roles are immutable                                                                           |
+| `» display_name`                    | string                                                   | false    |              |                                                                                                        |
+| `» name`                            | string                                                   | false    |              |                                                                                                        |
+| `» organization_id`                 | string(uuid)                                             | false    |              |                                                                                                        |
+| `» organization_member_permissions` | array                                                    | false    |              | Organization member permissions are specific for the organization in the field 'OrganizationID' above. |
+| `»» action`                         | [codersdk.RBACAction](schemas.md#codersdkrbacaction)     | false    |              |                                                                                                        |
+| `»» negate`                         | boolean                                                  | false    |              | Negate makes this a negative permission                                                                |
+| `»» resource_type`                  | [codersdk.RBACResource](schemas.md#codersdkrbacresource) | false    |              |                                                                                                        |
+| `» organization_permissions`        | array                                                    | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above.        |
+| `» site_permissions`                | array                                                    | false    |              |                                                                                                        |
+| `» user_permissions`                | array                                                    | false    |              |                                                                                                        |
 
 #### Enumerated Values
 
@@ -246,6 +254,13 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 {
   "display_name": "string",
   "name": "string",
+  "organization_member_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
   "organization_permissions": [
     {
       "action": "application_connect",
@@ -287,6 +302,13 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
     "display_name": "string",
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "organization_member_permissions": [
+      {
+        "action": "application_connect",
+        "negate": true,
+        "resource_type": "*"
+      }
+    ],
     "organization_permissions": [
       {
         "action": "application_connect",
@@ -322,18 +344,19 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 Status Code **200**
 
-| Name                         | Type                                                     | Required | Restrictions | Description                                                                                     |
-|------------------------------|----------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------|
-| `[array item]`               | array                                                    | false    |              |                                                                                                 |
-| `» display_name`             | string                                                   | false    |              |                                                                                                 |
-| `» name`                     | string                                                   | false    |              |                                                                                                 |
-| `» organization_id`          | string(uuid)                                             | false    |              |                                                                                                 |
-| `» organization_permissions` | array                                                    | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above. |
-| `»» action`                  | [codersdk.RBACAction](schemas.md#codersdkrbacaction)     | false    |              |                                                                                                 |
-| `»» negate`                  | boolean                                                  | false    |              | Negate makes this a negative permission                                                         |
-| `»» resource_type`           | [codersdk.RBACResource](schemas.md#codersdkrbacresource) | false    |              |                                                                                                 |
-| `» site_permissions`         | array                                                    | false    |              |                                                                                                 |
-| `» user_permissions`         | array                                                    | false    |              |                                                                                                 |
+| Name                                | Type                                                     | Required | Restrictions | Description                                                                                            |
+|-------------------------------------|----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------|
+| `[array item]`                      | array                                                    | false    |              |                                                                                                        |
+| `» display_name`                    | string                                                   | false    |              |                                                                                                        |
+| `» name`                            | string                                                   | false    |              |                                                                                                        |
+| `» organization_id`                 | string(uuid)                                             | false    |              |                                                                                                        |
+| `» organization_member_permissions` | array                                                    | false    |              | Organization member permissions are specific for the organization in the field 'OrganizationID' above. |
+| `»» action`                         | [codersdk.RBACAction](schemas.md#codersdkrbacaction)     | false    |              |                                                                                                        |
+| `»» negate`                         | boolean                                                  | false    |              | Negate makes this a negative permission                                                                |
+| `»» resource_type`                  | [codersdk.RBACResource](schemas.md#codersdkrbacresource) | false    |              |                                                                                                        |
+| `» organization_permissions`        | array                                                    | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above.        |
+| `» site_permissions`                | array                                                    | false    |              |                                                                                                        |
+| `» user_permissions`                | array                                                    | false    |              |                                                                                                        |
 
 #### Enumerated Values
 
@@ -419,6 +442,13 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 {
   "display_name": "string",
   "name": "string",
+  "organization_member_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
   "organization_permissions": [
     {
       "action": "application_connect",
@@ -460,6 +490,13 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
     "display_name": "string",
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "organization_member_permissions": [
+      {
+        "action": "application_connect",
+        "negate": true,
+        "resource_type": "*"
+      }
+    ],
     "organization_permissions": [
       {
         "action": "application_connect",
@@ -495,18 +532,19 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 Status Code **200**
 
-| Name                         | Type                                                     | Required | Restrictions | Description                                                                                     |
-|------------------------------|----------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------|
-| `[array item]`               | array                                                    | false    |              |                                                                                                 |
-| `» display_name`             | string                                                   | false    |              |                                                                                                 |
-| `» name`                     | string                                                   | false    |              |                                                                                                 |
-| `» organization_id`          | string(uuid)                                             | false    |              |                                                                                                 |
-| `» organization_permissions` | array                                                    | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above. |
-| `»» action`                  | [codersdk.RBACAction](schemas.md#codersdkrbacaction)     | false    |              |                                                                                                 |
-| `»» negate`                  | boolean                                                  | false    |              | Negate makes this a negative permission                                                         |
-| `»» resource_type`           | [codersdk.RBACResource](schemas.md#codersdkrbacresource) | false    |              |                                                                                                 |
-| `» site_permissions`         | array                                                    | false    |              |                                                                                                 |
-| `» user_permissions`         | array                                                    | false    |              |                                                                                                 |
+| Name                                | Type                                                     | Required | Restrictions | Description                                                                                            |
+|-------------------------------------|----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------|
+| `[array item]`                      | array                                                    | false    |              |                                                                                                        |
+| `» display_name`                    | string                                                   | false    |              |                                                                                                        |
+| `» name`                            | string                                                   | false    |              |                                                                                                        |
+| `» organization_id`                 | string(uuid)                                             | false    |              |                                                                                                        |
+| `» organization_member_permissions` | array                                                    | false    |              | Organization member permissions are specific for the organization in the field 'OrganizationID' above. |
+| `»» action`                         | [codersdk.RBACAction](schemas.md#codersdkrbacaction)     | false    |              |                                                                                                        |
+| `»» negate`                         | boolean                                                  | false    |              | Negate makes this a negative permission                                                                |
+| `»» resource_type`                  | [codersdk.RBACResource](schemas.md#codersdkrbacresource) | false    |              |                                                                                                        |
+| `» organization_permissions`        | array                                                    | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above.        |
+| `» site_permissions`                | array                                                    | false    |              |                                                                                                        |
+| `» user_permissions`                | array                                                    | false    |              |                                                                                                        |
 
 #### Enumerated Values
 
@@ -602,6 +640,13 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/memb
     "display_name": "string",
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "organization_member_permissions": [
+      {
+        "action": "application_connect",
+        "negate": true,
+        "resource_type": "*"
+      }
+    ],
     "organization_permissions": [
       {
         "action": "application_connect",
@@ -637,18 +682,19 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/memb
 
 Status Code **200**
 
-| Name                         | Type                                                     | Required | Restrictions | Description                                                                                     |
-|------------------------------|----------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------|
-| `[array item]`               | array                                                    | false    |              |                                                                                                 |
-| `» display_name`             | string                                                   | false    |              |                                                                                                 |
-| `» name`                     | string                                                   | false    |              |                                                                                                 |
-| `» organization_id`          | string(uuid)                                             | false    |              |                                                                                                 |
-| `» organization_permissions` | array                                                    | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above. |
-| `»» action`                  | [codersdk.RBACAction](schemas.md#codersdkrbacaction)     | false    |              |                                                                                                 |
-| `»» negate`                  | boolean                                                  | false    |              | Negate makes this a negative permission                                                         |
-| `»» resource_type`           | [codersdk.RBACResource](schemas.md#codersdkrbacresource) | false    |              |                                                                                                 |
-| `» site_permissions`         | array                                                    | false    |              |                                                                                                 |
-| `» user_permissions`         | array                                                    | false    |              |                                                                                                 |
+| Name                                | Type                                                     | Required | Restrictions | Description                                                                                            |
+|-------------------------------------|----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------|
+| `[array item]`                      | array                                                    | false    |              |                                                                                                        |
+| `» display_name`                    | string                                                   | false    |              |                                                                                                        |
+| `» name`                            | string                                                   | false    |              |                                                                                                        |
+| `» organization_id`                 | string(uuid)                                             | false    |              |                                                                                                        |
+| `» organization_member_permissions` | array                                                    | false    |              | Organization member permissions are specific for the organization in the field 'OrganizationID' above. |
+| `»» action`                         | [codersdk.RBACAction](schemas.md#codersdkrbacaction)     | false    |              |                                                                                                        |
+| `»» negate`                         | boolean                                                  | false    |              | Negate makes this a negative permission                                                                |
+| `»» resource_type`                  | [codersdk.RBACResource](schemas.md#codersdkrbacresource) | false    |              |                                                                                                        |
+| `» organization_permissions`        | array                                                    | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above.        |
+| `» site_permissions`                | array                                                    | false    |              |                                                                                                        |
+| `» user_permissions`                | array                                                    | false    |              |                                                                                                        |
 
 #### Enumerated Values
 
@@ -964,6 +1010,13 @@ curl -X GET http://coder-server:8080/api/v2/users/roles \
     "display_name": "string",
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "organization_member_permissions": [
+      {
+        "action": "application_connect",
+        "negate": true,
+        "resource_type": "*"
+      }
+    ],
     "organization_permissions": [
       {
         "action": "application_connect",
@@ -999,20 +1052,21 @@ curl -X GET http://coder-server:8080/api/v2/users/roles \
 
 Status Code **200**
 
-| Name                         | Type                                                     | Required | Restrictions | Description                                                                                     |
-|------------------------------|----------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------|
-| `[array item]`               | array                                                    | false    |              |                                                                                                 |
-| `» assignable`               | boolean                                                  | false    |              |                                                                                                 |
-| `» built_in`                 | boolean                                                  | false    |              | Built in roles are immutable                                                                    |
-| `» display_name`             | string                                                   | false    |              |                                                                                                 |
-| `» name`                     | string                                                   | false    |              |                                                                                                 |
-| `» organization_id`          | string(uuid)                                             | false    |              |                                                                                                 |
-| `» organization_permissions` | array                                                    | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above. |
-| `»» action`                  | [codersdk.RBACAction](schemas.md#codersdkrbacaction)     | false    |              |                                                                                                 |
-| `»» negate`                  | boolean                                                  | false    |              | Negate makes this a negative permission                                                         |
-| `»» resource_type`           | [codersdk.RBACResource](schemas.md#codersdkrbacresource) | false    |              |                                                                                                 |
-| `» site_permissions`         | array                                                    | false    |              |                                                                                                 |
-| `» user_permissions`         | array                                                    | false    |              |                                                                                                 |
+| Name                                | Type                                                     | Required | Restrictions | Description                                                                                            |
+|-------------------------------------|----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------|
+| `[array item]`                      | array                                                    | false    |              |                                                                                                        |
+| `» assignable`                      | boolean                                                  | false    |              |                                                                                                        |
+| `» built_in`                        | boolean                                                  | false    |              | Built in roles are immutable                                                                           |
+| `» display_name`                    | string                                                   | false    |              |                                                                                                        |
+| `» name`                            | string                                                   | false    |              |                                                                                                        |
+| `» organization_id`                 | string(uuid)                                             | false    |              |                                                                                                        |
+| `» organization_member_permissions` | array                                                    | false    |              | Organization member permissions are specific for the organization in the field 'OrganizationID' above. |
+| `»» action`                         | [codersdk.RBACAction](schemas.md#codersdkrbacaction)     | false    |              |                                                                                                        |
+| `»» negate`                         | boolean                                                  | false    |              | Negate makes this a negative permission                                                                |
+| `»» resource_type`                  | [codersdk.RBACResource](schemas.md#codersdkrbacresource) | false    |              |                                                                                                        |
+| `» organization_permissions`        | array                                                    | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above.        |
+| `» site_permissions`                | array                                                    | false    |              |                                                                                                        |
+| `» user_permissions`                | array                                                    | false    |              |                                                                                                        |
 
 #### Enumerated Values
 
