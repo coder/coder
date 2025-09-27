@@ -8,9 +8,10 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) taskCreate() *serpent.Command {
@@ -28,6 +29,16 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "create [input]",
 		Short: "Create an experimental task",
+		Long: FormatExamples(
+			Example{
+				Description: "Create a task with all flags specified",
+				Command:     "coder exp task create \"Refactor CLI auth to use OAuth flow\" --template coder --org coder",
+			},
+			Example{
+				Description: "Create a task with a preset",
+				Command:     "coder exp task create \"Add new API endpoint\" --template coder --preset backend",
+			},
+		),
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 1),
 		),
