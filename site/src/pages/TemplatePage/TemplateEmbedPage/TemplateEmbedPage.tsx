@@ -1,9 +1,9 @@
-import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import { API } from "api/api";
 import type { Template, TemplateVersionParameter } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { FormSection, VerticalForm } from "components/Form/Form";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
@@ -236,18 +236,11 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 							}}
 						>
 							<Button
-								css={{ borderRadius: 999 }}
-								startIcon={
-									clipboard.showCopiedSuccess ? (
-										<CheckIcon className="size-icon-sm" />
-									) : (
-										<CopyIcon className="size-icon-sm" />
-									)
-								}
-								variant="contained"
+								className="rounded-full"
 								onClick={clipboard.copyToClipboard}
 								disabled={clipboard.showCopiedSuccess}
 							>
+								{clipboard.showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
 								Copy button code
 							</Button>
 						</div>
