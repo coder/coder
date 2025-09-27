@@ -12,6 +12,7 @@ const meta: Meta<typeof TemplateExampleCard> = {
 	component: TemplateExampleCard,
 	args: {
 		example: MockTemplateExample,
+		className: "w-80",
 	},
 };
 

@@ -1,8 +1,6 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Card from "@mui/material/Card";
 import CardActionArea from "@mui/material/CardActionArea";
 import CardContent from "@mui/material/CardContent";
-import Stack from "@mui/material/Stack";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
@@ -13,7 +11,10 @@ import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import type { StarterTemplatesByTag } from "utils/starterTemplates";
-import { StarterTemplates } from "./StarterTemplates";
+import {
+	StarterTemplates,
+	StarterTemplatesGridContainer,
+} from "./StarterTemplates";
 
 interface CreateTemplateGalleryPageViewProps {
 	starterTemplatesByTag?: StarterTemplatesByTag;
@@ -36,103 +37,57 @@ export const CreateTemplateGalleryPageView: FC<
 						>
 							Browse the Coder Registry
 							<ExternalLinkIcon className="size-icon-sm ml-1" />
+							<span className="sr-only"> (link opens in new tab)</span>
 						</a>
 					</Button>
 				}
 			>
 				<PageHeaderTitle>Create a Template</PageHeaderTitle>
 			</PageHeader>
-			<Stack spacing={8}>
-				<Stack direction="row" spacing={4}>
-					<div css={{ width: 202 }}>
-						<h2 css={styles.sectionTitle}>
+			<div className="flex flex-col gap-16">
+				<div className="flex flex-row gap-8">
+					<div className="basis-[202px] shrink-0">
+						<h2 className="text-base font-normal m-0 text-content-primary">
 							Choose a starting point for your new template
 						</h2>
 					</div>
-					<div
-						css={{
-							display: "flex",
-							flexWrap: "wrap",
-							gap: 32,
-							height: "max-content",
-						}}
-					>
-						<Card variant="outlined" css={{ width: 320, borderRadius: 6 }}>
+
+					<StarterTemplatesGridContainer>
+						<Card className="rounded-md border-border border-solid">
 							<CardActionArea
 								component={RouterLink}
 								to="/templates/new"
-								sx={{ height: 115, padding: 1 }}
+								className="h-[115px] p-2"
 							>
 								<CardContent>
-									<Stack
-										direction="row"
-										spacing={3}
-										css={{ alignItems: "center" }}
-									>
-										<div css={styles.icon}>
+									<div className="flex flex-row gap-6 items-center">
+										<div className="shrink-0 size-8">
 											<ExternalImage
 												src="/emojis/1f4e1.png"
-												css={{
-													width: "100%",
-													height: "100%",
-												}}
+												className="size-full"
 											/>
 										</div>
 										<div>
-											<h4 css={styles.cardTitle}>Upload Template</h4>
-											<span css={styles.cardDescription}>
+											<h4 className="text-content-secondary text-sm font-semibold m-0 mb-1">
+												Upload Template
+											</h4>
+											<p className="text-sm text-content-secondary m-0 leading-relaxed">
 												Get started by uploading an existing template
-											</span>
+											</p>
 										</div>
-									</Stack>
+									</div>
 								</CardContent>
 							</CardActionArea>
 						</Card>
-					</div>
-				</Stack>
+					</StarterTemplatesGridContainer>
+				</div>
 
 				{Boolean(error) && <ErrorAlert error={error} />}
 
 				{Boolean(!starterTemplatesByTag) && <Loader />}
 
 				<StarterTemplates starterTemplatesByTag={starterTemplatesByTag} />
-			</Stack>
+			</div>
 		</Margins>
 	);
 };
-
-const styles = {
-	sectionTitle: (theme) => ({
-		color: theme.palette.text.primary,
-		fontSize: 16,
-		fontWeight: 400,
-		margin: 0,
-	}),
-
-	cardTitle: (theme) => ({
-		color: theme.palette.text.secondary,
-		fontSize: 14,
-		fontWeight: 600,
-		margin: 0,
-		marginBottom: 4,
-	}),
-
-	cardDescription: (theme) => ({
-		fontSize: 13,
-		color: theme.palette.text.secondary,
-		lineHeight: "1.6",
-		display: "block",
-	}),
-
-	icon: {
-		flexShrink: 0,
-		width: 32,
-		height: 32,
-	},
-
-	menuItemIcon: (theme) => ({
-		color: theme.palette.text.secondary,
-		width: 20,
-		height: 20,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
