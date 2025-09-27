@@ -112,6 +112,7 @@ func pascal(s string) string {
 	s = strings.ReplaceAll(s, "_", " ")
 	s = strings.ReplaceAll(s, "-", " ")
 	s = strings.ReplaceAll(s, ":", " ")
+	s = strings.ReplaceAll(s, ".", " ")
 	words := strings.Fields(s)
 	for i := range words {
 		words[i] = strings.ToUpper(words[i][:1]) + words[i][1:]

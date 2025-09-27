@@ -721,7 +721,14 @@
 | `api_key:read`                  |
 | `api_key:update`                |
 | `coder:all`                     |
+| `coder:apikeys.manage_self`     |
 | `coder:application_connect`     |
+| `coder:templates.author`        |
+| `coder:templates.build`         |
+| `coder:workspaces.access`       |
+| `coder:workspaces.create`       |
+| `coder:workspaces.delete`       |
+| `coder:workspaces.operate`      |
 | `file:*`                        |
 | `file:create`                   |
 | `file:read`                     |

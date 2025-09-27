@@ -52,6 +52,17 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"user_secret:*":      {},
 }
 
+// Public composite coder:* scopes exposed to users.
+var externalComposite = map[ScopeName]struct{}{
+	"coder:workspaces.create":   {},
+	"coder:workspaces.operate":  {},
+	"coder:workspaces.delete":   {},
+	"coder:workspaces.access":   {},
+	"coder:templates.build":     {},
+	"coder:templates.author":    {},
+	"coder:apikeys.manage_self": {},
+}
+
 // IsExternalScope returns true if the scope is public, including the
 // `all` and `application_connect` special scopes and the curated
 // low-level resource:action scopes.
@@ -64,15 +75,18 @@ func IsExternalScope(name ScopeName) bool {
 	if _, ok := externalLowLevel[name]; ok {
 		return true
 	}
+	if _, ok := externalComposite[name]; ok {
+		return true
+	}
 
 	return false
 }
 
-// ExternalScopeNames returns a sorted list of all public scopes, which includes
-// the `all` and `application_connect` special scopes and the curated public
-// low-level names.
+// ExternalScopeNames returns a sorted list of all public scopes, which
+// includes the `all` and `application_connect` special scopes, curated
+// low-level resource:action names, and curated composite coder:* scopes.
 func ExternalScopeNames() []string {
-	names := make([]string, 0, len(externalLowLevel)+2)
+	names := make([]string, 0, len(externalLowLevel)+len(externalComposite)+2)
 	names = append(names, string(ScopeAll))
 	names = append(names, string(ScopeApplicationConnect))
 
@@ -81,6 +95,11 @@ func ExternalScopeNames() []string {
 		if _, _, ok := parseLowLevelScope(name); ok {
 			names = append(names, string(name))
 		}
+	}
+
+	// curated composite names
+	for name := range externalComposite {
+		names = append(names, string(name))
 	}
 
 	sort.Slice(names, func(i, j int) bool { return strings.Compare(names[i], names[j]) < 0 })

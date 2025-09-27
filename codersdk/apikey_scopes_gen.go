@@ -12,7 +12,14 @@ const (
 	APIKeyScopeApiKeyRead                  APIKeyScope = "api_key:read"
 	APIKeyScopeApiKeyUpdate                APIKeyScope = "api_key:update"
 	APIKeyScopeCoderAll                    APIKeyScope = "coder:all"
+	APIKeyScopeCoderApikeysManageSelf      APIKeyScope = "coder:apikeys.manage_self"
 	APIKeyScopeCoderApplicationConnect     APIKeyScope = "coder:application_connect"
+	APIKeyScopeCoderTemplatesAuthor        APIKeyScope = "coder:templates.author"
+	APIKeyScopeCoderTemplatesBuild         APIKeyScope = "coder:templates.build"
+	APIKeyScopeCoderWorkspacesAccess       APIKeyScope = "coder:workspaces.access"
+	APIKeyScopeCoderWorkspacesCreate       APIKeyScope = "coder:workspaces.create"
+	APIKeyScopeCoderWorkspacesDelete       APIKeyScope = "coder:workspaces.delete"
+	APIKeyScopeCoderWorkspacesOperate      APIKeyScope = "coder:workspaces.operate"
 	APIKeyScopeFileAll                     APIKeyScope = "file:*"
 	APIKeyScopeFileCreate                  APIKeyScope = "file:create"
 	APIKeyScopeFileRead                    APIKeyScope = "file:read"
@@ -48,7 +55,14 @@ var PublicAPIKeyScopes = []APIKeyScope{
 	APIKeyScopeApiKeyRead,
 	APIKeyScopeApiKeyUpdate,
 	APIKeyScopeCoderAll,
+	APIKeyScopeCoderApikeysManageSelf,
 	APIKeyScopeCoderApplicationConnect,
+	APIKeyScopeCoderTemplatesAuthor,
+	APIKeyScopeCoderTemplatesBuild,
+	APIKeyScopeCoderWorkspacesAccess,
+	APIKeyScopeCoderWorkspacesCreate,
+	APIKeyScopeCoderWorkspacesDelete,
+	APIKeyScopeCoderWorkspacesOperate,
 	APIKeyScopeFileAll,
 	APIKeyScopeFileCreate,
 	APIKeyScopeFileRead,

@@ -249,6 +249,27 @@ func TestRoleByName(t *testing.T) {
 	})
 }
 
+func TestDeduplicatePermissions(t *testing.T) {
+	t.Parallel()
+
+	perms := []Permission{
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead},
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead},
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionUpdate},
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead, Negate: true},
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead, Negate: true},
+	}
+
+	got := DeduplicatePermissions(perms)
+	want := []Permission{
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead},
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionUpdate},
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead, Negate: true},
+	}
+
+	require.Equal(t, want, got)
+}
+
 // SameAs compares 2 roles for equality.
 func equalRoles(t *testing.T, a, b Role) {
 	require.Equal(t, a.Identifier, b.Identifier, "role names")
