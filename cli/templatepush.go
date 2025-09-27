@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -461,10 +462,14 @@ func createValidTemplateVersion(inv *serpent.Invocation, args createValidTemplat
 	})
 	if err != nil {
 		var jobErr *cliui.ProvisionerJobError
-		if errors.As(err, &jobErr) && !codersdk.JobIsMissingParameterErrorCode(jobErr.Code) {
-			return nil, err
+		if errors.As(err, &jobErr) {
+			if codersdk.JobIsMissingRequiredTemplateVariableErrorCode(jobErr.Code) {
+				return handleMissingTemplateVariables(inv, args, version.ID)
+			}
+			if !codersdk.JobIsMissingParameterErrorCode(jobErr.Code) {
+				return nil, err
+			}
 		}
-
 		return nil, err
 	}
 	version, err = client.TemplateVersion(inv.Context(), version.ID)
@@ -527,4 +532,154 @@ func prettyDirectoryPath(dir string) string {
 		prettyDir = "~" + prettyDir
 	}
 	return prettyDir
+}
+
+func handleMissingTemplateVariables(inv *serpent.Invocation, args createValidTemplateVersionArgs, failedVersionID uuid.UUID) (*codersdk.TemplateVersion, error) {
+	client := args.Client
+
+	templateVariables, err := client.TemplateVersionVariables(inv.Context(), failedVersionID)
+	if err != nil {
+		return nil, xerrors.Errorf("fetch template variables: %w", err)
+	}
+
+	existingValues := make(map[string]string)
+	for _, v := range args.UserVariableValues {
+		existingValues[v.Name] = v.Value
+	}
+
+	var missingVariables []codersdk.TemplateVersionVariable
+	for _, variable := range templateVariables {
+		if !variable.Required {
+			continue
+		}
+
+		if existingValue, exists := existingValues[variable.Name]; exists && existingValue != "" {
+			continue
+		}
+
+		// Only prompt for variables that don't have a default value or have a redacted default
+		// Sensitive variables have a default value of "*redacted*"
+		// See: https://github.com/coder/coder/blob/a78790c632974e04babfef6de0e2ddf044787a7a/coderd/provisionerdserver/provisionerdserver.go#L3206
+		if variable.DefaultValue == "" || (variable.Sensitive && variable.DefaultValue == "*redacted*") {
+			missingVariables = append(missingVariables, variable)
+		}
+	}
+
+	if len(missingVariables) == 0 {
+		return nil, xerrors.New("no missing required variables found")
+	}
+
+	_, _ = fmt.Fprintf(inv.Stderr, "Found %d missing required variables:\n", len(missingVariables))
+	for _, v := range missingVariables {
+		_, _ = fmt.Fprintf(inv.Stderr, "  - %s (%s): %s\n", v.Name, v.Type, v.Description)
+	}
+
+	_, _ = fmt.Fprintln(inv.Stderr, "\nThe template requires values for the following variables:")
+
+	var promptedValues []codersdk.VariableValue
+	for _, variable := range missingVariables {
+		value, err := promptForTemplateVariable(inv, variable)
+		if err != nil {
+			return nil, xerrors.Errorf("prompt for variable %q: %w", variable.Name, err)
+		}
+		promptedValues = append(promptedValues, codersdk.VariableValue{
+			Name:  variable.Name,
+			Value: value,
+		})
+	}
+
+	combinedValues := codersdk.CombineVariableValues(args.UserVariableValues, promptedValues)
+
+	_, _ = fmt.Fprintln(inv.Stderr, "\nRetrying template build with provided variables...")
+
+	retryArgs := args
+	retryArgs.UserVariableValues = combinedValues
+
+	return createValidTemplateVersion(inv, retryArgs)
+}
+
+func promptForTemplateVariable(inv *serpent.Invocation, variable codersdk.TemplateVersionVariable) (string, error) {
+	displayVariableInfo(inv, variable)
+
+	switch variable.Type {
+	case "bool":
+		return promptForBoolVariable(inv, variable)
+	case "number":
+		return promptForNumberVariable(inv, variable)
+	default:
+		return promptForStringVariable(inv, variable)
+	}
+}
+
+func displayVariableInfo(inv *serpent.Invocation, variable codersdk.TemplateVersionVariable) {
+	_, _ = fmt.Fprintf(inv.Stderr, "var.%s", cliui.Bold(variable.Name))
+	if variable.Required {
+		_, _ = fmt.Fprint(inv.Stderr, pretty.Sprint(cliui.DefaultStyles.Error, " (required)"))
+	}
+	if variable.Sensitive {
+		_, _ = fmt.Fprint(inv.Stderr, pretty.Sprint(cliui.DefaultStyles.Warn, ", sensitive"))
+	}
+	_, _ = fmt.Fprintln(inv.Stderr, "")
+
+	if variable.Description != "" {
+		_, _ = fmt.Fprintf(inv.Stderr, "  Description: %s\n", variable.Description)
+	}
+	_, _ = fmt.Fprintf(inv.Stderr, "  Type: %s\n", variable.Type)
+	_, _ = fmt.Fprintf(inv.Stderr, "  Current value: %s\n", pretty.Sprint(cliui.DefaultStyles.Placeholder, "<empty>"))
+}
+
+func promptForBoolVariable(inv *serpent.Invocation, variable codersdk.TemplateVersionVariable) (string, error) {
+	defaultValue := variable.DefaultValue
+	if defaultValue == "" {
+		defaultValue = "false"
+	}
+
+	return cliui.Select(inv, cliui.SelectOptions{
+		Options: []string{"true", "false"},
+		Default: defaultValue,
+		Message: "Select value:",
+	})
+}
+
+func promptForNumberVariable(inv *serpent.Invocation, variable codersdk.TemplateVersionVariable) (string, error) {
+	prompt := "Enter value:"
+	if !variable.Required && variable.DefaultValue != "" {
+		prompt = fmt.Sprintf("Enter value (default: %q):", variable.DefaultValue)
+	}
+
+	return cliui.Prompt(inv, cliui.PromptOptions{
+		Text:     prompt,
+		Default:  variable.DefaultValue,
+		Validate: createVariableValidator(variable),
+	})
+}
+
+func promptForStringVariable(inv *serpent.Invocation, variable codersdk.TemplateVersionVariable) (string, error) {
+	prompt := "Enter value:"
+	if !variable.Sensitive {
+		if !variable.Required && variable.DefaultValue != "" {
+			prompt = fmt.Sprintf("Enter value (default: %q):", variable.DefaultValue)
+		}
+	}
+
+	return cliui.Prompt(inv, cliui.PromptOptions{
+		Text:     prompt,
+		Default:  variable.DefaultValue,
+		Secret:   variable.Sensitive,
+		Validate: createVariableValidator(variable),
+	})
+}
+
+func createVariableValidator(variable codersdk.TemplateVersionVariable) func(string) error {
+	return func(s string) error {
+		if variable.Required && s == "" && variable.DefaultValue == "" {
+			return xerrors.New("value is required")
+		}
+		if variable.Type == "number" && s != "" {
+			if _, err := strconv.ParseFloat(s, 64); err != nil {
+				return xerrors.Errorf("must be a valid number, got: %q", s)
+			}
+		}
+		return nil
+	}
 }
