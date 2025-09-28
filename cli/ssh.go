@@ -84,6 +84,10 @@ func (r *RootCmd) ssh() *serpent.Command {
 
 		containerName string
 		containerUser string
+
+		// Immortal stream options (stdio mode)
+		immortal         bool
+		immortalFallback bool
 	)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
@@ -301,7 +305,9 @@ func (r *RootCmd) ssh() *serpent.Command {
 
 			// If we're in stdio mode, check to see if we can use Coder Connect.
 			// We don't support Coder Connect over non-stdio coder ssh yet.
-			if stdio && !forceNewTunnel {
+			// Skip this fast-path if using immortal streams; the immortal reconnector
+			// will select Coder Connect internally when available.
+			if stdio && !forceNewTunnel && !immortal {
 				connInfo, err := wsClient.AgentConnectionInfoGeneric(ctx)
 				if err != nil {
 					return xerrors.Errorf("get agent connection info: %w", err)
@@ -388,7 +394,10 @@ func (r *RootCmd) ssh() *serpent.Command {
 				defer closeUsage()
 			}
 
-			if stdio {
+			if stdio && immortal {
+				return runStdioImmortal(ctx, wsClient, client, conn, workspace, workspaceAgent, logger, stdioReader, stdioWriter, stack, networkInfoDir, networkInfoInterval, immortalFallback, &wg)
+			}
+			if stdio && !immortal {
 				rawSSH, err := conn.SSH(ctx)
 				if err != nil {
 					return xerrors.Errorf("connect SSH: %w", err)
@@ -624,6 +633,19 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Env:         "CODER_SSH_STDIO",
 			Description: "Specifies whether to emit SSH output over stdin/stdout.",
 			Value:       serpent.BoolOf(&stdio),
+		},
+		{
+			Flag:        "immortal",
+			Env:         "CODER_SSH_IMMORTAL",
+			Description: "Use an Immortal Stream for SSH in stdio mode.",
+			Value:       serpent.BoolOf(&immortal),
+		},
+		{
+			Flag:        "immortal-fallback",
+			Env:         "CODER_SSH_IMMORTAL_FALLBACK",
+			Description: "If enabled, fall back to regular TCP when Immortal Stream creation fails.",
+			Default:     "false",
+			Value:       serpent.BoolOf(&immortalFallback),
 		},
 		{
 			Flag:        "ssh-host-prefix",
@@ -1280,6 +1302,11 @@ func (c *closerStack) push(name string, closer io.Closer) error {
 	return nil
 }
 
+// closerFunc adapts a function to io.Closer.
+type closerFunc func() error
+
+func (f closerFunc) Close() error { return f() }
+
 // rawSSHCopier handles copying raw SSH data between the conn and the pair (r, w).
 type rawSSHCopier struct {
 	conn   *gonet.TCPConn
@@ -1342,6 +1369,161 @@ func (c *rawSSHCopier) Close() error {
 	case <-t.C:
 	}
 	return err
+}
+
+// immortalSSHCopier handles copying raw SSH data when using an Immortal Stream.
+// On stdin close, it triggers the provided onClose callback (used to delete the stream)
+// and closes the underlying connection.
+type immortalSSHCopier struct {
+	conn   net.Conn
+	logger slog.Logger
+	r      io.Reader
+	w      io.Writer
+
+	onStdinClose func()
+}
+
+func newImmortalSSHCopier(logger slog.Logger, conn net.Conn, r io.Reader, w io.Writer, onStdinClose func()) *immortalSSHCopier {
+	return &immortalSSHCopier{conn: conn, logger: logger, r: r, w: w, onStdinClose: onStdinClose}
+}
+
+func (c *immortalSSHCopier) copy(wg *sync.WaitGroup) {
+	logCtx := context.Background()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		// Copy stdin to the immortal connection. When stdin ends, delete the stream and close the conn.
+		_, err := io.Copy(c.conn, c.r)
+		if err != nil {
+			c.logger.Error(logCtx, "copy stdin error", slog.Error(err))
+		} else {
+			c.logger.Debug(logCtx, "copy stdin complete")
+		}
+		if c.onStdinClose != nil {
+			c.onStdinClose()
+		}
+		_ = c.conn.Close()
+	}()
+
+	// Copy from connection to stdout until closed.
+	_, err := io.Copy(c.w, c.conn)
+	if err != nil {
+		c.logger.Error(logCtx, "copy stdout error", slog.Error(err))
+	} else {
+		c.logger.Debug(logCtx, "copy stdout complete")
+	}
+}
+
+func (c *immortalSSHCopier) Close() error {
+	return c.conn.Close()
+}
+
+// runStdioImmortal handles the stdio+immortal connection flow, reducing nesting in the main handler.
+func runStdioImmortal(
+	ctx context.Context,
+	wsClient *workspacesdk.Client,
+	client *codersdk.Client,
+	conn workspacesdk.AgentConn,
+	workspace codersdk.Workspace,
+	workspaceAgent codersdk.WorkspaceAgent,
+	logger slog.Logger,
+	stdioReader io.Reader,
+	stdioWriter io.Writer,
+	stack *closerStack,
+	networkInfoDir string,
+	networkInfoInterval time.Duration,
+	immortalFallback bool,
+	wg *sync.WaitGroup,
+) error {
+	// Compute Coder Connect host for reconnector selection.
+	connInfo, err := wsClient.AgentConnectionInfoGeneric(ctx)
+	if err != nil {
+		return xerrors.Errorf("get agent connection info: %w", err)
+	}
+	coderConnectHost := fmt.Sprintf("%s.%s.%s.%s",
+		workspaceAgent.Name, workspace.Name, workspace.OwnerName, connInfo.HostnameSuffix)
+
+	// Prepare fallback to regular SSH TCP over tailnet.
+	fallbackDial := func(dialCtx context.Context) (net.Conn, error) {
+		return conn.SSH(dialCtx)
+	}
+
+	res, err := DialImmortalOrFallback(
+		ctx,
+		conn,
+		client,
+		workspaceAgent.ID,
+		logger,
+		ImmortalDialOptions{
+			Enabled:          true,
+			Fallback:         immortalFallback,
+			TargetPort:       workspacesdk.AgentSSHPort,
+			CoderConnectHost: coderConnectHost,
+		},
+		fallbackDial,
+	)
+	if err != nil {
+		return err
+	}
+
+	// Delete immortal stream on shutdown or stdin close.
+	var deleteOnce sync.Once
+	deleteFn := func() {
+		if res.StreamClient != nil && res.StreamID != nil {
+			_ = res.StreamClient.deleteStream(ctx, *res.StreamID)
+		}
+	}
+
+	var errCh <-chan error
+	if networkInfoDir != "" {
+		errCh, err = setStatsCallback(ctx, conn, logger, networkInfoDir, networkInfoInterval)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Ensure deletion at overall shutdown as well.
+	_ = stack.push("immortal stream deleter", closerFunc(func() error { deleteOnce.Do(deleteFn); return nil }))
+
+	// Choose copier based on whether we used immortal or fell back to TCP.
+	if res.UsedImmortal {
+		copier := newImmortalSSHCopier(logger, res.Conn, stdioReader, stdioWriter, func() { deleteOnce.Do(deleteFn) })
+		if err = stack.push("immortalSSHCopier", copier); err != nil {
+			return err
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			watchAndClose(ctx, func() error {
+				stack.close(xerrors.New("watchAndClose"))
+				return nil
+			}, logger, client, workspace, errCh)
+		}()
+		copier.copy(wg)
+		return nil
+	}
+
+	// Fallback path: use the standard raw SSH copier semantics.
+	tcpConn, ok := res.Conn.(*gonet.TCPConn)
+	if !ok {
+		// Should not happen, but guard just in case
+		return xerrors.New("fallback SSH connection is not TCP")
+	}
+	copier := newRawSSHCopier(logger, tcpConn, stdioReader, stdioWriter)
+	if err = stack.push("rawSSHCopier", copier); err != nil {
+		return err
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		watchAndClose(ctx, func() error {
+			stack.close(xerrors.New("watchAndClose"))
+			return nil
+		}, logger, client, workspace, errCh)
+	}()
+	copier.copy(wg)
+	return nil
 }
 
 func sshDisableAutostartOption(src *serpent.Bool) serpent.Option {

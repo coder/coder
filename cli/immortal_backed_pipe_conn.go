@@ -127,7 +127,7 @@ func (r *clientStreamReconnector) Reconnect(ctx context.Context, readerSeqNum ui
 	dialCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	r.logger.Debug(ctx, "immortal reconnect dialing", slog.F("url", r.wsURL), slog.F("reader_seq", readerSeqNum))
+	r.logger.Info(ctx, "immortal: attempting reconnect", slog.F("url", r.wsURL), slog.F("reader_seq", readerSeqNum))
 	ws, resp, err := websocket.Dial(dialCtx, r.wsURL, dialOptions)
 	if err != nil {
 		var status string
@@ -159,7 +159,7 @@ func (r *clientStreamReconnector) Reconnect(ctx context.Context, readerSeqNum ui
 			_ = resp.Body.Close()
 		}
 	}
-	r.logger.Debug(ctx, "immortal reconnect upgraded", slog.F("url", r.wsURL), slog.F("remote_reader_seq", remoteReaderSeq))
+	r.logger.Info(ctx, "immortal: reconnect established", slog.F("url", r.wsURL), slog.F("remote_reader_seq", remoteReaderSeq))
 
 	// Convert to net.Conn for binary transport
 	nc := websocket.NetConn(ctx, ws, websocket.MessageBinary)
@@ -195,6 +195,7 @@ func (c *immortalBackedConn) startSupervisor() {
 
 			// Attempt reconnect if not connected
 			if !c.pipe.Connected() {
+				c.logger.Info(context.Background(), "immortal: supervisor forcing reconnect")
 				if err := c.pipe.ForceReconnect(); err != nil {
 					c.logger.Error(context.Background(), "backedpipe reconnect attempt failed", slog.Error(err))
 				}

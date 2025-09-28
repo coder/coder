@@ -77,6 +77,26 @@ func setupWorkspaceForAgent(t *testing.T, mutations ...func([]*proto.Agent) []*p
 	return userClient, r.Workspace, r.AgentToken
 }
 
+type readerWriterConnWithAddr struct {
+	*testutil.ReaderWriterConn
+	local  net.Addr
+	remote net.Addr
+}
+
+func (c *readerWriterConnWithAddr) LocalAddr() net.Addr {
+	if c.local != nil {
+		return c.local
+	}
+	return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0}
+}
+
+func (c *readerWriterConnWithAddr) RemoteAddr() net.Addr {
+	if c.remote != nil {
+		return c.remote
+	}
+	return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0}
+}
+
 func TestSSH(t *testing.T) {
 	t.Parallel()
 	t.Run("ImmediateExit", func(t *testing.T) {
@@ -102,6 +122,90 @@ func TestSSH(t *testing.T) {
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
 		<-cmdDone
+	})
+
+	t.Run("StdioImmortal_CreateAndDeleteOnStdinClose", func(t *testing.T) {
+		t.Parallel()
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		_, _ = tGoContext(t, func(ctx context.Context) {
+			// Run this async so the SSH command has to wait for
+			// the build and agent to connect!
+			_ = agenttest.New(t, client.URL, agentToken)
+			<-ctx.Done()
+		})
+
+		clientOutput, clientInput := io.Pipe()
+		serverOutput, serverInput := io.Pipe()
+		defer func() {
+			for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+				_ = c.Close()
+			}
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		inv, root := clitest.New(t, "ssh", "--stdio", "--immortal", workspace.Name)
+		clitest.SetupConfig(t, client, root)
+		inv.Stdin = clientOutput
+		inv.Stdout = serverInput
+		inv.Stderr = io.Discard
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+
+		conn, channels, requests, err := ssh.NewClientConn(&readerWriterConnWithAddr{
+			ReaderWriterConn: &testutil.ReaderWriterConn{
+				Reader: serverOutput,
+				Writer: clientInput,
+			},
+			local:  &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0},
+			remote: &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 2222},
+		}, "", &ssh.ClientConfig{
+			// #nosec
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
+		require.NoError(t, err)
+		defer conn.Close()
+
+		// Verify an immortal stream exists while the session is active.
+		w2, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		var agentID uuid.UUID
+		for _, res := range w2.LatestBuild.Resources {
+			for _, a := range res.Agents {
+				agentID = a.ID
+				break
+			}
+		}
+		require.NotEqual(t, uuid.UUID{}, agentID)
+		streams, err := client.WorkspaceAgentImmortalStreams(ctx, agentID)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(streams), 1)
+
+		sshClient := ssh.NewClient(conn, channels, requests)
+		session, err := sshClient.NewSession()
+		require.NoError(t, err)
+		defer session.Close()
+
+		command := "sh -c exit"
+		if runtime.GOOS == "windows" {
+			command = "cmd.exe /c exit"
+		}
+		err = session.Run(command)
+		require.NoError(t, err)
+		err = sshClient.Close()
+		require.NoError(t, err)
+		_ = clientOutput.Close()
+
+		<-cmdDone
+
+		// After stdin close, the immortal stream should be deleted.
+		streamsAfter, err := client.WorkspaceAgentImmortalStreams(context.Background(), agentID)
+		require.NoError(t, err)
+		require.Len(t, streamsAfter, 0)
 	})
 	t.Run("WorkspaceNameInput", func(t *testing.T) {
 		t.Parallel()

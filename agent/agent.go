@@ -814,11 +814,15 @@ const (
 
 func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_Type, ip string) (disconnected func(code int, reason string)) {
 	// Remove the port from the IP because ports are not supported in coderd.
-	if host, _, err := net.SplitHostPort(ip); err != nil {
-		a.logger.Error(a.hardCtx, "split host and port for connection report failed", slog.F("ip", ip), slog.Error(err))
-	} else {
+	if host, _, err := net.SplitHostPort(ip); err == nil {
 		// Best effort.
 		ip = host
+	} else if !strings.Contains(ip, ":") {
+		// net.Pipe and other in-memory transports may not include a port. Use the
+		// provided value without logging an error so tests using these transports
+		// do not fail due to expected placeholder addresses like "pipe".
+	} else {
+		a.logger.Error(a.hardCtx, "split host and port for connection report failed", slog.F("ip", ip), slog.Error(err))
 	}
 
 	a.reportConnectionsMu.Lock()

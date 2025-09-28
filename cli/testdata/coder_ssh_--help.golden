@@ -8,10 +8,10 @@ USAGE:
   This command does not have full parity with the standard SSH command. For
   users who need the full functionality of SSH, create an ssh configuration with
   `coder config-ssh`.
-  
+
     - Use `--` to separate and pass flags directly to the command executed via
   SSH.:
-  
+
        $ coder ssh <workspace> -- ls -la
 
 OPTIONS:
@@ -40,6 +40,13 @@ OPTIONS:
       --identity-agent string, $CODER_SSH_IDENTITY_AGENT
           Specifies which identity agent to use (overrides $SSH_AUTH_SOCK),
           forward agent must also be enabled.
+
+      --immortal bool, $CODER_SSH_IMMORTAL
+          Use an Immortal Stream for SSH in stdio mode.
+
+      --immortal-fallback bool, $CODER_SSH_IMMORTAL_FALLBACK (default: false)
+          If enabled, fall back to regular TCP when Immortal Stream creation
+          fails.
 
   -l, --log-dir string, $CODER_SSH_LOG_DIR
           Specify the directory containing SSH diagnostic log files.
