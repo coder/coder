@@ -145,6 +145,7 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.promptExample(),
 		r.rptyCommand(),
 		r.tasksCommand(),
+		r.immortalStreamCmd(),
 	}
 }
 
