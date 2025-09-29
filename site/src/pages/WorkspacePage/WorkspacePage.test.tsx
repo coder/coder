@@ -309,7 +309,7 @@ describe("WorkspacePage", () => {
 	// Started flaking after upgrading react-router. Tests the old parameters path
 	// and isn't worth spending more time to fix since this code will be removed
 	// in a few releases when dynamic parameters takes over the world.
-	it.skip("updates the parameters when they are missing during update", async () => {
+	it("updates the parameters when they are missing during update", async () => {
 		// Mocks
 		jest
 			.spyOn(API, "getWorkspaceByOwnerAndName")
@@ -340,7 +340,7 @@ describe("WorkspacePage", () => {
 
 		// After trying to update, a new dialog asking for missed parameters should
 		// be displayed and filled
-		const dialog = await waitFor(() => screen.findByTestId("dialog"));
+		const dialog = await screen.findByTestId("dialog");
 		const firstParameterInput = within(dialog).getByLabelText(
 			MockTemplateVersionParameter1.name,
 			{ exact: false },
